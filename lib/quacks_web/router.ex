@@ -8,6 +8,7 @@ defmodule QuacksWeb.Router do
     plug :put_root_layout, html: {QuacksWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug QuacksWeb.Plugs.PlayerToken
   end
 
   pipeline :api do
@@ -17,7 +18,8 @@ defmodule QuacksWeb.Router do
   scope "/", QuacksWeb do
     pipe_through :browser
 
-    live "/", GameLive
+    live "/", LobbyLive
+    live "/g/:id", GameLive
   end
 
   # Other scopes may use custom stacks.

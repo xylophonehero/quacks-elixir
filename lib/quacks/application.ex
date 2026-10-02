@@ -11,8 +11,9 @@ defmodule Quacks.Application do
       QuacksWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:quacks, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Quacks.PubSub},
-      # Start a worker by calling: Quacks.Worker.start_link(arg)
-      # {Quacks.Worker, arg},
+      # One `Quacks.GameServer` per game, found by its id (see that module).
+      {Registry, keys: :unique, name: Quacks.GameRegistry},
+      {DynamicSupervisor, name: Quacks.GameSupervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry
       QuacksWeb.Endpoint
     ]

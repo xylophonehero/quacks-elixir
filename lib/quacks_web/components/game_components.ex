@@ -6,7 +6,7 @@ defmodule QuacksWeb.GameComponents do
   """
   use Phoenix.Component
 
-  alias Quacks.Game
+  alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Chips, PotTrack}
 
   @colours %{
@@ -29,7 +29,7 @@ defmodule QuacksWeb.GameComponents do
       <.chip chip={{:white, 1}} size={:sm} />
   """
   attr :chip, :any, required: true, doc: "a `{colour, value}` tuple"
-  attr :size, :atom, default: :md, values: [:sm, :md]
+  attr :size, :atom, default: :md, values: [:xs, :sm, :md]
   attr :rest, :global
 
   def chip(assigns) do
@@ -46,6 +46,7 @@ defmodule QuacksWeb.GameComponents do
     <span
       class={[
         "inline-flex shrink-0 items-center justify-center rounded-full font-bold tabular-nums",
+        @size == :xs && "size-4 text-[9px]",
         @size == :sm && "size-6 text-xs",
         @size == :md && "size-9 text-sm",
         @colour_class
@@ -59,46 +60,71 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  The 54-space pot track as a wrapping grid.
+  One seat's 54-space pot track as a wrapping grid.
 
-  Each space shows its index, coins, victory points and a ruby dot. The droplet space
-  gets a blue ring, placed chips sit on their spaces, and the scoring space (the one
-  directly after the last chip) is highlighted.
+  `size={:lg}` (your own pot) shows each space's index, coins, victory points and a
+  ruby dot. `size={:sm}` (another player's pot) shows only the chips. In both, the
+  droplet space gets a blue ring, placed chips sit on their spaces, the scoring space
+  (the one directly after the last chip) is highlighted and the rat stone, when the
+  player has one, is a grey dot on its space.
   """
   attr :game, Game, required: true
+  attr :seat, :integer, default: 0
+  attr :size, :atom, default: :lg, values: [:sm, :lg]
 
   def pot(assigns) do
+    player = assigns.game.players[assigns.seat]
+
     assigns =
       assign(assigns,
-        me: assigns.game.players[0],
-        chips_by_index: chips_by_index(assigns.game.players[0]),
-        scoring_index: Game.scoring_index(assigns.game),
+        me: player,
+        chips_by_index: chips_by_index(player),
+        scoring_index: Game.scoring_index(assigns.game, assigns.seat),
+        rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
         spaces: 0..PotTrack.last()
       )
 
     ~H"""
-    <ol class="grid grid-cols-6 gap-1 sm:grid-cols-9" aria-label="Pot track">
+    <ol
+      class={[
+        "grid",
+        @size == :lg && "grid-cols-6 gap-1 sm:grid-cols-9",
+        @size == :sm && "grid-cols-9 gap-0.5"
+      ]}
+      aria-label="Pot track"
+    >
       <li
         :for={index <- @spaces}
         class={[
-          "relative flex aspect-square flex-col items-center justify-center rounded-md p-1 text-[10px] leading-tight",
+          "relative flex aspect-square flex-col items-center justify-center rounded-md leading-tight",
+          @size == :lg && "p-1 text-[10px]",
           index == @scoring_index && "bg-amber-200 ring-2 ring-amber-500",
           index != @scoring_index && "bg-zinc-100",
           index == @me.droplet && "ring-2 ring-sky-500"
         ]}
         data-space={index}
       >
-        <span class="absolute left-1 top-0.5 text-zinc-400">{index}</span>
+        <span :if={@size == :lg} class="absolute left-1 top-0.5 text-zinc-400">{index}</span>
         <span
-          :if={PotTrack.at(index).ruby?}
+          :if={@size == :lg and PotTrack.at(index).ruby?}
           class="absolute right-1 top-1 size-2 rounded-full bg-rose-500"
           aria-label="ruby"
         />
-        <%= if chip = @chips_by_index[index] do %>
-          <.chip chip={chip} size={:sm} data-role="pot-chip" />
-        <% else %>
-          <span class="font-semibold text-zinc-700">{PotTrack.at(index).coins}c</span>
-          <span :if={PotTrack.at(index).vp > 0} class="text-zinc-500">{PotTrack.at(index).vp}vp</span>
+        <span
+          :if={index == @rat_index}
+          class="absolute bottom-0.5 right-0.5 size-2 rounded-full bg-zinc-500"
+          aria-label="rat stone"
+          data-role="rat-stone"
+        />
+        <%= cond do %>
+          <% chip = @chips_by_index[index] -> %>
+            <.chip chip={chip} size={if @size == :lg, do: :sm, else: :xs} data-role="pot-chip" />
+          <% @size == :lg -> %>
+            <span class="font-semibold text-zinc-700">{PotTrack.at(index).coins}c</span>
+            <span :if={PotTrack.at(index).vp > 0} class="text-zinc-500">
+              {PotTrack.at(index).vp}vp
+            </span>
+          <% true -> %>
         <% end %>
       </li>
     </ol>
@@ -130,21 +156,22 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  @doc "Round, phase, score and the player's resources in one strip."
+  @doc "Round, phase, score and one seat's resources in one strip."
   attr :game, Game, required: true
+  attr :seat, :integer, default: 0
 
   def status(assigns) do
-    assigns = assign(assigns, me: assigns.game.players[0])
+    assigns = assign(assigns, me: assigns.game.players[assigns.seat])
 
     ~H"""
     <dl class="grid grid-cols-3 gap-2 text-sm sm:grid-cols-6">
       <.stat label="Round" value={"#{@game.round} / 9"} />
-      <.stat label="Phase" value={phase_name(Game.phase(@game, 0))} />
+      <.stat label="Phase" value={phase_name(Game.phase(@game, @seat))} />
       <.stat label="VP" value={@me.vp} />
       <.stat label="Rubies" value={@me.rubies} />
       <.stat label="Flask" value={if @me.flask, do: "full", else: "empty"} />
-      <.stat label="White" value={"#{Game.white_sum(@game)} / 7"} />
-      <div :if={@game.phase == :buy_chips} class="col-span-3 sm:col-span-6">
+      <.stat label="White" value={"#{Game.white_sum(@game, @seat)} / 7"} />
+      <div :if={@game.phase == :buy_chips and @game.turn == @seat} class="col-span-3 sm:col-span-6">
         <span class="rounded-md bg-amber-100 px-2 py-1 font-semibold text-amber-900">
           {@me.coins} coins to spend
         </span>
@@ -169,6 +196,37 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
+  Another player at the table, read-only: name, resources, whether they are still
+  brewing, whose turn it is, and their pot drawn small.
+  """
+  attr :game, Game, required: true
+  attr :seat, :integer, required: true
+  attr :name, :string, required: true
+
+  def player_card(assigns) do
+    assigns = assign(assigns, p: assigns.game.players[assigns.seat])
+
+    ~H"""
+    <article class="space-y-2 rounded-lg bg-zinc-50 p-2 text-xs" data-seat={@seat}>
+      <header class="flex flex-wrap items-center gap-1">
+        <span class="font-semibold" data-role="player-name">{@name}</span>
+        <span :if={@game.phase == :potions} class="rounded bg-zinc-200 px-1">
+          {if @p.done?, do: "done", else: "waiting"}
+        </span>
+        <span :if={@game.turn == @seat} class="rounded bg-amber-200 px-1">their turn</span>
+        <span :if={@p.exploded?} class="rounded bg-rose-600 px-1 text-white">Exploded!</span>
+      </header>
+      <p class="text-zinc-600">
+        Round {@game.round} · {@p.vp} VP · {@p.rubies} rubies · flask {if @p.flask,
+          do: "full",
+          else: "empty"} · white {Game.white_sum(@game, @seat)} / 7
+      </p>
+      <.pot game={@game} seat={@seat} size={:sm} />
+    </article>
+    """
+  end
+
+  @doc """
   The chips a blue chip drew, duplicates included, so two identical offers are both
   visible. The action buttons below it show one button per distinct chip.
   """
@@ -189,18 +247,21 @@ defmodule QuacksWeb.GameComponents do
 
   @doc """
   The last few game events, newest first. Every log entry runs through `label/1`.
+  With `names` (multiplayer), each player entry starts with that seat's name; without
+  (solo), the seat is left out.
   Actions that an event already narrates (`:draw` → "Drew ...", a buy → "Bought ...",
   spending rubies → "Spent ...") are left out so the log does not say things twice.
   """
   attr :log, :list, required: true, doc: "`game.log`, newest first"
   attr :limit, :integer, default: 20
+  attr :names, :map, default: nil, doc: "`%{seat => name}`; nil hides the seat"
 
   def action_log(assigns) do
     entries =
       assigns.log
-      |> Enum.map(&untag/1)
-      |> Enum.reject(&narrated_by_event?/1)
+      |> Enum.reject(&(&1 |> untag() |> narrated_by_event?()))
       |> Enum.take(assigns.limit)
+      |> Enum.map(&log_line(&1, assigns.names))
 
     assigns = assign(assigns, entries: entries)
 
@@ -208,14 +269,18 @@ defmodule QuacksWeb.GameComponents do
     <div>
       <h2 class="text-sm font-semibold text-zinc-600">Log</h2>
       <ol class="mt-2 space-y-1 text-sm text-zinc-700" aria-label="Recent actions">
-        <li :for={entry <- @entries}>{label(entry)}</li>
+        <li :for={line <- @entries}>{line}</li>
         <li :if={@entries == []} class="text-zinc-400">Nothing yet. Draw a chip.</li>
       </ol>
     </div>
     """
   end
 
-  # The solo page shows seat 0 only, so the seat tag on player entries is dropped.
+  defp log_line({seat, entry}, names) when is_integer(seat) and is_map(names),
+    do: "#{Map.get(names, seat, GameServer.default_name(seat))}: #{label(entry)}"
+
+  defp log_line(entry, _names), do: entry |> untag() |> label()
+
   defp untag({seat, entry}) when is_integer(seat), do: entry
   defp untag(entry), do: entry
 
@@ -265,6 +330,8 @@ defmodule QuacksWeb.GameComponents do
   def label({:purple, 2, :vp1_ruby}), do: "Ghost's breath (tier 2): +1 VP, +1 ruby"
   def label({:purple, 3, :vp2_droplet}), do: "Ghost's breath (tier 3): +2 VP, droplet +1"
   def label({:black, :droplet}), do: "Hawkmoth: droplet +1"
+  def label({:black, :droplet_ruby}), do: "Hawkmoth: droplet +1, +1 ruby"
+  def label({:rats, tails}), do: "Rats: #{tails} #{plural(tails, "tail", "tails")}"
   def label({:pot_ruby, index}), do: "Scoring space #{index}: +1 ruby"
   def label({:pot_vp, vp, index}), do: "Scoring space #{index}: +#{vp} VP"
   def label({:round_end, round}), do: "— Round #{round} over —"
@@ -287,6 +354,7 @@ defmodule QuacksWeb.GameComponents do
   defp phase_name(:blue_choice), do: "Crow skull"
   defp phase_name(:buy_chips), do: "Shop"
   defp phase_name(:spend_rubies), do: "Rubies"
+  defp phase_name(:done), do: "Done"
   defp phase_name(:over), do: "Over"
   defp phase_name(other), do: inspect(other)
 end

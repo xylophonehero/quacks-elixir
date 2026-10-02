@@ -25,6 +25,9 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **blue offer** | The extra chips a blue chip draws (`pending` on the player). The player places at most one as the next chip; the rest go back in the bag. |
 | **black rule** | Rulebook §4. 2 players: as many black chips as the opponent (and at least 1) → droplet +1; more → droplet +1 and 1 ruby. 3-4 players: more than one neighbour (adjacent seat) → droplet +1; more than both → droplet +1 and 1 ruby. |
 | **black house rule** | ⚠️ Solo has no opponent to compare black chips with. The engine treats 1+ black chip in the pot as "tied with the opponent": droplet +1, no ruby. Rulebook §6.2 suggests droplet +1 and 1 ruby instead; we chose the lower payout. |
+| **game id** | 6 lowercase letters naming one running game, as in `/g/:id`. `Quacks.GameServer` registers each game process under its id in `Quacks.GameRegistry`. |
+| **player token** | A random value in the browser's session cookie (`QuacksWeb.Plugs.PlayerToken`). It stands in for an account: a `GameServer` maps token → seat on the first `claim_seat`. Seats fill in join order; the creator is seat 0. Shown to people as "Seat N" with N = seat + 1, or a nickname. |
+| **spectator** | A browser on a full game that has no seat. It sees every pot and no buttons. |
 
 ## Log (`Quacks.Game.log`)
 

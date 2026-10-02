@@ -1,8 +1,12 @@
 defmodule QuacksWeb.GameLive do
   @moduledoc """
-  The solo game page. One `Quacks.Session` lives in the socket assigns; every button
-  the player sees comes from `Quacks.Game.legal_actions/1` and every click goes through
-  `Quacks.Session.apply/2`. The page itself knows no rules.
+  The game page, `/g/:id`, for 1 to 4 players. The game itself lives in a
+  `Quacks.GameServer` process; this LiveView asks it for a seat on mount (by the
+  browser's player token), subscribes to the game's PubSub topic and re-renders on
+  every `{:game, id, game}` broadcast. Every button comes from
+  `Quacks.Game.legal_actions/2` for this browser's seat and every click goes through
+  `Quacks.GameServer.apply/3`. The page itself knows no rules. A browser without a
+  seat (the game is full) watches: it sees every pot and no buttons.
 
   Actions travel to the browser as a URL-safe binary (see `encode/1`) so tuples like
   `{:buy, [{:green, 2}]}` survive the round trip without a parser per action shape.
@@ -11,7 +15,7 @@ defmodule QuacksWeb.GameLive do
 
   import QuacksWeb.GameComponents
 
-  alias Quacks.{Game, Session}
+  alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Chips
 
   # The shop, one row per colour. The single-value colours share the top row; the
@@ -24,19 +28,47 @@ defmodule QuacksWeb.GameLive do
     [{:yellow, 1}, {:yellow, 2}, {:yellow, 4}]
   ]
 
-  @doc """
-  Start a game. `?seed=1,2,3` gives a reproducible game; otherwise the seed is random.
-  """
+  @doc "Join game `id`: take a free seat, or watch when the game is full."
   @impl true
-  def mount(params, _session, socket) do
-    {:ok, start(socket, seed_from_params(params))}
+  def mount(%{"id" => id}, session, socket) do
+    case GameServer.get(id) do
+      {:ok, table} ->
+        if connected?(socket), do: Phoenix.PubSub.subscribe(Quacks.PubSub, GameServer.topic(id))
+
+        seat =
+          case GameServer.claim_seat(id, session["player_token"]) do
+            {:ok, seat} -> seat
+            {:error, _full} -> nil
+          end
+
+        # The claim may have added our own name; read the table again for it.
+        {:ok, table} = if seat, do: GameServer.get(id), else: {:ok, table}
+
+        {:ok,
+         socket
+         |> assign(
+           page_title: "Quacks #{id}",
+           id: id,
+           token: session["player_token"],
+           seat: seat,
+           seed: table.seed,
+           players: table.players,
+           names: table.names
+         )
+         |> put_game(table.game)}
+
+      {:error, :not_found} ->
+        {:ok,
+         socket |> put_flash(:error, "Game #{id} does not exist.") |> push_navigate(to: ~p"/")}
+    end
   end
 
   @impl true
-  def handle_event("action", %{"action" => encoded}, socket) do
+  def handle_event("action", %{"action" => encoded}, %{assigns: %{seat: seat}} = socket)
+      when is_integer(seat) do
     with {:ok, action} <- decode(encoded),
-         {:ok, session} <- Session.apply(socket.assigns.session, action) do
-      {:noreply, put_session(socket, session)}
+         {:ok, game} <- GameServer.apply(socket.assigns.id, seat, action) do
+      {:noreply, put_game(socket, game)}
     else
       {:error, {:illegal_action, action, _phase}} ->
         {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
@@ -45,6 +77,9 @@ defmodule QuacksWeb.GameLive do
         {:noreply, put_flash(socket, :error, "That move could not be read.")}
     end
   end
+
+  def handle_event("action", _params, socket),
+    do: {:noreply, put_flash(socket, :error, "You are watching this game.")}
 
   # The shop form re-sends every ticked checkbox on each change; no key means none.
   def handle_event("select", params, socket) do
@@ -63,61 +98,141 @@ defmodule QuacksWeb.GameLive do
   end
 
   def handle_event("undo", _params, socket) do
-    {:noreply, put_session(socket, Session.undo(socket.assigns.session))}
+    case GameServer.undo(socket.assigns.id) do
+      {:ok, game} -> {:noreply, put_game(socket, game)}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Undo is for solo games only.")}
+    end
   end
 
+  # A new game for the same number of players, with this browser in seat 0.
   def handle_event("new_game", _params, socket) do
-    {:noreply, start(socket, random_seed())}
+    {:ok, id} = GameServer.start(socket.assigns.players)
+    {:ok, 0} = GameServer.claim_seat(id, socket.assigns.token)
+    {:noreply, push_navigate(socket, to: ~p"/g/#{id}")}
   end
+
+  # The nickname input sends its value when it loses focus.
+  def handle_event("rename", %{"value" => name}, %{assigns: %{seat: seat}} = socket)
+      when is_integer(seat) do
+    :ok = GameServer.rename(socket.assigns.id, seat, name)
+    {:noreply, socket}
+  end
+
+  def handle_event("rename", _params, socket), do: {:noreply, socket}
+
+  @impl true
+  # Our own moves arrive twice (reply and broadcast); skip the copy we already have.
+  def handle_info({:game, _id, game}, socket) do
+    if game == socket.assigns.game,
+      do: {:noreply, socket},
+      else: {:noreply, put_game(socket, game)}
+  end
+
+  def handle_info({:names, _id, names}, socket), do: {:noreply, assign(socket, names: names)}
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
       <header class="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 class="text-3xl font-bold">Quacks</h1>
+        <h1 class="text-3xl font-bold">
+          <.link navigate={~p"/"}>Quacks</.link>
+          <span class="font-mono text-base text-zinc-500">{@id}</span>
+        </h1>
         <p class="text-xs text-zinc-500">
           Seed
-          <.link patch={~p"/?seed=#{seed_param(@session.seed)}"} class="underline">{seed_param(
-            @session.seed
-          )}</.link>
+          <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>
         </p>
       </header>
 
-      <.status game={@game} />
-      <.pot game={@game} />
+      <p
+        :if={map_size(@names) < @players}
+        class="rounded-md bg-sky-50 p-2 text-sm text-sky-900"
+        data-role="waiting-for-players"
+      >
+        Waiting for players: {map_size(@names)} of {@players} seated. Share this page's link.
+      </p>
+      <p :if={is_nil(@seat)} class="rounded-md bg-zinc-100 p-2 text-sm" data-role="spectator">
+        All seats are taken. You are watching.
+      </p>
+      <p :if={@players > 1 and not Game.over?(@game)} class="text-sm font-semibold" data-role="turn">
+        {turn_text(@game, @seat, @names)}
+      </p>
+
+      <section
+        :if={@players > 1}
+        class="grid gap-2 sm:grid-cols-3"
+        aria-label="Other players"
+      >
+        <.player_card
+          :for={seat <- @game.seats}
+          :if={seat != @seat}
+          game={@game}
+          seat={seat}
+          name={name(@names, seat)}
+        />
+      </section>
 
       <section :if={Game.over?(@game)} class="rounded-lg bg-emerald-100 p-4 text-center">
-        <p class="text-xl font-bold">Game over: {Game.score(@game)[0]} victory points</p>
+        <p :if={@players == 1} class="text-xl font-bold">
+          Game over: {Game.score(@game)[0]} victory points
+        </p>
+        <div :if={@players > 1}>
+          <p class="text-xl font-bold">Game over</p>
+          <ol class="mt-2">
+            <li :for={{seat, vp} <- ranking(@game)}>{name(@names, seat)}: {vp} victory points</li>
+          </ol>
+        </div>
         <.button phx-click="new_game" variant="primary" class="mt-3">New game</.button>
       </section>
 
-      <.blue_offer :if={Game.phase(@game, 0) == :blue_choice} pending={@me.pending} />
+      <div :if={@seat} class="space-y-4" data-role="my-seat">
+        <input
+          :if={@players > 1}
+          type="text"
+          value={name(@names, @seat)}
+          phx-blur="rename"
+          maxlength="20"
+          aria-label="Your name"
+          class="input input-sm"
+        />
+        <.status game={@game} seat={@seat} />
+        <.pot game={@game} seat={@seat} />
 
-      <.shop :if={@game.phase == :buy_chips} game={@game} selected={@selected} />
+        <.blue_offer :if={Game.phase(@game, @seat) == :blue_choice} pending={@me.pending} />
 
-      <section
-        :if={not Game.over?(@game) and @game.phase != :buy_chips}
-        class="flex flex-wrap gap-2"
-        aria-label="Actions"
-      >
-        <.button
-          :for={action <- Game.legal_actions(@game)}
-          phx-click="action"
-          phx-value-action={encode(action)}
-          variant="primary"
+        <.shop
+          :if={@game.phase == :buy_chips and @game.turn == @seat}
+          game={@game}
+          seat={@seat}
+          selected={@selected}
+        />
+
+        <section
+          :if={not Game.over?(@game) and @game.phase != :buy_chips}
+          class="flex flex-wrap gap-2"
+          aria-label="Actions"
         >
-          {label(action)}
-        </.button>
-      </section>
+          <.button
+            :for={action <- Game.legal_actions(@game, @seat)}
+            phx-click="action"
+            phx-value-action={encode(action)}
+            variant="primary"
+          >
+            {label(action)}
+          </.button>
+        </section>
 
-      <div class="flex flex-wrap gap-2">
-        <.button phx-click="undo" disabled={@session.actions == []}>Undo</.button>
-        <.button phx-click="new_game">New game</.button>
+        <div class="flex flex-wrap gap-2">
+          <.button :if={@players == 1} phx-click="undo" disabled={@game.log == []}>Undo</.button>
+          <.button :if={@players == 1} phx-click="new_game">New game</.button>
+          <.button :if={@players > 1} navigate={~p"/"}>Lobby</.button>
+        </div>
+
+        <.bag bag={@me.bag} />
       </div>
 
-      <.bag bag={@me.bag} />
-      <.action_log log={@game.log} />
+      <.action_log log={@game.log} names={if @players > 1, do: @names} />
     </Layouts.app>
     """
   end
@@ -130,17 +245,19 @@ defmodule QuacksWeb.GameLive do
   and is enabled only when that exact buy is legal.
   """
   attr :game, Game, required: true
+  attr :seat, :integer, default: 0
   attr :selected, :list, required: true, doc: "ticked chips, sorted"
 
   def shop(assigns) do
     total = assigns.selected |> Enum.map(&Chips.price/1) |> Enum.sum()
+    coins = assigns.game.players[assigns.seat].coins
 
     assigns =
       assign(assigns,
-        actions: Game.legal_actions(assigns.game),
+        actions: Game.legal_actions(assigns.game, assigns.seat),
         total: total,
-        coins: assigns.game.players[0].coins,
-        remaining: assigns.game.players[0].coins - total
+        coins: coins,
+        remaining: coins - total
       )
 
     ~H"""
@@ -196,33 +313,28 @@ defmodule QuacksWeb.GameLive do
   defp blocked?(chip, selected, actions),
     do: chip not in selected and {:buy, Enum.sort([chip | selected])} not in actions
 
-  defp start(socket, seed) do
-    socket |> assign(page_title: "Quacks") |> put_session(Session.new(seed))
-  end
-
-  # `@game` is the session's game and `@me` its seat-0 player (the page is solo for
-  # now), kept as their own assigns so templates read `@game.x` / `@me.x`.
+  # `@game` is the game and `@me` this browser's player (nil when watching).
   # Every state change empties the shop selection; it only means something in the shop.
-  defp put_session(socket, session),
-    do:
-      assign(socket,
-        session: session,
-        game: session.game,
-        me: session.game.players[0],
-        selected: []
-      )
-
-  defp seed_from_params(%{"seed" => seed}) do
-    case seed |> String.split(",") |> Enum.map(&Integer.parse/1) do
-      [{a, ""}, {b, ""}, {c, ""}] -> {a, b, c}
-      _ -> random_seed()
-    end
+  defp put_game(socket, game) do
+    me = if socket.assigns.seat, do: game.players[socket.assigns.seat]
+    assign(socket, game: game, me: me, selected: [])
   end
 
-  defp seed_from_params(_params), do: random_seed()
+  defp name(names, seat), do: Map.get(names, seat, GameServer.default_name(seat))
 
-  defp random_seed,
-    do: {:rand.uniform(1_000_000), :rand.uniform(1_000_000), :rand.uniform(1_000_000)}
+  defp turn_text(%{phase: :potions}, _seat, _names), do: "Everyone brews at the same time."
+
+  defp turn_text(%{phase: phase, turn: seat}, seat, _names),
+    do: "Your turn: #{phase_verb(phase)}."
+
+  defp turn_text(%{phase: phase, turn: turn}, _seat, names),
+    do: "#{name(names, turn)}'s turn: #{phase_verb(phase)}."
+
+  defp phase_verb(:buy_chips), do: "buy chips"
+  defp phase_verb(:spend_rubies), do: "spend rubies, then end the round"
+
+  # Seats by VP, highest first.
+  defp ranking(game), do: game |> Game.score() |> Enum.sort_by(fn {_seat, vp} -> -vp end)
 
   defp seed_param({a, b, c}), do: "#{a},#{b},#{c}"
 

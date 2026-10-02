@@ -3,13 +3,24 @@ defmodule QuacksWeb.GameLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Quacks.Game
+  alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Chips
   alias QuacksWeb.{GameComponents, GameLive}
 
   @pot_chip "[data-role=pot-chip]"
 
-  defp mount(conn), do: live(conn, ~p"/?seed=1,2,3")
+  # Every test browser gets its own player token, as the PlayerToken plug would.
+  setup %{conn: conn} do
+    %{conn: init_test_session(conn, player_token: "solo-#{System.unique_integer()}")}
+  end
+
+  # A solo game in a GameServer, opened in the browser (which takes seat 0).
+  defp live_game(conn, seed) do
+    {:ok, id} = GameServer.start(1, seed)
+    live(conn, ~p"/g/#{id}")
+  end
+
+  defp mount(conn), do: live_game(conn, {1, 2, 3})
 
   defp pot_chips(view), do: view |> render() |> count(@pot_chip)
 
@@ -81,13 +92,15 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, "button", "New game")
     refute has_element?(view, "button", "Draw a chip")
 
-    view |> element("section button", "New game") |> render_click()
+    {:ok, view, _html} =
+      view |> element("section button", "New game") |> render_click() |> follow_redirect(conn)
+
     assert has_element?(view, "button", "Draw a chip")
   end
 
   # A shop with 7 coins: seed 10,11,12 draws white 2, 3, 1 (index 6, scoring space 7).
   defp mount_shop(conn) do
-    {:ok, view, _html} = live(conn, ~p"/?seed=10,11,12")
+    {:ok, view, _html} = live_game(conn, {10, 11, 12})
     for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
     view |> element("button", "Stop") |> render_click()
     assert has_element?(view, "dd", "Shop")
@@ -113,6 +126,25 @@ defmodule QuacksWeb.GameLiveTest do
     assert count(html, ~s([data-space="1"] #{@pot_chip}[aria-label="orange 1"])) == 1
     assert count(html, ~s([data-space="3"] #{@pot_chip})) == 0
     assert count(html, @pot_chip) == 2
+  end
+
+  test "the pot shows the rat stone at droplet + rat stone, only when there is one" do
+    game = Game.new(seed: {1, 2, 3}, players: 2)
+    html = render_component(&GameComponents.pot/1, game: game, seat: 1)
+    assert count(html, "[data-role=rat-stone]") == 0
+
+    game = put_in(game.players[1].droplet, 2)
+    game = put_in(game.players[1].rat_stone, 3)
+
+    for size <- [:lg, :sm] do
+      html = render_component(&GameComponents.pot/1, game: game, seat: 1, size: size)
+      assert count(html, ~s([data-space="5"] [data-role=rat-stone])) == 1
+      assert count(html, "[data-role=rat-stone]") == 1
+    end
+  end
+
+  test "an unknown game id sends the browser to the lobby", %{conn: conn} do
+    assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, ~p"/g/nosuch")
   end
 
   test "the crow skull strip lists duplicate offers; the buttons list each chip once" do
@@ -208,6 +240,8 @@ defmodule QuacksWeb.GameLiveTest do
              "Ghost's breath (tier 2): +1 VP, +1 ruby"
 
     assert GameComponents.label({:black, :droplet}) == "Hawkmoth: droplet +1"
+    assert GameComponents.label({:black, :droplet_ruby}) == "Hawkmoth: droplet +1, +1 ruby"
+    assert GameComponents.label({:rats, 3}) == "Rats: 3 tails"
     assert GameComponents.label({:pot_ruby, 24}) == "Scoring space 24: +1 ruby"
     assert GameComponents.label({:pot_vp, 8, 24}) == "Scoring space 24: +8 VP"
     assert GameComponents.label({:round_end, 4}) == "— Round 4 over —"
