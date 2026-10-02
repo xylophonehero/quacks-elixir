@@ -35,7 +35,7 @@ defmodule Quacks.Player do
             fortune_used?: false,
             aside: [],
             chip_choices: [],
-            mods: %{explode_above: 7, next_chip_x2: false, white1_plus1: false, protect: 0}
+            mods: %{explode_above: 0, next_chip_x2: false, white1_plus1: false, protect: 0}
 
   @type phase ::
           :potions
@@ -79,11 +79,11 @@ defmodule Quacks.Player do
           | {:upgrade, 1..3}
   @typedoc """
   Round modifiers from Set 2–4 chips, reset at the end of the round: the white limit
-  (Y3), the next chip moves double (Y2), white 1-chips move 2 (R4), and how many more
+  raised by Y3 (0 = not raised), the next chip moves double (Y2), white 1-chips move 2 (R4), and how many more
   drawn chips the crow skull protects (B2).
   """
   @type mods :: %{
-          explode_above: 7..9,
+          explode_above: 0 | 8 | 9,
           next_chip_x2: boolean,
           white1_plus1: boolean,
           protect: non_neg_integer

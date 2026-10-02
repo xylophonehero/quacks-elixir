@@ -104,9 +104,11 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # A new game for the same number of players and books, with this browser in seat 0.
+  # A new game for the same number of players, books and house rules, with this
+  # browser in seat 0.
   def handle_event("new_game", _params, socket) do
-    {:ok, id} = GameServer.start(socket.assigns.players, nil, socket.assigns.game.sets)
+    %{sets: sets, rules: rules} = socket.assigns.game
+    {:ok, id} = GameServer.start(socket.assigns.players, nil, sets, rules)
     {:ok, 0} = GameServer.claim_seat(id, socket.assigns.token)
     {:noreply, push_navigate(socket, to: ~p"/g/#{id}")}
   end
@@ -144,6 +146,7 @@ defmodule QuacksWeb.GameLive do
           <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>
         </p>
       </header>
+      <.house_rules rules={@game.rules} />
 
       <p
         :if={map_size(@names) < @players}

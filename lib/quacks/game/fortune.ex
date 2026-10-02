@@ -137,9 +137,9 @@ defmodule Quacks.Game.Fortune do
   # -- hooks for the blue cards ------------------------------------------------------
 
   @doc "The highest white sum that does not explode: 7, or 9 with B5."
-  @spec explode_above(Game.t()) :: 7 | 9
+  @spec explode_above(Game.t()) :: 0 | 9
   def explode_above(%{fortune_card: :b5}), do: 9
-  def explode_above(_g), do: 7
+  def explode_above(_g), do: 0
 
   @doc "Extra spaces for a placed chip: B6 moves orange chips one more."
   @spec extra_move(Game.t(), Chips.chip()) :: 0 | 1
