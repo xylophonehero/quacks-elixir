@@ -182,6 +182,26 @@ defmodule Quacks.ChipEffectsTest do
     assert chip_actions([{:white, 1}]).droplet == 0
   end
 
+  test "the log records green rubies only when a green chip scored" do
+    assert {:green_rubies, 2} in chip_actions([{:green, 2}, {:green, 1}, {:white, 1}]).log
+    assert {:green_rubies, 1} in chip_actions([{:white, 1}, {:green, 1}]).log
+    log = chip_actions([{:white, 1}, {:white, 1}, {:green, 1}]).log
+    refute Enum.any?(log, &match?({:green_rubies, _}, &1))
+  end
+
+  test "the log records the purple tier and its payoff" do
+    assert {:purple, 1, :vp1} in chip_actions([{:purple, 1}, {:white, 1}]).log
+    assert {:purple, 2, :vp1_ruby} in chip_actions([{:purple, 1}, {:purple, 1}]).log
+    assert {:purple, 3, :vp2_droplet} in chip_actions(List.duplicate({:purple, 1}, 4)).log
+    refute Enum.any?(chip_actions([{:white, 1}]).log, &match?({:purple, _, _}, &1))
+  end
+
+  test "the log records the black house rule once, however many black chips" do
+    log = chip_actions([{:black, 1}, {:black, 1}]).log
+    assert Enum.count(log, &(&1 == {:black, :droplet})) == 1
+    refute {:black, :droplet} in chip_actions([{:white, 1}]).log
+  end
+
   test "chip actions resolve before the scoring space, even when exploded for VP" do
     # pot index 4 -> scoring space 5: 5 coins, 0 VP, ruby
     g = %{new() | phase: :explosion_choice, exploded?: true, pot_index: 4}

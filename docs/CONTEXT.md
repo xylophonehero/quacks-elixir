@@ -31,6 +31,13 @@ Newest first. Every applied action is logged, followed by the events it caused:
 | `{:bought, chips}` | A purchase of one or two chips (`{:buy, []}` logs only the action). |
 | `{:rubies_spent, :droplet \| :flask}` | Two rubies spent in the end-of-round phase. |
 | `{:bonus_die, face}` | The die roll after stopping. |
+| `{:black, :droplet}` | Step B: the black house rule fired (1+ black chip). |
+| `{:green_rubies, n}` | Step B: `n` green chips in the last two positions, `n` > 0. |
+| `{:purple, tier, payoff}` | Step B, only with 1+ purple: `{:purple, 1, :vp1}`, `{:purple, 2, :vp1_ruby}` or `{:purple, 3, :vp2_droplet}` (3+ purple). |
+| `{:pot_ruby, index}` | Step C: the scoring space `index` gave a ruby. |
+| `{:pot_vp, vp, index}` | Step D: `vp` > 0 taken from scoring space `index`. Not logged when an exploded player chose to buy. |
+| `{:final_conversion, coins_vp, rubies_vp}` | Round 9 only: VP bought with coins (5 each) and rubies (2 each). |
+| `{:round_end, round}` | The last event of every round. |
 
 `Quacks.Session` replays from its own `actions` list, never from the log.
 

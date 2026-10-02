@@ -157,7 +157,7 @@ defmodule Quacks.GameTest do
     g = apply!(g, {:rubies, :skip})
     assert {g.round, g.phase, g.drawn, g.pot_index} == {6, :potions, [], 1}
     assert length(g.bag) == 9 + 1 + 1
-    assert hd(g.log) == :end_round
+    assert Enum.take(g.log, 2) == [{:round_end, 5}, :end_round]
   end
 
   test "round 9 converts coins 5->1 VP and rubies 2->1 VP, then the game is over" do
@@ -198,6 +198,35 @@ defmodule Quacks.GameTest do
 
     rubies = apply!(%{new() | phase: :spend_rubies, rubies: 2}, {:rubies, :droplet})
     assert hd(rubies.log) == {:rubies_spent, :droplet}
+  end
+
+  # Scoring events (step C–E and the round end). Chip-action events live in
+  # Quacks.ChipEffectsTest.
+  test "the log records a ruby taken from the scoring space" do
+    # pot_index 4 -> scoring space 5: 5 coins, 0 VP, ruby
+    g = %{new() | phase: :explosion_choice, exploded?: true, pot_index: 4}
+    g = apply!(%{g | drawn: [{{:white, 3}, 4}]}, {:explosion_choice, :buy})
+    assert {:pot_ruby, 5} in g.log
+    refute Enum.any?(g.log, &match?({:pot_vp, _, _}, &1))
+  end
+
+  test "the log records VP taken from the scoring space, not when buying after an explosion" do
+    # pot_index 8 -> scoring space 9: 9 coins, 1 VP, ruby
+    boom = %{new() | phase: :explosion_choice, exploded?: true, pot_index: 8}
+    boom = %{boom | drawn: [{{:white, 3}, 8}]}
+    assert {:pot_vp, 1, 9} in apply!(boom, {:explosion_choice, :vp}).log
+    refute Enum.any?(apply!(boom, {:explosion_choice, :buy}).log, &match?({:pot_vp, _, _}, &1))
+  end
+
+  test "the log ends every round with {:round_end, round}" do
+    g = apply!(%{new() | phase: :spend_rubies, round: 3}, :end_round)
+    assert hd(g.log) == {:round_end, 3}
+  end
+
+  test "the log records the final conversion in round 9, then the round end" do
+    g = %{new() | round: 9, phase: :spend_rubies, coins: 12, rubies: 5}
+    g = apply!(g, :end_round)
+    assert Enum.take(g.log, 3) == [{:round_end, 9}, {:final_conversion, 2, 2}, :end_round]
   end
 
   test "Session replays to the same game and undoes the last action" do

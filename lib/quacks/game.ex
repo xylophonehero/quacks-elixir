@@ -76,8 +76,14 @@ defmodule Quacks.Game do
   What happened, newest first. Every action is logged, followed by the events it
   caused: `{:drew, chip, index}` for each placement (blue-placed chips too),
   `{:returned, chip}` for flask, mandrake and crow-skull returns, `{:exploded,
-  white_sum}`, `{:bought, chips}`, `{:rubies_spent, :droplet | :flask}` and
-  `{:bonus_die, face}`. `Quacks.Session` replays from its own action list, not this.
+  white_sum}`, `{:bought, chips}` and `{:rubies_spent, :droplet | :flask}`.
+
+  End-of-round scoring is narrated too: `{:bonus_die, face}`, the chip actions
+  (`{:black, :droplet}`, `{:green_rubies, n}`, `{:purple, tier, payoff}`), the scoring
+  space (`{:pot_ruby, index}`, `{:pot_vp, vp, index}`), `{:final_conversion, coins_vp,
+  rubies_vp}` in round 9 and `{:round_end, round}` as the last event of every round.
+  See the Log table in `docs/CONTEXT.md`. `Quacks.Session` replays from its own
+  action list, not this.
   """
   @type log_entry ::
           action
@@ -87,6 +93,15 @@ defmodule Quacks.Game do
           | {:bought, [Chips.chip()]}
           | {:rubies_spent, :droplet | :flask}
           | {:bonus_die, die_face}
+          | {:black, :droplet}
+          | {:green_rubies, pos_integer}
+          | {:purple, 1, :vp1}
+          | {:purple, 2, :vp1_ruby}
+          | {:purple, 3, :vp2_droplet}
+          | {:pot_ruby, 0..53}
+          | {:pot_vp, pos_integer, 0..53}
+          | {:final_conversion, non_neg_integer, non_neg_integer}
+          | {:round_end, 1..9}
   @type t :: %__MODULE__{
           round: 1..9,
           phase: phase,
@@ -244,13 +259,17 @@ defmodule Quacks.Game do
 
   defp step(%{phase: :spend_rubies, round: @rounds} = g, :end_round) do
     # Rulebook §7: 5 coins or 2 rubies buy 1 VP, as often as you like.
-    vp = g.vp + div(g.coins, 5) + div(g.rubies, 2)
-    %{g | vp: vp, coins: rem(g.coins, 5), rubies: rem(g.rubies, 2), phase: :over}
+    {coins_vp, rubies_vp} = {div(g.coins, 5), div(g.rubies, 2)}
+    g = %{g | vp: g.vp + coins_vp + rubies_vp, coins: rem(g.coins, 5), rubies: rem(g.rubies, 2)}
+
+    %{g | phase: :over}
+    |> record({:final_conversion, coins_vp, rubies_vp})
+    |> record({:round_end, @rounds})
   end
 
   defp step(%{phase: :spend_rubies} = g, :end_round) do
     round = g.round + 1
-    g = %{g | bag: pot_chips(g) ++ g.bag, drawn: []}
+    g = record(%{g | bag: pot_chips(g) ++ g.bag, drawn: []}, {:round_end, g.round})
     # Rulebook §3 step 5: before turn 6 each player adds 1 white 1-chip.
     g = if round == 6, do: add_from_supply(g, {:white, 1}), else: g
 
@@ -327,9 +346,14 @@ defmodule Quacks.Game do
   # Steps B–E of rulebook §3.2. `choice` is :both, or :vp / :buy after an explosion.
   defp evaluate(g, choice) do
     g = chip_actions(g)
-    space = PotTrack.at(scoring_index(g))
-    g = if space.ruby?, do: %{g | rubies: g.rubies + 1}, else: g
-    g = if choice == :buy, do: g, else: %{g | vp: g.vp + space.vp}
+    index = scoring_index(g)
+    space = PotTrack.at(index)
+    g = if space.ruby?, do: record(%{g | rubies: g.rubies + 1}, {:pot_ruby, index}), else: g
+
+    g =
+      if choice == :buy or space.vp == 0,
+        do: g,
+        else: record(%{g | vp: g.vp + space.vp}, {:pot_vp, space.vp, index})
 
     cond do
       choice == :vp -> %{g | phase: :spend_rubies}
@@ -347,14 +371,22 @@ defmodule Quacks.Game do
 
     # ⚠️ Solo house rule: no opponent to compare black chips with, so 1+ black chip
     # counts as "tied with the opponent": droplet +1, no ruby.
-    g = if count.(:black, chips) > 0, do: %{g | droplet: g.droplet + 1}, else: g
-    g = %{g | rubies: g.rubies + count.(:green, Enum.take(chips, 2))}
+    g =
+      if count.(:black, chips) > 0,
+        do: record(%{g | droplet: g.droplet + 1}, {:black, :droplet}),
+        else: g
+
+    g =
+      case count.(:green, Enum.take(chips, 2)) do
+        0 -> g
+        n -> record(%{g | rubies: g.rubies + n}, {:green_rubies, n})
+      end
 
     case count.(:purple, chips) do
       0 -> g
-      1 -> %{g | vp: g.vp + 1}
-      2 -> %{g | vp: g.vp + 1, rubies: g.rubies + 1}
-      _ -> %{g | vp: g.vp + 2, droplet: g.droplet + 1}
+      1 -> record(%{g | vp: g.vp + 1}, {:purple, 1, :vp1})
+      2 -> record(%{g | vp: g.vp + 1, rubies: g.rubies + 1}, {:purple, 2, :vp1_ruby})
+      _ -> record(%{g | vp: g.vp + 2, droplet: g.droplet + 1}, {:purple, 3, :vp2_droplet})
     end
   end
 
