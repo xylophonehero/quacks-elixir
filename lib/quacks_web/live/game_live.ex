@@ -330,6 +330,7 @@ defmodule QuacksWeb.GameLive do
   defp turn_text(%{phase: phase, turn: turn}, _seat, names),
     do: "#{name(names, turn)}'s turn: #{phase_verb(phase)}."
 
+  defp phase_verb(:fortune_choice), do: "resolve the fortune teller card"
   defp phase_verb(:buy_chips), do: "buy chips"
   defp phase_verb(:spend_rubies), do: "spend rubies, then end the round"
 

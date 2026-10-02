@@ -95,7 +95,8 @@ defmodule QuacksWeb.GameLiveTest do
     {:ok, view, _html} =
       view |> element("section button", "New game") |> render_click() |> follow_redirect(conn)
 
-    assert has_element?(view, "button", "Draw a chip")
+    # The new game has a random seed; a purple fortune card may open with a choice.
+    assert has_element?(view, "button[phx-click=action]")
   end
 
   # A shop with 7 coins: seed 10,11,12 draws white 2, 3, 1 (index 6, scoring space 7).
