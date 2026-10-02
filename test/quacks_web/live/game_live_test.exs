@@ -144,6 +144,31 @@ defmodule QuacksWeb.GameLiveTest do
     end
   end
 
+  test "the game page fills the screen: full layout, sheets for bag and log", %{conn: conn} do
+    {:ok, view, html} = mount(conn)
+    assert has_element?(view, "main[data-layout=full]")
+    refute html =~ "py-20"
+    refute html =~ "max-w-2xl"
+    assert has_element?(view, ~s(button[popovertarget="sheet-bag"]), "Bag")
+    assert has_element?(view, ~s(button[popovertarget="sheet-log"]), "Log")
+    assert has_element?(view, "#sheet-log[popover]")
+    # solo: no other players, so no Players sheet
+    refute has_element?(view, ~s(button[popovertarget="sheet-players"]))
+  end
+
+  test "the shop dialog is in the page only while buying", %{conn: conn} do
+    {:ok, view, _html} = live_game(conn, {10, 11, 12})
+    refute has_element?(view, "dialog#decision-buy_chips")
+
+    view = mount_shop(conn)
+    assert has_element?(view, "dialog#decision-buy_chips #shop")
+    assert has_element?(view, "dialog#decision-buy_chips[phx-mounted]")
+
+    view |> element("button", "Buy nothing") |> render_click()
+    refute has_element?(view, "dialog#decision-buy_chips")
+    assert has_element?(view, "dialog#decision-spend_rubies button", "End round")
+  end
+
   test "an unknown game id sends the browser to the lobby", %{conn: conn} do
     assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, ~p"/g/nosuch")
   end

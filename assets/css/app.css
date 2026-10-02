@@ -92,3 +92,174 @@
   color: var(--color-ink);
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
 }
+
+/* The game page owns the whole screen: no rubber-band scroll of the page itself. */
+html:has([data-layout="full"]) {
+  overscroll-behavior: none;
+}
+
+/* Sheets: info popovers (`sheet`) and decision dialogs (`dialog_sheet`). A bottom
+   sheet on phones, a centred card on large screens. The browser does open, close,
+   focus, Esc and the top layer; this CSS only places and moves them.
+   Unlayered on purpose: it must beat the `paper` utility and the UA popover styles. */
+:root {
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* iOS sheet curve */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 40rem;
+  height: auto;
+  max-height: 85dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 0;
+  border-top: 4px solid var(--color-iron);
+  border-radius: 1rem 1rem 0 0;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
+  translate: 0 0;
+  transition:
+    translate 300ms var(--ease-drawer),
+    overlay 300ms allow-discrete,
+    display 300ms allow-discrete;
+}
+
+.sheet:not(:popover-open, [open]) {
+  translate: 0 100%;
+  transition-duration: 200ms; /* leave a little faster than it came */
+}
+
+@starting-style {
+  .sheet:popover-open,
+  .sheet[open] {
+    translate: 0 100%;
+  }
+}
+
+/* See-through, so the pot stays visible behind a decision. */
+.sheet::backdrop {
+  background-color: rgb(20 12 4 / 0.4);
+  transition:
+    background-color 300ms var(--ease-out),
+    overlay 300ms allow-discrete,
+    display 300ms allow-discrete;
+}
+
+.sheet:not(:popover-open, [open])::backdrop {
+  background-color: transparent;
+}
+
+@starting-style {
+  .sheet:popover-open::backdrop,
+  .sheet[open]::backdrop {
+    background-color: transparent;
+  }
+}
+
+.sheet-close {
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.75rem -0.75rem 0 0.25rem;
+  border-radius: 9999px;
+  color: var(--color-ink-soft);
+}
+
+/* On a phone the sheet is the parchment; a card inside it drops its own. */
+@media (width < 64rem) {
+  .sheet > .paper {
+    background: none;
+    box-shadow: none;
+    padding: 0;
+  }
+}
+
+@media (width >= 64rem) {
+  .sheet {
+    inset: 0;
+    height: fit-content;
+    margin: auto;
+    border: 4px solid var(--color-iron);
+    border-radius: 1rem;
+    translate: none;
+    transition:
+      opacity 200ms var(--ease-out),
+      scale 200ms var(--ease-out),
+      overlay 200ms allow-discrete,
+      display 200ms allow-discrete;
+  }
+
+  .sheet:not(:popover-open, [open]) {
+    translate: none;
+    opacity: 0;
+    scale: 0.96;
+  }
+
+  @starting-style {
+    .sheet:popover-open,
+    .sheet[open] {
+      translate: none;
+      opacity: 0;
+      scale: 0.96;
+    }
+  }
+}
+
+/* Reduced motion: a short fade instead of a slide or a zoom. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    transition:
+      opacity 200ms ease,
+      overlay 200ms allow-discrete,
+      display 200ms allow-discrete;
+  }
+
+  .sheet:not(:popover-open, [open]) {
+    translate: none;
+    scale: none;
+    opacity: 0;
+  }
+
+  @starting-style {
+    .sheet:popover-open,
+    .sheet[open] {
+      translate: none;
+      scale: none;
+      opacity: 0;
+    }
+  }
+}
+
+/* Last, so it wins over the closed and reduced-motion states above. */
+@media (width >= 64rem) {
+  /* `inline_lg` sheets sit in the page on large screens. */
+  .sheet.sheet-inline-lg {
+    display: block;
+    position: static;
+    inset: auto;
+    margin: 0;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    opacity: 1;
+    scale: none;
+    transition: none;
+  }
+
+  .sheet-inline-lg > .sheet-close {
+    display: none;
+  }
+}

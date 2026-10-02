@@ -16,7 +16,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.GameComponents
 
   alias Quacks.{Game, GameServer}
-  alias Quacks.Rules.Chips
+  alias Quacks.Rules.{Chips, Fortune}
 
   # The shop, one row per colour. The single-value colours share the top row; the
   # other rows run 1 / 2 / 4 from left to right.
@@ -132,131 +132,218 @@ defmodule QuacksWeb.GameLive do
 
   def handle_info({:names, _id, names}, socket), do: {:noreply, assign(socket, names: names)}
 
+  # Phones: one screen, no page scroll. Rows: header, status, notices, the pot (takes
+  # the free space), the bottom bar. Bag, log, players, card text and the menu are
+  # sheets; a decision opens as a dialog over the pot. Large screens add a right
+  # column where the bag, log and players sheets show in place.
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
-      <header class="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 class="text-3xl font-bold">
-          <.link navigate={~p"/"}>Quacks</.link>
-          <span class="font-mono text-base text-parchment-dim">{@id}</span>
-        </h1>
-        <p class="text-xs text-parchment-dim">
-          Seed
-          <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>
-        </p>
-      </header>
-      <.house_rules rules={@game.rules} />
-
-      <p
-        :if={map_size(@names) < @players}
-        class="paper rounded-md border-l-4 border-droplet p-2 text-sm"
-        data-role="waiting-for-players"
-      >
-        Waiting for players: {map_size(@names)} of {@players} seated. Share this page's link.
-      </p>
-      <p :if={is_nil(@seat)} class="paper rounded-md p-2 text-sm" data-role="spectator">
-        All seats are taken. You are watching.
-      </p>
-      <p :if={@players > 1 and not Game.over?(@game)} class="text-sm font-semibold" data-role="turn">
-        {turn_text(@game, @seat, @names)}
-      </p>
-
-      <.fortune_card :if={@game.fortune_card} id={@game.fortune_card} />
-
-      <section
-        :if={@players > 1}
-        class="grid gap-2 sm:grid-cols-3"
-        aria-label="Other players"
-      >
-        <.player_card
-          :for={seat <- @game.seats}
-          :if={seat != @seat}
-          game={@game}
-          seat={seat}
-          name={name(@names, seat)}
-        />
-      </section>
-
-      <section
-        :if={Game.over?(@game)}
-        class="paper rounded-lg border-4 border-gold p-4 text-center font-hand"
-      >
-        <p :if={@players == 1} class="text-2xl font-bold">
-          Game over: {Game.score(@game)[0]} victory points
-        </p>
-        <div :if={@players > 1}>
-          <p class="text-2xl font-bold">Game over</p>
-          <ol class="mt-2">
-            <li :for={{seat, vp} <- ranking(@game)}>{name(@names, seat)}: {vp} victory points</li>
-          </ol>
-        </div>
-        <div class="mt-3">
-          <.button phx-click="new_game" variant="primary">New game</.button>
-        </div>
-      </section>
-
-      <div :if={@seat} class="space-y-4" data-role="my-seat">
-        <input
-          :if={@players > 1}
-          type="text"
-          value={name(@names, @seat)}
-          phx-blur="rename"
-          maxlength="20"
-          aria-label="Your name"
-          class="rounded-md border border-ink-soft bg-parchment-light px-2 py-1 text-sm text-ink"
-        />
-        <.status game={@game} seat={@seat} />
-        <.pot game={@game} seat={@seat} />
-
-        <.aside :if={@me.aside != []} chips={@me.aside} />
-        <.blue_offer :if={Game.phase(@game, @seat) == :blue_choice} pending={@me.pending} />
-        <.blue_offer
-          :if={Game.phase(@game, @seat) == :red_choice}
-          pending={@me.pending}
-          title="Toadstool chips beside the pot:"
-          hint="For each: place it after your last chip, keep it for later, or return it to the bag."
-          label="Toadstool choice"
-          accent="border-ruby"
-        />
-        <.fortune_offer
-          :if={Game.phase(@game, @seat) == :fortune_choice and @me.pending != []}
-          card={@game.fortune_card}
-          pending={@me.pending}
-        />
-
-        <.shop
-          :if={@game.phase == :buy_chips and @game.turn == @seat}
-          game={@game}
-          seat={@seat}
-          selected={@selected}
-        />
-
-        <section
-          :if={not Game.over?(@game) and @game.phase != :buy_chips}
-          class="flex flex-wrap gap-2"
-          aria-label="Actions"
+    <Layouts.app flash={@flash} full>
+      <div class="lg:grid lg:h-dvh lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div
+          class="grid h-dvh grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] overflow-hidden lg:px-4"
+          data-role={@seat && "my-seat"}
         >
-          <.button
-            :for={action <- Game.legal_actions(@game, @seat)}
-            phx-click="action"
-            phx-value-action={encode(action)}
-            variant="primary"
-          >
-            {label(action, @game.fortune_card)}
-          </.button>
-        </section>
+          <header class="flex items-center gap-2 px-3 pt-[max(0.25rem,env(safe-area-inset-top))]">
+            <h1 class="font-hand text-2xl leading-none font-bold">
+              <.link navigate={~p"/"}>Quacks</.link>
+              <span class="font-mono text-xs font-normal text-parchment-dim">{@id}</span>
+            </h1>
+            <div class="ml-auto"><.round_phase game={@game} seat={@seat || 0} /></div>
+            <button
+              type="button"
+              popovertarget="sheet-menu"
+              aria-label="Menu"
+              class="-mr-2 inline-flex size-11 items-center justify-center"
+            >
+              <.icon name="hero-bars-3" class="size-6" />
+            </button>
+          </header>
 
-        <div class="flex flex-wrap gap-2">
-          <.button :if={@players == 1} phx-click="undo" disabled={@game.log == []}>Undo</.button>
-          <.button :if={@players == 1} phx-click="new_game">New game</.button>
-          <.button :if={@players > 1} navigate={~p"/"}>Lobby</.button>
+          <div class="px-2">
+            <.status :if={@seat} game={@game} seat={@seat} />
+          </div>
+
+          <div class="space-y-1 px-2 pt-1 text-sm">
+            <.sheet_button
+              :if={@game.fortune_card}
+              for="sheet-fortune"
+              class="w-full justify-start lg:hidden"
+            >
+              <.icon name="hero-sparkles" class="size-4 text-gold" />
+              <span class="truncate">{Fortune.card(@game.fortune_card).name}</span>
+              <.icon name="hero-information-circle" class="ml-auto size-5 text-parchment-dim" />
+            </.sheet_button>
+            <.sheet :if={@game.fortune_card} id="sheet-fortune" label="Fortune teller card" inline_lg>
+              <.fortune_card id={@game.fortune_card} />
+            </.sheet>
+            <p
+              :if={map_size(@names) < @players}
+              class="rounded-md bg-droplet/25 px-2 py-1"
+              data-role="waiting-for-players"
+            >
+              Waiting for players: {map_size(@names)} of {@players} seated. Share this page's link.
+            </p>
+            <p :if={is_nil(@seat)} class="rounded-md bg-iron-dark px-2 py-1" data-role="spectator">
+              All seats are taken. You are watching.
+            </p>
+            <p
+              :if={@players > 1 and not Game.over?(@game)}
+              class="px-1 font-semibold"
+              data-role="turn"
+            >
+              {turn_text(@game, @seat, @names)}
+            </p>
+          </div>
+
+          <div class="relative min-h-0 p-2">
+            <.pot game={@game} seat={@seat || 0} class="block size-full" />
+            <div :if={@me && @me.aside != []} class="absolute bottom-2 left-2">
+              <.aside chips={@me.aside} />
+            </div>
+          </div>
+
+          <footer class="space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <nav class="flex gap-2 *:flex-1 lg:hidden" aria-label="Sheets">
+              <.sheet_button :if={@me} for="sheet-bag">Bag {length(@me.bag)}</.sheet_button>
+              <.sheet_button for="sheet-log">Log</.sheet_button>
+              <.sheet_button :if={@players > 1} for="sheet-players">Players</.sheet_button>
+            </nav>
+            <section
+              :if={@actions != []}
+              class="flex gap-2 *:min-h-12 *:flex-1 *:touch-manipulation"
+              aria-label="Actions"
+            >
+              <.button
+                :for={action <- @actions}
+                phx-click="action"
+                phx-value-action={encode(action)}
+                variant="primary"
+              >
+                {label(action, @game.fortune_card)}
+              </.button>
+            </section>
+            <.button
+              :if={@decision}
+              class="min-h-12 w-full rounded-lg bg-gold font-semibold text-ink shadow"
+              phx-click={JS.dispatch("quacks:modal", to: "#decision-#{@decision}")}
+            >
+              {if @decision == :buy_chips,
+                do: "Open the shop",
+                else: "Choose: #{phase_name(@decision)}"}
+            </.button>
+            <.button
+              :if={Game.over?(@game)}
+              class="min-h-12 w-full rounded-lg bg-gold font-semibold text-ink shadow"
+              phx-click={JS.dispatch("quacks:modal", to: "#game-over")}
+            >
+              Show the result
+            </.button>
+          </footer>
         </div>
 
-        <.bag bag={@me.bag} />
+        <aside class="contents lg:flex lg:h-dvh lg:flex-col lg:gap-3 lg:overflow-y-auto lg:py-3 lg:pr-3">
+          <.sheet :if={@players > 1} id="sheet-players" label="Other players" inline_lg>
+            <section class="grid grid-cols-2 gap-2 lg:grid-cols-1" aria-label="Other players">
+              <.player_card
+                :for={seat <- @game.seats}
+                :if={seat != @seat}
+                game={@game}
+                seat={seat}
+                name={name(@names, seat)}
+              />
+            </section>
+          </.sheet>
+          <.sheet id="sheet-log" label="Log" inline_lg>
+            <.action_log log={@game.log} names={if @players > 1, do: @names} />
+          </.sheet>
+          <.sheet :if={@me} id="sheet-bag" label="Bag" inline_lg>
+            <.bag bag={@me.bag} />
+          </.sheet>
+        </aside>
       </div>
 
-      <.action_log log={@game.log} names={if @players > 1, do: @names} />
+      <.sheet id="sheet-menu" label="Menu">
+        <div class="space-y-3 text-sm">
+          <h2 class="text-lg font-bold">Game {@id}</h2>
+          <input
+            :if={@seat && @players > 1}
+            type="text"
+            value={name(@names, @seat)}
+            phx-blur="rename"
+            maxlength="20"
+            aria-label="Your name"
+            class="w-full rounded-md border border-ink-soft bg-parchment-light px-2 py-2 text-ink"
+          />
+          <div class="flex flex-wrap gap-2 *:min-h-11">
+            <.button :if={@seat && @players == 1} phx-click="undo" disabled={@game.log == []}>
+              Undo
+            </.button>
+            <.button :if={@seat && @players == 1} phx-click="new_game">New game</.button>
+            <.button navigate={~p"/"}>Lobby</.button>
+          </div>
+          <p>
+            Seed
+            <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>
+          </p>
+          <.books sets={@game.sets} />
+          <.house_rules rules={@game.rules} />
+        </div>
+      </.sheet>
+
+      <.dialog_sheet :if={@decision} id={"decision-#{@decision}"} label={phase_name(@decision)}>
+        <.shop :if={@decision == :buy_chips} game={@game} seat={@seat} selected={@selected} />
+        <div :if={@decision != :buy_chips} class="space-y-3">
+          <h2 class="text-xl font-bold">{phase_name(@decision)}</h2>
+          <.fortune_card :if={@decision == :fortune_choice} id={@game.fortune_card} />
+          <.blue_offer :if={@decision == :blue_choice} pending={@me.pending} />
+          <.blue_offer
+            :if={@decision == :red_choice}
+            pending={@me.pending}
+            title="Toadstool chips beside the pot:"
+            hint="For each: place it after your last chip, keep it for later, or return it to the bag."
+            label="Toadstool choice"
+            accent="border-ruby"
+          />
+          <.fortune_offer
+            :if={@decision == :fortune_choice and @me.pending != []}
+            card={@game.fortune_card}
+            pending={@me.pending}
+          />
+          <section class="flex flex-col gap-2 *:min-h-11" aria-label="Actions">
+            <.button
+              :for={action <- Game.legal_actions(@game, @seat)}
+              phx-click="action"
+              phx-value-action={encode(action)}
+              variant="primary"
+            >
+              {label(action, @game.fortune_card)}
+            </.button>
+          </section>
+        </div>
+      </.dialog_sheet>
+
+      <.dialog_sheet :if={Game.over?(@game)} id="game-over" label="Game over">
+        <section class="space-y-3 text-center font-hand">
+          <p :if={@players == 1} class="text-2xl font-bold">
+            Game over: {Game.score(@game)[0]} victory points
+          </p>
+          <div :if={@players > 1}>
+            <p class="text-2xl font-bold">Game over</p>
+            <ol class="mt-2">
+              <li :for={{seat, vp} <- ranking(@game)}>{name(@names, seat)}: {vp} victory points</li>
+            </ol>
+          </div>
+          <.button
+            phx-click="new_game"
+            variant="primary"
+            class="min-h-11 rounded-lg bg-gold px-6 font-semibold text-ink"
+          >
+            New game
+          </.button>
+        </section>
+      </.dialog_sheet>
     </Layouts.app>
     """
   end
@@ -287,16 +374,15 @@ defmodule QuacksWeb.GameLive do
       )
 
     ~H"""
-    <section class="paper space-y-3 rounded-lg p-3" aria-label="Shop">
-      <h2 class="text-lg font-bold">
-        Shop: pick up to two chips of different colours
-      </h2>
+    <section class="space-y-2" aria-label="Shop">
+      <h2 class="text-xl font-bold">Shop</h2>
+      <p class="text-sm">Pick up to two chips of different colours.</p>
       <.books sets={@sets} />
-      <form id="shop" phx-change="select" class="space-y-2">
-        <ul :for={row <- shop_rows()} class="grid gap-2 sm:grid-cols-3" data-role="shop-row">
+      <form id="shop" phx-change="select" class="space-y-1.5">
+        <ul :for={row <- shop_rows()} class="grid grid-cols-3 gap-1.5" data-role="shop-row">
           <li :for={chip <- row}>
             <label class={[
-              "flex items-center gap-2 rounded-md bg-parchment-light px-2 py-1 text-sm",
+              "flex min-h-11 items-center gap-1.5 rounded-md bg-parchment-light px-2 text-sm",
               blocked?(chip, @selected, @actions) && "opacity-40"
             ]}>
               <input
@@ -307,7 +393,7 @@ defmodule QuacksWeb.GameLive do
                 disabled={blocked?(chip, @selected, @actions)}
               />
               <.chip chip={chip} size={:sm} />
-              <span>{chip_name(chip)}</span>
+              <span class="sr-only sm:not-sr-only">{chip_name(chip)}</span>
               <span class="ml-auto text-ink-soft" data-role="price">
                 {Chips.price(chip, @sets)}c
               </span>
@@ -318,7 +404,7 @@ defmodule QuacksWeb.GameLive do
       <p class="text-sm" data-role="shop-total">
         Selected: {@total} coins. Remaining: {@remaining} of {@coins}.
       </p>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex gap-2 *:min-h-11 *:flex-1">
         <.button
           phx-click="action"
           phx-value-action={encode({:buy, @selected})}
@@ -344,9 +430,22 @@ defmodule QuacksWeb.GameLive do
 
   # `@game` is the game and `@me` this browser's player (nil when watching).
   # Every state change empties the shop selection; it only means something in the shop.
+  # `@decision` is the phase whose choice this seat must make now (shown in a
+  # dialog), or nil. `@actions` are the brewing buttons of the bottom bar.
   defp put_game(socket, game) do
-    me = if socket.assigns.seat, do: game.players[socket.assigns.seat]
-    assign(socket, game: game, me: me, selected: [])
+    seat = socket.assigns.seat
+    me = if seat, do: game.players[seat]
+    actions = if seat && not Game.over?(game), do: Game.legal_actions(game, seat), else: []
+    phase = seat && Game.phase(game, seat)
+    decision = if actions != [] and phase != :potions, do: phase
+
+    assign(socket,
+      game: game,
+      me: me,
+      selected: [],
+      decision: decision,
+      actions: if(decision, do: [], else: actions)
+    )
   end
 
   defp name(names, seat), do: Map.get(names, seat, GameServer.default_name(seat))

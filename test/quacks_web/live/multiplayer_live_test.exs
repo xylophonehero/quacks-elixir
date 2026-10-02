@@ -45,6 +45,10 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     assert has_element?(bob, "[data-role=turn]", "Seat 1's turn: buy chips.")
     refute has_element?(bob, "button", "Buy nothing")
     refute has_element?(bob, "button", "Undo")
+    # only the buyer gets the shop dialog; the other one sees the turn line
+    assert has_element?(alice, "dialog#decision-buy_chips")
+    refute has_element?(bob, "dialog")
+    assert has_element?(bob, ~s(button[popovertarget="sheet-players"]), "Players")
   end
 
   test "a nickname shows on the other player's page" do

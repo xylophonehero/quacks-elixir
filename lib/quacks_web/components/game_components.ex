@@ -105,10 +105,15 @@ defmodule QuacksWeb.GameComponents do
   chips. In both, the droplet is a blue drop on its space, placed chips sit on their
   spaces, the scoring space (the one directly after the last chip) has a gold ring
   and the rat stone, when the player has one, is a grey pebble on its space.
+
+  The SVG scales to its box and keeps its shape, so `class="block size-full"` fits
+  the whole pot into whatever space the page gives it. On phones the VP tags are too
+  small to read and are left out; each space's `<title>` still names its VP.
   """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
   attr :size, :atom, default: :lg, values: [:sm, :lg]
+  attr :class, :string, default: "block h-auto w-full"
 
   def pot(assigns) do
     player = assigns.game.players[assigns.seat]
@@ -126,12 +131,13 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <svg
       viewBox="-268 -268 536 536"
-      class="block h-auto w-full select-none"
+      preserveAspectRatio="xMidYMid meet"
+      class={[@class, "select-none"]}
       role="group"
       aria-label="Pot track"
     >
       <defs>
-        <radialGradient id={"brew-#{@seat}"}>
+        <radialGradient id={"brew-#{@seat}-#{@size}"}>
           <stop offset="0%" stop-color="var(--color-potion-light)" stop-opacity="0.55" />
           <stop offset="70%" stop-color="var(--color-potion)" />
           <stop offset="100%" stop-color="var(--color-potion-deep)" />
@@ -143,7 +149,7 @@ defmodule QuacksWeb.GameComponents do
       <circle r="262" fill="var(--color-iron-dark)" />
       <circle
         r="250"
-        fill={"url(#brew-#{@seat})"}
+        fill={"url(#brew-#{@seat}-#{@size})"}
         stroke="var(--color-iron)"
         stroke-width="12"
       />
@@ -186,7 +192,7 @@ defmodule QuacksWeb.GameComponents do
           >
             {PotTrack.at(index).coins}
           </text>
-          <g :if={PotTrack.at(index).vp > 0}>
+          <g :if={PotTrack.at(index).vp > 0} class="hidden sm:inline">
             <rect
               x="-9"
               y="1"
@@ -320,7 +326,31 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  @doc "Round, phase, score and one seat's resources in one strip."
+  @doc "The round and this seat's phase, for the page header."
+  attr :game, Game, required: true
+  attr :seat, :integer, default: 0
+
+  def round_phase(assigns) do
+    ~H"""
+    <dl class="flex items-center gap-2 text-sm">
+      <div class="flex items-baseline gap-1">
+        <dt class="text-parchment-dim">Round</dt>
+        <dd class="font-semibold tabular-nums">{@game.round} / 9</dd>
+      </div>
+      <div>
+        <dt class="sr-only">Phase</dt>
+        <dd class="rounded-full bg-parchment/15 px-2 py-0.5 font-semibold">
+          {phase_name(Game.phase(@game, @seat))}
+        </dd>
+      </div>
+    </dl>
+    """
+  end
+
+  @doc """
+  One seat's score and resources in one row, plus a badge while it buys (its coins)
+  or after an explosion.
+  """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
 
@@ -328,9 +358,7 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, me: assigns.game.players[assigns.seat])
 
     ~H"""
-    <dl class="paper grid grid-cols-3 gap-2 rounded-lg p-2 text-sm sm:grid-cols-6">
-      <.stat label="Round" value={"#{@game.round} / 9"} />
-      <.stat label="Phase" value={phase_name(Game.phase(@game, @seat))} />
+    <dl class="paper grid grid-cols-4 gap-1 rounded-lg p-1 text-sm">
       <.stat label="VP" value={@me.vp} />
       <.stat label="Rubies" value={@me.rubies} />
       <.stat label="Flask" value={if @me.flask, do: "full", else: "empty"} />
@@ -338,13 +366,21 @@ defmodule QuacksWeb.GameComponents do
         label="White"
         value={"#{Game.white_sum(@game, @seat)} / #{Potions.explode_above(@game, @seat)}"}
       />
-      <div :if={@game.phase == :buy_chips and @game.turn == @seat} class="col-span-3 sm:col-span-6">
-        <span class="rounded-md bg-gold px-2 py-1 font-semibold text-ink">
+      <div
+        :if={(@game.phase == :buy_chips and @game.turn == @seat) or @me.exploded?}
+        class="col-span-4 flex flex-wrap gap-1"
+      >
+        <span
+          :if={@game.phase == :buy_chips and @game.turn == @seat}
+          class="rounded-md bg-gold px-2 font-semibold text-ink"
+        >
           {@me.coins} coins to spend
         </span>
-      </div>
-      <div :if={@me.exploded?} class="col-span-3 sm:col-span-6">
-        <span class="rounded-md bg-ruby px-2 py-1 font-semibold text-white" data-role="exploded">
+        <span
+          :if={@me.exploded?}
+          class="rounded-md bg-ruby px-2 font-semibold text-white"
+          data-role="exploded"
+        >
           {if protected?(@me), do: "Exploded (protected)", else: "Exploded!"}
         </span>
       </div>
@@ -361,9 +397,9 @@ defmodule QuacksWeb.GameComponents do
 
   defp stat(assigns) do
     ~H"""
-    <div class="rounded-md bg-parchment-deep/70 px-2 py-1">
-      <dt class="text-xs text-ink-soft">{@label}</dt>
-      <dd class="font-semibold">{@value}</dd>
+    <div class="rounded-md bg-parchment-deep/70 px-2 py-0.5">
+      <dt class="text-xs leading-tight text-ink-soft">{@label}</dt>
+      <dd class="font-semibold leading-tight tabular-nums">{@value}</dd>
     </div>
     """
   end
@@ -788,16 +824,18 @@ defmodule QuacksWeb.GameComponents do
   @spec chip_name(Chips.chip()) :: String.t()
   def chip_name({colour, value}), do: "#{colour} #{value}"
 
-  defp phase_name(:potions), do: "Brewing"
-  defp phase_name(:explosion_choice), do: "Explosion"
-  defp phase_name(:yellow_choice), do: "Mandrake"
-  defp phase_name(:blue_choice), do: "Crow skull"
-  defp phase_name(:fortune_choice), do: "Fortune teller"
-  defp phase_name(:chip_choice), do: "Chip actions"
-  defp phase_name(:red_choice), do: "Toadstool"
-  defp phase_name(:buy_chips), do: "Shop"
-  defp phase_name(:spend_rubies), do: "Rubies"
-  defp phase_name(:done), do: "Done"
-  defp phase_name(:over), do: "Over"
-  defp phase_name(other), do: inspect(other)
+  @doc "The name of a phase, as the header shows it."
+  @spec phase_name(atom) :: String.t()
+  def phase_name(:potions), do: "Brewing"
+  def phase_name(:explosion_choice), do: "Explosion"
+  def phase_name(:yellow_choice), do: "Mandrake"
+  def phase_name(:blue_choice), do: "Crow skull"
+  def phase_name(:fortune_choice), do: "Fortune teller"
+  def phase_name(:chip_choice), do: "Chip actions"
+  def phase_name(:red_choice), do: "Toadstool"
+  def phase_name(:buy_chips), do: "Shop"
+  def phase_name(:spend_rubies), do: "Rubies"
+  def phase_name(:done), do: "Done"
+  def phase_name(:over), do: "Over"
+  def phase_name(other), do: inspect(other)
 end

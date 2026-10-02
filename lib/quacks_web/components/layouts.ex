@@ -27,11 +27,18 @@ defmodule QuacksWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://phoenix.hexdocs.pm/scopes.html)"
 
+  attr :full, :boolean,
+    default: false,
+    doc: "true: no padding and no width cap; the page lays out the whole screen itself"
+
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
+    <main :if={@full} data-layout="full">
+      {render_slot(@inner_block)}
+    </main>
+    <main :if={!@full} class="px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
       <div class="mx-auto max-w-2xl space-y-4">
         {render_slot(@inner_block)}
       </div>

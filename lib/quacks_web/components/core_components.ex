@@ -86,6 +86,101 @@ defmodule QuacksWeb.CoreComponents do
   end
 
   @doc """
+  An info sheet on the browser's Popover API: a bottom sheet on phones, closed by a
+  tap outside or Esc. A `sheet_button` with the same `id` opens it. No JS.
+
+  With `inline_lg`, large screens show the content in place instead (the sheet
+  button hides there), so one element serves both layouts.
+
+  ## Examples
+
+      <.sheet_button for="sheet-log">Log</.sheet_button>
+      <.sheet id="sheet-log" label="Log"><.action_log log={@log} /></.sheet>
+  """
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :inline_lg, :boolean, default: false
+  slot :inner_block, required: true
+
+  def sheet(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      popover
+      class={["sheet paper", @inline_lg && "sheet-inline-lg"]}
+      role="dialog"
+      aria-label={@label}
+    >
+      <button
+        type="button"
+        popovertarget={@id}
+        popovertargetaction="hide"
+        class="sheet-close"
+        aria-label="Close"
+      >
+        <.icon name="hero-x-mark" class="size-5" />
+      </button>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc "A button that opens the `sheet` with id `for`."
+  attr :for, :string, required: true
+  attr :class, :any, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def sheet_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      popovertarget={@for}
+      class={[
+        "inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-3",
+        "bg-iron-dark text-sm font-semibold text-parchment ring-1 ring-iron touch-manipulation",
+        @class
+      ]}
+      {@rest}
+    >
+      {render_slot(@inner_block)}
+    </button>
+    """
+  end
+
+  @doc """
+  A modal `<dialog>` for a decision the player must make. It opens itself when it
+  enters the page and leaves with the page's next render that drops it, so the
+  server needs no "is open" state. The backdrop stays see-through, so the pot shows
+  behind. Close it to look at the board; `JS.dispatch("quacks:modal", to: "#id")`
+  opens it again.
+  """
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  slot :inner_block, required: true
+
+  def dialog_sheet(assigns) do
+    # The server never renders `open`; showModal() adds it in the browser. Without
+    # ignore_attributes("open") the next LiveView patch would remove it again and
+    # close the dialog. The "quacks:modal" listener in app.js calls showModal().
+    ~H"""
+    <dialog
+      id={@id}
+      class="sheet paper"
+      aria-label={@label}
+      phx-mounted={JS.ignore_attributes("open") |> JS.dispatch("quacks:modal")}
+    >
+      <form method="dialog">
+        <button class="sheet-close" aria-label="Close">
+          <.icon name="hero-x-mark" class="size-5" />
+        </button>
+      </form>
+      {render_slot(@inner_block)}
+    </dialog>
+    """
+  end
+
+  @doc """
   Renders a button with navigation support.
 
   ## Examples
