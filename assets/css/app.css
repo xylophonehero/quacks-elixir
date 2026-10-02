@@ -22,3 +22,73 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+/* Cauldron theme: colours from the physical player board.
+   `static` keeps every token in :root, so the inline SVG pot can use var(--color-*). */
+@theme static {
+  --font-hand: "Kalam", "Comic Sans MS", cursive;
+
+  --color-potion-light: #6cc49a;
+  --color-potion: #3f9b6e;
+  --color-potion-deep: #2d6b4e;
+  --color-iron: #3b3f44;
+  --color-iron-dark: #23262a;
+  --color-wood: #6b4a2b;
+  --color-wood-dark: #3e2a16;
+  --color-parchment: #efe0b4;
+  --color-parchment-deep: #e2cf98;
+  --color-parchment-light: #f8efd3;
+  --color-parchment-dim: #cbb88a;
+  --color-ink: #3a2e1a;
+  --color-ink-soft: #5a4628;
+  --color-ruby: #d8322b;
+  --color-droplet: #3b82f6;
+  --color-gold: #e0b23c;
+
+  --color-chip-orange: #e58a2d;
+  --color-chip-green: #4caf50;
+  --color-chip-blue: #2b6fd6;
+  --color-chip-red: #c62828;
+  --color-chip-yellow: #f1c232;
+  --color-chip-purple: #7e3ff2;
+  --color-chip-black: #111111;
+  --color-chip-white: #f7f7f2;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-wood-dark);
+    /* faint wood grain */
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgb(0 0 0 / 0.1) 0 2px,
+      transparent 2px 23px,
+      rgb(255 255 255 / 0.03) 23px 25px,
+      transparent 25px 61px
+    );
+    color: var(--color-parchment);
+  }
+
+  h1,
+  h2 {
+    font-family: var(--font-hand);
+  }
+
+  /* Blue keeps at least 3:1 against both wood and parchment. */
+  :focus-visible {
+    outline: 3px solid var(--color-droplet);
+    outline-offset: 2px;
+  }
+}
+
+/* Parchment card with a slight paper texture. */
+@utility paper {
+  background-color: var(--color-parchment);
+  background-image:
+    radial-gradient(circle at 15% 10%, rgb(255 255 255 / 0.35), transparent 45%),
+    radial-gradient(circle at 85% 95%, rgb(120 80 30 / 0.16), transparent 50%),
+    radial-gradient(circle, rgb(120 80 30 / 0.07) 1px, transparent 1.5px);
+  background-size: auto, auto, 7px 7px;
+  color: var(--color-ink);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+}

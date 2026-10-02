@@ -137,9 +137,9 @@ defmodule QuacksWeb.GameLive do
       <header class="flex flex-wrap items-baseline justify-between gap-2">
         <h1 class="text-3xl font-bold">
           <.link navigate={~p"/"}>Quacks</.link>
-          <span class="font-mono text-base text-zinc-500">{@id}</span>
+          <span class="font-mono text-base text-parchment-dim">{@id}</span>
         </h1>
-        <p class="text-xs text-zinc-500">
+        <p class="text-xs text-parchment-dim">
           Seed
           <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>
         </p>
@@ -147,12 +147,12 @@ defmodule QuacksWeb.GameLive do
 
       <p
         :if={map_size(@names) < @players}
-        class="rounded-md bg-sky-50 p-2 text-sm text-sky-900"
+        class="paper rounded-md border-l-4 border-droplet p-2 text-sm"
         data-role="waiting-for-players"
       >
         Waiting for players: {map_size(@names)} of {@players} seated. Share this page's link.
       </p>
-      <p :if={is_nil(@seat)} class="rounded-md bg-zinc-100 p-2 text-sm" data-role="spectator">
+      <p :if={is_nil(@seat)} class="paper rounded-md p-2 text-sm" data-role="spectator">
         All seats are taken. You are watching.
       </p>
       <p :if={@players > 1 and not Game.over?(@game)} class="text-sm font-semibold" data-role="turn">
@@ -173,17 +173,22 @@ defmodule QuacksWeb.GameLive do
         />
       </section>
 
-      <section :if={Game.over?(@game)} class="rounded-lg bg-emerald-100 p-4 text-center">
-        <p :if={@players == 1} class="text-xl font-bold">
+      <section
+        :if={Game.over?(@game)}
+        class="paper rounded-lg border-4 border-gold p-4 text-center font-hand"
+      >
+        <p :if={@players == 1} class="text-2xl font-bold">
           Game over: {Game.score(@game)[0]} victory points
         </p>
         <div :if={@players > 1}>
-          <p class="text-xl font-bold">Game over</p>
+          <p class="text-2xl font-bold">Game over</p>
           <ol class="mt-2">
             <li :for={{seat, vp} <- ranking(@game)}>{name(@names, seat)}: {vp} victory points</li>
           </ol>
         </div>
-        <.button phx-click="new_game" variant="primary" class="mt-3">New game</.button>
+        <div class="mt-3">
+          <.button phx-click="new_game" variant="primary">New game</.button>
+        </div>
       </section>
 
       <div :if={@seat} class="space-y-4" data-role="my-seat">
@@ -194,7 +199,7 @@ defmodule QuacksWeb.GameLive do
           phx-blur="rename"
           maxlength="20"
           aria-label="Your name"
-          class="input input-sm"
+          class="rounded-md border border-ink-soft bg-parchment-light px-2 py-1 text-sm text-ink"
         />
         <.status game={@game} seat={@seat} />
         <.pot game={@game} seat={@seat} />
@@ -261,15 +266,15 @@ defmodule QuacksWeb.GameLive do
       )
 
     ~H"""
-    <section class="space-y-3 rounded-lg bg-amber-50 p-3" aria-label="Shop">
-      <h2 class="text-sm font-semibold text-amber-900">
+    <section class="paper space-y-3 rounded-lg p-3" aria-label="Shop">
+      <h2 class="text-lg font-bold">
         Shop: pick up to two chips of different colours
       </h2>
       <form id="shop" phx-change="select" class="space-y-2">
         <ul :for={row <- shop_rows()} class="grid gap-2 sm:grid-cols-3" data-role="shop-row">
           <li :for={chip <- row}>
             <label class={[
-              "flex items-center gap-2 rounded-md bg-white px-2 py-1 text-sm",
+              "flex items-center gap-2 rounded-md bg-parchment-light px-2 py-1 text-sm",
               blocked?(chip, @selected, @actions) && "opacity-40"
             ]}>
               <input
@@ -281,7 +286,7 @@ defmodule QuacksWeb.GameLive do
               />
               <.chip chip={chip} size={:sm} />
               <span>{chip_name(chip)}</span>
-              <span class="ml-auto text-zinc-500">{Chips.price(chip)}c</span>
+              <span class="ml-auto text-ink-soft">{Chips.price(chip)}c</span>
             </label>
           </li>
         </ul>

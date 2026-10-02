@@ -101,8 +101,8 @@ defmodule QuacksWeb.CoreComponents do
 
   def button(%{rest: rest} = assigns) do
     variants = %{
-      "primary" => "bg-zinc-900 text-white hover:bg-zinc-700",
-      nil => "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+      "primary" => "bg-gold text-ink shadow hover:brightness-110",
+      nil => "bg-iron-dark text-parchment ring-1 ring-iron hover:bg-iron"
     }
 
     assigns =

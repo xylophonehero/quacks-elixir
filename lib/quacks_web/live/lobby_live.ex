@@ -50,12 +50,12 @@ defmodule QuacksWeb.LobbyLive do
       </section>
 
       <section aria-label="Open games">
-        <h2 class="text-sm font-semibold text-zinc-600">Open games</h2>
+        <h2 class="text-lg font-semibold text-parchment-dim">Open games</h2>
         <ul class="mt-2 space-y-2">
           <li
             :for={game <- @games}
             id={"game-#{game.id}"}
-            class="flex items-center justify-between rounded-md bg-zinc-100 px-3 py-2 text-sm"
+            class="paper flex items-center justify-between rounded-md px-3 py-2 text-sm"
           >
             <span>
               <span class="font-mono font-semibold">{game.id}</span>
@@ -63,7 +63,7 @@ defmodule QuacksWeb.LobbyLive do
             </span>
             <.button navigate={~p"/g/#{game.id}"}>Join</.button>
           </li>
-          <li :if={@games == []} class="text-sm text-zinc-400">No open games. Start one.</li>
+          <li :if={@games == []} class="text-sm text-parchment-dim">No open games. Start one.</li>
         </ul>
       </section>
     </Layouts.app>

@@ -10,15 +10,50 @@ defmodule QuacksWeb.GameComponents do
   alias Quacks.Rules.{Chips, PotTrack}
 
   @colours %{
-    white: "bg-white text-zinc-900 border border-zinc-300",
-    orange: "bg-orange-400 text-zinc-900",
-    green: "bg-green-600 text-white",
-    blue: "bg-blue-600 text-white",
-    red: "bg-red-600 text-white",
-    yellow: "bg-yellow-300 text-zinc-900",
-    purple: "bg-purple-600 text-white",
-    black: "bg-zinc-900 text-white"
+    white: "bg-chip-white text-ink border-2 border-zinc-400",
+    orange: "bg-chip-orange text-ink",
+    green: "bg-chip-green text-ink",
+    blue: "bg-chip-blue text-white",
+    red: "bg-chip-red text-white",
+    yellow: "bg-chip-yellow text-ink",
+    purple: "bg-chip-purple text-white",
+    black: "bg-chip-black text-white border border-iron"
   }
+
+  # Chips with a light face get dark ink for their value (contrast >= 4.5:1).
+  @light_chips [:white, :orange, :green, :yellow]
+
+  # The spiral pot, laid out once at compile time. Space 0 sits in the centre;
+  # spaces 1..53 sit `step` apart (arc length) on the Archimedean spiral
+  # r = a + b·θ, which turns anticlockwise on screen like the board. The whole
+  # spiral is then turned so space 53 ends at the upper right, by the spoon.
+  # `b` gives 52 units between turns, enough for two 22-unit bubbles.
+  spiral_a = 46
+  spiral_b = 52 / (2 * :math.pi())
+  step = 50
+  d_theta = 0.001
+
+  next_theta = fn theta ->
+    {theta, 0.0}
+    |> Stream.iterate(fn {t, len} ->
+      r = spiral_a + spiral_b * t
+      {t + d_theta, len + d_theta * :math.sqrt(r * r + spiral_b * spiral_b)}
+    end)
+    |> Enum.find(fn {_t, len} -> len >= step end)
+    |> elem(0)
+  end
+
+  thetas = Enum.scan(2..PotTrack.last(), 0.0, fn _space, theta -> next_theta.(theta) end)
+  turn = :math.pi() / 12 - List.last(thetas)
+
+  positions =
+    Enum.map([0.0 | thetas], fn theta ->
+      r = spiral_a + spiral_b * theta
+      {Float.round(r * :math.cos(theta + turn), 1), Float.round(-r * :math.sin(theta + turn), 1)}
+    end)
+
+  @positions List.to_tuple([{0.0, 0.0} | positions])
+  @groove Enum.map_join([{0.0, 0.0} | positions], " ", fn {x, y} -> "#{x},#{y}" end)
 
   @doc """
   One chip: a coloured disc that shows its value.
@@ -60,13 +95,14 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  One seat's 54-space pot track as a wrapping grid.
+  One seat's 54-space pot track, drawn as the board's cauldron: an inline SVG with
+  the spaces on a spiral from the centre (space 0) out to the rim (space 53).
 
-  `size={:lg}` (your own pot) shows each space's index, coins, victory points and a
-  ruby dot. `size={:sm}` (another player's pot) shows only the chips. In both, the
-  droplet space gets a blue ring, placed chips sit on their spaces, the scoring space
-  (the one directly after the last chip) is highlighted and the rat stone, when the
-  player has one, is a grey dot on its space.
+  `size={:lg}` (your own pot) shows each space's coins (top tag), victory points
+  (lower tag) and a ruby gem. `size={:sm}` (another player's pot) shows only the
+  chips. In both, the droplet is a blue drop on its space, placed chips sit on their
+  spaces, the scoring space (the one directly after the last chip) has a gold ring
+  and the rat stone, when the player has one, is a grey pebble on its space.
   """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
@@ -81,54 +117,180 @@ defmodule QuacksWeb.GameComponents do
         chips_by_index: chips_by_index(player),
         scoring_index: Game.scoring_index(assigns.game, assigns.seat),
         rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
-        spaces: 0..PotTrack.last()
+        spaces: 0..PotTrack.last(),
+        groove: @groove
       )
 
     ~H"""
-    <ol
-      class={[
-        "grid",
-        @size == :lg && "grid-cols-6 gap-1 sm:grid-cols-9",
-        @size == :sm && "grid-cols-9 gap-0.5"
-      ]}
+    <svg
+      viewBox="-268 -268 536 536"
+      class="block h-auto w-full select-none"
+      role="group"
       aria-label="Pot track"
     >
-      <li
-        :for={index <- @spaces}
-        class={[
-          "relative flex aspect-square flex-col items-center justify-center rounded-md leading-tight",
-          @size == :lg && "p-1 text-[10px]",
-          index == @scoring_index && "bg-amber-200 ring-2 ring-amber-500",
-          index != @scoring_index && "bg-zinc-100",
-          index == @me.droplet && "ring-2 ring-sky-500"
-        ]}
-        data-space={index}
-      >
-        <span :if={@size == :lg} class="absolute left-1 top-0.5 text-zinc-400">{index}</span>
-        <span
-          :if={@size == :lg and PotTrack.at(index).ruby?}
-          class="absolute right-1 top-1 size-2 rounded-full bg-rose-500"
-          aria-label="ruby"
+      <defs>
+        <radialGradient id={"brew-#{@seat}"}>
+          <stop offset="0%" stop-color="var(--color-potion-light)" stop-opacity="0.55" />
+          <stop offset="70%" stop-color="var(--color-potion)" />
+          <stop offset="100%" stop-color="var(--color-potion-deep)" />
+        </radialGradient>
+      </defs>
+      <%!-- the table under the pot --%>
+      <rect x="-268" y="-10" width="536" height="278" rx="14" fill="var(--color-wood)" />
+      <%!-- iron rim and the brew --%>
+      <circle r="262" fill="var(--color-iron-dark)" />
+      <circle
+        r="250"
+        fill={"url(#brew-#{@seat})"}
+        stroke="var(--color-iron)"
+        stroke-width="12"
+      />
+      <%!-- the spiral groove the spaces sit in --%>
+      <polyline
+        points={@groove}
+        fill="none"
+        stroke="var(--color-potion-deep)"
+        stroke-opacity="0.45"
+        stroke-width="46"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <g :for={index <- @spaces} data-space={index} transform={translate(index)}>
+        <title :if={@size == :lg}>{space_title(index)}</title>
+        <circle
+          r="22"
+          fill="var(--color-potion-light)"
+          stroke="var(--color-potion-deep)"
+          stroke-width="2"
         />
-        <span
+        <g :if={@size == :lg}>
+          <rect
+            x="-13"
+            y="-19"
+            width="26"
+            height="17"
+            rx="2"
+            fill="var(--color-parchment)"
+            stroke="var(--color-ink-soft)"
+            stroke-width="0.75"
+          />
+          <text
+            y="-5.5"
+            text-anchor="middle"
+            font-size="14"
+            font-weight="700"
+            font-family="var(--font-hand)"
+            fill="var(--color-ink)"
+          >
+            {PotTrack.at(index).coins}
+          </text>
+          <g :if={PotTrack.at(index).vp > 0}>
+            <rect
+              x="-9"
+              y="1"
+              width="18"
+              height="15"
+              rx="2"
+              fill="var(--color-parchment-deep)"
+              stroke="var(--color-ink-soft)"
+              stroke-width="0.75"
+            />
+            <text
+              y="13"
+              text-anchor="middle"
+              font-size="12.5"
+              font-weight="700"
+              fill="var(--color-ink)"
+            >
+              {PotTrack.at(index).vp}
+            </text>
+          </g>
+          <path
+            :if={PotTrack.at(index).ruby?}
+            d="M14 -22 l6 4 -2 7 h-8 l-2 -7 z"
+            fill="var(--color-ruby)"
+            stroke="#7a1410"
+            stroke-width="1"
+            aria-label="ruby"
+          />
+        </g>
+        <.pot_chip
+          :if={Map.has_key?(@chips_by_index, index)}
+          chip={@chips_by_index[index]}
+          size={@size}
+        />
+        <circle
+          :if={index == @scoring_index}
+          r="26"
+          fill="none"
+          stroke="var(--color-gold)"
+          stroke-width="5"
+          aria-label="scoring space"
+        />
+        <path
+          :if={index == @me.droplet}
+          d="M0 -11 C8 -1 8 7 0 7 C-8 7 -8 -1 0 -11 Z"
+          transform="translate(-20 -13)"
+          fill="var(--color-droplet)"
+          stroke="white"
+          stroke-width="1.5"
+          aria-label="droplet"
+        />
+        <ellipse
           :if={index == @rat_index}
-          class="absolute bottom-0.5 right-0.5 size-2 rounded-full bg-zinc-500"
+          cx="17"
+          cy="16"
+          rx="8"
+          ry="6"
+          fill="#8b9097"
+          stroke="var(--color-iron-dark)"
+          stroke-width="1.5"
           aria-label="rat stone"
           data-role="rat-stone"
         />
-        <%= cond do %>
-          <% chip = @chips_by_index[index] -> %>
-            <.chip chip={chip} size={if @size == :lg, do: :sm, else: :xs} data-role="pot-chip" />
-          <% @size == :lg -> %>
-            <span class="font-semibold text-zinc-700">{PotTrack.at(index).coins}c</span>
-            <span :if={PotTrack.at(index).vp > 0} class="text-zinc-500">
-              {PotTrack.at(index).vp}vp
-            </span>
-          <% true -> %>
-        <% end %>
-      </li>
-    </ol>
+      </g>
+    </svg>
     """
+  end
+
+  attr :chip, :any, required: true
+  attr :size, :atom, required: true
+
+  defp pot_chip(assigns) do
+    {colour, value} = assigns.chip
+    ink = if colour in @light_chips, do: "var(--color-ink)", else: "white"
+    assigns = assign(assigns, colour: colour, value: value, ink: ink)
+
+    ~H"""
+    <g data-role="pot-chip" aria-label={"#{@colour} #{@value}"}>
+      <circle
+        r="19"
+        fill={"var(--color-chip-#{@colour})"}
+        stroke={if @colour == :white, do: "#9a9a94", else: "rgb(0 0 0 / 0.4)"}
+        stroke-width="2.5"
+      />
+      <text
+        dy="0.35em"
+        text-anchor="middle"
+        font-size={if @size == :lg, do: "17", else: "24"}
+        font-weight="700"
+        fill={@ink}
+      >
+        {@value}
+      </text>
+    </g>
+    """
+  end
+
+  defp translate(index) do
+    {x, y} = elem(@positions, index)
+    "translate(#{x} #{y})"
+  end
+
+  defp space_title(index) do
+    space = PotTrack.at(index)
+    ruby = if space.ruby?, do: ", ruby", else: ""
+    "Space #{index}: #{space.coins} coins, #{space.vp} VP#{ruby}"
   end
 
   # Each chip remembers the space it landed on, so the pot just reads it back.
@@ -145,11 +307,11 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, counts: assigns.bag |> Enum.frequencies() |> Enum.sort())
 
     ~H"""
-    <div>
-      <h2 class="text-sm font-semibold text-zinc-600">Bag ({length(@bag)} chips)</h2>
-      <ul class="mt-2 flex flex-wrap gap-2" aria-label="Chips in the bag">
+    <div class="paper rounded-lg p-3">
+      <h2 class="text-lg font-bold">Bag ({length(@bag)} chips)</h2>
+      <ul class="mt-1 flex flex-wrap gap-2" aria-label="Chips in the bag">
         <li :for={{chip, count} <- @counts} class="flex items-center gap-1 text-sm">
-          <.chip chip={chip} /> <span class="text-zinc-600">x{count}</span>
+          <.chip chip={chip} /> <span class="text-ink-soft">x{count}</span>
         </li>
       </ul>
     </div>
@@ -164,7 +326,7 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, me: assigns.game.players[assigns.seat])
 
     ~H"""
-    <dl class="grid grid-cols-3 gap-2 text-sm sm:grid-cols-6">
+    <dl class="paper grid grid-cols-3 gap-2 rounded-lg p-2 text-sm sm:grid-cols-6">
       <.stat label="Round" value={"#{@game.round} / 9"} />
       <.stat label="Phase" value={phase_name(Game.phase(@game, @seat))} />
       <.stat label="VP" value={@me.vp} />
@@ -172,12 +334,12 @@ defmodule QuacksWeb.GameComponents do
       <.stat label="Flask" value={if @me.flask, do: "full", else: "empty"} />
       <.stat label="White" value={"#{Game.white_sum(@game, @seat)} / 7"} />
       <div :if={@game.phase == :buy_chips and @game.turn == @seat} class="col-span-3 sm:col-span-6">
-        <span class="rounded-md bg-amber-100 px-2 py-1 font-semibold text-amber-900">
+        <span class="rounded-md bg-gold px-2 py-1 font-semibold text-ink">
           {@me.coins} coins to spend
         </span>
       </div>
       <div :if={@me.exploded?} class="col-span-3 sm:col-span-6">
-        <span class="rounded-md bg-rose-600 px-2 py-1 font-semibold text-white">Exploded!</span>
+        <span class="rounded-md bg-ruby px-2 py-1 font-semibold text-white">Exploded!</span>
       </div>
     </dl>
     """
@@ -188,8 +350,8 @@ defmodule QuacksWeb.GameComponents do
 
   defp stat(assigns) do
     ~H"""
-    <div class="rounded-md bg-zinc-100 px-2 py-1">
-      <dt class="text-xs text-zinc-500">{@label}</dt>
+    <div class="rounded-md bg-parchment-deep/70 px-2 py-1">
+      <dt class="text-xs text-ink-soft">{@label}</dt>
       <dd class="font-semibold">{@value}</dd>
     </div>
     """
@@ -207,16 +369,16 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, p: assigns.game.players[assigns.seat])
 
     ~H"""
-    <article class="space-y-2 rounded-lg bg-zinc-50 p-2 text-xs" data-seat={@seat}>
+    <article class="paper space-y-2 rounded-lg p-2 text-xs" data-seat={@seat}>
       <header class="flex flex-wrap items-center gap-1">
-        <span class="font-semibold" data-role="player-name">{@name}</span>
-        <span :if={@game.phase == :potions} class="rounded bg-zinc-200 px-1">
+        <span class="font-hand text-sm font-bold" data-role="player-name">{@name}</span>
+        <span :if={@game.phase == :potions} class="rounded bg-parchment-deep px-1">
           {if @p.done?, do: "done", else: "waiting"}
         </span>
-        <span :if={@game.turn == @seat} class="rounded bg-amber-200 px-1">their turn</span>
-        <span :if={@p.exploded?} class="rounded bg-rose-600 px-1 text-white">Exploded!</span>
+        <span :if={@game.turn == @seat} class="rounded bg-gold px-1">their turn</span>
+        <span :if={@p.exploded?} class="rounded bg-ruby px-1 text-white">Exploded!</span>
       </header>
-      <p class="text-zinc-600">
+      <p class="text-ink-soft">
         Round {@game.round} · {@p.vp} VP · {@p.rubies} rubies · flask {if @p.flask,
           do: "full",
           else: "empty"} · white {Game.white_sum(@game, @seat)} / 7
@@ -235,12 +397,12 @@ defmodule QuacksWeb.GameComponents do
   def blue_offer(assigns) do
     ~H"""
     <div
-      class="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 p-2 text-sm"
+      class="paper flex flex-wrap items-center gap-2 rounded-md border-l-4 border-droplet p-2 text-sm"
       aria-label="Crow skull offer"
     >
-      <span class="font-semibold text-blue-900">Crow skull drew:</span>
+      <span class="font-semibold">Crow skull drew:</span>
       <.chip :for={chip <- @pending} chip={chip} data-role="offer-chip" />
-      <span class="text-zinc-600">Place one of them, or return them all.</span>
+      <span class="text-ink-soft">Place one of them, or return them all.</span>
     </div>
     """
   end
@@ -266,11 +428,11 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, entries: entries)
 
     ~H"""
-    <div>
-      <h2 class="text-sm font-semibold text-zinc-600">Log</h2>
-      <ol class="mt-2 space-y-1 text-sm text-zinc-700" aria-label="Recent actions">
+    <div class="paper rounded-lg p-3">
+      <h2 class="text-lg font-bold">Log</h2>
+      <ol class="mt-1 space-y-1 text-sm" aria-label="Recent actions">
         <li :for={line <- @entries}>{line}</li>
-        <li :if={@entries == []} class="text-zinc-400">Nothing yet. Draw a chip.</li>
+        <li :if={@entries == []} class="text-ink-soft">Nothing yet. Draw a chip.</li>
       </ol>
     </div>
     """
