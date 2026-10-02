@@ -17,7 +17,7 @@ defmodule QuacksWeb.Router do
   scope "/", QuacksWeb do
     pipe_through :browser
 
-    live "/", HomeLive
+    live "/", GameLive
   end
 
   # Other scopes may use custom stacks.
