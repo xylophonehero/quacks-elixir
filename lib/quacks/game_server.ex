@@ -36,25 +36,29 @@ defmodule Quacks.GameServer do
 
   # -- API ---------------------------------------------------------------------------
 
-  @doc "Start a game for 1 to 4 players. A `nil` seed picks a random one."
-  @spec start(1..4, {integer, integer, integer} | nil) :: {:ok, id}
-  def start(players, seed \\ nil) when players in 1..4 do
+  @doc """
+  Start a game for 1 to 4 players. A `nil` seed picks a random one. `sets` picks the
+  Ingredient Set per colour, e.g. `%{green: 2}` (left out: Set 1).
+  """
+  @spec start(1..4, {integer, integer, integer} | nil, Quacks.Rules.Chips.sets()) :: {:ok, id}
+  def start(players, seed \\ nil, sets \\ %{}) when players in 1..4 do
     id = new_id()
     seed = seed || random_seed()
+    arg = {id, players, seed, sets}
 
-    case DynamicSupervisor.start_child(Quacks.GameSupervisor, {__MODULE__, {id, players, seed}}) do
+    case DynamicSupervisor.start_child(Quacks.GameSupervisor, {__MODULE__, arg}) do
       {:ok, _pid} ->
         broadcast_lobby()
         {:ok, id}
 
       # Two games drew the same id; try again with a new one.
       {:error, {:already_started, _pid}} ->
-        start(players, seed)
+        start(players, seed, sets)
     end
   end
 
   @doc false
-  def start_link({id, _players, _seed} = arg),
+  def start_link({id, _players, _seed, _sets} = arg),
     do: GenServer.start_link(__MODULE__, arg, name: {:via, Registry, {Quacks.GameRegistry, id}})
 
   @doc """
@@ -125,9 +129,10 @@ defmodule Quacks.GameServer do
   # -- server ------------------------------------------------------------------------
 
   @impl true
-  def init({id, players, seed}) do
+  def init({id, players, seed, sets}) do
     # `tokens` maps a browser's player token to its seat.
-    state = %{id: id, session: Session.new(seed, players), tokens: %{}, names: %{}}
+    session = Session.new(seed, players, sets: sets)
+    state = %{id: id, session: session, tokens: %{}, names: %{}}
     {:ok, state, @idle_timeout}
   end
 

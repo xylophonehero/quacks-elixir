@@ -104,9 +104,9 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # A new game for the same number of players, with this browser in seat 0.
+  # A new game for the same number of players and books, with this browser in seat 0.
   def handle_event("new_game", _params, socket) do
-    {:ok, id} = GameServer.start(socket.assigns.players)
+    {:ok, id} = GameServer.start(socket.assigns.players, nil, socket.assigns.game.sets)
     {:ok, 0} = GameServer.claim_seat(id, socket.assigns.token)
     {:noreply, push_navigate(socket, to: ~p"/g/#{id}")}
   end
@@ -159,6 +159,8 @@ defmodule QuacksWeb.GameLive do
         {turn_text(@game, @seat, @names)}
       </p>
 
+      <.fortune_card :if={@game.fortune_card} id={@game.fortune_card} />
+
       <section
         :if={@players > 1}
         class="grid gap-2 sm:grid-cols-3"
@@ -204,7 +206,21 @@ defmodule QuacksWeb.GameLive do
         <.status game={@game} seat={@seat} />
         <.pot game={@game} seat={@seat} />
 
+        <.aside :if={@me.aside != []} chips={@me.aside} />
         <.blue_offer :if={Game.phase(@game, @seat) == :blue_choice} pending={@me.pending} />
+        <.blue_offer
+          :if={Game.phase(@game, @seat) == :red_choice}
+          pending={@me.pending}
+          title="Toadstool chips beside the pot:"
+          hint="For each: place it after your last chip, keep it for later, or return it to the bag."
+          label="Toadstool choice"
+          accent="border-ruby"
+        />
+        <.fortune_offer
+          :if={Game.phase(@game, @seat) == :fortune_choice and @me.pending != []}
+          card={@game.fortune_card}
+          pending={@me.pending}
+        />
 
         <.shop
           :if={@game.phase == :buy_chips and @game.turn == @seat}
@@ -224,7 +240,7 @@ defmodule QuacksWeb.GameLive do
             phx-value-action={encode(action)}
             variant="primary"
           >
-            {label(action)}
+            {label(action, @game.fortune_card)}
           </.button>
         </section>
 
@@ -244,7 +260,7 @@ defmodule QuacksWeb.GameLive do
 
   @doc """
   The shop as a form of checkboxes, one per kind of chip, in a row per colour (see
-  `shop_rows/0`). The engine decides what may be ticked: a box is disabled when adding
+  `shop_rows/0`), priced with the game's Ingredient books (`Chips.price/2`). The engine decides what may be ticked: a box is disabled when adding
   its chip to the selection is not a legal buy (too expensive, same colour, two already
   ticked, out of supply, not yet in the shop). "Buy selected" sends `{:buy, selected}`
   and is enabled only when that exact buy is legal.
@@ -254,12 +270,14 @@ defmodule QuacksWeb.GameLive do
   attr :selected, :list, required: true, doc: "ticked chips, sorted"
 
   def shop(assigns) do
-    total = assigns.selected |> Enum.map(&Chips.price/1) |> Enum.sum()
+    sets = assigns.game.sets
+    total = assigns.selected |> Enum.map(&Chips.price(&1, sets)) |> Enum.sum()
     coins = assigns.game.players[assigns.seat].coins
 
     assigns =
       assign(assigns,
         actions: Game.legal_actions(assigns.game, assigns.seat),
+        sets: sets,
         total: total,
         coins: coins,
         remaining: coins - total
@@ -270,6 +288,7 @@ defmodule QuacksWeb.GameLive do
       <h2 class="text-lg font-bold">
         Shop: pick up to two chips of different colours
       </h2>
+      <.books sets={@sets} />
       <form id="shop" phx-change="select" class="space-y-2">
         <ul :for={row <- shop_rows()} class="grid gap-2 sm:grid-cols-3" data-role="shop-row">
           <li :for={chip <- row}>
@@ -286,7 +305,9 @@ defmodule QuacksWeb.GameLive do
               />
               <.chip chip={chip} size={:sm} />
               <span>{chip_name(chip)}</span>
-              <span class="ml-auto text-ink-soft">{Chips.price(chip)}c</span>
+              <span class="ml-auto text-ink-soft" data-role="price">
+                {Chips.price(chip, @sets)}c
+              </span>
             </label>
           </li>
         </ul>
@@ -336,6 +357,7 @@ defmodule QuacksWeb.GameLive do
     do: "#{name(names, turn)}'s turn: #{phase_verb(phase)}."
 
   defp phase_verb(:fortune_choice), do: "resolve the fortune teller card"
+  defp phase_verb(:chip_choice), do: "choose chip actions"
   defp phase_verb(:buy_chips), do: "buy chips"
   defp phase_verb(:spend_rubies), do: "spend rubies, then end the round"
 
