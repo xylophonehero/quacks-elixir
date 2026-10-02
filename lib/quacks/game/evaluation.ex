@@ -2,7 +2,7 @@ defmodule Quacks.Game.Evaluation do
   @moduledoc """
   Steps A–D of the evaluation phase (rulebook §3.2) for every seat at once, run by
   `Quacks.Game` as soon as the last player is done drawing: bonus die, chip actions
-  (black, green, purple), rubies and VP from the scoring space. Then the shop opens.
+  (black, green, purple; by Ingredient Set), rubies and VP from the scoring space. Then the shop opens.
 
   Seats are visited in turn order (start player first), so the shared `rng` and the
   log are deterministic.
@@ -58,23 +58,45 @@ defmodule Quacks.Game.Evaluation do
     {face, g}
   end
 
-  # Step B (§4): black, green, purple. All automatic; always the highest purple tier.
+  # Step B (§4): black, then green and purple by their Ingredient Set. All automatic;
+  # always the highest purple tier. Green first: G3 moves the last chip.
   defp chip_actions(g, seat) do
-    chips = Game.pot_chips(g, seat)
-    g = black(g, seat, count(:black, chips))
+    g = black(g, seat, count(:black, Game.pot_chips(g, seat)))
+    g = chip_action(g, seat, {:green, g.sets.green})
+    chip_action(g, seat, {:purple, g.sets.purple})
+  end
 
-    g =
-      case count(:green, Enum.take(chips, 2)) do
-        0 ->
-          g
+  defp chip_action(g, seat, {:green, 1}) do
+    case count(:green, Enum.take(Game.pot_chips(g, seat), 2)) do
+      0 ->
+        g
 
-        n ->
-          g
-          |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + n})
-          |> Game.record(seat, {:green_rubies, n})
-      end
+      n ->
+        g
+        |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + n})
+        |> Game.record(seat, {:green_rubies, n})
+    end
+  end
 
-    case count(:purple, chips) do
+  # G3: exactly 7 white → the last chip moves on by the sum of the green values.
+  defp chip_action(g, seat, {:green, 3} = book) do
+    p = Game.player(g, seat)
+    n = for {{:green, v}, _} <- p.drawn, reduce: 0, do: (acc -> acc + v)
+
+    if Game.white_sum(g, seat) == 7 and n > 0 do
+      [{chip, index} | rest] = p.drawn
+      index = min(index + n, PotTrack.last())
+
+      g
+      |> Game.update_player(seat, &%{&1 | drawn: [{chip, index} | rest], pot_index: index})
+      |> Game.effect(seat, book, {:moved_last, n})
+    else
+      g
+    end
+  end
+
+  defp chip_action(g, seat, {:purple, 1}) do
+    case count(:purple, Game.pot_chips(g, seat)) do
       0 ->
         g
 
@@ -93,6 +115,21 @@ defmodule Quacks.Game.Evaluation do
         |> Game.update_player(seat, &%{&1 | vp: &1.vp + 2, droplet: &1.droplet + 1})
         |> Game.record(seat, {:purple, 3, :vp2_droplet})
     end
+  end
+
+  # P3: per purple chip, VP by its pot field: 0–9 → 0, 10–19 → 1, 20–29 → 2, 30+ → 3.
+  defp chip_action(g, seat, {:purple, 3} = book) do
+    vp =
+      for {{:purple, _}, i} <- Game.player(g, seat).drawn,
+          reduce: 0,
+          do: (acc -> acc + min(div(i, 10), 3))
+
+    if vp > 0,
+      do:
+        g
+        |> Game.update_player(seat, &%{&1 | vp: &1.vp + vp})
+        |> Game.effect(seat, book, {:vp, vp}),
+      else: g
   end
 
   # Black (§4): compared with the opponent (2 players) or both neighbours (3–4).

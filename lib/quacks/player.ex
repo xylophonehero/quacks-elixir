@@ -8,7 +8,8 @@ defmodule Quacks.Player do
   `explosion_choice` remembers `:vp` or `:buy` until the evaluation runs.
   `fortune_used?` is true once a once-per-round card power (B3, B10) is used.
   `pending` holds a blue offer, a Safety Procedure offer (B7) or a Flea Market draw
-  (P13): chips out of the bag until the player chooses.
+  (P13): chips out of the bag until the player chooses. `mods` holds the round
+  modifiers of the Set 2–4 chips (see `t:mods/0`).
   """
 
   alias Quacks.Rules.{Chips, PotTrack}
@@ -27,7 +28,8 @@ defmodule Quacks.Player do
             rat_stone: 0,
             phase: :potions,
             done?: false,
-            fortune_used?: false
+            fortune_used?: false,
+            mods: %{explode_above: 7, next_chip_x2: false, white1_plus1: false, protect: 0}
 
   @type phase ::
           :potions | :yellow_choice | :blue_choice | :explosion_choice | :fortune_choice | :done
@@ -48,7 +50,19 @@ defmodule Quacks.Player do
           rat_stone: non_neg_integer,
           phase: phase,
           done?: boolean,
-          fortune_used?: boolean
+          fortune_used?: boolean,
+          mods: mods
+        }
+  @typedoc """
+  Round modifiers from Set 2–4 chips, reset at the end of the round: the white limit
+  (Y3), the next chip moves double (Y2), white 1-chips move 2 (R4), and how many more
+  drawn chips the crow skull protects (B2).
+  """
+  @type mods :: %{
+          explode_above: 7..9,
+          next_chip_x2: boolean,
+          white1_plus1: boolean,
+          protect: non_neg_integer
         }
 
   @doc "A player at the start of the game with `bag`."
@@ -88,7 +102,8 @@ defmodule Quacks.Player do
         pot_index: p.droplet,
         phase: :potions,
         done?: false,
-        fortune_used?: false
+        fortune_used?: false,
+        mods: %__MODULE__{}.mods
     }
   end
 end
