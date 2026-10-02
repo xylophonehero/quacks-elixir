@@ -16,6 +16,10 @@ defmodule Quacks.Game do
   round 9 the phase is `:over`. The struct never rests without a legal action for
   some seat unless `over?/1`.
 
+  House rules (`rules`, see `new/1`) change a few table rules: the explosion limit,
+  the round-6 white chip, the cards, the rats, solo black, the die and the starting
+  rubies. The defaults are the rulebook game.
+
   Fortune Teller cards (`Quacks.Game.Fortune`): each round starts by turning up a
   card. A purple card with a choice puts the game in `:fortune_choice` (one `turn`
   seat at a time) before `:potions`; Toil and Trouble (B2) does the same between
@@ -43,6 +47,16 @@ defmodule Quacks.Game do
   @from_round %{yellow: 2, purple: 3}
   # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
   @sets %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1}
+  # House rules (research `ingredient-sets-and-customisation.md` Part 2b): the rulebook game.
+  @rules %{
+    explode_above: 7,
+    round6_white: true,
+    fortune: true,
+    rats: true,
+    black_solo: :droplet,
+    die: :standard,
+    starting_rubies: 1
+  }
 
   defstruct round: 1,
             phase: :potions,
@@ -54,7 +68,8 @@ defmodule Quacks.Game do
             seats: [],
             fortune_deck: [],
             fortune_card: nil,
-            sets: @sets
+            sets: @sets,
+            rules: @rules
 
   @type seat :: 0..3
   @type phase :: :potions | :fortune_choice | :chip_choice | :buy_chips | :spend_rubies | :over
@@ -149,28 +164,49 @@ defmodule Quacks.Game do
           seats: [seat],
           fortune_deck: [Quacks.Rules.Fortune.id()],
           fortune_card: Quacks.Rules.Fortune.id() | nil,
-          sets: %{(:green | :blue | :red | :yellow | :purple) => 1..4}
+          sets: %{(:green | :blue | :red | :yellow | :purple) => 1..4},
+          rules: rules
+        }
+  @typedoc """
+  House rules; the defaults (`default_rules/0`) are the rulebook game.
+  `explode_above` is the white limit before chips and cards raise it, `black_solo`
+  the solo black payout (rulebook §6.2 suggests `:droplet_ruby`), `die: :no_orange`
+  turns the orange face into a second ruby face (⚠️ unofficial).
+  """
+  @type rules :: %{
+          explode_above: 5..9,
+          round6_white: boolean,
+          fortune: boolean,
+          rats: boolean,
+          black_solo: :droplet | :droplet_ruby,
+          die: :standard | :no_orange,
+          starting_rubies: 0..3
         }
 
   @doc """
   A fresh game. `seed:` is a `{int, int, int}` tuple for `:rand.seed_s(:exsss, seed)`;
   `players:` is 1 (default) to 4. Every starting bag comes out of the shared supply.
-  `fortune: false` plays without Fortune Teller cards (default `true`); otherwise
-  round 1's card is turned up here. `sets:` picks the Ingredient Set (1..4) per colour,
-  e.g. `%{blue: 3}`; colours left out use Set 1. An unknown colour or set raises
-  `ArgumentError`.
+  `sets:` picks the Ingredient Set (1..4) per colour, e.g. `%{blue: 3}`; colours left
+  out use Set 1. `rules:` sets house rules (`t:rules/0`), e.g. `%{explode_above: 9}`;
+  rules left out keep their default. With `fortune: true` (default) round 1's card
+  is turned up here. `fortune: false` is an old alias for `rules: %{fortune: false}`.
+  An unknown colour, set or rule raises `ArgumentError`.
   """
   @spec new(
           seed: {integer, integer, integer},
           players: 1..4,
-          fortune: boolean,
-          sets: %{atom => 1..4}
+          sets: %{atom => 1..4},
+          rules: map,
+          fortune: boolean
         ) :: t
   def new(opts) do
     seed = Keyword.fetch!(opts, :seed)
     n = Keyword.get(opts, :players, 1)
     if n not in 1..4, do: raise(ArgumentError, "players must be 1..4, got #{inspect(n)}")
     sets = sets!(Keyword.get(opts, :sets, %{}))
+    # `fortune:` is the old top-level option; `rules:` wins when both are given.
+    alias_rules = Map.new(Keyword.take(opts, [:fortune]))
+    rules = rules!(Map.merge(alias_rules, Keyword.get(opts, :rules, %{})))
 
     seats = Enum.to_list(0..(n - 1))
     bag = Chips.starting_bag()
@@ -178,15 +214,17 @@ defmodule Quacks.Game do
     supply = Enum.reduce(starting, Chips.supply(), &Map.update!(&2, &1, fn c -> c - 1 end))
 
     rng = :rand.seed_s(:exsss, seed)
-    deck = if Keyword.get(opts, :fortune, true), do: Fortune.deck(rng, n), else: []
+    deck = if rules.fortune, do: Fortune.deck(rng, n), else: []
+    player = %{Player.new(bag) | rubies: rules.starting_rubies}
 
     start_round(%__MODULE__{
       seats: seats,
-      players: Map.new(seats, &{&1, Player.new(bag)}),
+      players: Map.new(seats, &{&1, player}),
       supply: supply,
       rng: rng,
       fortune_deck: deck,
-      sets: sets
+      sets: sets,
+      rules: rules
     })
   end
 
@@ -197,6 +235,23 @@ defmodule Quacks.Game do
       do: raise(ArgumentError, "sets must map #{inspect(Map.keys(@sets))} to 1..4")
 
     sets
+  end
+
+  @doc "The house rules of the rulebook game (see `t:rules/0`)."
+  @spec default_rules() :: rules
+  def default_rules, do: @rules
+
+  defp rules!(rules) do
+    rules = Map.merge(@rules, rules)
+
+    valid? =
+      map_size(rules) == map_size(@rules) and rules.explode_above in 5..9 and
+        is_boolean(rules.round6_white) and is_boolean(rules.fortune) and
+        is_boolean(rules.rats) and rules.black_solo in [:droplet, :droplet_ruby] and
+        rules.die in [:standard, :no_orange] and rules.starting_rubies in 0..3
+
+    if not valid?, do: raise(ArgumentError, "bad rules: #{inspect(rules)}")
+    rules
   end
 
   @doc "True after round 9's evaluation."
@@ -356,7 +411,9 @@ defmodule Quacks.Game do
       Enum.reduce(g.seats, g, fn seat, g ->
         g = update_player(g, seat, &Player.reset/1)
         # Rulebook §3 step 5: before turn 6 each player adds 1 white 1-chip.
-        if round == 6, do: add_from_supply(g, seat, {:white, 1}), else: g
+        if round == 6 and g.rules.round6_white,
+          do: add_from_supply(g, seat, {:white, 1}),
+          else: g
       end)
 
     start_round(%{g | round: round, phase: :potions, turn: nil})
@@ -380,6 +437,7 @@ defmodule Quacks.Game do
   # Rulebook §3 step 2 (round 2+, 2+ players): everyone behind the leader counts the
   # rat tails up to the leader and starts that many spaces past their droplet.
   defp place_rats(%{seats: [_]} = g), do: g
+  defp place_rats(%{rules: %{rats: false}} = g), do: g
 
   defp place_rats(g) do
     leader = g.players |> Map.values() |> Enum.map(& &1.vp) |> Enum.max()

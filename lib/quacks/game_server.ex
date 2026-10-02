@@ -38,13 +38,15 @@ defmodule Quacks.GameServer do
 
   @doc """
   Start a game for 1 to 4 players. A `nil` seed picks a random one. `sets` picks the
-  Ingredient Set per colour, e.g. `%{green: 2}` (left out: Set 1).
+  Ingredient Set per colour, e.g. `%{green: 2}` (left out: Set 1). `rules` sets house
+  rules, e.g. `%{explode_above: 9}` (left out: the default; see `Quacks.Game.new/1`).
   """
-  @spec start(1..4, {integer, integer, integer} | nil, Quacks.Rules.Chips.sets()) :: {:ok, id}
-  def start(players, seed \\ nil, sets \\ %{}) when players in 1..4 do
+  @spec start(1..4, {integer, integer, integer} | nil, Quacks.Rules.Chips.sets(), map) ::
+          {:ok, id}
+  def start(players, seed \\ nil, sets \\ %{}, rules \\ %{}) when players in 1..4 do
     id = new_id()
     seed = seed || random_seed()
-    arg = {id, players, seed, sets}
+    arg = {id, players, seed, sets, rules}
 
     case DynamicSupervisor.start_child(Quacks.GameSupervisor, {__MODULE__, arg}) do
       {:ok, _pid} ->
@@ -53,12 +55,12 @@ defmodule Quacks.GameServer do
 
       # Two games drew the same id; try again with a new one.
       {:error, {:already_started, _pid}} ->
-        start(players, seed, sets)
+        start(players, seed, sets, rules)
     end
   end
 
   @doc false
-  def start_link({id, _players, _seed, _sets} = arg),
+  def start_link({id, _players, _seed, _sets, _rules} = arg),
     do: GenServer.start_link(__MODULE__, arg, name: {:via, Registry, {Quacks.GameRegistry, id}})
 
   @doc """
@@ -129,9 +131,9 @@ defmodule Quacks.GameServer do
   # -- server ------------------------------------------------------------------------
 
   @impl true
-  def init({id, players, seed, sets}) do
+  def init({id, players, seed, sets, rules}) do
     # `tokens` maps a browser's player token to its seat.
-    session = Session.new(seed, players, sets: sets)
+    session = Session.new(seed, players, sets: sets, rules: rules)
     state = %{id: id, session: session, tokens: %{}, names: %{}}
     {:ok, state, @idle_timeout}
   end

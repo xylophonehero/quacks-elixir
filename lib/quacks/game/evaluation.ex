@@ -95,8 +95,9 @@ defmodule Quacks.Game.Evaluation do
   @doc false
   # Roll the bonus die for `seat` and pay the face out; the caller logs it.
   def roll(g, seat) do
-    {i, rng} = :rand.uniform_s(length(@die), g.rng)
-    face = Enum.at(@die, i - 1)
+    die = die(g.rules.die)
+    {i, rng} = :rand.uniform_s(length(die), g.rng)
+    face = Enum.at(die, i - 1)
     g = %{g | rng: rng}
 
     g =
@@ -109,6 +110,10 @@ defmodule Quacks.Game.Evaluation do
 
     {face, g}
   end
+
+  # ⚠️ House rule `die: :no_orange`: the orange face is a second ruby face.
+  defp die(:standard), do: @die
+  defp die(:no_orange), do: Enum.map(@die, &if(&1 == :orange, do: :ruby, else: &1))
 
   # Step B (§4): black, then green and purple by their Ingredient Set. Set 1 and 3
   # are automatic (Set 1 purple: always the highest tier); Set 2 and 4 open choices.
@@ -300,11 +305,16 @@ defmodule Quacks.Game.Evaluation do
   end
 
   # Black (§4): compared with the opponent (2 players) or both neighbours (3–4).
-  # ⚠️ Solo house rule: no opponent, so 1+ black chip counts as a tie: droplet +1.
+  # ⚠️ Solo: no opponent; 1+ black chip pays `rules.black_solo` (default droplet +1).
   defp black(g, seat, mine) do
     others = Enum.map(neighbours(g, seat), &count(:black, Game.pot_chips(g, &1)))
 
-    case black_payoff(mine, others) do
+    payoff =
+      if others == [] and mine > 0,
+        do: g.rules.black_solo,
+        else: black_payoff(mine, others)
+
+    case payoff do
       nil ->
         g
 
@@ -320,9 +330,8 @@ defmodule Quacks.Game.Evaluation do
     end
   end
 
-  # My black chips against the neighbours' counts: none (solo), one (2p) or two (3–4p).
+  # My black chips against the neighbours' counts: one (2p) or two (3–4p).
   defp black_payoff(0, _others), do: nil
-  defp black_payoff(_mine, []), do: :droplet
   defp black_payoff(mine, [opp]) when mine > opp, do: :droplet_ruby
   defp black_payoff(mine, [opp]) when mine == opp, do: :droplet
   defp black_payoff(mine, [a, b]) when mine > a and mine > b, do: :droplet_ruby

@@ -158,10 +158,18 @@ defmodule Quacks.Game.Potions do
     end
   end
 
-  @doc "The highest white sum `seat` may have: 7, or more with B5 or the Y3 mandrake."
-  @spec explode_above(Game.t(), Game.seat()) :: 7..9
-  def explode_above(g, seat),
-    do: max(Game.player(g, seat).mods.explode_above, Fortune.explode_above(g))
+  @doc """
+  The highest white sum `seat` may have: the house rule's limit (default 7), or more
+  with B5 or the Y3 mandrake. The highest of the three wins.
+  """
+  @spec explode_above(Game.t(), Game.seat()) :: 5..9
+  def explode_above(g, seat) do
+    Enum.max([
+      g.rules.explode_above,
+      Game.player(g, seat).mods.explode_above,
+      Fortune.explode_above(g)
+    ])
+  end
 
   defp exploded?(g, seat), do: Game.white_sum(g, seat) > explode_above(g, seat)
 

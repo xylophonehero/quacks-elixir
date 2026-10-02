@@ -487,9 +487,12 @@ defmodule Quacks.GameTest do
     check all(
             seed <- tuple({positive_integer(), positive_integer(), positive_integer()}),
             players <- integer(1..4),
+            rules <- rules(),
             picks <- list_of(non_negative_integer(), min_length: 20, max_length: 200)
           ) do
-      Enum.reduce_while(picks, Game.new(seed: seed, players: players), fn pick, g ->
+      game = Game.new(seed: seed, players: players, rules: rules)
+
+      Enum.reduce_while(picks, game, fn pick, g ->
         active = Enum.filter(g.seats, &(Game.legal_actions(g, &1) != []))
 
         if Game.over?(g) do
@@ -514,5 +517,18 @@ defmodule Quacks.GameTest do
         end
       end)
     end
+  end
+
+  # Random house rules for the property test (see `Quacks.Game.t:rules/0`).
+  defp rules do
+    fixed_map(%{
+      explode_above: integer(5..9),
+      round6_white: boolean(),
+      fortune: boolean(),
+      rats: boolean(),
+      black_solo: member_of([:droplet, :droplet_ruby]),
+      die: member_of([:standard, :no_orange]),
+      starting_rubies: integer(0..3)
+    })
   end
 end
