@@ -12,6 +12,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.GameComponents
 
   alias Quacks.{Game, Session}
+  alias Quacks.Rules.Chips
 
   @doc """
   Start a game. `?seed=1,2,3` gives a reproducible game; otherwise the seed is random.
@@ -33,6 +34,22 @@ defmodule QuacksWeb.GameLive do
       {:error, :bad_action} ->
         {:noreply, put_flash(socket, :error, "That move could not be read.")}
     end
+  end
+
+  # The shop form re-sends every ticked checkbox on each change; no key means none.
+  def handle_event("select", params, socket) do
+    selected =
+      params
+      |> Map.get("chips", [])
+      |> Enum.flat_map(fn encoded ->
+        case decode(encoded) do
+          {:ok, {colour, value}} when is_atom(colour) and is_integer(value) -> [{colour, value}]
+          _ -> []
+        end
+      end)
+      |> Enum.sort()
+
+    {:noreply, assign(socket, selected: selected)}
   end
 
   def handle_event("undo", _params, socket) do
@@ -65,7 +82,15 @@ defmodule QuacksWeb.GameLive do
         <.button phx-click="new_game" variant="primary" class="mt-3">New game</.button>
       </section>
 
-      <section :if={not Game.over?(@game)} class="flex flex-wrap gap-2" aria-label="Actions">
+      <.blue_offer :if={@game.phase == :blue_choice} pending={@game.pending} />
+
+      <.shop :if={@game.phase == :buy_chips} game={@game} selected={@selected} />
+
+      <section
+        :if={not Game.over?(@game) and @game.phase != :buy_chips}
+        class="flex flex-wrap gap-2"
+        aria-label="Actions"
+      >
         <.button
           :for={action <- Game.legal_actions(@game)}
           phx-click="action"
@@ -87,12 +112,83 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
+  @doc """
+  The shop as a form of checkboxes, one per kind of chip in the shop. The engine decides
+  what may be ticked: a box is disabled when adding its chip to the selection is not a
+  legal buy (too expensive, same colour, two already ticked, out of supply, not yet in
+  the shop). "Buy selected" sends `{:buy, selected}` and is enabled only when that
+  exact buy is legal.
+  """
+  attr :game, Game, required: true
+  attr :selected, :list, required: true, doc: "ticked chips, sorted"
+
+  def shop(assigns) do
+    total = assigns.selected |> Enum.map(&Chips.price/1) |> Enum.sum()
+
+    assigns =
+      assign(assigns,
+        actions: Game.legal_actions(assigns.game),
+        total: total,
+        remaining: assigns.game.coins - total
+      )
+
+    ~H"""
+    <section class="space-y-3 rounded-lg bg-amber-50 p-3" aria-label="Shop">
+      <h2 class="text-sm font-semibold text-amber-900">
+        Shop: pick up to two chips of different colours
+      </h2>
+      <form id="shop" phx-change="select">
+        <ul class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <li :for={chip <- Chips.shop()}>
+            <label class={[
+              "flex items-center gap-2 rounded-md bg-white px-2 py-1 text-sm",
+              blocked?(chip, @selected, @actions) && "opacity-40"
+            ]}>
+              <input
+                type="checkbox"
+                name="chips[]"
+                value={encode(chip)}
+                checked={chip in @selected}
+                disabled={blocked?(chip, @selected, @actions)}
+              />
+              <.chip chip={chip} size={:sm} />
+              <span>{chip_name(chip)}</span>
+              <span class="ml-auto text-zinc-500">{Chips.price(chip)}c</span>
+            </label>
+          </li>
+        </ul>
+      </form>
+      <p class="text-sm" data-role="shop-total">
+        Selected: {@total} coins. Remaining: {@remaining} of {@game.coins}.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <.button
+          phx-click="action"
+          phx-value-action={encode({:buy, @selected})}
+          variant="primary"
+          disabled={@selected == [] or {:buy, @selected} not in @actions}
+        >
+          Buy selected
+        </.button>
+        <.button phx-click="action" phx-value-action={encode({:buy, []})}>Buy nothing</.button>
+      </div>
+    </section>
+    """
+  end
+
+  # A ticked chip can always be unticked; an unticked one is blocked unless adding it
+  # to the selection is a legal buy.
+  defp blocked?(chip, selected, actions),
+    do: chip not in selected and {:buy, Enum.sort([chip | selected])} not in actions
+
   defp start(socket, seed) do
     socket |> assign(page_title: "Quacks") |> put_session(Session.new(seed))
   end
 
   # `@game` is the session's game, kept as its own assign so templates read `@game.x`.
-  defp put_session(socket, session), do: assign(socket, session: session, game: session.game)
+  # Every state change empties the shop selection; it only means something in the shop.
+  defp put_session(socket, session),
+    do: assign(socket, session: session, game: session.game, selected: [])
 
   defp seed_from_params(%{"seed" => seed}) do
     case seed |> String.split(",") |> Enum.map(&Integer.parse/1) do

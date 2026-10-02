@@ -165,21 +165,52 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  @doc "The last few game events, newest first. Every log entry runs through `label/1`."
+  @doc """
+  The chips a blue chip drew, duplicates included, so two identical offers are both
+  visible. The action buttons below it show one button per distinct chip.
+  """
+  attr :pending, :list, required: true, doc: "`game.pending`"
+
+  def blue_offer(assigns) do
+    ~H"""
+    <div
+      class="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 p-2 text-sm"
+      aria-label="Crow skull offer"
+    >
+      <span class="font-semibold text-blue-900">Crow skull drew:</span>
+      <.chip :for={chip <- @pending} chip={chip} data-role="offer-chip" />
+      <span class="text-zinc-600">Place one of them, or return them all.</span>
+    </div>
+    """
+  end
+
+  @doc """
+  The last few game events, newest first. Every log entry runs through `label/1`.
+  Actions that an event already narrates (`:draw` → "Drew ...", a buy → "Bought ...",
+  spending rubies → "Spent ...") are left out so the log does not say things twice.
+  """
   attr :log, :list, required: true, doc: "`game.log`, newest first"
-  attr :limit, :integer, default: 10
+  attr :limit, :integer, default: 12
 
   def action_log(assigns) do
+    entries = assigns.log |> Enum.reject(&narrated_by_event?/1) |> Enum.take(assigns.limit)
+    assigns = assign(assigns, entries: entries)
+
     ~H"""
     <div>
       <h2 class="text-sm font-semibold text-zinc-600">Log</h2>
       <ol class="mt-2 space-y-1 text-sm text-zinc-700" aria-label="Recent actions">
-        <li :for={entry <- Enum.take(@log, @limit)}>{label(entry)}</li>
-        <li :if={@log == []} class="text-zinc-400">Nothing yet. Draw a chip.</li>
+        <li :for={entry <- @entries}>{label(entry)}</li>
+        <li :if={@entries == []} class="text-zinc-400">Nothing yet. Draw a chip.</li>
       </ol>
     </div>
     """
   end
+
+  defp narrated_by_event?(:draw), do: true
+  defp narrated_by_event?({:buy, [_ | _]}), do: true
+  defp narrated_by_event?({:rubies, _}), do: true
+  defp narrated_by_event?(_entry), do: false
 
   @doc """
   Human label for an action or a log entry. Unknown shapes fall back to `inspect/1`,
@@ -197,7 +228,7 @@ defmodule QuacksWeb.GameComponents do
   def label({:buy, []}), do: "Buy nothing"
 
   def label({:buy, chips}) when is_list(chips) do
-    names = Enum.map_join(chips, " + ", fn {colour, value} -> "#{colour} #{value}" end)
+    names = Enum.map_join(chips, " + ", &chip_name/1)
     cost = chips |> Enum.map(&Chips.price/1) |> Enum.sum()
     "Buy #{names} (#{cost} coins)"
   end
@@ -210,7 +241,17 @@ defmodule QuacksWeb.GameComponents do
   def label({:bonus_die, :ruby}), do: "Bonus die: ruby"
   def label({:bonus_die, :droplet}), do: "Bonus die: droplet +1"
   def label({:bonus_die, :orange}), do: "Bonus die: orange 1 chip"
+  def label({:drew, chip, index}), do: "Drew #{chip_name(chip)} → space #{index}"
+  def label({:returned, chip}), do: "Returned #{chip_name(chip)} to the bag"
+  def label({:exploded, white_sum}), do: "Exploded (white #{white_sum})"
+  def label({:bought, chips}), do: "Bought #{Enum.map_join(chips, " + ", &chip_name/1)}"
+  def label({:rubies_spent, :droplet}), do: "Spent 2 rubies: droplet +1"
+  def label({:rubies_spent, :flask}), do: "Spent 2 rubies: flask refilled"
   def label(other), do: inspect(other)
+
+  @doc "\"green 2\" for `{:green, 2}`."
+  @spec chip_name(Chips.chip()) :: String.t()
+  def chip_name({colour, value}), do: "#{colour} #{value}"
 
   defp phase_name(:potions), do: "Brewing"
   defp phase_name(:explosion_choice), do: "Explosion"
