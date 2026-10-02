@@ -34,7 +34,7 @@ defmodule Quacks.HerbWitchesTest do
       assert_raise ArgumentError, fn -> Game.new(seed: @seed, expansion: :other) end
     end
 
-    test "sets 5 and 6 only with the expansion; decision books raise for now" do
+    test "sets 5 and 6 only with the expansion; every book is supported" do
       for colour <- [:blue, :red, :yellow, :green, :purple],
           set <- 1..4,
           do: assert(new(%{colour => set}).sets[colour] == set)
@@ -49,10 +49,8 @@ defmodule Quacks.HerbWitchesTest do
       assert_raise ArgumentError, fn -> new(%{locoweed: 1}) end
       assert_raise ArgumentError, fn -> new(%{blue: 7}) end
 
-      for {colour, set} <- [green: 5, red: 6, yellow: 6, purple: 5] do
-        error = assert_raise ArgumentError, fn -> new(%{colour => set}) end
-        assert error.message =~ inspect({colour, set})
-      end
+      for {colour, set} <- [green: 5, red: 6, yellow: 6, purple: 5],
+          do: assert(new(%{colour => set}).sets[colour] == set)
     end
 
     test "5 players only with the expansion" do
@@ -380,19 +378,18 @@ defmodule Quacks.HerbWitchesTest do
     end
   end
 
-  # Supported books: Sets 1–4 always; with the expansion also the books without a
-  # decision (slice A).
+  # Sets 1–4 always; with the expansion every book.
   defp sets(nil) do
     fixed_map(Map.new([:green, :blue, :red, :yellow, :purple], &{&1, integer(1..4)}))
   end
 
   defp sets(@hw) do
     fixed_map(%{
-      green: member_of([1, 2, 3, 4, 6]),
+      green: integer(1..6),
       blue: integer(1..6),
-      red: member_of([1, 2, 3, 4, 5]),
-      yellow: member_of([1, 2, 3, 4, 5]),
-      purple: member_of([1, 2, 3, 4, 6]),
+      red: integer(1..6),
+      yellow: integer(1..6),
+      purple: integer(1..6),
       black: member_of([1, 5, 6]),
       locoweed: member_of([5, 6])
     })

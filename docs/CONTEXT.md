@@ -5,7 +5,9 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | Term | Meaning |
 |---|---|
 | **chip** | An ingredient token. Has a **colour** (white, orange, green, blue, red, yellow, purple, black; with The Herb Witches also locoweed) and a **value** (1, 2, 3 or 4; the orange 6-chip has 6). White is the only colour that counts toward an explosion. |
-| **expansion** | `Game.new(expansion: :herb_witches)` turns on The Herb Witches (`game.expansion`, default `nil`; source `docs/research/herb-witches.md`): 1-5 players, Sets 5 and 6, the black and locoweed books, the orange 6-chip (22 coins), the expansion chips in the supply (`Chips.supply(:herb_witches)`, ⚠️ rulebook total 153) and the **overflow bowl**. The first log entry is `{:expansion, :herb_witches}`. `Session.new/3` and `GameServer.start/5` take it too. The witches are not in yet. |
+| **expansion** | `Game.new(expansion: :herb_witches)` turns on The Herb Witches (`game.expansion`, default `nil`; source `docs/research/herb-witches.md`): 1-5 players, Sets 5 and 6, the black and locoweed books, the orange 6-chip (22 coins), the expansion chips in the supply (`Chips.supply(:herb_witches)`, ⚠️ rulebook total 153) and the **overflow bowl**. The first log entry is `{:expansion, :herb_witches}`. `Session.new/3` and `GameServer.start/5` take it too, and the lobby has a "Herb Witches expansion" toggle. Also the **herb witches** and **witch pennies**. |
+| **herb witch** | The Herb Witches: 12 cards (`Quacks.Rules.Witches`, ids `:s1`–`:s4`, `:c1`–`:c4`, `:g1`–`:g4`), 4 per penny colour. `Game.new/1` turns up one of each colour from a jump of the seed (`game.witches`, e.g. `%{silver: :s2, copper: :c4, gold: :g4}`); all players share them. A player calls a witch by spending her colour's penny, once per game: `{:witch, colour}`, or `{:witch, colour, choice}` when the card needs a choice. Silver: while brewing (S2, S3) or in the explosion choice (S1, S4). Copper: in the seat's shop turn (C2, C4 also in round 9's rubies turn). Gold: G1–G3 in the game phase `:witch_choice` after step B (only seats she helps, seat by seat; `:witch_done` passes), G4 in the rubies turn. Rules in `Quacks.Game.Witches`; see **Witch actions** below. |
+| **witch penny** | `Quacks.Player.pennies`, `%{silver: true, copper: true, gold: true}` at the start (empty in the base game). Spent (`false`) when that colour's witch is called. Each unused penny is 2 VP at the end of the game (`{:pennies, vp}`). |
 | **locoweed** | The expansion's new colour, `{:locoweed, 1}` (no printed value; the engine uses 1 for every value lookup). Set 5: moves rat stone distance + 1, at most 4 (solo: 1). Set 6: moves and acts on draw as the last coloured chip in the pot (white and locoweed skipped; none: moves 1, no action); ⚠️ it keeps colour locoweed for every count, and step-B actions are not copied. In the shop from round 1 (⚠️). |
 | **overflow bowl** | `Quacks.Player.bowl` (The Herb Witches only): once a chip sits on the last space (53), every further chip goes in the bowl (`{:overflow, chip}`), newest first. Bowl chips have no action and are not in the pot (not "last" for green/black), but whites count toward the explosion. The flask takes back a white from the bowl. A blue Set 1 or Y2 chip on the last space loses its action for the next chip. Step D: half the bowl's values, rounded down, as VP (`{:bowl, chips, vp}`; ⚠️ not for an exploded player who chose to buy). Every non-exploded player on the spoon rolls the bonus die (they tie on the highest space). |
 | **seat** | A player's place at the table, `0..3` in turn order (`0..4` with 5 players, The Herb Witches only). `Quacks.Game.seats` lists them; `players` maps each seat to a `Quacks.Player`. Every player-facing function takes the seat (`legal_actions(game, seat)`, `apply(game, seat, action)`); the 2-arity `apply/2` and 1-arity `legal_actions/1` mean seat 0. |
@@ -24,10 +26,11 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **ruby** | Currency for droplet moves and flask refills; 2 rubies = 1 VP in the last round. |
 | **round** | One of 9 game turns. Each round runs the phases below. |
 | **ingredient book** | The rule card for a colour's chip action and prices. Green, blue, red, yellow and purple each have Sets 1-4; orange and black have one book; white has none. The Herb Witches adds Sets 5 and 6 for green, blue, red, yellow, purple and black, and locoweed (Sets 5 and 6 only). |
-| **sets** | `Game.new(sets: %{green: 1..4, blue: 1..4, red: 1..4, yellow: 1..4, purple: 1..4})` picks the book per colour; colours left out use Set 1 (`game.sets`). Prices differ per set: `Quacks.Rules.Chips.price(chip, sets)` (`price/1` = Set 1). Effects dispatch on `{colour, set}` (`Potions.bonus/3`, `Potions.on_draw/4`, `Evaluation.chip_action/3`). All 20 books are supported; G2, G4, P2 and P4 open a **chip choice**, R2 uses **beside the pot**. `Quacks.Session.new/3`, `Session.replay/4` and `Quacks.GameServer.start/4` take the same `sets`; the lobby's "Ingredient books" form picks them, and the shop shows the books and their prices. With the expansion, `sets` takes 1..6 per colour plus `black:` (1 = the base book, 5, 6) and `locoweed:` (5 default, 6); without it 5 and 6 raise. Supported Set 5/6 books: G6, B5, B6, R5, Y5, P6, black 5 and 6, locoweed 5 and 6. G5, R6, Y6 and P5 need a decision and raise `ArgumentError` naming the book (slice B). Source: `docs/research/ingredient-sets-and-customisation.md`. |
+| **sets** | `Game.new(sets: %{green: 1..4, blue: 1..4, red: 1..4, yellow: 1..4, purple: 1..4})` picks the book per colour; colours left out use Set 1 (`game.sets`). Prices differ per set: `Quacks.Rules.Chips.price(chip, sets)` (`price/1` = Set 1). Effects dispatch on `{colour, set}` (`Potions.bonus/3`, `Potions.on_draw/4`, `Evaluation.chip_action/3`). All 20 books are supported; G2, G4, P2 and P4 open a **chip choice**, R2 uses **beside the pot**. `Quacks.Session.new/3`, `Session.replay/4` and `Quacks.GameServer.start/4` take the same `sets`; the lobby's "Ingredient books" form picks them, and the shop shows the books and their prices. With the expansion, `sets` takes 1..6 per colour plus `black:` (1 = the base book, 5, 6) and `locoweed:` (5 default, 6); without it 5 and 6 raise. All Set 5/6 books are supported. G5 and P5 open a **chip choice** in step B; R6 sets a chip **beside the pot**; Y6 offers a chip choice on draw (player phase `:chip_choice`). Source: `docs/research/ingredient-sets-and-customisation.md`. |
 | **mods** | `Quacks.Player.mods`, round modifiers from Set 2-4 chips, reset at the end of the round (and by B3): `explode_above` (0 = not raised; Y3: 8 after the 1st yellow, 9 after the 3rd; the limit is the highest of the house rule `explode_above`, this and the B5 card's 9: `Potions.explode_above/2`), `next_chip_x2` (Y2), `white1_plus1` (R4), `protect` (B2: drawn chips left in the crow-skull window). |
-| **chip choice** | Step B of the evaluation with G2, G4, P2 or P4: `Quacks.Player.chip_choices` lists what the player may still choose; the game phase `:chip_choice` gives each seat with a choice the `turn`, from the start seat. It runs after the bonus die and the automatic chip actions, before rubies and VP (steps C/D). Set 1 purple still takes the highest tier automatically. |
-| **beside the pot** | Red Set 2: `Quacks.Player.aside`, red chips drawn but not placed. They are not in the bag and stay there across rounds. After stopping (or the explosion choice) the player decides each one in `:red_choice`; the evaluation waits for every player. A placed red moves only its value. |
+| **chip choice** | Step B of the evaluation with G2, G4, G5, P2, P4 or P5: `Quacks.Player.chip_choices` lists what the player may still choose; the game phase `:chip_choice` gives each seat with a choice the `turn`, from the start seat. It runs after the bonus die and the automatic chip actions, before rubies and VP (steps C/D). Set 1 purple still takes the highest tier automatically. |
+| **beside the pot** | Red Set 2: `Quacks.Player.aside`, red chips drawn but not placed. They are not in the bag and stay there across rounds. After stopping (or the explosion choice) the player decides each one in `:red_choice`; the evaluation waits for every player. A placed red moves only its value. Red Set 6: a drawn red puts one more chip from the bag in `aside`. While brewing the player may place it any time with `{:red, {:place, chip}}` (a normal draw, with its action); after stopping or exploding it must be placed (only `:place` in `:red_choice`): it moves its value, no action (⚠️), and a white one can still explode the pot. |
+| **starter chips** | Green Set 5: `Quacks.Player.starters`, pot chips chosen in step B (`{:chip, {:starter, chip}}`, worth at most the green) to be the first chips of the next round. `:draw` takes them out of the bag first, in the order chosen (⚠️ "any order" = the order of choosing), with their actions. A starter no longer in the bag is skipped. |
 | **supply** | The chips left in the box per colour and value (`Quacks.Rules.Chips.supply/0`), shared by all players. Every starting bag, bought chips, the orange die face and the round-6 white chips all come out of it. A kind with 0 left is not buyable. Yellow is buyable from round 2, purple from round 3. |
 | **blue offer** | The extra chips a blue chip draws (`pending` on the player). The player places at most one as the next chip; the rest go back in the bag. |
 | **black rule** | Rulebook §4. 2 players: as many black chips as the opponent (and at least 1) → droplet +1; more → droplet +1 and 1 ruby. 3-4 players: more than one neighbour (adjacent seat) → droplet +1; more than both → droplet +1 and 1 ruby. ⚠️ 5 players use the 3-4 side. Black Set 5: a black chip bought (or taken from a card) goes into the bag of the player on the left (the next seat; solo: back to the supply) and the buyer's droplet moves 1; step B: 1 ruby per black chip in the left pot and per black on my last two positions. Black Set 6: the owner(s) of the furthest black chip at the table move the droplet 1, of the second furthest take 1 ruby (⚠️ ranked by distinct space; a tie shares the bonus); solo ranks your own chips. |
@@ -61,6 +64,9 @@ Newest first. Every entry that concerns one player is tagged with the seat: `{se
 | `{:pot_ruby, index}` | Step C: the scoring space `index` gave a ruby. |
 | `{:pot_vp, vp, index}` | Step D: `vp` > 0 taken from scoring space `index`. Not logged when an exploded player chose to buy. |
 | `{:final_conversion, coins_vp, rubies_vp}` | Round 9 only: VP bought with coins (5 each) and rubies (2 each). |
+| `{:pennies, vp}` | Round 9, The Herb Witches: 2 VP per unused witch penny (not logged at 0). |
+| `{:witch, id, outcome}` | What herb witch `id` did for this player (see **Witch actions**). |
+| `{:rubies_spent, :droplet \| :flask, 1}` | Like `{:rubies_spent, what}`, for 1 ruby (gold witch G4). |
 | `{:rats, tails}` | A new round started with this player `tails` spaces ahead on the rat stone. |
 | `{:fortune_drawn, id}` | Untagged. A Fortune Teller card was turned up at the start of the round. |
 | `{:fortune_skipped, id}` | Untagged. Solo only: P7 or P9 came up and was put aside. |
@@ -125,6 +131,12 @@ Chip effects (`{seat, {:effect, {colour, set}, detail}}`), logged after the chip
 | Black 6 | `:droplet`, `:ruby`, `:droplet_ruby` | Step B: furthest black chip (droplet), second furthest (ruby). |
 | Locoweed 5 | `{:moves, n}` | The locoweed moved `n` (rat stone + 1, max 4). |
 | Locoweed 6 | `{:copied, chip}` | The locoweed moved and acted as `chip`. |
+| G5 | `{:starter, chip}` | Chip choice: `chip` will be a first chip of the next round. |
+| G5 | `{:first, chip}` | A starter chip was drawn (after its `{:drew, ...}`). |
+| R6 | `{:aside, chip}` | A red drew `chip` and set it aside. |
+| Y6 | `{:extra, 3}` | Paid 1 ruby: the yellow moved 3 more. |
+| P5 | `{:bought, chips}` | Chip choice: the purple spaces' VP bought `chips` (into the bag; black Set 5 still sends black left). |
+| P5 | `{:vp, n}` | Round 9: the purple spaces' VP, 5 for 1. |
 
 `Quacks.Session` replays from its own `actions` list (`[{seat, action}]`, newest first), never from the log.
 
@@ -149,19 +161,21 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 | Game phase | Who acts | Actions | When |
 |---|---|---|---|
 | `:fortune_choice` | `turn` only | `{:fortune, choice}` | A purple card's choice, seat by seat from the start seat, before `:potions`; or B2's chip after `:potions`, before the evaluation. |
-| `:chip_choice` | `turn` only | `{:chip, choice}`, `:chip_done` | Evaluation step B with G2, G4, P2 or P4, seat by seat from the start seat (see **Chip choices** below). The turn also ends when nothing is left to choose. |
+| `:chip_choice` | `turn` only | `{:chip, choice}`, `:chip_done` | Evaluation step B with G2, G4, G5, P2, P4 or P5, seat by seat from the start seat (see **Chip choices** below). The turn also ends when nothing is left to choose. |
+| `:witch_choice` | `turn` only | `{:witch, :gold}`, `:witch_done` | The Herb Witches: after the chip choices, before steps C/D, for each seat whose unspent gold witch G1–G3 would give something now, from the start seat. |
 | `:potions` | every seat whose player is not `:done` | see player phases | Drawing chips. Once the last player is done, the evaluation (4a-4d) runs and the game moves on. |
-| `:buy_chips` | `turn` only | `{:buy, [chip]}` | Step 4e, seat by seat. |
-| `:spend_rubies` | `turn` only | `{:rubies, :droplet \| :flask \| :skip}`, `:end_round` | Step 4f, seat by seat. The last `:end_round` ends the round. |
+| `:buy_chips` | `turn` only | `{:buy, [chip]}`, copper witch actions | Step 4e, seat by seat. An exploded player who took the VP gets a turn only for copper C1 or C4. |
+| `:spend_rubies` | `turn` only | `{:rubies, :droplet \| :flask \| :skip}`, `:end_round`, gold G4 (round 9: copper C2, C4) | Step 4f, seat by seat. The last `:end_round` ends the round. |
 | `:over` | nobody | none | After round 9. |
 
 | Player phase (`Quacks.Player.phase`) | Actions | When |
 |---|---|---|
-| `:potions` | `:draw`, `:stop`, `:use_flask`; with B3 `{:fortune, :restart_round}`, with B10 `{:fortune, :return_white}` | Drawing chips. Red moves extra spaces automatically. |
+| `:potions` | `:draw`, `:stop`, `:use_flask`; with B3 `{:fortune, :restart_round}`, with B10 `{:fortune, :return_white}`; R6 `{:red, {:place, chip}}`; silver witch S2/S3 | Drawing chips. Red moves extra spaces automatically. While the silver witch S2's offer (`witch_offer`) is out, only `{:witch, :silver, {:place, chip}}` and `{:witch, :silver, :return_all}`. |
+| `:chip_choice` | `{:chip, :yellow_ruby}`, `:chip_done` | Yellow Set 6 was drawn and the player has a ruby. |
 | `:fortune_choice` | `{:fortune, {:place, chip}}`, `{:fortune, :return_all}` | B7: the player stopped and drew up to 5 chips (`pending`). A placed chip moves its printed value, has no action and cannot explode the pot (see **Rule changes**); then the player is done. |
 | `:yellow_choice` | `:return_white`, `:keep` | A yellow chip was drawn directly after a white chip. |
 | `:blue_choice` | `{:place, chip}`, `:return_all` | A blue chip drew extra chips (the blue offer). |
-| `:explosion_choice` | `{:explosion_choice, :vp \| :buy}` | White sum reached 8. |
+| `:explosion_choice` | `{:explosion_choice, :vp \| :buy}`; silver witch S1/S4 | White sum reached 8. |
 | `:red_choice` | `{:red, {:place \| :keep \| :return, chip}}` | Red Set 2: the player stopped (or made the explosion choice) with chips beside the pot (now in `pending`). One action per chip; then `:done`. |
 | `:done` | none | Stopped, or the explosion choice is made; waiting for the other players (`done?` is true). |
 
@@ -189,7 +203,27 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 | `{:pay_ruby_move, n}` | G4: `n` (1 up to the greens on the last two positions, and the rubies you have) rubies → droplet +`n`. |
 | `{:purple_trade, tier}` | P2: trade `tier` (1 up to the purple chips, max 3) purple chips; one tier only. |
 | `{:upgrade, from, to}` | P4: 1 purple: a 1-chip → 2-chip; 2: 2 → 4 (or 1 → 2); 3+: 1 → 4 (or a lower tier). Same colour, only green, blue, red, yellow. |
+| `{:starter, chip}` | G5, once per green chip on the last two positions: a pot chip worth at most that green (locoweed 1) becomes a first chip of the next round. |
+| `{:buy, chips}` | P5: one purchase (1 chip, or 2 of different colours) paid with the VP of the spaces holding a purple chip. Never added to the coins. |
+| `:yellow_ruby` | Y6, on draw (player phase `:chip_choice`): 1 ruby, the yellow moves 3 more. |
 | `:chip_done` | End this seat's choices; whatever is left is skipped. |
+
+## Witch actions
+
+| Witch | Action | When | Outcome logged |
+|---|---|---|---|
+| S1 flask after explosion | `{:witch, :silver}` | Explosion choice, flask full | `:flask`: the last white back, flask used, brewing again. |
+| S2 draw 6 | `{:witch, :silver}`, then `{:witch, :silver, {:place, chip}}` / `{:witch, :silver, :return_all}` | Brewing | `{:offer, n}`. Placed chips act as normal draws; an explosion returns the rest. |
+| S3 whites back | `{:witch, :silver, 1 \| 2}` | Brewing, 1+ white in the pot | `{:return_white, n}`: the newest `n` whites back; gaps stay (⚠️ 1 = the newest; bowl whites not counted). |
+| S4 no penalty | `{:witch, :silver}` | Explosion choice | `:no_penalty`: `explosion_choice: :witch`, VP and coins, bonus die if on the best space. |
+| C1 upgrade | `{:witch, :copper, {:upgrade, chips}}` | Shop | `{:upgrade, chips}`: 1 pot chip, or the last 2, one level up (green/blue/red/yellow 1 → 2, 2 → 4) into the bag; the old chip to the supply. |
+| C2 double coins | `{:witch, :copper}` | Shop (round 9: rubies turn) | `{:coins, total}`. |
+| C3 free copy | `{:witch, :copper, {:buy, chips, copy}}` | Shop | `{:copy, chip}` after `{:bought, chips}`; ends the shop turn. Only while the supply has the copy (⚠️). |
+| C4 rubies to coins | `{:witch, :copper}` | Shop (round 9: rubies turn) | `{:coins, added}` (2 per ruby). |
+| G1 colours | `{:witch, :gold}` | `:witch_choice` | `{:vp, n}`: 1–4 colours 3, 5 → 4, 6 → 7, 7 → 10, 8 → 14 (⚠️ not after an explosion with "buy"). |
+| G2 bag | `{:witch, :gold}` | `:witch_choice` | `{:vp, n}`: 2 per coloured 2/4/6-chip, purple and locoweed in the bag. |
+| G3 rubies | `{:witch, :gold}` | `:witch_choice`, ruby scoring space worth 2+ VP | `{:rubies, n}`: `n` = VP - 1, so with step C's ruby it is VP rubies (⚠️ with B11 both count). |
+| G4 cheap rubies | `{:witch, :gold}` | Rubies turn | `:ruby_price`: droplet and flask cost 1 ruby for the rest of the turn (`Player.ruby_price`). |
 
 ## Rule changes
 

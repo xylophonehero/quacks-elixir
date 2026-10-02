@@ -14,12 +14,15 @@ defmodule Quacks.Game.Evaluation do
   when nothing is left to choose. Steps C and D run after the last seat. Without such
   a book nobody has a choice and the evaluation runs in one go.
 
-  The Herb Witches: G6, P6 and black Sets 5 and 6 are automatic step-B books; step D
-  adds the overflow bowl's VP.
+  The Herb Witches: G6, P6 and black Sets 5 and 6 are automatic step-B books; G5
+  (`{:starter, chip}`: first chips of the next round) and P5 (`{:buy, chips}` with
+  the VP of the purple spaces as coins) are choices. After the choices, the gold
+  witches G1–G3 get their turn (`Quacks.Game.Witches.gold_turn/2`). Step D adds the
+  overflow bowl's VP.
   """
 
   alias Quacks.Game
-  alias Quacks.Game.Fortune
+  alias Quacks.Game.{Fortune, Witches}
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
 
@@ -68,15 +71,18 @@ defmodule Quacks.Game.Evaluation do
     if choices(g, seat) == [], do: step(g, seat, :chip_done), else: g
   end
 
-  # Give the first of `seats` with a choice the turn; with nobody left, steps C/D.
+  # Give the first of `seats` with a choice the turn; with nobody left, the gold
+  # witches, then steps C/D.
   defp next_choice(g, seats) do
     case Enum.find(seats, &(choices(g, &1) != [])) do
-      nil -> finish(g)
+      nil -> Witches.gold_turn(g, Game.turn_order(g))
       seat -> %{g | phase: :chip_choice, turn: seat}
     end
   end
 
-  defp finish(g) do
+  @doc false
+  # Steps C and D for every seat, the B9 flask refill, then the shop.
+  def score(g) do
     order = Game.turn_order(g)
     g = Enum.reduce(order, g, &payout(&2, &1))
     g |> Fortune.refill_flasks() |> Game.to_shop(order)
@@ -85,8 +91,14 @@ defmodule Quacks.Game.Evaluation do
   # Step A: among the non-exploded players the highest scoring space rolls; a true
   # tie means each of them rolls. Exploded players never roll. Overflow bowl: every
   # non-exploded player on the spoon (53) rolls; they all tie on the highest space.
+  # The silver witch S4 lets an exploded player roll too.
   defp bonus_die(g, order) do
-    candidates = Enum.reject(order, &Game.player(g, &1).exploded?)
+    candidates =
+      Enum.filter(order, fn seat ->
+        p = Game.player(g, seat)
+        not p.exploded? or p.explosion_choice == :witch
+      end)
+
     best = candidates |> Enum.map(&Game.scoring_index(g, &1)) |> Enum.max(fn -> nil end)
 
     candidates
@@ -128,6 +140,39 @@ defmodule Quacks.Game.Evaluation do
     g = black(g, seat, Map.get(g.sets, :black, 1), g0)
     g = chip_action(g, seat, {:green, g.sets.green})
     chip_action(g, seat, {:purple, g.sets.purple})
+  end
+
+  # G5: per green chip on the last two positions, a pot chip worth at most that green
+  # becomes a first chip of the next round (a choice).
+  defp chip_action(g, seat, {:green, 5}),
+    do: add_choices(g, seat, for({:green, v} <- last_two(g, seat), do: {:starter, v}))
+
+  # P5: the VP of every space with a purple chip are coins for a step-B purchase (a
+  # choice). Round 9: those coins buy VP, 5 for 1.
+  defp chip_action(g, seat, {:purple, 5} = book) do
+    coins =
+      for {{:purple, _}, i} <- Game.player(g, seat).drawn,
+          reduce: 0,
+          do: (acc -> acc + PotTrack.at(i).vp)
+
+    cond do
+      coins == 0 ->
+        g
+
+      g.round == 9 ->
+        case div(coins, 5) do
+          0 ->
+            g
+
+          vp ->
+            g
+            |> Game.update_player(seat, &%{&1 | vp: &1.vp + vp})
+            |> Game.effect(seat, book, {:vp, vp})
+        end
+
+      true ->
+        add_choices(g, seat, [{:purple_buy, coins}])
+    end
   end
 
   # G6: a bonus die roll per green chip on the last two positions (B4: twice each).
@@ -267,6 +312,15 @@ defmodule Quacks.Game.Evaluation do
 
   defp options(_g, _p, {:purple_trade, tier}), do: for(t <- 1..tier, do: {:purple_trade, t})
 
+  # G5: a pot chip worth at most the green (locoweed 1), not chosen already.
+  defp options(_g, p, {:starter, v}) do
+    left = Player.pot_chips(p) -- p.starters
+    for {_, value} = chip <- Enum.uniq(left), value <= v, do: {:starter, chip}
+  end
+
+  defp options(g, _p, {:purple_buy, coins}),
+    do: for(chips <- Game.buys(g, coins), chips != [], do: {:buy, chips})
+
   # A lower tier is allowed too.
   defp options(g, p, {:upgrade, tier}) do
     pot = Player.pot_chips(p)
@@ -311,6 +365,31 @@ defmodule Quacks.Game.Evaluation do
       &%{&1 | vp: &1.vp + vp, rubies: &1.rubies + rubies, droplet: &1.droplet + droplet}
     )
     |> Game.effect(seat, {:purple, 2}, {:trade, tier})
+  end
+
+  # G5: uses the smallest green that allows `chip`. ⚠️ Starters are placed in the order
+  # they were chosen ("in any order": the player orders them by choosing).
+  defp choose(g, seat, {:starter, {_, value} = chip}) do
+    v =
+      Game.player(g, seat).chip_choices
+      |> Enum.flat_map(fn
+        {:starter, v} when v >= value -> [v]
+        _ -> []
+      end)
+      |> Enum.min()
+
+    g
+    |> use_choice(seat, {:starter, v})
+    |> Game.update_player(seat, &%{&1 | starters: &1.starters ++ [chip]})
+    |> Game.effect(seat, {:green, 5}, {:starter, chip})
+  end
+
+  # P5: free chips for the bag (black Set 5 still sends a black chip left).
+  defp choose(g, seat, {:buy, chips}) do
+    g
+    |> use_choice(seat, &match?({:purple_buy, _}, &1))
+    |> Game.buy(seat, [], chips)
+    |> Game.effect(seat, {:purple, 5}, {:bought, chips})
   end
 
   # P4: the pot chip goes to the supply, the bigger one straight into the bag.

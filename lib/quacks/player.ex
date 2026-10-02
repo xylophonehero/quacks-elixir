@@ -5,7 +5,8 @@ defmodule Quacks.Player do
 
   `phase` is the player's own state while the game is in `:potions`; `done?` is true
   once the player has stopped or resolved an explosion this round (`phase == :done`).
-  `explosion_choice` remembers `:vp` or `:buy` until the evaluation runs.
+  `explosion_choice` remembers `:vp` or `:buy` until the evaluation runs (`:witch`:
+  the silver witch S4 took the penalty away).
   `fortune_used?` is true once a once-per-round card power (B3, B10) is used.
   `pending` holds a blue offer, a Safety Procedure offer (B7) or a Flea Market draw
   (P13): chips out of the bag until the player chooses. `mods` holds the round
@@ -40,6 +41,10 @@ defmodule Quacks.Player do
             aside: [],
             chip_choices: [],
             bowl: [],
+            pennies: %{},
+            witch_offer: [],
+            ruby_price: 2,
+            starters: [],
             mods: %{explode_above: 0, next_chip_x2: false, white1_plus1: false, protect: 0}
 
   @type phase ::
@@ -49,6 +54,7 @@ defmodule Quacks.Player do
           | :explosion_choice
           | :fortune_choice
           | :red_choice
+          | :chip_choice
           | :done
   @typedoc "A chip in the pot and the 0..53 space it sits on."
   @type placed :: {Chips.chip(), 0..53}
@@ -63,7 +69,7 @@ defmodule Quacks.Player do
           coins: non_neg_integer,
           vp: non_neg_integer,
           exploded?: boolean,
-          explosion_choice: nil | :vp | :buy,
+          explosion_choice: nil | :vp | :buy | :witch,
           rat_stone: non_neg_integer,
           phase: phase,
           done?: boolean,
@@ -71,15 +77,25 @@ defmodule Quacks.Player do
           aside: [Chips.chip()],
           chip_choices: [chip_choice],
           bowl: [Chips.chip()],
+          pennies: %{optional(Quacks.Rules.Witches.colour()) => boolean},
+          witch_offer: [Chips.chip()],
+          ruby_price: 1 | 2,
+          starters: [Chips.chip()],
           mods: mods
         }
   @typedoc """
   One step-B choice still open: a G2 green chip of value 1/2/4 (`{:gain, value}`),
   up to `n` rubies for G4 (`{:ruby_move, n}`), a P2 trade up to `tier`
-  (`{:purple_trade, tier}`) or a P4 swap up to `tier` (`{:upgrade, tier}`).
+  (`{:purple_trade, tier}`), a P4 swap up to `tier` (`{:upgrade, tier}`), a G5
+  starter chip worth up to `value` (`{:starter, value}`) or a P5 purchase with
+  `coins` (`{:purple_buy, coins}`). During the potions phase (player phase
+  `:chip_choice`) it holds Y6's offer `:yellow_ruby`.
   """
   @type chip_choice ::
           {:gain, 1 | 2 | 4}
+          | {:starter, 1 | 2 | 4}
+          | {:purple_buy, pos_integer}
+          | :yellow_ruby
           | {:ruby_move, 1..2}
           | {:purple_trade, 1..3}
           | {:upgrade, 1..3}
@@ -118,7 +134,10 @@ defmodule Quacks.Player do
   @spec scoring_index(t) :: 0..53
   def scoring_index(%__MODULE__{pot_index: i}), do: min(i + 1, PotTrack.last())
 
-  @doc "End of round: the pot goes back in the bag, the round state clears (step F). `aside` stays."
+  @doc """
+  End of round: the pot goes back in the bag, the round state clears (step F).
+  `aside`, `pennies` and `starters` stay.
+  """
   @spec reset(t) :: t
   def reset(%__MODULE__{} = p) do
     %{
@@ -132,6 +151,8 @@ defmodule Quacks.Player do
         explosion_choice: nil,
         rat_stone: 0,
         pot_index: p.droplet,
+        witch_offer: [],
+        ruby_price: 2,
         phase: :potions,
         done?: false,
         fortune_used?: false,

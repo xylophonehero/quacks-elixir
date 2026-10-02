@@ -41,14 +41,16 @@ defmodule Quacks.GameHelpers do
   def me(game, seat \\ 0), do: game.players[seat]
 
   @doc """
-  Every chip in the game per kind: supply + all bags, pots, overflow bowls, offers and
-  red chips beside pots.
+  Every chip in the game per kind: supply + all bags, pots, overflow bowls, offers
+  (blue, cards, the silver witch S2) and red chips beside pots.
   """
   def inventory(g) do
     chips =
       g.players
       |> Map.values()
-      |> Enum.flat_map(&(&1.bag ++ Player.pot_chips(&1) ++ &1.bowl ++ &1.pending ++ &1.aside))
+      |> Enum.flat_map(
+        &(&1.bag ++ Player.pot_chips(&1) ++ &1.bowl ++ &1.pending ++ &1.witch_offer ++ &1.aside)
+      )
       |> Enum.frequencies()
 
     Map.merge(g.supply, chips, fn _chip, a, b -> a + b end)
