@@ -1,12 +1,16 @@
 defmodule QuacksWeb.GameLive do
   @moduledoc """
-  The game page, `/g/:id`, for 1 to 4 players. The game itself lives in a
+  The game page, `/g/:id`, for 1 to 4 players (5 with The Herb Witches). The game itself lives in a
   `Quacks.GameServer` process; this LiveView asks it for a seat on mount (by the
   browser's player token), subscribes to the game's PubSub topic and re-renders on
   every `{:game, id, game}` broadcast. Every button comes from
   `Quacks.Game.legal_actions/2` for this browser's seat and every click goes through
   `Quacks.GameServer.apply/3`. The page itself knows no rules. A browser without a
   seat (the game is full) watches: it sees every pot and no buttons.
+
+  With The Herb Witches the page also shows the 3 witches (a sheet on phones, the
+  right column on large screens) with a button to call one when the engine allows
+  it, and the overflow bowl under the pot.
 
   Actions travel to the browser as a URL-safe binary (see `encode/1`) so tuples like
   `{:buy, [{:green, 2}]}` survive the round trip without a parser per action shape.
@@ -27,6 +31,8 @@ defmodule QuacksWeb.GameLive do
     [{:red, 1}, {:red, 2}, {:red, 4}],
     [{:yellow, 1}, {:yellow, 2}, {:yellow, 4}]
   ]
+  # The Herb Witches adds a row under the top one.
+  @expansion_row [{:orange, 6}, {:locoweed, 1}]
 
   @doc "Join game `id`: take a free seat, or watch when the game is full."
   @impl true
@@ -104,11 +110,11 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # A new game for the same number of players, books and house rules, with this
-  # browser in seat 0.
+  # A new game for the same number of players, books, house rules and expansion,
+  # with this browser in seat 0.
   def handle_event("new_game", _params, socket) do
-    %{sets: sets, rules: rules} = socket.assigns.game
-    {:ok, id} = GameServer.start(socket.assigns.players, nil, sets, rules)
+    %{sets: sets, rules: rules, expansion: expansion} = socket.assigns.game
+    {:ok, id} = GameServer.start(socket.assigns.players, nil, sets, rules, expansion)
     {:ok, 0} = GameServer.claim_seat(id, socket.assigns.token)
     {:noreply, push_navigate(socket, to: ~p"/g/#{id}")}
   end
@@ -202,6 +208,9 @@ defmodule QuacksWeb.GameLive do
             <div :if={@me && @me.aside != []} class="absolute bottom-2 left-2">
               <.aside chips={@me.aside} />
             </div>
+            <div :if={@game.expansion} class="absolute right-2 bottom-2 max-w-[45%]">
+              <.bowl chips={@game.players[@seat || 0].bowl} />
+            </div>
           </div>
 
           <footer class="space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
@@ -209,6 +218,7 @@ defmodule QuacksWeb.GameLive do
               <.sheet_button :if={@me} for="sheet-bag">Bag {length(@me.bag)}</.sheet_button>
               <.sheet_button for="sheet-log">Log</.sheet_button>
               <.sheet_button :if={@players > 1} for="sheet-players">Players</.sheet_button>
+              <.sheet_button :if={@game.witches} for="sheet-witches">Witches</.sheet_button>
             </nav>
             <section
               :if={@actions != []}
@@ -221,7 +231,7 @@ defmodule QuacksWeb.GameLive do
                 phx-value-action={encode(action)}
                 variant="primary"
               >
-                {label(action, @game.fortune_card)}
+                {action_label(action, @game, @me)}
               </.button>
             </section>
             <.button
@@ -244,6 +254,26 @@ defmodule QuacksWeb.GameLive do
         </div>
 
         <aside class="contents lg:flex lg:h-dvh lg:flex-col lg:gap-3 lg:overflow-y-auto lg:py-3 lg:pr-3">
+          <.sheet :if={@game.witches} id="sheet-witches" label="Herb witches" inline_lg>
+            <section class="space-y-2" aria-label="Herb witches">
+              <.witch_card
+                :for={{colour, id} <- witches(@game)}
+                id={id}
+                spent={@me != nil and not @me.pennies[colour]}
+              >
+                <div :if={@seat} class="flex flex-wrap gap-2 *:min-h-11">
+                  <.button
+                    :for={action <- calls(@all_actions, colour)}
+                    phx-click="action"
+                    phx-value-action={encode(action)}
+                    variant="primary"
+                  >
+                    {call_text(action)}
+                  </.button>
+                </div>
+              </.witch_card>
+            </section>
+          </.sheet>
           <.sheet :if={@players > 1} id="sheet-players" label="Other players" inline_lg>
             <section class="grid grid-cols-2 gap-2 lg:grid-cols-1" aria-label="Other players">
               <.player_card
@@ -299,6 +329,15 @@ defmodule QuacksWeb.GameLive do
           <.fortune_card :if={@decision == :fortune_choice} id={@game.fortune_card} />
           <.blue_offer :if={@decision == :blue_choice} pending={@me.pending} />
           <.blue_offer
+            :if={@decision == :witch_offer}
+            pending={@me.witch_offer}
+            title="The silver witch drew:"
+            hint="Place them one by one, in any order, or return the rest."
+            label="Silver witch offer"
+            accent="border-penny-silver"
+          />
+          <.witch_card :for={id <- witches_acting(@game, @all_actions)} id={id} />
+          <.blue_offer
             :if={@decision == :red_choice}
             pending={@me.pending}
             title="Toadstool chips beside the pot:"
@@ -313,12 +352,12 @@ defmodule QuacksWeb.GameLive do
           />
           <section class="flex flex-col gap-2 *:min-h-11" aria-label="Actions">
             <.button
-              :for={action <- Game.legal_actions(@game, @seat)}
+              :for={action <- @all_actions}
               phx-click="action"
               phx-value-action={encode(action)}
               variant="primary"
             >
-              {label(action, @game.fortune_card)}
+              {action_label(action, @game, @me)}
             </.button>
           </section>
         </div>
@@ -364,9 +403,12 @@ defmodule QuacksWeb.GameLive do
     total = assigns.selected |> Enum.map(&Chips.price(&1, sets)) |> Enum.sum()
     coins = assigns.game.players[assigns.seat].coins
 
+    actions = Game.legal_actions(assigns.game, assigns.seat)
+
     assigns =
       assign(assigns,
-        actions: Game.legal_actions(assigns.game, assigns.seat),
+        actions: actions,
+        copper: copper_actions(actions, assigns.selected),
         sets: sets,
         total: total,
         coins: coins,
@@ -379,7 +421,11 @@ defmodule QuacksWeb.GameLive do
       <p class="text-sm">Pick up to two chips of different colours.</p>
       <.books sets={@sets} />
       <form id="shop" phx-change="select" class="space-y-1.5">
-        <ul :for={row <- shop_rows()} class="grid grid-cols-3 gap-1.5" data-role="shop-row">
+        <ul
+          :for={row <- shop_rows(@game.expansion)}
+          class="grid grid-cols-3 gap-1.5"
+          data-role="shop-row"
+        >
           <li :for={chip <- row}>
             <label class={[
               "flex min-h-11 items-center gap-1.5 rounded-md bg-parchment-light px-2 text-sm",
@@ -415,13 +461,41 @@ defmodule QuacksWeb.GameLive do
         </.button>
         <.button phx-click="action" phx-value-action={encode({:buy, []})}>Buy nothing</.button>
       </div>
+      <.witch_card :if={@copper != []} id={@game.witches.copper}>
+        <div class="flex flex-col gap-2 *:min-h-11">
+          <.button
+            :for={action <- @copper}
+            phx-click="action"
+            phx-value-action={encode(action)}
+            variant="primary"
+          >
+            {label(action)}
+          </.button>
+        </div>
+      </.witch_card>
     </section>
     """
   end
 
-  @doc "The shop's chips as rows, one per colour; together they are `Chips.shop/0`."
-  @spec shop_rows() :: [[Chips.chip()]]
-  def shop_rows, do: @shop_rows
+  # The copper witch buttons in the shop. C3 (a buy with a free copy) shows only for
+  # the chips ticked now.
+  defp copper_actions(actions, selected) do
+    Enum.filter(actions, fn
+      {:witch, :copper, {:buy, chips, _copy}} -> chips == selected
+      {:witch, :copper, _} -> true
+      {:witch, :copper} -> true
+      _ -> false
+    end)
+  end
+
+  @doc """
+  The shop's chips as rows, one per colour; together they are `Chips.shop/1` for
+  `expansion`.
+  """
+  @spec shop_rows(Chips.expansion()) :: [[Chips.chip()]]
+  def shop_rows(expansion \\ nil)
+  def shop_rows(nil), do: @shop_rows
+  def shop_rows(:herb_witches), do: [hd(@shop_rows), @expansion_row | tl(@shop_rows)]
 
   # A ticked chip can always be unticked; an unticked one is blocked unless adding it
   # to the selection is a legal buy.
@@ -432,21 +506,66 @@ defmodule QuacksWeb.GameLive do
   # Every state change empties the shop selection; it only means something in the shop.
   # `@decision` is the phase whose choice this seat must make now (shown in a
   # dialog), or nil. `@actions` are the brewing buttons of the bottom bar.
+  # `@all_actions` are every legal action of this seat; witch calls show on the witch
+  # cards, so the bottom bar leaves them out. The silver witch S2's offer is a
+  # decision of its own (`:witch_offer`).
   defp put_game(socket, game) do
     seat = socket.assigns.seat
     me = if seat, do: game.players[seat]
     actions = if seat && not Game.over?(game), do: Game.legal_actions(game, seat), else: []
-    phase = seat && Game.phase(game, seat)
-    decision = if actions != [] and phase != :potions, do: phase
+    decision = decision(actions, seat && Game.phase(game, seat), me)
 
     assign(socket,
       game: game,
       me: me,
       selected: [],
       decision: decision,
-      actions: if(decision, do: [], else: actions)
+      all_actions: actions,
+      actions: if(decision, do: [], else: Enum.reject(actions, &witch?/1))
     )
   end
+
+  defp decision([], _phase, _me), do: nil
+  defp decision(_actions, :potions, %{witch_offer: [_ | _]}), do: :witch_offer
+  defp decision(_actions, :potions, _me), do: nil
+  defp decision(_actions, phase, _me), do: phase
+
+  defp witch?({:witch, _}), do: true
+  defp witch?({:witch, _, _}), do: true
+  defp witch?(_action), do: false
+
+  # The witches in penny order: silver, copper, gold.
+  defp witches(game), do: for(c <- [:silver, :copper, :gold], do: {c, game.witches[c]})
+
+  # The witches that `actions` can call, for the decision dialog.
+  defp witches_acting(%{witches: nil}, _actions), do: []
+
+  defp witches_acting(game, actions) do
+    for {colour, id} <- witches(game), calls(actions, colour) != [], do: id
+  end
+
+  # The calls a witch card offers: the plain call, and S3's two choices. Choices
+  # that belong to a dialog (S2's offer, the copper choices in the shop) stay there.
+  defp calls(actions, colour) do
+    Enum.filter(actions, fn
+      {:witch, ^colour} -> true
+      {:witch, ^colour, n} -> is_integer(n)
+      _ -> false
+    end)
+  end
+
+  defp call_text({:witch, _colour}), do: "Call"
+  defp call_text({:witch, _colour, 1}), do: "Call: the last white back"
+  defp call_text({:witch, _colour, n}), do: "Call: the last #{n} whites back"
+
+  # A button label; G4 makes the rubies phase cost 1 ruby.
+  defp action_label({:rubies, :droplet}, _game, %{ruby_price: 1}),
+    do: "Spend 1 ruby: droplet +1"
+
+  defp action_label({:rubies, :flask}, _game, %{ruby_price: 1}),
+    do: "Spend 1 ruby: refill flask"
+
+  defp action_label(action, game, _me), do: label(action, game.fortune_card)
 
   defp name(names, seat), do: Map.get(names, seat, GameServer.default_name(seat))
 
@@ -460,6 +579,7 @@ defmodule QuacksWeb.GameLive do
 
   defp phase_verb(:fortune_choice), do: "resolve the fortune teller card"
   defp phase_verb(:chip_choice), do: "choose chip actions"
+  defp phase_verb(:witch_choice), do: "decide on the gold witch"
   defp phase_verb(:buy_chips), do: "buy chips"
   defp phase_verb(:spend_rubies), do: "spend rubies, then end the round"
 

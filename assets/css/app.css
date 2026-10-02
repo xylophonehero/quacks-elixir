@@ -53,6 +53,12 @@
   --color-chip-purple: #7e3ff2;
   --color-chip-black: #111111;
   --color-chip-white: #f7f7f2;
+  --color-chip-locoweed: #5f7a2a;
+
+  /* The Herb Witches: witch penny colours. */
+  --color-penny-silver: #aeb4bb;
+  --color-penny-copper: #b8693a;
+  --color-penny-gold: #e0b23c;
 }
 
 @layer base {

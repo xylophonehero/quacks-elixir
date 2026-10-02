@@ -10,6 +10,7 @@ defmodule QuacksWeb.GameComponents do
   alias Quacks.Game.Potions
   alias Quacks.Rules.{Chips, PotTrack}
   alias Quacks.Rules.Fortune
+  alias Quacks.Rules.Witches
 
   @colours %{
     white: "bg-chip-white text-ink border-2 border-zinc-400",
@@ -19,8 +20,12 @@ defmodule QuacksWeb.GameComponents do
     red: "bg-chip-red text-white",
     yellow: "bg-chip-yellow text-ink",
     purple: "bg-chip-purple text-white",
-    black: "bg-chip-black text-white border border-iron"
+    black: "bg-chip-black text-white border border-iron",
+    locoweed: "bg-chip-locoweed text-white"
   }
+
+  # The witch penny colours, as background classes.
+  @pennies %{silver: "bg-penny-silver", copper: "bg-penny-copper", gold: "bg-penny-gold"}
 
   # Chips with a light face get dark ink for their value (contrast >= 4.5:1).
   @light_chips [:white, :orange, :green, :yellow]
@@ -91,7 +96,7 @@ defmodule QuacksWeb.GameComponents do
       aria-label={"#{@colour} #{@value}"}
       {@rest}
     >
-      {@value}
+      {face(@chip)}
     </span>
     """
   end
@@ -284,11 +289,15 @@ defmodule QuacksWeb.GameComponents do
         font-weight="700"
         fill={@ink}
       >
-        {@value}
+        {face(@chip)}
       </text>
     </g>
     """
   end
+
+  # What a chip shows: its value. Locoweed has no printed value: an "L".
+  defp face({:locoweed, _}), do: "L"
+  defp face({_colour, value}), do: value
 
   defp translate(index) do
     {x, y} = elem(@positions, index)
@@ -381,7 +390,7 @@ defmodule QuacksWeb.GameComponents do
           class="rounded-md bg-ruby px-2 font-semibold text-white"
           data-role="exploded"
         >
-          {if protected?(@me), do: "Exploded (protected)", else: "Exploded!"}
+          {exploded_text(@me)}
         </span>
       </div>
     </dl>
@@ -389,8 +398,14 @@ defmodule QuacksWeb.GameComponents do
   end
 
   # B2: the crow skull protected the explosion. No explosion choice is made then.
-  defp protected?(%Player{} = p),
-    do: p.exploded? and p.explosion_choice == nil and p.phase != :explosion_choice
+  # S4: the silver witch took the penalty away.
+  defp exploded_text(%Player{explosion_choice: :witch}), do: "Exploded (silver witch)"
+
+  defp exploded_text(%Player{} = p) do
+    if p.explosion_choice == nil and p.phase != :explosion_choice,
+      do: "Exploded (protected)",
+      else: "Exploded!"
+  end
 
   attr :label, :string, required: true
   attr :value, :any, required: true
@@ -424,7 +439,7 @@ defmodule QuacksWeb.GameComponents do
         </span>
         <span :if={@game.turn == @seat} class="rounded bg-gold px-1">their turn</span>
         <span :if={@p.exploded?} class="rounded bg-ruby px-1 text-white">
-          {if protected?(@p), do: "Exploded (protected)", else: "Exploded!"}
+          {exploded_text(@p)}
         </span>
       </header>
       <p class="text-ink-soft">
@@ -436,6 +451,7 @@ defmodule QuacksWeb.GameComponents do
         )}
       </p>
       <.pot game={@game} seat={@seat} size={:sm} />
+      <.bowl :if={@p.bowl != []} chips={@p.bowl} />
     </article>
     """
   end
@@ -449,7 +465,10 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <p class="text-xs text-ink-soft" data-role="books">
       Ingredient books: {Enum.map_join(
-        [:green, :blue, :red, :yellow, :purple],
+        Enum.filter(
+          [:green, :blue, :red, :yellow, :purple, :black, :locoweed],
+          &Map.has_key?(@sets, &1)
+        ),
         " · ",
         &"#{&1} #{@sets[&1]}"
       )}
@@ -500,6 +519,66 @@ defmodule QuacksWeb.GameComponents do
     </div>
     """
   end
+
+  @doc """
+  The overflow bowl (The Herb Witches): chips drawn after a chip reached the last
+  space. Half their values, rounded down, are VP in the evaluation.
+  """
+  attr :chips, :list, required: true, doc: "the player's `bowl` chips, newest first"
+
+  def bowl(assigns) do
+    ~H"""
+    <div
+      class="flex min-h-10 flex-wrap items-center gap-1 rounded-b-full border-4 border-t-0 border-iron bg-iron-dark/90 px-3 py-1 text-xs text-parchment"
+      aria-label="Overflow bowl"
+      data-role="bowl"
+    >
+      <span class="font-semibold">Bowl</span>
+      <.chip :for={chip <- @chips} chip={chip} size={:xs} data-role="bowl-chip" />
+      <span :if={@chips == []} class="text-parchment-dim">empty</span>
+    </div>
+    """
+  end
+
+  @doc """
+  A herb witch card: a band in her penny colour, her title and her rule. A witch
+  whose penny this player has spent is greyed out. The slot holds her buttons.
+
+  ## Examples
+
+      <.witch_card id={:s2} spent={false} />
+  """
+  attr :id, :atom, required: true, doc: "a witch id from `Quacks.Rules.Witches`"
+  attr :spent, :boolean, default: false, doc: "this player has spent her penny"
+  slot :inner_block
+
+  def witch_card(assigns) do
+    assigns = assign(assigns, card: Witches.card(assigns.id))
+
+    ~H"""
+    <section
+      class={["paper overflow-hidden rounded-lg text-sm", @spent && "opacity-50 grayscale"]}
+      aria-label={"#{@card.colour} witch"}
+      data-role="witch-card"
+      data-witch={@id}
+    >
+      <div class={[
+        "flex items-center gap-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink",
+        penny_class(@card.colour)
+      ]}>
+        {@card.colour} witch
+        <span class="ml-auto normal-case">{if @spent, do: "penny spent", else: "1 penny"}</span>
+      </div>
+      <div class="space-y-2 px-3 py-2">
+        <h3 class="font-bold">{@card.title}</h3>
+        <p class="text-ink-soft">{@card.text}</p>
+        {render_slot(@inner_block)}
+      </div>
+    </section>
+    """
+  end
+
+  defp penny_class(colour), do: @pennies[colour]
 
   @doc """
   The chips a blue chip drew, duplicates included, so two identical offers are both
@@ -726,6 +805,36 @@ defmodule QuacksWeb.GameComponents do
 
   def label({:red, {:keep, chip}}), do: "Toadstool: keep #{chip_name(chip)} beside the pot"
   def label({:red, {:return, chip}}), do: "Toadstool: return #{chip_name(chip)} to the bag"
+  def label({:rubies_spent, :droplet, 1}), do: "Spent 1 ruby: droplet +1"
+  def label({:rubies_spent, :flask, 1}), do: "Spent 1 ruby: flask refilled"
+  def label({:overflow, chip}), do: "#{chip_name(chip)} went in the overflow bowl"
+  def label({:bowl, _chips, vp}), do: "Overflow bowl: +#{vp} VP"
+  def label({:pennies, vp}), do: "Unused witch pennies: +#{vp} VP"
+  def label({:expansion, :herb_witches}), do: "Playing with The Herb Witches"
+  def label({:witch, colour}), do: "Call the #{colour} witch"
+
+  def label({:witch, :silver, n}) when is_integer(n),
+    do: "Silver witch: return the last #{plural(n, "white chip", "#{n} white chips")}"
+
+  def label({:witch, :silver, {:place, chip}}), do: "Silver witch: place #{chip_name(chip)}"
+  def label({:witch, :silver, :return_all}), do: "Silver witch: return the rest to the bag"
+
+  def label({:witch, :copper, {:upgrade, chips}}),
+    do: "Copper witch: upgrade #{Enum.map_join(chips, " + ", &chip_name/1)}"
+
+  def label({:witch, :copper, {:buy, chips, copy}}),
+    do: "Copper witch: buy #{Enum.map_join(chips, " + ", &chip_name/1)}, free #{chip_name(copy)}"
+
+  def label({:witch, id, outcome}), do: "#{Witches.card(id).title}: #{witch_outcome(outcome, id)}"
+  def label(:witch_done), do: "Keep the gold penny"
+  def label({:chip, :yellow_ruby}), do: "Mandrake: pay 1 ruby, move 3 more"
+
+  def label({:chip, {:starter, chip}}),
+    do: "Garden spider: start the next round with #{chip_name(chip)}"
+
+  def label({:chip, {:buy, chips}}),
+    do: "Ghost's breath: take #{Enum.map_join(chips, " + ", &chip_name/1)}"
+
   def label({:effect, book, detail}), do: effect(book, detail)
   def label({seat, {:effect, _, _} = entry}) when is_integer(seat), do: label(entry)
   def label(other), do: inspect(other)
@@ -763,7 +872,62 @@ defmodule QuacksWeb.GameComponents do
   defp effect({:purple, 4}, {:upgrade, from, to}),
     do: "Ghost's breath: swapped #{chip_name(from)} for #{chip_name(to)} (into the bag)"
 
+  # The Herb Witches books (Sets 5 and 6, black, locoweed).
+  defp effect({:red, 5}, {:extra, n}), do: "Toadstool: +#{n}, a higher red is in the pot"
+  defp effect({:red, 6}, {:aside, chip}), do: "Toadstool: #{chip_name(chip)} set aside"
+  defp effect({:yellow, 5}, {:peek, chip}), do: "Mandrake: peeked at #{chip_name(chip)}, moved on"
+  defp effect({:yellow, 6}, {:extra, n}), do: "Mandrake: paid 1 ruby, +#{n} spaces"
+  defp effect({:blue, 5}, {:vp, n}), do: "Crow skull: +#{n} VP for the pumpkins"
+
+  defp effect({:blue, 6}, {:rubies, n}),
+    do: "Crow skull: +#{n} #{plural(n, "ruby", "rubies")} for white 1-chips"
+
+  defp effect({:green, 5}, {:starter, chip}),
+    do: "Garden spider: #{chip_name(chip)} starts the next round"
+
+  defp effect({:green, 5}, {:first, chip}), do: "Garden spider: #{chip_name(chip)} placed first"
+  defp effect({:green, 6}, {:bonus_die, face}), do: "Garden spider: " <> label({:bonus_die, face})
+
+  defp effect({:purple, 5}, {:bought, chips}),
+    do: "Ghost's breath: took #{Enum.map_join(chips, " + ", &chip_name/1)}"
+
+  defp effect({:purple, 5}, {:vp, n}), do: "Ghost's breath: +#{n} VP from the purple spaces"
+  defp effect({:purple, 6}, {:vp, n}), do: "Ghost's breath: +#{n} VP from the chips after purple"
+
+  defp effect({:black, 5}, {:to_left, _seat}),
+    do: "Hawkmoth: black chip into the left player's bag, droplet +1"
+
+  defp effect({:black, 5}, :to_supply), do: "Hawkmoth: black chip back to the supply, droplet +1"
+
+  defp effect({:black, 5}, {:rubies, n}),
+    do: "Hawkmoth: +#{n} #{plural(n, "ruby", "rubies")}"
+
+  defp effect({:black, 6}, :droplet), do: "Hawkmoth: furthest black chip, droplet +1"
+  defp effect({:black, 6}, :ruby), do: "Hawkmoth: second furthest black chip, +1 ruby"
+  defp effect({:black, 6}, :droplet_ruby), do: "Hawkmoth: droplet +1, +1 ruby"
+  defp effect({:locoweed, 5}, {:moves, n}), do: "Locoweed: moved #{n}"
+  defp effect({:locoweed, 6}, {:copied, chip}), do: "Locoweed: acted as #{chip_name(chip)}"
   defp effect(book, detail), do: inspect({:effect, book, detail})
+
+  # What a witch did, for the log.
+  defp witch_outcome(:flask, _id), do: "the flask took the white chip back"
+  defp witch_outcome({:offer, n}, _id), do: "drew #{n} #{plural(n, "chip", "chips")}"
+
+  defp witch_outcome({:return_white, n}, _id),
+    do: "#{n} white #{plural(n, "chip", "chips")} back in the bag"
+
+  defp witch_outcome(:no_penalty, _id), do: "no explosion penalty"
+
+  defp witch_outcome({:upgrade, chips}, _id),
+    do: "upgraded #{Enum.map_join(chips, " + ", &chip_name/1)}"
+
+  defp witch_outcome({:coins, n}, :c2), do: "coins doubled to #{n}"
+  defp witch_outcome({:coins, n}, _id), do: "+#{n} coins"
+  defp witch_outcome({:copy, chip}, _id), do: "free #{chip_name(chip)}"
+  defp witch_outcome({:vp, n}, _id), do: "+#{n} VP"
+  defp witch_outcome({:rubies, n}, _id), do: "+#{n} #{plural(n, "ruby", "rubies")}"
+  defp witch_outcome(:ruby_price, _id), do: "droplet and flask cost 1 ruby"
+  defp witch_outcome(other, _id), do: inspect(other)
 
   defp purple_trade(1), do: "black 1, 1 VP, 1 ruby"
   defp purple_trade(2), do: "green 1, blue 2, 3 VP, droplet +1"
@@ -820,8 +984,9 @@ defmodule QuacksWeb.GameComponents do
   defp plural(1, one, _many), do: one
   defp plural(_n, _one, many), do: many
 
-  @doc "\"green 2\" for `{:green, 2}`."
+  @doc ~s("green 2" for `{:green, 2}`; locoweed has no value: "locoweed".)
   @spec chip_name(Chips.chip()) :: String.t()
+  def chip_name({:locoweed, _}), do: "locoweed"
   def chip_name({colour, value}), do: "#{colour} #{value}"
 
   @doc "The name of a phase, as the header shows it."
@@ -832,6 +997,8 @@ defmodule QuacksWeb.GameComponents do
   def phase_name(:blue_choice), do: "Crow skull"
   def phase_name(:fortune_choice), do: "Fortune teller"
   def phase_name(:chip_choice), do: "Chip actions"
+  def phase_name(:witch_choice), do: "Gold witch"
+  def phase_name(:witch_offer), do: "Silver witch"
   def phase_name(:red_choice), do: "Toadstool"
   def phase_name(:buy_chips), do: "Shop"
   def phase_name(:spend_rubies), do: "Rubies"

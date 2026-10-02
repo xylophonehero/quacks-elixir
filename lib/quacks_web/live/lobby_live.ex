@@ -1,12 +1,15 @@
 defmodule QuacksWeb.LobbyLive do
   @moduledoc """
-  The start page: create a game for 1 to 4 players, or join an open game on this
-  node. Creating a game seats this browser in seat 0 and opens `/g/:id`.
+  The start page: create a game for 1 to 4 players (5 with The Herb Witches), or
+  join an open game on this node. Creating a game seats this browser in seat 0 and
+  opens `/g/:id`.
 
   The "Ingredient books" form picks the Set (1–4) per colour for the games created
-  here. It is a plain `phx-change` form: every change sends all selects, and the
-  chosen sets wait in the assigns until a New game button is clicked. The "Options"
-  form under it works the same way for the house rules (`Quacks.Game.t:rules/0`).
+  here. Its "Herb Witches expansion" checkbox turns the expansion on: Sets 5 and 6,
+  the black and locoweed books and a 5-player game. It is a plain `phx-change` form:
+  every change sends all selects and the checkbox, and the choice waits in the
+  assigns until a New game button is clicked. The "Options" form under it works the
+  same way for the house rules (`Quacks.Game.t:rules/0`).
 
   `?seed=1,2,3` makes the games created here reproducible.
   """
@@ -16,6 +19,8 @@ defmodule QuacksWeb.LobbyLive do
 
   # The colours with four ingredient books, in the order the form shows them.
   @book_colours [:green, :blue, :red, :yellow, :purple]
+  # The Herb Witches adds Sets 5 and 6, and books for black and locoweed.
+  @expansion_books %{black: [1, 5, 6], locoweed: [5, 6]}
 
   # Every house rule the Options form offers, with the values it accepts.
   @rule_values %{
@@ -38,6 +43,7 @@ defmodule QuacksWeb.LobbyLive do
        token: session["player_token"],
        seed: parse_seed(params["seed"]),
        sets: Map.new(@book_colours, &{&1, 1}),
+       expansion: false,
        rules: Game.default_rules(),
        games: GameServer.open_games()
      )}
@@ -45,15 +51,19 @@ defmodule QuacksWeb.LobbyLive do
 
   @impl true
   def handle_event("new_game", %{"players" => players}, socket) do
-    %{seed: seed, sets: sets, rules: rules} = socket.assigns
-    {:ok, id} = GameServer.start(String.to_integer(players), seed, sets, rules)
+    %{seed: seed, sets: sets, rules: rules, expansion: expansion} = socket.assigns
+    expansion = if expansion, do: :herb_witches
+
+    {:ok, id} = GameServer.start(String.to_integer(players), seed, sets, rules, expansion)
 
     {:ok, 0} = GameServer.claim_seat(id, socket.assigns.token)
     {:noreply, push_navigate(socket, to: ~p"/g/#{id}")}
   end
 
-  def handle_event("sets", %{"sets" => params}, socket) when is_map(params),
-    do: {:noreply, assign(socket, sets: parse_sets(params))}
+  def handle_event("sets", %{"sets" => params} = form, socket) when is_map(params) do
+    expansion = form["expansion"] == "true"
+    {:noreply, assign(socket, sets: parse_sets(params, expansion), expansion: expansion)}
+  end
 
   def handle_event("rules", %{"rules" => params}, socket) when is_map(params),
     do: {:noreply, assign(socket, rules: parse_rules(params))}
@@ -71,15 +81,22 @@ defmodule QuacksWeb.LobbyLive do
 
       <form id="books" phx-change="sets" aria-label="Ingredient books" class="paper rounded-lg p-3">
         <h2 class="text-lg font-bold">Ingredient books</h2>
+        <.input
+          type="checkbox"
+          id="expansion"
+          name="expansion"
+          label="Herb Witches expansion"
+          value={@expansion}
+        />
         <div class="mt-2 grid grid-cols-2 gap-x-2 sm:grid-cols-5">
           <.input
-            :for={colour <- book_colours()}
+            :for={colour <- book_colours(@expansion)}
             type="select"
             id={"sets-#{colour}"}
             name={"sets[#{colour}]"}
             label={String.capitalize(to_string(colour))}
             value={@sets[colour]}
-            options={Enum.map(1..4, &{"Set #{&1}", &1})}
+            options={Enum.map(book_sets(colour, @expansion), &{set_name(&1, colour), &1})}
             class="w-full rounded-lg border border-ink-soft bg-parchment-light px-3 py-2 text-sm text-ink"
           />
         </div>
@@ -148,7 +165,11 @@ defmodule QuacksWeb.LobbyLive do
         <.button phx-click="new_game" phx-value-players="1" variant="primary">
           New solo game
         </.button>
-        <.button :for={n <- 2..4} phx-click="new_game" phx-value-players={n}>
+        <.button
+          :for={n <- 2..if(@expansion, do: 5, else: 4)}
+          phx-click="new_game"
+          phx-value-players={n}
+        >
           New game for {n} players
         </.button>
       </section>
@@ -198,22 +219,39 @@ defmodule QuacksWeb.LobbyLive do
     """
   end
 
-  @doc "The colours the Ingredient books form offers."
-  @spec book_colours() :: [atom]
-  def book_colours, do: @book_colours
+  @doc "The colours the Ingredient books form offers (with the expansion: black, locoweed)."
+  @spec book_colours(boolean) :: [atom]
+  def book_colours(expansion \\ false)
+  def book_colours(false), do: @book_colours
+  def book_colours(true), do: @book_colours ++ Map.keys(@expansion_books)
+
+  # The books a colour offers; the first one is the default.
+  defp book_sets(colour, true) when is_map_key(@expansion_books, colour),
+    do: @expansion_books[colour]
+
+  defp book_sets(_colour, true), do: Enum.to_list(1..6)
+  defp book_sets(_colour, false), do: Enum.to_list(1..4)
+
+  defp set_name(1, :black), do: "Base"
+  defp set_name(set, _colour), do: "Set #{set}"
 
   @doc """
   The form's `%{"green" => "2", ...}` as `%{green: 2, ...}`. A missing or bad value
-  is Set 1, so a crafted request cannot break the game.
+  is the colour's first book (Set 1; locoweed Set 5), so a crafted request cannot
+  break the game. With `expansion` the expansion's books are allowed and black and
+  locoweed are in the map.
   """
-  @spec parse_sets(map) :: %{atom => 1..4}
-  def parse_sets(params) do
-    Map.new(@book_colours, fn colour ->
+  @spec parse_sets(map, boolean) :: %{atom => 1..6}
+  def parse_sets(params, expansion \\ false) do
+    Map.new(book_colours(expansion), fn colour ->
+      [default | _] = sets = book_sets(colour, expansion)
+
       with value when is_binary(value) <- params[to_string(colour)],
-           {set, ""} when set in 1..4 <- Integer.parse(value) do
+           {set, ""} <- Integer.parse(value),
+           true <- set in sets do
         {colour, set}
       else
-        _ -> {colour, 1}
+        _ -> {colour, default}
       end
     end)
   end
