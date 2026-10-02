@@ -16,11 +16,13 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **rat tails** | Marks between some spaces of the 0-50 VP track: after VP 1, 3 and every even VP from 6 to 50 (⚠️ reconstructed, rulebook §1.2). `Quacks.Rules.ScoringTrack.rat_tails(my_vp, leader_vp)` counts the tails strictly between two markers. |
 | **rat stone** | From round 2 with 2+ players: every player behind the leader (highest VP; a tie for the lead gives nobody rats) starts the round `rat_tails` spaces past their droplet. `Quacks.Player.rat_stone` holds that distance (0 when none); it is set when a round starts and cleared when it ends. The flask falls back to droplet + rat stone when the pot is empty. |
 | **flask** | One-shot per round: put the last drawn white chip back in the bag. Not usable if that chip caused the explosion. Refill for 2 rubies in the end-of-round phase. |
-| **explosion** | When the sum of white chip values in the pot reaches 8 or more. The exploding chip stays; the player must stop drawing and must choose VP **or** buying chips, not both. The choice waits on `Quacks.Player.explosion_choice` until the evaluation runs; a player who chose VP skips the shop. |
+| **explosion** | When the sum of white chip values in the pot reaches 8 or more (the limit can rise: B5 card, Y3 mandrake; see **mods**). The exploding chip stays; the player must stop drawing and must choose VP **or** buying chips, not both. The choice waits on `Quacks.Player.explosion_choice` until the evaluation runs; a player who chose VP skips the shop. |
 | **scoring space** | The space directly after the last placed chip. Gives coins, VP and possibly a ruby. |
 | **ruby** | Currency for droplet moves and flask refills; 2 rubies = 1 VP in the last round. |
 | **round** | One of 9 game turns. Each round runs the phases below. |
-| **ingredient book** | The rule card for a colour's chip action and prices. Phase 1 uses book 1 for each colour. |
+| **ingredient book** | The rule card for a colour's chip action and prices. Green, blue, red, yellow and purple each have Sets 1-4; orange and black have one book; white has none. |
+| **sets** | `Game.new(sets: %{green: 1..4, blue: 1..4, red: 1..4, yellow: 1..4, purple: 1..4})` picks the book per colour; colours left out use Set 1 (`game.sets`). Prices differ per set: `Quacks.Rules.Chips.price(chip, sets)` (`price/1` = Set 1). Effects dispatch on `{colour, set}` (`Potions.bonus/3`, `Potions.on_draw/4`, `Evaluation.chip_action/3`). Not yet supported (raise `ArgumentError`): G2, G4, P2, P4 (need choices in the evaluation) and R2 (set-aside zone). Source: `docs/research/ingredient-sets-and-customisation.md`. |
+| **mods** | `Quacks.Player.mods`, round modifiers from Set 2-4 chips, reset at the end of the round (and by B3): `explode_above` (7; Y3: 8 after the 1st yellow, 9 after the 3rd; the B5 card's 9 still counts, the higher limit wins: `Potions.explode_above/2`), `next_chip_x2` (Y2), `white1_plus1` (R4), `protect` (B2: drawn chips left in the crow-skull window). |
 | **supply** | The chips left in the box per colour and value (`Quacks.Rules.Chips.supply/0`), shared by all players. Every starting bag, bought chips, the orange die face and the round-6 white chips all come out of it. A kind with 0 left is not buyable. Yellow is buyable from round 2, purple from round 3. |
 | **blue offer** | The extra chips a blue chip draws (`pending` on the player). The player places at most one as the next chip; the rest go back in the bag. |
 | **black rule** | Rulebook §4. 2 players: as many black chips as the opponent (and at least 1) → droplet +1; more → droplet +1 and 1 ruby. 3-4 players: more than one neighbour (adjacent seat) → droplet +1; more than both → droplet +1 and 1 ruby. |
@@ -55,6 +57,7 @@ Newest first. Every entry that concerns one player is tagged with the seat: `{se
 | `{:fortune_drawn, id}` | Untagged. A Fortune Teller card was turned up at the start of the round. |
 | `{:fortune_skipped, id}` | Untagged. Solo only: P7 or P9 came up and was put aside. |
 | `{:fortune, id, outcome}` | What card `id` did for this player (see the table below). |
+| `{:effect, {colour, set}, detail}` | A Set 2-4 chip effect (see the table below). |
 | `{:round_end, round}` | The last event of every round. Untagged. |
 
 Card outcomes (`{seat, {:fortune, id, outcome}}`):
@@ -81,6 +84,22 @@ Card outcomes (`{seat, {:fortune, id, outcome}}`):
 | P13 | `{:upgrade, chip}` (`chip` went to the supply, the next value up to the bag), `{:take, {:green, 1}}` |
 
 B4 logs nothing of its own: the second `{:bonus_die, face}` shows it.
+
+Chip effects (`{seat, {:effect, {colour, set}, detail}}`), logged after the chip's `{:drew, ...}` (or in step B):
+
+| Book | Detail | When |
+|---|---|---|
+| G3 | `{:moved_last, n}` | Step B, exactly 7 white: the last chip moved `n` (sum of the green values) spaces, before steps C/D. |
+| B2 | `{:protect, window}` | A crow skull was drawn: the next `window` drawn chips are protected (the larger of what was left and the chip value; windows do not add up). |
+| B2 | `:protected_explosion` | The pot exploded inside the window: after `{:exploded, sum}`, no choice; the player gets the VP **and** the coins, no bonus die. |
+| B3 | `:ruby` | The blue chip landed on a ruby space: 1 ruby. |
+| B4 | `{:vp, n}` | The blue chip landed on a ruby space: `n` = its value in VP. |
+| R3 | `{:extra, w}` | The red chip came right after a white `w` chip: `w` more spaces. |
+| R4 | `:white_plus1` | A white 1-chip moved 2 because a red chip is in the pot. |
+| Y2 | `{:doubled, move}` | The chip after a mandrake moved double (its full move, bonuses included). A yellow chip that is doubled arms the next chip again. |
+| Y3 | `{:limit, 8 \| 9}` | The 1st (8) or 3rd (9) yellow chip raised the white limit. |
+| Y4 | `{:extra, n}` | The `n`-th yellow chip of the round (1-3) moved `n` more spaces. |
+| P3 | `{:vp, n}` | Step B: `n` > 0 VP from purple chips by pot field (0-9: 0, 10-19: 1, 20-29: 2, 30+: 3 each). |
 
 `Quacks.Session` replays from its own `actions` list (`[{seat, action}]`, newest first), never from the log.
 
