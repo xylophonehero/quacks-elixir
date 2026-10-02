@@ -264,7 +264,8 @@ defmodule Quacks.FortuneTest do
       g = new(2) |> put(1, vp: 12) |> purple(:p10)
       assert {:fortune, :vp} in Game.legal_actions(g, 0)
       g = apply!(g, 0, {:fortune, :vp})
-      assert me(g, 0).vp == 5
+      # 4 tails between 0 and 12: after 1, 4, 7, 10
+      assert me(g, 0).vp == 4
 
       assert g.turn == 1
       refute {:fortune, :vp} in Game.legal_actions(g, 1)

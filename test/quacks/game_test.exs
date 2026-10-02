@@ -342,25 +342,27 @@ defmodule Quacks.GameTest do
     end
 
     test "rats: tails strictly between the markers; the first chip counts from the rat stone" do
-      assert ScoringTrack.rat_tails(3, 12) == 4
+      # Tails after 1, 4, 7, 10, 12, 14, ..., 48 (docs/research/rat-tails.md).
+      assert ScoringTrack.rat_tails(3, 12) == 3
       assert ScoringTrack.rat_tails(12, 12) == 0
       assert ScoringTrack.rat_tails(12, 3) == 0
       assert ScoringTrack.rat_tails(0, 1) == 0
       assert ScoringTrack.rat_tails(0, 2) == 1
-      assert ScoringTrack.rat_tails(0, 50) == 2 + 22
+      assert ScoringTrack.rat_tails(6, 8) == 1
+      assert ScoringTrack.rat_tails(0, 50) == 23
 
       g = new(2) |> put(0, vp: 12) |> put(1, vp: 3, droplet: 2) |> put(phase: :spend_rubies)
       g = g |> apply!(0, :end_round) |> apply!(1, :end_round)
       assert g.round == 2
       assert {me(g, 0).rat_stone, me(g, 0).pot_index} == {0, 0}
-      assert {me(g, 1).rat_stone, me(g, 1).pot_index} == {4, 6}
-      assert {1, {:rats, 4}} in g.log
+      assert {me(g, 1).rat_stone, me(g, 1).pot_index} == {3, 5}
+      assert {1, {:rats, 3}} in g.log
       refute Enum.any?(g.log, &match?({0, {:rats, _}}, &1))
 
       g = force_draws(g, 1, [{:white, 1}])
-      assert hd(me(g, 1).drawn) == {{:white, 1}, 7}
+      assert hd(me(g, 1).drawn) == {{:white, 1}, 6}
       # the flask falls back to the rat stone, not the droplet
-      assert me(apply!(g, 1, :use_flask), 1).pot_index == 6
+      assert me(apply!(g, 1, :use_flask), 1).pot_index == 5
 
       # a tie for the lead gives nobody rats; the stone is gone at the next round end
       level = new(2) |> put(0, vp: 5) |> put(1, vp: 5) |> put(phase: :spend_rubies)

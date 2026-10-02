@@ -82,6 +82,7 @@ Official text for the end of the track (S1): "If you happen to reach the last sp
 Ruby spaces by printed coin number: 5, 9, 13, 15(2nd), 17(2nd), 19(2nd), 21(2nd), 22(2nd), 24(2nd), 25(2nd), 27(2nd), 28(2nd), 30(2nd), 32(2nd), 33(2nd). Pattern: from 15 up, every ruby is on the second of each doubled pair, every other number ⚠️.
 
 ### 1.2 Scoring track rat tails
+**Resolved 2026-10-03:** see `rat-tails.md`. Tails after VP 1, 4, 7, 10, 12, 14, …, 48. The reconstruction below is superseded.
 Rat tails are printed between some VP spaces on the 0–50 scoring track. Official rule only: count tails strictly between your marker and the leader's marker (S1). ⚠️ Exact positions not found in any official text. S7 reconstructs them as tails after VP 1, 3, 6, 8, 10, 12, 14, … 50 (every 2 from 6) and flags it "reconstructed — verify against the board".
 
 ---
