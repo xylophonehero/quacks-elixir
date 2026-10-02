@@ -88,11 +88,11 @@ defmodule QuacksWeb.GameLive do
       <.pot game={@game} />
 
       <section :if={Game.over?(@game)} class="rounded-lg bg-emerald-100 p-4 text-center">
-        <p class="text-xl font-bold">Game over: {Game.score(@game)} victory points</p>
+        <p class="text-xl font-bold">Game over: {Game.score(@game)[0]} victory points</p>
         <.button phx-click="new_game" variant="primary" class="mt-3">New game</.button>
       </section>
 
-      <.blue_offer :if={@game.phase == :blue_choice} pending={@game.pending} />
+      <.blue_offer :if={Game.phase(@game, 0) == :blue_choice} pending={@me.pending} />
 
       <.shop :if={@game.phase == :buy_chips} game={@game} selected={@selected} />
 
@@ -116,7 +116,7 @@ defmodule QuacksWeb.GameLive do
         <.button phx-click="new_game">New game</.button>
       </div>
 
-      <.bag bag={@game.bag} />
+      <.bag bag={@me.bag} />
       <.action_log log={@game.log} />
     </Layouts.app>
     """
@@ -139,7 +139,8 @@ defmodule QuacksWeb.GameLive do
       assign(assigns,
         actions: Game.legal_actions(assigns.game),
         total: total,
-        remaining: assigns.game.coins - total
+        coins: assigns.game.players[0].coins,
+        remaining: assigns.game.players[0].coins - total
       )
 
     ~H"""
@@ -169,7 +170,7 @@ defmodule QuacksWeb.GameLive do
         </ul>
       </form>
       <p class="text-sm" data-role="shop-total">
-        Selected: {@total} coins. Remaining: {@remaining} of {@game.coins}.
+        Selected: {@total} coins. Remaining: {@remaining} of {@coins}.
       </p>
       <div class="flex flex-wrap gap-2">
         <.button
@@ -199,10 +200,17 @@ defmodule QuacksWeb.GameLive do
     socket |> assign(page_title: "Quacks") |> put_session(Session.new(seed))
   end
 
-  # `@game` is the session's game, kept as its own assign so templates read `@game.x`.
+  # `@game` is the session's game and `@me` its seat-0 player (the page is solo for
+  # now), kept as their own assigns so templates read `@game.x` / `@me.x`.
   # Every state change empties the shop selection; it only means something in the shop.
   defp put_session(socket, session),
-    do: assign(socket, session: session, game: session.game, selected: [])
+    do:
+      assign(socket,
+        session: session,
+        game: session.game,
+        me: session.game.players[0],
+        selected: []
+      )
 
   defp seed_from_params(%{"seed" => seed}) do
     case seed |> String.split(",") |> Enum.map(&Integer.parse/1) do

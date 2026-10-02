@@ -70,7 +70,8 @@ defmodule QuacksWeb.GameComponents do
   def pot(assigns) do
     assigns =
       assign(assigns,
-        chips_by_index: chips_by_index(assigns.game),
+        me: assigns.game.players[0],
+        chips_by_index: chips_by_index(assigns.game.players[0]),
         scoring_index: Game.scoring_index(assigns.game),
         spaces: 0..PotTrack.last()
       )
@@ -83,7 +84,7 @@ defmodule QuacksWeb.GameComponents do
           "relative flex aspect-square flex-col items-center justify-center rounded-md p-1 text-[10px] leading-tight",
           index == @scoring_index && "bg-amber-200 ring-2 ring-amber-500",
           index != @scoring_index && "bg-zinc-100",
-          index == @game.droplet && "ring-2 ring-sky-500"
+          index == @me.droplet && "ring-2 ring-sky-500"
         ]}
         data-space={index}
       >
@@ -105,7 +106,7 @@ defmodule QuacksWeb.GameComponents do
   end
 
   # Each chip remembers the space it landed on, so the pot just reads it back.
-  defp chips_by_index(%Game{drawn: drawn}),
+  defp chips_by_index(%{drawn: drawn}),
     do: Map.new(drawn, fn {chip, index} -> {index, chip} end)
 
   @doc """
@@ -133,20 +134,22 @@ defmodule QuacksWeb.GameComponents do
   attr :game, Game, required: true
 
   def status(assigns) do
+    assigns = assign(assigns, me: assigns.game.players[0])
+
     ~H"""
     <dl class="grid grid-cols-3 gap-2 text-sm sm:grid-cols-6">
       <.stat label="Round" value={"#{@game.round} / 9"} />
-      <.stat label="Phase" value={phase_name(@game.phase)} />
-      <.stat label="VP" value={@game.vp} />
-      <.stat label="Rubies" value={@game.rubies} />
-      <.stat label="Flask" value={if @game.flask, do: "full", else: "empty"} />
+      <.stat label="Phase" value={phase_name(Game.phase(@game, 0))} />
+      <.stat label="VP" value={@me.vp} />
+      <.stat label="Rubies" value={@me.rubies} />
+      <.stat label="Flask" value={if @me.flask, do: "full", else: "empty"} />
       <.stat label="White" value={"#{Game.white_sum(@game)} / 7"} />
       <div :if={@game.phase == :buy_chips} class="col-span-3 sm:col-span-6">
         <span class="rounded-md bg-amber-100 px-2 py-1 font-semibold text-amber-900">
-          {@game.coins} coins to spend
+          {@me.coins} coins to spend
         </span>
       </div>
-      <div :if={@game.exploded?} class="col-span-3 sm:col-span-6">
+      <div :if={@me.exploded?} class="col-span-3 sm:col-span-6">
         <span class="rounded-md bg-rose-600 px-2 py-1 font-semibold text-white">Exploded!</span>
       </div>
     </dl>
@@ -193,7 +196,12 @@ defmodule QuacksWeb.GameComponents do
   attr :limit, :integer, default: 20
 
   def action_log(assigns) do
-    entries = assigns.log |> Enum.reject(&narrated_by_event?/1) |> Enum.take(assigns.limit)
+    entries =
+      assigns.log
+      |> Enum.map(&untag/1)
+      |> Enum.reject(&narrated_by_event?/1)
+      |> Enum.take(assigns.limit)
+
     assigns = assign(assigns, entries: entries)
 
     ~H"""
@@ -206,6 +214,10 @@ defmodule QuacksWeb.GameComponents do
     </div>
     """
   end
+
+  # The solo page shows seat 0 only, so the seat tag on player entries is dropped.
+  defp untag({seat, entry}) when is_integer(seat), do: entry
+  defp untag(entry), do: entry
 
   defp narrated_by_event?(:draw), do: true
   defp narrated_by_event?({:buy, [_ | _]}), do: true

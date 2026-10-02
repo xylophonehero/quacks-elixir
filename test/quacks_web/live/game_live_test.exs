@@ -106,7 +106,8 @@ defmodule QuacksWeb.GameLiveTest do
   end
 
   test "the pot draws each chip on its recorded space", %{conn: _conn} do
-    game = %{Game.new(seed: {1, 2, 3}) | drawn: [{{:red, 2}, 4}, {{:orange, 1}, 1}]}
+    game = Game.new(seed: {1, 2, 3})
+    game = put_in(game.players[0].drawn, [{{:red, 2}, 4}, {{:orange, 1}, 1}])
     html = render_component(&GameComponents.pot/1, game: game)
     assert count(html, ~s([data-space="4"] #{@pot_chip}[aria-label="red 2"])) == 1
     assert count(html, ~s([data-space="1"] #{@pot_chip}[aria-label="orange 1"])) == 1
@@ -115,13 +116,11 @@ defmodule QuacksWeb.GameLiveTest do
   end
 
   test "the crow skull strip lists duplicate offers; the buttons list each chip once" do
-    game = %{
-      Game.new(seed: {1, 2, 3})
-      | phase: :blue_choice,
-        pending: [{:white, 1}, {:white, 1}]
-    }
+    game = Game.new(seed: {1, 2, 3})
+    game = put_in(game.players[0].phase, :blue_choice)
+    game = put_in(game.players[0].pending, [{:white, 1}, {:white, 1}])
 
-    html = render_component(&GameComponents.blue_offer/1, pending: game.pending)
+    html = render_component(&GameComponents.blue_offer/1, pending: game.players[0].pending)
     assert count(html, ~s([data-role="offer-chip"][aria-label="white 1"])) == 2
     assert Game.legal_actions(game) == [{:place, {:white, 1}}, :return_all]
   end
