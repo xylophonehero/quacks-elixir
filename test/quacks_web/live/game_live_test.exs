@@ -151,6 +151,39 @@ defmodule QuacksWeb.GameLiveTest do
     assert bag_size(view) == before + 2
   end
 
+  test "shop: one row per colour, single-value colours on top", %{conn: conn} do
+    html = conn |> mount_shop() |> render() |> LazyHTML.from_fragment()
+
+    first_per_row =
+      html
+      |> LazyHTML.query("[data-role=shop-row] li:first-child [aria-label]")
+      |> LazyHTML.attribute("aria-label")
+
+    assert first_per_row == ["orange 1", "green 1", "blue 1", "red 1", "yellow 1"]
+
+    green_row = html |> LazyHTML.query("[data-role=shop-row]") |> Enum.at(1)
+
+    assert LazyHTML.attribute(LazyHTML.query(green_row, "[aria-label]"), "aria-label") ==
+             ["green 1", "green 2", "green 4"]
+
+    assert html |> LazyHTML.query("[data-role=shop-row] [aria-label]") |> Enum.count() ==
+             length(Chips.shop())
+
+    assert GameLive.shop_rows() |> List.flatten() |> Enum.sort() == Chips.shop()
+  end
+
+  test "the log narrates the scoring space and the round end", %{conn: conn} do
+    # seed 10,11,12 stops on scoring space 7: 7 coins, 1 VP, no ruby
+    view = mount_shop(conn)
+    assert has_element?(view, "li", "Scoring space 7: +1 VP")
+    refute render(view) =~ "Round 1 over"
+
+    view |> element("button", "Buy nothing") |> render_click()
+    view |> element("button", "End round") |> render_click()
+    assert has_element?(view, "li", "— Round 1 over —")
+    refute has_element?(view, "li", "End round")
+  end
+
   test "shop: a selection the engine rejects cannot be bought", %{conn: conn} do
     view = mount_shop(conn)
     # a crafted change event with two greens (same colour) and an unaffordable total
@@ -165,6 +198,24 @@ defmodule QuacksWeb.GameLiveTest do
   test "every engine action in the choice phases has a human label" do
     for action <- [:return_white, :keep, {:place, {:white, 1}}, :return_all] do
       refute GameComponents.label(action) =~ ~r/^[:{]/
+    end
+  end
+
+  test "every scoring event has a human label" do
+    assert GameComponents.label({:green_rubies, 2}) == "Garden spider: +2 rubies"
+    assert GameComponents.label({:green_rubies, 1}) == "Garden spider: +1 ruby"
+
+    assert GameComponents.label({:purple, 2, :vp1_ruby}) ==
+             "Ghost's breath (tier 2): +1 VP, +1 ruby"
+
+    assert GameComponents.label({:black, :droplet}) == "Hawkmoth: droplet +1"
+    assert GameComponents.label({:pot_ruby, 24}) == "Scoring space 24: +1 ruby"
+    assert GameComponents.label({:pot_vp, 8, 24}) == "Scoring space 24: +8 VP"
+    assert GameComponents.label({:round_end, 4}) == "— Round 4 over —"
+    assert GameComponents.label({:final_conversion, 3, 2}) == "Final: coins → 3 VP, rubies → 2 VP"
+
+    for event <- [{:purple, 1, :vp1}, {:purple, 3, :vp2_droplet}] do
+      refute GameComponents.label(event) =~ ~r/^[:{]/
     end
   end
 end

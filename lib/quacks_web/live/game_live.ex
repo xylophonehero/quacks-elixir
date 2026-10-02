@@ -14,6 +14,16 @@ defmodule QuacksWeb.GameLive do
   alias Quacks.{Game, Session}
   alias Quacks.Rules.Chips
 
+  # The shop, one row per colour. The single-value colours share the top row; the
+  # other rows run 1 / 2 / 4 from left to right.
+  @shop_rows [
+    [{:orange, 1}, {:purple, 1}, {:black, 1}],
+    [{:green, 1}, {:green, 2}, {:green, 4}],
+    [{:blue, 1}, {:blue, 2}, {:blue, 4}],
+    [{:red, 1}, {:red, 2}, {:red, 4}],
+    [{:yellow, 1}, {:yellow, 2}, {:yellow, 4}]
+  ]
+
   @doc """
   Start a game. `?seed=1,2,3` gives a reproducible game; otherwise the seed is random.
   """
@@ -113,11 +123,11 @@ defmodule QuacksWeb.GameLive do
   end
 
   @doc """
-  The shop as a form of checkboxes, one per kind of chip in the shop. The engine decides
-  what may be ticked: a box is disabled when adding its chip to the selection is not a
-  legal buy (too expensive, same colour, two already ticked, out of supply, not yet in
-  the shop). "Buy selected" sends `{:buy, selected}` and is enabled only when that
-  exact buy is legal.
+  The shop as a form of checkboxes, one per kind of chip, in a row per colour (see
+  `shop_rows/0`). The engine decides what may be ticked: a box is disabled when adding
+  its chip to the selection is not a legal buy (too expensive, same colour, two already
+  ticked, out of supply, not yet in the shop). "Buy selected" sends `{:buy, selected}`
+  and is enabled only when that exact buy is legal.
   """
   attr :game, Game, required: true
   attr :selected, :list, required: true, doc: "ticked chips, sorted"
@@ -137,9 +147,9 @@ defmodule QuacksWeb.GameLive do
       <h2 class="text-sm font-semibold text-amber-900">
         Shop: pick up to two chips of different colours
       </h2>
-      <form id="shop" phx-change="select">
-        <ul class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <li :for={chip <- Chips.shop()}>
+      <form id="shop" phx-change="select" class="space-y-2">
+        <ul :for={row <- shop_rows()} class="grid gap-2 sm:grid-cols-3" data-role="shop-row">
+          <li :for={chip <- row}>
             <label class={[
               "flex items-center gap-2 rounded-md bg-white px-2 py-1 text-sm",
               blocked?(chip, @selected, @actions) && "opacity-40"
@@ -175,6 +185,10 @@ defmodule QuacksWeb.GameLive do
     </section>
     """
   end
+
+  @doc "The shop's chips as rows, one per colour; together they are `Chips.shop/0`."
+  @spec shop_rows() :: [[Chips.chip()]]
+  def shop_rows, do: @shop_rows
 
   # A ticked chip can always be unticked; an unticked one is blocked unless adding it
   # to the selection is a legal buy.

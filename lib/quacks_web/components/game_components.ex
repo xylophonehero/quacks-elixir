@@ -190,7 +190,7 @@ defmodule QuacksWeb.GameComponents do
   spending rubies → "Spent ...") are left out so the log does not say things twice.
   """
   attr :log, :list, required: true, doc: "`game.log`, newest first"
-  attr :limit, :integer, default: 12
+  attr :limit, :integer, default: 20
 
   def action_log(assigns) do
     entries = assigns.log |> Enum.reject(&narrated_by_event?/1) |> Enum.take(assigns.limit)
@@ -210,6 +210,7 @@ defmodule QuacksWeb.GameComponents do
   defp narrated_by_event?(:draw), do: true
   defp narrated_by_event?({:buy, [_ | _]}), do: true
   defp narrated_by_event?({:rubies, _}), do: true
+  defp narrated_by_event?(:end_round), do: true
   defp narrated_by_event?(_entry), do: false
 
   @doc """
@@ -247,7 +248,22 @@ defmodule QuacksWeb.GameComponents do
   def label({:bought, chips}), do: "Bought #{Enum.map_join(chips, " + ", &chip_name/1)}"
   def label({:rubies_spent, :droplet}), do: "Spent 2 rubies: droplet +1"
   def label({:rubies_spent, :flask}), do: "Spent 2 rubies: flask refilled"
+  def label({:green_rubies, n}), do: "Garden spider: +#{n} #{plural(n, "ruby", "rubies")}"
+  def label({:purple, 1, :vp1}), do: "Ghost's breath (tier 1): +1 VP"
+  def label({:purple, 2, :vp1_ruby}), do: "Ghost's breath (tier 2): +1 VP, +1 ruby"
+  def label({:purple, 3, :vp2_droplet}), do: "Ghost's breath (tier 3): +2 VP, droplet +1"
+  def label({:black, :droplet}), do: "Hawkmoth: droplet +1"
+  def label({:pot_ruby, index}), do: "Scoring space #{index}: +1 ruby"
+  def label({:pot_vp, vp, index}), do: "Scoring space #{index}: +#{vp} VP"
+  def label({:round_end, round}), do: "— Round #{round} over —"
+
+  def label({:final_conversion, coins_vp, rubies_vp}),
+    do: "Final: coins → #{coins_vp} VP, rubies → #{rubies_vp} VP"
+
   def label(other), do: inspect(other)
+
+  defp plural(1, one, _many), do: one
+  defp plural(_n, _one, many), do: many
 
   @doc "\"green 2\" for `{:green, 2}`."
   @spec chip_name(Chips.chip()) :: String.t()
