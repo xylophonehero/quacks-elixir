@@ -7,6 +7,7 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **chip** | An ingredient token. Has a **colour** (white, orange, green, blue, red, yellow, purple, black) and a **value** (1, 2, 3 or 4). White is the only colour that counts toward an explosion. |
 | **bag** | The player's hidden pool of chips. Chips are drawn from it blind. Starting bag: 4x white 1, 2x white 2, 1x white 3, 1x orange 1, 1x green 1. |
 | **pot** | The cauldron track: 54 spaces (index 0-53). Each space has a coin number, some have VP and a ruby. Drawn chips are placed on it; a chip lands `value` spaces after the previous chip. |
+| **drawn** | The chips in the pot this round, as `{chip, index}` pairs, newest first (`Quacks.Game.drawn`). `index` is the 0-53 space the chip sits on, recorded when it is placed. The UI draws chips from these positions; a returned white chip (mandrake) leaves its space empty and later chips keep their index. `Quacks.Game.pot_chips/1` strips the positions. |
 | **droplet** | The marker for the player's permanent start position on the pot. The first chip of a round is placed relative to it. Moves forward with 2 rubies or chip actions; never moves back. |
 | **flask** | One-shot per round: put the last drawn white chip back in the bag. Not usable if that chip caused the explosion. Refill for 2 rubies in the end-of-round phase. |
 | **explosion** | When the sum of white chip values in the pot reaches 8 or more. The exploding chip stays; the player must stop drawing and must choose VP **or** buying chips, not both. |
@@ -17,6 +18,21 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **supply** | The chips left in the box per colour and value (`Quacks.Rules.Chips.supply/0`). The starting bag, bought chips, the orange die face and the round-6 white chip all come out of it. A kind with 0 left is not buyable. Yellow is buyable from round 2, purple from round 3. |
 | **blue offer** | The extra chips a blue chip draws (`pending` on the struct). The player places at most one as the next chip; the rest go back in the bag. |
 | **black house rule** | ⚠️ Solo has no opponent to compare black chips with. The engine treats 1+ black chip in the pot as "tied with the opponent": droplet +1, no ruby. Rulebook §6.2 suggests droplet +1 and 1 ruby instead; we chose the lower payout. |
+
+## Log (`Quacks.Game.log`)
+
+Newest first. Every applied action is logged, followed by the events it caused:
+
+| Entry | When |
+|---|---|
+| `{:drew, chip, index}` | Every placement, including a chip placed through a blue chip. |
+| `{:returned, chip}` | A chip went back in the bag: flask, mandrake, or the rest of a blue offer. |
+| `{:exploded, white_sum}` | The white sum passed 7. |
+| `{:bought, chips}` | A purchase of one or two chips (`{:buy, []}` logs only the action). |
+| `{:rubies_spent, :droplet \| :flask}` | Two rubies spent in the end-of-round phase. |
+| `{:bonus_die, face}` | The die roll after stopping. |
+
+`Quacks.Session` replays from its own `actions` list, never from the log.
 
 ## Round phases (in order)
 

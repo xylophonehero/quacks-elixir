@@ -22,7 +22,7 @@ defmodule Quacks.GameTest do
   defp force_draws(game, chips), do: Enum.reduce(chips, game, &apply!(%{&2 | bag: [&1]}, :draw))
 
   defp inventory(g) do
-    chips = Enum.frequencies(g.bag ++ g.drawn ++ g.pending)
+    chips = Enum.frequencies(g.bag ++ Game.pot_chips(g) ++ g.pending)
     Map.merge(g.supply, chips, fn _chip, a, b -> a + b end)
   end
 
@@ -73,7 +73,7 @@ defmodule Quacks.GameTest do
     assert :use_flask in Game.legal_actions(g)
 
     g = apply!(g, :use_flask)
-    assert g.drawn == [{:white, 2}]
+    assert g.drawn == [{{:white, 2}, 2}]
     assert g.bag == [{:white, 1}]
     assert g.pot_index == 2
     refute g.flask
@@ -139,7 +139,15 @@ defmodule Quacks.GameTest do
   end
 
   test "spending rubies, then ending the round" do
-    g = %{new() | phase: :spend_rubies, rubies: 4, flask: false, drawn: [{:white, 1}], round: 5}
+    g = %{
+      new()
+      | phase: :spend_rubies,
+        rubies: 4,
+        flask: false,
+        drawn: [{{:white, 1}, 1}],
+        round: 5
+    }
+
     assert Game.legal_actions(g) == [{:rubies, :droplet}, {:rubies, :flask}, :end_round]
 
     g = g |> apply!({:rubies, :droplet}) |> apply!({:rubies, :flask})
@@ -172,6 +180,24 @@ defmodule Quacks.GameTest do
     assert Game.over?(g)
     assert g.round == 9
     assert Game.score(g) == 31
+  end
+
+  test "the log narrates each action: draws, returns, explosions, buys, rubies" do
+    g = force_draws(new(), [{:white, 3}, {:white, 2}])
+    assert Enum.take(g.log, 2) == [{:drew, {:white, 2}, 5}, :draw]
+
+    flask = apply!(g, :use_flask)
+    assert Enum.take(flask.log, 2) == [{:returned, {:white, 2}}, :use_flask]
+
+    boom = force_draws(g, [{:white, 3}])
+    assert hd(boom.log) == {:exploded, 8}
+
+    shop = %{new() | phase: :buy_chips, coins: 8} |> apply!({:buy, [{:orange, 1}, {:green, 1}]})
+    assert hd(shop.log) == {:bought, [{:green, 1}, {:orange, 1}]}
+    assert hd(apply!(%{new() | phase: :buy_chips}, {:buy, []}).log) == {:buy, []}
+
+    rubies = apply!(%{new() | phase: :spend_rubies, rubies: 2}, {:rubies, :droplet})
+    assert hd(rubies.log) == {:rubies_spent, :droplet}
   end
 
   test "Session replays to the same game and undoes the last action" do

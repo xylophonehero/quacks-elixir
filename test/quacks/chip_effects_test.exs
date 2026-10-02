@@ -24,10 +24,13 @@ defmodule Quacks.ChipEffectsTest do
 
   # Run step B on a hand-built pot without the die and without the space's VP:
   # the exploded "buy" path on pot index 0 (scoring space 1: 1 coin, 0 VP, no ruby).
-  defp chip_actions(drawn) do
-    %{new() | phase: :explosion_choice, exploded?: true, drawn: drawn, pot_index: 0}
+  defp chip_actions(chips) do
+    %{new() | phase: :explosion_choice, exploded?: true, drawn: placed(chips), pot_index: 0}
     |> apply!({:explosion_choice, :buy})
   end
+
+  # Give hand-built pot chips (newest first) a position each, so `drawn` has its shape.
+  defp placed(chips), do: chips |> Enum.reverse() |> Enum.with_index(1) |> Enum.reverse()
 
   defp shop(round, coins), do: %{new() | phase: :buy_chips, round: round, coins: coins}
 
@@ -43,6 +46,27 @@ defmodule Quacks.ChipEffectsTest do
     assert force_draws(new(), [{:red, 1}, {:orange, 1}]).pot_index == 2
   end
 
+  test "the recorded position of a red chip includes the orange bonus" do
+    g = force_draws(new(), [{:orange, 1}, {:red, 2}])
+    assert g.drawn == [{{:red, 2}, 1 + 2 + 1}, {{:orange, 1}, 1}]
+    assert Game.scoring_index(g) == 5
+  end
+
+  test "mandrake: the returned white leaves a gap; the next chip counts from the yellow" do
+    g = new() |> force_draws([{:white, 3}, {:yellow, 1}]) |> apply!(:return_white)
+    g = force_draws(g, [{:white, 1}])
+    assert g.drawn == [{{:white, 1}, 5}, {{:yellow, 1}, 4}]
+    assert Game.pot_chips(g) == [{:white, 1}, {:yellow, 1}]
+  end
+
+  test "a chip placed through a blue chip continues from the blue chip's space" do
+    g = force_draws(new(), [{:white, 3}, {:blue, 1}])
+    g = %{g | phase: :blue_choice, bag: [], pending: [{:white, 1}, {:orange, 1}]}
+    g = apply!(g, {:place, {:white, 1}})
+    assert g.drawn == [{{:white, 1}, 5}, {{:blue, 1}, 4}, {{:white, 3}, 3}]
+    assert {:returned, {:orange, 1}} in g.log
+  end
+
   test "yellow after white offers to return the white; its space stays empty" do
     g = force_draws(new(), [{:white, 3}, {:yellow, 1}])
     assert g.phase == :yellow_choice
@@ -51,12 +75,12 @@ defmodule Quacks.ChipEffectsTest do
 
     kept = apply!(g, :keep)
     assert kept.phase == :potions
-    assert kept.drawn == [{:yellow, 1}, {:white, 3}]
+    assert kept.drawn == [{{:yellow, 1}, 4}, {{:white, 3}, 3}]
     assert Game.white_sum(kept) == 3
 
     returned = apply!(g, :return_white)
     assert returned.phase == :potions
-    assert returned.drawn == [{:yellow, 1}]
+    assert returned.drawn == [{{:yellow, 1}, 4}]
     assert returned.bag == [{:white, 3}]
     assert returned.pot_index == 4
     assert Game.white_sum(returned) == 0
@@ -73,7 +97,7 @@ defmodule Quacks.ChipEffectsTest do
     assert g.phase == :blue_choice
     assert Enum.sort(g.pending) == [{:orange, 1}, {:white, 1}]
     assert g.bag == []
-    assert g.drawn == [{:blue, 4}]
+    assert g.drawn == [{{:blue, 4}, 4}]
     assert Game.legal_actions(g) == [{:place, {:orange, 1}}, {:place, {:white, 1}}, :return_all]
 
     one = force_draw_leaving(new(), {:blue, 1}, [{:white, 1}, {:orange, 1}])
@@ -102,13 +126,20 @@ defmodule Quacks.ChipEffectsTest do
     boom = apply!(g, {:place, {:white, 1}})
     assert boom.phase == :explosion_choice
     assert boom.exploded?
-    assert hd(boom.drawn) == {:white, 1}
+    assert hd(boom.drawn) == {{:white, 1}, pot.pot_index + 1}
     assert boom.bag == [{:orange, 1}]
     assert boom.pending == []
     assert boom.pot_index == pot.pot_index + 1
 
     # placing a red chains its own on-draw effect (one orange already in the pot)
-    red = %{pot | phase: :blue_choice, drawn: [{:orange, 1}], pot_index: 1, pending: [{:red, 1}]}
+    red = %{
+      pot
+      | phase: :blue_choice,
+        drawn: [{{:orange, 1}, 1}],
+        pot_index: 1,
+        pending: [{:red, 1}]
+    }
+
     red = apply!(red, {:place, {:red, 1}})
     assert red.phase == :potions
     assert red.pot_index == 1 + 1 + 1
@@ -154,7 +185,7 @@ defmodule Quacks.ChipEffectsTest do
   test "chip actions resolve before the scoring space, even when exploded for VP" do
     # pot index 4 -> scoring space 5: 5 coins, 0 VP, ruby
     g = %{new() | phase: :explosion_choice, exploded?: true, pot_index: 4}
-    g = %{g | drawn: [{:green, 1}, {:purple, 1}, {:black, 1}]}
+    g = %{g | drawn: placed([{:green, 1}, {:purple, 1}, {:black, 1}])}
     g = apply!(g, {:explosion_choice, :vp})
     assert {g.vp, g.rubies, g.droplet, g.phase} == {1, 1 + 1 + 1, 1, :spend_rubies}
   end

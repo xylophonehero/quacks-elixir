@@ -104,18 +104,9 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  # The chips were drawn newest first. Walk them oldest first from the droplet; each
-  # chip lands `value` spaces after the previous one, clamped to the spoon.
-  defp chips_by_index(%Game{drawn: drawn, droplet: droplet}) do
-    drawn
-    |> Enum.reverse()
-    |> Enum.map_reduce(droplet, fn {_, value} = chip, position ->
-      index = min(position + value, PotTrack.last())
-      {{index, chip}, index}
-    end)
-    |> elem(0)
-    |> Map.new()
-  end
+  # Each chip remembers the space it landed on, so the pot just reads it back.
+  defp chips_by_index(%Game{drawn: drawn}),
+    do: Map.new(drawn, fn {chip, index} -> {index, chip} end)
 
   @doc """
   What is left in the bag, as a count per kind of chip. The bag's order is hidden:

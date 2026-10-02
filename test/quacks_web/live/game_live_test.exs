@@ -87,5 +87,4 @@ defmodule QuacksWeb.GameLiveTest do
       refute QuacksWeb.GameComponents.label(action) =~ ~r/^[:{]/
     end
   end
-
 end
