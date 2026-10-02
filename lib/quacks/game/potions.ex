@@ -8,10 +8,9 @@ defmodule Quacks.Game.Potions do
   """
 
   alias Quacks.Game
+  alias Quacks.Game.Fortune
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
-
-  @explode_above 7
 
   @doc "What `player` may do right now in the potions phase. `[]` once done."
   @spec legal_actions(Player.t()) :: [Game.action()]
@@ -31,7 +30,8 @@ defmodule Quacks.Game.Potions do
   def legal_actions(%Player{phase: :explosion_choice}),
     do: [{:explosion_choice, :vp}, {:explosion_choice, :buy}]
 
-  def legal_actions(%Player{phase: :done}), do: []
+  # :fortune_choice (B7) actions come from `Quacks.Game.Fortune`.
+  def legal_actions(%Player{phase: phase}) when phase in [:done, :fortune_choice], do: []
 
   @doc "Run one legal potions-phase action for `seat`. The action is already logged."
   @spec step(Game.t(), Game.seat(), Game.action()) :: Game.t()
@@ -42,20 +42,14 @@ defmodule Quacks.Game.Potions do
 
   # The flask takes the newest chip off the pot; the pot position falls back to the
   # chip before it (or the start space when the pot is empty).
-  def step(g, seat, :use_flask) do
-    %{drawn: [{chip, _index} | rest]} = p = Game.player(g, seat)
+  def step(g, seat, :use_flask),
+    do: g |> Game.update_player(seat, &%{&1 | flask: false}) |> take_back(seat)
 
-    g =
-      Game.update_player(
-        g,
-        seat,
-        &%{&1 | drawn: rest, flask: false, pot_index: last_index(rest, p)}
-      )
-
-    return_to_bag(g, seat, chip)
+  # A card may open a choice on stop (B7); otherwise the player is done.
+  def step(g, seat, :stop) do
+    g = Fortune.on_stop(g, seat)
+    if Game.player(g, seat).phase == :fortune_choice, do: g, else: finish(g, seat)
   end
-
-  def step(g, seat, :stop), do: finish(g, seat)
 
   # Yellow (§4): the white chip directly before the yellow goes back in the bag; its
   # space stays empty, the yellow chip does not move back, the white sum reverts.
@@ -82,7 +76,25 @@ defmodule Quacks.Game.Potions do
   def step(g, seat, {:explosion_choice, choice}),
     do: g |> Game.update_player(seat, &%{&1 | explosion_choice: choice}) |> finish(seat)
 
-  defp finish(g, seat), do: Game.update_player(g, seat, &%{&1 | phase: :done, done?: true})
+  @doc false
+  def finish(g, seat), do: Game.update_player(g, seat, &%{&1 | phase: :done, done?: true})
+
+  @doc false
+  # The newest chip leaves the pot for the bag (flask, B10).
+  def take_back(g, seat) do
+    %{drawn: [{chip, _index} | rest]} = p = Game.player(g, seat)
+
+    g
+    |> Game.update_player(seat, &%{&1 | drawn: rest, pot_index: last_index(rest, p)})
+    |> return_to_bag(seat, chip)
+  end
+
+  @doc false
+  # B7: the chip is placed without its on-draw effect; then the player is done.
+  def place_last(g, seat, chip) do
+    g = place(g, seat, chip)
+    if exploded?(g, seat), do: explode(g, seat), else: finish(g, seat)
+  end
 
   defp clear_offer(g, seat),
     do: Game.update_player(g, seat, &%{&1 | pending: [], phase: :potions})
@@ -92,15 +104,15 @@ defmodule Quacks.Game.Potions do
   # Place a chip as the next chip in the pot, then run its on-draw effect (§3.1).
   defp resolve_draw(g, seat, chip) do
     g = place(g, seat, chip)
-    sum = Game.white_sum(g, seat)
+    if exploded?(g, seat), do: explode(g, seat), else: on_draw(g, seat, chip)
+  end
 
-    if sum > @explode_above do
-      g
-      |> Game.update_player(seat, &%{&1 | exploded?: true, phase: :explosion_choice})
-      |> Game.record(seat, {:exploded, sum})
-    else
-      on_draw(g, seat, chip)
-    end
+  defp exploded?(g, seat), do: Game.white_sum(g, seat) > Fortune.explode_above(g)
+
+  defp explode(g, seat) do
+    g
+    |> Game.update_player(seat, &%{&1 | exploded?: true, phase: :explosion_choice})
+    |> Game.record(seat, {:exploded, Game.white_sum(g, seat)})
   end
 
   defp on_draw(g, seat, {:yellow, _}) do
@@ -123,7 +135,8 @@ defmodule Quacks.Game.Potions do
   # remember the space it landed on, so the page can draw it there.
   defp place(g, seat, {_, value} = chip) do
     p = Game.player(g, seat)
-    index = min(p.pot_index + value + red_bonus(chip, p.drawn), PotTrack.last())
+    move = value + red_bonus(chip, p.drawn) + Fortune.extra_move(g, chip)
+    index = min(p.pot_index + move, PotTrack.last())
 
     g
     |> Game.update_player(seat, &%{&1 | drawn: [{chip, index} | &1.drawn], pot_index: index})
@@ -151,8 +164,9 @@ defmodule Quacks.Game.Potions do
 
   defp red_bonus(_chip, _drawn), do: 0
 
+  @doc false
   # Draw up to `n` random chips from the seat's bag (fewer when the bag runs short).
-  defp take_random(g, seat, n) do
+  def take_random(g, seat, n) do
     size = length(Game.player(g, seat).bag)
 
     Enum.reduce(1..min(n, size)//1, {[], g}, fn _, {taken, g} ->

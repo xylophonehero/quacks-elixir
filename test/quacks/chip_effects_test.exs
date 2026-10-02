@@ -8,8 +8,8 @@ defmodule Quacks.ChipEffectsTest do
 
   @seed {1, 2, 3}
 
-  defp new, do: Game.new(seed: @seed)
-  defp new(players), do: Game.new(seed: @seed, players: players)
+  defp new, do: Game.new(seed: @seed, fortune: false)
+  defp new(players), do: Game.new(seed: @seed, players: players, fortune: false)
 
   # Draw `chip` with `others` left in the bag: put `chip` where the rng will pick it.
   defp force_draw_leaving(game, chip, others) do

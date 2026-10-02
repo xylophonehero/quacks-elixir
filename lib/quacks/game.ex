@@ -14,6 +14,11 @@ defmodule Quacks.Game do
   round 9 the phase is `:over`. The struct never rests without a legal action for
   some seat unless `over?/1`.
 
+  Fortune Teller cards (`Quacks.Game.Fortune`): each round starts by turning up a
+  card. A purple card with a choice puts the game in `:fortune_choice` (one `turn`
+  seat at a time) before `:potions`; Toil and Trouble (B2) does the same between
+  `:potions` and the evaluation.
+
   `apply/2` and `legal_actions/1` are seat-0 shortcuts for solo callers. All
   randomness flows through one shared `rng` (`:rand` `_s` API), so a seed, the player
   count and a list of `{seat, action}` reproduces a game exactly (`Quacks.Session`).
@@ -27,7 +32,7 @@ defmodule Quacks.Game do
   """
 
   import Kernel, except: [apply: 2, apply: 3]
-  alias Quacks.Game.{Evaluation, Potions}
+  alias Quacks.Game.{Fortune, Potions}
   alias Quacks.Player
   alias Quacks.Rules.{Chips, ScoringTrack}
 
@@ -42,10 +47,12 @@ defmodule Quacks.Game do
             rng: nil,
             log: [],
             players: %{},
-            seats: []
+            seats: [],
+            fortune_deck: [],
+            fortune_card: nil
 
   @type seat :: 0..3
-  @type phase :: :potions | :buy_chips | :spend_rubies | :over
+  @type phase :: :potions | :fortune_choice | :buy_chips | :spend_rubies | :over
   @type action ::
           :draw
           | :stop
@@ -58,6 +65,21 @@ defmodule Quacks.Game do
           | {:buy, [Chips.chip()]}
           | {:rubies, :droplet | :flask | :skip}
           | :end_round
+          | {:fortune, fortune_choice}
+  @typedoc "A Fortune Teller card choice; see `Quacks.Game.Fortune` and `docs/CONTEXT.md`."
+  @type fortune_choice ::
+          {:take, Chips.chip()}
+          | :rubies
+          | :skip
+          | :vp
+          | :remove_white
+          | {:rats_back, 1..3}
+          | :droplet
+          | {:upgrade, Chips.chip()}
+          | :restart_round
+          | :return_white
+          | {:place, Chips.chip()}
+          | :return_all
   @type die_face :: {:vp, 1 | 2} | :ruby | :droplet | :orange
   @typedoc """
   An event that concerns one player; it is logged as `{seat, event}`. Every action is
@@ -89,12 +111,18 @@ defmodule Quacks.Game do
           | {:pot_vp, pos_integer, 0..53}
           | {:final_conversion, non_neg_integer, non_neg_integer}
           | {:rats, pos_integer}
+          | {:fortune, Quacks.Rules.Fortune.id(), term}
   @typedoc """
   What happened, newest first. Player events are tagged with their seat; the only
-  game-wide entry is `{:round_end, round}`, the last event of every round.
+  game-wide entries are `{:fortune_drawn, id}` and `{:fortune_skipped, id}` at the
+  start of a round and `{:round_end, round}`, the last event of every round.
   `Quacks.Session` replays from its own action list, not this.
   """
-  @type log_entry :: {seat, event} | {:round_end, 1..9}
+  @type log_entry ::
+          {seat, event}
+          | {:round_end, 1..9}
+          | {:fortune_drawn, Quacks.Rules.Fortune.id()}
+          | {:fortune_skipped, Quacks.Rules.Fortune.id()}
   @type t :: %__MODULE__{
           round: 1..9,
           phase: phase,
@@ -103,14 +131,18 @@ defmodule Quacks.Game do
           rng: :rand.state(),
           log: [log_entry],
           players: %{seat => Player.t()},
-          seats: [seat]
+          seats: [seat],
+          fortune_deck: [Quacks.Rules.Fortune.id()],
+          fortune_card: Quacks.Rules.Fortune.id() | nil
         }
 
   @doc """
   A fresh game. `seed:` is a `{int, int, int}` tuple for `:rand.seed_s(:exsss, seed)`;
   `players:` is 1 (default) to 4. Every starting bag comes out of the shared supply.
+  `fortune: false` plays without Fortune Teller cards (default `true`); otherwise
+  round 1's card is turned up here.
   """
-  @spec new(seed: {integer, integer, integer}, players: 1..4) :: t
+  @spec new(seed: {integer, integer, integer}, players: 1..4, fortune: boolean) :: t
   def new(opts) do
     seed = Keyword.fetch!(opts, :seed)
     n = Keyword.get(opts, :players, 1)
@@ -121,12 +153,16 @@ defmodule Quacks.Game do
     starting = List.flatten(List.duplicate(bag, n))
     supply = Enum.reduce(starting, Chips.supply(), &Map.update!(&2, &1, fn c -> c - 1 end))
 
-    %__MODULE__{
+    rng = :rand.seed_s(:exsss, seed)
+    deck = if Keyword.get(opts, :fortune, true), do: Fortune.deck(rng, n), else: []
+
+    start_round(%__MODULE__{
       seats: seats,
       players: Map.new(seats, &{&1, Player.new(bag)}),
       supply: supply,
-      rng: :rand.seed_s(:exsss, seed)
-    }
+      rng: rng,
+      fortune_deck: deck
+    })
   end
 
   @doc "True after round 9's evaluation."
@@ -172,7 +208,10 @@ defmodule Quacks.Game do
     do: []
 
   def legal_actions(%__MODULE__{phase: :potions} = g, seat),
-    do: Potions.legal_actions(player(g, seat))
+    do: Potions.legal_actions(player(g, seat)) ++ Fortune.legal_actions(g, seat)
+
+  def legal_actions(%__MODULE__{phase: :fortune_choice, turn: seat} = g, seat),
+    do: Fortune.legal_actions(g, seat)
 
   def legal_actions(%__MODULE__{phase: :buy_chips, turn: seat} = g, seat),
     do: Enum.map(buys(g, player(g, seat)), &{:buy, &1})
@@ -220,9 +259,18 @@ defmodule Quacks.Game do
   # -- potions: every seat in any order; evaluation when the last one is done -------
 
   defp step(%{phase: :potions} = g, seat, action) do
-    g = Potions.step(g, seat, action)
-    if Enum.all?(g.players, fn {_seat, p} -> p.done? end), do: Evaluation.run(g), else: g
+    g =
+      case action do
+        {:fortune, _} -> Fortune.step(g, seat, action)
+        _ -> Potions.step(g, seat, action)
+      end
+
+    if Enum.all?(g.players, fn {_seat, p} -> p.done? end), do: Fortune.after_potions(g), else: g
   end
+
+  # -- Fortune Teller choices: one seat at a time -------------------------------------
+
+  defp step(%{phase: :fortune_choice} = g, seat, action), do: Fortune.step(g, seat, action)
 
   # -- shop and rubies: one seat at a time, in turn order ---------------------------
 
@@ -270,8 +318,11 @@ defmodule Quacks.Game do
         if round == 6, do: add_from_supply(g, seat, {:white, 1}), else: g
       end)
 
-    place_rats(%{g | round: round, phase: :potions, turn: nil})
+    start_round(%{g | round: round, phase: :potions, turn: nil})
   end
+
+  # Rulebook §3 steps 1–2: the Fortune Teller card, the rats, then the purple card.
+  defp start_round(g), do: g |> Fortune.draw() |> place_rats() |> Fortune.resolve()
 
   defp final_conversion(g, seat) do
     %{coins: coins, rubies: rubies} = player(g, seat)
@@ -306,12 +357,8 @@ defmodule Quacks.Game do
   end
 
   # Every affordable purchase: nothing, one chip, or two chips of different colours.
-  defp buys(%{round: round, supply: supply}, %Player{coins: coins}) do
-    singles =
-      Enum.filter(Chips.shop(), fn {colour, _} = chip ->
-        Chips.price(chip) <= coins and round >= Map.get(@from_round, colour, 1) and
-          Map.fetch!(supply, chip) > 0
-      end)
+  defp buys(g, %Player{coins: coins}) do
+    singles = Enum.filter(Chips.shop(), &(Chips.price(&1) <= coins and available?(g, &1)))
 
     pairs =
       for {ca, _} = a <- singles,
@@ -337,6 +384,11 @@ defmodule Quacks.Game do
   @doc false
   def record(%__MODULE__{} = g, seat, entry), do: record(g, {seat, entry})
 
+  # A chip can be bought or taken: its book is out this round and the box has one.
+  @doc false
+  def available?(%__MODULE__{round: round, supply: supply}, {colour, _} = chip),
+    do: round >= Map.get(@from_round, colour, 1) and Map.fetch!(supply, chip) > 0
+
   @doc false
   def take_supply(%__MODULE__{} = g, chip),
     do: %{g | supply: Map.update!(g.supply, chip, &(&1 - 1))}
@@ -356,7 +408,8 @@ defmodule Quacks.Game do
     from ++ before
   end
 
-  defp seats_after(g, seat), do: g |> turn_order() |> Enum.drop_while(&(&1 != seat)) |> tl()
+  @doc false
+  def seats_after(g, seat), do: g |> turn_order() |> Enum.drop_while(&(&1 != seat)) |> tl()
 
   # Open the shop for the first of `seats` that may buy (an exploded player who took
   # the VP skips it); with nobody left, or in round 9, go to the rubies phase.

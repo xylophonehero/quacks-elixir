@@ -9,6 +9,7 @@ defmodule Quacks.Game.Evaluation do
   """
 
   alias Quacks.Game
+  alias Quacks.Game.Fortune
   alias Quacks.Rules.PotTrack
 
   # Rulebook §3.2. ⚠️ Sixth face not in any rulebook found; assumed a second "1 VP".
@@ -21,7 +22,7 @@ defmodule Quacks.Game.Evaluation do
     g = bonus_die(g, order)
     g = Enum.reduce(order, g, &chip_actions(&2, &1))
     g = Enum.reduce(order, g, &payout(&2, &1))
-    Game.to_shop(g, order)
+    g |> Fortune.refill_flasks() |> Game.to_shop(order)
   end
 
   # Step A: among the non-exploded players the highest scoring space rolls; a true
@@ -32,20 +33,29 @@ defmodule Quacks.Game.Evaluation do
 
     candidates
     |> Enum.filter(&(Game.scoring_index(g, &1) == best))
-    |> Enum.reduce(g, &roll(&2, &1))
+    |> Enum.flat_map(&List.duplicate(&1, Fortune.die_rolls(g)))
+    |> Enum.reduce(g, fn seat, g ->
+      {face, g} = roll(g, seat)
+      Game.record(g, seat, {:bonus_die, face})
+    end)
   end
 
-  defp roll(g, seat) do
+  @doc false
+  # Roll the bonus die for `seat` and pay the face out; the caller logs it.
+  def roll(g, seat) do
     {i, rng} = :rand.uniform_s(length(@die), g.rng)
     face = Enum.at(@die, i - 1)
-    g = Game.record(%{g | rng: rng}, seat, {:bonus_die, face})
+    g = %{g | rng: rng}
 
-    case face do
-      {:vp, n} -> Game.update_player(g, seat, &%{&1 | vp: &1.vp + n})
-      :ruby -> Game.update_player(g, seat, &%{&1 | rubies: &1.rubies + 1})
-      :droplet -> Game.update_player(g, seat, &%{&1 | droplet: &1.droplet + 1})
-      :orange -> Game.add_from_supply(g, seat, {:orange, 1})
-    end
+    g =
+      case face do
+        {:vp, n} -> Game.update_player(g, seat, &%{&1 | vp: &1.vp + n})
+        :ruby -> Game.update_player(g, seat, &%{&1 | rubies: &1.rubies + 1})
+        :droplet -> Game.update_player(g, seat, &%{&1 | droplet: &1.droplet + 1})
+        :orange -> Game.add_from_supply(g, seat, {:orange, 1})
+      end
+
+    {face, g}
   end
 
   # Step B (§4): black, green, purple. All automatic; always the highest purple tier.
@@ -137,7 +147,8 @@ defmodule Quacks.Game.Evaluation do
         do:
           g
           |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + 1})
-          |> Game.record(seat, {:pot_ruby, index}),
+          |> Game.record(seat, {:pot_ruby, index})
+          |> Fortune.ruby_space(seat),
         else: g
 
     g =
