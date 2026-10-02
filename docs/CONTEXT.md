@@ -21,8 +21,10 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **ruby** | Currency for droplet moves and flask refills; 2 rubies = 1 VP in the last round. |
 | **round** | One of 9 game turns. Each round runs the phases below. |
 | **ingredient book** | The rule card for a colour's chip action and prices. Green, blue, red, yellow and purple each have Sets 1-4; orange and black have one book; white has none. |
-| **sets** | `Game.new(sets: %{green: 1..4, blue: 1..4, red: 1..4, yellow: 1..4, purple: 1..4})` picks the book per colour; colours left out use Set 1 (`game.sets`). Prices differ per set: `Quacks.Rules.Chips.price(chip, sets)` (`price/1` = Set 1). Effects dispatch on `{colour, set}` (`Potions.bonus/3`, `Potions.on_draw/4`, `Evaluation.chip_action/3`). Not yet supported (raise `ArgumentError`): G2, G4, P2, P4 (need choices in the evaluation) and R2 (set-aside zone). Source: `docs/research/ingredient-sets-and-customisation.md`. |
+| **sets** | `Game.new(sets: %{green: 1..4, blue: 1..4, red: 1..4, yellow: 1..4, purple: 1..4})` picks the book per colour; colours left out use Set 1 (`game.sets`). Prices differ per set: `Quacks.Rules.Chips.price(chip, sets)` (`price/1` = Set 1). Effects dispatch on `{colour, set}` (`Potions.bonus/3`, `Potions.on_draw/4`, `Evaluation.chip_action/3`). All 20 books are supported; G2, G4, P2 and P4 open a **chip choice**, R2 uses **beside the pot**. `Quacks.Session.new/3`, `Session.replay/4` and `Quacks.GameServer.start/3` take the same `sets`. Source: `docs/research/ingredient-sets-and-customisation.md`. |
 | **mods** | `Quacks.Player.mods`, round modifiers from Set 2-4 chips, reset at the end of the round (and by B3): `explode_above` (7; Y3: 8 after the 1st yellow, 9 after the 3rd; the B5 card's 9 still counts, the higher limit wins: `Potions.explode_above/2`), `next_chip_x2` (Y2), `white1_plus1` (R4), `protect` (B2: drawn chips left in the crow-skull window). |
+| **chip choice** | Step B of the evaluation with G2, G4, P2 or P4: `Quacks.Player.chip_choices` lists what the player may still choose; the game phase `:chip_choice` gives each seat with a choice the `turn`, from the start seat. It runs after the bonus die and the automatic chip actions, before rubies and VP (steps C/D). Set 1 purple still takes the highest tier automatically. |
+| **beside the pot** | Red Set 2: `Quacks.Player.aside`, red chips drawn but not placed. They are not in the bag and stay there across rounds. After stopping (or the explosion choice) the player decides each one in `:red_choice`; the evaluation waits for every player. A placed red moves only its value. |
 | **supply** | The chips left in the box per colour and value (`Quacks.Rules.Chips.supply/0`), shared by all players. Every starting bag, bought chips, the orange die face and the round-6 white chips all come out of it. A kind with 0 left is not buyable. Yellow is buyable from round 2, purple from round 3. |
 | **blue offer** | The extra chips a blue chip draws (`pending` on the player). The player places at most one as the next chip; the rest go back in the bag. |
 | **black rule** | Rulebook §4. 2 players: as many black chips as the opponent (and at least 1) → droplet +1; more → droplet +1 and 1 ruby. 3-4 players: more than one neighbour (adjacent seat) → droplet +1; more than both → droplet +1 and 1 ruby. |
@@ -100,6 +102,11 @@ Chip effects (`{seat, {:effect, {colour, set}, detail}}`), logged after the chip
 | Y3 | `{:limit, 8 \| 9}` | The 1st (8) or 3rd (9) yellow chip raised the white limit. |
 | Y4 | `{:extra, n}` | The `n`-th yellow chip of the round (1-3) moved `n` more spaces. |
 | P3 | `{:vp, n}` | Step B: `n` > 0 VP from purple chips by pot field (0-9: 0, 10-19: 1, 20-29: 2, 30+: 3 each). |
+| G2 | `{:gain, chip}` | Chip choice: `chip` went from the supply to the bag. |
+| G4 | `{:droplet, n}` | Chip choice: paid `n` rubies, droplet +`n`. |
+| P2 | `{:trade, tier}` | Chip choice: `tier` purple chips went back to the supply; 1 → black 1, 1 VP, 1 ruby; 2 → green 1, blue 2, 3 VP, droplet +1; 3 → yellow 4, 6 VP, 1 ruby, droplet +2. |
+| P4 | `{:upgrade, from, to}` | Chip choice: `from` left the pot for the supply, `to` went into the bag. |
+| R2 | `{:aside, chip}` | A red chip was drawn and put beside the pot. Placing it later logs `{:drew, chip, index}`, returning it `{:returned, chip}`; keeping it logs only the action. |
 
 `Quacks.Session` replays from its own `actions` list (`[{seat, action}]`, newest first), never from the log.
 
@@ -124,6 +131,7 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 | Game phase | Who acts | Actions | When |
 |---|---|---|---|
 | `:fortune_choice` | `turn` only | `{:fortune, choice}` | A purple card's choice, seat by seat from the start seat, before `:potions`; or B2's chip after `:potions`, before the evaluation. |
+| `:chip_choice` | `turn` only | `{:chip, choice}`, `:chip_done` | Evaluation step B with G2, G4, P2 or P4, seat by seat from the start seat (see **Chip choices** below). The turn also ends when nothing is left to choose. |
 | `:potions` | every seat whose player is not `:done` | see player phases | Drawing chips. Once the last player is done, the evaluation (4a-4d) runs and the game moves on. |
 | `:buy_chips` | `turn` only | `{:buy, [chip]}` | Step 4e, seat by seat. |
 | `:spend_rubies` | `turn` only | `{:rubies, :droplet \| :flask \| :skip}`, `:end_round` | Step 4f, seat by seat. The last `:end_round` ends the round. |
@@ -136,6 +144,7 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 | `:yellow_choice` | `:return_white`, `:keep` | A yellow chip was drawn directly after a white chip. |
 | `:blue_choice` | `{:place, chip}`, `:return_all` | A blue chip drew extra chips (the blue offer). |
 | `:explosion_choice` | `{:explosion_choice, :vp \| :buy}` | White sum reached 8. |
+| `:red_choice` | `{:red, {:place \| :keep \| :return, chip}}` | Red Set 2: the player stopped (or made the explosion choice) with chips beside the pot (now in `pending`). One action per chip; then `:done`. |
 | `:done` | none | Stopped, or the explosion choice is made; waiting for the other players (`done?` is true). |
 
 ## Fortune choices (`{:fortune, choice}`)
@@ -153,3 +162,13 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 | `:restart_round` | B3: pot back in the bag, start again (once, right after the 5th chip). |
 | `:return_white` | B10: the first white chip of the round back in the bag (free, like the flask). |
 | `{:place, chip}`, `:return_all` | B7: place one chip of the 5-chip offer, or none. |
+
+## Chip choices (`{:chip, choice}`)
+
+| Choice | Book |
+|---|---|
+| `{:gain, chip}` | G2, once per green chip on the last two positions: green 1 → orange 1; green 2 → blue 1 or red 1; green 4 → yellow 1 or purple 1 (⚠️ also before that book is in the shop). Only while the supply has one. |
+| `{:pay_ruby_move, n}` | G4: `n` (1 up to the greens on the last two positions, and the rubies you have) rubies → droplet +`n`. |
+| `{:purple_trade, tier}` | P2: trade `tier` (1 up to the purple chips, max 3) purple chips; one tier only. |
+| `{:upgrade, from, to}` | P4: 1 purple: a 1-chip → 2-chip; 2: 2 → 4 (or 1 → 2); 3+: 1 → 4 (or a lower tier). Same colour, only green, blue, red, yellow. |
+| `:chip_done` | End this seat's choices; whatever is left is skipped. |

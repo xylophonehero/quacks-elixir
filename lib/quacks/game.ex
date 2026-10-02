@@ -10,7 +10,9 @@ defmodule Quacks.Game do
   every player not yet `:done` acts in any order (each has their own potions-phase
   `phase`), then — as soon as the last player is done — the evaluation runs inside
   `apply/3` and the game moves to `:buy_chips` and `:spend_rubies`, where exactly one
-  seat (`turn`) acts at a time, in seat order from the round's start player. After
+  seat (`turn`) acts at a time, in seat order from the round's start player. Ingredient
+  books with a choice in the evaluation (G2, G4, P2, P4) put the game in `:chip_choice`
+  first, one `turn` seat at a time (`Quacks.Game.Evaluation`). After
   round 9 the phase is `:over`. The struct never rests without a legal action for
   some seat unless `over?/1`.
 
@@ -32,17 +34,15 @@ defmodule Quacks.Game do
   """
 
   import Kernel, except: [apply: 2, apply: 3]
-  alias Quacks.Game.{Fortune, Potions}
+  alias Quacks.Game.{Evaluation, Fortune, Potions}
   alias Quacks.Player
   alias Quacks.Rules.{Chips, ScoringTrack}
 
   @rounds 9
   # Rulebook §4: yellow enters the shop in round 2, purple in round 3.
   @from_round %{yellow: 2, purple: 3}
-  # Ingredient Sets (research `ingredient-sets-and-customisation.md`). These books need
-  # a choice in the evaluation (G2, G4, P2, P4) or a zone beside the pot (R2).
+  # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
   @sets %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1}
-  @unsupported [green: 2, green: 4, purple: 2, purple: 4, red: 2]
 
   defstruct round: 1,
             phase: :potions,
@@ -57,7 +57,7 @@ defmodule Quacks.Game do
             sets: @sets
 
   @type seat :: 0..3
-  @type phase :: :potions | :fortune_choice | :buy_chips | :spend_rubies | :over
+  @type phase :: :potions | :fortune_choice | :chip_choice | :buy_chips | :spend_rubies | :over
   @type action ::
           :draw
           | :stop
@@ -71,6 +71,15 @@ defmodule Quacks.Game do
           | {:rubies, :droplet | :flask | :skip}
           | :end_round
           | {:fortune, fortune_choice}
+          | {:red, {:place | :keep | :return, Chips.chip()}}
+          | {:chip, chip_choice}
+          | :chip_done
+  @typedoc "A step-B chip choice (G2, G4, P2, P4); see `Quacks.Game.Evaluation`."
+  @type chip_choice ::
+          {:gain, Chips.chip()}
+          | {:pay_ruby_move, 1..2}
+          | {:purple_trade, 1..3}
+          | {:upgrade, Chips.chip(), Chips.chip()}
   @typedoc "A Fortune Teller card choice; see `Quacks.Game.Fortune` and `docs/CONTEXT.md`."
   @type fortune_choice ::
           {:take, Chips.chip()}
@@ -148,8 +157,8 @@ defmodule Quacks.Game do
   `players:` is 1 (default) to 4. Every starting bag comes out of the shared supply.
   `fortune: false` plays without Fortune Teller cards (default `true`); otherwise
   round 1's card is turned up here. `sets:` picks the Ingredient Set (1..4) per colour,
-  e.g. `%{blue: 3}`; colours left out use Set 1. Green 2/4, purple 2/4 and red 2 are
-  not supported yet and raise `ArgumentError`.
+  e.g. `%{blue: 3}`; colours left out use Set 1. An unknown colour or set raises
+  `ArgumentError`.
   """
   @spec new(
           seed: {integer, integer, integer},
@@ -187,10 +196,7 @@ defmodule Quacks.Game do
     if map_size(sets) != map_size(@sets) or Enum.any?(sets, fn {_, set} -> set not in 1..4 end),
       do: raise(ArgumentError, "sets must map #{inspect(Map.keys(@sets))} to 1..4")
 
-    case Enum.find(sets, &(&1 in @unsupported)) do
-      nil -> sets
-      set -> raise ArgumentError, "ingredient set #{inspect(set)} is not supported yet"
-    end
+    sets
   end
 
   @doc "True after round 9's evaluation."
@@ -240,6 +246,9 @@ defmodule Quacks.Game do
 
   def legal_actions(%__MODULE__{phase: :fortune_choice, turn: seat} = g, seat),
     do: Fortune.legal_actions(g, seat)
+
+  def legal_actions(%__MODULE__{phase: :chip_choice} = g, seat),
+    do: Evaluation.legal_actions(g, seat)
 
   def legal_actions(%__MODULE__{phase: :buy_chips, turn: seat} = g, seat),
     do: Enum.map(buys(g, player(g, seat)), &{:buy, &1})
@@ -299,6 +308,10 @@ defmodule Quacks.Game do
   # -- Fortune Teller choices: one seat at a time -------------------------------------
 
   defp step(%{phase: :fortune_choice} = g, seat, action), do: Fortune.step(g, seat, action)
+
+  # -- step B chip choices (G2, G4, P2, P4): one seat at a time ---------------------
+
+  defp step(%{phase: :chip_choice} = g, seat, action), do: Evaluation.step(g, seat, action)
 
   # -- shop and rubies: one seat at a time, in turn order ---------------------------
 

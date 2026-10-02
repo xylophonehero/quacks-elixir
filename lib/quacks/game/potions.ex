@@ -7,6 +7,11 @@ defmodule Quacks.Game.Potions do
   `game.sets`: `bonus/3` for extra movement, `on_draw/4` for the rest. Round
   modifiers (Y2, Y3, R4, B2) live on `Quacks.Player.mods`.
 
+  Red Set 2 (R2): a drawn red chip goes beside the pot (`Quacks.Player.aside`). When
+  the player stops or settles an explosion, they decide each chip there in the
+  player phase `:red_choice`: place it after the last chip, keep it for a later round,
+  or return it to the bag. Only then is the player done.
+
   Plain functions called from `Quacks.Game`. They take the whole game because draws
   use the shared `rng` and every event goes to the shared log.
   """
@@ -33,6 +38,12 @@ defmodule Quacks.Game.Potions do
 
   def legal_actions(%Player{phase: :explosion_choice}),
     do: [{:explosion_choice, :vp}, {:explosion_choice, :buy}]
+
+  def legal_actions(%Player{phase: :red_choice, pending: pending}) do
+    for chip <- Enum.sort(Enum.uniq(pending)),
+        how <- [:place, :keep, :return],
+        do: {:red, {how, chip}}
+  end
 
   # :fortune_choice (B7) actions come from `Quacks.Game.Fortune`.
   def legal_actions(%Player{phase: phase}) when phase in [:done, :fortune_choice], do: []
@@ -80,8 +91,30 @@ defmodule Quacks.Game.Potions do
   def step(g, seat, {:explosion_choice, choice}),
     do: g |> Game.update_player(seat, &%{&1 | explosion_choice: choice}) |> finish(seat)
 
+  # R2: one chip from beside the pot. A placed red moves only its own value.
+  def step(g, seat, {:red, {how, chip}}) do
+    g = Game.update_player(g, seat, &%{&1 | pending: List.delete(&1.pending, chip)})
+
+    g =
+      case how do
+        :place -> put_on_pot(g, seat, chip, Game.player(g, seat).pot_index + elem(chip, 1))
+        :keep -> Game.update_player(g, seat, &%{&1 | aside: [chip | &1.aside]})
+        :return -> return_to_bag(g, seat, chip)
+      end
+
+    if Game.player(g, seat).pending == [], do: done(g, seat), else: g
+  end
+
   @doc false
-  def finish(g, seat), do: Game.update_player(g, seat, &%{&1 | phase: :done, done?: true})
+  # The player stopped or settled an explosion. R2 chips beside the pot come first.
+  def finish(g, seat) do
+    case Game.player(g, seat).aside do
+      [] -> done(g, seat)
+      aside -> Game.update_player(g, seat, &%{&1 | aside: [], pending: aside, phase: :red_choice})
+    end
+  end
+
+  defp done(g, seat), do: Game.update_player(g, seat, &%{&1 | phase: :done, done?: true})
 
   @doc false
   # The newest chip leaves the pot for the bag (flask, B10).
@@ -104,6 +137,13 @@ defmodule Quacks.Game.Potions do
     do: Game.update_player(g, seat, &%{&1 | pending: [], phase: :potions})
 
   defp return_all(g, seat, chips), do: Enum.reduce(chips, g, &return_to_bag(&2, seat, &1))
+
+  # R2: a drawn red chip is not placed; it goes beside the pot.
+  defp resolve_draw(%{sets: %{red: 2}} = g, seat, {:red, _} = chip) do
+    g
+    |> Game.update_player(seat, &%{&1 | aside: [chip | &1.aside]})
+    |> Game.effect(seat, {:red, 2}, {:aside, chip})
+  end
 
   # Place a chip as the next chip in the pot, then run its on-draw effect (§3.1).
   # B2: a chip drawn inside the crow skull's window cannot explode the pot for real.
@@ -216,15 +256,21 @@ defmodule Quacks.Game.Potions do
         do: {2 * move, effects ++ [{{:yellow, 2}, {:doubled, 2 * move}}]},
         else: {move, effects}
 
-    index = min(p.pot_index + move, PotTrack.last())
-
     g =
       g
-      |> Game.update_player(seat, &%{&1 | drawn: [{chip, index} | &1.drawn], pot_index: index})
       |> update_mods(seat, &%{&1 | next_chip_x2: false})
-      |> Game.record(seat, {:drew, chip, index})
+      |> put_on_pot(seat, chip, p.pot_index + move)
 
     Enum.reduce(effects, g, fn {book, detail}, g -> Game.effect(g, seat, book, detail) end)
+  end
+
+  # The chip lands on `index` (clamped to the last space) and becomes the newest chip.
+  defp put_on_pot(g, seat, chip, index) do
+    index = min(index, PotTrack.last())
+
+    g
+    |> Game.update_player(seat, &%{&1 | drawn: [{chip, index} | &1.drawn], pot_index: index})
+    |> Game.record(seat, {:drew, chip, index})
   end
 
   # Extra movement and the effects to log. Red 1 (§4): by the oranges in the pot.

@@ -10,6 +10,10 @@ defmodule Quacks.Player do
   `pending` holds a blue offer, a Safety Procedure offer (B7) or a Flea Market draw
   (P13): chips out of the bag until the player chooses. `mods` holds the round
   modifiers of the Set 2–4 chips (see `t:mods/0`).
+
+  `aside` holds red Set 2 chips beside the pot: drawn, not in the bag, kept across
+  rounds until placed or returned. `chip_choices` holds what the player may still
+  choose in the evaluation's chip-action step (G2, G4, P2, P4; see `t:chip_choice/0`).
   """
 
   alias Quacks.Rules.{Chips, PotTrack}
@@ -29,10 +33,18 @@ defmodule Quacks.Player do
             phase: :potions,
             done?: false,
             fortune_used?: false,
+            aside: [],
+            chip_choices: [],
             mods: %{explode_above: 7, next_chip_x2: false, white1_plus1: false, protect: 0}
 
   @type phase ::
-          :potions | :yellow_choice | :blue_choice | :explosion_choice | :fortune_choice | :done
+          :potions
+          | :yellow_choice
+          | :blue_choice
+          | :explosion_choice
+          | :fortune_choice
+          | :red_choice
+          | :done
   @typedoc "A chip in the pot and the 0..53 space it sits on."
   @type placed :: {Chips.chip(), 0..53}
   @type t :: %__MODULE__{
@@ -51,8 +63,20 @@ defmodule Quacks.Player do
           phase: phase,
           done?: boolean,
           fortune_used?: boolean,
+          aside: [Chips.chip()],
+          chip_choices: [chip_choice],
           mods: mods
         }
+  @typedoc """
+  One step-B choice still open: a G2 green chip of value 1/2/4 (`{:gain, value}`),
+  up to `n` rubies for G4 (`{:ruby_move, n}`), a P2 trade up to `tier`
+  (`{:purple_trade, tier}`) or a P4 swap up to `tier` (`{:upgrade, tier}`).
+  """
+  @type chip_choice ::
+          {:gain, 1 | 2 | 4}
+          | {:ruby_move, 1..2}
+          | {:purple_trade, 1..3}
+          | {:upgrade, 1..3}
   @typedoc """
   Round modifiers from Set 2–4 chips, reset at the end of the round: the white limit
   (Y3), the next chip moves double (Y2), white 1-chips move 2 (R4), and how many more
@@ -87,7 +111,7 @@ defmodule Quacks.Player do
   @spec scoring_index(t) :: 0..53
   def scoring_index(%__MODULE__{pot_index: i}), do: min(i + 1, PotTrack.last())
 
-  @doc "End of round: the pot goes back in the bag, the round state clears (step F)."
+  @doc "End of round: the pot goes back in the bag, the round state clears (step F). `aside` stays."
   @spec reset(t) :: t
   def reset(%__MODULE__{} = p) do
     %{
@@ -103,6 +127,7 @@ defmodule Quacks.Player do
         phase: :potions,
         done?: false,
         fortune_used?: false,
+        chip_choices: [],
         mods: %__MODULE__{}.mods
     }
   end

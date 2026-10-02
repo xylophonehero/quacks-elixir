@@ -23,15 +23,20 @@ defmodule Quacks.IngredientSetsTest do
       assert new(%{blue: 3}).sets.blue == 3
     end
 
-    test "unsupported or unknown sets raise" do
-      for set <- [green: 2, green: 4, purple: 2, purple: 4, red: 2] do
-        assert_raise ArgumentError, ~r/#{Regex.escape(inspect(set))}/, fn ->
-          new(Map.new([set]))
-        end
+    test "every set 1..4 is supported; unknown sets raise" do
+      for colour <- [:green, :blue, :red, :yellow, :purple], set <- 1..4 do
+        assert new(%{colour => set}).sets[colour] == set
       end
 
       assert_raise ArgumentError, fn -> new(%{yellow: 5}) end
       assert_raise ArgumentError, fn -> new(%{orange: 2}) end
+    end
+
+    test "Session passes the sets on, through undo too" do
+      s = Quacks.Session.new(@seed, 1, sets: %{green: 2}, fortune: false)
+      {:ok, s} = Quacks.Session.apply(s, :draw)
+      assert s.game.sets.green == 2 and Quacks.Session.undo(s).game.sets.green == 2
+      assert Quacks.Session.replay(@seed, 1, [], sets: %{red: 2}).sets.red == 2
     end
   end
 
@@ -85,6 +90,187 @@ defmodule Quacks.IngredientSetsTest do
       pot = List.replace_at(@pot, 1, {{:white, 2}, 9})
       g = new(%{green: 3}) |> put(drawn: pot, pot_index: 10) |> apply!(:stop)
       assert at(g) == 10
+    end
+  end
+
+  # An exploded player who chose to buy: no bonus die, so step B is all that pays.
+  defp evaluate(g, pot),
+    do:
+      g
+      |> put(phase: :explosion_choice, exploded?: true, drawn: pot, pot_index: 10)
+      |> apply!({:explosion_choice, :buy})
+
+  defp chip_actions(g, seat \\ 0), do: Game.legal_actions(g, seat) -- [:chip_done]
+
+  describe "green choices" do
+    test "G2: each green on the last two chips may bring one chip into the bag" do
+      g = evaluate(new(%{green: 2}), [{{:green, 2}, 10}, {{:green, 1}, 8}, {{:green, 4}, 7}])
+      assert g.phase == :chip_choice and g.turn == 0
+
+      # newest green first: the green 4 on space 7 is the third chip, so it does not count
+      assert chip_actions(g) == [
+               {:chip, {:gain, {:blue, 1}}},
+               {:chip, {:gain, {:red, 1}}},
+               {:chip, {:gain, {:orange, 1}}}
+             ]
+
+      g = apply!(g, {:chip, {:gain, {:red, 1}}})
+      assert {:red, 1} in me(g).bag and effect?(g, {:green, 2}, {:gain, {:red, 1}})
+      assert chip_actions(g) == [{:chip, {:gain, {:orange, 1}}}]
+
+      # the last choice ends the turn; steps C/D ran and the shop is open
+      g = apply!(g, {:chip, {:gain, {:orange, 1}}})
+      assert g.phase == :buy_chips and me(g).chip_choices == []
+      assert me(g).coins == PotTrack.at(11).coins
+    end
+
+    test "G2: :chip_done skips what is left" do
+      g = evaluate(new(%{green: 2}), [{{:green, 4}, 10}])
+      assert chip_actions(g) == [{:chip, {:gain, {:yellow, 1}}}, {:chip, {:gain, {:purple, 1}}}]
+      bag = me(g).bag
+      g = apply!(g, :chip_done)
+      assert g.phase == :buy_chips and me(g).bag == bag
+    end
+
+    test "G4: pay up to 1 ruby per green on the last two chips, droplet +1 each" do
+      pot = [{{:green, 1}, 10}, {{:green, 2}, 9}]
+      g = new(%{green: 4}) |> put(rubies: 3) |> evaluate(pot)
+      assert chip_actions(g) == [{:chip, {:pay_ruby_move, 1}}, {:chip, {:pay_ruby_move, 2}}]
+      g = apply!(g, {:chip, {:pay_ruby_move, 2}})
+      assert me(g).rubies == 1 and me(g).droplet == 2 and g.phase == :buy_chips
+      assert effect?(g, {:green, 4}, {:droplet, 2})
+
+      # one ruby: one move at most; no ruby: no choice at all
+      g = new(%{green: 4}) |> put(rubies: 1) |> evaluate(pot)
+      assert chip_actions(g) == [{:chip, {:pay_ruby_move, 1}}]
+      assert new(%{green: 4}) |> put(rubies: 0) |> evaluate(pot) |> Map.get(:phase) == :buy_chips
+    end
+
+    test "choices go seat by seat from the start seat" do
+      g = Game.new(seed: @seed, players: 2, fortune: false, sets: %{green: 2})
+      g = put(g, 1, drawn: [{{:green, 1}, 3}], pot_index: 3) |> apply!(1, :stop)
+      g = put(g, 0, drawn: [{{:green, 1}, 3}], pot_index: 3) |> apply!(0, :stop)
+      assert g.phase == :chip_choice and g.turn == 0
+      assert Game.legal_actions(g, 1) == []
+      g = apply!(g, 0, :chip_done)
+      assert g.turn == 1 and Game.legal_actions(g, 0) == []
+      g = apply!(g, 1, {:chip, {:gain, {:orange, 1}}})
+      assert g.phase == :buy_chips
+    end
+  end
+
+  describe "purple choices" do
+    @purples [{{:purple, 1}, 10}, {{:purple, 1}, 8}, {{:purple, 1}, 6}, {{:purple, 1}, 3}]
+
+    test "P2: trade purple chips for one tier; they go back to the supply" do
+      g = evaluate(new(%{purple: 2}), @purples)
+
+      assert chip_actions(g) ==
+               [
+                 {:chip, {:purple_trade, 1}},
+                 {:chip, {:purple_trade, 2}},
+                 {:chip, {:purple_trade, 3}}
+               ]
+
+      supply = g.supply
+      g = apply!(g, {:chip, {:purple_trade, 2}})
+      p = me(g)
+      assert Enum.count(p.drawn) == 2 and g.supply[{:purple, 1}] == supply[{:purple, 1}] + 2
+      assert {:green, 1} in p.bag and {:blue, 2} in p.bag
+      assert p.vp == 3 and p.droplet == 1 and g.phase == :buy_chips
+      assert effect?(g, {:purple, 2}, {:trade, 2})
+    end
+
+    test "P2: tiers 1 and 3 pay out" do
+      g = evaluate(new(%{purple: 2}), Enum.take(@purples, 1))
+      g = apply!(g, {:chip, {:purple_trade, 1}})
+      assert {:black, 1} in me(g).bag and me(g).vp == 1 and me(g).rubies == 2
+
+      g = evaluate(new(%{purple: 2}), @purples) |> apply!({:chip, {:purple_trade, 3}})
+      p = me(g)
+      assert {:yellow, 4} in p.bag and p.vp == 6 and p.rubies == 2 and p.droplet == 2
+    end
+
+    test "P4: swap a pot chip for a bigger one into the bag; lower tiers allowed" do
+      pot = [{{:purple, 1}, 10}, {{:purple, 1}, 8}, {{:blue, 2}, 6}, {{:green, 1}, 3}]
+      g = evaluate(new(%{purple: 4}), pot)
+
+      # 2 purple: 2 → 4 or the lower 1 → 2; never 1 → 4
+      assert chip_actions(g) == [
+               {:chip, {:upgrade, {:green, 1}, {:green, 2}}},
+               {:chip, {:upgrade, {:blue, 2}, {:blue, 4}}}
+             ]
+
+      g = apply!(g, {:chip, {:upgrade, {:blue, 2}, {:blue, 4}}})
+      p = me(g)
+      assert {:blue, 4} in p.bag and {:blue, 2} not in Game.pot_chips(g)
+      assert effect?(g, {:purple, 4}, {:upgrade, {:blue, 2}, {:blue, 4}})
+      assert g.phase == :buy_chips
+
+      # 3+ purple: 1 → 4 too
+      g = evaluate(new(%{purple: 4}), [{{:red, 1}, 11} | Enum.take(@purples, 3)])
+      assert {:chip, {:upgrade, {:red, 1}, {:red, 4}}} in chip_actions(g)
+    end
+  end
+
+  describe "red set 2" do
+    test "a drawn red chip goes beside the pot, then is placed, kept or returned" do
+      g = force_draws(new(%{red: 2}), [{:white, 1}, {:red, 2}, {:red, 1}])
+      p = me(g)
+      assert p.aside == [{:red, 1}, {:red, 2}] and Game.pot_chips(g) == [{:white, 1}]
+      assert at(g) == 1 and effect?(g, {:red, 2}, {:aside, {:red, 2}})
+
+      g = apply!(g, :stop)
+      assert Game.phase(g, 0) == :red_choice
+
+      assert Game.legal_actions(g) == [
+               {:red, {:place, {:red, 1}}},
+               {:red, {:keep, {:red, 1}}},
+               {:red, {:return, {:red, 1}}},
+               {:red, {:place, {:red, 2}}},
+               {:red, {:keep, {:red, 2}}},
+               {:red, {:return, {:red, 2}}}
+             ]
+
+      # placed: only its own value, after the last chip
+      g = apply!(g, {:red, {:place, {:red, 2}}})
+      assert hd(me(g).drawn) == {{:red, 2}, 3}
+      assert g.phase == :potions
+
+      g = apply!(g, {:red, {:return, {:red, 1}}})
+      assert {:red, 1} in me(g).bag and g.phase == :buy_chips
+    end
+
+    test "a kept chip stays beside the pot into the next round" do
+      g = force_draws(new(%{red: 2}), [{:white, 1}, {:red, 4}]) |> apply!(:stop)
+      g = apply!(g, {:red, {:keep, {:red, 4}}})
+      assert g.phase == :buy_chips
+      g = run(g, [{:buy, []}, :end_round])
+      assert g.round == 2 and me(g).aside == [{:red, 4}]
+      refute {:red, 4} in me(g).bag
+
+      g = g |> force_draws([{:white, 2}]) |> apply!(:stop)
+      assert Game.legal_actions(g) |> Enum.member?({:red, {:place, {:red, 4}}})
+      g = apply!(g, {:red, {:place, {:red, 4}}})
+      assert hd(me(g).drawn) == {{:red, 4}, 6} and me(g).aside == []
+    end
+
+    test "after an explosion the choice comes after the explosion choice" do
+      g = force_draws(new(%{red: 2}), [{:red, 1}, {:white, 3}, {:white, 3}, {:white, 2}])
+      assert Game.phase(g, 0) == :explosion_choice
+      g = apply!(g, {:explosion_choice, :buy})
+      assert Game.phase(g, 0) == :red_choice
+    end
+
+    test "the evaluation waits until every player has decided" do
+      g = Game.new(seed: @seed, players: 2, fortune: false, sets: %{red: 2})
+      g = g |> force_draws(0, [{:white, 1}, {:red, 1}]) |> apply!(0, :stop)
+      g = g |> force_draws(1, [{:white, 1}]) |> apply!(1, :stop)
+      assert me(g, 1).done? and Game.phase(g, 0) == :red_choice
+      assert g.phase == :potions
+
+      g = apply!(g, 0, {:red, {:keep, {:red, 1}}})
+      assert g.phase == :buy_chips
     end
   end
 
@@ -197,15 +383,15 @@ defmodule Quacks.IngredientSetsTest do
     end
   end
 
-  property "random play with random supported sets keeps the invariants" do
+  property "random play with random sets keeps the invariants" do
     check all(
             seed <- tuple({positive_integer(), positive_integer(), positive_integer()}),
             players <- integer(1..2),
-            green <- member_of([1, 3]),
+            green <- integer(1..4),
             blue <- integer(1..4),
-            red <- member_of([1, 3, 4]),
+            red <- integer(1..4),
             yellow <- integer(1..4),
-            purple <- member_of([1, 3]),
+            purple <- integer(1..4),
             picks <- list_of(non_negative_integer(), min_length: 20, max_length: 200)
           ) do
       sets = %{green: green, blue: blue, red: red, yellow: yellow, purple: purple}
