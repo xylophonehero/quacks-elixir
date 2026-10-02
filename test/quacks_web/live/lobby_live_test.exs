@@ -46,4 +46,35 @@ defmodule QuacksWeb.LobbyLiveTest do
     {:ok, new_id} = GameServer.start(2)
     assert has_element?(view, "#game-#{new_id}")
   end
+
+  test "the Options block sets house rules for the new game", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    view
+    |> element("#options")
+    |> render_change(%{"rules" => %{"explode_above" => "9", "rats" => "false"}})
+
+    {:ok, game_view, _html} =
+      view |> element("button", "New solo game") |> render_click() |> follow_redirect(conn)
+
+    assert has_element?(game_view, "dd", "0 / 9")
+    assert has_element?(game_view, "[data-role=house-rules]", "explodes above 9 · no rats")
+  end
+
+  test "a default game shows no house rules", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    {:ok, game_view, _html} =
+      view |> element("button", "New solo game") |> render_click() |> follow_redirect(conn)
+
+    refute has_element?(game_view, "[data-role=house-rules]")
+  end
+
+  test "parse_rules keeps the default for a missing or bad value" do
+    rules = QuacksWeb.LobbyLive.parse_rules(%{"explode_above" => "12", "die" => "no_orange"})
+    assert rules == %{Quacks.Game.default_rules() | die: :no_orange}
+
+    assert QuacksWeb.LobbyLive.parse_rules(%{"starting_rubies" => "0", "fortune" => "false"}) ==
+             %{Quacks.Game.default_rules() | starting_rubies: 0, fortune: false}
+  end
 end

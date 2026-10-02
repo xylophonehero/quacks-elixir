@@ -259,6 +259,35 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
+  @doc """
+  The game's house rules that differ from the rulebook game, e.g. "House rules:
+  explodes above 9 · no rats". Renders nothing with the default rules.
+  """
+  attr :rules, :map, required: true, doc: "`game.rules`"
+
+  def house_rules(assigns) do
+    %{rules: rules} = assigns
+    default = Game.default_rules()
+    # A fixed order: map keys have no order to rely on.
+    keys = [:explode_above, :starting_rubies, :round6_white, :fortune, :rats, :black_solo, :die]
+    changed = for key <- keys, rules[key] != default[key], do: {key, rules[key]}
+    assigns = assign(assigns, changed: changed)
+
+    ~H"""
+    <p :if={@changed != []} class="text-xs text-zinc-500" data-role="house-rules">
+      House rules: {Enum.map_join(@changed, " · ", &rule_label/1)}
+    </p>
+    """
+  end
+
+  defp rule_label({:explode_above, n}), do: "explodes above #{n}"
+  defp rule_label({:starting_rubies, n}), do: "#{n} starting rubies"
+  defp rule_label({:round6_white, false}), do: "no round-6 white"
+  defp rule_label({:fortune, false}), do: "no Fortune Teller cards"
+  defp rule_label({:rats, false}), do: "no rats"
+  defp rule_label({:black_solo, :droplet_ruby}), do: "solo black pays a ruby"
+  defp rule_label({:die, :no_orange}), do: "die: ruby instead of orange"
+
   @doc "Red Set 2 chips waiting beside the pot (not in the bag)."
   attr :chips, :list, required: true, doc: "the player's `aside` chips"
 
