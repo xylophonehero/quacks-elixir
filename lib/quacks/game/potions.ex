@@ -12,6 +12,12 @@ defmodule Quacks.Game.Potions do
   player phase `:red_choice`: place it after the last chip, keep it for a later round,
   or return it to the bag. Only then is the player done.
 
+  The Herb Witches: Sets 5–6 and the locoweed books dispatch the same way. A locoweed
+  chip with Set 6 acts as the last coloured chip in the pot (its value, bonus and
+  on-draw action). With the expansion on, a chip drawn after a chip sits on the last
+  space goes in the overflow bowl (`Quacks.Player.bowl`): no action, but a white one
+  still counts toward the explosion.
+
   Plain functions called from `Quacks.Game`. They take the whole game because draws
   use the shared `rng` and every event goes to the shared log.
   """
@@ -23,11 +29,11 @@ defmodule Quacks.Game.Potions do
 
   @doc "What `player` may do right now in the potions phase. `[]` once done."
   @spec legal_actions(Player.t()) :: [Game.action()]
-  def legal_actions(%Player{phase: :potions, bag: bag, drawn: drawn, flask: flask}) do
+  def legal_actions(%Player{phase: :potions, bag: bag, drawn: drawn, flask: flask} = p) do
     List.flatten([
       if(bag == [], do: [], else: :draw),
       if(drawn == [], do: [], else: :stop),
-      if(flask and match?([{{:white, _}, _} | _], drawn), do: :use_flask, else: [])
+      if(flask and last_white?(p), do: :use_flask, else: [])
     ])
   end
 
@@ -117,20 +123,32 @@ defmodule Quacks.Game.Potions do
   defp done(g, seat), do: Game.update_player(g, seat, &%{&1 | phase: :done, done?: true})
 
   @doc false
-  # The newest chip leaves the pot for the bag (flask, B10).
+  # The newest chip leaves the pot (or the overflow bowl) for the bag (flask, B10).
   def take_back(g, seat) do
-    %{drawn: [{chip, _index} | rest]} = p = Game.player(g, seat)
+    case Game.player(g, seat) do
+      %{bowl: [chip | rest]} ->
+        g |> Game.update_player(seat, &%{&1 | bowl: rest}) |> return_to_bag(seat, chip)
 
-    g
-    |> Game.update_player(seat, &%{&1 | drawn: rest, pot_index: last_index(rest, p)})
-    |> return_to_bag(seat, chip)
+      %{drawn: [{chip, _index} | rest]} = p ->
+        g
+        |> Game.update_player(seat, &%{&1 | drawn: rest, pot_index: last_index(rest, p)})
+        |> return_to_bag(seat, chip)
+    end
   end
 
   @doc false
-  # B7: the chip is placed without its on-draw effect; then the player is done.
-  def place_last(g, seat, chip) do
-    g = place(g, seat, chip)
-    if exploded?(g, seat), do: explode(g, seat), else: finish(g, seat)
+  # The newest chip drawn this round (in the bowl or the pot) is white.
+  def last_white?(%Player{bowl: [chip | _]}), do: match?({:white, _}, chip)
+  def last_white?(%Player{drawn: drawn}), do: match?([{{:white, _}, _} | _], drawn)
+
+  @doc false
+  # B7 (official ruling, `herb-witches.md` §2.6): the chip moves its printed value, has
+  # no action and cannot explode the pot; then the player is done. ⚠️ No bonus move
+  # either (red, Y2 doubling): the bonus is the chip's action.
+  def place_last(g, seat, {_colour, value} = chip) do
+    g
+    |> put_on_pot(seat, chip, Game.player(g, seat).pot_index + value)
+    |> finish(seat)
   end
 
   defp clear_offer(g, seat),
@@ -147,16 +165,52 @@ defmodule Quacks.Game.Potions do
 
   # Place a chip as the next chip in the pot, then run its on-draw effect (§3.1).
   # B2: a chip drawn inside the crow skull's window cannot explode the pot for real.
+  # B3: a draw the card asks for cannot explode the pot (`Fortune.safe_draw?/2`).
+  # Overflow bowl: the chip goes in the bowl, with no action (book `:bowl`).
   defp resolve_draw(g, seat, chip) do
-    protected? = Game.player(g, seat).mods.protect > 0
-    g = g |> update_mods(seat, &%{&1 | protect: max(&1.protect - 1, 0)}) |> place(seat, chip)
+    p = Game.player(g, seat)
+    protected? = p.mods.protect > 0
+    safe? = Fortune.safe_draw?(g, p)
+    {acting, book} = if overflow?(g, p), do: {chip, :bowl}, else: acting(g, p, chip)
+
+    g =
+      g
+      |> update_mods(seat, &%{&1 | protect: max(&1.protect - 1, 0)})
+      |> place(seat, chip, acting, book)
 
     cond do
-      not exploded?(g, seat) -> on_draw(g, seat, chip)
+      not exploded?(g, seat) or safe? -> on_draw(g, seat, acting, next_chip_lost(g, seat, book))
       protected? -> protected_explosion(g, seat)
       true -> explode(g, seat)
     end
   end
+
+  # With the expansion on, a chip after a chip on the last space goes in the bowl.
+  defp overflow?(%{expansion: nil}, _p), do: false
+  defp overflow?(_g, %Player{drawn: drawn}), do: match?([{_, 53} | _], drawn)
+
+  # Overflow bowl: on the last space an action for the next chip is lost (the next chip
+  # goes in the bowl). Blue Set 1 (the offer) and Y2 (next chip double).
+  defp next_chip_lost(%{expansion: :herb_witches} = g, seat, book)
+       when book in [{:blue, 1}, {:yellow, 2}] do
+    if Game.player(g, seat).pot_index == PotTrack.last(), do: :bowl, else: book
+  end
+
+  defp next_chip_lost(_g, _seat, book), do: book
+
+  # The chip a drawn chip acts as, and its book. Locoweed Set 6 copies the value and
+  # the on-draw action of the last coloured chip in the pot (no coloured chip: value
+  # 1, no action, book `:none`). ⚠️ Earlier locoweed chips are skipped (they acted as
+  # that same chip); the copy keeps colour locoweed for every count; step-B actions
+  # are not copied (`herb-witches.md` §2.3).
+  defp acting(%{sets: %{locoweed: 6}} = g, p, {:locoweed, _} = chip) do
+    case Enum.find(p.drawn, fn {{c, _}, _} -> c not in [:white, :locoweed] end) do
+      nil -> {chip, :none}
+      {{colour, _} = copied, _index} -> {copied, {colour, set(g, colour)}}
+    end
+  end
+
+  defp acting(g, _p, {colour, _} = chip), do: {chip, {colour, set(g, colour)}}
 
   @doc """
   The highest white sum `seat` may have: the house rule's limit (default 7), or more
@@ -187,8 +241,6 @@ defmodule Quacks.Game.Potions do
     |> Game.effect(seat, {:blue, 2}, :protected_explosion)
     |> finish(seat)
   end
-
-  defp on_draw(g, seat, {colour, _} = chip), do: on_draw(g, seat, chip, {colour, set(g, colour)})
 
   defp on_draw(g, seat, {:yellow, _}, {:yellow, 1}) do
     case Game.player(g, seat).drawn do
@@ -249,15 +301,63 @@ defmodule Quacks.Game.Potions do
     end
   end
 
+  # Blue Set 5: VP by value when the pot has at least that many orange chips.
+  defp on_draw(g, seat, {:blue, value}, {:blue, 5} = book) do
+    if count(Game.player(g, seat).drawn, :orange) >= value,
+      do:
+        g
+        |> Game.update_player(seat, &%{&1 | vp: &1.vp + value})
+        |> Game.effect(seat, book, {:vp, value}),
+      else: g
+  end
+
+  # Blue Set 6: a ruby per white 1-chip among the `value` chips before the blue.
+  defp on_draw(g, seat, {:blue, value}, {:blue, 6} = book) do
+    [_blue | before] = Game.player(g, seat).drawn
+
+    case before |> Enum.take(value) |> Enum.count(&match?({{:white, 1}, _}, &1)) do
+      0 ->
+        g
+
+      n ->
+        g
+        |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + n})
+        |> Game.effect(seat, book, {:rubies, n})
+    end
+  end
+
+  # Yellow Set 5: peek at one more chip; the yellow moves on by its value (locoweed 1),
+  # the chip goes back in the bag. ⚠️ The peeked chip has no effect, even a white one.
+  defp on_draw(g, seat, _chip, {:yellow, 5} = book) do
+    case take_random(g, seat, 1) do
+      {[], g} ->
+        g
+
+      {[{_, v} = peek], g} ->
+        g
+        |> Game.update_player(seat, fn %{drawn: [{chip, i} | rest]} = p ->
+          i = min(i + v, PotTrack.last())
+          %{p | drawn: [{chip, i} | rest], pot_index: i, bag: [peek | p.bag]}
+        end)
+        |> Game.effect(seat, book, {:peek, peek})
+    end
+  end
+
   defp on_draw(g, _seat, _chip, _book), do: g
 
   # Put a chip on the pot `value` (+ bonus) spaces after the previous chip and
   # remember the space it landed on, so the page can draw it there. Y2 doubles the
-  # whole move of the next chip, once.
-  defp place(g, seat, {colour, value} = chip) do
+  # whole move of the next chip, once. `acting` and `book` give the move (see
+  # `acting/3`); a chip for the overflow bowl (`:bowl`) just goes in.
+  defp place(g, seat, chip, _acting, :bowl), do: put_on_pot(g, seat, chip, PotTrack.last())
+
+  defp place(g, seat, chip, {_, value} = acting, book) do
     p = Game.player(g, seat)
-    {bonus, effects} = bonus(chip, {colour, set(g, colour)}, p)
-    move = value + bonus + Fortune.extra_move(g, chip)
+    {bonus, effects} = bonus(acting, book, p)
+    move = value + bonus + Fortune.extra_move(g, acting)
+
+    effects =
+      if chip == acting, do: effects, else: [{{:locoweed, 6}, {:copied, acting}} | effects]
 
     {move, effects} =
       if p.mods.next_chip_x2,
@@ -273,12 +373,19 @@ defmodule Quacks.Game.Potions do
   end
 
   # The chip lands on `index` (clamped to the last space) and becomes the newest chip.
+  # With the expansion on and a chip already on the last space, it goes in the bowl.
   defp put_on_pot(g, seat, chip, index) do
-    index = min(index, PotTrack.last())
+    if overflow?(g, Game.player(g, seat)) do
+      g
+      |> Game.update_player(seat, &%{&1 | bowl: [chip | &1.bowl]})
+      |> Game.record(seat, {:overflow, chip})
+    else
+      index = min(index, PotTrack.last())
 
-    g
-    |> Game.update_player(seat, &%{&1 | drawn: [{chip, index} | &1.drawn], pot_index: index})
-    |> Game.record(seat, {:drew, chip, index})
+      g
+      |> Game.update_player(seat, &%{&1 | drawn: [{chip, index} | &1.drawn], pot_index: index})
+      |> Game.record(seat, {:drew, chip, index})
+    end
   end
 
   # Extra movement and the effects to log. Red 1 (§4): by the oranges in the pot.
@@ -298,6 +405,20 @@ defmodule Quacks.Game.Potions do
       n when n <= 3 -> {n, [{book, {:extra, n}}]}
       _ -> {0, []}
     end
+  end
+
+  # Red Set 5: move by the highest red value already in the pot, if that is higher.
+  defp bonus({_, value}, {:red, 5} = book, p) do
+    case Enum.max(for({{:red, v}, _} <- p.drawn, do: v), fn -> 0 end) do
+      high when high > value -> {high - value, [{book, {:extra, high - value}}]}
+      _ -> {0, []}
+    end
+  end
+
+  # Locoweed Set 5: rat stone distance + 1, at most 4 (solo: no rats, so 1).
+  defp bonus(_chip, {:locoweed, 5} = book, p) do
+    n = min(p.rat_stone + 1, 4)
+    {n - 1, [{book, {:moves, n}}]}
   end
 
   defp bonus({:white, 1}, _book, %{mods: %{white1_plus1: true}}),

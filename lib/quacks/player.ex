@@ -14,6 +14,10 @@ defmodule Quacks.Player do
   `aside` holds red Set 2 chips beside the pot: drawn, not in the bag, kept across
   rounds until placed or returned. `chip_choices` holds what the player may still
   choose in the evaluation's chip-action step (G2, G4, P2, P4; see `t:chip_choice/0`).
+
+  `bowl` is the overflow bowl (The Herb Witches): chips drawn after a chip sits on the
+  last space (53), newest first. They have no action and are not in the pot, but white
+  bowl chips count toward the explosion. They go back in the bag at the end of the round.
   """
 
   alias Quacks.Rules.{Chips, PotTrack}
@@ -35,6 +39,7 @@ defmodule Quacks.Player do
             fortune_used?: false,
             aside: [],
             chip_choices: [],
+            bowl: [],
             mods: %{explode_above: 0, next_chip_x2: false, white1_plus1: false, protect: 0}
 
   @type phase ::
@@ -65,6 +70,7 @@ defmodule Quacks.Player do
           fortune_used?: boolean,
           aside: [Chips.chip()],
           chip_choices: [chip_choice],
+          bowl: [Chips.chip()],
           mods: mods
         }
   @typedoc """
@@ -97,10 +103,11 @@ defmodule Quacks.Player do
   @spec start_index(t) :: non_neg_integer
   def start_index(%__MODULE__{droplet: droplet, rat_stone: rat_stone}), do: droplet + rat_stone
 
-  @doc "Sum of white chip values in the pot this round."
+  @doc "Sum of white chip values in the pot and the overflow bowl this round."
   @spec white_sum(t) :: non_neg_integer
-  def white_sum(%__MODULE__{drawn: drawn}) do
-    for({{:white, v}, _index} <- drawn, reduce: 0, do: (acc -> acc + v))
+  def white_sum(%__MODULE__{drawn: drawn, bowl: bowl}) do
+    pot = for({{:white, v}, _index} <- drawn, reduce: 0, do: (acc -> acc + v))
+    for({:white, v} <- bowl, reduce: pot, do: (acc -> acc + v))
   end
 
   @doc "The chips in the pot without their positions, newest first."
@@ -116,8 +123,9 @@ defmodule Quacks.Player do
   def reset(%__MODULE__{} = p) do
     %{
       p
-      | bag: pot_chips(p) ++ p.bag,
+      | bag: pot_chips(p) ++ p.bowl ++ p.bag,
         drawn: [],
+        bowl: [],
         pending: [],
         coins: 0,
         exploded?: false,

@@ -110,6 +110,24 @@ defmodule Quacks.FortuneTest do
       assert fortune_actions(g) == []
     end
 
+    # Official ruling (The Herb Witches rulebook): card draws cannot explode the pot.
+    test "B3 Second Chances: the first 5 draws cannot explode the pot; later draws can" do
+      five = [{:white, 3}, {:white, 3}, {:white, 2}, {:white, 1}, {:green, 1}]
+      g = blue(:b3) |> force_draws(five)
+      assert Game.white_sum(g) == 9 and Game.phase(g, 0) == :potions
+      refute me(g).exploded?
+      assert fortune_actions(g) == [{:fortune, :restart_round}]
+
+      g = force_draws(g, [{:orange, 1}])
+      assert Game.phase(g, 0) == :explosion_choice
+
+      # after a restart the draws are normal draws
+      g = blue(:b3) |> force_draws(Enum.take(five, 4)) |> force_draws([{:orange, 1}])
+      g = g |> apply!({:fortune, :restart_round}) |> force_draws([{:white, 3}, {:white, 3}])
+      g = force_draws(g, [{:white, 2}])
+      assert Game.phase(g, 0) == :explosion_choice
+    end
+
     test "B4 Double Double: the bonus die is rolled twice" do
       g = blue(:b4) |> force_draws([{:white, 1}]) |> apply!(:stop)
       assert Enum.count(g.log, &match?({0, {:bonus_die, _}}, &1)) == 2
@@ -143,6 +161,21 @@ defmodule Quacks.FortuneTest do
       assert [{{:red, 1}, 2} | _] = me(g).drawn
       assert {:green, 1} in me(g).bag
       assert g.phase == :buy_chips
+    end
+
+    # Official ruling (The Herb Witches rulebook): the placed chip cannot explode the
+    # pot and has no action.
+    test "B7 Safety Procedure: the placed chip cannot explode the pot and has no action" do
+      g = blue(:b7) |> force_draws([{:white, 3}, {:white, 3}]) |> put(bag: [{:white, 3}])
+      g = g |> apply!(:stop) |> apply!({:fortune, {:place, {:white, 3}}})
+      assert Game.white_sum(g) == 9
+      refute me(g).exploded?
+      assert g.phase == :buy_chips and me(g).coins > 0
+
+      # a red (Set 1) after an orange moves its printed value only
+      g = blue(:b7) |> force_draws([{:orange, 1}]) |> put(bag: [{:red, 1}])
+      g = g |> apply!(:stop) |> apply!({:fortune, {:place, {:red, 1}}})
+      assert [{{:red, 1}, 2} | _] = me(g).drawn
     end
 
     test "B8 Lucky Devil: a ruby scoring space gives 2 VP" do

@@ -1,35 +1,50 @@
 defmodule Quacks.Session do
   @moduledoc """
-  A game plus the `{seed, players, sets, rules, [{seat, action}]}` that built it. Undo =
-  replay minus the last action, whichever seat made it.
+  A game plus the `{seed, players, sets, rules, expansion, [{seat, action}]}` that built
+  it. Undo = replay minus the last action, whichever seat made it.
   """
 
   import Kernel, except: [apply: 2, apply: 3]
   alias Quacks.Game
 
-  defstruct seed: nil, players: 1, sets: %{}, rules: %{}, actions: [], game: nil
+  defstruct seed: nil, players: 1, sets: %{}, rules: %{}, expansion: nil, actions: [], game: nil
 
   @type t :: %__MODULE__{
           seed: {integer, integer, integer},
-          players: 1..4,
+          players: 1..5,
           sets: Quacks.Rules.Chips.sets(),
           rules: Game.rules(),
+          expansion: Quacks.Rules.Chips.expansion(),
           actions: [{Game.seat(), Game.action()}],
           game: Game.t()
         }
 
   # The `Game.new/1` options a session passes on.
-  @game_opts [:sets, :rules, :fortune]
+  @game_opts [:sets, :rules, :fortune, :expansion]
 
   @doc """
   A new session. `opts`: `sets: %{green: 2}` picks Ingredient Sets, `rules:
   %{explode_above: 9}` sets house rules, `fortune: false` plays without Fortune
-  Teller cards (see `Quacks.Game.new/1`).
+  Teller cards, `expansion: :herb_witches` turns The Herb Witches on (see
+  `Quacks.Game.new/1`).
   """
-  @spec new({integer, integer, integer}, 1..4, sets: map, rules: map, fortune: boolean) :: t
+  @spec new({integer, integer, integer}, 1..5,
+          sets: map,
+          rules: map,
+          fortune: boolean,
+          expansion: Quacks.Rules.Chips.expansion()
+        ) :: t
   def new(seed, players \\ 1, opts \\ []) do
     game = new_game(seed, players, opts)
-    %__MODULE__{seed: seed, players: players, sets: game.sets, rules: game.rules, game: game}
+
+    %__MODULE__{
+      seed: seed,
+      players: players,
+      sets: game.sets,
+      rules: game.rules,
+      expansion: game.expansion,
+      game: game
+    }
   end
 
   @doc "`apply/3` for seat 0."
@@ -49,11 +64,12 @@ defmodule Quacks.Session do
     do: %{
       s
       | actions: rest,
-        game: replay(s.seed, s.players, rest, sets: s.sets, rules: s.rules)
+        game:
+          replay(s.seed, s.players, rest, sets: s.sets, rules: s.rules, expansion: s.expansion)
     }
 
   @doc "Rebuild a game from its actions (newest first). `opts` as in `new/3`."
-  @spec replay({integer, integer, integer}, 1..4, [{Game.seat(), Game.action()}], keyword) ::
+  @spec replay({integer, integer, integer}, 1..5, [{Game.seat(), Game.action()}], keyword) ::
           Game.t()
   def replay(seed, players, actions, opts \\ []) do
     Enum.reduce(Enum.reverse(actions), new_game(seed, players, opts), fn {seat, action}, game ->

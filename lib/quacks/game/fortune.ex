@@ -40,7 +40,7 @@ defmodule Quacks.Game.Fortune do
   from the seed but leaves the game's own random stream untouched, so a seed draws
   the same chips with or without cards.
   """
-  @spec deck(:rand.state(), 1..4) :: [Cards.id()]
+  @spec deck(:rand.state(), 1..5) :: [Cards.id()]
   def deck(rng, players) do
     {keyed, _rng} =
       Enum.map_reduce(Cards.ids(players), :rand.jump(rng), fn id, rng ->
@@ -100,8 +100,9 @@ defmodule Quacks.Game.Fortune do
     |> Game.update_player(seat, fn p ->
       %{
         p
-        | bag: Player.pot_chips(p) ++ p.bag,
+        | bag: Player.pot_chips(p) ++ p.bowl ++ p.bag,
           drawn: [],
+          bowl: [],
           pot_index: Player.start_index(p),
           fortune_used?: true
       }
@@ -140,6 +141,18 @@ defmodule Quacks.Game.Fortune do
   @spec explode_above(Game.t()) :: 0 | 9
   def explode_above(%{fortune_card: :b5}), do: 9
   def explode_above(_g), do: 0
+
+  @doc """
+  Second Chances (B3), official ruling (`herb-witches.md` §2.6): the first 5 draws of
+  the round, before the player may start again, cannot explode the pot. ⚠️ The ruling
+  says "draws a card asks for"; we read them as these 5. The pot may then be over the
+  limit without exploding; the next normal draw explodes it.
+  """
+  @spec safe_draw?(Game.t(), Player.t()) :: boolean
+  def safe_draw?(%{fortune_card: :b3}, %Player{fortune_used?: false, drawn: drawn}),
+    do: length(drawn) < 5
+
+  def safe_draw?(_g, _p), do: false
 
   @doc "Extra spaces for a placed chip: B6 moves orange chips one more."
   @spec extra_move(Game.t(), Chips.chip()) :: 0 | 1
@@ -266,8 +279,9 @@ defmodule Quacks.Game.Fortune do
   defp choices(:p1, g, _p, _seat),
     do: takes(g, &(&1 == {:black, 1} or elem(&1, 1) == 2)) ++ [:rubies]
 
+  # ⚠️ Locoweed has no printed value: not a "1-value chip".
   defp choices(:p3, g, %{rubies: r}, _seat) when r > 0,
-    do: takes(g, fn {c, v} -> v == 1 and c not in [:purple, :black] end) ++ [:skip]
+    do: takes(g, fn {c, v} -> v == 1 and c not in [:purple, :black, :locoweed] end) ++ [:skip]
 
   defp choices(:p6, _g, p, _seat),
     do: [:vp | if({:white, 1} in p.bag, do: [:remove_white], else: [])]
@@ -338,6 +352,7 @@ defmodule Quacks.Game.Fortune do
   defp potion_choices(:b10, %Player{
          phase: :potions,
          fortune_used?: false,
+         bowl: [],
          drawn: [{{:white, _}, _} | rest]
        }) do
     if Enum.any?(rest, &match?({{:white, _}, _}, &1)), do: [], else: [:return_white]
@@ -362,7 +377,7 @@ defmodule Quacks.Game.Fortune do
   defp takes(g, fun),
     do:
       for(
-        chip <- Chips.shop(),
+        chip <- Chips.shop(g.expansion),
         fun.(chip),
         Game.available?(g, chip),
         do: {:take, chip}
@@ -373,6 +388,18 @@ defmodule Quacks.Game.Fortune do
     |> Enum.uniq()
     |> Enum.sort()
     |> Enum.filter(&(Map.has_key?(@upgrade, &1) and Game.available?(g, @upgrade[&1])))
+  end
+
+  # Black Set 5: a black chip from a card goes to the left player; droplet +1.
+  defp take(%{sets: %{black: 5}} = g, seat, {:black, 1} = chip) do
+    if g.supply[chip] > 0,
+      do:
+        g
+        |> log(seat, {:take, chip})
+        |> Game.take_supply(chip)
+        |> Game.give_black(seat)
+        |> move_droplet(seat, 1),
+      else: g
   end
 
   defp take(g, seat, chip), do: g |> Game.add_from_supply(seat, chip) |> log(seat, {:take, chip})

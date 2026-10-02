@@ -13,6 +13,9 @@ defmodule Quacks.Game.Evaluation do
   choice}` (see `legal_actions/2`) and ends with `:chip_done`; its turn also ends
   when nothing is left to choose. Steps C and D run after the last seat. Without such
   a book nobody has a choice and the evaluation runs in one go.
+
+  The Herb Witches: G6, P6 and black Sets 5 and 6 are automatic step-B books; step D
+  adds the overflow bowl's VP.
   """
 
   alias Quacks.Game
@@ -39,7 +42,9 @@ defmodule Quacks.Game.Evaluation do
   def run(g) do
     order = Game.turn_order(g)
     g = bonus_die(g, order)
-    g = Enum.reduce(order, g, &chip_actions(&2, &1))
+    # Black compares pots across seats: it reads the pots as they were before step B
+    # (G3 moves a chip).
+    g = Enum.reduce(order, g, &chip_actions(&2, &1, g))
     next_choice(g, order)
   end
 
@@ -78,7 +83,8 @@ defmodule Quacks.Game.Evaluation do
   end
 
   # Step A: among the non-exploded players the highest scoring space rolls; a true
-  # tie means each of them rolls. Exploded players never roll.
+  # tie means each of them rolls. Exploded players never roll. Overflow bowl: every
+  # non-exploded player on the spoon (53) rolls; they all tie on the highest space.
   defp bonus_die(g, order) do
     candidates = Enum.reject(order, &Game.player(g, &1).exploded?)
     best = candidates |> Enum.map(&Game.scoring_index(g, &1)) |> Enum.max(fn -> nil end)
@@ -117,11 +123,41 @@ defmodule Quacks.Game.Evaluation do
 
   # Step B (§4): black, then green and purple by their Ingredient Set. Set 1 and 3
   # are automatic (Set 1 purple: always the highest tier); Set 2 and 4 open choices.
-  # Green first: G3 moves the last chip.
-  defp chip_actions(g, seat) do
-    g = black(g, seat, count(:black, Game.pot_chips(g, seat)))
+  # Green first: G3 moves the last chip. `g0` is the game before step B.
+  defp chip_actions(g, seat, g0) do
+    g = black(g, seat, Map.get(g.sets, :black, 1), g0)
     g = chip_action(g, seat, {:green, g.sets.green})
     chip_action(g, seat, {:purple, g.sets.purple})
+  end
+
+  # G6: a bonus die roll per green chip on the last two positions (B4: twice each).
+  defp chip_action(g, seat, {:green, 6} = book) do
+    n = count(:green, last_two(g, seat)) * Fortune.die_rolls(g)
+
+    Enum.reduce(1..n//1, g, fn _, g ->
+      {face, g} = roll(g, seat)
+      Game.effect(g, seat, book, {:bonus_die, face})
+    end)
+  end
+
+  # P6: per purple chip, VP = printed value of the chip placed right after it
+  # (locoweed 1). ⚠️ A purple as the last chip gives 0; bowl chips do not count.
+  defp chip_action(g, seat, {:purple, 6} = book) do
+    vp =
+      g
+      |> Game.pot_chips(seat)
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.reduce(0, fn
+        [{_, v}, {:purple, _}], acc -> acc + v
+        _, acc -> acc
+      end)
+
+    if vp > 0,
+      do:
+        g
+        |> Game.update_player(seat, &%{&1 | vp: &1.vp + vp})
+        |> Game.effect(seat, book, {:vp, vp}),
+      else: g
   end
 
   defp chip_action(g, seat, {:green, 1}) do
@@ -304,10 +340,58 @@ defmodule Quacks.Game.Evaluation do
     |> Map.update!(:supply, &Map.update!(&1, chip, fn n -> n + 1 end))
   end
 
-  # Black (§4): compared with the opponent (2 players) or both neighbours (3–4).
+  # Black Set 5: a ruby per black chip in the left player's pot (solo: none) and per
+  # black chip on my last two positions.
+  defp black(g, seat, 5, g0) do
+    left = Game.left(g0, seat)
+    theirs = if left, do: count(:black, Game.pot_chips(g0, left)), else: 0
+
+    case theirs + count(:black, Enum.take(Game.pot_chips(g0, seat), 2)) do
+      0 ->
+        g
+
+      n ->
+        g
+        |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + n})
+        |> Game.effect(seat, {:black, 5}, {:rubies, n})
+    end
+  end
+
+  # Black Set 6: the owner(s) of the furthest black chip at the table move the droplet
+  # 1, of the second furthest take 1 ruby; one player may get both. Solo this ranks my
+  # own chips (1+ black: droplet, 2+: ruby too). ⚠️ A tie for furthest shares the
+  # droplet; "second" is then the next lower space.
+  defp black(g, seat, 6, g0) do
+    spaces = fn s -> for {{:black, _}, i} <- Game.player(g0, s).drawn, do: i end
+    ranked = g0.seats |> Enum.flat_map(spaces) |> Enum.uniq() |> Enum.sort(:desc)
+    mine = spaces.(seat)
+    droplet? = Enum.at(ranked, 0) in mine
+    ruby? = Enum.at(ranked, 1) in mine
+
+    case {droplet?, ruby?} do
+      {false, false} ->
+        g
+
+      _ ->
+        g
+        |> Game.update_player(
+          seat,
+          &%{
+            &1
+            | droplet: &1.droplet + if(droplet?, do: 1, else: 0),
+              rubies: &1.rubies + if(ruby?, do: 1, else: 0)
+          }
+        )
+        |> Game.effect(seat, {:black, 6}, payoff(droplet?, ruby?))
+    end
+  end
+
+  # Black (§4): compared with the opponent (2 players) or both neighbours (3–5).
   # ⚠️ Solo: no opponent; 1+ black chip pays `rules.black_solo` (default droplet +1).
-  defp black(g, seat, mine) do
-    others = Enum.map(neighbours(g, seat), &count(:black, Game.pot_chips(g, &1)))
+  # ⚠️ 5 players use the 3–4 player side (both neighbours).
+  defp black(g, seat, 1, g0) do
+    mine = count(:black, Game.pot_chips(g0, seat))
+    others = Enum.map(neighbours(g, seat), &count(:black, Game.pot_chips(g0, &1)))
 
     payoff =
       if others == [] and mine > 0,
@@ -329,6 +413,10 @@ defmodule Quacks.Game.Evaluation do
         |> Game.record(seat, {:black, :droplet_ruby})
     end
   end
+
+  defp payoff(true, true), do: :droplet_ruby
+  defp payoff(true, false), do: :droplet
+  defp payoff(false, true), do: :ruby
 
   # My black chips against the neighbours' counts: one (2p) or two (3–4p).
   defp black_payoff(0, _others), do: nil
@@ -372,7 +460,28 @@ defmodule Quacks.Game.Evaluation do
           |> Game.update_player(seat, &%{&1 | vp: &1.vp + space.vp})
           |> Game.record(seat, {:pot_vp, space.vp, index})
 
+    g = bowl(g, seat, choice)
+
     Game.update_player(g, seat, &%{&1 | coins: if(choice == :vp, do: 0, else: space.coins)})
+  end
+
+  # Overflow bowl (step D): half the bowl's chip values, rounded down, as VP. ⚠️ Not
+  # for an exploded player who chose to buy (like the spoon's VP).
+  defp bowl(g, seat, choice) do
+    case Game.player(g, seat).bowl do
+      [] ->
+        g
+
+      _ when choice == :buy ->
+        g
+
+      chips ->
+        vp = chips |> Enum.map(&elem(&1, 1)) |> Enum.sum() |> div(2)
+
+        g
+        |> Game.update_player(seat, &%{&1 | vp: &1.vp + vp})
+        |> Game.record(seat, {:bowl, chips, vp})
+    end
   end
 
   defp count(colour, chips), do: Enum.count(chips, &match?({^colour, _}, &1))
