@@ -6,6 +6,9 @@ defmodule Quacks.Player do
   `phase` is the player's own state while the game is in `:potions`; `done?` is true
   once the player has stopped or resolved an explosion this round (`phase == :done`).
   `explosion_choice` remembers `:vp` or `:buy` until the evaluation runs.
+  `fortune_used?` is true once a once-per-round card power (B3, B10) is used.
+  `pending` holds a blue offer, a Safety Procedure offer (B7) or a Flea Market draw
+  (P13): chips out of the bag until the player chooses.
   """
 
   alias Quacks.Rules.{Chips, PotTrack}
@@ -23,9 +26,11 @@ defmodule Quacks.Player do
             explosion_choice: nil,
             rat_stone: 0,
             phase: :potions,
-            done?: false
+            done?: false,
+            fortune_used?: false
 
-  @type phase :: :potions | :yellow_choice | :blue_choice | :explosion_choice | :done
+  @type phase ::
+          :potions | :yellow_choice | :blue_choice | :explosion_choice | :fortune_choice | :done
   @typedoc "A chip in the pot and the 0..53 space it sits on."
   @type placed :: {Chips.chip(), 0..53}
   @type t :: %__MODULE__{
@@ -42,7 +47,8 @@ defmodule Quacks.Player do
           explosion_choice: nil | :vp | :buy,
           rat_stone: non_neg_integer,
           phase: phase,
-          done?: boolean
+          done?: boolean,
+          fortune_used?: boolean
         }
 
   @doc "A player at the start of the game with `bag`."
@@ -81,7 +87,8 @@ defmodule Quacks.Player do
         rat_stone: 0,
         pot_index: p.droplet,
         phase: :potions,
-        done?: false
+        done?: false,
+        fortune_used?: false
     }
   end
 end

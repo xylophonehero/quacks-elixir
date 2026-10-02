@@ -11,9 +11,10 @@ defmodule Quacks.GameTest do
   doctest ScoringTrack
 
   @seed {1, 2, 3}
+  @no_cards [fortune: false]
 
-  defp new, do: Game.new(seed: @seed)
-  defp new(players), do: Game.new(seed: @seed, players: players)
+  defp new, do: Game.new(seed: @seed, fortune: false)
+  defp new(players), do: Game.new(seed: @seed, players: players, fortune: false)
 
   defp rolled?(game, seat \\ 0), do: Enum.any?(game.log, &match?({^seat, {:bonus_die, _}}, &1))
 
@@ -244,20 +245,20 @@ defmodule Quacks.GameTest do
   end
 
   test "Session replays to the same game and undoes the last action" do
-    {:ok, s} = Session.apply(Session.new(@seed), :draw)
+    {:ok, s} = Session.apply(Session.new(@seed, 1, @no_cards), :draw)
     {:ok, s} = Session.apply(s, :draw)
     assert {:error, _} = Session.apply(s, :end_round)
     assert s.actions == [{0, :draw}, {0, :draw}]
-    assert s.game == Session.replay(@seed, 1, s.actions)
+    assert s.game == Session.replay(@seed, 1, s.actions, @no_cards)
     assert Session.undo(s).game == apply!(new(), :draw)
-    assert Session.undo(Session.new(@seed)) == Session.new(@seed)
+    assert Session.undo(Session.new(@seed, 1, @no_cards)) == Session.new(@seed, 1, @no_cards)
   end
 
   test "a whole game played through Session equals the game played directly" do
     direct = play(new(), &cautious/1)
 
     session =
-      Enum.reduce_while(Stream.cycle([nil]), Session.new(@seed), fn _, s ->
+      Enum.reduce_while(Stream.cycle([nil]), Session.new(@seed, 1, @no_cards), fn _, s ->
         if Game.over?(s.game) do
           {:halt, s}
         else
@@ -267,7 +268,7 @@ defmodule Quacks.GameTest do
       end)
 
     assert session.game == direct
-    assert Session.replay(@seed, 1, session.actions) == direct
+    assert Session.replay(@seed, 1, session.actions, @no_cards) == direct
   end
 
   describe "two or more players" do
@@ -474,10 +475,10 @@ defmodule Quacks.GameTest do
     end
 
     test "Session records the seat with each action and replays a 2-player game" do
-      {:ok, s} = Session.apply(Session.new(@seed, 2), 1, :draw)
+      {:ok, s} = Session.apply(Session.new(@seed, 2, @no_cards), 1, :draw)
       {:ok, s} = Session.apply(s, 0, :draw)
       assert s.actions == [{0, :draw}, {1, :draw}]
-      assert s.game == Session.replay(@seed, 2, s.actions)
+      assert s.game == Session.replay(@seed, 2, s.actions, @no_cards)
       assert Session.undo(s).game == apply!(new(2), 1, :draw)
     end
   end

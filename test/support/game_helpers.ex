@@ -6,7 +6,7 @@ defmodule Quacks.GameHelpers do
 
   alias Quacks.{Game, Player}
 
-  @game_keys [:round, :supply, :turn]
+  @game_keys [:round, :supply, :turn, :fortune_card, :fortune_deck]
   @game_phases [:buy_chips, :spend_rubies, :over]
 
   @doc "Apply an action for `seat` (default 0), asserting it is legal."
@@ -25,8 +25,8 @@ defmodule Quacks.GameHelpers do
   @doc """
   Set fields on the game or on `seat`'s player. `phase:` sets the game phase (and
   makes `seat` the turn) for `:buy_chips`, `:spend_rubies` and `:over`, otherwise the
-  player's own phase. `round:`, `supply:` and `turn:` are game fields; the rest are
-  player fields. Unknown keys raise.
+  player's own phase. `round:`, `supply:`, `turn:`, `fortune_card:` and
+  `fortune_deck:` are game fields; the rest are player fields. Unknown keys raise.
   """
   def put(game, seat \\ 0, fields) do
     Enum.reduce(fields, game, fn
