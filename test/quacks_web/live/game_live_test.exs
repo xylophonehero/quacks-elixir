@@ -81,4 +81,11 @@ defmodule QuacksWeb.GameLiveTest do
     view |> element("section button", "New game") |> render_click()
     assert has_element?(view, "button", "Draw a chip")
   end
+
+  test "every engine action in the choice phases has a human label" do
+    for action <- [:return_white, :keep, {:place, {:white, 1}}, :return_all] do
+      refute QuacksWeb.GameComponents.label(action) =~ ~r/^[:{]/
+    end
+  end
+
 end

@@ -211,6 +211,10 @@ defmodule QuacksWeb.GameComponents do
     "Buy #{names} (#{cost} coins)"
   end
 
+  def label(:return_white), do: "Mandrake: put the white chip back in the bag"
+  def label(:keep), do: "Mandrake: keep the white chip"
+  def label({:place, {colour, value}}), do: "Crow skull: place #{colour} #{value}"
+  def label(:return_all), do: "Crow skull: return all drawn chips to the bag"
   def label({:bonus_die, {:vp, n}}), do: "Bonus die: #{n} VP"
   def label({:bonus_die, :ruby}), do: "Bonus die: ruby"
   def label({:bonus_die, :droplet}), do: "Bonus die: droplet +1"
@@ -219,6 +223,8 @@ defmodule QuacksWeb.GameComponents do
 
   defp phase_name(:potions), do: "Brewing"
   defp phase_name(:explosion_choice), do: "Explosion"
+  defp phase_name(:yellow_choice), do: "Mandrake"
+  defp phase_name(:blue_choice), do: "Crow skull"
   defp phase_name(:buy_chips), do: "Shop"
   defp phase_name(:spend_rubies), do: "Rubies"
   defp phase_name(:over), do: "Over"
