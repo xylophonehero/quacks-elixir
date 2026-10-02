@@ -159,6 +159,8 @@ defmodule QuacksWeb.GameLive do
         {turn_text(@game, @seat, @names)}
       </p>
 
+      <.fortune_card :if={@game.fortune_card} id={@game.fortune_card} />
+
       <section
         :if={@players > 1}
         class="grid gap-2 sm:grid-cols-3"
@@ -200,6 +202,11 @@ defmodule QuacksWeb.GameLive do
         <.pot game={@game} seat={@seat} />
 
         <.blue_offer :if={Game.phase(@game, @seat) == :blue_choice} pending={@me.pending} />
+        <.fortune_offer
+          :if={Game.phase(@game, @seat) == :fortune_choice and @me.pending != []}
+          card={@game.fortune_card}
+          pending={@me.pending}
+        />
 
         <.shop
           :if={@game.phase == :buy_chips and @game.turn == @seat}
@@ -219,7 +226,7 @@ defmodule QuacksWeb.GameLive do
             phx-value-action={encode(action)}
             variant="primary"
           >
-            {label(action)}
+            {label(action, @game.fortune_card)}
           </.button>
         </section>
 

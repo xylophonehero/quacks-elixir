@@ -8,6 +8,7 @@ defmodule QuacksWeb.GameComponents do
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Chips, PotTrack}
+  alias Quacks.Rules.Fortune
 
   @colours %{
     white: "bg-white text-zinc-900 border border-zinc-300",
@@ -229,19 +230,87 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   The chips a blue chip drew, duplicates included, so two identical offers are both
   visible. The action buttons below it show one button per distinct chip.
+  `title` and `hint` let the fortune cards B7 and P13 reuse the strip.
   """
-  attr :pending, :list, required: true, doc: "`game.pending`"
+  attr :pending, :list, required: true, doc: "the player's `pending` chips"
+  attr :title, :string, default: "Crow skull drew:"
+  attr :hint, :string, default: "Place one of them, or return them all."
+  attr :label, :string, default: "Crow skull offer"
 
   def blue_offer(assigns) do
     ~H"""
     <div
       class="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 p-2 text-sm"
-      aria-label="Crow skull offer"
+      aria-label={@label}
     >
-      <span class="font-semibold text-blue-900">Crow skull drew:</span>
+      <span class="font-semibold text-blue-900">{@title}</span>
       <.chip :for={chip <- @pending} chip={chip} data-role="offer-chip" />
-      <span class="text-zinc-600">Place one of them, or return them all.</span>
+      <span class="text-zinc-600">{@hint}</span>
     </div>
+    """
+  end
+
+  @doc """
+  The chips a fortune card drew from the bag: B7 Safety Procedure (place one) or
+  P13 Flea Market (trade one up). Same strip as the crow skull offer.
+  """
+  attr :card, :atom, required: true, doc: "`game.fortune_card`"
+  attr :pending, :list, required: true, doc: "the player's `pending` chips"
+
+  def fortune_offer(%{card: :p13} = assigns) do
+    ~H"""
+    <.blue_offer
+      pending={@pending}
+      title="Flea Market drew:"
+      hint="Trade one in for the next value up, or skip."
+      label="Fortune teller offer"
+    />
+    """
+  end
+
+  def fortune_offer(assigns) do
+    ~H"""
+    <.blue_offer
+      pending={@pending}
+      title="Safety Procedure drew:"
+      hint="Place one of them, or return them all."
+      label="Fortune teller offer"
+    />
+    """
+  end
+
+  @doc """
+  The Fortune Teller card of this round: a colour band (blue = a rule for the whole
+  round, purple = resolved once at the start), its name and its full text.
+
+  ## Examples
+
+      <.fortune_card id={:b7} />
+  """
+  attr :id, :atom, required: true, doc: "a card id from `Quacks.Rules.Fortune`"
+
+  def fortune_card(assigns) do
+    assigns = assign(assigns, card: Fortune.card(assigns.id))
+
+    ~H"""
+    <section
+      class="overflow-hidden rounded-lg border border-zinc-200 bg-white text-sm"
+      aria-label="Fortune teller card"
+      data-role="fortune-card"
+      data-colour={@card.colour}
+    >
+      <div class={[
+        "px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white",
+        @card.colour == :blue && "bg-blue-600",
+        @card.colour == :purple && "bg-purple-600"
+      ]}>
+        Fortune teller · {if @card.colour == :blue, do: "this round", else: "now"}
+      </div>
+      <div class="px-3 py-2">
+        <h2 class="font-bold">{@card.name}</h2>
+        <p class="text-zinc-700">{@card.text}</p>
+      </div>
+    </section>
     """
   end
 
@@ -288,7 +357,18 @@ defmodule QuacksWeb.GameComponents do
   defp narrated_by_event?({:buy, [_ | _]}), do: true
   defp narrated_by_event?({:rubies, _}), do: true
   defp narrated_by_event?(:end_round), do: true
+  # Every card choice logs its outcome right after, as `{:fortune, id, outcome}`.
+  defp narrated_by_event?({:fortune, _choice}), do: true
   defp narrated_by_event?(_entry), do: false
+
+  @doc """
+  Like `label/1`, but a fortune card choice is worded for `card` (the current
+  `game.fortune_card`): the same `{:fortune, :vp}` means 4 VP on P6 and VP per rat
+  tail on P10.
+  """
+  @spec label(term, Fortune.id() | nil) :: String.t()
+  def label({:fortune, choice}, card), do: fortune_choice(choice, card)
+  def label(action, _card), do: label(action)
 
   @doc """
   Human label for an action or a log entry. Unknown shapes fall back to `inspect/1`,
@@ -339,7 +419,64 @@ defmodule QuacksWeb.GameComponents do
   def label({:final_conversion, coins_vp, rubies_vp}),
     do: "Final: coins → #{coins_vp} VP, rubies → #{rubies_vp} VP"
 
+  def label({:fortune, choice}), do: fortune_choice(choice, nil)
+  def label({:fortune_drawn, id}), do: "Fortune teller: #{Fortune.card(id).name}"
+
+  def label({:fortune_skipped, id}),
+    do: "Fortune teller: #{Fortune.card(id).name} (skipped in solo)"
+
+  def label({:fortune, id, outcome}),
+    do: "#{Fortune.card(id).name}: #{fortune_outcome(outcome, id)}"
+
   def label(other), do: inspect(other)
+
+  # A `{:fortune, choice}` button. `card` is the current card; nil means unknown.
+  defp fortune_choice({:take, chip}, :p3), do: "Trade 1 ruby for #{chip_name(chip)}"
+  defp fortune_choice({:take, chip}, _card), do: "Take #{chip_name(chip)}"
+  defp fortune_choice(:rubies, _card), do: "Take 3 rubies"
+  defp fortune_choice(:vp, :p6), do: "Score 4 VP"
+  defp fortune_choice(:vp, :p10), do: "Score 1 VP per rat tail behind the leader"
+  defp fortune_choice(:vp, _card), do: "Score victory points"
+  defp fortune_choice(:remove_white, _card), do: "Remove a white 1 from your bag"
+
+  defp fortune_choice({:rats_back, n}, _card),
+    do: "Rat stone back #{n}, take #{n} #{plural(n, "ruby", "rubies")}"
+
+  defp fortune_choice(:droplet, :p11), do: "Droplet 2 forward"
+  defp fortune_choice(:droplet, _card), do: "Droplet forward"
+
+  defp fortune_choice({:upgrade, chip}, _card),
+    do: "Trade #{chip_name(chip)} for the next value up"
+
+  defp fortune_choice(:skip, _card), do: "No thanks"
+  defp fortune_choice(:restart_round, _card), do: "Second Chances: start the round again"
+  defp fortune_choice(:return_white, _card), do: "Cauldron Bubble: put the white chip back"
+  defp fortune_choice({:place, chip}, _card), do: "Safety Procedure: place #{chip_name(chip)}"
+  defp fortune_choice(:return_all, _card), do: "Safety Procedure: return all to the bag"
+  defp fortune_choice(other, _card), do: inspect({:fortune, other})
+
+  # What a card did for a player, for the log.
+  defp fortune_outcome(:droplet, :p11), do: "droplet +2"
+  defp fortune_outcome(:droplet, _id), do: "droplet +1"
+  defp fortune_outcome({:take, chip}, _id), do: "took #{chip_name(chip)}"
+  defp fortune_outcome(:restart_round, _id), do: "started the round again"
+  defp fortune_outcome({:place, chip}, _id), do: "placed #{chip_name(chip)}"
+  defp fortune_outcome(:return_all, _id), do: "returned all chips to the bag"
+  defp fortune_outcome({:vp, n}, _id), do: "+#{n} VP"
+  defp fortune_outcome(:flask, _id), do: "flask refilled"
+  defp fortune_outcome(:return_white, _id), do: "white chip back in the bag"
+  defp fortune_outcome(:ruby, _id), do: "+1 ruby"
+  defp fortune_outcome(:rubies, _id), do: "+3 rubies"
+  defp fortune_outcome(:skip, _id), do: "no thanks"
+  defp fortune_outcome(:remove_white, _id), do: "removed a white 1 from the bag"
+  defp fortune_outcome({:rats, n}, _id), do: "rat stone +#{n}"
+
+  defp fortune_outcome({:rats_back, n}, _id),
+    do: "rat stone back #{n}, +#{n} #{plural(n, "ruby", "rubies")}"
+
+  defp fortune_outcome({:upgrade, chip}, _id), do: "traded #{chip_name(chip)} up"
+  defp fortune_outcome(:orange, _id), do: "orange 1 chip"
+  defp fortune_outcome(other, _id), do: inspect(other)
 
   defp plural(1, one, _many), do: one
   defp plural(_n, _one, many), do: many
@@ -352,6 +489,7 @@ defmodule QuacksWeb.GameComponents do
   defp phase_name(:explosion_choice), do: "Explosion"
   defp phase_name(:yellow_choice), do: "Mandrake"
   defp phase_name(:blue_choice), do: "Crow skull"
+  defp phase_name(:fortune_choice), do: "Fortune teller"
   defp phase_name(:buy_chips), do: "Shop"
   defp phase_name(:spend_rubies), do: "Rubies"
   defp phase_name(:done), do: "Done"
