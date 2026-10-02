@@ -21,6 +21,11 @@ defmodule Quacks.GameTest do
   # Draw exactly these chips, in order, by replacing the bag before each draw.
   defp force_draws(game, chips), do: Enum.reduce(chips, game, &apply!(%{&2 | bag: [&1]}, :draw))
 
+  defp inventory(g) do
+    chips = Enum.frequencies(g.bag ++ g.drawn ++ g.pending)
+    Map.merge(g.supply, chips, fn _chip, a, b -> a + b end)
+  end
+
   defp rolled?(game), do: Enum.any?(game.log, &match?({:bonus_die, _}, &1))
 
   defp play(game, policy) do
@@ -166,7 +171,7 @@ defmodule Quacks.GameTest do
     g = play(new(), &cautious/1)
     assert Game.over?(g)
     assert g.round == 9
-    assert Game.score(g) == 23
+    assert Game.score(g) == 31
   end
 
   test "Session replays to the same game and undoes the last action" do
@@ -208,8 +213,8 @@ defmodule Quacks.GameTest do
           actions = Game.legal_actions(g)
           assert actions != []
           next = apply!(g, Enum.at(actions, rem(pick, length(actions))))
-          # every chip that existed still exists (bag + pot only grows)
-          assert (g.bag ++ g.drawn) -- (next.bag ++ next.drawn) == []
+          # chips are conserved: supply + bag + pot + blue offer per kind is constant
+          assert inventory(next) == inventory(g)
           assert next.droplet >= g.droplet
           assert next.pot_index <= 53 and next.round in 1..9
           {:cont, next}

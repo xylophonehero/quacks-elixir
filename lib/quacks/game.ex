@@ -2,13 +2,14 @@ defmodule Quacks.Game do
   @moduledoc """
   Pure solo Quacks engine: one struct, one reducer.
 
-  Slice 1 (see `docs/research/rulebook.md` §2, §3, §7): a 9-round beat-your-own-score
-  game with the pot track, bag, draw/stop, explosion, flask, bonus die, rubies, buying
-  chips and end-game scoring. Only white chips have mechanical meaning (explosion);
-  coloured chips move the droplet by their value and do nothing else.
+  A 9-round beat-your-own-score game (see `docs/research/rulebook.md` §2, §3, §4, §7)
+  with the pot track, bag, draw/stop, explosion, flask, bonus die, rubies, the
+  Ingredient Set 1 chip effects, a limited chip supply, buying chips and end-game
+  scoring.
 
-  Phases: `:potions` → (`:explosion_choice`) → `:buy_chips` → `:spend_rubies` → `:over`.
-  The bonus die, ruby and VP steps have no player choice and run inside `apply/2`.
+  Phases: `:potions` → (`:yellow_choice` | `:blue_choice` | `:explosion_choice`) →
+  `:buy_chips` → `:spend_rubies` → `:over`. Red, green, purple and black effects have no
+  player choice and run inside `apply/2`, as do the bonus die, ruby and VP steps.
   The struct never rests in a phase with zero legal actions unless `over?/1`.
 
   All randomness flows through the `rng` field (`:rand` `_s` API), so a seed plus a
@@ -29,12 +30,17 @@ defmodule Quacks.Game do
   @explode_above 7
   # Rulebook §3.2. ⚠️ Sixth face not in any rulebook found; assumed a second "1 VP".
   @die [{:vp, 1}, {:vp, 1}, {:vp, 2}, :ruby, :droplet, :orange]
+  # Rulebook §4: yellow enters the shop in round 2, purple in round 3.
+  @from_round %{yellow: 2, purple: 3}
 
   defstruct round: 1,
             phase: :potions,
             bag: [],
             drawn: [],
+            pending: [],
+            supply: %{},
             pot_index: 0,
+            prev_index: 0,
             droplet: 0,
             flask: true,
             rubies: 1,
@@ -44,11 +50,22 @@ defmodule Quacks.Game do
             rng: nil,
             log: []
 
-  @type phase :: :potions | :explosion_choice | :buy_chips | :spend_rubies | :over
+  @type phase ::
+          :potions
+          | :yellow_choice
+          | :blue_choice
+          | :explosion_choice
+          | :buy_chips
+          | :spend_rubies
+          | :over
   @type action ::
           :draw
           | :stop
           | :use_flask
+          | :return_white
+          | :keep
+          | {:place, Chips.chip()}
+          | :return_all
           | {:explosion_choice, :vp | :buy}
           | {:buy, [Chips.chip()]}
           | {:rubies, :droplet | :flask | :skip}
@@ -59,7 +76,10 @@ defmodule Quacks.Game do
           phase: phase,
           bag: [Chips.chip()],
           drawn: [Chips.chip()],
+          pending: [Chips.chip()],
+          supply: %{Chips.chip() => non_neg_integer},
           pot_index: 0..53,
+          prev_index: 0..53,
           droplet: non_neg_integer,
           flask: boolean,
           rubies: non_neg_integer,
@@ -74,7 +94,9 @@ defmodule Quacks.Game do
   @spec new(seed: {integer, integer, integer}) :: t
   def new(opts) do
     seed = Keyword.fetch!(opts, :seed)
-    %__MODULE__{bag: Chips.starting_bag(), rng: :rand.seed_s(:exsss, seed)}
+    bag = Chips.starting_bag()
+    supply = Enum.reduce(bag, Chips.supply(), &Map.update!(&2, &1, fn n -> n - 1 end))
+    %__MODULE__{bag: bag, supply: supply, rng: :rand.seed_s(:exsss, seed)}
   end
 
   @doc "True after round 9's evaluation."
@@ -105,11 +127,15 @@ defmodule Quacks.Game do
     ])
   end
 
+  def legal_actions(%__MODULE__{phase: :yellow_choice}), do: [:return_white, :keep]
+
+  def legal_actions(%__MODULE__{phase: :blue_choice, pending: pending}),
+    do: Enum.map(Enum.sort(Enum.uniq(pending)), &{:place, &1}) ++ [:return_all]
+
   def legal_actions(%__MODULE__{phase: :explosion_choice}),
     do: [{:explosion_choice, :vp}, {:explosion_choice, :buy}]
 
-  def legal_actions(%__MODULE__{phase: :buy_chips, coins: coins}),
-    do: Enum.map(buys(coins), &{:buy, &1})
+  def legal_actions(%__MODULE__{phase: :buy_chips} = g), do: Enum.map(buys(g), &{:buy, &1})
 
   def legal_actions(%__MODULE__{phase: :spend_rubies, rubies: rubies, flask: flask}) do
     List.flatten([
@@ -145,21 +171,34 @@ defmodule Quacks.Game do
   # -- potions -----------------------------------------------------------------
 
   defp step(%{phase: :potions} = g, :draw) do
-    {i, rng} = :rand.uniform_s(length(g.bag), g.rng)
-    {chip, bag} = List.pop_at(g.bag, i - 1)
-    g = place(%{g | rng: rng, bag: bag}, [chip | g.drawn])
-
-    if white_sum(g) > @explode_above,
-      do: %{g | exploded?: true, phase: :explosion_choice},
-      else: g
+    {[chip], g} = take_random(g, 1)
+    resolve_draw(g, chip)
   end
 
   defp step(%{phase: :potions} = g, :use_flask) do
     [chip | rest] = g.drawn
-    place(%{g | bag: [chip | g.bag], flask: false}, rest)
+    %{g | bag: [chip | g.bag], drawn: rest, flask: false, pot_index: g.prev_index}
   end
 
   defp step(%{phase: :potions} = g, :stop), do: g |> bonus_die() |> evaluate(:both)
+
+  # Yellow (§4): the white chip directly before the yellow goes back in the bag; its
+  # space stays empty, the yellow chip does not move back, the white sum reverts.
+  defp step(%{phase: :yellow_choice} = g, :return_white) do
+    [yellow, white | rest] = g.drawn
+    %{g | drawn: [yellow | rest], bag: [white | g.bag], phase: :potions}
+  end
+
+  defp step(%{phase: :yellow_choice} = g, :keep), do: %{g | phase: :potions}
+
+  # Blue (§4): one of the extra chips becomes the next chip and resolves normally.
+  defp step(%{phase: :blue_choice} = g, {:place, chip}) do
+    rest = List.delete(g.pending, chip)
+    resolve_draw(%{g | pending: [], bag: rest ++ g.bag, phase: :potions}, chip)
+  end
+
+  defp step(%{phase: :blue_choice} = g, :return_all),
+    do: %{g | pending: [], bag: g.pending ++ g.bag, phase: :potions}
 
   # -- evaluation --------------------------------------------------------------
 
@@ -168,6 +207,7 @@ defmodule Quacks.Game do
 
   defp step(%{phase: :buy_chips} = g, {:buy, chips}) do
     cost = chips |> Enum.map(&Chips.price/1) |> Enum.sum()
+    g = Enum.reduce(chips, g, &take_supply(&2, &1))
     %{g | coins: g.coins - cost, bag: chips ++ g.bag, phase: :spend_rubies}
   end
 
@@ -185,26 +225,59 @@ defmodule Quacks.Game do
 
   defp step(%{phase: :spend_rubies} = g, :end_round) do
     round = g.round + 1
-    bag = g.drawn ++ g.bag
+    g = %{g | bag: g.drawn ++ g.bag, drawn: []}
     # Rulebook §3 step 5: before turn 6 each player adds 1 white 1-chip.
-    bag = if round == 6, do: [{:white, 1} | bag], else: bag
+    g = if round == 6, do: add_from_supply(g, {:white, 1}), else: g
 
-    %{
-      g
-      | round: round,
-        bag: bag,
-        drawn: [],
-        coins: 0,
-        exploded?: false,
-        pot_index: g.droplet,
-        phase: :potions
-    }
+    %{g | round: round, coins: 0, exploded?: false, pot_index: g.droplet, phase: :potions}
   end
 
-  # Set `drawn` and recompute the pot position from the droplet (clamped to the spoon).
-  defp place(g, drawn) do
-    values = for {_, v} <- drawn, reduce: 0, do: (acc -> acc + v)
-    %{g | drawn: drawn, pot_index: min(g.droplet + values, PotTrack.last())}
+  # Place a chip as the next chip in the pot, then run its on-draw effect (§3.1).
+  defp resolve_draw(g, chip) do
+    g = place(g, chip)
+
+    if white_sum(g) > @explode_above,
+      do: %{g | exploded?: true, phase: :explosion_choice},
+      else: on_draw(g, chip)
+  end
+
+  defp on_draw(%{drawn: [_, {:white, _} | _]} = g, {:yellow, _}), do: %{g | phase: :yellow_choice}
+
+  defp on_draw(g, {:blue, value}) do
+    case take_random(g, value) do
+      {[], g} -> g
+      {extra, g} -> %{g | pending: extra, phase: :blue_choice}
+    end
+  end
+
+  defp on_draw(g, _chip), do: g
+
+  # Push a chip onto the pot `value` (+ red bonus) spaces after the previous chip.
+  # ponytail: `prev_index` is a one-deep undo for the flask; it is the only revert and
+  # the flask works once per round, so a position stack is not needed.
+  defp place(g, {_, value} = chip) do
+    index = min(g.pot_index + value + red_bonus(chip, g.drawn), PotTrack.last())
+    %{g | drawn: [chip | g.drawn], pot_index: index, prev_index: g.pot_index}
+  end
+
+  # Red (§4): extra movement by the number of orange chips already in the pot.
+  defp red_bonus({:red, _}, drawn) do
+    case Enum.count(drawn, &match?({:orange, _}, &1)) do
+      0 -> 0
+      n when n <= 2 -> 1
+      _ -> 2
+    end
+  end
+
+  defp red_bonus(_chip, _drawn), do: 0
+
+  # Draw up to `n` random chips from the bag (fewer when the bag runs short).
+  defp take_random(g, n) do
+    Enum.reduce(1..min(n, length(g.bag))//1, {[], g}, fn _, {taken, g} ->
+      {i, rng} = :rand.uniform_s(length(g.bag), g.rng)
+      {chip, bag} = List.pop_at(g.bag, i - 1)
+      {[chip | taken], %{g | rng: rng, bag: bag}}
+    end)
   end
 
   defp bonus_die(g) do
@@ -216,12 +289,13 @@ defmodule Quacks.Game do
       {:vp, n} -> %{g | vp: g.vp + n}
       :ruby -> %{g | rubies: g.rubies + 1}
       :droplet -> %{g | droplet: g.droplet + 1}
-      :orange -> %{g | bag: [{:orange, 1} | g.bag]}
+      :orange -> add_from_supply(g, {:orange, 1})
     end
   end
 
-  # Steps C–E of rulebook §3.2. `choice` is :both, or :vp / :buy after an explosion.
+  # Steps B–E of rulebook §3.2. `choice` is :both, or :vp / :buy after an explosion.
   defp evaluate(g, choice) do
+    g = chip_actions(g)
     space = PotTrack.at(scoring_index(g))
     g = if space.ruby?, do: %{g | rubies: g.rubies + 1}, else: g
     g = if choice == :buy, do: g, else: %{g | vp: g.vp + space.vp}
@@ -235,11 +309,30 @@ defmodule Quacks.Game do
     end
   end
 
+  # Step B (§4): black, green, purple. All automatic; always the highest purple tier.
+  defp chip_actions(g) do
+    count = fn colour, chips -> Enum.count(chips, &match?({^colour, _}, &1)) end
+
+    # ⚠️ Solo house rule: no opponent to compare black chips with, so 1+ black chip
+    # counts as "tied with the opponent": droplet +1, no ruby.
+    g = if count.(:black, g.drawn) > 0, do: %{g | droplet: g.droplet + 1}, else: g
+    g = %{g | rubies: g.rubies + count.(:green, Enum.take(g.drawn, 2))}
+
+    case count.(:purple, g.drawn) do
+      0 -> g
+      1 -> %{g | vp: g.vp + 1}
+      2 -> %{g | vp: g.vp + 1, rubies: g.rubies + 1}
+      _ -> %{g | vp: g.vp + 2, droplet: g.droplet + 1}
+    end
+  end
+
   # Every affordable purchase: nothing, one chip, or two chips of different colours.
-  # ponytail: yellow/purple enter before rounds 2/3 and supply is finite in the real
-  # game; both ignored in slice 1 (timing rules are slice 2, supply is unreachable solo).
-  defp buys(coins) do
-    singles = Enum.filter(Chips.shop(), &(Chips.price(&1) <= coins))
+  defp buys(%{coins: coins, round: round, supply: supply}) do
+    singles =
+      Enum.filter(Chips.shop(), fn {colour, _} = chip ->
+        Chips.price(chip) <= coins and round >= Map.get(@from_round, colour, 1) and
+          Map.fetch!(supply, chip) > 0
+      end)
 
     pairs =
       for {ca, _} = a <- singles,
@@ -248,6 +341,13 @@ defmodule Quacks.Game do
           do: [a, b]
 
     [[] | Enum.map(singles, &[&1])] ++ pairs
+  end
+
+  defp take_supply(g, chip), do: %{g | supply: Map.update!(g.supply, chip, &(&1 - 1))}
+
+  # Move a chip from the supply into the bag; nothing happens when the box is empty.
+  defp add_from_supply(g, chip) do
+    if g.supply[chip] > 0, do: %{take_supply(g, chip) | bag: [chip | g.bag]}, else: g
   end
 
   defp record(g, entry), do: %{g | log: [entry | g.log]}

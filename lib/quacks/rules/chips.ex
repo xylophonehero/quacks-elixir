@@ -4,8 +4,7 @@ defmodule Quacks.Rules.Chips do
 
   - Prices: `docs/research/rulebook.md` §4 (Ingredient Set 1).
   - Starting bag: §2.
-  - Supply: §1. ⚠️ Not enforced by the engine in slice 1: a solo player cannot
-    exhaust any colour in 9 rounds (max 2 chips of different colours per round).
+  - Supply: §1. `Quacks.Game` tracks what is left on its `supply` field.
   """
 
   @type colour :: :white | :orange | :green | :blue | :red | :yellow | :purple | :black
