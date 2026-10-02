@@ -7,6 +7,7 @@ defmodule QuacksWeb.GameComponents do
   use Phoenix.Component
 
   alias Quacks.{Game, GameServer, Player}
+  alias Quacks.Game.Potions
   alias Quacks.Rules.{Chips, PotTrack}
   alias Quacks.Rules.Fortune
 
@@ -171,18 +172,27 @@ defmodule QuacksWeb.GameComponents do
       <.stat label="VP" value={@me.vp} />
       <.stat label="Rubies" value={@me.rubies} />
       <.stat label="Flask" value={if @me.flask, do: "full", else: "empty"} />
-      <.stat label="White" value={"#{Game.white_sum(@game, @seat)} / 7"} />
+      <.stat
+        label="White"
+        value={"#{Game.white_sum(@game, @seat)} / #{Potions.explode_above(@game, @seat)}"}
+      />
       <div :if={@game.phase == :buy_chips and @game.turn == @seat} class="col-span-3 sm:col-span-6">
         <span class="rounded-md bg-amber-100 px-2 py-1 font-semibold text-amber-900">
           {@me.coins} coins to spend
         </span>
       </div>
       <div :if={@me.exploded?} class="col-span-3 sm:col-span-6">
-        <span class="rounded-md bg-rose-600 px-2 py-1 font-semibold text-white">Exploded!</span>
+        <span class="rounded-md bg-rose-600 px-2 py-1 font-semibold text-white" data-role="exploded">
+          {if protected?(@me), do: "Exploded (protected)", else: "Exploded!"}
+        </span>
       </div>
     </dl>
     """
   end
+
+  # B2: the crow skull protected the explosion. No explosion choice is made then.
+  defp protected?(%Player{} = p),
+    do: p.exploded? and p.explosion_choice == nil and p.phase != :explosion_choice
 
   attr :label, :string, required: true
   attr :value, :any, required: true
@@ -215,15 +225,49 @@ defmodule QuacksWeb.GameComponents do
           {if @p.done?, do: "done", else: "waiting"}
         </span>
         <span :if={@game.turn == @seat} class="rounded bg-amber-200 px-1">their turn</span>
-        <span :if={@p.exploded?} class="rounded bg-rose-600 px-1 text-white">Exploded!</span>
+        <span :if={@p.exploded?} class="rounded bg-rose-600 px-1 text-white">
+          {if protected?(@p), do: "Exploded (protected)", else: "Exploded!"}
+        </span>
       </header>
       <p class="text-zinc-600">
         Round {@game.round} · {@p.vp} VP · {@p.rubies} rubies · flask {if @p.flask,
           do: "full",
-          else: "empty"} · white {Game.white_sum(@game, @seat)} / 7
+          else: "empty"} · white {Game.white_sum(@game, @seat)} / {Potions.explode_above(
+          @game,
+          @seat
+        )}
       </p>
       <.pot game={@game} seat={@seat} size={:sm} />
     </article>
+    """
+  end
+
+  @doc """
+  The game's Ingredient book per colour, e.g. "green 2 · blue 1 · ...".
+  """
+  attr :sets, :map, required: true, doc: "`game.sets`"
+
+  def books(assigns) do
+    ~H"""
+    <p class="text-xs text-amber-900" data-role="books">
+      Ingredient books: {Enum.map_join(
+        [:green, :blue, :red, :yellow, :purple],
+        " · ",
+        &"#{&1} #{@sets[&1]}"
+      )}
+    </p>
+    """
+  end
+
+  @doc "Red Set 2 chips waiting beside the pot (not in the bag)."
+  attr :chips, :list, required: true, doc: "the player's `aside` chips"
+
+  def aside(assigns) do
+    ~H"""
+    <div class="flex flex-wrap items-center gap-2 text-sm" aria-label="Beside the pot">
+      <span class="font-semibold text-red-900">Beside the pot:</span>
+      <.chip :for={chip <- @chips} chip={chip} size={:sm} data-role="aside-chip" />
+    </div>
     """
   end
 
@@ -359,6 +403,8 @@ defmodule QuacksWeb.GameComponents do
   defp narrated_by_event?(:end_round), do: true
   # Every card choice logs its outcome right after, as `{:fortune, id, outcome}`.
   defp narrated_by_event?({:fortune, _choice}), do: true
+  # Every chip choice logs its `{:effect, ...}` right after.
+  defp narrated_by_event?({:chip, _choice}), do: true
   defp narrated_by_event?(_entry), do: false
 
   @doc """
@@ -385,11 +431,9 @@ defmodule QuacksWeb.GameComponents do
   def label({:rubies, :flask}), do: "Spend 2 rubies: refill flask"
   def label({:buy, []}), do: "Buy nothing"
 
-  def label({:buy, chips}) when is_list(chips) do
-    names = Enum.map_join(chips, " + ", &chip_name/1)
-    cost = chips |> Enum.map(&Chips.price/1) |> Enum.sum()
-    "Buy #{names} (#{cost} coins)"
-  end
+  # No price here: it depends on the game's books. The shop shows the prices.
+  def label({:buy, chips}) when is_list(chips),
+    do: "Buy #{Enum.map_join(chips, " + ", &chip_name/1)}"
 
   def label(:return_white), do: "Mandrake: put the white chip back in the bag"
   def label(:keep), do: "Mandrake: keep the white chip"
@@ -428,7 +472,66 @@ defmodule QuacksWeb.GameComponents do
   def label({:fortune, id, outcome}),
     do: "#{Fortune.card(id).name}: #{fortune_outcome(outcome, id)}"
 
+  def label({:chip, {:gain, chip}}), do: "Garden spider: take #{chip_name(chip)}"
+
+  def label({:chip, {:pay_ruby_move, n}}),
+    do: "Garden spider: pay #{n} #{plural(n, "ruby", "rubies")}, droplet +#{n}"
+
+  def label({:chip, {:purple_trade, tier}}),
+    do: "Ghost's breath: trade #{tier} purple for #{purple_trade(tier)}"
+
+  def label({:chip, {:upgrade, from, to}}),
+    do: "Ghost's breath: swap #{chip_name(from)} for #{chip_name(to)}"
+
+  def label(:chip_done), do: "Done with chip actions"
+
+  def label({:red, {:place, chip}}),
+    do: "Toadstool: place #{chip_name(chip)} after your last chip"
+
+  def label({:red, {:keep, chip}}), do: "Toadstool: keep #{chip_name(chip)} beside the pot"
+  def label({:red, {:return, chip}}), do: "Toadstool: return #{chip_name(chip)} to the bag"
+  def label({:effect, book, detail}), do: effect(book, detail)
+  def label({seat, {:effect, _, _} = entry}) when is_integer(seat), do: label(entry)
   def label(other), do: inspect(other)
+
+  # A Set 2–4 chip effect, for the log. One head per `{:effect, {colour, set}, detail}`
+  # shape in the Log table of `docs/CONTEXT.md`.
+  defp effect({:green, 2}, {:gain, chip}), do: "Garden spider: took #{chip_name(chip)}"
+
+  defp effect({:green, 3}, {:moved_last, n}),
+    do: "Garden spider: exactly 7 white, last chip moved #{n} #{plural(n, "space", "spaces")}"
+
+  defp effect({:green, 4}, {:droplet, n}),
+    do: "Garden spider: paid #{n} #{plural(n, "ruby", "rubies")}, droplet +#{n}"
+
+  defp effect({:blue, 2}, {:protect, n}),
+    do: "Crow skull: the next #{n} #{plural(n, "chip is", "chips are")} protected"
+
+  defp effect({:blue, 2}, :protected_explosion),
+    do: "Crow skull: protected, you keep VP and coins"
+
+  defp effect({:blue, 3}, :ruby), do: "Crow skull: on a ruby space, +1 ruby"
+  defp effect({:blue, 4}, {:vp, n}), do: "Crow skull: on a ruby space, +#{n} VP"
+  defp effect({:red, 2}, {:aside, chip}), do: "Toadstool: #{chip_name(chip)} beside the pot"
+  defp effect({:red, 3}, {:extra, n}), do: "Toadstool: +#{n} after a white chip"
+  defp effect({:red, 4}, :white_plus1), do: "Toadstool: white 1 moved 2"
+  defp effect({:yellow, 2}, {:doubled, n}), do: "Mandrake: moved double (#{n} spaces)"
+  defp effect({:yellow, 3}, {:limit, n}), do: "Mandrake: white limit now #{n}"
+  defp effect({:yellow, 4}, {:extra, n}), do: "Mandrake: +#{n} #{plural(n, "space", "spaces")}"
+
+  defp effect({:purple, 2}, {:trade, tier}),
+    do: "Ghost's breath: traded for #{purple_trade(tier)}"
+
+  defp effect({:purple, 3}, {:vp, n}), do: "Ghost's breath: +#{n} VP from pot fields"
+
+  defp effect({:purple, 4}, {:upgrade, from, to}),
+    do: "Ghost's breath: swapped #{chip_name(from)} for #{chip_name(to)} (into the bag)"
+
+  defp effect(book, detail), do: inspect({:effect, book, detail})
+
+  defp purple_trade(1), do: "black 1, 1 VP, 1 ruby"
+  defp purple_trade(2), do: "green 1, blue 2, 3 VP, droplet +1"
+  defp purple_trade(3), do: "yellow 4, 6 VP, 1 ruby, droplet +2"
 
   # A `{:fortune, choice}` button. `card` is the current card; nil means unknown.
   defp fortune_choice({:take, chip}, :p3), do: "Trade 1 ruby for #{chip_name(chip)}"
@@ -490,6 +593,8 @@ defmodule QuacksWeb.GameComponents do
   defp phase_name(:yellow_choice), do: "Mandrake"
   defp phase_name(:blue_choice), do: "Crow skull"
   defp phase_name(:fortune_choice), do: "Fortune teller"
+  defp phase_name(:chip_choice), do: "Chip actions"
+  defp phase_name(:red_choice), do: "Toadstool"
   defp phase_name(:buy_chips), do: "Shop"
   defp phase_name(:spend_rubies), do: "Rubies"
   defp phase_name(:done), do: "Done"
