@@ -14,6 +14,9 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **ruby** | Currency for droplet moves and flask refills; 2 rubies = 1 VP in the last round. |
 | **round** | One of 9 game turns. Each round runs the phases below. |
 | **ingredient book** | The rule card for a colour's chip action and prices. Phase 1 uses book 1 for each colour. |
+| **supply** | The chips left in the box per colour and value (`Quacks.Rules.Chips.supply/0`). The starting bag, bought chips, the orange die face and the round-6 white chip all come out of it. A kind with 0 left is not buyable. Yellow is buyable from round 2, purple from round 3. |
+| **blue offer** | The extra chips a blue chip draws (`pending` on the struct). The player places at most one as the next chip; the rest go back in the bag. |
+| **black house rule** | ⚠️ Solo has no opponent to compare black chips with. The engine treats 1+ black chip in the pot as "tied with the opponent": droplet +1, no ruby. Rulebook §6.2 suggests droplet +1 and 1 ruby instead; we chose the lower payout. |
 
 ## Round phases (in order)
 
@@ -28,3 +31,17 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | 4d | `:victory_points` | Take the VP of the scoring space. |
 | 4e | `:buy_chips` | Spend the coins of the scoring space on 1 or 2 chips (2 must differ in colour). Round 9: buy VP instead (5 coins or 2 rubies each). |
 | 4f | `:end_of_round` | Spend rubies (droplet forward, refill flask). All chips go back in the bag. Before round 6 add 1 white 1-chip. |
+
+## Engine phases (`Quacks.Game.phase`)
+
+The struct's `phase` field is coarser than the table above: steps with no player choice run inside `apply/2`.
+
+| Phase | Actions | When |
+|---|---|---|
+| `:potions` | `:draw`, `:stop`, `:use_flask` | Drawing chips. Red moves extra spaces automatically. |
+| `:yellow_choice` | `:return_white`, `:keep` | A yellow chip was drawn directly after a white chip. |
+| `:blue_choice` | `{:place, chip}`, `:return_all` | A blue chip drew extra chips (the blue offer). |
+| `:explosion_choice` | `{:explosion_choice, :vp \| :buy}` | White sum reached 8. |
+| `:buy_chips` | `{:buy, [chip]}` | After the die (step A), chip actions (step B), rubies (C) and VP (D). |
+| `:spend_rubies` | `{:rubies, :droplet \| :flask \| :skip}`, `:end_round` | Step F. |
+| `:over` | none | After round 9. |
