@@ -410,9 +410,11 @@ defmodule Quacks.IngredientSetsTest do
           assert Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
           assert Enum.all?(g.seats, &(me(next, &1).pot_index <= 53)) and next.round in 1..9
 
+          # B3 and B7 draws cannot explode the pot, even over the limit.
           for s <- next.seats do
-            assert me(next, s).exploded? ==
-                     Game.white_sum(next, s) > Potions.explode_above(next, s)
+            over? = Game.white_sum(next, s) > Potions.explode_above(next, s)
+            assert me(next, s).exploded? == over? or next.fortune_card in [:b3, :b7]
+            if me(next, s).exploded?, do: assert(over?)
           end
 
           {:cont, next}

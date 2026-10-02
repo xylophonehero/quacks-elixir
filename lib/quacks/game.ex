@@ -1,6 +1,6 @@
 defmodule Quacks.Game do
   @moduledoc """
-  Pure Quacks engine for 1 to 4 players: one struct, one reducer.
+  Pure Quacks engine for 1 to 4 players (5 with The Herb Witches): one struct, one reducer.
 
   A 9-round game (see `docs/research/rulebook.md` §2, §3, §3.2, §4, §7) with the pot
   track, bags, draw/stop, explosion, flask, rats, bonus die, rubies, the Ingredient
@@ -19,6 +19,11 @@ defmodule Quacks.Game do
   House rules (`rules`, see `new/1`) change a few table rules: the explosion limit,
   the round-6 white chip, the cards, the rats, solo black, the die and the starting
   rubies. The defaults are the rulebook game.
+
+  The Herb Witches (`expansion: :herb_witches`, `docs/research/herb-witches.md`) adds
+  a 5th seat, Sets 5 and 6 for every coloured book, the black and locoweed books, the
+  orange 6-chip and the overflow bowl (`Quacks.Player.bowl`). The witches are not in
+  yet.
 
   Fortune Teller cards (`Quacks.Game.Fortune`): each round starts by turning up a
   card. A purple card with a choice puts the game in `:fortune_choice` (one `turn`
@@ -47,6 +52,11 @@ defmodule Quacks.Game do
   @from_round %{yellow: 2, purple: 3}
   # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
   @sets %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1}
+  # The Herb Witches: black (1 = the base book, 5, 6) and locoweed (5, 6) have books too.
+  # ⚠️ Locoweed enters the shop in round 1 (not in the rulebook; `herb-witches.md` §1.2).
+  @expansion_sets %{black: 1, locoweed: 5}
+  # Books that need a player decision: slice B. Choosing one raises.
+  @not_yet [{:green, 5}, {:red, 6}, {:yellow, 6}, {:purple, 5}]
   # House rules (research `ingredient-sets-and-customisation.md` Part 2b): the rulebook game.
   @rules %{
     explode_above: 7,
@@ -69,9 +79,10 @@ defmodule Quacks.Game do
             fortune_deck: [],
             fortune_card: nil,
             sets: @sets,
-            rules: @rules
+            rules: @rules,
+            expansion: nil
 
-  @type seat :: 0..3
+  @type seat :: 0..4
   @type phase :: :potions | :fortune_choice | :chip_choice | :buy_chips | :spend_rubies | :over
   @type action ::
           :draw
@@ -122,10 +133,15 @@ defmodule Quacks.Game do
   scoring space (`{:pot_ruby, index}`, `{:pot_vp, vp, index}`), `{:final_conversion,
   coins_vp, rubies_vp}` in round 9 and `{:rats, tails}` when a player gets a head
   start. See the Log table in `docs/CONTEXT.md`.
+
+  The Herb Witches: `{:overflow, chip}` for a chip that goes in the overflow bowl and
+  `{:bowl, chips, vp}` for the bowl's VP in step D.
   """
   @type event ::
           action
           | {:drew, Chips.chip(), 0..53}
+          | {:overflow, Chips.chip()}
+          | {:bowl, [Chips.chip()], non_neg_integer}
           | {:returned, Chips.chip()}
           | {:exploded, non_neg_integer}
           | {:bought, [Chips.chip()]}
@@ -141,16 +157,18 @@ defmodule Quacks.Game do
           | {:final_conversion, non_neg_integer, non_neg_integer}
           | {:rats, pos_integer}
           | {:fortune, Quacks.Rules.Fortune.id(), term}
-          | {:effect, {Chips.colour(), 2..4}, term}
+          | {:effect, {Chips.colour(), 2..6}, term}
   @typedoc """
   What happened, newest first. Player events are tagged with their seat; the only
-  game-wide entries are `{:fortune_drawn, id}` and `{:fortune_skipped, id}` at the
-  start of a round and `{:round_end, round}`, the last event of every round.
+  game-wide entries are `{:expansion, :herb_witches}` (the first entry of an expansion
+  game), `{:fortune_drawn, id}` and `{:fortune_skipped, id}` at the start of a round and
+  `{:round_end, round}`, the last event of every round.
   `Quacks.Session` replays from its own action list, not this.
   """
   @type log_entry ::
           {seat, event}
           | {:round_end, 1..9}
+          | {:expansion, :herb_witches}
           | {:fortune_drawn, Quacks.Rules.Fortune.id()}
           | {:fortune_skipped, Quacks.Rules.Fortune.id()}
   @type t :: %__MODULE__{
@@ -164,8 +182,9 @@ defmodule Quacks.Game do
           seats: [seat],
           fortune_deck: [Quacks.Rules.Fortune.id()],
           fortune_card: Quacks.Rules.Fortune.id() | nil,
-          sets: %{(:green | :blue | :red | :yellow | :purple) => 1..4},
-          rules: rules
+          sets: %{(:green | :blue | :red | :yellow | :purple | :black | :locoweed) => 1..6},
+          rules: rules,
+          expansion: Chips.expansion()
         }
   @typedoc """
   House rules; the defaults (`default_rules/0`) are the rulebook game.
@@ -190,20 +209,31 @@ defmodule Quacks.Game do
   out use Set 1. `rules:` sets house rules (`t:rules/0`), e.g. `%{explode_above: 9}`;
   rules left out keep their default. With `fortune: true` (default) round 1's card
   is turned up here. `fortune: false` is an old alias for `rules: %{fortune: false}`.
-  An unknown colour, set or rule raises `ArgumentError`.
+  `expansion: :herb_witches` turns The Herb Witches on: `players:` 1 to 5, `sets:`
+  1..6 per colour plus `black:` (1 = base book, 5, 6) and `locoweed:` (5 default, 6),
+  the expansion chips in the supply and the shop, and the overflow bowl.
+  An unknown colour, set, rule or expansion raises `ArgumentError`, and so does a
+  book that is not supported yet (G5, R6, Y6, P5).
   """
   @spec new(
           seed: {integer, integer, integer},
-          players: 1..4,
-          sets: %{atom => 1..4},
+          players: 1..5,
+          sets: %{atom => 1..6},
           rules: map,
-          fortune: boolean
+          fortune: boolean,
+          expansion: Chips.expansion()
         ) :: t
   def new(opts) do
     seed = Keyword.fetch!(opts, :seed)
+    expansion = Keyword.get(opts, :expansion)
+
+    if expansion not in [nil, :herb_witches],
+      do: raise(ArgumentError, "unknown expansion #{inspect(expansion)}")
+
     n = Keyword.get(opts, :players, 1)
-    if n not in 1..4, do: raise(ArgumentError, "players must be 1..4, got #{inspect(n)}")
-    sets = sets!(Keyword.get(opts, :sets, %{}))
+    max = if expansion, do: 5, else: 4
+    if n not in 1..max, do: raise(ArgumentError, "players must be 1..#{max}, got #{inspect(n)}")
+    sets = sets!(Keyword.get(opts, :sets, %{}), expansion)
     # `fortune:` is the old top-level option; `rules:` wins when both are given.
     alias_rules = Map.new(Keyword.take(opts, [:fortune]))
     rules = rules!(Map.merge(alias_rules, Keyword.get(opts, :rules, %{})))
@@ -211,30 +241,56 @@ defmodule Quacks.Game do
     seats = Enum.to_list(0..(n - 1))
     bag = Chips.starting_bag()
     starting = List.flatten(List.duplicate(bag, n))
-    supply = Enum.reduce(starting, Chips.supply(), &Map.update!(&2, &1, fn c -> c - 1 end))
+
+    supply =
+      Enum.reduce(starting, Chips.supply(expansion), &Map.update!(&2, &1, fn c -> c - 1 end))
 
     rng = :rand.seed_s(:exsss, seed)
     deck = if rules.fortune, do: Fortune.deck(rng, n), else: []
     player = %{Player.new(bag) | rubies: rules.starting_rubies}
 
-    start_round(%__MODULE__{
+    game = %__MODULE__{
       seats: seats,
       players: Map.new(seats, &{&1, player}),
       supply: supply,
       rng: rng,
       fortune_deck: deck,
       sets: sets,
-      rules: rules
-    })
+      rules: rules,
+      expansion: expansion
+    }
+
+    start_round(if expansion, do: record(game, {:expansion, expansion}), else: game)
   end
 
-  defp sets!(sets) do
+  defp sets!(sets, nil) do
     sets = Map.merge(@sets, sets)
 
     if map_size(sets) != map_size(@sets) or Enum.any?(sets, fn {_, set} -> set not in 1..4 end),
       do: raise(ArgumentError, "sets must map #{inspect(Map.keys(@sets))} to 1..4")
 
     sets
+  end
+
+  defp sets!(sets, :herb_witches) do
+    all = Map.merge(@sets, @expansion_sets)
+    sets = Map.merge(all, sets)
+
+    valid? =
+      map_size(sets) == map_size(all) and
+        Enum.all?(sets, fn
+          {:black, set} -> set in [1, 5, 6]
+          {:locoweed, set} -> set in [5, 6]
+          {_colour, set} -> set in 1..6
+        end)
+
+    if not valid?,
+      do: raise(ArgumentError, "bad sets for The Herb Witches: #{inspect(sets)}")
+
+    case Enum.find(sets, &(&1 in @not_yet)) do
+      nil -> sets
+      book -> raise ArgumentError, "book #{inspect(book)} is not supported yet"
+    end
   end
 
   @doc "The house rules of the rulebook game (see `t:rules/0`)."
@@ -373,8 +429,16 @@ defmodule Quacks.Game do
   defp step(%{phase: :buy_chips} = g, seat, {:buy, chips}) do
     cost = chips |> Enum.map(&Chips.price(&1, g.sets)) |> Enum.sum()
     g = Enum.reduce(chips, g, &take_supply(&2, &1))
-    g = update_player(g, seat, &%{&1 | coins: &1.coins - cost, bag: chips ++ &1.bag})
+    # Black Set 5: a bought black chip goes to the player on the left (`give_black/2`).
+    {black, mine} = Enum.split_with(chips, &(&1 == {:black, 1} and g.sets[:black] == 5))
+    g = update_player(g, seat, &%{&1 | coins: &1.coins - cost, bag: mine ++ &1.bag})
     g = if chips == [], do: g, else: record(g, seat, {:bought, chips})
+
+    g =
+      Enum.reduce(black, g, fn _, g ->
+        g |> give_black(seat) |> update_player(seat, &%{&1 | droplet: &1.droplet + 1})
+      end)
+
     to_shop(g, seats_after(g, seat))
   end
 
@@ -458,7 +522,7 @@ defmodule Quacks.Game do
   # Every affordable purchase: nothing, one chip, or two chips of different colours.
   defp buys(g, %Player{coins: coins}) do
     price = &Chips.price(&1, g.sets)
-    singles = Enum.filter(Chips.shop(), &(price.(&1) <= coins and available?(g, &1)))
+    singles = Enum.filter(Chips.shop(g.expansion), &(price.(&1) <= coins and available?(g, &1)))
 
     pairs =
       for {ca, _} = a <- singles,
@@ -502,7 +566,30 @@ defmodule Quacks.Game do
   end
 
   @doc false
-  # Log a Set 2–4 chip effect: `{seat, {:effect, {colour, set}, detail}}`.
+  # The seat to the left of `seat` (the next seat in turn order); `nil` solo.
+  # ⚠️ "Left" read as the next seat clockwise, the direction of play.
+  def left(%__MODULE__{seats: [_]}, _seat), do: nil
+  def left(%__MODULE__{seats: seats}, seat), do: rem(seat + 1, length(seats))
+
+  @doc false
+  # Black Set 5: a black chip out of the supply goes into the left player's bag
+  # (solo: back to the supply). The caller moves the receiver's droplet.
+  def give_black(%__MODULE__{} = g, seat) do
+    case left(g, seat) do
+      nil ->
+        g
+        |> Map.update!(:supply, &Map.update!(&1, {:black, 1}, fn n -> n + 1 end))
+        |> effect(seat, {:black, 5}, :to_supply)
+
+      left ->
+        g
+        |> update_player(left, &%{&1 | bag: [{:black, 1} | &1.bag]})
+        |> effect(seat, {:black, 5}, {:to_left, left})
+    end
+  end
+
+  @doc false
+  # Log a Set 2–6 chip effect: `{seat, {:effect, {colour, set}, detail}}`.
   def effect(%__MODULE__{} = g, seat, book, detail), do: record(g, seat, {:effect, book, detail})
 
   # The seats from this round's start player round the table.
