@@ -8,7 +8,7 @@ defmodule QuacksWeb.GameComponents do
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Potions
-  alias Quacks.Rules.{Books, Chips, PotTrack}
+  alias Quacks.Rules.{Books, Chips, PotTrack, ScoringTrack}
   alias Quacks.Rules.Fortune
   alias Quacks.Rules.Witches
 
@@ -863,6 +863,25 @@ defmodule QuacksWeb.GameComponents do
       <span class="font-semibold text-ink">{@book.name}</span>
       · {trigger_label(@book.trigger)} · {@book.text}
     </p>
+    <.book_tiers tiers={@book.tiers} />
+    """
+  end
+
+  @doc "A book's reward tiers as a small table (nothing when the book has none)."
+  attr :tiers, :list, required: true
+
+  def book_tiers(assigns) do
+    ~H"""
+    <table :if={@tiers != []} class="mt-1 w-full text-xs" data-role="book-tiers">
+      <tbody class="divide-y divide-ink/10">
+        <tr :for={{label, text} <- @tiers}>
+          <th class="py-0.5 pr-2 text-left font-semibold whitespace-nowrap tabular-nums">
+            {label}
+          </th>
+          <td class="py-0.5">{text}</td>
+        </tr>
+      </tbody>
+    </table>
     """
   end
 
@@ -921,6 +940,7 @@ defmodule QuacksWeb.GameComponents do
         <.book_seal set={@set} />
       </div>
       <p class="text-[13px] leading-snug text-pretty">{@book.text}</p>
+      <.book_tiers tiers={@book.tiers} />
       <div :if={@book.chips != []} class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
         <span
           :for={{chip, price} <- @book.chips}
@@ -1250,8 +1270,11 @@ defmodule QuacksWeb.GameComponents do
 
   @doc """
   What each player gained this round: every log entry since the round began that
-  gave VP or rubies, plus the bonus die, then the totals. Read from the log only.
-  With `names` (multiplayer) there is one block per seat, headed by its name.
+  gave VP or rubies, plus the bonus die and the Fortune Teller card's outcome, then
+  the totals. Below the totals: the rat tails for the next round (2+ players, rats
+  on) and, in round 9, the final buying power (coins and rubies → VP; from the log
+  once the seat is done, else from what it has now). With `names` (multiplayer)
+  there is one block per seat, headed by its name.
   """
   attr :game, Game, required: true
   attr :names, :map, default: nil, doc: "`%{seat => name}`; nil for solo"
@@ -1282,10 +1305,48 @@ defmodule QuacksWeb.GameComponents do
             "rubies"
           )}
         </p>
+        <p :if={tails = rat_tails(@game, seat)} class="text-sm" data-role="result-rats">
+          Rats next round: {tails} {plural(tails, "tail", "tails")}
+        </p>
+        <p
+          :if={power = final_power(@game, seat)}
+          class="text-sm font-semibold"
+          data-role="result-buying-power"
+        >
+          {power}
+        </p>
       </div>
     </section>
     """
   end
+
+  # The rat tails `seat` gets at the start of the next round, as the VP stand now;
+  # nil when no rats come (solo, house rule off, round 9).
+  defp rat_tails(%{seats: [_]}, _seat), do: nil
+  defp rat_tails(%{rules: %{rats: false}}, _seat), do: nil
+  defp rat_tails(%{round: 9}, _seat), do: nil
+
+  defp rat_tails(game, seat) do
+    leader = game.players |> Map.values() |> Enum.map(& &1.vp) |> Enum.max()
+    ScoringTrack.rat_tails(game.players[seat].vp, leader)
+  end
+
+  # Round 9: "Final buying power: ..." from the seat's conversion entry, or what its
+  # coins and rubies will give now.
+  defp final_power(%{round: 9} = game, seat) do
+    entry =
+      Enum.find_value(game.log, fn
+        {^seat, {:final_conversion, _, _, _, _} = entry} -> entry
+        _entry -> nil
+      end)
+
+    %{coins: coins, rubies: rubies} = game.players[seat]
+    {_, coins, cvp, rubies, rvp} = entry || {nil, coins, div(coins, 5), rubies, div(rubies, 2)}
+
+    "Final buying power: #{coins} coins → #{cvp} VP, #{rubies} #{plural(rubies, "ruby", "rubies")} → #{rvp} VP"
+  end
+
+  defp final_power(_game, _seat), do: nil
 
   @doc "The border class of a seat's colour, e.g. `\"border-player-1\"`."
   @spec seat_border(Game.seat()) :: String.t()
@@ -1359,6 +1420,8 @@ defmodule QuacksWeb.GameComponents do
   defp gain({:fortune, _id, :ruby}), do: {0, 1}
   defp gain({:fortune, _id, :rubies}), do: {0, 3}
   defp gain({:fortune, _id, {:rats_back, n}}), do: {0, n}
+  # Every other card outcome shows too (what the card did), worth nothing here.
+  defp gain({:fortune, _id, outcome}) when outcome != :skip, do: {0, 0}
   defp gain(_entry), do: nil
 
   @doc """
@@ -1397,10 +1460,7 @@ defmodule QuacksWeb.GameComponents do
   def label(:keep), do: "Mandrake: keep the white chip"
   def label({:place, {colour, value}}), do: "Crow skull: place #{colour} #{value}"
   def label(:return_all), do: "Crow skull: return all drawn chips to the bag"
-  def label({:bonus_die, {:vp, n}}), do: "Bonus die: #{n} VP"
-  def label({:bonus_die, :ruby}), do: "Bonus die: ruby"
-  def label({:bonus_die, :droplet}), do: "Bonus die: droplet +1"
-  def label({:bonus_die, :orange}), do: "Bonus die: orange 1 chip"
+  def label({:bonus_die, face}), do: "Bonus die: #{die_face(face)}"
   def label({:drew, chip, index}), do: "Drew #{chip_name(chip)} → space #{index}"
   def label({:returned, chip}), do: "Returned #{chip_name(chip)} to the bag"
   def label({:exploded, white_sum}), do: "Exploded (white #{white_sum})"
@@ -1604,6 +1664,11 @@ defmodule QuacksWeb.GameComponents do
   defp fortune_choice(other, _card), do: inspect({:fortune, other})
 
   # What a card did for a player, for the log.
+  defp fortune_outcome({:drew, chips}, :p8),
+    do: "drew #{chip_list(chips)} (sum #{chips |> Enum.map(&elem(&1, 1)) |> Enum.sum()})"
+
+  defp fortune_outcome({:drew, chips}, _id), do: "drew #{chip_list(chips)}"
+  defp fortune_outcome(face, :p12), do: "rolled the die: #{die_face(face)}"
   defp fortune_outcome(:droplet, :p11), do: "droplet +2"
   defp fortune_outcome(:droplet, _id), do: "droplet +1"
   defp fortune_outcome({:take, chip}, _id), do: "took #{chip_name(chip)}"
@@ -1626,6 +1691,14 @@ defmodule QuacksWeb.GameComponents do
   defp fortune_outcome(:orange, _id), do: "orange 1 chip"
   defp fortune_outcome(other, _id), do: inspect(other)
 
+  defp chip_list(chips), do: Enum.map_join(chips, ", ", &chip_name/1)
+
+  defp die_face({:vp, n}), do: "#{n} VP"
+  defp die_face(:ruby), do: "ruby"
+  defp die_face(:droplet), do: "droplet +1"
+  defp die_face(:orange), do: "orange 1 chip"
+  defp die_face(other), do: inspect(other)
+
   defp plural(1, one, _many), do: one
   defp plural(_n, _one, many), do: many
 
@@ -1647,6 +1720,7 @@ defmodule QuacksWeb.GameComponents do
   def phase_name(:red_choice), do: "Toadstool"
   def phase_name(:stopped), do: "Stopped"
   def phase_name(:shop), do: "Shop"
+  def phase_name(:rubies), do: "Spend rubies"
   def phase_name(:waiting_stir), do: "Stir!"
   def phase_name(:ready), do: "Ready"
   def phase_name(:done), do: "Done"

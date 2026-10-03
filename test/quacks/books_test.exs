@@ -31,6 +31,15 @@ defmodule Quacks.BooksTest do
     assert Books.get({:white, 1}).prices == []
   end
 
+  test "tiered books list their tiers; the rest have none" do
+    assert [{"1 purple", "black 1 · 1 VP · 1 ruby"}, {"2 purple", _}, {"3 purple", three}] =
+             Books.get({:purple, 2}).tiers
+
+    assert three == "yellow 4 · 6 VP · 1 ruby · droplet +2"
+    assert length(Books.get({:purple, 4}).tiers) == 3
+    assert Books.get({:green, 1}).tiers == []
+  end
+
   test "a base game with locoweed: 5 has locoweed in the shop and the supply" do
     g = base(%{locoweed: 5})
     assert {:buy, [{:locoweed, 1}]} in buys(g)

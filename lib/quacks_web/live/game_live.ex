@@ -29,10 +29,11 @@ defmodule QuacksWeb.GameLive do
   screen sends them back once as `"load_config"`.
 
   A new fortune card shows in one dialog; when it asks this seat a choice, the
-  choice is in the same dialog. The shop is one dialog: your chips, the buy (one
-  row of chip tiles per colour), the ruby options and "Done". It opens when the
-  round results close. A buy that leaves nothing else to do ends the round for this
-  seat at once.
+  choice is in the same dialog. The shop has two steps, each its own dialog: first
+  your chips, the buy (one row of chip tiles per colour) and "Done"; then "Spend
+  rubies" (the ruby options and witch calls) and "Keep rubies". The first step opens
+  when the round results close. A buy that leaves nothing else to do ends the round
+  for this seat at once.
 
   Round 9 with 2+ players is the "Stir!" round: everyone picks Draw or Stop, and the
   picks resolve together. A banner says so; after the pick both buttons are disabled
@@ -630,9 +631,11 @@ defmodule QuacksWeb.GameLive do
               class="min-h-12 w-full rounded-lg bg-gold font-semibold text-ink shadow"
               phx-click={JS.dispatch("quacks:modal", to: decision_dialog(@decision, @game))}
             >
-              {if @decision == :shop,
-                do: "Open the shop",
-                else: "Choose: #{phase_name(@decision)}"}
+              {case @decision do
+                :shop -> "Open the shop"
+                :rubies -> "Spend rubies"
+                decision -> "Choose: #{phase_name(decision)}"
+              end}
             </.button>
             <.button
               :if={Game.over?(@game)}
@@ -764,10 +767,16 @@ defmodule QuacksWeb.GameLive do
         :if={@decision && @decision != :fortune_choice}
         id={"decision-#{@decision}"}
         label={phase_name(@decision)}
-        auto_open={not (@decision == :shop and results?(@game))}
+        auto_open={not (shop_step?(@decision) and results?(@game) and not @me.bought?)}
       >
-        <.shop :if={@decision == :shop} game={@game} seat={@seat} selected={@selected} />
-        <div :if={@decision != :shop} class="space-y-3">
+        <.shop
+          :if={shop_step?(@decision)}
+          game={@game}
+          seat={@seat}
+          selected={@selected}
+          step={@decision}
+        />
+        <div :if={not shop_step?(@decision)} class="space-y-3">
           <div class="flex items-center gap-1">
             <h2 class="text-xl font-bold">{phase_name(@decision)}</h2>
             <.offer_books
@@ -811,12 +820,16 @@ defmodule QuacksWeb.GameLive do
         :if={results?(@game)}
         id="round-results"
         label="Round results"
-        then_open={if @decision == :shop, do: "decision-shop"}
+        then_open={if shop_step?(@decision), do: "decision-#{@decision}"}
       >
         <.round_results game={@game} names={if @players > 1, do: @names} />
         <form method="dialog" class="mt-3 flex *:min-h-11 *:flex-1">
           <.button variant="primary" data-role="results-ok">
-            {if @decision == :shop, do: "To the shop", else: "OK"}
+            {cond do
+              @decision == :shop -> "To the shop"
+              @decision == :rubies -> "To the rubies"
+              true -> "OK"
+            end}
           </.button>
         </form>
       </.dialog_sheet>
@@ -981,20 +994,25 @@ defmodule QuacksWeb.GameLive do
   end
 
   @doc """
-  The shop dialog: everything this seat may do between brewing and the next round.
+  The shop dialogs: everything this seat may do between brewing and the next round,
+  in two steps (`step`).
 
-  On top, every chip the player owns (bag, pot and bowl), as counts. Then, while a
+  `:shop`, while a buy is legal: on top, every chip the player owns (bag, pot and bowl), as counts. Then, while a
   buy is legal, a form of checkboxes, one per kind of chip, in a row per colour
   (see `shop_rows/0`), priced with the game's Ingredient books (`Chips.price/2`).
   The engine decides what may be ticked: a box is disabled when adding its chip
   to the selection is not a legal buy. "Buy selected" sends `{:buy, selected}`.
 
-  Below, the ruby options (`{:rubies, _}`), other witch calls, and "Done"
-  (`:end_round`), all in the engine's one `:shop` sub-phase.
+  The copper witches are here too. "Done" buys nothing (`{:buy, []}`).
+
+  `:rubies`, after the buy (or when there is nothing to buy): the ruby options
+  (`{:rubies, _}`), other witch calls, and "Keep rubies" (`:end_round`). Both steps
+  are the engine's one `:shop` sub-phase.
   """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
   attr :selected, :list, required: true, doc: "ticked chips, sorted"
+  attr :step, :atom, default: :shop, values: [:shop, :rubies]
 
   def shop(assigns) do
     sets = assigns.game.sets
@@ -1018,7 +1036,7 @@ defmodule QuacksWeb.GameLive do
       )
 
     ~H"""
-    <section class="space-y-2" aria-label="Shop">
+    <section :if={@step == :shop} class="space-y-2" aria-label="Shop">
       <h2 class="text-xl font-bold">Shop</h2>
       <div class="rounded-md bg-parchment-deep/60 px-2 py-1" data-role="shop-bag">
         <h3 class="text-xs font-semibold text-ink-soft">Your chips: {length(@owned)}</h3>
@@ -1113,14 +1131,23 @@ defmodule QuacksWeb.GameLive do
           </.button>
         </div>
       </.witch_card>
-      <section
-        :if={@others != []}
-        class="space-y-2"
-        aria-label="Rubies and witches"
-        data-role="shop-rubies"
-      >
+      <div class="flex *:min-h-12 *:flex-1">
+        <.button
+          phx-click="action"
+          phx-value-action={encode({:buy, []})}
+          variant="primary"
+          data-role="shop-done"
+        >
+          Done
+        </.button>
+      </div>
+    </section>
+    <section :if={@step == :rubies} class="space-y-2" aria-label="Spend rubies">
+      <h2 class="text-xl font-bold">Spend rubies</h2>
+      <div class="space-y-2" data-role="shop-rubies">
         <.witch_card :for={id <- witches_acting(@game, @others)} id={id} />
-        <p class="text-sm">
+        <p class="flex items-center gap-1.5 text-sm">
+          <.icon name="hero-sparkles" class="size-4 text-ruby" />
           You have {@me.rubies} {if @me.rubies == 1, do: "ruby", else: "rubies"}.
         </p>
         <div class="flex flex-col gap-2 *:min-h-11">
@@ -1132,15 +1159,15 @@ defmodule QuacksWeb.GameLive do
             {action_label(action, @game, @me)}
           </.button>
         </div>
-      </section>
-      <div :if={:end_round in @actions} class="flex *:min-h-12 *:flex-1">
+      </div>
+      <div class="flex *:min-h-12 *:flex-1">
         <.button
           phx-click="action"
           phx-value-action={encode(:end_round)}
           variant="primary"
-          data-role="shop-done"
+          data-role="rubies-done"
         >
-          Done
+          {if Enum.any?(@others, &match?({:rubies, _}, &1)), do: "Keep rubies", else: "Done"}
         </.button>
       </div>
     </section>
@@ -1304,11 +1331,16 @@ defmodule QuacksWeb.GameLive do
   defp extra_actions(actions), do: actions -- [:draw, :stop, :resume, :use_flask]
 
   defp decision([], _phase, _me), do: nil
-  defp decision(_actions, :shop, _me), do: :shop
+  # The shop's two steps: buy while a buy is legal, then rubies.
+  defp decision(actions, :shop, _me),
+    do: if(Enum.any?(actions, &match?({:buy, _}, &1)), do: :shop, else: :rubies)
+
   defp decision(_actions, :potions, %{witch_offer: [_ | _]}), do: :witch_offer
   defp decision(_actions, :potions, _me), do: nil
   defp decision(_actions, :stopped, _me), do: nil
   defp decision(_actions, phase, _me), do: phase
+
+  defp shop_step?(decision), do: decision in [:shop, :rubies]
 
   # The shop dialog has the buys and copper witches in `shop/1`; the rest are buttons.
   defp dialog_actions(actions, :shop),
