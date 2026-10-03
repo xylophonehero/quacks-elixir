@@ -39,6 +39,8 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // A decision <dialog> asks to be opened (see `dialog_sheet` in core_components.ex).
 window.addEventListener("quacks:modal", e => e.target.open || e.target.showModal())
+// A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
+window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

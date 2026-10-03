@@ -92,11 +92,21 @@ defmodule QuacksWeb.GameLiveTest do
 
     assert html =~ "Game over"
     assert html =~ "victory points"
-    assert has_element?(view, "button", "New game")
+
+    assert has_element?(
+             view,
+             "#game-over [data-role=buying-power]",
+             "Final round buying power: +"
+           )
+
+    assert has_element?(view, "#game-over [data-role=return-to-lobby]", "Return to lobby")
     assert has_element?(view, "button[data-slot=draw][disabled]", "Draw a chip")
 
     {:ok, view, _html} =
-      view |> element("section button", "New game") |> render_click() |> follow_redirect(conn)
+      view
+      |> element("#game-over button", "Play again")
+      |> render_click()
+      |> follow_redirect(conn)
 
     # The new game has a random seed; a purple fortune card may open with a choice.
     assert has_element?(view, "button[phx-click=action]")
@@ -152,24 +162,25 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, "main[data-layout=full]")
     refute html =~ "py-20"
     refute html =~ "max-w-2xl"
-    assert has_element?(view, ~s(button[popovertarget="sheet-bag"]), "Bag")
-    assert has_element?(view, ~s(button[popovertarget="sheet-log"]), "Log")
+    assert has_element?(view, ~s([data-role=pot-area] button[popovertarget="sheet-bag"]), "9")
+    assert has_element?(view, ~s(#sheet-menu button[popovertarget="sheet-log"]), "Log")
     assert has_element?(view, "#sheet-log[popover]")
-    # solo: no other players, so no Players sheet
-    refute has_element?(view, ~s(button[popovertarget="sheet-players"]))
+    # solo: no other players, so no players row
+    refute has_element?(view, "[data-role=players-row]")
   end
 
   test "the shop dialog is in the page only while buying", %{conn: conn} do
     {:ok, view, _html} = live_game(conn, {10, 11, 12})
-    refute has_element?(view, "dialog#decision-buy")
+    refute has_element?(view, "dialog#decision-shop")
 
     view = mount_shop(conn)
-    assert has_element?(view, "dialog#decision-buy #shop")
-    assert has_element?(view, "dialog#decision-buy[phx-mounted]")
+    assert has_element?(view, "dialog#decision-shop #shop")
+    assert has_element?(view, "dialog#decision-shop[phx-mounted]")
 
+    # 1 ruby: nothing to spend, so the buy ends the round at once
     view |> element("button", "Buy nothing") |> render_click()
-    refute has_element?(view, "dialog#decision-buy")
-    assert has_element?(view, "dialog#decision-rubies button", "End round")
+    refute has_element?(view, "dialog#decision-shop")
+    assert has_element?(view, "li", "— Round 1 over —")
   end
 
   test "an unknown game id sends the browser to the lobby", %{conn: conn} do
@@ -188,7 +199,8 @@ defmodule QuacksWeb.GameLiveTest do
 
   test "shop: tick two chips, buy them, the bag grows", %{conn: conn} do
     view = mount_shop(conn)
-    before = bag_size(view)
+    [_, before] = Regex.run(~r/Your chips: (\d+)/, render(view))
+    before = String.to_integer(before)
     assert has_element?(view, "button:disabled", "Buy selected")
     assert has_element?(view, checkbox({:orange, 1}) <> ":not(:disabled)")
     assert has_element?(view, checkbox({:yellow, 1}) <> ":disabled")
@@ -206,8 +218,8 @@ defmodule QuacksWeb.GameLiveTest do
     assert count(render(view), "#shop input:disabled") == length(Chips.shop()) - 2
 
     view |> element("button", "Buy selected") |> render_click()
-    assert has_element?(view, "dd", "Rubies")
     assert has_element?(view, "li", "Bought green 1 + orange 1")
+    # the round ended (nothing left to do): every chip is back in the bag
     assert bag_size(view) == before + 2
   end
 
@@ -239,7 +251,6 @@ defmodule QuacksWeb.GameLiveTest do
     refute render(view) =~ "Round 1 over"
 
     view |> element("button", "Buy nothing") |> render_click()
-    view |> element("button", "End round") |> render_click()
     assert has_element?(view, "li", "— Round 1 over —")
     refute has_element?(view, "li", "End round")
   end
@@ -252,7 +263,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, "[data-role=shop-total]", "Selected: 12 coins. Remaining: -5 of 7.")
 
     view |> element("button", "Buy nothing") |> render_click()
-    assert has_element?(view, "dd", "Rubies")
+    assert has_element?(view, "li", "— Round 1 over —")
   end
 
   test "every engine action in the choice phases has a human label" do

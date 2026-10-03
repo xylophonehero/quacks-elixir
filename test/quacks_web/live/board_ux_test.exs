@@ -26,7 +26,7 @@ defmodule QuacksWeb.BoardUxTest do
     {:ok, _} = GameServer.begin(id, "alice")
 
     assert has_element?(alice, ~s(article.border-seat-1[data-seat="1"]))
-    assert has_element?(alice, ~s([data-role=player-line][data-seat="1"] .bg-seat-1))
+    assert has_element?(alice, ~s([data-role=player-chip][data-seat="1"] .bg-seat-1))
     # Alice's big pot rings both scoring spaces, each in its seat's colour
     html = render(alice)
 
@@ -64,8 +64,8 @@ defmodule QuacksWeb.BoardUxTest do
     assert count(html, "[data-role=exploded-badge]") == 1
     assert count(html, ~s(svg[data-exploded="true"] [data-role=cracked-rim])) == 1
 
-    html = render_component(&GameComponents.player_line/1, game: game, seat: 1, name: "Bob")
-    assert count(html, "[data-role=exploded-badge]") == 1
+    html = render_component(&GameComponents.player_chip/1, game: game, seat: 1, name: "Bob")
+    assert count(html, "[data-role=player-state][data-state=exploded]") == 1
 
     html = render_component(&GameComponents.pot/1, game: game, seat: 0)
     assert count(html, ~s(svg[data-exploded="false"])) == 1
@@ -123,10 +123,8 @@ defmodule QuacksWeb.BoardUxTest do
     assert has_element?(view, "#round-results [data-role=result-total]", ~r/Total: \+\d+ VP/)
     assert has_element?(view, "[data-role=open-results]")
 
+    # with one ruby there is nothing left to do after the buy: the round ends at once
     view |> element("button", "Buy nothing") |> render_click()
-    assert has_element?(view, "#round-results")
-
-    view |> element("button", "End round") |> render_click()
     refute has_element?(view, "#round-results")
   end
 end

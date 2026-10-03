@@ -13,7 +13,18 @@ defmodule QuacksWeb.GameLive do
   a "Start game" button (`GameServer.begin/2`). Closing the page before the start
   frees the seat (`terminate/2`).
 
-  While everyone brews or shops at the same time, each player card shows what that
+  The layout, top to bottom: the header ("You are" and your seat colour, which also
+  runs along the top edge), your status, the players row (one chip per seat; a tap
+  opens that player's sheet), the pot, and the bottom bar with only Stop/Resume and
+  Draw. Around the pot: the witches (top left), this round's fortune card (top
+  right), the flask (bottom left) and the bag (bottom right). The log, the share
+  link and the books are in the menu. A new fortune card shows in a small dialog
+  once per round.
+
+  The shop is one dialog: your chips, the buy, the ruby options and "Done". A buy
+  that leaves nothing else to do ends the round for this seat at once.
+
+  While everyone brews or shops at the same time, each player chip shows what that
   seat does now (`GameComponents.seat_state/2`), and a player who has finished sees
   who they wait for. A stopped player's Stop button becomes Resume.
 
@@ -28,8 +39,8 @@ defmodule QuacksWeb.GameLive do
 
   import QuacksWeb.GameComponents
 
-  alias Quacks.{Game, GameServer}
-  alias Quacks.Rules.{Books, Chips, Fortune}
+  alias Quacks.{Game, GameServer, Player}
+  alias Quacks.Rules.{Books, Chips}
 
   # The shop, one row per colour. The single-value colours share the top row; the
   # other rows run 1 / 2 / 4 from left to right.
@@ -69,7 +80,8 @@ defmodule QuacksWeb.GameLive do
            seed: table.seed,
            players: table.players,
            names: table.names,
-           creator: table.creator
+           creator: table.creator,
+           copied: false
          )
          |> put_game(table.game)}
 
@@ -84,7 +96,7 @@ defmodule QuacksWeb.GameLive do
       when is_integer(seat) do
     with {:ok, action} <- decode(encoded),
          {:ok, game} <- GameServer.apply(socket.assigns.id, seat, action) do
-      {:noreply, put_game(socket, game)}
+      {:noreply, put_game(socket, finish_shop(game, socket.assigns.id, seat, action))}
     else
       {:error, {:illegal_action, action, _phase}} ->
         {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
@@ -136,6 +148,22 @@ defmodule QuacksWeb.GameLive do
     {:noreply, push_navigate(socket, to: ~p"/g/#{id}")}
   end
 
+  # After the game: a new waiting game for the same table (multiplayer).
+  def handle_event("play_again", _params, socket) do
+    case play_again(socket.assigns.id, socket.assigns.token) do
+      {:ok, new_id} -> {:noreply, push_navigate(socket, to: ~p"/g/#{new_id}")}
+      _error -> {:noreply, put_flash(socket, :error, "Play again is not possible.")}
+    end
+  end
+
+  def handle_event("lobby", _params, socket), do: {:noreply, push_navigate(socket, to: ~p"/")}
+
+  # The browser copied the link (see `copy_link/1`); say so for 2 seconds.
+  def handle_event("copied", _params, socket) do
+    Process.send_after(self(), :uncopied, 2000)
+    {:noreply, assign(socket, copied: true)}
+  end
+
   # The nickname input sends its value when it loses focus.
   def handle_event("rename", %{"value" => name}, %{assigns: %{seat: seat}} = socket)
       when is_integer(seat) do
@@ -162,6 +190,12 @@ defmodule QuacksWeb.GameLive do
     do: {:noreply, reseat(socket)}
 
   def handle_info({:names, _id, names}, socket), do: {:noreply, assign(socket, names: names)}
+
+  # Someone pressed "Play again": everyone follows to the new game.
+  def handle_info({:play_again, _id, new_id}, socket),
+    do: {:noreply, push_navigate(socket, to: ~p"/g/#{new_id}")}
+
+  def handle_info(:uncopied, socket), do: {:noreply, assign(socket, copied: false)}
 
   # A page closed before the game began gives its seat back.
   @impl true
@@ -240,6 +274,9 @@ defmodule QuacksWeb.GameLive do
             class="w-full rounded-md border border-ink-soft bg-parchment-light px-2 py-2 font-mono text-sm text-ink"
           />
         </label>
+        <div class="flex *:min-h-11 *:flex-1">
+          <.copy_link url={url(~p"/g/#{@id}")} copied={@copied} />
+        </div>
         <.button
           :if={starter?(@seat, @creator)}
           phx-click="begin"
@@ -263,21 +300,40 @@ defmodule QuacksWeb.GameLive do
     <Layouts.app flash={@flash} full>
       <div class="lg:grid lg:h-dvh lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div
-          class="grid h-dvh grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] overflow-hidden lg:px-4"
+          class={[
+            "grid h-dvh grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] overflow-hidden lg:px-4",
+            @seat && @players > 1 && ["border-t-4", seat_border(@seat)]
+          ]}
           data-role={@seat && "my-seat"}
         >
-          <header class="flex items-center gap-2 px-3 pt-[max(0.25rem,env(safe-area-inset-top))]">
-            <h1 class="font-hand text-2xl leading-none font-bold">
+          <header class="flex min-w-0 items-center gap-2 px-3 pt-[max(0.25rem,env(safe-area-inset-top))]">
+            <%!-- Phones need the room for "You are": the menu has the lobby link. --%>
+            <h1 class="sr-only font-hand text-2xl leading-none font-bold sm:not-sr-only">
               <.link navigate={~p"/"}>Quacks</.link>
-              <span class="font-mono text-xs font-normal text-parchment-dim">{@id}</span>
+              <span class="font-mono text-xs font-normal text-parchment-dim">
+                {@id}
+              </span>
             </h1>
-            <div class="ml-auto"><.round_phase game={@game} seat={@seat || 0} /></div>
+            <p
+              :if={@seat && @players > 1}
+              class="flex min-w-0 items-center gap-1 text-sm"
+              data-role="you-are"
+            >
+              <span class="shrink-0 text-parchment-dim">You are</span>
+              <span class={[
+                "truncate rounded-full px-2.5 py-0.5 font-semibold text-ink ring-1 ring-black/30",
+                seat_bg(@seat)
+              ]}>
+                {name(@names, @seat)}
+              </span>
+            </p>
+            <div class="ml-auto shrink-0"><.round_phase game={@game} seat={@seat || 0} /></div>
             <button
               :if={results?(@game)}
               type="button"
               phx-click={JS.dispatch("quacks:modal", to: "#round-results")}
               aria-label="Round results"
-              class="inline-flex size-11 items-center justify-center"
+              class="-mx-1 inline-flex size-11 shrink-0 items-center justify-center"
               data-role="open-results"
             >
               <.icon name="hero-trophy" class="size-6" />
@@ -286,42 +342,31 @@ defmodule QuacksWeb.GameLive do
               type="button"
               popovertarget="sheet-menu"
               aria-label="Menu"
-              class="-mr-2 inline-flex size-11 items-center justify-center"
+              class="-mr-2 inline-flex size-11 shrink-0 items-center justify-center"
             >
               <.icon name="hero-bars-3" class="size-6" />
             </button>
           </header>
 
-          <div class="px-2">
+          <div class="space-y-1 px-2">
             <.status :if={@seat} game={@game} seat={@seat} />
-            <div
+            <nav
               :if={@players > 1}
-              class="mt-1 grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-1 lg:hidden"
-              aria-label="Other players"
+              class="grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-1"
+              aria-label="Players"
+              data-role="players-row"
             >
-              <.player_line
+              <.player_chip
                 :for={seat <- @game.seats}
-                :if={seat != @seat}
                 game={@game}
                 seat={seat}
                 name={name(@names, seat)}
+                you={seat == @seat}
               />
-            </div>
+            </nav>
           </div>
 
           <div class="space-y-1 px-2 pt-1 text-sm">
-            <.sheet_button
-              :if={@game.fortune_card}
-              for="sheet-fortune"
-              class="w-full justify-start lg:hidden"
-            >
-              <.icon name="hero-sparkles" class="size-4 text-gold" />
-              <span class="truncate">{Fortune.card(@game.fortune_card).name}</span>
-              <.icon name="hero-information-circle" class="ml-auto size-5 text-parchment-dim" />
-            </.sheet_button>
-            <.sheet :if={@game.fortune_card} id="sheet-fortune" label="Fortune teller card" inline_lg>
-              <.fortune_card id={@game.fortune_card} />
-            </.sheet>
             <p :if={is_nil(@seat)} class="rounded-md bg-iron-dark px-2 py-1" data-role="spectator">
               All seats are taken. You are watching.
             </p>
@@ -334,30 +379,53 @@ defmodule QuacksWeb.GameLive do
             </p>
           </div>
 
-          <div class="relative min-h-0 p-2">
-            <.pot
-              game={@game}
-              seat={@seat || 0}
-              class="block size-full"
-              rings={rings(@game)}
-              flask={@me && if(@me.flask, do: :full, else: :empty)}
-              flask_click={if :use_flask in @actions, do: encode(:use_flask)}
-            />
-            <div :if={@me && @me.aside != []} class="absolute bottom-2 left-2">
-              <.aside chips={@me.aside} />
+          <div class="flex min-h-0 flex-col p-2">
+            <%!-- The pot is the largest square that fits (see `.pot-box` in app.css);
+                 its controls sit in the square's corners: witches top left, the card
+                 top right, the flask (inside the SVG) bottom left, the bag bottom right. --%>
+            <div class="pot-box flex min-h-0 flex-1 items-center justify-center">
+              <div class="pot-square relative" data-role="pot-area">
+                <.pot
+                  game={@game}
+                  seat={@seat || 0}
+                  class="block size-full"
+                  rings={rings(@game)}
+                  flask={@me && if(@me.flask, do: :full, else: :empty)}
+                  flask_click={if :use_flask in @actions, do: encode(:use_flask)}
+                />
+                <.sheet_button
+                  :if={@game.witches}
+                  for="sheet-witches"
+                  class="absolute top-0 left-0 min-h-9 gap-1.5 rounded-full px-2.5 text-xs lg:hidden"
+                  data-role="witches-button"
+                >
+                  <span class="flex -space-x-1">
+                    <span class="size-3 rounded-full bg-penny-silver ring-1 ring-black/40" />
+                    <span class="size-3 rounded-full bg-penny-copper ring-1 ring-black/40" />
+                    <span class="size-3 rounded-full bg-penny-gold ring-1 ring-black/40" />
+                  </span>
+                  Witches
+                </.sheet_button>
+                <.fortune_tile
+                  :if={@game.fortune_card}
+                  id={@game.fortune_card}
+                  class="absolute top-0 right-0"
+                />
+                <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
+              </div>
             </div>
-            <div :if={@game.expansion} class="absolute right-2 bottom-2 max-w-[45%]">
-              <.bowl chips={@game.players[@seat || 0].bowl} />
+            <div
+              :if={(@me && @me.aside != []) || @game.expansion}
+              class="flex items-start gap-2 pt-1"
+            >
+              <.aside :if={@me && @me.aside != []} chips={@me.aside} />
+              <div :if={@game.expansion} class="ml-auto max-w-[60%]">
+                <.bowl chips={@game.players[@seat || 0].bowl} />
+              </div>
             </div>
           </div>
 
           <footer class="space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-            <nav class="flex gap-2 *:flex-1 lg:hidden" aria-label="Sheets">
-              <.sheet_button :if={@me} for="sheet-bag">Bag {length(@me.bag)}</.sheet_button>
-              <.sheet_button for="sheet-log">Log</.sheet_button>
-              <.sheet_button :if={@players > 1} for="sheet-players">Players</.sheet_button>
-              <.sheet_button :if={@game.witches} for="sheet-witches">Witches</.sheet_button>
-            </nav>
             <section
               :if={extra_actions(@actions) != []}
               class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation"
@@ -376,7 +444,7 @@ defmodule QuacksWeb.GameLive do
               class="min-h-12 w-full rounded-lg bg-gold font-semibold text-ink shadow"
               phx-click={JS.dispatch("quacks:modal", to: "#decision-#{@decision}")}
             >
-              {if @decision == :buy,
+              {if @decision == :shop,
                 do: "Open the shop",
                 else: "Choose: #{phase_name(@decision)}"}
             </.button>
@@ -387,7 +455,7 @@ defmodule QuacksWeb.GameLive do
             >
               Show the result
             </.button>
-            <%!-- Fixed slots: Stop (Resume while stopped), then Draw on the right.
+            <%!-- Two fixed slots: Stop (Resume while stopped) left, Draw right.
                  Never moved, only disabled. --%>
             <section
               :if={@seat}
@@ -437,25 +505,26 @@ defmodule QuacksWeb.GameLive do
               </.witch_card>
             </section>
           </.sheet>
-          <.sheet :if={@players > 1} id="sheet-players" label="Other players" inline_lg>
-            <section class="grid grid-cols-2 gap-2 lg:grid-cols-1" aria-label="Other players">
-              <.player_card
-                :for={seat <- @game.seats}
-                :if={seat != @seat}
-                game={@game}
-                seat={seat}
-                name={name(@names, seat)}
-              />
-            </section>
-          </.sheet>
           <.sheet id="sheet-log" label="Log" inline_lg>
             <.action_log log={@game.log} names={if @players > 1, do: @names} />
           </.sheet>
-          <.sheet :if={@me} id="sheet-bag" label="Bag" inline_lg>
-            <.bag bag={@me.bag} />
-          </.sheet>
         </aside>
       </div>
+
+      <.sheet :if={@me} id="sheet-bag" label="Bag">
+        <.bag bag={@me.bag} />
+      </.sheet>
+      <.sheet :if={@game.fortune_card} id="sheet-fortune" label="Fortune teller card">
+        <.fortune_card id={@game.fortune_card} />
+      </.sheet>
+      <.sheet
+        :for={seat <- @game.seats}
+        :if={@players > 1}
+        id={"sheet-player-#{seat}"}
+        label={"Player #{name(@names, seat)}"}
+      >
+        <.player_card game={@game} seat={seat} name={name(@names, seat)} you={seat == @seat} />
+      </.sheet>
 
       <.sheet id="sheet-menu" label="Menu">
         <div class="space-y-3 text-sm">
@@ -474,6 +543,8 @@ defmodule QuacksWeb.GameLive do
             />
           </label>
           <div class="flex flex-wrap gap-2 *:min-h-11">
+            <.sheet_button for="sheet-log" class="lg:hidden">Log</.sheet_button>
+            <.copy_link :if={@players > 1} url={url(~p"/g/#{@id}")} copied={@copied} />
             <.button :if={@seat && @players == 1} phx-click="undo" disabled={@game.log == []}>
               Undo
             </.button>
@@ -496,8 +567,8 @@ defmodule QuacksWeb.GameLive do
       </.sheet>
 
       <.dialog_sheet :if={@decision} id={"decision-#{@decision}"} label={phase_name(@decision)}>
-        <.shop :if={@decision == :buy} game={@game} seat={@seat} selected={@selected} />
-        <div :if={@decision != :buy} class="space-y-3">
+        <.shop :if={@decision == :shop} game={@game} seat={@seat} selected={@selected} />
+        <div :if={@decision != :shop} class="space-y-3">
           <h2 class="text-xl font-bold">{phase_name(@decision)}</h2>
           <.fortune_card :if={@decision == :fortune_choice} id={@game.fortune_card} />
           <.blue_offer :if={@decision == :blue_choice} pending={@me.pending} />
@@ -542,35 +613,121 @@ defmodule QuacksWeb.GameLive do
       </.dialog_sheet>
 
       <.dialog_sheet :if={Game.over?(@game)} id="game-over" label="Game over">
-        <section class="space-y-3 text-center font-hand">
-          <p :if={@players == 1} class="text-2xl font-bold">
-            Game over: {Game.score(@game)[0]} victory points
-          </p>
-          <div :if={@players > 1}>
-            <p class="text-2xl font-bold">Game over</p>
-            <ol class="mt-2">
-              <li :for={{seat, vp} <- ranking(@game)}>{name(@names, seat)}: {vp} victory points</li>
-            </ol>
-          </div>
-          <.button
-            phx-click="new_game"
-            variant="primary"
-            class="min-h-11 rounded-lg bg-gold px-6 font-semibold text-ink"
-          >
-            New game
-          </.button>
-        </section>
+        <.game_over
+          game={@game}
+          names={@names}
+          players={@players}
+          play_again={play_again?()}
+        />
+      </.dialog_sheet>
+
+      <%!-- The new card of the round, on top of everything. Its id names the round,
+           so it enters the page (and opens itself) once per round. --%>
+      <.dialog_sheet
+        :if={@game.fortune_card && not Game.over?(@game)}
+        id={"card-round-#{@game.round}"}
+        label="New fortune teller card"
+      >
+        <div class="space-y-3" data-role="card-modal">
+          <h2 class="text-xl font-bold">Round {@game.round}: a new card</h2>
+          <.fortune_card id={@game.fortune_card} />
+          <form method="dialog" class="flex *:min-h-11 *:flex-1">
+            <.button variant="primary">OK</.button>
+          </form>
+        </div>
       </.dialog_sheet>
     </Layouts.app>
     """
   end
 
   @doc """
-  The shop as a form of checkboxes, one per kind of chip, in a row per colour (see
-  `shop_rows/0`), priced with the game's Ingredient books (`Chips.price/2`). The engine decides what may be ticked: a box is disabled when adding
-  its chip to the selection is not a legal buy (too expensive, same colour, two already
-  ticked, out of supply, not yet in the shop). "Buy selected" sends `{:buy, selected}`
-  and is enabled only when that exact buy is legal.
+  A "Copy link" button: it asks the browser to copy `url` (the `quacks:copy`
+  listener in app.js) and tells the server, which shows "Copied" for 2 seconds.
+  """
+  attr :url, :string, required: true
+  attr :copied, :boolean, default: false
+
+  def copy_link(assigns) do
+    ~H"""
+    <.button
+      phx-click={JS.dispatch("quacks:copy", detail: %{text: @url}) |> JS.push("copied")}
+      data-role="copy-link"
+    >
+      <.icon name={if @copied, do: "hero-check", else: "hero-link"} class="size-4" />
+      {if @copied, do: "Copied", else: "Copy link"}
+    </.button>
+    """
+  end
+
+  @doc """
+  The end of the game: the ranking, each player's "buying power" from the last
+  round (coins and rubies turned into VP, when the log has it), "Play again" and
+  "Return to lobby". A solo game starts again at once (`new_game`); a multiplayer
+  game asks `GameServer.play_again/2`, so it is disabled until the server has it.
+  """
+  attr :game, Game, required: true
+  attr :names, :map, required: true
+  attr :players, :integer, required: true
+  attr :play_again, :boolean, default: false, doc: "`GameServer.play_again/2` exists"
+
+  def game_over(assigns) do
+    ~H"""
+    <section class="space-y-3 text-center" data-role="game-over">
+      <h2 :if={@players == 1} class="text-2xl font-bold">
+        Game over: {Game.score(@game)[0]} victory points
+      </h2>
+      <h2 :if={@players > 1} class="text-2xl font-bold">Game over</h2>
+      <ol class="space-y-1.5">
+        <li :for={{seat, vp} <- ranking(@game)} data-seat={seat} data-role="final-score">
+          <p :if={@players > 1} class="flex items-center justify-center gap-1.5 font-hand text-lg">
+            <.seat_dot seat={seat} /> {name(@names, seat)}: {vp} victory points
+          </p>
+          <p
+            :if={power = buying_power(@game.log, seat)}
+            class="text-sm text-ink-soft"
+            data-role="buying-power"
+          >
+            Final round buying power: +{power} VP
+          </p>
+        </li>
+      </ol>
+      <div class="flex gap-2 *:min-h-11 *:flex-1">
+        <.button
+          :if={@players == 1}
+          phx-click="new_game"
+          variant="primary"
+          data-role="play-again"
+        >
+          Play again
+        </.button>
+        <.button
+          :if={@players > 1}
+          phx-click="play_again"
+          variant="primary"
+          disabled={not @play_again}
+          title={if not @play_again, do: "Play again is not available on this server yet"}
+          data-role="play-again"
+        >
+          Play again
+        </.button>
+        <.button phx-click="lobby" data-role="return-to-lobby">Return to lobby</.button>
+      </div>
+    </section>
+    """
+  end
+
+  @doc """
+  The shop dialog: everything this seat may do between brewing and the next round.
+
+  On top, every chip the player owns (bag, pot and bowl), as counts. Then, while a
+  buy is legal, a form of checkboxes, one per kind of chip, in a row per colour
+  (see `shop_rows/0`), priced with the game's Ingredient books (`Chips.price/2`).
+  The engine decides what may be ticked: a box is disabled when adding its chip
+  to the selection is not a legal buy. "Buy selected" sends `{:buy, selected}`.
+
+  Below, the ruby options (`{:rubies, _}`), other witch calls, and "Done"
+  (`:end_round`) once the engine allows it. Works with the engine's `:buy` then
+  `:rubies` sub-phases and with a single `:shop` sub-phase.
   """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
@@ -578,85 +735,100 @@ defmodule QuacksWeb.GameLive do
 
   def shop(assigns) do
     sets = assigns.game.sets
+    me = assigns.game.players[assigns.seat]
     total = assigns.selected |> Enum.map(&Chips.price(&1, sets)) |> Enum.sum()
-    coins = assigns.game.players[assigns.seat].coins
-
     actions = Game.legal_actions(assigns.game, assigns.seat)
+    copper = copper_actions(actions, assigns.selected)
 
     assigns =
       assign(assigns,
+        me: me,
         actions: actions,
-        copper: copper_actions(actions, assigns.selected),
+        buying?: Enum.any?(actions, &match?({:buy, _}, &1)),
+        copper: copper,
+        others: Enum.reject(actions, &(match?({:buy, _}, &1) or &1 in [:end_round | copper])),
+        owned: Player.pot_chips(me) ++ me.bowl ++ me.bag,
         sets: sets,
         rows: shop_rows(assigns.game.expansion, sets),
         total: total,
-        coins: coins,
-        remaining: coins - total
+        remaining: me.coins - total
       )
 
     ~H"""
     <section class="space-y-2" aria-label="Shop">
       <h2 class="text-xl font-bold">Shop</h2>
-      <p class="text-sm">Pick up to two chips of different colours.</p>
-      <.books sets={@sets} />
-      <form id="shop" phx-change="select" class="space-y-1.5">
-        <ul
+      <div class="rounded-md bg-parchment-deep/60 px-2 py-1" data-role="shop-bag">
+        <h3 class="text-xs font-semibold text-ink-soft">Your chips: {length(@owned)}</h3>
+        <.chip_counts chips={@owned} />
+      </div>
+      <div :if={@buying?} class="space-y-2">
+        <p class="text-sm">Pick up to two chips of different colours.</p>
+        <.books sets={@sets} />
+        <form id="shop" phx-change="select" class="space-y-1.5">
+          <ul
+            :for={{row, i} <- Enum.with_index(@rows)}
+            class="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5"
+            data-role="shop-row"
+          >
+            <li :for={chip <- row}>
+              <label class={[
+                "flex min-h-11 items-center gap-1.5 rounded-md bg-parchment-light px-2 text-sm",
+                blocked?(chip, @selected, @actions) && "opacity-40"
+              ]}>
+                <input
+                  type="checkbox"
+                  name="chips[]"
+                  value={encode(chip)}
+                  checked={chip in @selected}
+                  disabled={blocked?(chip, @selected, @actions)}
+                />
+                <.chip chip={chip} size={:sm} />
+                <span class="sr-only sm:not-sr-only">{chip_name(chip)}</span>
+                <span class="ml-auto text-ink-soft" data-role="price">
+                  {Chips.price(chip, @sets)}c
+                </span>
+              </label>
+            </li>
+            <li class="col-start-4">
+              <button
+                type="button"
+                popovertarget={"shop-book-#{i}"}
+                class="inline-flex size-11 items-center justify-center text-ink-soft"
+                data-role="book-info"
+              >
+                <.icon name="hero-information-circle" class="size-6" />
+                <span class="sr-only">Book</span>
+              </button>
+            </li>
+          </ul>
+        </form>
+        <.sheet
           :for={{row, i} <- Enum.with_index(@rows)}
-          class="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5"
-          data-role="shop-row"
+          id={"shop-book-#{i}"}
+          label="Ingredient book"
         >
-          <li :for={chip <- row}>
-            <label class={[
-              "flex min-h-11 items-center gap-1.5 rounded-md bg-parchment-light px-2 text-sm",
-              blocked?(chip, @selected, @actions) && "opacity-40"
-            ]}>
-              <input
-                type="checkbox"
-                name="chips[]"
-                value={encode(chip)}
-                checked={chip in @selected}
-                disabled={blocked?(chip, @selected, @actions)}
-              />
-              <.chip chip={chip} size={:sm} />
-              <span class="sr-only sm:not-sr-only">{chip_name(chip)}</span>
-              <span class="ml-auto text-ink-soft" data-role="price">
-                {Chips.price(chip, @sets)}c
-              </span>
-            </label>
-          </li>
-          <li class="col-start-4">
-            <button
-              type="button"
-              popovertarget={"shop-book-#{i}"}
-              class="inline-flex size-11 items-center justify-center text-ink-soft"
-              data-role="book-info"
-            >
-              <.icon name="hero-information-circle" class="size-6" />
-              <span class="sr-only">Book</span>
-            </button>
-          </li>
-        </ul>
-      </form>
-      <.sheet
-        :for={{row, i} <- Enum.with_index(@rows)}
-        id={"shop-book-#{i}"}
-        label="Ingredient book"
-      >
-        <.book_list books={row_books(row, @game)} />
-      </.sheet>
-      <p class="text-sm" data-role="shop-total">
-        Selected: {@total} coins. Remaining: {@remaining} of {@coins}.
-      </p>
-      <div class="flex gap-2 *:min-h-11 *:flex-1">
-        <.button
-          phx-click="action"
-          phx-value-action={encode({:buy, @selected})}
-          variant="primary"
-          disabled={@selected == [] or {:buy, @selected} not in @actions}
-        >
-          Buy selected
-        </.button>
-        <.button phx-click="action" phx-value-action={encode({:buy, []})}>Buy nothing</.button>
+          <.book_list books={row_books(row, @game)} />
+        </.sheet>
+        <p class="text-sm" data-role="shop-total">
+          Selected: {@total} coins. Remaining: {@remaining} of {@me.coins}.
+        </p>
+        <div class="flex gap-2 *:min-h-11 *:flex-1">
+          <.button
+            phx-click="action"
+            phx-value-action={encode({:buy, @selected})}
+            variant="primary"
+            disabled={@selected == [] or {:buy, @selected} not in @actions}
+          >
+            Buy selected
+          </.button>
+          <.button
+            :if={:end_round not in @actions}
+            phx-click="action"
+            phx-value-action={encode({:buy, []})}
+          >
+            Buy nothing
+          </.button>
+        </div>
       </div>
       <.witch_card :if={@copper != []} id={@game.witches.copper}>
         <div class="flex flex-col gap-2 *:min-h-11">
@@ -670,6 +842,36 @@ defmodule QuacksWeb.GameLive do
           </.button>
         </div>
       </.witch_card>
+      <section
+        :if={@others != []}
+        class="space-y-2"
+        aria-label="Rubies and witches"
+        data-role="shop-rubies"
+      >
+        <.witch_card :for={id <- witches_acting(@game, @others)} id={id} />
+        <p class="text-sm">
+          You have {@me.rubies} {if @me.rubies == 1, do: "ruby", else: "rubies"}.
+        </p>
+        <div class="flex flex-col gap-2 *:min-h-11">
+          <.button
+            :for={action <- @others}
+            phx-click="action"
+            phx-value-action={encode(action)}
+          >
+            {action_label(action, @game, @me)}
+          </.button>
+        </div>
+      </section>
+      <div :if={:end_round in @actions} class="flex *:min-h-12 *:flex-1">
+        <.button
+          phx-click="action"
+          phx-value-action={encode(:end_round)}
+          variant="primary"
+          data-role="shop-done"
+        >
+          Done
+        </.button>
+      </div>
     </section>
     """
   end
@@ -752,6 +954,31 @@ defmodule QuacksWeb.GameLive do
   # The round results show from the shop until the round ends (round 9 has no shop).
   defp results?(game), do: game.phase == :shopping
 
+  # A buy that leaves "Done" as the only legal move (no rubies to spend, no witch to
+  # call) ends the shop at once, so the player is not asked twice.
+  defp finish_shop(game, id, seat, {:buy, _chips}) do
+    with [:end_round] <- Game.legal_actions(game, seat),
+         {:ok, game} <- GameServer.apply(id, seat, :end_round) do
+      game
+    else
+      _ -> game
+    end
+  end
+
+  defp finish_shop(game, _id, _seat, _action), do: game
+
+  # `GameServer.play_again/2` comes with the engine's next round of work; until
+  # then "Play again" is disabled in multiplayer.
+  defp play_again? do
+    Code.ensure_loaded?(GameServer) and function_exported?(GameServer, :play_again, 2)
+  end
+
+  defp play_again(id, token) do
+    if play_again?(),
+      do: Function.capture(GameServer, :play_again, 2).(id, token),
+      else: {:error, :unknown}
+  end
+
   # The creator starts the game; once the creator left, any seated player may.
   defp starter?(nil, _creator), do: false
   defp starter?(seat, creator), do: creator in [nil, seat]
@@ -764,6 +991,7 @@ defmodule QuacksWeb.GameLive do
   defp extra_actions(actions), do: actions -- [:draw, :stop, :resume, :use_flask]
 
   defp decision([], _phase, _me), do: nil
+  defp decision(_actions, phase, _me) when phase in [:buy, :rubies, :shop], do: :shop
   defp decision(_actions, :potions, %{witch_offer: [_ | _]}), do: :witch_offer
   defp decision(_actions, :potions, _me), do: nil
   defp decision(_actions, :stopped, _me), do: nil

@@ -92,7 +92,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
 
     assert has_element?(
              view,
-             "#decision-buy [data-witch=c4] button",
+             "#decision-shop [data-witch=c4] button",
              "Call the copper witch"
            )
 
@@ -201,8 +201,8 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {:ok, _} = GameServer.apply(id, 0, :stop)
     {:ok, _} = GameServer.apply(id, 0, {:buy, []})
 
-    assert has_element?(view, "#decision-rubies [data-witch=g4]")
-    view |> element("#decision-rubies button", "Call the gold witch") |> render_click()
+    assert has_element?(view, "#decision-shop [data-witch=g4]")
+    view |> element("#decision-shop button", "Call the gold witch") |> render_click()
     assert has_element?(view, "li", "Cheap rubies: droplet and flask cost 1 ruby")
     assert Game.legal_actions(elem(GameServer.get(id), 1).game, 0) |> List.last() == :end_round
   end

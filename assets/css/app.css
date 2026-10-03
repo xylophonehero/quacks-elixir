@@ -132,6 +132,17 @@
   }
 }
 
+/* The pot is the largest square that fits its box, so the controls in the
+   square's corners sit in the free corners around the round cauldron. */
+.pot-box {
+  container-type: size;
+}
+
+.pot-square {
+  width: 100cqmin;
+  height: 100cqmin;
+}
+
 /* The game page owns the whole screen: no rubber-band scroll of the page itself. */
 html:has([data-layout="full"]) {
   overscroll-behavior: none;

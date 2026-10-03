@@ -44,6 +44,15 @@ defmodule QuacksWeb.GameComponents do
     4 => "border-seat-4"
   }
 
+  # Your own chip in the players row: a ring and a wash in your seat colour.
+  @seat_you %{
+    0 => "ring-seat-0 bg-seat-0/20",
+    1 => "ring-seat-1 bg-seat-1/20",
+    2 => "ring-seat-2 bg-seat-2/20",
+    3 => "ring-seat-3 bg-seat-3/20",
+    4 => "ring-seat-4 bg-seat-4/20"
+  }
+
   # Chips with a light face get dark ink for their value (contrast >= 4.5:1).
   @light_chips [:white, :orange, :green, :yellow]
 
@@ -123,7 +132,7 @@ defmodule QuacksWeb.GameComponents do
   the spaces on a spiral from the centre (space 0) out to the rim (space 53).
 
   `size={:lg}` (your own pot) shows each space's coins (top tag), victory points
-  (lower tag) and a ruby gem. `size={:sm}` (another player's pot) shows only the
+  (lower tag, on every space that has some, also on phones) and a ruby gem. `size={:sm}` (another player's pot) shows only the
   chips. In both, the droplet is a blue drop on its space, placed chips sit on their
   spaces and the rat stone, when the player has one, is a grey pebble on its space.
 
@@ -132,12 +141,12 @@ defmodule QuacksWeb.GameComponents do
   shows. When seats share a space, the ring splits into one arc per seat.
 
   An exploded pot gets a red, cracked rim. `flask` (`:full` or `:empty`) draws the
-  flask in the corner; with `flask_click` set it glows and a click sends it as the
+  flask in the lower-left corner; with `flask_click` set it glows and a click sends it as the
   `"action"` event's value.
 
   The SVG scales to its box and keeps its shape, so `class="block size-full"` fits
-  the whole pot into whatever space the page gives it. On phones the VP tags are too
-  small to read and are left out; each space's `<title>` still names its VP.
+  the whole pot into whatever space the page gives it. Each space's `<title>` also
+  names its coins and VP.
   """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
@@ -243,21 +252,21 @@ defmodule QuacksWeb.GameComponents do
           >
             {PotTrack.at(index).coins}
           </text>
-          <g :if={PotTrack.at(index).vp > 0} class="hidden sm:inline">
+          <g :if={PotTrack.at(index).vp > 0} data-role="vp-tag">
             <rect
-              x="-9"
-              y="1"
-              width="18"
-              height="15"
+              x="-10"
+              y="0"
+              width="20"
+              height="16"
               rx="2"
               fill="var(--color-parchment-deep)"
               stroke="var(--color-ink-soft)"
               stroke-width="0.75"
             />
             <text
-              y="13"
+              y="12.5"
               text-anchor="middle"
-              font-size="12.5"
+              font-size="13"
               font-weight="700"
               fill="var(--color-ink)"
             >
@@ -331,7 +340,8 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  # The flask, in the free corner to the upper right of the cauldron. Parchment when
+  # The flask, in the free corner to the lower left of the cauldron (the page puts
+  # the bag in the lower right and the fortune card in the upper right). Parchment when
   # full, grey when empty. Usable: it glows and is a button (click or Enter).
   attr :full, :boolean, required: true
   attr :click, :string, default: nil
@@ -339,7 +349,7 @@ defmodule QuacksWeb.GameComponents do
   defp flask(assigns) do
     ~H"""
     <g
-      transform="translate(220 -212)"
+      transform="translate(-222 214)"
       data-role="flask"
       data-usable={to_string(@click != nil)}
       class={@click && "flask-usable"}
@@ -443,17 +453,120 @@ defmodule QuacksWeb.GameComponents do
   attr :bag, :list, required: true, doc: "list of `{colour, value}` chips"
 
   def bag(assigns) do
-    assigns = assign(assigns, counts: assigns.bag |> Enum.frequencies() |> Enum.sort())
-
     ~H"""
     <div class="paper rounded-lg p-3">
       <h2 class="text-lg font-bold">Bag ({length(@bag)} chips)</h2>
-      <ul class="mt-1 flex flex-wrap gap-2" aria-label="Chips in the bag">
-        <li :for={{chip, count} <- @counts} class="flex items-center gap-1 text-sm">
-          <.chip chip={chip} /> <span class="text-ink-soft">x{count}</span>
-        </li>
-      </ul>
+      <.chip_counts chips={@bag} size={:md} />
     </div>
+    """
+  end
+
+  @doc """
+  Chips as a count per kind, e.g. white 1 ×4, sorted by colour and value. Shows no
+  order, so it is safe for a bag.
+  """
+  attr :chips, :list, required: true, doc: "list of `{colour, value}` chips"
+  attr :size, :atom, default: :sm, values: [:sm, :md]
+
+  def chip_counts(assigns) do
+    assigns = assign(assigns, counts: assigns.chips |> Enum.frequencies() |> Enum.sort())
+
+    ~H"""
+    <ul class={["mt-1 flex flex-wrap", if(@size == :md, do: "gap-2", else: "gap-x-2 gap-y-1")]}>
+      <li :for={{chip, count} <- @counts} class="flex items-center gap-0.5 text-sm">
+        <.chip chip={chip} size={@size} />
+        <span class="text-ink-soft tabular-nums" data-role="chip-count">×{count}</span>
+      </li>
+      <li :if={@counts == []} class="text-ink-soft">empty</li>
+    </ul>
+    """
+  end
+
+  @doc """
+  The bag beside the pot: a pouch with the number of chips in it and a small
+  magnifying glass. It opens the `sheet-bag` sheet with the counts per kind.
+  """
+  attr :count, :integer, required: true
+  attr :class, :any, default: "relative", doc: "must position it (the glass sits in its corner)"
+
+  def bag_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      popovertarget="sheet-bag"
+      class={[
+        "size-14 touch-manipulation drop-shadow-[0_2px_3px_rgb(0_0_0/0.5)]",
+        "transition-transform duration-100 ease-out active:scale-95",
+        @class
+      ]}
+      aria-label={"Bag: #{@count} chips. Show what is in it"}
+      data-role="bag-button"
+    >
+      <svg viewBox="0 0 48 48" class="size-full" aria-hidden="true">
+        <path
+          d="M17 6 h14 l-3 8 h-8 z"
+          fill="var(--color-wood)"
+          stroke="var(--color-wood-dark)"
+          stroke-width="1.5"
+        />
+        <path
+          d="M19 13 C7 18 4 44 24 45 C44 44 41 18 29 13 Z"
+          fill="#9a6a3a"
+          stroke="var(--color-wood-dark)"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
+        <path d="M16 15 q8 4 16 0" fill="none" stroke="var(--color-parchment-dim)" stroke-width="2" />
+        <text
+          x="24"
+          y="36"
+          text-anchor="middle"
+          font-size="15"
+          font-weight="700"
+          fill="var(--color-parchment-light)"
+        >
+          {@count}
+        </text>
+      </svg>
+      <span class="absolute -right-1 -bottom-1 inline-flex size-6 items-center justify-center rounded-full bg-parchment text-ink ring-1 ring-ink-soft">
+        <span class="hero-magnifying-glass-mini size-4"></span>
+      </span>
+    </button>
+    """
+  end
+
+  @doc """
+  This round's Fortune Teller card as a small parchment card beside the pot: the
+  colour band and the name. It opens the `sheet-fortune` sheet with the full text.
+  """
+  attr :id, :atom, required: true, doc: "`game.fortune_card`"
+  attr :class, :any, default: nil
+
+  def fortune_tile(assigns) do
+    assigns = assign(assigns, card: Fortune.card(assigns.id))
+
+    ~H"""
+    <button
+      type="button"
+      popovertarget="sheet-fortune"
+      class={[
+        "paper flex w-22 rotate-3 flex-col overflow-hidden rounded-md text-left touch-manipulation",
+        "transition-transform duration-100 ease-out active:scale-95",
+        @class
+      ]}
+      aria-label={"Fortune teller card: #{@card.name}. Show the text"}
+      data-role="fortune-tile"
+      data-colour={@card.colour}
+    >
+      <span class={[
+        "h-2 w-full",
+        @card.colour == :blue && "bg-chip-blue",
+        @card.colour == :purple && "bg-chip-purple"
+      ]} />
+      <span class="line-clamp-2 px-1.5 py-1 font-hand text-xs leading-tight font-bold">
+        {@card.name}
+      </span>
+    </button>
     """
   end
 
@@ -542,13 +655,14 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  Another player at the table, read-only: name and VP up front (with a band in the
-  seat colour), rubies, flask, whether they are still brewing, whose turn it is, an
-  "Exploded" badge, and their pot drawn small.
+  One player at the table, read-only, for the player detail sheet: name and VP up
+  front (with a band in the seat colour), what they do now, rubies, flask, white
+  sum, their pot drawn small, the bowl and what is in their bag (counts only).
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :name, :string, required: true
+  attr :you, :boolean, default: false, doc: "this browser's own seat"
 
   def player_card(assigns) do
     assigns =
@@ -556,114 +670,123 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <article
-      class={["paper space-y-2 rounded-lg border-t-4 p-2 text-xs", @border]}
+      class={["paper space-y-2 rounded-lg border-t-4 p-2 text-sm", @border]}
       data-seat={@seat}
       data-role="player-card"
     >
-      <header class="flex flex-wrap items-center gap-1">
+      <header class="flex flex-wrap items-center gap-1.5 pr-8">
         <.seat_dot seat={@seat} />
-        <span class="font-hand text-sm font-bold" data-role="player-name">{@name}</span>
-        <span class="ml-auto text-sm font-bold tabular-nums" data-role="player-vp">{@p.vp} VP</span>
-      </header>
-      <div class="flex flex-wrap items-center gap-1">
+        <span class="font-hand text-lg font-bold" data-role="player-name">{@name}</span>
+        <span :if={@you} class="text-xs font-semibold text-ink-soft">you</span>
         <.player_state game={@game} seat={@seat} />
-      </div>
-      <p class="text-ink-soft">
-        {@p.rubies} {plural(@p.rubies, "ruby", "rubies")} · flask {if @p.flask,
-          do: "full",
-          else: "empty"} · white {Game.white_sum(@game, @seat)} / {Potions.explode_above(
-          @game,
-          @seat
-        )}
-      </p>
-      <.pot game={@game} seat={@seat} size={:sm} />
+        <span
+          :if={@p.exploded?}
+          class="rounded bg-ruby px-1.5 text-xs font-bold text-white"
+          data-role="exploded-badge"
+        >
+          Exploded
+        </span>
+      </header>
+      <dl class="grid grid-cols-4 gap-1 text-center">
+        <.stat label="VP" value={@p.vp} />
+        <.stat label="Rubies" value={@p.rubies} />
+        <.stat label="Flask" value={if @p.flask, do: "full", else: "empty"} />
+        <.stat
+          label="White"
+          value={"#{Game.white_sum(@game, @seat)} / #{Potions.explode_above(@game, @seat)}"}
+        />
+      </dl>
+      <.pot game={@game} seat={@seat} size={:sm} class="mx-auto block h-auto w-full max-w-64" />
       <.bowl :if={@p.bowl != []} chips={@p.bowl} />
+      <section aria-label="Bag" data-role="player-bag">
+        <h3 class="text-xs font-semibold text-ink-soft">In the bag: {length(@p.bag)}</h3>
+        <.chip_counts chips={@p.bag} />
+      </section>
     </article>
     """
   end
 
   @doc """
-  Another player in one line, for phones: colour dot, name, VP, rubies and state.
-  The whole line opens the players sheet with the full card.
+  One player in the players row under the status strip: colour dot, name, VP and
+  what they do now. A tap opens that player's detail sheet (`sheet-player-N`).
+  Your own chip says "you" and wears your seat colour as a ring.
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :name, :string, required: true
+  attr :you, :boolean, default: false
 
-  def player_line(assigns) do
-    assigns = assign(assigns, p: assigns.game.players[assigns.seat])
+  def player_chip(assigns) do
+    assigns =
+      assign(assigns, p: assigns.game.players[assigns.seat], you_class: @seat_you[assigns.seat])
 
     ~H"""
     <button
       type="button"
-      popovertarget="sheet-players"
-      class="flex min-h-7 w-full min-w-0 items-center gap-1.5 rounded-md bg-iron-dark/80 px-2 text-xs ring-1 ring-iron"
+      popovertarget={"sheet-player-#{@seat}"}
+      class={[
+        "flex min-h-9 w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs touch-manipulation",
+        "transition-transform duration-100 ease-out active:scale-[0.97]",
+        if(@you, do: ["ring-2", @you_class], else: "bg-iron-dark/80 ring-1 ring-iron")
+      ]}
       data-seat={@seat}
-      data-role="player-line"
+      data-role="player-chip"
+      data-you={@you && "true"}
     >
       <.seat_dot seat={@seat} />
-      <span class="truncate font-semibold" data-role="player-name">{@name}</span>
-      <span class="font-semibold tabular-nums" data-role="player-vp">{@p.vp} VP</span>
-      <span class="tabular-nums text-parchment-dim">{@p.rubies}<span class="text-ruby">◆</span></span>
-      <span class="ml-auto flex shrink-0 gap-1"><.player_state game={@game} seat={@seat} /></span>
+      <span class="min-w-0 truncate font-semibold" data-role="player-name">{@name}</span>
+      <span :if={@you} class="text-[10px] font-bold uppercase text-parchment-dim">you</span>
+      <span class="ml-auto shrink-0 font-semibold tabular-nums" data-role="player-vp">
+        {@p.vp} VP
+      </span>
+      <.player_state game={@game} seat={@seat} />
     </button>
     """
   end
 
-  # The small badges after a name: exploded, what the seat does now (see
-  # `seat_state/2`), their turn.
+  # The badge with what the seat does now (see `seat_state/2`).
   attr :game, Game, required: true
   attr :seat, :integer, required: true
 
   defp player_state(assigns) do
-    assigns =
-      assign(assigns,
-        p: assigns.game.players[assigns.seat],
-        state: seat_state(assigns.game, assigns.seat)
-      )
+    assigns = assign(assigns, state: seat_state(assigns.game, assigns.seat))
 
     ~H"""
     <span
-      :if={@p.exploded?}
-      class="rounded bg-ruby px-1.5 font-bold text-white"
-      data-role="exploded-badge"
-    >
-      Exploded
-    </span>
-    <span
       :if={@state}
-      class={["rounded px-1", state_class(@state)]}
+      class={["shrink-0 rounded px-1 text-[11px] leading-4", state_class(@state)]}
       data-role="player-state"
       data-state={@state}
     >
       {@state}
     </span>
-    <span :if={@game.turn == @seat} class="rounded bg-gold px-1 text-ink">their turn</span>
     """
   end
 
   @doc """
-  What `seat` does now, in a word or two, while everyone acts at once: "brewing",
-  "choosing", "stopped" or "done" in the potions phase; "shopping", "spending
-  rubies" or "ready" in the shop. `nil` in the other phases (`turn` tells who acts).
+  What `seat` does now, in one word: "brewing", "stopped" or "exploded" while
+  everyone brews; "shopping" or "ready" in the shop; "choosing" or "ready" while
+  seats answer a card, chip or witch choice. `nil` once the game is over.
   """
   @spec seat_state(Game.t(), Game.seat()) :: String.t() | nil
-  def seat_state(%Game{phase: phase, players: players}, seat)
-      when phase in [:potions, :shopping] do
-    case players[seat].phase do
-      p when p in [:explosion_choice, :red_choice] -> "choosing"
-      :stopped -> "stopped"
-      :done -> "done"
-      :buy -> "shopping"
-      :rubies -> "spending rubies"
-      :ready -> "ready"
+  def seat_state(%Game{phase: :potions, players: players}, seat) do
+    case players[seat] do
+      %Player{exploded?: true} -> "exploded"
+      %Player{phase: phase} when phase in [:stopped, :done] -> "stopped"
       _brewing -> "brewing"
     end
   end
 
-  def seat_state(%Game{}, _seat), do: nil
+  def seat_state(%Game{phase: :shopping, players: players}, seat),
+    do: if(players[seat].phase == :ready, do: "ready", else: "shopping")
 
-  defp state_class(state) when state in ["stopped", "done", "ready"], do: "bg-iron text-parchment"
+  def seat_state(%Game{phase: :over}, _seat), do: nil
+
+  def seat_state(%Game{} = game, seat),
+    do: if(Game.legal_actions(game, seat) == [], do: "ready", else: "choosing")
+
+  defp state_class(state) when state in ["stopped", "ready"], do: "bg-iron text-parchment"
+  defp state_class("exploded"), do: "bg-ruby font-bold text-white"
   defp state_class(_state), do: "bg-parchment-deep text-ink"
 
   @doc """
@@ -1034,7 +1157,28 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  defp seat_border(seat), do: @seat_border[seat]
+  @doc "The border class of a seat's colour, e.g. `\"border-seat-1\"`."
+  @spec seat_border(Game.seat()) :: String.t()
+  def seat_border(seat), do: @seat_border[seat]
+
+  @doc "The background class of a seat's colour, e.g. `\"bg-seat-1\"`."
+  @spec seat_bg(Game.seat()) :: String.t()
+  def seat_bg(seat), do: @seat_bg[seat]
+
+  @doc """
+  The VP `seat` got from the last round's coins and rubies (the round 9
+  conversion), or nil when the log has no such entry yet. Reads both log shapes,
+  `{:final_conversion, coins_vp, rubies_vp}` and
+  `{:final_conversion, coins, coins_vp, rubies, rubies_vp}`.
+  """
+  @spec buying_power([term], Game.seat()) :: non_neg_integer | nil
+  def buying_power(log, seat) do
+    Enum.find_value(log, fn
+      {^seat, {:final_conversion, cvp, rvp}} -> cvp + rvp
+      {^seat, {:final_conversion, _coins, cvp, _rubies, rvp}} -> cvp + rvp
+      _entry -> nil
+    end)
+  end
 
   defp total(nil, _pos), do: 0
   defp total(lines, pos), do: lines |> Enum.map(&elem(&1, pos)) |> Enum.sum()
@@ -1145,6 +1289,10 @@ defmodule QuacksWeb.GameComponents do
 
   def label({:final_conversion, coins_vp, rubies_vp}),
     do: "Final: coins → #{coins_vp} VP, rubies → #{rubies_vp} VP"
+
+  def label({:final_conversion, coins, coins_vp, rubies, rubies_vp}),
+    do:
+      "Final: #{coins} coins → #{coins_vp} VP, #{rubies} #{plural(rubies, "ruby", "rubies")} → #{rubies_vp} VP"
 
   def label({:fortune, choice}), do: fortune_choice(choice, nil)
   def label({:fortune_drawn, id}), do: "Fortune teller: #{Fortune.card(id).name}"
@@ -1370,6 +1518,7 @@ defmodule QuacksWeb.GameComponents do
   def phase_name(:red_choice), do: "Toadstool"
   def phase_name(:stopped), do: "Stopped"
   def phase_name(:buy), do: "Shop"
+  def phase_name(:shop), do: "Shop"
   def phase_name(:rubies), do: "Rubies"
   def phase_name(:ready), do: "Ready"
   def phase_name(:done), do: "Done"
