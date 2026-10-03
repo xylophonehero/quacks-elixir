@@ -94,4 +94,28 @@ defmodule Quacks.GameHelpers do
     Phoenix.PubSub.broadcast(Quacks.PubSub, Quacks.GameServer.topic(id), {:game, id, game})
     game
   end
+
+  @doc """
+  Play `steps` random legal actions (a random seat with actions, then a random action
+  of it) on the `:rand` state `rng`. Stops early when the game is over. Returns
+  `{game, rng}`.
+  """
+  def random_play(game, steps, rng) do
+    Enum.reduce_while(1..steps//1, {game, rng}, fn _, {g, rng} ->
+      case Enum.filter(g.seats, &(Game.legal_actions(g, &1) != [])) do
+        [] ->
+          {:halt, {g, rng}}
+
+        active ->
+          {seat, rng} = pick(active, rng)
+          {action, rng} = pick(Game.legal_actions(g, seat), rng)
+          {:cont, {apply!(g, seat, action), rng}}
+      end
+    end)
+  end
+
+  defp pick(list, rng) do
+    {i, rng} = :rand.uniform_s(length(list), rng)
+    {Enum.at(list, i - 1), rng}
+  end
 end

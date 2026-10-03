@@ -202,6 +202,20 @@ defmodule QuacksWeb.GameLive do
 
   def handle_event("load_config", _saved, socket), do: {:noreply, socket}
 
+  # Bots (host only): "Add bot" on an empty seat row puts Steady Sam there at once;
+  # × empties the seat again.
+  def handle_event("add_bot", %{"seat" => seat}, socket) do
+    case GameServer.add_bot(socket.assigns.id, socket.assigns.token, String.to_integer(seat)) do
+      {:ok, _seat} -> {:noreply, socket}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "That seat is not free now.")}
+    end
+  end
+
+  def handle_event("remove_bot", %{"seat" => seat}, socket) do
+    GameServer.remove_bot(socket.assigns.id, socket.assigns.token, String.to_integer(seat))
+    {:noreply, socket}
+  end
+
   def handle_event("begin", _params, socket) do
     case GameServer.begin(socket.assigns.id, socket.assigns.token) do
       {:ok, game} -> {:noreply, socket |> reseat() |> put_game(game)}
@@ -320,6 +334,7 @@ defmodule QuacksWeb.GameLive do
       players: table.players,
       names: table.names,
       colours: table.colours,
+      bots: table.bots,
       creator: table.creator,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
@@ -436,10 +451,32 @@ defmodule QuacksWeb.GameLive do
               />
             </form>
             <span :if={@names[seat] && seat != @seat} class="font-semibold">{@names[seat]}</span>
+            <.bot_badge :if={@bots[seat]} />
             <span :if={!@names[seat]} class="text-ink-soft italic">empty</span>
             <span :if={@names[seat] && seat == @creator} class="text-xs text-ink-soft">host</span>
             <span :if={seat == @seat} class="ml-auto text-xs font-semibold">you</span>
             <.colour_picker :if={seat == @seat} colours={@colours} seat={seat} />
+            <button
+              :if={@host and @bots[seat]}
+              type="button"
+              phx-click="remove_bot"
+              phx-value-seat={seat}
+              aria-label={"Remove #{@names[seat]}"}
+              data-role="remove-bot"
+              class="-mr-1 ml-auto grid size-9 cursor-pointer place-items-center rounded-full text-ink-soft transition-[color,background-color,transform] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-90"
+            >
+              <.icon name="hero-x-mark" class="size-4" />
+            </button>
+            <button
+              :if={@host and !@names[seat]}
+              type="button"
+              phx-click="add_bot"
+              phx-value-seat={seat}
+              data-role="add-bot"
+              class="-mr-1 ml-auto min-h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-ink-soft transition-[color,background-color,transform] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-95"
+            >
+              + Add bot
+            </button>
           </li>
         </ol>
         <p class="rounded-md bg-droplet/25 px-2 py-1" data-role="waiting-for-players">
@@ -557,6 +594,7 @@ defmodule QuacksWeb.GameLive do
                 seat={seat}
                 name={name(@names, seat)}
                 you={seat == @seat}
+                bot={Map.has_key?(@bots, seat)}
               />
             </nav>
           </div>
@@ -871,7 +909,7 @@ defmodule QuacksWeb.GameLive do
       </.dialog_sheet>
 
       <.dialog_sheet :if={Game.over?(@game)} id="game-over" label="Game over">
-        <.game_over game={@game} names={@names} players={@players} />
+        <.game_over game={@game} names={@names} players={@players} bots={@bots} />
       </.dialog_sheet>
 
       <%!-- The new card of the round, on top of everything. Its id names the round,
@@ -1006,6 +1044,7 @@ defmodule QuacksWeb.GameLive do
   attr :game, Game, required: true
   attr :names, :map, required: true
   attr :players, :integer, required: true
+  attr :bots, :map, default: %{}
 
   def game_over(assigns) do
     ~H"""
@@ -1018,6 +1057,7 @@ defmodule QuacksWeb.GameLive do
         <li :for={{seat, vp} <- ranking(@game)} data-seat={seat} data-role="final-score">
           <p :if={@players > 1} class="flex items-center justify-center gap-1.5 font-hand text-lg">
             <.seat_dot seat={seat} /> {name(@names, seat)}: {vp} victory points
+            <.bot_badge :if={@bots[seat]} />
           </p>
           <p
             :if={power = buying_power(@game.log, seat)}

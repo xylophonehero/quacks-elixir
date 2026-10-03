@@ -858,6 +858,32 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
+  The small "bot" tag next to a bot's name. `compact` shows a chip icon instead of
+  the word, for the tight players row.
+  """
+  attr :class, :any, default: "bg-ink/10 text-ink-soft"
+  attr :compact, :boolean, default: false
+
+  def bot_badge(assigns) do
+    ~H"""
+    <span
+      class={[
+        "inline-flex items-center rounded px-1 text-[10px] leading-4 font-bold uppercase tracking-wide",
+        @class
+      ]}
+      title="bot"
+      data-role="bot-badge"
+    >
+      <%= if @compact do %>
+        <span class="hero-cpu-chip-micro size-3" aria-hidden="true"></span><span class="sr-only">bot</span>
+      <% else %>
+        bot
+      <% end %>
+    </span>
+    """
+  end
+
+  @doc """
   One player in the players row under the status strip: colour dot, name, VP and
   what they do now. A tap opens that player's detail sheet (`sheet-player-N`).
   Your own chip says "you" and wears your seat colour as a ring.
@@ -866,6 +892,7 @@ defmodule QuacksWeb.GameComponents do
   attr :seat, :integer, required: true
   attr :name, :string, required: true
   attr :you, :boolean, default: false
+  attr :bot, :boolean, default: false
 
   def player_chip(assigns) do
     assigns =
@@ -887,6 +914,7 @@ defmodule QuacksWeb.GameComponents do
       <.seat_dot seat={@seat} />
       <span class="min-w-0 truncate font-semibold" data-role="player-name">{@name}</span>
       <span :if={@you} class="text-[10px] font-bold uppercase text-parchment-dim">you</span>
+      <.bot_badge :if={@bot} compact class="shrink-0 py-0.5 bg-parchment/15 text-parchment-dim" />
       <span class="ml-auto shrink-0 font-semibold tabular-nums" data-role="player-vp">
         {@p.vp} VP
       </span>
