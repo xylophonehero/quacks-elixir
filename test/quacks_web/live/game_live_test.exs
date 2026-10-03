@@ -178,7 +178,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, "dialog#decision-shop[phx-mounted]")
 
     # 1 ruby: nothing to spend, so the buy ends the round at once
-    view |> element("button", "Buy nothing") |> render_click()
+    view |> element("[data-role=shop-done]") |> render_click()
     refute has_element?(view, "dialog#decision-shop")
     assert has_element?(view, "li", "— Round 1 over —")
   end
@@ -250,7 +250,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, "li", "Scoring space 7: +1 VP")
     refute render(view) =~ "Round 1 over"
 
-    view |> element("button", "Buy nothing") |> render_click()
+    view |> element("[data-role=shop-done]") |> render_click()
     assert has_element?(view, "li", "— Round 1 over —")
     refute has_element?(view, "li", "End round")
   end
@@ -262,7 +262,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, "button:disabled", "Buy selected")
     assert has_element?(view, "[data-role=shop-total]", "Selected: 12 coins. Remaining: -5 of 7.")
 
-    view |> element("button", "Buy nothing") |> render_click()
+    view |> element("[data-role=shop-done]") |> render_click()
     assert has_element?(view, "li", "— Round 1 over —")
   end
 

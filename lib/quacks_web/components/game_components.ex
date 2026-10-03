@@ -765,15 +765,17 @@ defmodule QuacksWeb.GameComponents do
 
   @doc """
   What `seat` does now, in one word: "brewing", "stopped" or "exploded" while
-  everyone brews; "shopping" or "ready" in the shop; "choosing" or "ready" while
-  seats answer a card, chip or witch choice. `nil` once the game is over.
+  everyone brews (round 9 with 2+ players: "deciding" until the seat picks Draw or
+  Stop, then "chosen"); "shopping" or "ready" in the shop; "choosing" or "ready"
+  while seats answer a card, chip or witch choice. `nil` once the game is over.
   """
   @spec seat_state(Game.t(), Game.seat()) :: String.t() | nil
-  def seat_state(%Game{phase: :potions, players: players}, seat) do
+  def seat_state(%Game{phase: :potions, players: players} = game, seat) do
     case players[seat] do
       %Player{exploded?: true} -> "exploded"
       %Player{phase: phase} when phase in [:stopped, :done] -> "stopped"
       %Player{phase: :waiting_stir} -> "chosen"
+      _brewing when game.round == 9 and length(game.seats) > 1 -> "deciding"
       _brewing -> "brewing"
     end
   end
@@ -786,7 +788,9 @@ defmodule QuacksWeb.GameComponents do
   def seat_state(%Game{} = game, seat),
     do: if(Game.legal_actions(game, seat) == [], do: "ready", else: "choosing")
 
-  defp state_class(state) when state in ["stopped", "ready"], do: "bg-iron text-parchment"
+  defp state_class(state) when state in ["stopped", "ready", "chosen"],
+    do: "bg-iron text-parchment"
+
   defp state_class("exploded"), do: "bg-ruby font-bold text-white"
   defp state_class(_state), do: "bg-parchment-deep text-ink"
 
@@ -1257,7 +1261,7 @@ defmodule QuacksWeb.GameComponents do
   def label({:explosion_choice, :buy}), do: "Exploded: buy chips instead"
   def label({:rubies, :droplet}), do: "Spend 2 rubies: droplet +1"
   def label({:rubies, :flask}), do: "Spend 2 rubies: refill flask"
-  def label({:rubies, :vp}), do: "Spend 2 rubies: 1 VP"
+  def label({:rubies, :vp}), do: "2 rubies → 1 VP"
   def label({:buy, []}), do: "Buy nothing"
 
   # No price here: it depends on the game's books. The shop shows the prices.

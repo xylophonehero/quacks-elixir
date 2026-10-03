@@ -81,4 +81,17 @@ defmodule Quacks.GameHelpers do
 
     Map.merge(g.supply, chips, fn _chip, a, b -> a + b end)
   end
+
+  @doc """
+  Change the game inside the running `Quacks.GameServer` `id` with `fun` and tell
+  every page (the `{:game, id, game}` broadcast). For LiveView tests that need a
+  hand-built state, e.g. round 9.
+  """
+  def replace_game(id, fun) do
+    [{pid, _}] = Registry.lookup(Quacks.GameRegistry, id)
+    state = :sys.replace_state(pid, fn st -> put_in(st.session.game, fun.(st.session.game)) end)
+    game = state.session.game
+    Phoenix.PubSub.broadcast(Quacks.PubSub, Quacks.GameServer.topic(id), {:game, id, game})
+    game
+  end
 end

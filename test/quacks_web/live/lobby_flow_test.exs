@@ -98,22 +98,22 @@ defmodule QuacksWeb.LobbyFlowTest do
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "shopping")
 
     # bob has 1 ruby: nothing to spend after the buy, so he is ready at once
-    bob |> element("button", "Buy nothing") |> render_click()
+    bob |> element("[data-role=shop-done]") |> render_click()
     assert has_element?(alice, "dialog#decision-shop")
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "ready")
     assert has_element?(bob, "[data-role=turn]", "Waiting for 1 player: Seat 1.")
   end
 
-  test "the lobby's chip supply option" do
+  test "the host's chip supply option" do
     conn = browser("carol")
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, id} = GameServer.start(2)
+    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     assert has_element?(view, "#rules-supply-infinite[checked]")
 
     view |> element("#options") |> render_change(%{"rules" => %{"supply" => "limited"}})
+    render_click(view, "players", %{"count" => "1"})
+    view |> element("button", "Start game") |> render_click()
 
-    {:ok, game_view, _html} =
-      view |> element("button", "New solo game") |> render_click() |> follow_redirect(conn)
-
-    assert has_element?(game_view, "[data-role=house-rules]", "limited chip supply")
+    assert has_element?(view, "[data-role=house-rules]", "limited chip supply")
   end
 end

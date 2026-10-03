@@ -85,11 +85,11 @@ defmodule QuacksWeb.UiRound3Test do
     refute has_element?(view, "[data-role=fortune-tile]")
   end
 
-  # The rest of `to_shop/1` after one draw, then "Buy nothing" (1 ruby: round over).
+  # The rest of `to_shop/1` after one draw, then "Done" (round over).
   defp to_shop_rest(view) do
     for _ <- 1..2, do: view |> element("button", "Draw a chip") |> render_click()
     view |> element("button", "Stop") |> render_click()
-    view |> element("button", "Buy nothing") |> render_click()
+    view |> element("[data-role=shop-done]") |> render_click()
   end
 
   test "the players row: one chip per seat, yours marked; a tap opens the detail sheet" do
@@ -181,40 +181,36 @@ defmodule QuacksWeb.UiRound3Test do
       render_component(&GameLive.game_over/1,
         game: game,
         names: %{0 => "Ann", 1 => "Bo"},
-        players: 2,
-        play_again: false
+        players: 2
       )
 
     assert html =~ "Ann: 0 victory points"
     assert count(html, ~s([data-seat="0"] [data-role=buying-power])) == 1
     assert html =~ "Final round buying power: +5 VP"
     assert html =~ "Final round buying power: +2 VP"
-    assert count(html, "button[data-role=play-again][disabled][title]") == 1
-    assert count(html, "button[data-role=return-to-lobby][phx-click=lobby]") == 1
-
-    html =
-      render_component(&GameLive.game_over/1,
-        game: game,
-        names: %{},
-        players: 2,
-        play_again: true
-      )
-
     assert count(html, "button[data-role=play-again][phx-click=play_again]:not([disabled])") == 1
+    assert count(html, "button[data-role=return-to-lobby][phx-click=lobby]") == 1
 
     {_id, alice, _bob} = duo()
     assert {:error, {:live_redirect, %{to: "/"}}} = render_click(alice, "lobby")
   end
 
+  defp buy_orange(view) do
+    view
+    |> element("#shop")
+    |> render_change(%{"chips" => [GameLive.encode({:orange, 1})]})
+
+    view |> element("button", "Buy selected") |> render_click()
+    view
+  end
+
   test "a buy ends the shop when no ruby can be spent; otherwise rubies and Done" do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
-    view = browser("solo") |> open(id) |> to_shop()
-    view |> element("button", "Buy nothing") |> render_click()
+    view = browser("solo") |> open(id) |> to_shop() |> buy_orange()
     assert has_element?(view, "li", "— Round 1 over —")
 
     {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, %{starting_rubies: 3})
-    view = browser("rich") |> open(id) |> to_shop()
-    view |> element("button", "Buy nothing") |> render_click()
+    view = browser("rich") |> open(id) |> to_shop() |> buy_orange()
 
     assert has_element?(view, "#decision-shop [data-role=shop-rubies] button", "droplet +1")
     refute has_element?(view, "#decision-shop #shop")

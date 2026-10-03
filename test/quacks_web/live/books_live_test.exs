@@ -27,8 +27,15 @@ defmodule QuacksWeb.BooksLiveTest do
     end)
   end
 
-  test "the lobby shows the chosen book's text and updates it", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
+  # The configure screen of a new waiting game, as its host.
+  defp configure(conn) do
+    {:ok, id} = GameServer.start(2, {1, 2, 3})
+    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+    {id, view}
+  end
+
+  test "the configure screen shows the chosen book's text and updates it", %{conn: conn} do
+    {_id, view} = configure(conn)
     green = "[data-colour=green] [data-role=chosen-book]"
     assert has_element?(view, green, "Garden spider")
     assert has_element?(view, green, "1 ruby for each green chip")
@@ -38,16 +45,15 @@ defmodule QuacksWeb.BooksLiveTest do
     refute has_element?(view, green, "1 ruby for each green chip")
   end
 
-  test "the lobby picks orange 2 and locoweed in a base game", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
+  test "the host picks orange 2 and locoweed in a base game", %{conn: conn} do
+    {id, view} = configure(conn)
     assert has_element?(view, "select[name='sets[locoweed]'] option[value='']", "Not used")
     refute has_element?(view, "[data-colour=locoweed] [data-role=chosen-book]")
 
     view |> form("#books", sets: %{orange: "2", locoweed: "5"}) |> render_change()
     assert has_element?(view, "[data-colour=locoweed] [data-role=chosen-book]", "rat stone")
 
-    {:error, {:live_redirect, %{to: "/g/" <> id}}} =
-      view |> element("button", "New solo game") |> render_click()
+    view |> element("button", "Start game") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
     assert game.expansion == nil
@@ -55,7 +61,7 @@ defmodule QuacksWeb.BooksLiveTest do
   end
 
   test "the expansion toggle defaults orange to 2 and locoweed to 5", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
+    {_id, view} = configure(conn)
     view |> form("#books", expansion: "true") |> render_change()
     assert has_element?(view, "select[name='sets[orange]'] option[value='2'][selected]")
     assert has_element?(view, "select[name='sets[locoweed]'] option[value='5'][selected]")

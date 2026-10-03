@@ -28,19 +28,16 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
     end)
   end
 
-  test "the lobby creates a game with green 2; the shop shows green 1 at 6 coins", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/?seed=1,2,3")
-    assert has_element?(view, "#books select[name='sets[green]']")
+  test "the host picks green 2; the shop shows green 1 at 6 coins", %{conn: conn} do
+    {:ok, id} = GameServer.start(2, {1, 2, 3})
+    {:ok, game_view, _html} = live(conn, ~p"/g/#{id}")
+    assert has_element?(game_view, "#books select[name='sets[green]']")
 
-    view |> form("#books", sets: %{green: "2"}) |> render_change()
-
-    {:error, {:live_redirect, %{to: "/g/" <> id}}} =
-      view |> element("button", "New solo game") |> render_click()
+    game_view |> form("#books", sets: %{green: "2"}) |> render_change()
+    game_view |> element("button", "Start game") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
     assert game.sets == %{green: 2, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}
-
-    {:ok, game_view, _html} = live(conn, ~p"/g/#{id}")
     assert %Game{phase: :shopping} = to_shop(id)
     render(game_view)
 
@@ -50,7 +47,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
   end
 
   test "a bad set from the form falls back to Set 1" do
-    assert QuacksWeb.LobbyLive.parse_sets(%{"green" => "9", "red" => "2", "blue" => %{}}) ==
+    assert QuacksWeb.SetupComponents.parse_sets(%{"green" => "9", "red" => "2", "blue" => %{}}) ==
              %{green: 1, blue: 1, red: 2, yellow: 1, purple: 1}
   end
 

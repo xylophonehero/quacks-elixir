@@ -124,7 +124,7 @@ defmodule QuacksWeb.BoardUxTest do
     assert has_element?(view, "[data-role=open-results]")
 
     # with one ruby there is nothing left to do after the buy: the round ends at once
-    view |> element("button", "Buy nothing") |> render_click()
+    view |> element("[data-role=shop-done]") |> render_click()
     refute has_element?(view, "#round-results")
   end
 end

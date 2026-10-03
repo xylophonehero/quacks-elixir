@@ -8,10 +8,13 @@ defmodule QuacksWeb.GameLive do
   `Quacks.GameServer.apply/3`. The page itself knows no rules. A browser without a
   seat (the game is full) watches: it sees every pot and no buttons.
 
-  Before the game begins (`GameServer` status `:waiting`) the page is the waiting
-  room: one slot per seat (a name or "empty"), a link to share and, for the creator,
-  a "Start game" button (`GameServer.begin/2`). Closing the page before the start
-  frees the seat (`terminate/2`).
+  Before the game begins (`GameServer` status `:waiting`) the page is the configure
+  screen: the player count (a − / + stepper), the Ingredient books, the options
+  (`QuacksWeb.SetupComponents`), a link to share, one slot per seat and "Start game"
+  (`GameServer.begin/2`). Only the host (the creator) may change the settings; each
+  change goes through `GameServer.configure/3`, and the broadcast that follows makes
+  every waiting page read the table again, so the others see the settings read-only.
+  Closing the page before the start frees the seat (`terminate/2`).
 
   The layout, top to bottom: the header ("You are" and your seat colour, which also
   runs along the top edge), your status, the players row (one chip per seat; a tap
@@ -24,13 +27,17 @@ defmodule QuacksWeb.GameLive do
   The shop is one dialog: your chips, the buy, the ruby options and "Done". A buy
   that leaves nothing else to do ends the round for this seat at once.
 
+  Round 9 with 2+ players is the "Stir!" round: everyone picks Draw or Stop, and the
+  picks resolve together. A banner says so; after the pick both buttons are disabled
+  until the step resolves, and a stopped player has no Resume.
+
   While everyone brews or shops at the same time, each player chip shows what that
   seat does now (`GameComponents.seat_state/2`), and a player who has finished sees
   who they wait for. A stopped player's Stop button becomes Resume.
 
   With The Herb Witches the page also shows the 3 witches (a sheet on phones, the
   right column on large screens) with a button to call one when the engine allows
-  it, and the overflow bowl under the pot.
+  it. The overflow bowl shows under the pot once it has chips.
 
   Actions travel to the browser as a URL-safe binary (see `encode/1`) so tuples like
   `{:buy, [{:green, 2}]}` survive the round trip without a parser per action shape.
@@ -38,6 +45,8 @@ defmodule QuacksWeb.GameLive do
   use QuacksWeb, :live_view
 
   import QuacksWeb.GameComponents
+
+  import QuacksWeb.SetupComponents
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Books, Chips}
@@ -78,11 +87,9 @@ defmodule QuacksWeb.GameLive do
            token: session["player_token"],
            seat: seat,
            seed: table.seed,
-           players: table.players,
-           names: table.names,
-           creator: table.creator,
            copied: false
          )
+         |> assign_table(table)
          |> put_game(table.game)}
 
       {:error, :not_found} ->
@@ -125,6 +132,33 @@ defmodule QuacksWeb.GameLive do
     {:noreply, assign(socket, selected: selected)}
   end
 
+  # The configure screen (host only): the player count stepper and the two forms.
+  def handle_event("players", %{"count" => count}, socket) do
+    case Integer.parse(count) do
+      {players, ""} -> {:noreply, configure(socket, %{players: players})}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("sets", %{"sets" => params} = form, socket) when is_map(params) do
+    expansion = form["expansion"] == "true"
+    # The toggle resets orange and locoweed to the new default (expansion: 2 and 5).
+    params =
+      if expansion == socket.assigns.expansion,
+        do: params,
+        else: Map.drop(params, ["orange", "locoweed"])
+
+    config = %{sets: parse_sets(params, expansion), expansion: if(expansion, do: :herb_witches)}
+    # 5 players need the expansion.
+    config =
+      if expansion, do: config, else: Map.put(config, :players, min(socket.assigns.players, 4))
+
+    {:noreply, configure(socket, config)}
+  end
+
+  def handle_event("rules", %{"rules" => params}, socket) when is_map(params),
+    do: {:noreply, configure(socket, %{rules: parse_rules(params)})}
+
   def handle_event("begin", _params, socket) do
     case GameServer.begin(socket.assigns.id, socket.assigns.token) do
       {:ok, game} -> {:noreply, socket |> reseat() |> put_game(game)}
@@ -139,8 +173,7 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # A new game for the same number of players, books, house rules and expansion,
-  # with this browser in seat 0.
+  # Solo menu: a new game for the same books, house rules and expansion.
   def handle_event("new_game", _params, socket) do
     %{sets: sets, rules: rules, expansion: expansion} = socket.assigns.game
     {:ok, id} = GameServer.start(socket.assigns.players, nil, sets, rules, expansion)
@@ -148,9 +181,10 @@ defmodule QuacksWeb.GameLive do
     {:noreply, push_navigate(socket, to: ~p"/g/#{id}")}
   end
 
-  # After the game: a new waiting game for the same table (multiplayer).
+  # After the game: the next game for the same table (`GameServer.play_again/2`).
+  # Every page hears `{:play_again, id, new_id}` and moves there too.
   def handle_event("play_again", _params, socket) do
-    case play_again(socket.assigns.id, socket.assigns.token) do
+    case GameServer.play_again(socket.assigns.id, socket.assigns.token) do
       {:ok, new_id} -> {:noreply, push_navigate(socket, to: ~p"/g/#{new_id}")}
       _error -> {:noreply, put_flash(socket, :error, "Play again is not possible.")}
     end
@@ -214,12 +248,29 @@ defmodule QuacksWeb.GameLive do
         {:error, _full} -> nil
       end
 
+    socket |> assign(seat: seat) |> assign_table(table)
+  end
+
+  # The table's seats and settings. `@players` is the seat count (while waiting: the
+  # count the host picked); `@sets`, `@rules` and `@expansion` feed the configure forms.
+  defp assign_table(socket, table) do
     assign(socket,
-      seat: seat,
       players: table.players,
       names: table.names,
-      creator: table.creator
+      creator: table.creator,
+      sets: table.sets || %{},
+      rules: Map.merge(Game.default_rules(), table.rules || %{}),
+      expansion: table.expansion == :herb_witches
     )
+  end
+
+  # Send the host's change to the server; the reply is the new table.
+  defp configure(socket, config) do
+    case GameServer.configure(socket.assigns.id, socket.assigns.token, config) do
+      {:ok, table} -> assign_table(socket, table)
+      {:error, :not_creator} -> put_flash(socket, :error, "Only the host can change the game.")
+      {:error, _} -> put_flash(socket, :error, "That setting is not possible now.")
+    end
   end
 
   # Phones: one screen, no page scroll. Rows: header, status, notices, the pot (takes
@@ -228,17 +279,43 @@ defmodule QuacksWeb.GameLive do
   # column where the bag, log and players sheets show in place.
   @impl true
   def render(%{game: nil} = assigns) do
+    assigns = assign(assigns, host: host?(assigns.seat, assigns.creator))
+
     ~H"""
     <Layouts.app flash={@flash}>
       <h1 class="font-hand text-2xl font-bold">
         <.link navigate={~p"/"}>Quacks</.link>
         <span class="font-mono text-xs font-normal text-parchment-dim">{@id}</span>
       </h1>
-      <section class="paper space-y-3 rounded-lg p-3" aria-label="Waiting room">
-        <h2 class="text-lg font-bold">Waiting room</h2>
-        <p class="rounded-md bg-droplet/25 px-2 py-1" data-role="waiting-for-players">
-          {map_size(@names)} of {@players} seated.
+      <section class="paper space-y-3 rounded-lg p-3" aria-label="New game">
+        <h2 class="text-lg font-bold">New game</h2>
+        <p :if={!@host and @creator} class="text-sm text-ink-soft" data-role="read-only">
+          {name(@names, @creator)} sets the game up.
         </p>
+        <div class="flex items-center gap-3" data-role="player-count">
+          <span class="font-semibold">Players</span>
+          <.button
+            phx-click="players"
+            phx-value-count={@players - 1}
+            disabled={!@host or @players <= max(map_size(@names), 1)}
+            aria-label="Fewer players"
+            class="size-11 text-xl"
+          >
+            −
+          </.button>
+          <span class="w-6 text-center text-2xl font-bold tabular-nums" data-role="count">
+            {@players}
+          </span>
+          <.button
+            phx-click="players"
+            phx-value-count={@players + 1}
+            disabled={!@host or @players >= if(@expansion, do: 5, else: 4)}
+            aria-label="More players"
+            class="size-11 text-xl"
+          >
+            +
+          </.button>
+        </div>
         <ol class="space-y-1" aria-label="Seats">
           <li
             :for={seat <- 0..(@players - 1)}
@@ -253,6 +330,9 @@ defmodule QuacksWeb.GameLive do
             <span :if={seat == @seat} class="ml-auto text-xs font-semibold">you</span>
           </li>
         </ol>
+        <p class="rounded-md bg-droplet/25 px-2 py-1" data-role="waiting-for-players">
+          {map_size(@names)} of {@players} seated.
+        </p>
         <label :if={@seat} class="block space-y-1 text-sm">
           <span class="font-semibold">Your name</span>
           <input
@@ -264,18 +344,19 @@ defmodule QuacksWeb.GameLive do
             class="w-full rounded-md border border-ink-soft bg-parchment-light px-2 py-2 text-base text-ink"
           />
         </label>
-        <label class="block space-y-1 text-sm">
+        <div :if={@players > 1} class="space-y-1 text-sm">
           <span class="font-semibold">Share this link to invite players</span>
-          <input
-            type="text"
-            readonly
-            value={url(~p"/g/#{@id}")}
-            data-role="share-link"
-            class="w-full rounded-md border border-ink-soft bg-parchment-light px-2 py-2 font-mono text-sm text-ink"
-          />
-        </label>
-        <div class="flex *:min-h-11 *:flex-1">
-          <.copy_link url={url(~p"/g/#{@id}")} copied={@copied} />
+          <div class="flex gap-2">
+            <input
+              type="text"
+              readonly
+              value={url(~p"/g/#{@id}")}
+              aria-label="Game link"
+              data-role="share-link"
+              class="min-w-0 flex-1 rounded-md border border-ink-soft bg-parchment-light px-2 py-2 font-mono text-sm text-ink"
+            />
+            <.copy_link url={url(~p"/g/#{@id}")} copied={@copied} />
+          </div>
         </div>
         <.button
           :if={starter?(@seat, @creator)}
@@ -287,6 +368,13 @@ defmodule QuacksWeb.GameLive do
         <p :if={@seat && !starter?(@seat, @creator)} data-role="waiting-for-host">
           Waiting for {name(@names, @creator)} to start the game.
         </p>
+      </section>
+      <section class="paper rounded-lg p-3" aria-label="Settings">
+        <.books_form sets={@sets} expansion={@expansion} disabled={!@host} />
+        <details class="mt-3" open={!@host}>
+          <summary class="cursor-pointer font-bold">Options</summary>
+          <div class="mt-2"><.options_form rules={@rules} disabled={!@host} /></div>
+        </details>
       </section>
       <p :if={is_nil(@seat)} class="rounded-md bg-iron-dark px-2 py-1" data-role="spectator">
         All seats are taken. You are watching.
@@ -371,6 +459,13 @@ defmodule QuacksWeb.GameLive do
               All seats are taken. You are watching.
             </p>
             <p
+              :if={stir?(@game)}
+              class="rounded-md bg-gold px-2 py-0.5 font-bold text-ink"
+              data-role="stir"
+            >
+              Stir! Everyone draws together.
+            </p>
+            <p
               :if={@players > 1 and not Game.over?(@game)}
               class="px-1 font-semibold"
               data-role="turn"
@@ -415,11 +510,11 @@ defmodule QuacksWeb.GameLive do
               </div>
             </div>
             <div
-              :if={(@me && @me.aside != []) || @game.expansion}
+              :if={(@me && @me.aside != []) || @game.players[@seat || 0].bowl != []}
               class="flex items-start gap-2 pt-1"
             >
               <.aside :if={@me && @me.aside != []} chips={@me.aside} />
-              <div :if={@game.expansion} class="ml-auto max-w-[60%]">
+              <div :if={@game.players[@seat || 0].bowl != []} class="ml-auto max-w-[60%]">
                 <.bowl chips={@game.players[@seat || 0].bowl} />
               </div>
             </div>
@@ -613,12 +708,7 @@ defmodule QuacksWeb.GameLive do
       </.dialog_sheet>
 
       <.dialog_sheet :if={Game.over?(@game)} id="game-over" label="Game over">
-        <.game_over
-          game={@game}
-          names={@names}
-          players={@players}
-          play_again={play_again?()}
-        />
+        <.game_over game={@game} names={@names} players={@players} />
       </.dialog_sheet>
 
       <%!-- The new card of the round, on top of everything. Its id names the round,
@@ -661,14 +751,12 @@ defmodule QuacksWeb.GameLive do
 
   @doc """
   The end of the game: the ranking, each player's "buying power" from the last
-  round (coins and rubies turned into VP, when the log has it), "Play again" and
-  "Return to lobby". A solo game starts again at once (`new_game`); a multiplayer
-  game asks `GameServer.play_again/2`, so it is disabled until the server has it.
+  round (coins and rubies turned into VP, when the log has it), "Play again"
+  (`GameServer.play_again/2`: the same table again) and "Return to lobby".
   """
   attr :game, Game, required: true
   attr :names, :map, required: true
   attr :players, :integer, required: true
-  attr :play_again, :boolean, default: false, doc: "`GameServer.play_again/2` exists"
 
   def game_over(assigns) do
     ~H"""
@@ -692,22 +780,7 @@ defmodule QuacksWeb.GameLive do
         </li>
       </ol>
       <div class="flex gap-2 *:min-h-11 *:flex-1">
-        <.button
-          :if={@players == 1}
-          phx-click="new_game"
-          variant="primary"
-          data-role="play-again"
-        >
-          Play again
-        </.button>
-        <.button
-          :if={@players > 1}
-          phx-click="play_again"
-          variant="primary"
-          disabled={not @play_again}
-          title={if not @play_again, do: "Play again is not available on this server yet"}
-          data-role="play-again"
-        >
+        <.button phx-click="play_again" variant="primary" data-role="play-again">
           Play again
         </.button>
         <.button phx-click="lobby" data-role="return-to-lobby">Return to lobby</.button>
@@ -819,13 +892,6 @@ defmodule QuacksWeb.GameLive do
             disabled={@selected == [] or {:buy, @selected} not in @actions}
           >
             Buy selected
-          </.button>
-          <.button
-            :if={{:buy, []} in @actions}
-            phx-click="action"
-            phx-value-action={encode({:buy, []})}
-          >
-            Buy nothing
           </.button>
         </div>
       </div>
@@ -946,7 +1012,8 @@ defmodule QuacksWeb.GameLive do
       decision: decision,
       all_actions: actions,
       actions: if(decision, do: [], else: Enum.reject(actions, &witch?/1)),
-      stop_slot: if(me && me.phase == :stopped, do: :resume, else: :stop)
+      stop_slot:
+        if(me != nil and me.phase == :stopped and not stir?(game), do: :resume, else: :stop)
     )
   end
 
@@ -966,21 +1033,15 @@ defmodule QuacksWeb.GameLive do
 
   defp finish_shop(game, _id, _seat, _action), do: game
 
-  # `GameServer.play_again/2` comes with the engine's next round of work; until
-  # then "Play again" is disabled in multiplayer.
-  defp play_again? do
-    Code.ensure_loaded?(GameServer) and function_exported?(GameServer, :play_again, 2)
-  end
-
-  defp play_again(id, token) do
-    if play_again?(),
-      do: Function.capture(GameServer, :play_again, 2).(id, token),
-      else: {:error, :unknown}
-  end
-
   # The creator starts the game; once the creator left, any seated player may.
   defp starter?(nil, _creator), do: false
   defp starter?(seat, creator), do: creator in [nil, seat]
+
+  # Only the creator (the host) changes the settings.
+  defp host?(seat, creator), do: seat != nil and seat == creator
+
+  # Round 9 with 2+ players: everyone draws together (the engine's "stir").
+  defp stir?(game), do: game.phase == :potions and game.round == 9 and length(game.seats) > 1
 
   # Every seat's scoring space, for the rings on the big pot.
   defp rings(game), do: Map.new(game.seats, &{&1, Game.scoring_index(game, &1)})
@@ -1041,33 +1102,45 @@ defmodule QuacksWeb.GameLive do
 
   defp name(names, seat), do: Map.get(names, seat, GameServer.default_name(seat))
 
-  # While everyone acts at once, a seat that has finished sees who it waits for.
-  defp turn_text(%{phase: phase} = game, seat, names) when phase in [:potions, :shopping] do
-    case waiting_for(game, seat) do
-      [] when phase == :potions ->
-        "Everyone brews at the same time."
+  # What happens now, for the line under the players row. A seat that still has to
+  # act is told what everyone does; a seat that is finished sees who it waits for.
+  defp turn_text(game, seat, names) do
+    busy = Enum.filter(game.seats, &busy?(game, game.players[&1]))
 
-      [] ->
-        "Everyone shops at the same time."
+    cond do
+      seat in busy or busy == [] or seat == nil ->
+        everyone_text(game, seat)
 
-      seats ->
-        "Waiting for #{length(seats)} #{if length(seats) == 1, do: "player", else: "players"}: " <>
-          Enum.map_join(seats, ", ", &name(names, &1)) <> "."
+      game.phase == :potions and game.players[seat].pending_choice ->
+        chose_text(game, seat, busy, names)
+
+      true ->
+        waiting_text(busy, names)
     end
   end
 
-  defp turn_text(%{phase: phase}, _seat, _names),
+  defp everyone_text(%{phase: :potions} = game, _seat) do
+    if stir?(game), do: "Pick Draw or Stop.", else: "Everyone brews at the same time."
+  end
+
+  defp everyone_text(%{phase: :shopping}, _seat), do: "Everyone shops at the same time."
+
+  defp everyone_text(%{phase: phase}, _seat),
     do: "Everyone may #{phase_verb(phase)} at the same time."
 
-  # The seats `seat` waits for: empty unless `seat` has stopped (or is done) while
-  # others brew, or is ready while others shop. Watchers wait for nobody.
-  defp waiting_for(game, seat) do
-    finished = if game.phase == :potions, do: [:stopped, :done], else: [:ready]
+  defp chose_text(game, seat, busy, names),
+    do: "You chose #{game.players[seat].pending_choice}. " <> waiting_text(busy, names)
 
-    if seat && game.players[seat].phase in finished,
-      do: Enum.reject(game.seats, &(game.players[&1].phase in finished)),
-      else: []
+  defp waiting_text(seats, names) do
+    "Waiting for #{length(seats)} #{if length(seats) == 1, do: "player", else: "players"}: " <>
+      Enum.map_join(seats, ", ", &name(names, &1)) <> "."
   end
+
+  # A seat that still has to act in this step: brewing (not stopped, done or waiting
+  # for the stir), shopping, or answering the concurrent choice of the game phase.
+  defp busy?(%{phase: :potions}, player), do: player.phase not in [:stopped, :done, :waiting_stir]
+  defp busy?(%{phase: :shopping}, player), do: player.phase != :ready
+  defp busy?(%{phase: phase}, player), do: player.phase == phase
 
   defp phase_verb(:fortune_choice), do: "resolve the fortune teller card"
   defp phase_verb(:chip_choice), do: "choose chip actions"

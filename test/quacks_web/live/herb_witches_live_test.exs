@@ -5,7 +5,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.{Chips, Witches}
-  alias QuacksWeb.{GameComponents, GameLive, LobbyLive}
+  alias QuacksWeb.{GameComponents, GameLive, SetupComponents}
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "hw-#{System.unique_integer()}")}
@@ -18,9 +18,10 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {id, view}
   end
 
-  test "the lobby toggle offers Sets 5–6, black and locoweed, and 5 players", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
-    refute has_element?(view, "button", "New game for 5 players")
+  test "the host's toggle offers Sets 5–6, black and locoweed, and 5 players", %{conn: conn} do
+    {:ok, id} = GameServer.start(4)
+    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+    assert has_element?(view, "button[aria-label='More players'][disabled]")
     refute has_element?(view, "select[name='sets[black]']")
 
     view |> form("#books", expansion: "true") |> render_change()
@@ -32,16 +33,12 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     assert has_element?(view, "select[name='sets[green]'] option[value='6']")
     assert has_element?(view, "select[name='sets[black]'] option", "Base")
 
-    {:error, {:live_redirect, %{to: "/g/" <> id}}} =
-      view |> element("button", "New game for 5 players") |> render_click()
-
+    view |> element("button[aria-label='More players']") |> render_click()
     assert {:ok, %{status: :waiting, game: nil, max_players: 5}} = GameServer.get(id)
-
-    {:ok, game_view, _html} = live(conn, ~p"/g/#{id}")
-    assert has_element?(game_view, "[data-role=waiting-for-players]", "1 of 5 seated")
+    assert has_element?(view, "[data-role=waiting-for-players]", "1 of 5 seated")
 
     # the creator may start alone
-    game_view |> element("button", "Start game") |> render_click()
+    view |> element("button", "Start game") |> render_click()
     {:ok, %{game: game, players: 1}} = GameServer.get(id)
     assert game.expansion == :herb_witches and game.seats == [0]
     assert %{green: 5, black: 6, locoweed: 6} = game.sets
@@ -49,9 +46,16 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
 
   test "parse_sets keeps the expansion books only with the expansion" do
     params = %{"green" => "6", "black" => "5", "locoweed" => "9"}
-    assert LobbyLive.parse_sets(params) == %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1}
 
-    assert LobbyLive.parse_sets(params, true) ==
+    assert SetupComponents.parse_sets(params) == %{
+             green: 1,
+             blue: 1,
+             red: 1,
+             yellow: 1,
+             purple: 1
+           }
+
+    assert SetupComponents.parse_sets(params, true) ==
              %{green: 6, blue: 1, red: 1, yellow: 1, purple: 1, black: 5, locoweed: 5}
   end
 
@@ -61,7 +65,8 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     assert has_element?(view, "#sheet-witches [data-role=witch-card]", "Draw 6 chips")
     assert has_element?(view, "#sheet-witches [data-witch=c4]")
     assert has_element?(view, "#sheet-witches [data-witch=g4]")
-    assert has_element?(view, "[data-role=bowl]", "empty")
+    # the bowl shows only once it has chips
+    refute has_element?(view, "[data-role=bowl]")
     # witch calls are on the cards, not in the bottom bar
     refute has_element?(view, "section[aria-label=Actions] button", "witch")
 
