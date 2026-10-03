@@ -89,8 +89,8 @@ Card outcomes (`{seat, {:fortune, id, outcome}}`):
 |---|---|
 | B1 | `:droplet` |
 | B2, P1, P3, P5, P10, P11 | `{:take, chip}` (the chip went from the supply to the bag) |
-| B3 | `:restart_round` |
-| B7 | `{:place, chip}`, `:return_all` |
+| B3 | `{:drew, chips}` (the 5 safe draws, oldest first), then `:restart_round` |
+| B7 | `{:drew, offer}` (on stop), then `{:place, chip}` or `:return_all` |
 | B8 | `{:vp, 2}` |
 | B9 | `:flask` |
 | B10 | `:return_white` |
@@ -100,11 +100,11 @@ Card outcomes (`{seat, {:fortune, id, outcome}}`):
 | P3, P9, P13 | `:skip` |
 | P6 | `{:vp, 4}`, `:remove_white` |
 | P7 | `{:rats, extra}` |
-| P8 | `{:take, {:blue, 2}}` |
+| P8 | `{:drew, chips}` (each seat's 5 chips), then `{:take, {:blue, 2}}` or `:ruby` |
 | P9 | `{:rats_back, n}` |
 | P10 | `{:vp, n}` |
 | P12 | the die face, e.g. `{:vp, 2}` or `:ruby` |
-| P13 | `{:upgrade, chip}` (`chip` went to the supply, the next value up to the bag), `{:take, {:green, 1}}` |
+| P13 | `{:drew, offer}` (the 4 chips), then `{:upgrade, chip}` (`chip` went to the supply, the next value up to the bag), `{:take, {:green, 1}}` |
 
 B4 logs nothing of its own: the second `{:bonus_die, face}` shows it.
 
@@ -242,7 +242,7 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 
 | Date | Change |
 |---|---|
-| 2026-10-03 | **Second Chances (B3) resets the whole round** (from the fourth playtest). `:restart_round` also returns the chips beside the pot (`aside`, R2/R6) and any open offer (`pending`) to the bag, and resets the round modifiers (`mods`: Y2 doubling, Y3 limit, R4, B2 protection). Rat stone, droplet, rubies and pennies stay. |
+| 2026-10-03 | **Second Chances (B3) resets the whole round** (from the fourth playtest). German card: "beginne die Runde komplett neu". `:restart_round` also returns the red chips set aside **this round** (`aside`, R2/R6, found from this round's `{:effect, {:red, _}, {:aside, chip}}` entries) and any open offer (`pending`) to the bag, and resets the round modifiers (`mods`: Y2 doubling, Y3 limit, R4, B2 protection). ⚠️ House reading (no official ruling on reds): red Set 2 chips kept from an earlier round stay beside the pot. Rat stone, droplet, rubies, VP and a used flask stay. |
 | 2026-10-03 | **Round 9 stir, concurrent choices, one-step shop, overflow and black book everywhere, play again** (from the second 2-player game). Round 9 draws in lockstep (**stir**, `:waiting_stir`, no `:resume`). `:fortune_choice`, `:chip_choice` and `:witch_choice` are concurrent; `Game.turn` is gone. The shop is one sub-phase `:shop` (buy once, rubies, "Done"); round 9 offers `{:rubies, :vp}` and logs `{:final_conversion, coins, coins_vp, rubies, rubies_vp}`. House rule `overflow` (default on) replaces the expansion-only bowl. Sets 5–6, black 1/5/6, orange 2 and locoweed in every game. `GameServer.configure/3` and `play_again/2`. |
 | 2026-10-03 | **Soft stop, simultaneous shopping, infinite supply, waiting lobby** (from the first real 2-player game). `:stop` is soft (`:stopped`, `:resume`); `:buy_chips` and `:spend_rubies` are replaced by one concurrent `:shopping` phase with per-seat sub-phases `:buy` → `:rubies` → `:ready` (`turn` is `nil`); the house rule `supply` defaults to `:infinite`; `GameServer` waits for players (`:waiting`, `begin/2`, `leave_seat/2`). |
 | 2026-10-03 | **Fortune card draws cannot explode the pot** (official ruling in The Herb Witches rulebook, applied to the base game too). B7 Safety Procedure: the placed chip moves its printed value, has no action (no red/Y2 bonus either, ⚠️) and cannot explode the pot. B3 Second Chances: the round's first 5 draws, before the player may start again, cannot explode the pot (⚠️ "the draws the card asks for" read as these 5). The pot can then be over the limit without exploding; the next normal draw explodes it. `Fortune.safe_draw?/2`. |

@@ -100,17 +100,23 @@ defmodule Quacks.Game.Fortune do
   end
 
   # B3 Second Chances: the whole pot goes back in the bag; start the round again.
-  # Everything drawn this round returns (also the chips beside the pot or on offer) and
-  # the round modifiers (Y2, Y3, R4, B2) reset.
+  # Everything drawn this round returns (also the red chips set aside this round and
+  # any offer) and the round modifiers (Y2, Y3, R4, B2) reset. ⚠️ Red Set 2 chips kept
+  # from an earlier round stay beside the pot (house reading).
   def step(g, seat, {:fortune, :restart_round}) do
+    this_round = set_aside_this_round(g, seat)
+    p = Game.player(g, seat)
+    back = this_round -- (this_round -- p.aside)
+
     g
+    |> log(seat, {:drew, Enum.reverse(Player.pot_chips(p))})
     |> Game.update_player(seat, fn p ->
       %{
         p
-        | bag: Player.pot_chips(p) ++ p.bowl ++ p.aside ++ p.pending ++ p.bag,
+        | bag: Player.pot_chips(p) ++ p.bowl ++ back ++ p.pending ++ p.bag,
           drawn: [],
           bowl: [],
-          aside: [],
+          aside: p.aside -- back,
           pending: [],
           pot_index: Player.start_index(p),
           mods: %Player{}.mods,
@@ -184,8 +190,13 @@ defmodule Quacks.Game.Fortune do
 
   def on_stop(%{fortune_card: :b7} = g, seat) do
     case Potions.take_random(g, seat, 5) do
-      {[], g} -> g
-      {offer, g} -> Game.update_player(g, seat, &%{&1 | pending: offer, phase: :fortune_choice})
+      {[], g} ->
+        g
+
+      {offer, g} ->
+        g
+        |> log(seat, {:drew, offer})
+        |> Game.update_player(seat, &%{&1 | pending: offer, phase: :fortune_choice})
     end
   end
 
@@ -242,6 +253,7 @@ defmodule Quacks.Game.Fortune do
       Enum.map_reduce(Game.turn_order(g), g, fn seat, g ->
         {chips, g} = Potions.take_random(g, seat, 5)
         sum = chips |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+        g = log(g, seat, {:drew, chips})
         {{seat, sum}, Game.update_player(g, seat, &%{&1 | bag: chips ++ &1.bag})}
       end)
 
@@ -264,7 +276,7 @@ defmodule Quacks.Game.Fortune do
   defp auto(g, :p13) do
     each(g, fn g, seat ->
       {offer, g} = Potions.take_random(g, seat, 4)
-      g = Game.update_player(g, seat, &%{&1 | pending: offer})
+      g = g |> log(seat, {:drew, offer}) |> Game.update_player(seat, &%{&1 | pending: offer})
       if upgrades(g, seat) == [], do: g |> return_offer(seat) |> take(seat, {:green, 1}), else: g
     end)
   end
@@ -432,6 +444,16 @@ defmodule Quacks.Game.Fortune do
   end
 
   defp take(g, seat, chip), do: g |> Game.add_from_supply(seat, chip) |> log(seat, {:take, chip})
+
+  # The red chips (R2, R6) `seat` set aside since the round began, from the log.
+  defp set_aside_this_round(g, seat) do
+    g.log
+    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+    |> Enum.flat_map(fn
+      {^seat, {:effect, {:red, _set}, {:aside, chip}}} -> [chip]
+      _entry -> []
+    end)
+  end
 
   defp return_offer(g, seat),
     do: Game.update_player(g, seat, &%{&1 | pending: [], bag: &1.pending ++ &1.bag})

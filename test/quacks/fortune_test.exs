@@ -114,7 +114,7 @@ defmodule Quacks.FortuneTest do
     test "B3 Second Chances resets the whole round: Y2 doubling and R2 chips beside the pot" do
       g =
         Game.new(seed: @seed, fortune: false, sets: %{yellow: 2, red: 2})
-        |> put(fortune_card: :b3)
+        |> put(fortune_card: :b3, aside: [{:red, 4}])
         |> force_draws([
           {:white, 1},
           {:red, 1},
@@ -125,16 +125,20 @@ defmodule Quacks.FortuneTest do
         ])
         |> force_draws([{:yellow, 1}])
 
-      assert me(g).mods.next_chip_x2 and length(me(g).aside) == 2
+      assert me(g).mods.next_chip_x2 and length(me(g).aside) == 3
       assert fortune_actions(g) == [{:fortune, :restart_round}]
 
       bag = length(me(g).bag)
       g = apply!(g, {:fortune, :restart_round})
       p = me(g)
-      assert p.aside == [] and p.pending == [] and p.drawn == []
+      # the red 4 kept from an earlier round stays beside the pot
+      assert p.aside == [{:red, 4}] and p.pending == [] and p.drawn == []
       assert p.mods == %Quacks.Player{}.mods
       assert length(p.bag) == bag + 7
       refute Enum.any?(Game.legal_actions(g, 0), &match?({:red, _}, &1))
+
+      safe = [{:white, 1}, {:orange, 1}, {:green, 1}, {:white, 1}, {:yellow, 1}]
+      assert logged?(g, 0, :b3, {:drew, safe})
     end
 
     # Official ruling (The Herb Witches rulebook): card draws cannot explode the pot.
@@ -177,6 +181,11 @@ defmodule Quacks.FortuneTest do
       g = blue(:b7) |> force_draws([{:white, 1}]) |> put(bag: [{:green, 1}, {:red, 1}])
       g = apply!(g, :stop)
       assert Game.phase(g, 0) == :fortune_choice
+
+      assert {0, {:fortune, :b7, {:drew, offer}}} =
+               Enum.find(g.log, &match?({0, {:fortune, :b7, {:drew, _}}}, &1))
+
+      assert Enum.sort(offer) == [{:green, 1}, {:red, 1}]
 
       assert Game.legal_actions(g) == [
                {:fortune, {:place, {:green, 1}}},
@@ -330,6 +339,8 @@ defmodule Quacks.FortuneTest do
 
       assert {:blue, 2} in me(g, 0).bag and length(me(g, 0).bag) == 7
       assert me(g, 1).rubies == 2 and length(me(g, 1).bag) == 6
+      assert logged?(g, 0, :p8, {:drew, List.duplicate({:white, 1}, 5)})
+      assert logged?(g, 1, :p8, {:drew, List.duplicate({:white, 3}, 5)})
     end
 
     test "P9 Good Start: move the rat stone back for rubies" do
@@ -393,6 +404,7 @@ defmodule Quacks.FortuneTest do
       g = new() |> put(bag: List.duplicate({:white, 1}, 4)) |> purple(:p13)
       assert {:green, 1} in me(g).bag and length(me(g).bag) == 5
       assert logged?(g, 0, :p13, {:take, {:green, 1}}) and g.phase == :potions
+      assert logged?(g, 0, :p13, {:drew, List.duplicate({:white, 1}, 4)})
     end
   end
 end
