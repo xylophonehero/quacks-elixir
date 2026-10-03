@@ -35,7 +35,7 @@ defmodule Quacks.HerbWitchesTest do
       g = new()
       assert g.expansion == @hw
       assert List.last(g.log) == {:expansion, @hw}
-      assert g.sets == %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1, locoweed: 5}
+      assert g.sets == %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}
 
       base = Game.new(seed: @seed, fortune: false)
       assert base.expansion == nil
@@ -51,15 +51,24 @@ defmodule Quacks.HerbWitchesTest do
       for book <- [blue: 5, blue: 6, red: 5, yellow: 5, green: 6, purple: 6],
           do: assert(new(Map.new([book])).sets == Map.merge(new().sets, Map.new([book])))
 
-      assert new(%{black: 5, locoweed: 6}).sets.black == 5
+      assert new(%{black: 5, locoweed: 2}).sets.black == 5
       assert Game.new(seed: @seed, sets: %{blue: 5}).sets.blue == 5
       assert Game.new(seed: @seed, sets: %{black: 6}).sets.black == 6
       assert_raise ArgumentError, fn -> new(%{black: 2}) end
-      assert_raise ArgumentError, fn -> new(%{locoweed: 1}) end
+      assert_raise ArgumentError, fn -> new(%{locoweed: 3}) end
       assert_raise ArgumentError, fn -> new(%{blue: 7}) end
 
       for {colour, set} <- [green: 5, red: 6, yellow: 6, purple: 5],
           do: assert(new(%{colour => set}).sets[colour] == set)
+    end
+
+    test "the expansion changes no book" do
+      for colour <- [:orange, :green, :blue, :red, :yellow, :purple, :black, :locoweed],
+          do: assert(Chips.set(@hw, %{}, colour) == Chips.set(nil, %{}, colour))
+
+      sets = %{green: 5, orange: 1, locoweed: 4}
+      assert Map.take(new(sets).sets, Map.keys(sets)) == sets
+      assert new().sets == Game.new(seed: @seed).sets
     end
 
     test "5 to 8 players with or without the expansion" do
@@ -89,18 +98,19 @@ defmodule Quacks.HerbWitchesTest do
       refute Map.has_key?(Game.new(seed: @seed).supply, {:orange, 6})
     end
 
-    test "orange 6 costs 22 and locoweed 8 or 10; both only in the expansion shop" do
+    test "orange 6 costs 22 and locoweed 8 or 10; both in the shop only with their book" do
       assert Chips.price({:orange, 6}, %{}) == 22
-      assert Chips.price({:locoweed, 1}, %{locoweed: 5}) == 8
-      assert Chips.price({:locoweed, 1}, %{locoweed: 6}) == 10
+      assert Chips.price({:locoweed, 1}, %{locoweed: 1}) == 8
+      assert Chips.price({:locoweed, 1}, %{locoweed: 2}) == 10
       assert Chips.price({:black, 1}, %{black: 6}) == 9
       assert Chips.price({:blue, 1}, %{blue: 5}) == 8
       assert Chips.price({:purple, 1}, %{purple: 6}) == 16
 
-      assert {:orange, 6} in Chips.shop(@hw) and {:locoweed, 1} in Chips.shop(@hw)
-      refute {:orange, 6} in Chips.shop() or {:locoweed, 1} in Chips.shop()
+      books = %{orange: 2, locoweed: 1}
+      assert {:orange, 6} in Chips.shop(@hw, books) and {:locoweed, 1} in Chips.shop(@hw, books)
+      refute {:orange, 6} in Chips.shop(@hw) or {:locoweed, 1} in Chips.shop(@hw)
 
-      g = put(new(), phase: :buy, coins: 22)
+      g = put(new(books), phase: :buy, coins: 22)
       assert {:buy, [{:orange, 6}]} in Game.legal_actions(g)
       assert {:buy, [{:locoweed, 1}]} in Game.legal_actions(g)
       g = apply!(g, {:buy, [{:orange, 6}]})
@@ -149,27 +159,27 @@ defmodule Quacks.HerbWitchesTest do
       assert me(force_draws(new(), [{:locoweed, 1}])).pot_index == 1
 
       g = new(%{}, 2) |> put(1, rat_stone: 2, pot_index: 2) |> force_draws(1, [{:locoweed, 1}])
-      assert me(g, 1).pot_index == 5 and effect?(g, 1, {:locoweed, 5}, {:moves, 3})
+      assert me(g, 1).pot_index == 5 and effect?(g, 1, {:locoweed, 1}, {:moves, 3})
 
       g = new(%{}, 2) |> put(1, rat_stone: 6, pot_index: 6) |> force_draws(1, [{:locoweed, 1}])
       assert me(g, 1).pot_index == 10
     end
 
     test "L6: locoweed copies the last coloured chip's value and on-draw action" do
-      g = force_draws(new(%{locoweed: 6}), [{:red, 4}, {:white, 1}, {:locoweed, 1}])
+      g = force_draws(new(%{locoweed: 2}), [{:red, 4}, {:white, 1}, {:locoweed, 1}])
       assert [{{:locoweed, 1}, 9} | _] = me(g).drawn
-      assert effect?(g, {:locoweed, 6}, {:copied, {:red, 4}})
+      assert effect?(g, {:locoweed, 2}, {:copied, {:red, 4}})
 
       # the copied yellow (Set 1) action: the white just before goes back
-      g = force_draws(new(%{locoweed: 6}), [{:yellow, 1}, {:white, 1}, {:locoweed, 1}])
+      g = force_draws(new(%{locoweed: 2}), [{:yellow, 1}, {:white, 1}, {:locoweed, 1}])
       assert Game.phase(g, 0) == :yellow_choice
       g = apply!(g, :return_white)
       assert Game.white_sum(g) == 0
 
       # no coloured chip: value 1, no action; an earlier locoweed is skipped
-      g = force_draws(new(%{locoweed: 6}), [{:white, 2}, {:locoweed, 1}, {:locoweed, 1}])
+      g = force_draws(new(%{locoweed: 2}), [{:white, 2}, {:locoweed, 1}, {:locoweed, 1}])
       assert me(g).pot_index == 4
-      refute Enum.any?(g.log, &match?({0, {:effect, {:locoweed, 6}, _}}, &1))
+      refute Enum.any?(g.log, &match?({0, {:effect, {:locoweed, 2}, _}}, &1))
     end
   end
 
@@ -342,7 +352,7 @@ defmodule Quacks.HerbWitchesTest do
   end
 
   test "a 5-player game runs to the end" do
-    g = Game.new(seed: @seed, players: 5, expansion: @hw, sets: %{black: 6, locoweed: 6})
+    g = Game.new(seed: @seed, players: 5, expansion: @hw, sets: %{black: 6, locoweed: 2})
 
     g =
       Enum.reduce_while(1..5000, g, fn _, g ->
@@ -416,7 +426,7 @@ defmodule Quacks.HerbWitchesTest do
       yellow: integer(1..6),
       purple: integer(1..6),
       black: member_of([1, 5, 6]),
-      locoweed: member_of([5, 6, 8, 9, 10])
+      locoweed: member_of([nil, 1, 2, 4, 5, 6])
     })
   end
 end

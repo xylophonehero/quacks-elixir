@@ -24,8 +24,7 @@ defmodule Quacks.Game do
   rubies. The defaults are the rulebook game.
 
   The Herb Witches (`expansion: :herb_witches`, `docs/research/herb-witches.md`) adds
-  a 5th seat, Sets 5 and 6 for every coloured book, the black and locoweed books, the
-  orange 6-chip, the overflow bowl (`Quacks.Player.bowl`) and the herb witches
+  its chips to the supply, the overflow bowl (`Quacks.Player.bowl`) and the herb witches
   (`Quacks.Game.Witches`): one witch of each penny colour is turned up at `new/1`
   (`witches`), and every player may call each of them once per game with
   `{:witch, colour}` or `{:witch, colour, choice}`. Gold witches with a choice in the
@@ -67,9 +66,7 @@ defmodule Quacks.Game do
   # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
   # Black has a book too (1 = the base book, 5, 6), in every game.
   @sets %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}
-  # The Herb Witches defaults locoweed to Set 5 (orange to 2: `Chips.set/3`).
   # ⚠️ Locoweed enters the shop in round 1 (not in the rulebook; `herb-witches.md` §1.2).
-  @expansion_sets %{locoweed: 5}
   # House rules (research `ingredient-sets-and-customisation.md` Part 2b): the rulebook game.
   # The values each house rule accepts.
   @rule_values %{
@@ -142,7 +139,7 @@ defmodule Quacks.Game do
           | :witch_done
   @typedoc """
   A chip choice: step B (G2, G4, P2, P4, G5, P5; see `Quacks.Game.Evaluation`) or on
-  draw (Y6 `:yellow_ruby`, locoweed 9 `{:return, chip}`, see `Quacks.Game.Potions`).
+  draw (Y6 `:yellow_ruby`, locoweed 5 `{:return, chip}`, see `Quacks.Game.Potions`).
   """
   @type chip_choice ::
           {:gain, Chips.chip()}
@@ -272,20 +269,20 @@ defmodule Quacks.Game do
   (a limited supply stops at 0: with 5+ players the white 2s and 3s run dry).
   `sets:` picks the Ingredient Set (1..6) per colour, e.g. `%{blue: 3}`; colours left
   out use Set 1. `black:` is 1 (the base book), 5 or 6, `orange: 2` adds the orange
-  6-chip and `locoweed: 5 | 6 | 8 | 9 | 10` adds locoweed, in every game (see
+  6-chip and `locoweed: 1 | 2 | 4 | 5 | 6` adds locoweed (book III needs the essence
+  phase), in every game (see
   `Quacks.Rules.Chips.set/3`). `rules:` sets house rules (`t:rules/0`), e.g.
   `%{explode_above: 9}`; rules left out keep their default. With `fortune: true`
   (default) round 1's card is turned up here. `fortune: false` is an old alias for
   `rules: %{fortune: false}`. `expansion: :herb_witches` turns The Herb Witches on:
-  orange Set 2 and locoweed Set 5 by default, the expansion chips
-  in the supply and the shop, 3 witches (`witches`, dealt from the seed) and 3 witch
+  the expansion chips in the supply (the books stay as `sets:` says), 3 witches (`witches`, dealt from the seed) and 3 witch
   pennies per player.
   An unknown colour, set, rule or expansion raises `ArgumentError`.
   """
   @spec new(
           seed: {integer, integer, integer},
           players: 1..8,
-          sets: %{atom => 1..10 | nil},
+          sets: %{atom => 1..6 | nil},
           rules: map,
           fortune: boolean,
           expansion: Chips.expansion()
@@ -299,7 +296,7 @@ defmodule Quacks.Game do
 
     n = Keyword.get(opts, :players, 1)
     if n not in 1..8, do: raise(ArgumentError, "players must be 1..8, got #{inspect(n)}")
-    sets = sets!(Keyword.get(opts, :sets, %{}), expansion)
+    sets = sets!(Keyword.get(opts, :sets, %{}))
     # `fortune:` is the old top-level option; `rules:` wins when both are given.
     alias_rules = Map.new(Keyword.take(opts, [:fortune]))
     rules = rules!(Map.merge(alias_rules, Keyword.get(opts, :rules, %{})))
@@ -341,16 +338,15 @@ defmodule Quacks.Game do
   end
 
   # Every game: Sets 1..6, black 1, 5 or 6, orange 1 or 2 (2 = the orange 6-chip) and
-  # locoweed nil, 5, 6, 8, 9 or 10 (7 is kept for The Alchemists' essence book). The
-  # expansion only changes the defaults.
-  defp sets!(sets, expansion) do
-    defaults = if expansion, do: Map.merge(@sets, @expansion_sets), else: @sets
-    sets = Map.merge(defaults, sets)
+  # locoweed nil, 1, 2, 4, 5 or 6 (III needs The Alchemists' essence phase). The
+  # expansion changes no book.
+  defp sets!(sets) do
+    sets = Map.merge(@sets, sets)
 
     valid? =
       Enum.all?(sets, fn
         {:orange, set} -> set in [1, 2]
-        {:locoweed, set} -> set in [nil, 5, 6, 8, 9, 10]
+        {:locoweed, set} -> set in [nil, 1, 2, 4, 5, 6]
         {:black, set} -> set in [1, 5, 6]
         {colour, set} -> is_map_key(@sets, colour) and set in 1..6
       end)

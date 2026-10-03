@@ -61,8 +61,9 @@ defmodule QuacksWeb.BooksLiveTest do
     picker = "#book-picker-green[popover]"
     assert has_element?(view, picker, "Garden spider")
     assert has_element?(view, "#{picker} [data-role=book-card]", "Book I")
+    # Books I–VI with or without the expansion
     assert has_element?(view, "#{picker} [data-role=book-card]", "Book IV")
-    refute has_element?(view, "#{picker} [data-role=book-card]", "Book V")
+    assert has_element?(view, "#{picker} [data-role=book-card][data-set='6']", "Book VI")
     assert has_element?(view, "#{picker} input[name='sets[green]'][value='1'][checked]")
 
     assert has_element?(
@@ -90,44 +91,74 @@ defmodule QuacksWeb.BooksLiveTest do
     assert has_element?(view, "#{not_in_play} input[value=''][checked]")
     assert has_element?(view, "#books [data-book=locoweed-off]", "No locoweed chips")
 
-    view |> form("#books", sets: %{orange: "2", locoweed: "5"}) |> render_change()
-    assert has_element?(view, "#books [data-book=locoweed-5]", "rat stone")
+    view |> form("#books", sets: %{orange: "2", locoweed: "1"}) |> render_change()
+    assert has_element?(view, "#books [data-book=locoweed-1]", "rat stone")
 
     view |> form("#books", sets: %{locoweed: ""}) |> render_change()
     assert has_element?(view, "#books [data-book=locoweed-off]")
-    view |> form("#books", sets: %{locoweed: "5"}) |> render_change()
+    view |> form("#books", sets: %{locoweed: "1"}) |> render_change()
 
     view |> element("button", "Start game") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
     assert game.expansion == nil
-    assert %{orange: 2, locoweed: 5} = game.sets
+    assert %{orange: 2, locoweed: 1} = game.sets
   end
 
-  test "the locoweed picker lists Off, 5, 6 and The Alchemists' books 8, 9, 10", %{conn: conn} do
+  test "the locoweed picker lists Off and books I–VI; III is greyed out", %{conn: conn} do
     {id, view} = configure(conn)
     card = "#book-picker-locoweed [data-role=book-card]"
 
-    for set <- ~w(off 5 6 8 9 10), do: assert(has_element?(view, "#{card}[data-set='#{set}']"))
+    for set <- ~w(off 1 2 3 4 5 6), do: assert(has_element?(view, "#{card}[data-set='#{set}']"))
     refute has_element?(view, "#{card}[data-set='7']")
-    assert has_element?(view, "#{card}[data-set='8']", "Book VIII")
-    assert has_element?(view, "#{card}[data-set='8']", "each colour in your pot")
-    assert has_element?(view, "#{card}[data-set='9']", "return 1 coloured chip")
-    assert has_element?(view, "#{card}[data-set='10']", "white chips in your pot")
-    assert has_element?(view, "#{card}[data-set='8']", "16")
+    assert has_element?(view, "#{card}[data-set='1']", "rat stone")
+    assert has_element?(view, "#{card}[data-set='3'][aria-disabled]", "needs the essence phase")
+    assert has_element?(view, "#{card}[data-set='3'] input[disabled]")
+    refute has_element?(view, "#{card}[data-set='4'][aria-disabled]")
+    assert has_element?(view, "#{card}[data-set='4']", "Book IV")
+    assert has_element?(view, "#{card}[data-set='4']", "each colour in your pot")
+    assert has_element?(view, "#{card}[data-set='5']", "return 1 coloured chip")
+    assert has_element?(view, "#{card}[data-set='6']", "white chips in your pot")
+    assert has_element?(view, "#{card}[data-set='4']", "16")
 
-    view |> form("#books", sets: %{locoweed: "10"}) |> render_change()
-    assert has_element?(view, "#books [data-book=locoweed-10] .book-seal", "X")
-    assert {:ok, %{sets: %{locoweed: 10}}} = GameServer.get(id)
+    view |> form("#books", sets: %{locoweed: "6"}) |> render_change()
+    assert has_element?(view, "#books [data-book=locoweed-6] .book-seal", "VI")
+    assert {:ok, %{sets: %{locoweed: 6}}} = GameServer.get(id)
 
-    # a saved config with locoweed 9 comes back on a fresh screen
-    {id, view} = configure(conn)
-    render_hook(view, "load_config", %{"sets" => %{"locoweed" => "9"}, "expansion" => false})
-    assert {:ok, %{sets: %{locoweed: 9}}} = GameServer.get(id)
+    # a crafted III falls back to no locoweed
+    render_change(view, "sets", %{"sets" => %{"locoweed" => "3"}})
+    assert {:ok, %{sets: sets}} = GameServer.get(id)
+    refute Map.has_key?(sets, :locoweed)
   end
 
-  test "locoweed 9: the pot's coloured chips are taps that return one", %{conn: conn} do
-    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{locoweed: 9}, %{fortune: false})
+  test "a saved config from before the renumbering maps old locoweed books", %{conn: conn} do
+    for {old, new} <- [{"5", 1}, {"6", 2}, {"8", 4}, {"9", 5}, {"10", 6}] do
+      {id, view} = configure(conn)
+      render_hook(view, "load_config", %{"sets" => %{"locoweed" => old}, "expansion" => false})
+      assert {:ok, %{sets: %{locoweed: ^new}}} = GameServer.get(id)
+    end
+
+    {id, view} = configure(conn)
+    render_hook(view, "load_config", %{"sets" => %{"locoweed" => "7"}, "expansion" => true})
+    assert {:ok, %{sets: sets, expansion: :herb_witches}} = GameServer.get(id)
+    # the old expansion default orange 2 is kept; 7 is no locoweed
+    assert sets.orange == 2 and not Map.has_key?(sets, :locoweed)
+
+    # a version 2 config is read as it is
+    {id, view} = configure(conn)
+
+    render_hook(view, "load_config", %{
+      "version" => 2,
+      "sets" => %{"locoweed" => "5"},
+      "expansion" => true
+    })
+
+    assert {:ok, %{sets: %{locoweed: 5} = sets}} = GameServer.get(id)
+    refute Map.has_key?(sets, :orange)
+  end
+
+  test "locoweed 5: the pot's coloured chips are taps that return one", %{conn: conn} do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{locoweed: 5}, %{fortune: false})
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
 
     Quacks.GameHelpers.replace_game(
@@ -148,16 +179,31 @@ defmodule QuacksWeb.BooksLiveTest do
     assert [{{:locoweed, 1}, 2}] = game.players[0].drawn
   end
 
-  test "the expansion toggle defaults orange to 2 and locoweed to 5", %{conn: conn} do
-    {_id, view} = configure(conn)
-    view |> form("#books", expansion: "true") |> render_change()
+  test "the expansion toggle changes no book", %{conn: conn} do
+    {id, view} = configure(conn)
+    books = %{green: "5", orange: "2", locoweed: "4", black: "6"}
+    view |> form("#books", sets: books) |> render_change()
+    {:ok, %{sets: before}} = GameServer.get(id)
+
+    view |> form("#books", expansion: "true", sets: books) |> render_change()
+    assert {:ok, %{sets: ^before, expansion: :herb_witches}} = GameServer.get(id)
     assert has_element?(view, "input[name='sets[orange]'][value='2'][checked]")
-    assert has_element?(view, "input[name='sets[locoweed]'][value='5'][checked]")
-    assert has_element?(view, "#book-picker-green [data-role=book-card][data-set='6']")
+    assert has_element?(view, "input[name='sets[locoweed]'][value='4'][checked]")
+
+    view |> form("#books", expansion: "false", sets: books) |> render_change()
+    assert {:ok, %{sets: ^before, expansion: nil}} = GameServer.get(id)
+
+    # with no books picked the toggle keeps orange 1 and no locoweed
+    {id, view} = configure(conn)
+    view |> form("#books", expansion: "true") |> render_change()
+    assert has_element?(view, "input[name='sets[orange]'][value='1'][checked]")
+    assert has_element?(view, "input[name='sets[locoweed]'][value=''][checked]")
+    assert {:ok, %{sets: sets}} = GameServer.get(id)
+    refute Map.has_key?(sets, :orange) or Map.has_key?(sets, :locoweed)
   end
 
   test "the shop has an info button per row; the menu lists the chosen books", %{conn: conn} do
-    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{orange: 2, locoweed: 6}, %{fortune: false})
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{orange: 2, locoweed: 2}, %{fortune: false})
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     to_shop(id)
     html = render(view)
@@ -173,7 +219,7 @@ defmodule QuacksWeb.BooksLiveTest do
 
     assert has_element?(view, "#shop-book-0 [data-book=orange-2]")
     assert has_element?(view, "#shop-book-4", "Hawkmoth")
-    assert has_element?(view, "#shop-book-7 [data-book=locoweed-6]", "Acts as the last coloured")
+    assert has_element?(view, "#shop-book-7 [data-book=locoweed-2]", "Acts as the last coloured")
     # black 1 has tiers; a solo game shows only the solo row
     assert has_element?(view, "#shop-book-4 [data-role=book-tiers]", "1+ black")
     refute has_element?(view, "#shop-book-4 [data-role=book-tiers]", "same count")
@@ -190,6 +236,6 @@ defmodule QuacksWeb.BooksLiveTest do
     # orange has no rule text, only its prices (the 6-chip at 22)
     assert has_element?(view, "#sheet-books [data-book=orange-2]", "22")
     refute has_element?(view, "#sheet-books [data-book=orange-2] p", "fill the pot")
-    assert has_element?(view, "#sheet-books [data-book=locoweed-6]")
+    assert has_element?(view, "#sheet-books [data-book=locoweed-2]")
   end
 end

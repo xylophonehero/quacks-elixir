@@ -17,8 +17,8 @@ defmodule Quacks.BooksTest do
   test "every supported {colour, set} has a book with a name, text and trigger" do
     supported =
       for(colour <- [:green, :blue, :red, :yellow, :purple], set <- 1..6, do: {colour, set}) ++
-        [black: 1, black: 5, black: 6, locoweed: 5, locoweed: 6, locoweed: 8, locoweed: 9] ++
-        [locoweed: 10, orange: 1, orange: 2, white: 1]
+        [black: 1, black: 5, black: 6, locoweed: 1, locoweed: 2, locoweed: 4, locoweed: 5] ++
+        [locoweed: 6, orange: 1, orange: 2, white: 1]
 
     assert Enum.sort(supported) == Books.keys()
 
@@ -81,8 +81,8 @@ defmodule Quacks.BooksTest do
     assert Books.get({:purple, 5}).text =~ "different colours"
   end
 
-  test "a base game with locoweed: 5 has locoweed in the shop and the supply" do
-    g = base(%{locoweed: 5})
+  test "a base game with locoweed: 1 has locoweed in the shop and the supply" do
+    g = base(%{locoweed: 1})
     assert {:buy, [{:locoweed, 1}]} in buys(g)
     assert g.supply[{:locoweed, 1}] == 25
     refute {:buy, [{:locoweed, 1}]} in buys(base(%{}))
@@ -107,11 +107,11 @@ defmodule Quacks.BooksTest do
 
     refute {:locoweed, 1} in Chips.shop(g.expansion, g.sets)
     refute {:orange, 6} in Chips.shop(g.expansion, g.sets)
-    assert_raise ArgumentError, fn -> base(%{locoweed: 4}) end
+    assert_raise ArgumentError, fn -> base(%{locoweed: 3}) end
   end
 
-  test "locoweed Set 5 in a base solo game moves 1" do
-    g = force_draws(base(%{locoweed: 5}), [{:locoweed, 1}])
+  test "locoweed Set 1 in a base solo game moves 1" do
+    g = force_draws(base(%{locoweed: 1}), [{:locoweed, 1}])
     assert me(g).pot_index == 1
   end
 
@@ -119,6 +119,7 @@ defmodule Quacks.BooksTest do
     assert Books.in_play(nil, %{green: 2}) ==
              [orange: 1, green: 2, blue: 1, red: 1, yellow: 1, purple: 1, black: 1]
 
-    assert List.last(Books.in_play(:herb_witches, %{})) == {:locoweed, 5}
+    assert List.last(Books.in_play(:herb_witches, %{})) == {:black, 1}
+    assert List.last(Books.in_play(nil, %{locoweed: 4})) == {:locoweed, 4}
   end
 end

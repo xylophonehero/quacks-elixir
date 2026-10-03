@@ -2,6 +2,7 @@ defmodule Quacks.GameServerTest do
   use ExUnit.Case, async: true
 
   alias Quacks.{AI, Game, GameServer}
+  alias Quacks.AI.Names
 
   # A process that subscribes to the game and forwards everything to the test.
   defp listener(id) do
@@ -305,7 +306,14 @@ defmodule Quacks.GameServerTest do
       assert GameServer.add_bot(id, "a") == {:ok, 2}
       {:ok, table} = GameServer.get(id)
       assert table.bots == %{1 => :balanced, 2 => :balanced}
-      assert {table.names[1], table.names[2]} == {"Steady Sam", "Steady Sam 2"}
+      # generated names (from the seed), different at the table
+      assert table.names[1] in Names.all() and table.names[2] in Names.all()
+      assert table.names[1] != table.names[2]
+      {:ok, again} = GameServer.start(4, {1, 2, 3})
+      {:ok, 0} = GameServer.claim_seat(again, "a")
+      {:ok, 1} = GameServer.add_bot(again, "a")
+      assert {:ok, %{names: %{1 => same}}} = GameServer.get(again)
+      assert same == table.names[1]
       assert table.colours == %{0 => 0, 1 => 1, 2 => 2}
 
       assert GameServer.remove_bot(id, "a", 1) == :ok
@@ -314,10 +322,10 @@ defmodule Quacks.GameServerTest do
       assert table.bots == %{2 => :balanced}
       refute Map.has_key?(table.names, 1)
 
-      # names stay unique: the free "Steady Sam" comes first again
+      # names stay unique
       assert GameServer.add_bot(id, "a") == {:ok, 1}
       {:ok, table} = GameServer.get(id)
-      assert table.names[1] == "Steady Sam"
+      assert table.names[1] in Names.all() and table.names[1] != table.names[2]
       :ok = GameServer.remove_bot(id, "a", 1)
 
       # a browser takes the lowest free seat, around the bot
@@ -342,6 +350,11 @@ defmodule Quacks.GameServerTest do
       for seat <- [1, 3, 4, 5, 6, 7],
           do: assert(GameServer.add_bot(id, "a") == {:ok, seat})
 
+      # seven bots, seven different generated names
+      {:ok, table} = GameServer.get(id)
+      bot_names = for {seat, _} <- table.bots, do: table.names[seat]
+      assert length(Enum.uniq(bot_names)) == 7 and Enum.all?(bot_names, &(&1 in Names.all()))
+
       # the host leaves: a free seat, but 7 bots is the limit
       :ok = GameServer.leave_seat(id, "a")
       assert GameServer.add_bot(id, "a") == {:error, :too_many_bots}
@@ -357,18 +370,19 @@ defmodule Quacks.GameServerTest do
       {:ok, 0} = GameServer.claim_seat(id, "a")
       {:ok, 1} = GameServer.add_bot(id, "a")
       {:ok, 2} = GameServer.add_bot(id, "a")
+      {:ok, %{names: %{2 => name}}} = GameServer.get(id)
       :ok = GameServer.remove_bot(id, "a", 1)
       {:ok, %Game{seats: [0, 1]}} = GameServer.begin(id, "a")
 
       {:ok, table} = GameServer.get(id)
-      assert {table.bots, table.names[1]} == {%{1 => :balanced}, "Steady Sam 2"}
+      assert {table.bots, table.names[1]} == {%{1 => :balanced}, name}
 
       play_with_bots(id, 0)
       {:ok, new_id} = GameServer.play_again(id, "a")
       {:ok, table} = GameServer.get(new_id)
 
       assert {table.status, table.bots, table.names[1]} ==
-               {:waiting, %{1 => :balanced}, "Steady Sam 2"}
+               {:waiting, %{1 => :balanced}, name}
     end
 
     test "1 human and 1 bot play to the end, the human stopping each round" do

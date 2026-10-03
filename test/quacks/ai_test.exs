@@ -5,11 +5,12 @@ defmodule Quacks.AITest do
   import Quacks.GameHelpers
 
   alias Quacks.AI
-  alias Quacks.AI.{Odds, Profile, Sim}
+  alias Quacks.AI.{Names, Odds, Profile, Sim}
   alias Quacks.Game
 
   doctest AI
   doctest Odds
+  doctest Names
 
   @seed {1, 2, 3}
 
