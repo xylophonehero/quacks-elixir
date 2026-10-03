@@ -17,11 +17,13 @@ defmodule Quacks.AI do
 
   @behaviour Quacks.AI.Decider
 
-  alias Quacks.AI.{Odds, Profile, Shop}
+  alias Quacks.AI.{Choice, Expectimax, Odds, Profile, Shop}
   alias Quacks.Game
   alias Quacks.Game.Potions
 
   @shift_cap 0.10
+  # The phases that `choice_rule` decides.
+  @choices [:fortune_choice, :chip_choice, :witch_choice, :essence_choice]
 
   @doc """
   The bot's own rng for `seat` in a game with seed `seed`; separate from the game rng.
@@ -59,6 +61,12 @@ defmodule Quacks.AI do
   defp choose(:red_choice, ctx, rng),
     do: {first(ctx.legal, &match?({:red, {:place, _}}, &1)), rng}
 
+  defp choose(phase, %{profile: %{choice_rule: :random}} = ctx, rng) when phase in @choices,
+    do: random(ctx.legal, rng)
+
+  defp choose(phase, %{profile: %{choice_rule: :scored}} = ctx, rng) when phase in @choices,
+    do: {Choice.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
+
   defp choose(:chip_choice, ctx, rng), do: {first(ctx.legal, &(&1 != :chip_done)), rng}
   defp choose(:witch_choice, ctx, rng), do: {first(ctx.legal, &(&1 != :witch_done)), rng}
   defp choose(:fortune_choice, ctx, rng), do: random(undominated(ctx), rng)
@@ -78,21 +86,25 @@ defmodule Quacks.AI do
 
   # -- potions: draw or stop ----------------------------------------------------------
 
-  # Red Set 6 chips set aside are free moves: place them first. Draw while the odds
-  # are under the threshold (always at 0); over it, return the white with the
-  # flask or card B10 when that makes the next draw good again; else stop.
+  # Red Set 6 chips set aside are free moves: place them first. Always draw at 0
+  # odds; else the profile's stop rule. When it says stop, return the white with
+  # card B10 or the flask when that makes the next draw good again; else stop.
   defp potions(%{game: game, seat: seat, legal: legal} = ctx) do
-    limit = threshold(ctx)
     p = Odds.next_draw(game, seat)
 
     cond do
       place = Enum.find(legal, &match?({:red, {:place, _}}, &1)) -> place
       :draw not in legal -> :stop
-      p == 0 or p <= limit -> :draw
-      return = white_return(ctx, limit) -> return
+      p == 0 or draw?(ctx, p) -> :draw
+      return = white_return(ctx) -> return
       true -> :stop
     end
   end
+
+  defp draw?(%{profile: %{stop_rule: :ev}} = ctx, _p),
+    do: Expectimax.draw?(ctx.game, ctx.seat, ctx.profile)
+
+  defp draw?(ctx, p), do: p <= threshold(ctx)
 
   # The highest bust chance the bot draws at: the round's `max_bust` plus the
   # margin shift per VP behind the best other player (capped; doubled in round 9).
@@ -105,17 +117,47 @@ defmodule Quacks.AI do
     profile.max_bust[game.round] + shift
   end
 
-  defp white_return(%{game: game, seat: seat, profile: profile, legal: legal}, limit) do
-    with {:white, w} <- last_chip(Game.player(game, seat)),
-         true <- Odds.after_return(game, seat, w) <= limit do
-      cond do
-        {:fortune, :return_white} in legal -> {:fortune, :return_white}
-        :use_flask in legal and (w >= profile.flask_min_white or game.round == 9) -> :use_flask
-        true -> nil
-      end
-    else
-      _ -> nil
+  defp white_return(%{game: game, seat: seat, legal: legal} = ctx) do
+    case last_chip(Game.player(game, seat)) do
+      {:white, w} ->
+        cond do
+          {:fortune, :return_white} in legal and again?(ctx, w, 0.0) ->
+            {:fortune, :return_white}
+
+          :use_flask in legal and flask?(ctx, w) ->
+            :use_flask
+
+          true ->
+            nil
+        end
+
+      _ ->
+        nil
     end
+  end
+
+  # Heuristic: a white of `flask_min_white` or more (any in round 9), and the bot
+  # would draw again after it. EV: the best play after it beats a stop now by more
+  # than what the flask is worth (nothing in round 9).
+  defp flask?(%{game: game, profile: %{flask_rule: :ev} = profile} = ctx, w),
+    do: again?(ctx, w, if(game.round == 9, do: 0.0, else: profile.flask_cost))
+
+  defp flask?(%{game: game, profile: profile} = ctx, w),
+    do: (w >= profile.flask_min_white or game.round == 9) and again?(ctx, w, nil)
+
+  # Would the bot draw again after the white `w` went back? `cost`: the EV rule with
+  # that price; `nil` under the EV stop rule: the draw beats a stop there.
+  defp again?(%{profile: %{stop_rule: :threshold, flask_rule: :heuristic}} = ctx, w, _cost),
+    do: Odds.after_return(ctx.game, ctx.seat, w) <= threshold(ctx)
+
+  defp again?(ctx, w, nil) do
+    %{after: best, draw_after: draw} = Expectimax.after_return(ctx.game, ctx.seat, ctx.profile, w)
+    draw >= best
+  end
+
+  defp again?(ctx, w, cost) do
+    %{stop: now, after: best} = Expectimax.after_return(ctx.game, ctx.seat, ctx.profile, w)
+    best - cost > now
   end
 
   defp last_chip(%{bowl: [chip | _]}), do: chip
