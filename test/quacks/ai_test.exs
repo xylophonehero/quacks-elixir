@@ -147,14 +147,19 @@ defmodule Quacks.AITest do
         rng = :rand.seed_s(:exsss, {seed, steps, 1})
         {i, rng} = :rand.uniform_s(4, rng)
         sets = Enum.at([%{}, %{blue: 2, red: 2, yellow: 3}, %{red: 6, yellow: 6}, %{}], i - 1)
-        expansion = if rem(seed, 3) == 0, do: :herb_witches
+
+        expansions =
+          Enum.at(
+            [[:herb_witches], [], [:alchemists], [:herb_witches, :alchemists]],
+            rem(div(seed, 4), 4)
+          )
 
         game =
           Game.new(
             seed: {seed, 2, 3},
             players: rem(seed, 4) + 1,
             sets: sets,
-            expansion: expansion
+            expansions: expansions
           )
 
         {game, _} = random_play(game, steps, rng)
@@ -178,11 +183,12 @@ defmodule Quacks.AITest do
             profiles <- list_of(member_of(Profile.all()), min_length: 1, max_length: 5),
             seed <- tuple({positive_integer(), positive_integer(), positive_integer()}),
             sets <- member_of([%{}, %{green: 2, blue: 4, red: 3}, %{red: 2, yellow: 6}]),
-            expansion <- member_of([nil, :herb_witches]),
+            expansions <-
+              member_of([[], [:herb_witches], [:alchemists], [:herb_witches, :alchemists]]),
             max_runs: 30
           ) do
       # `Sim.play/3` applies with `{:ok, _} =`, so an illegal action fails the match.
-      {game, rounds} = Sim.play(profiles, seed, sets: sets, expansion: expansion)
+      {game, rounds} = Sim.play(profiles, seed, sets: sets, expansions: expansions)
       assert Game.over?(game)
       assert Map.keys(rounds) == Enum.to_list(1..9)
     end

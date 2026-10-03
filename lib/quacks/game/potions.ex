@@ -31,7 +31,7 @@ defmodule Quacks.Game.Potions do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.Fortune
+  alias Quacks.Game.{Essence, Fortune}
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
 
@@ -83,7 +83,7 @@ defmodule Quacks.Game.Potions do
   # :fortune_choice (B7) actions come from `Quacks.Game.Fortune`.
   # :stopped (`:resume`) comes from `Quacks.Game`: it depends on the other seats.
   def legal_actions(%Player{phase: phase})
-      when phase in [:done, :fortune_choice, :stopped, :waiting_stir],
+      when phase in [:done, :fortune_choice, :stopped, :waiting_stir, :essence_offer],
       do: []
 
   @doc "Run one legal potions-phase action for `seat`. The action is already logged."
@@ -295,7 +295,8 @@ defmodule Quacks.Game.Potions do
   def resolve_draw(g, seat, chip) do
     p = Game.player(g, seat)
     protected? = p.mods.protect > 0
-    safe? = Fortune.safe_draw?(g, p)
+    # The Alchemists' Ear worm draws in the essence phase cannot explode the pot.
+    safe? = g.phase == :essence or Fortune.safe_draw?(g, p)
     {acting, book} = if overflow?(g, p), do: {chip, :bowl}, else: acting(g, p, chip)
 
     g =
@@ -304,9 +305,19 @@ defmodule Quacks.Game.Potions do
       |> place(seat, chip, acting, book)
 
     cond do
-      not exploded?(g, seat) or safe? -> on_draw(g, seat, acting, next_chip_lost(g, seat, book))
-      protected? -> protected_explosion(g, seat)
-      true -> explode(g, seat)
+      not exploded?(g, seat) ->
+        g
+        |> Essence.after_place(seat, chip, book)
+        |> on_draw(seat, acting, next_chip_lost(g, seat, book))
+
+      safe? ->
+        on_draw(g, seat, acting, next_chip_lost(g, seat, book))
+
+      protected? ->
+        protected_explosion(g, seat)
+
+      true ->
+        explode(g, seat)
     end
   end
 
@@ -355,7 +366,10 @@ defmodule Quacks.Game.Potions do
 
   defp explode(g, seat) do
     g
-    |> Game.update_player(seat, &%{&1 | exploded?: true, phase: :explosion_choice})
+    |> Game.update_player(
+      seat,
+      &%{&1 | exploded?: true, phase: :explosion_choice, essence_pending: nil}
+    )
     |> Game.record(seat, {:exploded, Game.white_sum(g, seat)})
   end
 

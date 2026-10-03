@@ -32,6 +32,12 @@ defmodule Quacks.Player do
   `bowl` is the overflow bowl (The Herb Witches): chips drawn after a chip sits on the
   last space (53), newest first. They have no action and are not in the pot, but white
   bowl chips count toward the explosion. They go back in the bag at the end of the round.
+
+  The Alchemists (`Quacks.Game.Essence`): `patient` is the seat's patient (nil until
+  chosen), `essence` the essence marker (0..10; set in the essence phase, spent by
+  patient actions in the next preparation phase, back to 0 at the next essence phase),
+  `display` the Nervousness chips laid out (out of the bag, back at round end) and
+  `essence_pending` what the seat's essence waits for (`t:essence_pending/0`).
   """
 
   alias Quacks.Rules.{Chips, PotTrack}
@@ -62,6 +68,10 @@ defmodule Quacks.Player do
             starters: [],
             pending_choice: nil,
             bought?: false,
+            patient: nil,
+            essence: 0,
+            essence_pending: nil,
+            display: [],
             mods: %{explode_above: 0, next_chip_x2: false, white1_plus1: false, protect: 0}
 
   @type phase ::
@@ -74,6 +84,10 @@ defmodule Quacks.Player do
           | :chip_choice
           | :witch_choice
           | :waiting_stir
+          | :essence_offer
+          | :essence_choice
+          | :essence_bonus
+          | :ear_worm
           | :stopped
           | :done
           | :shop
@@ -107,6 +121,10 @@ defmodule Quacks.Player do
           starters: [Chips.chip()],
           pending_choice: nil | :draw | :stop,
           bought?: boolean,
+          patient: nil | Quacks.Rules.Alchemists.id(),
+          essence: 0..10,
+          essence_pending: essence_pending,
+          display: [Chips.chip()],
           mods: mods
         }
   @typedoc """
@@ -127,6 +145,20 @@ defmodule Quacks.Player do
           | {:ruby_move, 1..2}
           | {:purple_trade, 1..3}
           | {:upgrade, 1..3}
+  @typedoc """
+  What the seat's essence waits for (The Alchemists). Essence phase: `{:space, reach}`
+  while it picks a space (`:essence_choice`), `{:ear_worm, draws_left}`, `{:swap, 1, 2
+  | 4}` or `{:buy, coins}` (a glass's bonus). Preparation phase: `{:offers, offers}`,
+  the patient offers after draws, oldest first (`{:carrot | :wing | :wing_bowl | :hump,
+  chip}`; the first is open in `:essence_offer`).
+  """
+  @type essence_pending ::
+          nil
+          | {:space, 0..10}
+          | {:ear_worm, non_neg_integer}
+          | {:swap, 1, 2 | 4}
+          | {:buy, pos_integer}
+          | {:offers, [{:carrot | :wing | :wing_bowl | :hump, Chips.chip()}]}
   @typedoc """
   Round modifiers from Set 2–4 chips, reset at the end of the round: the white limit
   raised by Y3 (0 = not raised), the next chip moves double (Y2), white 1-chips move 2 (R4), and how many more
@@ -163,14 +195,17 @@ defmodule Quacks.Player do
   def scoring_index(%__MODULE__{pot_index: i}), do: min(i + 1, PotTrack.last())
 
   @doc """
-  End of round: the pot goes back in the bag, the round state clears (step F).
-  `aside`, `pennies`, `starters`, `tube` and `droplet_moves` stay.
+  End of round: the pot (and the Nervousness display) goes back in the bag, the round
+  state clears (step F). `aside`, `pennies`, `starters`, `tube`, `droplet_moves`,
+  `patient` and the `essence` marker stay.
   """
   @spec reset(t) :: t
   def reset(%__MODULE__{} = p) do
     %{
       p
-      | bag: pot_chips(p) ++ p.bowl ++ p.bag,
+      | bag: pot_chips(p) ++ p.bowl ++ p.display ++ p.bag,
+        display: [],
+        essence_pending: nil,
         drawn: [],
         bowl: [],
         pending: [],

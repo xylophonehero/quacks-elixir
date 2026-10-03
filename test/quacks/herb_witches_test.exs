@@ -378,16 +378,22 @@ defmodule Quacks.HerbWitchesTest do
     assert map_size(Game.score(g)) == 5
   end
 
-  property "random play with the expansion on or off keeps the invariants" do
+  property "random play with any expansions keeps the invariants" do
     check all(
-            expansion <- member_of([nil, @hw]),
+            expansions <- member_of([[], [@hw], [:alchemists], [@hw, :alchemists]]),
             seed <- tuple({positive_integer(), positive_integer(), positive_integer()}),
-            players <- integer(1..if(expansion, do: 5, else: 4)),
-            sets <- sets(expansion),
+            players <- integer(1..if(@hw in expansions, do: 5, else: 4)),
+            sets <- sets(expansions),
             picks <- list_of(non_negative_integer(), min_length: 20, max_length: 300)
           ) do
       g =
-        Game.new(seed: seed, players: players, sets: sets, expansion: expansion, rules: @limited)
+        Game.new(
+          seed: seed,
+          players: players,
+          sets: sets,
+          expansions: expansions,
+          rules: @limited
+        )
 
       Enum.reduce_while(picks, g, fn pick, g ->
         active = Enum.filter(g.seats, &(Game.legal_actions(g, &1) != []))
@@ -413,12 +419,20 @@ defmodule Quacks.HerbWitchesTest do
     end
   end
 
-  # Sets 1–4 always; with the expansion every book.
-  defp sets(nil) do
+  # Sets 1–4 always; with The Herb Witches every book; The Alchemists adds locoweed III.
+  defp sets([]) do
     fixed_map(Map.new([:green, :blue, :red, :yellow, :purple], &{&1, integer(1..4)}))
   end
 
-  defp sets(@hw) do
+  defp sets([:alchemists]) do
+    fixed_map(%{
+      green: integer(1..4),
+      red: integer(1..6),
+      locoweed: member_of([nil, 3, 5])
+    })
+  end
+
+  defp sets(expansions) do
     fixed_map(%{
       green: integer(1..6),
       blue: integer(1..6),
@@ -426,7 +440,7 @@ defmodule Quacks.HerbWitchesTest do
       yellow: integer(1..6),
       purple: integer(1..6),
       black: member_of([1, 2, 3]),
-      locoweed: member_of([nil, 1, 2, 4, 5, 6])
+      locoweed: member_of([nil, 1, 2, 4, 5, 6 | if(:alchemists in expansions, do: [3], else: [])])
     })
   end
 end

@@ -67,6 +67,13 @@ defmodule Quacks.AI do
     do: {first(ctx.legal, &(&1 == {:droplet, :tube})) || hd(ctx.legal), rng}
 
   defp choose(:shop, ctx, rng), do: {Shop.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
+  defp choose(:patient_choice, ctx, rng), do: {patient(ctx.legal), rng}
+  defp choose(:essence_choice, ctx, rng), do: {Enum.max_by(ctx.legal, &space/1), rng}
+  defp choose(:essence_bonus, ctx, rng), do: {essence_bonus(ctx), rng}
+
+  defp choose(:essence_offer, ctx, rng),
+    do: {first(ctx.legal, &(&1 == {:essence, :hump})) || {:essence, :pass}, rng}
+
   defp choose(_phase, ctx, rng), do: {hd(ctx.legal), rng}
 
   # -- potions: draw or stop ----------------------------------------------------------
@@ -153,6 +160,32 @@ defmodule Quacks.AI do
     case legal -- dominated do
       [] -> legal
       better -> better
+    end
+  end
+
+  # -- The Alchemists ------------------------------------------------------------------
+
+  # The automatic patients first; ties by the order shown.
+  @patients [:chicken_eyes, :ear_worm, :vampirism, :witch_hump]
+
+  defp patient(legal) do
+    Enum.find_value(@patients, &first(legal, fn action -> action == {:patient, &1} end)) ||
+      hd(legal)
+  end
+
+  defp space({:essence, {:space, n}}), do: n
+
+  # Chicken eyes: the first swap. Vampirism: the shop's best single chip, if any.
+  defp essence_bonus(%{game: game, profile: profile, legal: legal}) do
+    case for({:essence, {:buy, chip}} <- legal, do: chip) do
+      [] ->
+        first(legal, &match?({:essence, {:swap, _}}, &1)) || {:essence, :pass}
+
+      chips ->
+        case Shop.best_buy(Enum.map(chips, &[&1]), game.round, [], profile) do
+          [chip] -> {:essence, {:buy, chip}}
+          [] -> {:essence, :pass}
+        end
     end
   end
 
