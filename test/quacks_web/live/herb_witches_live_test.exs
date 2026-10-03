@@ -83,6 +83,8 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {:ok, _} = GameServer.apply(id, 0, :stop)
     {:ok, %{game: game}} = GameServer.get(id)
     assert game.phase == :shopping
+    # coins to buy with: a seat that can buy nothing skips the shop
+    Quacks.GameHelpers.replace_game(id, &Quacks.GameHelpers.put(&1, 0, coins: 30))
 
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     html = view |> render() |> LazyHTML.from_fragment()
@@ -206,8 +208,8 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {:ok, _} = GameServer.apply(id, 0, :stop)
     {:ok, _} = GameServer.apply(id, 0, {:buy, []})
 
-    assert has_element?(view, "#decision-shop [data-witch=g4]")
-    view |> element("#decision-shop button", "Call the gold witch") |> render_click()
+    assert has_element?(view, "#decision-rubies [data-witch=g4]")
+    view |> element("#decision-rubies button", "Call the gold witch") |> render_click()
     assert has_element?(view, "li", "Cheap rubies: droplet and flask cost 1 ruby")
     assert Game.legal_actions(elem(GameServer.get(id), 1).game, 0) |> List.last() == :end_round
   end

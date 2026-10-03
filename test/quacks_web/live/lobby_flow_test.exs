@@ -85,9 +85,13 @@ defmodule QuacksWeb.LobbyFlowTest do
   end
 
   test "both players shop at once and see each other's shop state" do
-    {_id, alice, bob} = start_duo()
+    {id, alice, bob} = start_duo()
     alice |> element("button[data-slot=stop]") |> render_click()
     bob |> element("button[data-slot=stop]") |> render_click()
+    # coins to buy with: a seat that can buy nothing skips the shop
+    Quacks.GameHelpers.replace_game(id, fn g ->
+      Enum.reduce([0, 1], g, &Quacks.GameHelpers.put(&2, &1, coins: 30))
+    end)
 
     # both shop dialogs are open at the same time, with the round results on top
     for view <- [alice, bob] do

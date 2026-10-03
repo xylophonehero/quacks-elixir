@@ -204,7 +204,7 @@ defmodule QuacksWeb.UiRound3Test do
     view
   end
 
-  test "a buy ends the shop when no ruby can be spent; otherwise rubies and Done" do
+  test "a buy ends the shop when no ruby can be spent; otherwise the rubies step opens" do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     view = browser("solo") |> open(id) |> to_shop() |> buy_orange()
     assert has_element?(view, "li", "— Round 1 over —")
@@ -212,11 +212,13 @@ defmodule QuacksWeb.UiRound3Test do
     {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, %{starting_rubies: 3})
     view = browser("rich") |> open(id) |> to_shop() |> buy_orange()
 
-    assert has_element?(view, "#decision-shop [data-role=shop-rubies] button", "droplet +1")
-    refute has_element?(view, "#decision-shop #shop")
+    refute has_element?(view, "#decision-shop")
+    assert has_element?(view, "dialog#decision-rubies[phx-mounted*='quacks:modal']")
+    assert has_element?(view, "#decision-rubies [data-role=shop-rubies] button", "droplet +1")
+    refute has_element?(view, "#decision-rubies #shop")
     refute has_element?(view, "li", "— Round 1 over —")
 
-    view |> element("#decision-shop [data-role=shop-done]", "Done") |> render_click()
+    view |> element("#decision-rubies [data-role=rubies-done]", "Keep rubies") |> render_click()
     assert has_element?(view, "li", "— Round 1 over —")
   end
 end

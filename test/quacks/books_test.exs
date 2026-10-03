@@ -31,6 +31,28 @@ defmodule Quacks.BooksTest do
     assert Books.get({:white, 1}).prices == []
   end
 
+  test "tiered books list their tiers; the rest have none" do
+    assert [{"1 purple", "black 1 · 1 VP · 1 ruby"}, {"2 purple", _}, {"3 purple", three}] =
+             Books.get({:purple, 2}).tiers
+
+    assert three == "yellow 4 · 6 VP · 1 ruby · droplet +2"
+    assert length(Books.get({:purple, 4}).tiers) == 3
+    assert Books.get({:green, 1}).tiers == []
+
+    for key <- [green: 2, red: 1, yellow: 3, yellow: 4, purple: 1, purple: 3, black: 1] do
+      assert [_ | _] = Books.get(key).tiers
+    end
+
+    assert {"space 10–19", "1 VP"} in Books.get({:purple, 3}).tiers
+  end
+
+  test "book texts are one sentence and say what the audit found missing" do
+    for key <- Books.keys(), do: refute(Books.get(key).text =~ ~r/\.\s+\S/)
+    assert Books.get({:purple, 3}).text =~ "number printed on its space"
+    assert Books.get({:blue, 2}).text =~ "no bonus die"
+    assert Books.get({:purple, 5}).text =~ "different colours"
+  end
+
   test "a base game with locoweed: 5 has locoweed in the shop and the supply" do
     g = base(%{locoweed: 5})
     assert {:buy, [{:locoweed, 1}]} in buys(g)

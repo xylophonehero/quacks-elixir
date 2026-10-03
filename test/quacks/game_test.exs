@@ -681,6 +681,7 @@ defmodule Quacks.GameTest do
           next = apply!(g, seat, action)
           assert_chips_conserved(g, next, seat, action)
           assert Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
+          assert Enum.all?(g.seats, &(me(next, &1).tube in me(g, &1).tube..12))
           assert Enum.all?(g.seats, &(me(next, &1).pot_index <= 53)) and next.round in 1..9
           {:cont, next}
         end
@@ -688,11 +689,17 @@ defmodule Quacks.GameTest do
     end
   end
 
-  defp expected_active(%{phase: :potions} = g) do
+  # Reverse pot side: a seat with droplet moves waiting acts in any phase.
+  defp expected_active(g) do
+    phase_active = phase_active(g)
+    Enum.filter(g.seats, &(me(g, &1).droplet_moves > 0 or &1 in phase_active))
+  end
+
+  defp phase_active(%{phase: :potions} = g) do
     brewing =
       Enum.filter(
         g.seats,
-        &(Game.phase(g, &1) in [:potions, :yellow_choice, :blue_choice, :chip_choice])
+        &(me(g, &1).phase in [:potions, :yellow_choice, :blue_choice, :chip_choice])
       )
 
     Enum.filter(g.seats, fn seat ->
@@ -705,10 +712,10 @@ defmodule Quacks.GameTest do
     end)
   end
 
-  defp expected_active(%{phase: :shopping} = g),
-    do: Enum.reject(g.seats, &(Game.phase(g, &1) == :ready))
+  defp phase_active(%{phase: :shopping} = g),
+    do: Enum.reject(g.seats, &(me(g, &1).phase == :ready))
 
-  defp expected_active(g), do: Enum.filter(g.seats, &(me(g, &1).phase == g.phase))
+  defp phase_active(g), do: Enum.filter(g.seats, &(me(g, &1).phase == g.phase))
 
   # `:limited`: supply + bags + pots + offers per kind is constant. `:infinite`: the
   # supply never changes, and the chips the players gain are exactly what the same
@@ -736,7 +743,8 @@ defmodule Quacks.GameTest do
       die: member_of([:standard, :no_orange]),
       starting_rubies: integer(0..3),
       supply: member_of([:infinite, :limited]),
-      overflow: boolean()
+      overflow: boolean(),
+      pot_side: member_of([:front, :back])
     })
   end
 end

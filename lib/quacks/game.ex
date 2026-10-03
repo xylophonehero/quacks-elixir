@@ -31,6 +31,13 @@ defmodule Quacks.Game do
   `{:witch, colour}` or `{:witch, colour, choice}`. Gold witches with a choice in the
   evaluation put the game in `:witch_choice` (every helped seat at once).
 
+  Reverse pot side (`rules: %{pot_side: :back}`, `docs/research/pot-reverse-and-faq.md`
+  §1): every droplet move goes through `move_droplet/3` and waits for the player's
+  choice: `{:droplet, :pot}` (the pot droplet) or `{:droplet, :tube}` (one glass on the
+  test-tube track, its bonus at once, `Quacks.Rules.TestTubes`), one action per move.
+  While a seat has moves waiting, those two are its only actions (`phase/2` is
+  `:droplet_choice`), in any game phase. The shop adds `{:rubies, :tube}`.
+
   Fortune Teller cards (`Quacks.Game.Fortune`): each round starts by turning up a
   card. A purple card with a choice puts the game in `:fortune_choice` (every seat
   with a choice at once) before `:potions`; Toil and Trouble (B2) does the same
@@ -51,7 +58,7 @@ defmodule Quacks.Game do
   import Kernel, except: [apply: 2, apply: 3]
   alias Quacks.Game.{Evaluation, Fortune, Potions, Witches}
   alias Quacks.Player
-  alias Quacks.Rules.{Chips, ScoringTrack}
+  alias Quacks.Rules.{Chips, ScoringTrack, TestTubes}
   alias Quacks.Rules.Witches, as: WitchCards
 
   @rounds 9
@@ -74,7 +81,8 @@ defmodule Quacks.Game do
     die: [:standard, :no_orange],
     starting_rubies: 0..3,
     supply: [:infinite, :limited],
-    overflow: [true, false]
+    overflow: [true, false],
+    pot_side: [:front, :back]
   }
   @rules %{
     explode_above: 7,
@@ -85,7 +93,8 @@ defmodule Quacks.Game do
     die: :standard,
     starting_rubies: 1,
     supply: :infinite,
-    overflow: true
+    overflow: true,
+    pot_side: :front
   }
 
   defstruct round: 1,
@@ -121,7 +130,8 @@ defmodule Quacks.Game do
           | :return_all
           | {:explosion_choice, :vp | :buy}
           | {:buy, [Chips.chip()]}
-          | {:rubies, :droplet | :flask | :vp | :skip}
+          | {:rubies, :droplet | :tube | :flask | :vp | :skip}
+          | {:droplet, :pot | :tube}
           | :end_round
           | {:fortune, fortune_choice}
           | {:red, {:place | :keep | :return, Chips.chip()}}
@@ -162,7 +172,8 @@ defmodule Quacks.Game do
   logged (tagged) and followed by the events it caused: `{:drew, chip, index}` for
   each placement (blue-placed chips too), `{:returned, chip}` for flask, mandrake and
   crow-skull returns, `{:exploded, white_sum}`, `{:bought, chips}` and
-  `{:rubies_spent, :droplet | :flask}`.
+  `{:rubies_spent, :droplet | :tube | :flask}`. Reverse pot side: `{:tube, glass, bonus}`
+  when the test-tube droplet moves to `glass` and pays `bonus`.
 
   Evaluation is narrated too: `{:bonus_die, face}`, the chip actions (`{:black,
   :droplet | :droplet_ruby}`, `{:green_rubies, n}`, `{:purple, tier, payoff}`), the
@@ -185,8 +196,9 @@ defmodule Quacks.Game do
           | :stopped
           | :resumed
           | {:bought, [Chips.chip()]}
-          | {:rubies_spent, :droplet | :flask | :vp}
-          | {:rubies_spent, :droplet | :flask, 1}
+          | {:rubies_spent, :droplet | :tube | :flask | :vp}
+          | {:rubies_spent, :droplet | :tube | :flask, 1}
+          | {:tube, 1..12, TestTubes.bonus()}
           | {:witch, WitchCards.id(), term}
           | {:pennies, pos_integer}
           | {:bonus_die, die_face}
@@ -238,6 +250,7 @@ defmodule Quacks.Game do
   (default) means the shop never runs out and `supply` is never counted down;
   `:limited` plays with the box's counts. `overflow: true` (default) puts chips past
   the last space in the overflow bowl; `false` keeps them on the last space.
+  `pot_side: :back` plays the reverse side of the pot (the test-tube track).
   """
   @type rules :: %{
           explode_above: 5..9,
@@ -248,7 +261,8 @@ defmodule Quacks.Game do
           die: :standard | :no_orange,
           starting_rubies: 0..3,
           supply: :infinite | :limited,
-          overflow: boolean
+          overflow: boolean,
+          pot_side: :front | :back
         }
 
   @doc """
@@ -367,13 +381,19 @@ defmodule Quacks.Game do
   def score(%__MODULE__{players: players}), do: Map.new(players, fn {seat, p} -> {seat, p.vp} end)
 
   @doc """
-  The phase `seat` sees: their own state in `:potions` and `:shopping` (`:shop`,
-  `:ready`), or the game's phase.
+  The phase `seat` sees: `:droplet_choice` while droplet moves wait for its choice,
+  else their own state in `:potions` and `:shopping` (`:shop`, `:ready`), or the
+  game's phase.
   """
-  @spec phase(t, seat) :: phase | Player.phase()
+  @spec phase(t, seat) :: phase | Player.phase() | :droplet_choice
   def phase(%__MODULE__{phase: phase, players: players}, seat)
-      when phase in [:potions, :shopping] and is_map_key(players, seat),
-      do: players[seat].phase
+      when phase != :over and is_map_key(players, seat) do
+    case players[seat] do
+      %Player{droplet_moves: n} when n > 0 -> :droplet_choice
+      p when phase in [:potions, :shopping] -> p.phase
+      _p -> phase
+    end
+  end
 
   def phase(%__MODULE__{phase: phase}, _seat), do: phase
 
@@ -410,8 +430,18 @@ defmodule Quacks.Game do
   def legal_actions(%__MODULE__{players: players}, seat) when not is_map_key(players, seat),
     do: []
 
+  # Reverse pot side: a waiting droplet move comes first, in any phase.
+  def legal_actions(%__MODULE__{phase: phase, players: players} = g, seat) when phase != :over do
+    case players[seat] do
+      %Player{droplet_moves: n} when n > 0 -> [{:droplet, :pot}, {:droplet, :tube}]
+      _p -> phase_actions(g, seat)
+    end
+  end
+
+  def legal_actions(%__MODULE__{}, _seat), do: []
+
   # While the silver witch S2's offer is out, placing from it is all the seat may do.
-  def legal_actions(%__MODULE__{phase: :potions} = g, seat) do
+  defp phase_actions(%__MODULE__{phase: :potions} = g, seat) do
     case player(g, seat) do
       %Player{phase: :potions, witch_offer: [_ | _]} ->
         Witches.legal_actions(g, seat)
@@ -430,20 +460,20 @@ defmodule Quacks.Game do
     end
   end
 
-  def legal_actions(%__MODULE__{phase: :fortune_choice} = g, seat),
+  defp phase_actions(%__MODULE__{phase: :fortune_choice} = g, seat),
     do: Fortune.legal_actions(g, seat)
 
-  def legal_actions(%__MODULE__{phase: :chip_choice} = g, seat),
+  defp phase_actions(%__MODULE__{phase: :chip_choice} = g, seat),
     do: Evaluation.legal_actions(g, seat)
 
-  def legal_actions(%__MODULE__{phase: :witch_choice} = g, seat) do
+  defp phase_actions(%__MODULE__{phase: :witch_choice} = g, seat) do
     if player(g, seat).phase == :witch_choice,
       do: Witches.legal_actions(g, seat) ++ [:witch_done],
       else: []
   end
 
   # One step: buy once (not in round 9), rubies, witches and "Done" in any order.
-  def legal_actions(%__MODULE__{phase: :shopping} = g, seat) do
+  defp phase_actions(%__MODULE__{phase: :shopping} = g, seat) do
     case player(g, seat) do
       %Player{phase: :shop} = p ->
         # An exploded player who took the VP buys nothing (unless C4 gave them coins).
@@ -458,15 +488,18 @@ defmodule Quacks.Game do
     end
   end
 
-  def legal_actions(%__MODULE__{}, _seat), do: []
-
   # Round 9: 2 rubies buy 1 VP; droplet and flask are worth nothing any more.
   defp ruby_actions(%{round: @rounds}, %Player{rubies: rubies}),
     do: if(rubies >= 2, do: [{:rubies, :vp}], else: [])
 
-  defp ruby_actions(_g, %Player{rubies: rubies, flask: flask, ruby_price: price}) do
+  defp ruby_actions(g, %Player{rubies: rubies, flask: flask, ruby_price: price} = p) do
+    tube? = g.rules.pot_side == :back and p.tube < TestTubes.last()
+
     if rubies >= price,
-      do: [{:rubies, :droplet} | if(flask, do: [], else: [{:rubies, :flask}])],
+      do:
+        [{:rubies, :droplet}] ++
+          if(tube?, do: [{:rubies, :tube}], else: []) ++
+          if(flask, do: [], else: [{:rubies, :flask}]),
       else: []
   end
 
@@ -502,6 +535,13 @@ defmodule Quacks.Game do
   defp normalise({:buy, chips}), do: {:buy, Enum.sort(chips)}
   defp normalise({:rubies, :skip}), do: :end_round
   defp normalise(action), do: action
+
+  # -- reverse pot side: one waiting droplet move, in any phase ------------------------
+
+  defp step(g, seat, {:droplet, :pot}),
+    do: g |> update_player(seat, &pot_droplet(&1, 1)) |> droplet_moved(seat)
+
+  defp step(g, seat, {:droplet, :tube}), do: g |> tube(seat) |> droplet_moved(seat)
 
   # -- potions: every seat in any order; evaluation when the last one is done -------
 
@@ -549,15 +589,19 @@ defmodule Quacks.Game do
     g =
       update_player(g, seat, fn p ->
         case what do
-          :droplet -> %{p | rubies: p.rubies - price, droplet: p.droplet + 1}
+          :droplet -> pot_droplet(%{p | rubies: p.rubies - price}, 1)
+          :tube -> %{p | rubies: p.rubies - price}
           :flask -> %{p | rubies: p.rubies - price, flask: true}
         end
       end)
 
     # G4 makes it 1 ruby; the base event stays `{:rubies_spent, what}`.
-    if price == 2,
-      do: record(g, seat, {:rubies_spent, what}),
-      else: record(g, seat, {:rubies_spent, what, price})
+    g =
+      if price == 2,
+        do: record(g, seat, {:rubies_spent, what}),
+        else: record(g, seat, {:rubies_spent, what, price})
+
+    if what == :tube, do: tube(g, seat), else: g
   end
 
   # The last seat to get `:ready` ends the round. Round 9: the seat's coins and rubies
@@ -713,9 +757,58 @@ defmodule Quacks.Game do
     g = update_player(g, seat, &%{&1 | coins: &1.coins - cost, bag: mine ++ &1.bag})
     g = if chips == [], do: g, else: record(g, seat, {:bought, chips})
 
-    Enum.reduce(black, g, fn _, g ->
-      g |> give_black(seat) |> update_player(seat, &%{&1 | droplet: &1.droplet + 1})
+    Enum.reduce(black, g, fn _, g -> g |> give_black(seat) |> move_droplet(seat, 1) end)
+  end
+
+  @doc """
+  Move `seat`'s droplet `n` spaces: every chip action, die face, card and book that
+  moves the droplet calls this. Front side: the pot droplet moves now. Reverse side
+  (`pot_side: :back`): the moves wait in `droplet_moves` for the player's
+  `{:droplet, :pot | :tube}` choices; with the test-tube droplet on the last glass,
+  the pot droplet takes them at once. Before the round's first draw the pot's start
+  follows the droplet.
+  """
+  @spec move_droplet(t, seat, non_neg_integer) :: t
+  def move_droplet(%__MODULE__{} = g, _seat, 0), do: g
+
+  def move_droplet(%__MODULE__{} = g, seat, n) do
+    if g.rules.pot_side == :back and player(g, seat).tube < TestTubes.last(),
+      do: update_player(g, seat, &%{&1 | droplet_moves: &1.droplet_moves + n}),
+      else: update_player(g, seat, &pot_droplet(&1, n))
+  end
+
+  defp pot_droplet(%Player{drawn: []} = p, n) do
+    p = %{p | droplet: p.droplet + n}
+    %{p | pot_index: Player.start_index(p)}
+  end
+
+  defp pot_droplet(%Player{} = p, n), do: %{p | droplet: p.droplet + n}
+
+  # One waiting move is done; on the last glass the rest go to the pot droplet.
+  defp droplet_moved(g, seat) do
+    update_player(g, seat, fn p ->
+      left = p.droplet_moves - 1
+
+      if p.tube == TestTubes.last(),
+        do: pot_droplet(%{p | droplet_moves: 0}, left),
+        else: %{p | droplet_moves: left}
     end)
+  end
+
+  # The test-tube droplet moves 1 glass and pays its bonus at once.
+  defp tube(g, seat) do
+    glass = player(g, seat).tube + 1
+    bonus = TestTubes.bonus(glass)
+    g = update_player(g, seat, &%{&1 | tube: glass})
+
+    g =
+      case bonus do
+        :ruby -> update_player(g, seat, &%{&1 | rubies: &1.rubies + 1})
+        {:vp, n} -> update_player(g, seat, &%{&1 | vp: &1.vp + n})
+        {:chip, chip} -> add_from_supply(g, seat, chip)
+      end
+
+    record(g, seat, {:tube, glass, bonus})
   end
 
   @doc false

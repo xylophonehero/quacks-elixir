@@ -24,6 +24,11 @@ defmodule Quacks.Player do
   rounds until placed or returned. `chip_choices` holds what the player may still
   choose in the evaluation's chip-action step (G2, G4, P2, P4; see `t:chip_choice/0`).
 
+  Reverse pot side (house rule `pot_side: :back`): `tube` is the test-tube droplet
+  (glass 0..12, `Quacks.Rules.TestTubes`), and `droplet_moves` counts the droplet
+  moves that wait for the player's choice (pot droplet or test tube). While it is
+  above 0, `Quacks.Game.phase/2` is `:droplet_choice`.
+
   `bowl` is the overflow bowl (The Herb Witches): chips drawn after a chip sits on the
   last space (53), newest first. They have no action and are not in the pot, but white
   bowl chips count toward the explosion. They go back in the bag at the end of the round.
@@ -36,6 +41,8 @@ defmodule Quacks.Player do
             pending: [],
             pot_index: 0,
             droplet: 0,
+            tube: 0,
+            droplet_moves: 0,
             flask: true,
             rubies: 1,
             coins: 0,
@@ -79,6 +86,8 @@ defmodule Quacks.Player do
           pending: [Chips.chip()],
           pot_index: 0..53,
           droplet: non_neg_integer,
+          tube: 0..12,
+          droplet_moves: non_neg_integer,
           flask: boolean,
           rubies: non_neg_integer,
           coins: non_neg_integer,
@@ -153,7 +162,7 @@ defmodule Quacks.Player do
 
   @doc """
   End of round: the pot goes back in the bag, the round state clears (step F).
-  `aside`, `pennies` and `starters` stay.
+  `aside`, `pennies`, `starters`, `tube` and `droplet_moves` stay.
   """
   @spec reset(t) :: t
   def reset(%__MODULE__{} = p) do

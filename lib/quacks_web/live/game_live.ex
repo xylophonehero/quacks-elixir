@@ -29,10 +29,16 @@ defmodule QuacksWeb.GameLive do
   screen sends them back once as `"load_config"`.
 
   A new fortune card shows in one dialog; when it asks this seat a choice, the
-  choice is in the same dialog. The shop is one dialog: your chips, the buy (one
-  row of chip tiles per colour), the ruby options and "Done". It opens when the
-  round results close. A buy that leaves nothing else to do ends the round for this
-  seat at once.
+  choice is in the same dialog. The shop has two steps, each its own dialog: first
+  your chips, the buy (one row of chip tiles per colour) and "Done"; then "Spend
+  rubies" (the ruby options and witch calls) and "Keep rubies". The first step opens
+  when the round results close. A seat that can buy nothing (it exploded and took
+  the VP, or has too few coins) skips it: the results say "OK" and the rubies step
+  follows. A buy that leaves nothing else to do ends the round for this seat at once.
+
+  In every choice between chips (crow skull, toadstool, silver witch, fortune cards,
+  chip actions) the chips themselves are the buttons (`chip_picks/1`); only options
+  without a chip ("Return all", "Done", "3 rubies") are text buttons.
 
   Round 9 with 2+ players is the "Stir!" round: everyone picks Draw or Stop, and the
   picks resolve together. A banner says so; after the pick both buttons are disabled
@@ -46,6 +52,10 @@ defmodule QuacksWeb.GameLive do
   right column on large screens) with a button to call one when the engine allows
   it. The overflow bowl shows under the pot once it has chips.
 
+  With the reverse pot side (`pot_side: :back`) the test-tube rack shows under the
+  pot, and each waiting droplet move opens the "Droplet" dialog (pot droplet or
+  test tube). After the evaluation it waits for the round results, like the shop.
+
   Actions travel to the browser as a URL-safe binary (see `encode/1`) so tuples like
   `{:buy, [{:green, 2}]}` survive the round trip without a parser per action shape.
   """
@@ -57,7 +67,7 @@ defmodule QuacksWeb.GameLive do
 
   alias Quacks.AI.Profile
   alias Quacks.{Game, GameServer, Player}
-  alias Quacks.Rules.{Books, Chips}
+  alias Quacks.Rules.{Books, Chips, TestTubes}
 
   # The shop, one row per colour in the board's step B order; each row runs from
   # the lowest value to the highest. Chips not in the game's shop drop out.
@@ -656,6 +666,11 @@ defmodule QuacksWeb.GameLive do
                 <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
               </div>
             </div>
+            <.test_tubes
+              :if={@game.rules.pot_side == :back}
+              tube={@game.players[@seat || 0].tube}
+              class="mx-auto block h-auto w-full max-w-sm shrink-0 pt-1"
+            />
             <div
               :if={(@me && @me.aside != []) || @game.players[@seat || 0].bowl != []}
               class="flex items-start gap-2 pt-1"
@@ -686,9 +701,11 @@ defmodule QuacksWeb.GameLive do
               class="min-h-12 w-full rounded-lg bg-gold font-semibold text-ink shadow"
               phx-click={JS.dispatch("quacks:modal", to: decision_dialog(@decision, @game))}
             >
-              {if @decision == :shop,
-                do: "Open the shop",
-                else: "Choose: #{phase_name(@decision)}"}
+              {case @decision do
+                :shop -> "Open the shop"
+                :rubies -> "Spend rubies"
+                decision -> "Choose: #{phase_name(decision)}"
+              end}
             </.button>
             <.button
               :if={Game.over?(@game)}
@@ -820,10 +837,16 @@ defmodule QuacksWeb.GameLive do
         :if={@decision && @decision != :fortune_choice}
         id={"decision-#{@decision}"}
         label={phase_name(@decision)}
-        auto_open={not (@decision == :shop and results?(@game))}
+        auto_open={not (after_results?(@decision) and results?(@game) and not @me.bought?)}
       >
-        <.shop :if={@decision == :shop} game={@game} seat={@seat} selected={@selected} />
-        <div :if={@decision != :shop} class="space-y-3">
+        <.shop
+          :if={shop_step?(@decision)}
+          game={@game}
+          seat={@seat}
+          selected={@selected}
+          step={@decision}
+        />
+        <div :if={not shop_step?(@decision)} class="space-y-3">
           <div class="flex items-center gap-1">
             <h2 class="text-xl font-bold">{phase_name(@decision)}</h2>
             <.offer_books
@@ -832,27 +855,46 @@ defmodule QuacksWeb.GameLive do
               offer={[@me.pending, @me.witch_offer, @all_actions]}
             />
           </div>
-          <.blue_offer :if={@decision == :blue_choice} pending={@me.pending} />
+          <div :if={@decision == :droplet_choice} class="space-y-2" data-role="droplet-choice">
+            <p class="text-sm">
+              Move your pot droplet or your test-tube droplet.
+              <span :if={@me.droplet_moves > 1} class="font-semibold">
+                {@me.droplet_moves} moves to place.
+              </span>
+            </p>
+            <.test_tubes tube={@me.tube} />
+          </div>
+          <.blue_offer :if={@decision == :blue_choice}>
+            <.chip_picks actions={@all_actions} pool={@me.pending} game={@game} me={@me} />
+          </.blue_offer>
           <.blue_offer
             :if={@decision == :witch_offer}
-            pending={@me.witch_offer}
             title="The silver witch drew:"
-            hint="Place them one by one, in any order, or return the rest."
+            hint="Tap them one by one, in any order, or return the rest."
             label="Silver witch offer"
             accent="border-penny-silver"
-          />
+          >
+            <.chip_picks actions={@all_actions} pool={@me.witch_offer} game={@game} me={@me} />
+          </.blue_offer>
           <.witch_card :for={id <- witches_acting(@game, @all_actions)} id={id} />
           <.blue_offer
             :if={@decision == :red_choice}
-            pending={@me.pending}
             title="Toadstool chips beside the pot:"
-            hint="For each: place it after your last chip, keep it for later, or return it to the bag."
+            hint="Tap a chip to place it after your last chip, or keep it for later, or return it to the bag."
             label="Toadstool choice"
             accent="border-ruby"
+          >
+            <.chip_picks actions={@all_actions} pool={@me.pending} game={@game} me={@me} />
+          </.blue_offer>
+          <.chip_picks
+            :if={@decision not in [:blue_choice, :witch_offer, :red_choice]}
+            actions={@all_actions}
+            game={@game}
+            me={@me}
           />
           <section class="flex flex-col gap-2 *:min-h-11" aria-label="Actions">
             <.button
-              :for={action <- dialog_actions(@all_actions, @decision)}
+              :for={action <- @all_actions |> dialog_actions(@decision) |> text_actions()}
               phx-click="action"
               phx-value-action={encode(action)}
               variant="primary"
@@ -867,7 +909,7 @@ defmodule QuacksWeb.GameLive do
         :if={results?(@game)}
         id="round-results"
         label="Round results"
-        then_open={if @decision == :shop, do: "decision-shop"}
+        then_open={if after_results?(@decision), do: "decision-#{@decision}"}
       >
         <.round_results game={@game} names={if @players > 1, do: @names} />
         <form method="dialog" class="mt-3 flex *:min-h-11 *:flex-1">
@@ -902,17 +944,26 @@ defmodule QuacksWeb.GameLive do
           </div>
           <.fortune_card id={@game.fortune_card} choice={@decision == :fortune_choice} />
           <%= if @decision == :fortune_choice do %>
-            <.fortune_offer
-              :if={@me.pending != []}
-              card={@game.fortune_card}
-              pending={@me.pending}
+            <.fortune_offer :if={@me.pending != []} card={@game.fortune_card}>
+              <.chip_picks
+                actions={@all_actions}
+                pool={@me.pending}
+                game={@game}
+                me={@me}
+                click={card_click(@game)}
+              />
+            </.fortune_offer>
+            <.chip_picks
+              :if={@me.pending == []}
+              actions={@all_actions}
+              game={@game}
+              me={@me}
+              click={card_click(@game)}
             />
             <section class="flex flex-col gap-2 *:min-h-11" aria-label="Actions">
               <.button
-                :for={action <- @all_actions}
-                phx-click={
-                  JS.push("action") |> JS.dispatch("quacks:close", to: "#card-round-#{@game.round}")
-                }
+                :for={action <- text_actions(@all_actions)}
+                phx-click={card_click(@game)}
                 phx-value-action={encode(action)}
                 variant="primary"
               >
@@ -1073,20 +1124,25 @@ defmodule QuacksWeb.GameLive do
   end
 
   @doc """
-  The shop dialog: everything this seat may do between brewing and the next round.
+  The shop dialogs: everything this seat may do between brewing and the next round,
+  in two steps (`step`).
 
-  On top, every chip the player owns (bag, pot and bowl), as counts. Then, while a
+  `:shop`, while a buy is legal: on top, every chip the player owns (bag, pot and bowl), as counts. Then, while a
   buy is legal, a form of checkboxes, one per kind of chip, in a row per colour
   (see `shop_rows/0`), priced with the game's Ingredient books (`Chips.price/2`).
   The engine decides what may be ticked: a box is disabled when adding its chip
   to the selection is not a legal buy. "Buy selected" sends `{:buy, selected}`.
 
-  Below, the ruby options (`{:rubies, _}`), other witch calls, and "Done"
-  (`:end_round`), all in the engine's one `:shop` sub-phase.
+  The copper witches are here too. "Done" buys nothing (`{:buy, []}`).
+
+  `:rubies`, after the buy (or when there is nothing to buy): the ruby options
+  (`{:rubies, _}`), other witch calls, and "Keep rubies" (`:end_round`). Both steps
+  are the engine's one `:shop` sub-phase.
   """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
   attr :selected, :list, required: true, doc: "ticked chips, sorted"
+  attr :step, :atom, default: :shop, values: [:shop, :rubies]
 
   def shop(assigns) do
     sets = assigns.game.sets
@@ -1110,7 +1166,7 @@ defmodule QuacksWeb.GameLive do
       )
 
     ~H"""
-    <section class="space-y-2" aria-label="Shop">
+    <section :if={@step == :shop} class="space-y-2" aria-label="Shop">
       <h2 class="text-xl font-bold">Shop</h2>
       <div class="rounded-md bg-parchment-deep/60 px-2 py-1" data-role="shop-bag">
         <h3 class="text-xs font-semibold text-ink-soft">Your chips: {length(@owned)}</h3>
@@ -1205,14 +1261,23 @@ defmodule QuacksWeb.GameLive do
           </.button>
         </div>
       </.witch_card>
-      <section
-        :if={@others != []}
-        class="space-y-2"
-        aria-label="Rubies and witches"
-        data-role="shop-rubies"
-      >
+      <div class="flex *:min-h-12 *:flex-1">
+        <.button
+          phx-click="action"
+          phx-value-action={encode({:buy, []})}
+          variant="primary"
+          data-role="shop-done"
+        >
+          Done
+        </.button>
+      </div>
+    </section>
+    <section :if={@step == :rubies} class="space-y-2" aria-label="Spend rubies">
+      <h2 class="text-xl font-bold">Spend rubies</h2>
+      <div class="space-y-2" data-role="shop-rubies">
         <.witch_card :for={id <- witches_acting(@game, @others)} id={id} />
-        <p class="text-sm">
+        <p class="flex items-center gap-1.5 text-sm">
+          <.icon name="hero-sparkles" class="size-4 text-ruby" />
           You have {@me.rubies} {if @me.rubies == 1, do: "ruby", else: "rubies"}.
         </p>
         <div class="flex flex-col gap-2 *:min-h-11">
@@ -1224,15 +1289,15 @@ defmodule QuacksWeb.GameLive do
             {action_label(action, @game, @me)}
           </.button>
         </div>
-      </section>
-      <div :if={:end_round in @actions} class="flex *:min-h-12 *:flex-1">
+      </div>
+      <div class="flex *:min-h-12 *:flex-1">
         <.button
           phx-click="action"
           phx-value-action={encode(:end_round)}
           variant="primary"
-          data-role="shop-done"
+          data-role="rubies-done"
         >
-          Done
+          {if Enum.any?(@others, &match?({:rubies, _}, &1)), do: "Keep rubies", else: "Done"}
         </.button>
       </div>
     </section>
@@ -1264,6 +1329,147 @@ defmodule QuacksWeb.GameLive do
   # The books of the colours in a shop row (one colour per row).
   defp row_books([{colour, _value} | _], game),
     do: [{colour, Chips.set(game.expansion, game.sets, colour)}]
+
+  @doc """
+  The chips of a choice as its controls: each chip is a button that sends its
+  action. With `pool` (the chips a crow skull, the silver witch, the toadstools or a
+  fortune card drew, duplicates included) every pool chip shows, and one without an
+  action is dimmed; the toadstool's keep and return are small buttons under the
+  chip. Without `pool`, one button per chip action ("any 2-value chip": one chip
+  per colour), in the shop's row order, under a title per kind. Actions without a
+  chip are not here (`text_actions/1`).
+  """
+  attr :actions, :list, required: true, doc: "the seat's legal actions"
+  attr :pool, :list, default: nil
+  attr :game, Game, required: true
+  attr :me, Player, required: true
+  attr :click, :any, default: "action", doc: "the `phx-click` of each chip"
+
+  def chip_picks(assigns) do
+    picks = Enum.filter(assigns.actions, &(pick_chips(&1) != [] and not side_pick?(&1)))
+
+    groups =
+      case assigns.pool do
+        nil ->
+          title = &pick_title(&1, assigns.game.fortune_card)
+
+          for t <- picks |> Enum.map(title) |> Enum.uniq() do
+            tiles =
+              picks
+              |> Enum.filter(&(title.(&1) == t))
+              |> Enum.sort_by(&chip_order/1)
+              |> Enum.map(&{pick_chips(&1), &1, []})
+
+            {t, tiles}
+          end
+
+        pool ->
+          [
+            {nil,
+             for(chip <- pool, do: {[chip], pool_pick(picks, chip), sides(assigns.actions, chip)})}
+          ]
+      end
+
+    assigns = assign(assigns, groups: Enum.reject(groups, fn {_t, tiles} -> tiles == [] end))
+
+    ~H"""
+    <div :for={{title, tiles} <- @groups} class="space-y-1" data-role="chip-picks">
+      <p :if={title} class="text-sm font-semibold">{title}</p>
+      <ul class="flex flex-wrap items-start gap-2">
+        <li :for={{chips, action, sides} <- tiles} class="flex flex-col items-center">
+          <button
+            :if={action}
+            type="button"
+            phx-click={@click}
+            phx-value-action={encode(action)}
+            aria-label={action_label(action, @game, @me)}
+            title={action_label(action, @game, @me)}
+            data-role="chip-pick"
+            class={[
+              "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1 rounded-full p-1",
+              "bg-parchment-light shadow-sm ring-1 ring-ink/25 touch-manipulation select-none",
+              "transition-[scale,box-shadow] duration-150 ease-out hover:ring-2 hover:ring-ink/60",
+              "active:scale-[0.94] focus-visible:outline-3 focus-visible:outline-droplet"
+            ]}
+          >
+            <%= for {chip, i} <- Enum.with_index(chips) do %>
+              <.icon :if={i > 0 and upgrade?(action)} name="hero-arrow-right" class="size-4" />
+              <.chip chip={chip} data-role={if @pool, do: "offer-chip"} />
+            <% end %>
+          </button>
+          <span
+            :if={!action}
+            class="inline-flex size-11 items-center justify-center opacity-40"
+            title="Not playable"
+          >
+            <.chip :for={chip <- chips} chip={chip} data-role="offer-chip" />
+          </span>
+          <div :if={sides != []} class="flex">
+            <button
+              :for={side <- sides}
+              type="button"
+              phx-click={@click}
+              phx-value-action={encode(side)}
+              aria-label={action_label(side, @game, @me)}
+              data-role="chip-side"
+              class="min-h-11 px-1.5 text-xs font-semibold text-ink-soft underline underline-offset-2 hover:text-ink"
+            >
+              {side_text(side)}
+            </button>
+          </div>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  # The chips an action shows as its control; [] for an action without a chip.
+  defp pick_chips({:place, chip}), do: [chip]
+  defp pick_chips({:red, {_kind, chip}}), do: [chip]
+  defp pick_chips({:witch, :silver, {:place, chip}}), do: [chip]
+  defp pick_chips({:fortune, {kind, chip}}) when kind in [:take, :place, :upgrade], do: [chip]
+  defp pick_chips({:chip, {kind, chip}}) when kind in [:gain, :starter], do: [chip]
+  defp pick_chips({:chip, {:upgrade, from, to}}), do: [from, to]
+  defp pick_chips({:chip, {:buy, chips}}), do: chips
+  defp pick_chips(_action), do: []
+
+  # The toadstool's keep and return: small buttons under their chip.
+  defp side_pick?({:red, {kind, _chip}}), do: kind in [:keep, :return]
+  defp side_pick?(_action), do: false
+
+  defp sides(actions, chip), do: for({:red, {k, ^chip}} = a <- actions, k != :place, do: a)
+
+  defp side_text({:red, {:keep, _chip}}), do: "Keep"
+  defp side_text({:red, {:return, _chip}}), do: "Return"
+
+  defp pool_pick(picks, chip), do: Enum.find(picks, &(pick_chips(&1) == [chip]))
+
+  defp upgrade?({:chip, {:upgrade, _from, _to}}), do: true
+  defp upgrade?(_action), do: false
+
+  # The buttons of a choice that are not chips ("Return all", "Done", "3 rubies").
+  defp text_actions(actions), do: Enum.filter(actions, &(pick_chips(&1) == []))
+
+  # Shop row order (white, which the shop has not, first), then value.
+  defp chip_order(action) do
+    for {colour, value} <- pick_chips(action),
+        do: {Enum.find_index(@book_colours, &(&1 == colour)) || -1, value}
+  end
+
+  defp pick_title({:chip, {:gain, _chip}}, _card), do: "Garden spider: take one"
+
+  defp pick_title({:chip, {:starter, _chip}}, _card),
+    do: "Garden spider: start the next round with"
+
+  defp pick_title({:chip, {:buy, _chips}}, _card), do: "Ghost's breath: take"
+  defp pick_title({:chip, {:upgrade, _from, _to}}, _card), do: "Ghost's breath: swap"
+  defp pick_title({:fortune, {:take, _chip}}, :p3), do: "Trade 1 ruby for one"
+  defp pick_title({:fortune, {:take, _chip}}, _card), do: "Take one"
+  defp pick_title(_action, _card), do: nil
+
+  # A choice in the card's dialog sends its action and closes the dialog.
+  defp card_click(game),
+    do: JS.push("action") |> JS.dispatch("quacks:close", to: "#card-round-#{game.round}")
 
   @doc """
   An ⓘ button for a dialog that offers chips: it opens a sheet with the ingredient
@@ -1396,11 +1602,24 @@ defmodule QuacksWeb.GameLive do
   defp extra_actions(actions), do: actions -- [:draw, :stop, :resume, :use_flask]
 
   defp decision([], _phase, _me), do: nil
-  defp decision(_actions, :shop, _me), do: :shop
+  # The shop's two steps: buy while a buy is legal, then rubies.
+  # A seat that can buy nothing (it exploded and took the VP, or has too few coins)
+  # skips the buy, unless a copper witch can help it there.
+  defp decision(actions, :shop, _me),
+    do: if(Enum.any?(actions, &shop_action?/1), do: :shop, else: :rubies)
+
   defp decision(_actions, :potions, %{witch_offer: [_ | _]}), do: :witch_offer
   defp decision(_actions, :potions, _me), do: nil
   defp decision(_actions, :stopped, _me), do: nil
   defp decision(_actions, phase, _me), do: phase
+
+  defp shop_step?(decision), do: decision in [:shop, :rubies]
+
+  # The decisions that wait while the round results show (they open on "OK").
+  defp after_results?(decision), do: decision in [:shop, :rubies, :droplet_choice]
+  defp shop_action?({:buy, [_ | _]}), do: true
+  defp shop_action?({:witch, :copper, _}), do: true
+  defp shop_action?(_action), do: false
 
   # The shop dialog has the buys and copper witches in `shop/1`; the rest are buttons.
   defp dialog_actions(actions, :shop),
@@ -1436,14 +1655,22 @@ defmodule QuacksWeb.GameLive do
   defp call_text({:witch, _colour, 1}), do: "Call: the last white back"
   defp call_text({:witch, _colour, n}), do: "Call: the last #{n} whites back"
 
-  # A button label; G4 makes the rubies phase cost 1 ruby.
-  defp action_label({:rubies, :droplet}, _game, %{ruby_price: 1}),
-    do: "Spend 1 ruby: droplet +1"
+  # A button label; G4 makes the rubies phase cost 1 ruby. The reverse pot side
+  # names the droplet ("pot droplet") and the next glass's bonus.
+  defp action_label({:rubies, what}, game, me) when what in [:droplet, :tube, :flask],
+    do:
+      "Spend #{if me.ruby_price == 1, do: "1 ruby", else: "2 rubies"}: #{ruby_use(what, game, me)}"
 
-  defp action_label({:rubies, :flask}, _game, %{ruby_price: 1}),
-    do: "Spend 1 ruby: refill flask"
-
+  defp action_label({:droplet, :tube}, _game, me), do: "Test tube (#{next_glass(me)})"
   defp action_label(action, game, _me), do: label(action, game.fortune_card)
+
+  defp ruby_use(:droplet, %{rules: %{pot_side: :back}}, _me), do: "pot droplet +1"
+  defp ruby_use(:droplet, _game, _me), do: "droplet +1"
+  defp ruby_use(:flask, _game, _me), do: "refill flask"
+
+  defp ruby_use(:tube, _game, me), do: "test tube (#{next_glass(me)})"
+
+  defp next_glass(me), do: "bonus: #{tube_bonus(TestTubes.bonus(me.tube + 1))}"
 
   defp name(names, seat), do: Map.get(names, seat, GameServer.default_name(seat))
 

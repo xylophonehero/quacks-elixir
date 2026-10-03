@@ -16,7 +16,8 @@ defmodule QuacksWeb.BooksLiveTest do
       actions = Game.legal_actions(game, 0)
 
       if game.phase == :shopping do
-        game
+        # coins to buy with: a seat that can buy nothing skips the shop
+        Quacks.GameHelpers.replace_game(id, &Quacks.GameHelpers.put(&1, 0, coins: 30))
       else
         action =
           Enum.find([:stop, :chip_done, {:explosion_choice, :buy}], hd(actions), &(&1 in actions))
@@ -128,7 +129,9 @@ defmodule QuacksWeb.BooksLiveTest do
 
     assert has_element?(view, "#shop-book-0 [data-book=orange-2]")
     assert has_element?(view, "#shop-book-4", "Hawkmoth")
-    assert has_element?(view, "#shop-book-7 [data-book=locoweed-6]", "Copies")
+    assert has_element?(view, "#shop-book-7 [data-book=locoweed-6]", "Acts as the last coloured")
+    # black 1 now has tiers: the shop popover renders them as a table
+    assert has_element?(view, "#shop-book-4 [data-role=book-tiers]", "2 players: same count")
     assert has_element?(view, "#shop label", ~r/orange 6\s+22c/)
 
     assert has_element?(view, "#sheet-menu button[popovertarget=sheet-books]", "Books")
@@ -139,7 +142,7 @@ defmodule QuacksWeb.BooksLiveTest do
              "Garden spider"
            )
 
-    assert has_element?(view, "#sheet-books [data-book=orange-2]", "orange 6-chip")
+    assert has_element?(view, "#sheet-books [data-book=orange-2]", "6-chips")
     assert has_element?(view, "#sheet-books [data-book=locoweed-6]")
   end
 end

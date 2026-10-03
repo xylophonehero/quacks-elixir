@@ -128,7 +128,7 @@ defmodule Quacks.Game.Evaluation do
       case face do
         {:vp, n} -> Game.update_player(g, seat, &%{&1 | vp: &1.vp + n})
         :ruby -> Game.update_player(g, seat, &%{&1 | rubies: &1.rubies + 1})
-        :droplet -> Game.update_player(g, seat, &%{&1 | droplet: &1.droplet + 1})
+        :droplet -> Game.move_droplet(g, seat, 1)
         :orange -> Game.add_from_supply(g, seat, {:orange, 1})
       end
 
@@ -257,7 +257,8 @@ defmodule Quacks.Game.Evaluation do
 
       _ ->
         g
-        |> Game.update_player(seat, &%{&1 | vp: &1.vp + 2, droplet: &1.droplet + 1})
+        |> Game.update_player(seat, &%{&1 | vp: &1.vp + 2})
+        |> Game.move_droplet(seat, 1)
         |> Game.record(seat, {:purple, 3, :vp2_droplet})
     end
   end
@@ -282,12 +283,13 @@ defmodule Quacks.Game.Evaluation do
     end
   end
 
-  # P3: per purple chip, VP by its pot field: 0–9 → 0, 10–19 → 1, 20–29 → 2, 30+ → 3.
+  # P3: per purple chip, VP by the number printed on its space (its coins value, not
+  # the track index): 0–9 → 0, 10–19 → 1, 20–29 → 2, 30+ → 3.
   defp chip_action(g, seat, {:purple, 3} = book) do
     vp =
       for {{:purple, _}, i} <- Game.player(g, seat).drawn,
           reduce: 0,
-          do: (acc -> acc + min(div(i, 10), 3))
+          do: (acc -> acc + min(div(PotTrack.at(i).coins, 10), 3))
 
     if vp > 0,
       do:
@@ -351,7 +353,8 @@ defmodule Quacks.Game.Evaluation do
   defp choose(g, seat, {:pay_ruby_move, n}) do
     g
     |> use_choice(seat, &match?({:ruby_move, _}, &1))
-    |> Game.update_player(seat, &%{&1 | rubies: &1.rubies - n, droplet: &1.droplet + n})
+    |> Game.update_player(seat, &%{&1 | rubies: &1.rubies - n})
+    |> Game.move_droplet(seat, n)
     |> Game.effect(seat, {:green, 4}, {:droplet, n})
   end
 
@@ -371,10 +374,8 @@ defmodule Quacks.Game.Evaluation do
     g = Enum.reduce(chips, g, &Game.add_from_supply(&2, seat, &1))
 
     g
-    |> Game.update_player(
-      seat,
-      &%{&1 | vp: &1.vp + vp, rubies: &1.rubies + rubies, droplet: &1.droplet + droplet}
-    )
+    |> Game.update_player(seat, &%{&1 | vp: &1.vp + vp, rubies: &1.rubies + rubies})
+    |> Game.move_droplet(seat, droplet)
     |> Game.effect(seat, {:purple, 2}, {:trade, tier})
   end
 
@@ -464,14 +465,8 @@ defmodule Quacks.Game.Evaluation do
 
       _ ->
         g
-        |> Game.update_player(
-          seat,
-          &%{
-            &1
-            | droplet: &1.droplet + if(droplet?, do: 1, else: 0),
-              rubies: &1.rubies + if(ruby?, do: 1, else: 0)
-          }
-        )
+        |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + if(ruby?, do: 1, else: 0)})
+        |> Game.move_droplet(seat, if(droplet?, do: 1, else: 0))
         |> Game.effect(seat, {:black, 6}, payoff(droplet?, ruby?))
     end
   end
@@ -494,12 +489,13 @@ defmodule Quacks.Game.Evaluation do
 
       :droplet ->
         g
-        |> Game.update_player(seat, &%{&1 | droplet: &1.droplet + 1})
+        |> Game.move_droplet(seat, 1)
         |> Game.record(seat, {:black, :droplet})
 
       :droplet_ruby ->
         g
-        |> Game.update_player(seat, &%{&1 | droplet: &1.droplet + 1, rubies: &1.rubies + 1})
+        |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + 1})
+        |> Game.move_droplet(seat, 1)
         |> Game.record(seat, {:black, :droplet_ruby})
     end
   end
@@ -509,7 +505,7 @@ defmodule Quacks.Game.Evaluation do
   defp payoff(false, true), do: :ruby
 
   # My black chips against the neighbours' counts: one (2p) or two (3–4p).
-  defp black_payoff(0, _others), do: nil
+  # 2 players with 0–0 black chips: both move the droplet (book text "same number").
   defp black_payoff(mine, [opp]) when mine > opp, do: :droplet_ruby
   defp black_payoff(mine, [opp]) when mine == opp, do: :droplet
   defp black_payoff(mine, [a, b]) when mine > a and mine > b, do: :droplet_ruby

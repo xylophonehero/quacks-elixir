@@ -45,7 +45,11 @@ defmodule QuacksWeb.FortuneLiveTest do
     {:ok, view, _html} = live_game(conn, {2, 2, 2})
     assert has_element?(view, "[aria-label='Fortune teller offer']", "Flea Market drew:")
     assert view |> render() |> count("[data-role=offer-chip]") == 4
-    assert has_element?(view, "button", "Trade green 1 for the next value up")
+
+    assert has_element?(
+             view,
+             "button[data-role=chip-pick][aria-label='Trade green 1 for the next value up']"
+           )
   end
 
   test "B7 Safety Procedure: stopping offers chips to place (seed 1,2,3)", %{conn: conn} do

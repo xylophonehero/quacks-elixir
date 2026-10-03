@@ -207,7 +207,7 @@ defmodule Quacks.ChipEffectsTest do
     assert resolved([{:white, 1}]).droplet == 0
   end
 
-  test "black with 2 players: equal count -> droplet; more than the opponent -> droplet + ruby" do
+  test "black with 2 players: equal count (also 0-0) -> droplet; more than the opponent -> droplet + ruby" do
     more = chip_actions_for([[{:black, 1}, {:white, 1}], [{:white, 1}]])
     assert {me(more, 0).droplet, me(more, 0).rubies} == {1, 2}
     assert {me(more, 1).droplet, me(more, 1).rubies} == {0, 1}
@@ -219,8 +219,10 @@ defmodule Quacks.ChipEffectsTest do
     assert {me(equal, 1).droplet, me(equal, 1).rubies} == {1, 1}
     assert {0, {:black, :droplet}} in equal.log and {1, {:black, :droplet}} in equal.log
 
+    # 0–0 is also "the same number": both droplets move (book text).
     none = chip_actions_for([[{:white, 1}], [{:white, 1}]])
-    refute Enum.any?(none.log, &match?({_, {:black, _}}, &1))
+    assert {me(none, 0).droplet, me(none, 1).droplet} == {1, 1}
+    assert {0, {:black, :droplet}} in none.log and {1, {:black, :droplet}} in none.log
   end
 
   test "black with 3 players: more than one neighbour -> droplet; more than both -> droplet + ruby" do
