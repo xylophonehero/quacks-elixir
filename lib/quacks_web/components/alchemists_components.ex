@@ -66,20 +66,38 @@ defmodule QuacksWeb.AlchemistsComponents do
         <p :if={@size == :sm} class="text-xs font-semibold text-ink-soft">
           {@patient.name} · essence {@p.essence}
         </p>
-        <ol
-          class="grid grid-cols-11 items-center"
-          aria-label={"Essence #{@p.essence} of 10"}
-        >
-          <li
-            :for={space <- 0..10}
-            class="flex justify-center"
-            aria-current={space == @p.essence && "step"}
+        <div class="relative">
+          <ol
+            class="grid grid-cols-11 items-center"
+            aria-label={"Essence #{@p.essence} of 10"}
           >
-            <span class={bead_class(space, @p.essence, @size, @spendable)}>
-              {if space == @p.essence, do: space}
+            <li
+              :for={space <- 0..10}
+              class="flex justify-center"
+              aria-current={space == @p.essence && "step"}
+            >
+              <span class={[
+                bead_class(space, @p.essence, @size, @spendable),
+                space == @p.essence && "invisible"
+              ]}>
+                {if space == @p.essence, do: space}
+              </span>
+            </li>
+          </ol>
+          <%!-- The visible marker: one node with a fixed id, one column wide, moved by
+               `translate` in whole columns, so a new essence slides it (app.css). --%>
+          <span
+            id={"essence-marker-#{@seat}-#{@size}"}
+            class="essence-marker pointer-events-none absolute inset-y-0 left-0 flex w-[calc(100%/11)] items-center justify-center"
+            style={"translate: #{@p.essence * 100}% 0"}
+            aria-hidden="true"
+            data-role="essence-marker"
+          >
+            <span class={bead_class(@p.essence, @p.essence, @size, @spendable)}>
+              {@p.essence}
             </span>
-          </li>
-        </ol>
+          </span>
+        </div>
       </div>
     </div>
     """

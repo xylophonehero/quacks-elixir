@@ -1077,7 +1077,7 @@ defmodule QuacksWeb.GameLive do
               offer={[@me.pending, @all_actions]}
             />
           </div>
-          <.fortune_card id={@game.fortune_card} choice={@decision == :fortune_choice} />
+          <.fortune_card id={@game.fortune_card} choice={@decision == :fortune_choice} flip />
           <%= if @decision == :fortune_choice do %>
             <.fortune_offer :if={@me.pending != []} card={@game.fortune_card}>
               <.chip_picks

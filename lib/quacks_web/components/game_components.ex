@@ -194,9 +194,10 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <svg
+      id={"pot-#{@seat}-#{@size}"}
       viewBox="-268 -268 536 536"
       preserveAspectRatio="xMidYMid meet"
-      class={[@class, "select-none"]}
+      class={[@class, "pot-#{@size} select-none"]}
       role="group"
       aria-label="Pot track"
       data-exploded={to_string(@me.exploded?)}
@@ -218,8 +219,9 @@ defmodule QuacksWeb.GameComponents do
         stroke={if @me.exploded?, do: "var(--color-ruby)", else: "var(--color-iron)"}
         stroke-width="12"
       />
-      <g :if={@me.exploded?} data-role="cracked-rim">
+      <g :if={@me.exploded?} id={"cracked-rim-#{@seat}-#{@size}"} data-role="cracked-rim">
         <circle r="244" fill="var(--color-ruby)" fill-opacity="0.18" />
+        <circle r="250" fill="var(--color-parchment)" opacity="0" data-role="puff" />
         <polyline
           points="-176,-190 -150,-168 -162,-146 -128,-124 -136,-104"
           fill="none"
@@ -306,12 +308,23 @@ defmodule QuacksWeb.GameComponents do
         </g>
         <.pot_chip
           :if={Map.has_key?(@chips_by_index, index)}
-          chip={@chips_by_index[index]}
+          chip={elem(@chips_by_index[index], 0)}
+          order={elem(@chips_by_index[index], 1)}
+          seat={@seat}
+          index={index}
           size={@size}
         />
         <.scoring_ring :if={@rings_by_index[index]} seats={@rings_by_index[index]} />
+      </g>
+      <%!-- The droplet and the rat stone sit above the spaces, each in one group with a
+           fixed id: when the space changes, only `translate` changes and CSS slides it. --%>
+      <g
+        id={"droplet-#{@seat}-#{@size}"}
+        data-role="droplet"
+        data-index={@me.droplet}
+        style={translate_style(@me.droplet)}
+      >
         <path
-          :if={index == @me.droplet}
           d="M0 -11 C8 -1 8 7 0 7 C-8 7 -8 -1 0 -11 Z"
           transform="translate(-20 -13)"
           fill="var(--color-droplet)"
@@ -319,8 +332,16 @@ defmodule QuacksWeb.GameComponents do
           stroke-width="1.5"
           aria-label="droplet"
         />
+      </g>
+      <g
+        :if={@rat_index}
+        id={"rat-#{@seat}-#{@size}"}
+        data-role="rat-stone"
+        data-index={@rat_index}
+        style={translate_style(@rat_index)}
+      >
         <ellipse
-          :if={index == @rat_index}
+          class="rat-pebble"
           cx="17"
           cy="16"
           rx="8"
@@ -329,10 +350,14 @@ defmodule QuacksWeb.GameComponents do
           stroke="var(--color-iron-dark)"
           stroke-width="1.5"
           aria-label="rat stone"
-          data-role="rat-stone"
         />
       </g>
-      <.flask :if={@flask} full={@flask == :full} click={@flask_click} />
+      <.flask
+        :if={@flask}
+        id={"flask-#{@seat}"}
+        full={@flask == :full}
+        click={@flask_click}
+      />
     </svg>
     """
   end
@@ -479,12 +504,14 @@ defmodule QuacksWeb.GameComponents do
   # The flask, in the free corner to the lower left of the cauldron (the page puts
   # the bag in the lower right and the fortune card in the upper right). Parchment when
   # full, grey when empty. Usable: it glows and is a button (click or Enter).
+  attr :id, :string, required: true
   attr :full, :boolean, required: true
   attr :click, :string, default: nil
 
   defp flask(assigns) do
     ~H"""
     <g
+      id={@id}
       transform="translate(-222 214)"
       data-role="flask"
       data-usable={to_string(@click != nil)}
@@ -504,6 +531,7 @@ defmodule QuacksWeb.GameComponents do
       <rect x="-32" y="-54" width="64" height="88" fill="transparent" />
       <rect x="-9" y="-50" width="18" height="10" rx="2" fill="var(--color-wood)" />
       <path
+        class="flask-body"
         d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z"
         fill={if @full, do: "var(--color-parchment)", else: "#7d8288"}
         stroke="var(--color-iron-dark)"
@@ -551,6 +579,9 @@ defmodule QuacksWeb.GameComponents do
   end
 
   attr :chip, :any, required: true
+  attr :order, :integer, required: true, doc: "position in `player.drawn` (0 = newest)"
+  attr :seat, :integer, required: true
+  attr :index, :integer, required: true, doc: "the space the chip sits on"
   attr :size, :atom, required: true
 
   defp pot_chip(assigns) do
@@ -559,7 +590,12 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, colour: colour, value: value, ink: ink)
 
     ~H"""
-    <g data-role="pot-chip" aria-label={"#{@colour} #{@value}"}>
+    <g
+      id={pot_chip_id(@seat, @index, @size)}
+      data-role="pot-chip"
+      data-order={@order}
+      aria-label={"#{@colour} #{@value}"}
+    >
       <circle
         r="19"
         fill={"var(--color-chip-#{@colour})"}
@@ -588,6 +624,17 @@ defmodule QuacksWeb.GameComponents do
     "translate(#{x} #{y})"
   end
 
+  # The same place as a CSS `translate`, so a change can transition (SVG user units = px).
+  defp translate_style(index) do
+    {x, y} = elem(@positions, index)
+    "translate: #{x}px #{y}px"
+  end
+
+  # Fixed per seat and space, so LiveView patches the same node and a new chip is a
+  # new node (its landing keyframe plays once). Your own pot: `pot-chip-0-5`.
+  defp pot_chip_id(seat, index, :lg), do: "pot-chip-#{seat}-#{index}"
+  defp pot_chip_id(seat, index, size), do: "pot-chip-#{seat}-#{index}-#{size}"
+
   defp space_title(index) do
     space = PotTrack.at(index)
     ruby = if space.ruby?, do: ", ruby", else: ""
@@ -595,8 +642,12 @@ defmodule QuacksWeb.GameComponents do
   end
 
   # Each chip remembers the space it landed on, so the pot just reads it back.
+  # The value is `{chip, order}`: `order` is the chip's position in `drawn`.
   defp chips_by_index(%{drawn: drawn}),
-    do: Map.new(drawn, fn {chip, index} -> {index, chip} end)
+    do:
+      drawn
+      |> Enum.with_index()
+      |> Map.new(fn {{chip, index}, order} -> {index, {chip, order}} end)
 
   @doc """
   What is left in the bag, as a count per kind of chip. The bag's order is hidden:
@@ -755,8 +806,8 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <dl class="paper grid grid-cols-4 gap-1 rounded-lg p-1 text-sm">
-      <.stat label="VP" value={@me.vp} />
-      <.stat label="Rubies" value={@me.rubies} />
+      <.stat label="VP" value={@me.vp} id="stat-vp" />
+      <.stat label="Rubies" value={@me.rubies} id="stat-rubies" />
       <.stat label="Flask" value={if @me.flask, do: "full", else: "empty"} />
       <.stat
         label="White"
@@ -766,14 +817,18 @@ defmodule QuacksWeb.GameComponents do
         :if={Game.phase(@game, @seat) == :shop or @me.exploded?}
         class="col-span-4 flex flex-wrap gap-1"
       >
+        <%!-- The id holds the value: a new value is a new node, so it pops. --%>
         <span
           :if={Game.phase(@game, @seat) == :shop}
-          class="rounded-md bg-gold px-2 font-semibold text-ink"
+          id={"stat-coins-#{@me.coins}"}
+          class="stat-pop rounded-md bg-gold px-2 font-semibold text-ink"
+          data-role="coins"
         >
           {@me.coins} coins to spend
         </span>
         <span
           :if={@me.exploded?}
+          id="status-exploded"
           class="rounded-md bg-ruby px-2 font-semibold text-white"
           data-role="exploded"
         >
@@ -796,12 +851,29 @@ defmodule QuacksWeb.GameComponents do
 
   attr :label, :string, required: true
   attr :value, :any, required: true
+  attr :id, :string, default: nil, doc: "an integer stat with an id ticks and pops on change"
 
-  defp stat(assigns) do
+  defp stat(%{id: nil} = assigns) do
     ~H"""
     <div class="rounded-md bg-parchment-deep/70 px-2 py-0.5">
       <dt class="text-xs leading-tight text-ink-soft">{@label}</dt>
       <dd class="font-semibold leading-tight tabular-nums">{@value}</dd>
+    </div>
+    """
+  end
+
+  # A number ticker: `--n` is a registered integer (app.css), so CSS counts it from
+  # the old value to the new one and shows it with `counter(n)`. The inner span's id
+  # holds the value: a new value is a new node, so it pops. Screen readers get the
+  # plain number.
+  defp stat(assigns) do
+    ~H"""
+    <div class="rounded-md bg-parchment-deep/70 px-2 py-0.5">
+      <dt class="text-xs leading-tight text-ink-soft">{@label}</dt>
+      <dd id={@id} class="stat-tick font-semibold leading-tight tabular-nums" style={"--n: #{@value}"}>
+        <span class="sr-only">{@value}</span>
+        <span id={"#{@id}-#{@value}"} class="stat-pop" aria-hidden="true"></span>
+      </dd>
     </div>
     """
   end
@@ -1356,6 +1428,28 @@ defmodule QuacksWeb.GameComponents do
   """
   attr :id, :atom, required: true, doc: "a card id from `Quacks.Rules.Fortune`"
   attr :choice, :boolean, default: false, doc: "the card asks this player a choice now"
+
+  attr :flip, :boolean,
+    default: false,
+    doc:
+      "turn the card over (back, then front) when it enters the page: the new card of the round"
+
+  def fortune_card(%{flip: true} = assigns) do
+    ~H"""
+    <div id={"card-flip-#{@id}"} class="card-flip" data-role="card-flip">
+      <div class="card-flip-inner">
+        <div class="card-back" aria-hidden="true">
+          <span class="flex flex-col items-center gap-1 font-hand font-bold text-gold">
+            <QuacksWeb.CoreComponents.icon name="hero-sparkles" class="size-8" /> Fortune teller
+          </span>
+        </div>
+        <div class="card-front">
+          <.fortune_card id={@id} choice={@choice} />
+        </div>
+      </div>
+    </div>
+    """
+  end
 
   def fortune_card(assigns) do
     assigns = assign(assigns, card: Fortune.card(assigns.id))
