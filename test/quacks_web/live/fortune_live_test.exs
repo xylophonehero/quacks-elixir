@@ -58,12 +58,11 @@ defmodule QuacksWeb.FortuneLiveTest do
     assert has_element?(view, "li", "Safety Procedure: returned all chips to the bag")
   end
 
-  test "multiplayer: only the seat whose turn it is gets card buttons" do
+  test "multiplayer: every seat with a card choice gets its buttons at once" do
     game = Game.new(seed: {30, 30, 30}, players: 2)
     assert game.phase == :fortune_choice
-    other = Enum.find(game.seats, &(&1 != game.turn))
-    assert Game.legal_actions(game, other) == []
-    assert [{:fortune, _} | _] = Game.legal_actions(game, game.turn)
+    assert [{:fortune, _} | _] = Game.legal_actions(game, 0)
+    assert [{:fortune, _} | _] = Game.legal_actions(game, 1)
   end
 
   @card_actions [

@@ -3,11 +3,16 @@ defmodule Quacks.Player do
   One seat at the table: the bag, the pot, the resources and the player's own state
   inside the potions phase. `Quacks.Game` keeps one per seat in `players`.
 
-  `phase` is the player's own state while the game is in `:potions` or `:shopping`.
+  `phase` is the player's own state while the game is in `:potions` or `:shopping`,
+  and marks the seats that still answer in the concurrent choice phases
+  (`:fortune_choice`, `:chip_choice`, `:witch_choice`).
   `:stopped` is a soft stop: the player waits and may `:resume` while another player
-  still brews. `done?` is true once the stop is final or the explosion is resolved
-  this round (`phase == :done`). In `:shopping` the phase runs `:buy` → `:rubies` →
-  `:ready`.
+  still brews (not in round 9). `done?` is true once the stop is final or the
+  explosion is resolved this round (`phase == :done`). In `:shopping` the phase is
+  `:shop` (buy once, rubies, `:end_round`) → `:ready`; `bought?` is true once the
+  seat bought (or bought nothing).
+  Round 9 "Stir!" (2+ players): `pending_choice` holds the seat's `:draw` or `:stop`
+  for the next step while it waits (`:waiting_stir`) for the other brewing seats.
   `explosion_choice` remembers `:vp` or `:buy` until the evaluation runs (`:witch`:
   the silver witch S4 took the penalty away).
   `fortune_used?` is true once a once-per-round card power (B3, B10) is used.
@@ -48,6 +53,8 @@ defmodule Quacks.Player do
             witch_offer: [],
             ruby_price: 2,
             starters: [],
+            pending_choice: nil,
+            bought?: false,
             mods: %{explode_above: 0, next_chip_x2: false, white1_plus1: false, protect: 0}
 
   @type phase ::
@@ -58,10 +65,11 @@ defmodule Quacks.Player do
           | :fortune_choice
           | :red_choice
           | :chip_choice
+          | :witch_choice
+          | :waiting_stir
           | :stopped
           | :done
-          | :buy
-          | :rubies
+          | :shop
           | :ready
   @typedoc "A chip in the pot and the 0..53 space it sits on."
   @type placed :: {Chips.chip(), 0..53}
@@ -88,6 +96,8 @@ defmodule Quacks.Player do
           witch_offer: [Chips.chip()],
           ruby_price: 1 | 2,
           starters: [Chips.chip()],
+          pending_choice: nil | :draw | :stop,
+          bought?: boolean,
           mods: mods
         }
   @typedoc """
@@ -164,6 +174,8 @@ defmodule Quacks.Player do
         done?: false,
         fortune_used?: false,
         chip_choices: [],
+        pending_choice: nil,
+        bought?: false,
         mods: %__MODULE__{}.mods
     }
   end

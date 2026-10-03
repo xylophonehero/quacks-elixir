@@ -21,7 +21,15 @@ defmodule Quacks.IngredientSetsTest do
 
   describe "sets option" do
     test "defaults to Set 1 for every colour" do
-      assert Game.new(seed: @seed).sets == %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1}
+      assert Game.new(seed: @seed).sets == %{
+               green: 1,
+               blue: 1,
+               red: 1,
+               yellow: 1,
+               purple: 1,
+               black: 1
+             }
+
       assert new(%{blue: 3}).sets.blue == 3
     end
 
@@ -30,7 +38,7 @@ defmodule Quacks.IngredientSetsTest do
         assert new(%{colour => set}).sets[colour] == set
       end
 
-      assert_raise ArgumentError, fn -> new(%{yellow: 5}) end
+      assert_raise ArgumentError, fn -> new(%{yellow: 7}) end
       assert_raise ArgumentError, fn -> new(%{orange: 3}) end
     end
 
@@ -107,7 +115,7 @@ defmodule Quacks.IngredientSetsTest do
   describe "green choices" do
     test "G2: each green on the last two chips may bring one chip into the bag" do
       g = evaluate(new(%{green: 2}), [{{:green, 2}, 10}, {{:green, 1}, 8}, {{:green, 4}, 7}])
-      assert g.phase == :chip_choice and g.turn == 0
+      assert g.phase == :chip_choice and me(g).phase == :chip_choice
 
       # newest green first: the green 4 on space 7 is the third chip, so it does not count
       assert chip_actions(g) == [
@@ -122,7 +130,7 @@ defmodule Quacks.IngredientSetsTest do
 
       # the last choice ends the turn; steps C/D ran and the shop is open
       g = apply!(g, {:chip, {:gain, {:orange, 1}}})
-      assert Game.phase(g, 0) == :buy and me(g).chip_choices == []
+      assert Game.phase(g, 0) == :shop and me(g).chip_choices == []
       assert me(g).coins == PotTrack.at(11).coins
     end
 
@@ -131,7 +139,7 @@ defmodule Quacks.IngredientSetsTest do
       assert chip_actions(g) == [{:chip, {:gain, {:yellow, 1}}}, {:chip, {:gain, {:purple, 1}}}]
       bag = me(g).bag
       g = apply!(g, :chip_done)
-      assert Game.phase(g, 0) == :buy and me(g).bag == bag
+      assert Game.phase(g, 0) == :shop and me(g).bag == bag
     end
 
     test "G4: pay up to 1 ruby per green on the last two chips, droplet +1 each" do
@@ -139,25 +147,28 @@ defmodule Quacks.IngredientSetsTest do
       g = new(%{green: 4}) |> put(rubies: 3) |> evaluate(pot)
       assert chip_actions(g) == [{:chip, {:pay_ruby_move, 1}}, {:chip, {:pay_ruby_move, 2}}]
       g = apply!(g, {:chip, {:pay_ruby_move, 2}})
-      assert me(g).rubies == 1 and me(g).droplet == 2 and Game.phase(g, 0) == :buy
+      assert me(g).rubies == 1 and me(g).droplet == 2 and Game.phase(g, 0) == :shop
       assert effect?(g, {:green, 4}, {:droplet, 2})
 
       # one ruby: one move at most; no ruby: no choice at all
       g = new(%{green: 4}) |> put(rubies: 1) |> evaluate(pot)
       assert chip_actions(g) == [{:chip, {:pay_ruby_move, 1}}]
-      assert new(%{green: 4}) |> put(rubies: 0) |> evaluate(pot) |> Game.phase(0) == :buy
+      assert new(%{green: 4}) |> put(rubies: 0) |> evaluate(pot) |> Game.phase(0) == :shop
     end
 
-    test "choices go seat by seat from the start seat" do
+    test "every seat with a choice answers at the same time, in any order" do
       g = Game.new(seed: @seed, players: 2, fortune: false, sets: %{green: 2})
       g = put(g, 1, drawn: [{{:green, 1}, 3}], pot_index: 3) |> apply!(1, :stop)
       g = put(g, 0, drawn: [{{:green, 1}, 3}], pot_index: 3) |> apply!(0, :stop)
-      assert g.phase == :chip_choice and g.turn == 0
-      assert Game.legal_actions(g, 1) == []
-      g = apply!(g, 0, :chip_done)
-      assert g.turn == 1 and Game.legal_actions(g, 0) == []
+      assert g.phase == :chip_choice
+      assert {:chip, {:gain, {:orange, 1}}} in Game.legal_actions(g, 0)
+      assert {:chip, {:gain, {:orange, 1}}} in Game.legal_actions(g, 1)
+
+      # seat 1 (not the start seat) answers first
       g = apply!(g, 1, {:chip, {:gain, {:orange, 1}}})
-      assert Game.phase(g, 0) == :buy
+      assert g.phase == :chip_choice and Game.legal_actions(g, 1) == []
+      g = apply!(g, 0, :chip_done)
+      assert Game.phase(g, 0) == :shop
     end
   end
 
@@ -179,7 +190,7 @@ defmodule Quacks.IngredientSetsTest do
       p = me(g)
       assert Enum.count(p.drawn) == 2 and g.supply[{:purple, 1}] == supply[{:purple, 1}] + 2
       assert {:green, 1} in p.bag and {:blue, 2} in p.bag
-      assert p.vp == 3 and p.droplet == 1 and Game.phase(g, 0) == :buy
+      assert p.vp == 3 and p.droplet == 1 and Game.phase(g, 0) == :shop
       assert effect?(g, {:purple, 2}, {:trade, 2})
     end
 
@@ -207,7 +218,7 @@ defmodule Quacks.IngredientSetsTest do
       p = me(g)
       assert {:blue, 4} in p.bag and {:blue, 2} not in Game.pot_chips(g)
       assert effect?(g, {:purple, 4}, {:upgrade, {:blue, 2}, {:blue, 4}})
-      assert Game.phase(g, 0) == :buy
+      assert Game.phase(g, 0) == :shop
 
       # 3+ purple: 1 → 4 too
       g = evaluate(new(%{purple: 4}), [{{:red, 1}, 11} | Enum.take(@purples, 3)])
@@ -240,13 +251,13 @@ defmodule Quacks.IngredientSetsTest do
       assert g.phase == :potions
 
       g = apply!(g, {:red, {:return, {:red, 1}}})
-      assert {:red, 1} in me(g).bag and Game.phase(g, 0) == :buy
+      assert {:red, 1} in me(g).bag and Game.phase(g, 0) == :shop
     end
 
     test "a kept chip stays beside the pot into the next round" do
       g = force_draws(new(%{red: 2}), [{:white, 1}, {:red, 4}]) |> apply!(:stop)
       g = apply!(g, {:red, {:keep, {:red, 4}}})
-      assert Game.phase(g, 0) == :buy
+      assert Game.phase(g, 0) == :shop
       g = run(g, [{:buy, []}, :end_round])
       assert g.round == 2 and me(g).aside == [{:red, 4}]
       refute {:red, 4} in me(g).bag
@@ -272,7 +283,7 @@ defmodule Quacks.IngredientSetsTest do
       assert g.phase == :potions
 
       g = apply!(g, 0, {:red, {:keep, {:red, 1}}})
-      assert Game.phase(g, 0) == :buy
+      assert Game.phase(g, 0) == :shop
     end
   end
 
@@ -288,7 +299,7 @@ defmodule Quacks.IngredientSetsTest do
       space = PotTrack.at(9)
       assert p.vp == space.vp and p.coins == space.coins and p.rubies == 2
       refute Enum.any?(g.log, &match?({0, {:bonus_die, _}}, &1))
-      assert Game.phase(g, 0) == :buy
+      assert Game.phase(g, 0) == :shop
     end
 
     test "B2: outside the window the explosion is normal; windows take the larger" do

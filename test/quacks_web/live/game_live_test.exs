@@ -169,7 +169,7 @@ defmodule QuacksWeb.GameLiveTest do
     refute has_element?(view, "[data-role=players-row]")
   end
 
-  test "the shop dialog is in the page only while buying", %{conn: conn} do
+  test "the shop dialog is in the page only while shopping", %{conn: conn} do
     {:ok, view, _html} = live_game(conn, {10, 11, 12})
     refute has_element?(view, "dialog#decision-shop")
 
@@ -285,7 +285,9 @@ defmodule QuacksWeb.GameLiveTest do
     assert GameComponents.label({:pot_ruby, 24}) == "Scoring space 24: +1 ruby"
     assert GameComponents.label({:pot_vp, 8, 24}) == "Scoring space 24: +8 VP"
     assert GameComponents.label({:round_end, 4}) == "— Round 4 over —"
-    assert GameComponents.label({:final_conversion, 3, 2}) == "Final: coins → 3 VP, rubies → 2 VP"
+
+    assert GameComponents.label({:final_conversion, 17, 3, 5, 2}) ==
+             "Final: 17 coins → 3 VP, 5 rubies → 2 VP"
 
     for event <- [{:purple, 1, :vp1}, {:purple, 3, :vp2_droplet}] do
       refute GameComponents.label(event) =~ ~r/^[:{]/

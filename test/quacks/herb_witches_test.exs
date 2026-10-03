@@ -43,7 +43,7 @@ defmodule Quacks.HerbWitchesTest do
       assert_raise ArgumentError, fn -> Game.new(seed: @seed, expansion: :other) end
     end
 
-    test "sets 5 and 6 only with the expansion; every book is supported" do
+    test "sets 5 and 6 and the black books in every game; every book is supported" do
       for colour <- [:blue, :red, :yellow, :green, :purple],
           set <- 1..4,
           do: assert(new(%{colour => set}).sets[colour] == set)
@@ -52,8 +52,8 @@ defmodule Quacks.HerbWitchesTest do
           do: assert(new(Map.new([book])).sets == Map.merge(new().sets, Map.new([book])))
 
       assert new(%{black: 5, locoweed: 6}).sets.black == 5
-      assert_raise ArgumentError, fn -> Game.new(seed: @seed, sets: %{blue: 5}) end
-      assert_raise ArgumentError, fn -> Game.new(seed: @seed, sets: %{black: 5}) end
+      assert Game.new(seed: @seed, sets: %{blue: 5}).sets.blue == 5
+      assert Game.new(seed: @seed, sets: %{black: 6}).sets.black == 6
       assert_raise ArgumentError, fn -> new(%{black: 2}) end
       assert_raise ArgumentError, fn -> new(%{locoweed: 1}) end
       assert_raise ArgumentError, fn -> new(%{blue: 7}) end
@@ -202,6 +202,16 @@ defmodule Quacks.HerbWitchesTest do
       assert me(g, 0).droplet == 1 and effect?(g, {:black, 5}, {:to_left, 1})
     end
 
+    test "Black 5 in a base game: a bought black goes to the left bag, droplet +1" do
+      g =
+        Game.new(seed: @seed, fortune: false, players: 2, sets: %{black: 5})
+        |> put(0, phase: :buy, coins: 10)
+
+      assert g.expansion == nil and g.witches == nil
+      g = apply!(g, 0, {:buy, [{:black, 1}]})
+      assert {:black, 1} in me(g, 1).bag and me(g, 0).droplet == 1
+    end
+
     test "Black 5 solo: a bought black goes back to the supply, droplet +1" do
       g = new(%{black: 5}) |> put(phase: :buy, coins: 10)
       supply = g.supply[{:black, 1}]
@@ -213,7 +223,7 @@ defmodule Quacks.HerbWitchesTest do
 
     test "Black 5: a black chip from a card (P1) goes to the left bag too" do
       g = new(%{black: 5}, 2) |> put(fortune_card: :p1) |> Fortune.resolve()
-      assert g.phase == :fortune_choice and g.turn == 0
+      assert g.phase == :fortune_choice and me(g, 0).phase == :fortune_choice
       g = apply!(g, 0, {:fortune, {:take, {:black, 1}}})
       assert {:black, 1} in me(g, 1).bag and me(g, 0).droplet == 1
       assert me(g, 0).pot_index == 1
@@ -321,8 +331,12 @@ defmodule Quacks.HerbWitchesTest do
       g = new() |> put(two_blues) |> apply!(:draw)
       assert me(g).pot_index == 53 and Game.phase(g, 0) == :potions and me(g).pending == []
 
-      # the base game still offers
-      base = Game.new(seed: @seed, fortune: false) |> put(two_blues) |> apply!(:draw)
+      # without the overflow bowl it still offers
+      base =
+        Game.new(seed: @seed, fortune: false, rules: %{overflow: false})
+        |> put(two_blues)
+        |> apply!(:draw)
+
       assert Game.phase(base, 0) == :blue_choice
     end
   end

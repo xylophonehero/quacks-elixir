@@ -596,7 +596,7 @@ defmodule QuacksWeb.GameLive do
           />
           <section class="flex flex-col gap-2 *:min-h-11" aria-label="Actions">
             <.button
-              :for={action <- @all_actions}
+              :for={action <- dialog_actions(@all_actions, @decision)}
               phx-click="action"
               phx-value-action={encode(action)}
               variant="primary"
@@ -726,8 +726,7 @@ defmodule QuacksWeb.GameLive do
   to the selection is not a legal buy. "Buy selected" sends `{:buy, selected}`.
 
   Below, the ruby options (`{:rubies, _}`), other witch calls, and "Done"
-  (`:end_round`) once the engine allows it. Works with the engine's `:buy` then
-  `:rubies` sub-phases and with a single `:shop` sub-phase.
+  (`:end_round`), all in the engine's one `:shop` sub-phase.
   """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
@@ -822,7 +821,7 @@ defmodule QuacksWeb.GameLive do
             Buy selected
           </.button>
           <.button
-            :if={:end_round not in @actions}
+            :if={{:buy, []} in @actions}
             phx-click="action"
             phx-value-action={encode({:buy, []})}
           >
@@ -991,11 +990,17 @@ defmodule QuacksWeb.GameLive do
   defp extra_actions(actions), do: actions -- [:draw, :stop, :resume, :use_flask]
 
   defp decision([], _phase, _me), do: nil
-  defp decision(_actions, phase, _me) when phase in [:buy, :rubies, :shop], do: :shop
+  defp decision(_actions, :shop, _me), do: :shop
   defp decision(_actions, :potions, %{witch_offer: [_ | _]}), do: :witch_offer
   defp decision(_actions, :potions, _me), do: nil
   defp decision(_actions, :stopped, _me), do: nil
   defp decision(_actions, phase, _me), do: phase
+
+  # The shop dialog has the buys and copper witches in `shop/1`; the rest are buttons.
+  defp dialog_actions(actions, :shop),
+    do: Enum.reject(actions, &(match?({:buy, _}, &1) or match?({:witch, :copper, _}, &1)))
+
+  defp dialog_actions(actions, _decision), do: actions
 
   defp witch?({:witch, _}), do: true
   defp witch?({:witch, _, _}), do: true
@@ -1051,11 +1056,8 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  defp turn_text(%{phase: phase, turn: seat}, seat, _names),
-    do: "Your turn: #{phase_verb(phase)}."
-
-  defp turn_text(%{phase: phase, turn: turn}, _seat, names),
-    do: "#{name(names, turn)}'s turn: #{phase_verb(phase)}."
+  defp turn_text(%{phase: phase}, _seat, _names),
+    do: "Everyone may #{phase_verb(phase)} at the same time."
 
   # The seats `seat` waits for: empty unless `seat` has stopped (or is done) while
   # others brew, or is ready while others shop. Watchers wait for nobody.

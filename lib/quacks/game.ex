@@ -11,11 +11,13 @@ defmodule Quacks.Game do
   `phase`; `:stop` only marks a player `:stopped`, and they may `:resume` while
   someone else still brews), then — as soon as nobody brews any more — the evaluation
   runs inside `apply/3` and the game moves to `:shopping`, where every seat acts at
-  the same time in its own sub-phase (`:buy` → `:rubies` → `:ready`). Ingredient
-  books with a choice in the evaluation (G2, G4, P2, P4) put the game in `:chip_choice`
-  first, one `turn` seat at a time (`Quacks.Game.Evaluation`). After
-  round 9 the phase is `:over`. The struct never rests without a legal action for
-  some seat unless `over?/1`.
+  the same time in its own sub-phase (`:shop` → `:ready`). Ingredient books with a
+  choice in the evaluation (G2, G4, P2, P4) put the game in `:chip_choice` first,
+  where every seat with a choice answers at the same time (`Quacks.Game.Evaluation`).
+  Round 9 is "Stir!" (2+ players): every brewing seat picks `:draw` or `:stop` for
+  the step, and the step resolves once all have picked (see `legal_actions/2`).
+  After round 9 the phase is `:over`. The struct never rests without a legal action
+  for some seat unless `over?/1`.
 
   House rules (`rules`, see `new/1`) change a few table rules: the explosion limit,
   the round-6 white chip, the cards, the rats, solo black, the die and the starting
@@ -27,12 +29,12 @@ defmodule Quacks.Game do
   (`Quacks.Game.Witches`): one witch of each penny colour is turned up at `new/1`
   (`witches`), and every player may call each of them once per game with
   `{:witch, colour}` or `{:witch, colour, choice}`. Gold witches with a choice in the
-  evaluation put the game in `:witch_choice`, one `turn` seat at a time.
+  evaluation put the game in `:witch_choice` (every helped seat at once).
 
   Fortune Teller cards (`Quacks.Game.Fortune`): each round starts by turning up a
-  card. A purple card with a choice puts the game in `:fortune_choice` (one `turn`
-  seat at a time) before `:potions`; Toil and Trouble (B2) does the same between
-  `:potions` and the evaluation.
+  card. A purple card with a choice puts the game in `:fortune_choice` (every seat
+  with a choice at once) before `:potions`; Toil and Trouble (B2) does the same
+  between `:potions` and the evaluation.
 
   `apply/2` and `legal_actions/1` are seat-0 shortcuts for solo callers. All
   randomness flows through one shared `rng` (`:rand` `_s` API), so a seed, the player
@@ -56,10 +58,11 @@ defmodule Quacks.Game do
   # Rulebook §4: yellow enters the shop in round 2, purple in round 3.
   @from_round %{yellow: 2, purple: 3}
   # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
-  @sets %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1}
-  # The Herb Witches: black (1 = the base book, 5, 6) and locoweed (5, 6) have books too.
+  # Black has a book too (1 = the base book, 5, 6), in every game.
+  @sets %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}
+  # The Herb Witches defaults locoweed to Set 5 (orange to 2: `Chips.set/3`).
   # ⚠️ Locoweed enters the shop in round 1 (not in the rulebook; `herb-witches.md` §1.2).
-  @expansion_sets %{black: 1, locoweed: 5}
+  @expansion_sets %{locoweed: 5}
   # House rules (research `ingredient-sets-and-customisation.md` Part 2b): the rulebook game.
   # The values each house rule accepts.
   @rule_values %{
@@ -70,7 +73,8 @@ defmodule Quacks.Game do
     black_solo: [:droplet, :droplet_ruby],
     die: [:standard, :no_orange],
     starting_rubies: 0..3,
-    supply: [:infinite, :limited]
+    supply: [:infinite, :limited],
+    overflow: [true, false]
   }
   @rules %{
     explode_above: 7,
@@ -80,12 +84,12 @@ defmodule Quacks.Game do
     black_solo: :droplet,
     die: :standard,
     starting_rubies: 1,
-    supply: :infinite
+    supply: :infinite,
+    overflow: true
   }
 
   defstruct round: 1,
             phase: :potions,
-            turn: nil,
             supply: %{},
             rng: nil,
             log: [],
@@ -117,7 +121,7 @@ defmodule Quacks.Game do
           | :return_all
           | {:explosion_choice, :vp | :buy}
           | {:buy, [Chips.chip()]}
-          | {:rubies, :droplet | :flask | :skip}
+          | {:rubies, :droplet | :flask | :vp | :skip}
           | :end_round
           | {:fortune, fortune_choice}
           | {:red, {:place | :keep | :return, Chips.chip()}}
@@ -163,8 +167,8 @@ defmodule Quacks.Game do
   Evaluation is narrated too: `{:bonus_die, face}`, the chip actions (`{:black,
   :droplet | :droplet_ruby}`, `{:green_rubies, n}`, `{:purple, tier, payoff}`), the
   scoring space (`{:pot_ruby, index}`, `{:pot_vp, vp, index}`), `{:final_conversion,
-  coins_vp, rubies_vp}` in round 9 and `{:rats, tails}` when a player gets a head
-  start. See the Log table in `docs/CONTEXT.md`.
+  coins, coins_vp, rubies, rubies_vp}` in round 9 and `{:rats, tails}` when a player
+  gets a head start. See the Log table in `docs/CONTEXT.md`.
 
   The Herb Witches: `{:overflow, chip}` for a chip that goes in the overflow bowl,
   `{:bowl, chips, vp}` for the bowl's VP in step D, `{:witch, id, outcome}` for what a
@@ -181,7 +185,7 @@ defmodule Quacks.Game do
           | :stopped
           | :resumed
           | {:bought, [Chips.chip()]}
-          | {:rubies_spent, :droplet | :flask}
+          | {:rubies_spent, :droplet | :flask | :vp}
           | {:rubies_spent, :droplet | :flask, 1}
           | {:witch, WitchCards.id(), term}
           | {:pennies, pos_integer}
@@ -193,7 +197,8 @@ defmodule Quacks.Game do
           | {:purple, 3, :vp2_droplet}
           | {:pot_ruby, 0..53}
           | {:pot_vp, pos_integer, 0..53}
-          | {:final_conversion, non_neg_integer, non_neg_integer}
+          | {:final_conversion, non_neg_integer, non_neg_integer, non_neg_integer,
+             non_neg_integer}
           | {:rats, pos_integer}
           | {:fortune, Quacks.Rules.Fortune.id(), term}
           | {:effect, {Chips.colour(), 2..6}, term}
@@ -213,7 +218,6 @@ defmodule Quacks.Game do
   @type t :: %__MODULE__{
           round: 1..9,
           phase: phase,
-          turn: seat | nil,
           supply: %{Chips.chip() => non_neg_integer},
           rng: :rand.state(),
           log: [log_entry],
@@ -232,7 +236,8 @@ defmodule Quacks.Game do
   the solo black payout (rulebook §6.2 suggests `:droplet_ruby`), `die: :no_orange`
   turns the orange face into a second ruby face (⚠️ unofficial). `supply: :infinite`
   (default) means the shop never runs out and `supply` is never counted down;
-  `:limited` plays with the box's counts.
+  `:limited` plays with the box's counts. `overflow: true` (default) puts chips past
+  the last space in the overflow bowl; `false` keeps them on the last space.
   """
   @type rules :: %{
           explode_above: 5..9,
@@ -242,22 +247,23 @@ defmodule Quacks.Game do
           black_solo: :droplet | :droplet_ruby,
           die: :standard | :no_orange,
           starting_rubies: 0..3,
-          supply: :infinite | :limited
+          supply: :infinite | :limited,
+          overflow: boolean
         }
 
   @doc """
   A fresh game. `seed:` is a `{int, int, int}` tuple for `:rand.seed_s(:exsss, seed)`;
   `players:` is 1 (default) to 4. Every starting bag comes out of the shared supply.
-  `sets:` picks the Ingredient Set (1..4) per colour, e.g. `%{blue: 3}`; colours left
-  out use Set 1. `orange: 2` adds the orange 6-chip and `locoweed: 5 | 6` adds
-  locoweed, in base games too (see `Quacks.Rules.Chips.set/3`). `rules:` sets house rules (`t:rules/0`), e.g. `%{explode_above: 9}`;
-  rules left out keep their default. With `fortune: true` (default) round 1's card
-  is turned up here. `fortune: false` is an old alias for `rules: %{fortune: false}`.
-  `expansion: :herb_witches` turns The Herb Witches on: `players:` 1 to 5, `sets:`
-  1..6 per colour plus `black:` (1 = base book, 5, 6), `locoweed:` (5 default, 6, nil)
-  and `orange:` (2 default, 1),
-  the expansion chips in the supply and the shop, the overflow bowl, 3 witches
-  (`witches`, dealt from the seed) and 3 witch pennies per player.
+  `sets:` picks the Ingredient Set (1..6) per colour, e.g. `%{blue: 3}`; colours left
+  out use Set 1. `black:` is 1 (the base book), 5 or 6, `orange: 2` adds the orange
+  6-chip and `locoweed: 5 | 6` adds locoweed, in every game (see
+  `Quacks.Rules.Chips.set/3`). `rules:` sets house rules (`t:rules/0`), e.g.
+  `%{explode_above: 9}`; rules left out keep their default. With `fortune: true`
+  (default) round 1's card is turned up here. `fortune: false` is an old alias for
+  `rules: %{fortune: false}`. `expansion: :herb_witches` turns The Herb Witches on:
+  `players:` 1 to 5, orange Set 2 and locoweed Set 5 by default, the expansion chips
+  in the supply and the shop, 3 witches (`witches`, dealt from the seed) and 3 witch
+  pennies per player.
   An unknown colour, set, rule or expansion raises `ArgumentError`.
   """
   @spec new(
@@ -319,19 +325,18 @@ defmodule Quacks.Game do
     start_round(if expansion, do: record(game, {:expansion, expansion}), else: game)
   end
 
-  # Base game: Sets 1..4. The expansion adds Sets 5..6 and the black book. Both may
-  # pick orange 1 or 2 (2 = the orange 6-chip) and locoweed nil, 5 or 6.
+  # Every game: Sets 1..6, black 1, 5 or 6, orange 1 or 2 (2 = the orange 6-chip) and
+  # locoweed nil, 5 or 6. The expansion only changes the defaults.
   defp sets!(sets, expansion) do
     defaults = if expansion, do: Map.merge(@sets, @expansion_sets), else: @sets
-    max = if expansion, do: 6, else: 4
     sets = Map.merge(defaults, sets)
 
     valid? =
       Enum.all?(sets, fn
         {:orange, set} -> set in [1, 2]
         {:locoweed, set} -> set in [nil, 5, 6]
-        {:black, set} -> expansion != nil and set in [1, 5, 6]
-        {colour, set} -> is_map_key(@sets, colour) and set in 1..max
+        {:black, set} -> set in [1, 5, 6]
+        {colour, set} -> is_map_key(@sets, colour) and set in 1..6
       end)
 
     if not valid?, do: raise(ArgumentError, "bad sets: #{inspect(sets)}")
@@ -362,8 +367,8 @@ defmodule Quacks.Game do
   def score(%__MODULE__{players: players}), do: Map.new(players, fn {seat, p} -> {seat, p.vp} end)
 
   @doc """
-  The phase `seat` sees: their own state in `:potions` and `:shopping` (`:buy`,
-  `:rubies`, `:ready`), or the game's phase.
+  The phase `seat` sees: their own state in `:potions` and `:shopping` (`:shop`,
+  `:ready`), or the game's phase.
   """
   @spec phase(t, seat) :: phase | Player.phase()
   def phase(%__MODULE__{phase: phase, players: players}, seat)
@@ -392,7 +397,12 @@ defmodule Quacks.Game do
   Every action `apply/3` accepts for `seat` right now. During `:potions` every seat
   not yet done has actions (a `:stopped` seat only `:resume`, and only while another
   seat still brews); during `:shopping` every seat not yet `:ready`; in the choice
-  phases only `turn`. Empty for every seat only when `over?/1`.
+  phases every seat that still answers. Empty for every seat only when `over?/1`.
+
+  Round 9 "Stir!" (2+ players): a brewing seat picks `:draw` or `:stop` for the step
+  and waits (`:waiting_stir`, no actions) until every brewing seat has picked; then
+  the step resolves in seat order from the start seat. A stop is final (no
+  `:resume`).
   """
   @spec legal_actions(t, seat) :: [action]
   def legal_actions(game, seat \\ 0)
@@ -406,8 +416,11 @@ defmodule Quacks.Game do
       %Player{phase: :potions, witch_offer: [_ | _]} ->
         Witches.legal_actions(g, seat)
 
+      %Player{phase: :waiting_stir} ->
+        []
+
       %Player{phase: :stopped} ->
-        if Enum.any?(g.seats, &(&1 != seat and brewing?(player(g, &1)))),
+        if not stir?(g) and Enum.any?(g.seats, &(&1 != seat and brewing?(player(g, &1)))),
           do: [:resume],
           else: []
 
@@ -417,27 +430,28 @@ defmodule Quacks.Game do
     end
   end
 
-  def legal_actions(%__MODULE__{phase: :fortune_choice, turn: seat} = g, seat),
+  def legal_actions(%__MODULE__{phase: :fortune_choice} = g, seat),
     do: Fortune.legal_actions(g, seat)
 
   def legal_actions(%__MODULE__{phase: :chip_choice} = g, seat),
     do: Evaluation.legal_actions(g, seat)
 
-  def legal_actions(%__MODULE__{phase: :witch_choice, turn: seat} = g, seat),
-    do: Witches.legal_actions(g, seat) ++ [:witch_done]
+  def legal_actions(%__MODULE__{phase: :witch_choice} = g, seat) do
+    if player(g, seat).phase == :witch_choice,
+      do: Witches.legal_actions(g, seat) ++ [:witch_done],
+      else: []
+  end
 
+  # One step: buy once (not in round 9), rubies, witches and "Done" in any order.
   def legal_actions(%__MODULE__{phase: :shopping} = g, seat) do
     case player(g, seat) do
-      %Player{phase: :buy, coins: coins} ->
-        Enum.map(buys(g, coins), &{:buy, &1}) ++ Witches.legal_actions(g, seat)
+      %Player{phase: :shop} = p ->
+        # An exploded player who took the VP buys nothing (unless C4 gave them coins).
+        buy? = shop_open?(g, p) and (p.explosion_choice != :vp or p.coins > 0)
+        buys = if buy?, do: buys(g, p.coins), else: []
 
-      %Player{phase: :rubies, rubies: rubies, flask: flask, ruby_price: price} ->
-        List.flatten([
-          if(rubies >= price, do: {:rubies, :droplet}, else: []),
-          if(rubies >= price and not flask, do: {:rubies, :flask}, else: []),
-          Witches.legal_actions(g, seat),
-          :end_round
-        ])
+        Enum.map(buys, &{:buy, &1}) ++
+          ruby_actions(g, p) ++ Witches.legal_actions(g, seat) ++ [:end_round]
 
       %Player{phase: :ready} ->
         []
@@ -446,13 +460,28 @@ defmodule Quacks.Game do
 
   def legal_actions(%__MODULE__{}, _seat), do: []
 
+  # Round 9: 2 rubies buy 1 VP; droplet and flask are worth nothing any more.
+  defp ruby_actions(%{round: @rounds}, %Player{rubies: rubies}),
+    do: if(rubies >= 2, do: [{:rubies, :vp}], else: [])
+
+  defp ruby_actions(_g, %Player{rubies: rubies, flask: flask, ruby_price: price}) do
+    if rubies >= price,
+      do: [{:rubies, :droplet} | if(flask, do: [], else: [{:rubies, :flask}])],
+      else: []
+  end
+
+  @doc false
+  # The seat may still buy chips (and use the copper witches C1, C3): before round 9,
+  # once.
+  def shop_open?(g, %Player{bought?: bought?}), do: g.round < @rounds and not bought?
+
   @doc "`apply/3` for seat 0."
   @spec apply(t, action) :: {:ok, t} | {:error, {:illegal_action, action, phase | Player.phase()}}
   def apply(%__MODULE__{} = game, action), do: apply(game, 0, action)
 
   @doc """
-  Apply one action for `seat`. Illegal actions (wrong phase, not this seat's turn,
-  unaffordable buy, empty bag, ...) return `{:error, {:illegal_action, action, phase}}`
+  Apply one action for `seat`. Illegal actions (wrong phase, nothing for this seat
+  to answer, unaffordable buy, empty bag, ...) return `{:error, {:illegal_action, action, phase}}`
   with the phase that seat sees (`phase/2`) and leave the game untouched.
 
   `{:buy, chips}` accepts chips in any order; `{:rubies, :skip}` equals `:end_round`.
@@ -482,19 +511,17 @@ defmodule Quacks.Game do
         {:fortune, _} -> Fortune.step(g, seat, action)
         {:witch, _} -> Witches.step(g, seat, action)
         {:witch, _, _} -> Witches.step(g, seat, action)
+        choice when choice in [:draw, :stop] -> stir_or_step(g, seat, choice)
         _ -> Potions.step(g, seat, action)
       end
 
-    g = settle_stops(g)
+    g = g |> stir() |> settle_stops()
     if Enum.all?(g.players, fn {_seat, p} -> p.done? end), do: Fortune.after_potions(g), else: g
   end
 
-  # -- Fortune Teller choices: one seat at a time -------------------------------------
+  # -- concurrent choices: Fortune Teller, step B chips, gold witches -----------------
 
   defp step(%{phase: :fortune_choice} = g, seat, action), do: Fortune.step(g, seat, action)
-
-  # -- step B chip choices (G2, G4, P2, P4): one seat at a time ---------------------
-
   defp step(%{phase: :chip_choice} = g, seat, action), do: Evaluation.step(g, seat, action)
 
   # -- witches outside the potions phase (gold choice, shopping) ----------------------
@@ -505,10 +532,16 @@ defmodule Quacks.Game do
   defp step(%{phase: :witch_choice} = g, seat, :witch_done),
     do: Witches.step(g, seat, :witch_done)
 
-  # -- shopping: every seat at once, each in its own sub-phase ------------------------
+  # -- shopping: every seat at once, all in one step ----------------------------------
 
   defp step(%{phase: :shopping} = g, seat, {:buy, chips}),
     do: g |> buy(seat, chips) |> done_buying(seat)
+
+  defp step(%{phase: :shopping} = g, seat, {:rubies, :vp}) do
+    g
+    |> update_player(seat, &%{&1 | rubies: &1.rubies - 2, vp: &1.vp + 1})
+    |> record(seat, {:rubies_spent, :vp})
+  end
 
   defp step(%{phase: :shopping} = g, seat, {:rubies, what}) do
     price = player(g, seat).ruby_price
@@ -527,10 +560,42 @@ defmodule Quacks.Game do
       else: record(g, seat, {:rubies_spent, what, price})
   end
 
-  # The last seat to get `:ready` ends the round.
+  # The last seat to get `:ready` ends the round. Round 9: the seat's coins and rubies
+  # become VP now.
   defp step(%{phase: :shopping} = g, seat, :end_round) do
+    g = if g.round == @rounds, do: final_conversion(g, seat), else: g
     g = update_player(g, seat, &%{&1 | phase: :ready})
     if Enum.all?(g.seats, &(player(g, &1).phase == :ready)), do: end_round(g), else: g
+  end
+
+  # Round 9 "Stir!" with 2+ players: the pick waits for the other brewing seats.
+  defp stir_or_step(g, seat, choice) do
+    if stir?(g),
+      do: update_player(g, seat, &%{&1 | phase: :waiting_stir, pending_choice: choice}),
+      else: Potions.step(g, seat, choice)
+  end
+
+  defp stir?(g), do: g.round == @rounds and length(g.seats) > 1
+
+  # Once every seat still brewing has picked (nobody is in an on-draw choice), the
+  # step resolves: the picks in seat order from the start seat, on the shared rng.
+  defp stir(g) do
+    phases = Enum.map(g.seats, &player(g, &1).phase)
+
+    if :waiting_stir in phases and Enum.all?(phases, &(&1 in [:waiting_stir, :stopped, :done])) do
+      g
+      |> turn_order()
+      |> Enum.filter(&(player(g, &1).phase == :waiting_stir))
+      |> Enum.reduce(g, fn seat, g ->
+        choice = player(g, seat).pending_choice
+
+        g
+        |> update_player(seat, &%{&1 | phase: :potions, pending_choice: nil})
+        |> Potions.step(seat, choice)
+      end)
+    else
+      g
+    end
   end
 
   # Soft stop: once every player is `:stopped` or `:done`, nobody can resume any more,
@@ -553,11 +618,8 @@ defmodule Quacks.Game do
   defp brewing?(%Player{phase: phase}),
     do: phase in [:potions, :yellow_choice, :blue_choice, :chip_choice]
 
-  # Rulebook §7: 5 coins or 2 rubies buy 1 VP, as often as you like.
-  defp end_round(%{round: @rounds} = g) do
-    g = Enum.reduce(turn_order(g), g, &final_conversion(&2, &1))
-    record(%{g | phase: :over, turn: nil}, {:round_end, @rounds})
-  end
+  defp end_round(%{round: @rounds} = g),
+    do: record(%{g | phase: :over}, {:round_end, @rounds})
 
   defp end_round(g) do
     round = g.round + 1
@@ -572,12 +634,14 @@ defmodule Quacks.Game do
           else: g
       end)
 
-    start_round(%{g | round: round, phase: :potions, turn: nil})
+    start_round(%{g | round: round, phase: :potions})
   end
 
   # Rulebook §3 steps 1–2: the Fortune Teller card, the rats, then the purple card.
   defp start_round(g), do: g |> Fortune.draw() |> place_rats() |> Fortune.resolve()
 
+  # Rulebook §7: 5 coins or 2 rubies buy 1 VP, as often as you like. Whatever the seat
+  # still has at its round-9 "Done" converts by itself.
   defp final_conversion(g, seat) do
     %{coins: coins, rubies: rubies, pennies: pennies} = player(g, seat)
     {coins_vp, rubies_vp} = {div(coins, 5), div(rubies, 2)}
@@ -588,7 +652,7 @@ defmodule Quacks.Game do
         seat,
         &%{&1 | vp: &1.vp + coins_vp + rubies_vp, coins: rem(coins, 5), rubies: rem(rubies, 2)}
       )
-      |> record(seat, {:final_conversion, coins_vp, rubies_vp})
+      |> record(seat, {:final_conversion, coins, coins_vp, rubies, rubies_vp})
 
     # The Herb Witches: every unused witch penny is 2 VP.
     case 2 * Enum.count(pennies, fn {_colour, unused?} -> unused? end) do
@@ -732,24 +796,16 @@ defmodule Quacks.Game do
     from ++ before
   end
 
-  @doc false
-  def seats_after(g, seat), do: g |> turn_order() |> Enum.drop_while(&(&1 != seat)) |> tl()
-
-  # Open the shop for every seat at once: each player buys (`:buy`), then spends
-  # rubies (`:rubies`). An exploded player who took the VP skips `:buy`, unless a
-  # copper witch still helps them there (`Witches.shop_turn?/2`).
-  # ponytail: round 9 skips the shop; chips bought now are useless (§7). Coins stay on
-  # the player and convert to VP in `:end_round`.
+  # Open the shop for every seat at once, in one step (`:shop`): buy once, spend
+  # rubies, end. ponytail: round 9 has no buy; chips bought now are useless (§7).
+  # Coins stay on the player and convert to VP at the seat's `:end_round`.
   @doc false
   def to_shop(%__MODULE__{} = g) do
-    Enum.reduce(g.seats, %{g | phase: :shopping, turn: nil}, fn seat, g ->
-      p = player(g, seat)
-      buy? = p.explosion_choice != :vp or Witches.shop_turn?(g, seat)
-      sub = if g.round < @rounds and buy?, do: :buy, else: :rubies
-      update_player(g, seat, &%{&1 | phase: sub})
+    Enum.reduce(g.seats, %{g | phase: :shopping}, fn seat, g ->
+      update_player(g, seat, &%{&1 | phase: :shop})
     end)
   end
 
   @doc false
-  def done_buying(g, seat), do: update_player(g, seat, &%{&1 | phase: :rubies})
+  def done_buying(g, seat), do: update_player(g, seat, &%{&1 | bought?: true})
 end

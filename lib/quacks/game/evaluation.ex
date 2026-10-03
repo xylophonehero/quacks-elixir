@@ -8,16 +8,17 @@ defmodule Quacks.Game.Evaluation do
   log are deterministic.
 
   Some books need a choice in step B (G2, G4, P2, P4). Step B fills each player's
-  `chip_choices`; then the game phase `:chip_choice` gives each seat with a choice
-  the `turn`, one after the other from the start seat. A seat acts with `{:chip,
-  choice}` (see `legal_actions/2`) and ends with `:chip_done`; its turn also ends
-  when nothing is left to choose. Steps C and D run after the last seat. Without such
-  a book nobody has a choice and the evaluation runs in one go.
+  `chip_choices`; then in the game phase `:chip_choice` every seat with a choice
+  answers at the same time (player phase `:chip_choice`). A seat acts with `{:chip,
+  choice}` (see `legal_actions/2`) and ends with `:chip_done`; it is also through
+  when nothing is left to choose (with `supply: :limited`, first come). Steps C and D
+  run after the last seat. Without such a book nobody has a choice and the
+  evaluation runs in one go.
 
   The Herb Witches: G6, P6 and black Sets 5 and 6 are automatic step-B books; G5
   (`{:starter, chip}`: first chips of the next round) and P5 (`{:buy, chips}` with
   the VP of the purple spaces as coins) are choices. After the choices, the gold
-  witches G1–G3 get their turn (`Quacks.Game.Witches.gold_turn/2`). Step D adds the
+  witches G1–G3 are asked (`Quacks.Game.Witches.open_gold/1`). Step D adds the
   overflow bowl's VP.
   """
 
@@ -48,37 +49,42 @@ defmodule Quacks.Game.Evaluation do
     # Black compares pots across seats: it reads the pots as they were before step B
     # (G3 moves a chip).
     g = Enum.reduce(order, g, &chip_actions(&2, &1, g))
-    next_choice(g, order)
+
+    g.seats
+    |> Enum.filter(&(choices(g, &1) != []))
+    |> Enum.reduce(%{g | phase: :chip_choice}, fn seat, g ->
+      Game.update_player(g, seat, &%{&1 | phase: :chip_choice})
+    end)
+    |> close_choices()
   end
 
-  @doc "The `{:chip, choice}` actions and `:chip_done` for the seat whose turn it is."
+  @doc "The `{:chip, choice}` actions and `:chip_done` for a seat that still chooses."
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
-  def legal_actions(%{phase: :chip_choice, turn: seat} = g, seat),
-    do: Enum.map(choices(g, seat), &{:chip, &1}) ++ [:chip_done]
+  def legal_actions(%{phase: :chip_choice} = g, seat) do
+    if Game.player(g, seat).phase == :chip_choice,
+      do: Enum.map(choices(g, seat), &{:chip, &1}) ++ [:chip_done],
+      else: []
+  end
 
   def legal_actions(_g, _seat), do: []
 
   @doc "Apply one legal `:chip_choice` action for `seat`. The action is already logged."
   @spec step(Game.t(), Game.seat(), Game.action()) :: Game.t()
-  def step(g, seat, :chip_done) do
-    g
-    |> Game.update_player(seat, &%{&1 | chip_choices: []})
-    |> next_choice(Game.seats_after(g, seat))
+  def step(g, seat, :chip_done), do: g |> done(seat) |> close_choices()
+  def step(g, seat, {:chip, choice}), do: g |> choose(seat, choice) |> close_choices()
+
+  # A seat with nothing left to choose is through. Once nobody chooses any more: the
+  # gold witches, then steps C/D.
+  defp close_choices(g) do
+    open = Enum.filter(g.seats, &(Game.player(g, &1).phase == :chip_choice))
+    g = open |> Enum.filter(&(choices(g, &1) == [])) |> Enum.reduce(g, &done(&2, &1))
+
+    if Enum.any?(g.seats, &(Game.player(g, &1).phase == :chip_choice)),
+      do: g,
+      else: Witches.open_gold(g)
   end
 
-  def step(g, seat, {:chip, choice}) do
-    g = choose(g, seat, choice)
-    if choices(g, seat) == [], do: step(g, seat, :chip_done), else: g
-  end
-
-  # Give the first of `seats` with a choice the turn; with nobody left, the gold
-  # witches, then steps C/D.
-  defp next_choice(g, seats) do
-    case Enum.find(seats, &(choices(g, &1) != [])) do
-      nil -> Witches.gold_turn(g, Game.turn_order(g))
-      seat -> %{g | phase: :chip_choice, turn: seat}
-    end
-  end
+  defp done(g, seat), do: Game.update_player(g, seat, &%{&1 | chip_choices: [], phase: :done})
 
   @doc false
   # Steps C and D for every seat, the B9 flask refill, then the shop.

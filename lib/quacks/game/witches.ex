@@ -10,10 +10,11 @@ defmodule Quacks.Game.Witches do
 
   - **silver**, potions phase: S2 (draw 6) and S3 (whites back) while brewing, S1
     (flask) and S4 (no penalty) in the explosion choice;
-  - **copper**, shop: in the seat's `:buy` sub-phase of `:shopping` (C2 and C4 also in
-    round 9's `:rubies` sub-phase, before the coins become VP);
+  - **copper**, shop: in the seat's `:shop` sub-phase of `:shopping`, before it buys
+    (C2 and C4 also in round 9, before the coins become VP);
   - **gold**, evaluation: G1–G3 in the game phase `:witch_choice` (after step B, before
-    steps C/D; seat by seat, only seats she helps), G4 in the `:rubies` sub-phase.
+    steps C/D; every seat she helps at the same time), G4 in the `:shop` sub-phase
+    before round 9.
 
   Actions: `{:witch, colour}` calls a witch that needs no choice; `{:witch, colour,
   choice}` calls one with a choice (S3 `1 | 2`, C1 `{:upgrade, chips}`, C3 `{:buy,
@@ -65,10 +66,11 @@ defmodule Quacks.Game.Witches do
   defp now?(%{phase: :potions}, _seat, p, :silver),
     do: p.phase in [:potions, :explosion_choice] and p.witch_offer == []
 
-  defp now?(%{phase: :shopping}, _seat, %{phase: :buy}, :copper), do: true
-  defp now?(%{phase: :shopping, round: 9}, _seat, %{phase: :rubies}, :copper), do: true
-  defp now?(%{phase: :shopping}, _seat, %{phase: :rubies}, :gold), do: true
-  defp now?(%{phase: :witch_choice, turn: seat}, seat, _p, :gold), do: true
+  defp now?(%{phase: :shopping}, _seat, %{phase: :shop}, colour)
+       when colour in [:copper, :gold],
+       do: true
+
+  defp now?(%{phase: :witch_choice}, _seat, %{phase: :witch_choice}, :gold), do: true
 
   defp now?(_g, _seat, _p, _colour), do: false
 
@@ -88,58 +90,65 @@ defmodule Quacks.Game.Witches do
 
   defp actions(_g, %{phase: :explosion_choice}, :s4), do: [{:witch, :silver}]
 
-  defp actions(g, %{phase: :buy} = p, :c1),
+  # C1 and C3 belong to the buy; C2 and C4 too, and in round 9 before the conversion.
+  defp actions(g, p, id) when id in [:c1, :c2, :c3, :c4] do
+    if Game.shop_open?(g, p) or (g.round == 9 and id in [:c2, :c4]),
+      do: copper(g, p, id),
+      else: []
+  end
+
+  defp actions(%{phase: :witch_choice} = g, p, id) when id in [:g1, :g2, :g3],
+    do: if(gold_gain(g, p, id) > 0, do: [{:witch, :gold}], else: [])
+
+  # G4 cheapens droplet and flask, which round 9 no longer offers.
+  defp actions(%{round: round}, %{phase: :shop}, :g4) when round < 9, do: [{:witch, :gold}]
+  defp actions(_g, _p, _id), do: []
+
+  defp copper(g, p, :c1),
     do: for(chips <- upgrades(g, p), do: {:witch, :copper, {:upgrade, chips}})
 
-  defp actions(_g, %{coins: coins}, :c2) when coins > 0, do: [{:witch, :copper}]
+  defp copper(_g, %{coins: coins}, :c2) when coins > 0, do: [{:witch, :copper}]
 
-  defp actions(g, %{phase: :buy} = p, :c3) do
+  defp copper(g, p, :c3) do
     for chips <- Game.buys(g, p.coins),
         copy <- Enum.uniq(chips),
         Game.in_supply?(g, copy, Enum.count(chips, &(&1 == copy)) + 1),
         do: {:witch, :copper, {:buy, chips, copy}}
   end
 
-  defp actions(_g, %{rubies: rubies}, :c4) when rubies > 0, do: [{:witch, :copper}]
-
-  defp actions(%{phase: :witch_choice} = g, p, id) when id in [:g1, :g2, :g3],
-    do: if(gold_gain(g, p, id) > 0, do: [{:witch, :gold}], else: [])
-
-  defp actions(_g, %{phase: :rubies}, :g4), do: [{:witch, :gold}]
-  defp actions(_g, _p, _id), do: []
+  defp copper(_g, %{rubies: rubies}, :c4) when rubies > 0, do: [{:witch, :copper}]
+  defp copper(_g, _p, _id), do: []
 
   @doc """
-  An exploded player who took the VP skips the shop, unless the copper witch C1 or
-  C4 still gives them something to do there.
+  After the step-B choices: every seat that a gold witch G1–G3 helps decides now, at
+  the same time (game and player phase `:witch_choice`); with nobody, steps C/D
+  (`Evaluation.score/1`).
   """
-  @spec shop_turn?(Game.t(), Game.seat()) :: boolean
-  def shop_turn?(%{witches: nil}, _seat), do: false
+  @spec open_gold(Game.t()) :: Game.t()
+  def open_gold(g) do
+    g = %{g | phase: :witch_choice}
 
-  def shop_turn?(g, seat) do
-    p = Game.player(g, seat)
-    id = g.witches.copper
-
-    p.pennies[:copper] == true and id in [:c1, :c4] and
-      actions(g, %{p | phase: :buy}, id) != []
+    g.seats
+    |> Enum.reduce(g, fn seat, g ->
+      asked = Game.update_player(g, seat, &%{&1 | phase: :witch_choice})
+      if legal_actions(asked, seat) != [], do: asked, else: g
+    end)
+    |> close_gold()
   end
 
-  @doc """
-  After the step-B choices: give the first of `seats` that a gold witch G1–G3 helps
-  the `:witch_choice` turn; with nobody left, steps C/D (`Evaluation.score/1`).
-  """
-  @spec gold_turn(Game.t(), [Game.seat()]) :: Game.t()
-  def gold_turn(g, seats) do
-    turn = fn seat -> %{g | phase: :witch_choice, turn: seat} end
-
-    case Enum.find(seats, &(legal_actions(turn.(&1), &1) != [])) do
-      nil -> Evaluation.score(g)
-      seat -> turn.(seat)
-    end
+  # Once no seat decides any more: steps C/D.
+  defp close_gold(g) do
+    if Enum.any?(g.seats, &(Game.player(g, &1).phase == :witch_choice)),
+      do: g,
+      else: Evaluation.score(g)
   end
+
+  defp gold_done(g, seat),
+    do: g |> Game.update_player(seat, &%{&1 | phase: :done}) |> close_gold()
 
   @doc "Apply one legal witch action for `seat`. The action is already logged."
   @spec step(Game.t(), Game.seat(), Game.action()) :: Game.t()
-  def step(g, seat, :witch_done), do: gold_turn(g, Game.seats_after(g, seat))
+  def step(g, seat, :witch_done), do: gold_done(g, seat)
 
   # S2's offer: one chip goes in the pot with its action. An explosion ends the offer.
   def step(g, seat, {:witch, :silver, {:place, chip}}) do
@@ -211,10 +220,10 @@ defmodule Quacks.Game.Witches do
 
     g
     |> log(seat, id, if(id == :g3, do: {:rubies, n}, else: {:vp, n}))
-    |> gold_turn(Game.seats_after(g, seat))
+    |> gold_done(seat)
   end
 
-  # G4: 1 ruby per droplet or flask for the rest of this `:rubies` sub-phase.
+  # G4: 1 ruby per droplet or flask for the rest of this shop.
   defp call(g, seat, :g4),
     do: g |> Game.update_player(seat, &%{&1 | ruby_price: 1}) |> log(seat, :g4, :ruby_price)
 

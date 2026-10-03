@@ -611,11 +611,11 @@ defmodule QuacksWeb.GameComponents do
         value={"#{Game.white_sum(@game, @seat)} / #{Potions.explode_above(@game, @seat)}"}
       />
       <div
-        :if={Game.phase(@game, @seat) == :buy or @me.exploded?}
+        :if={Game.phase(@game, @seat) == :shop or @me.exploded?}
         class="col-span-4 flex flex-wrap gap-1"
       >
         <span
-          :if={Game.phase(@game, @seat) == :buy}
+          :if={Game.phase(@game, @seat) == :shop}
           class="rounded-md bg-gold px-2 font-semibold text-ink"
         >
           {@me.coins} coins to spend
@@ -773,6 +773,7 @@ defmodule QuacksWeb.GameComponents do
     case players[seat] do
       %Player{exploded?: true} -> "exploded"
       %Player{phase: phase} when phase in [:stopped, :done] -> "stopped"
+      %Player{phase: :waiting_stir} -> "chosen"
       _brewing -> "brewing"
     end
   end
@@ -1256,6 +1257,7 @@ defmodule QuacksWeb.GameComponents do
   def label({:explosion_choice, :buy}), do: "Exploded: buy chips instead"
   def label({:rubies, :droplet}), do: "Spend 2 rubies: droplet +1"
   def label({:rubies, :flask}), do: "Spend 2 rubies: refill flask"
+  def label({:rubies, :vp}), do: "Spend 2 rubies: 1 VP"
   def label({:buy, []}), do: "Buy nothing"
 
   # No price here: it depends on the game's books. The shop shows the prices.
@@ -1276,6 +1278,7 @@ defmodule QuacksWeb.GameComponents do
   def label({:bought, chips}), do: "Bought #{Enum.map_join(chips, " + ", &chip_name/1)}"
   def label({:rubies_spent, :droplet}), do: "Spent 2 rubies: droplet +1"
   def label({:rubies_spent, :flask}), do: "Spent 2 rubies: flask refilled"
+  def label({:rubies_spent, :vp}), do: "Spent 2 rubies: +1 VP"
   def label({:green_rubies, n}), do: "Garden spider: +#{n} #{plural(n, "ruby", "rubies")}"
   def label({:purple, 1, :vp1}), do: "Ghost's breath (tier 1): +1 VP"
   def label({:purple, 2, :vp1_ruby}), do: "Ghost's breath (tier 2): +1 VP, +1 ruby"
@@ -1286,9 +1289,6 @@ defmodule QuacksWeb.GameComponents do
   def label({:pot_ruby, index}), do: "Scoring space #{index}: +1 ruby"
   def label({:pot_vp, vp, index}), do: "Scoring space #{index}: +#{vp} VP"
   def label({:round_end, round}), do: "— Round #{round} over —"
-
-  def label({:final_conversion, coins_vp, rubies_vp}),
-    do: "Final: coins → #{coins_vp} VP, rubies → #{rubies_vp} VP"
 
   def label({:final_conversion, coins, coins_vp, rubies, rubies_vp}),
     do:
@@ -1517,9 +1517,8 @@ defmodule QuacksWeb.GameComponents do
   def phase_name(:witch_offer), do: "Silver witch"
   def phase_name(:red_choice), do: "Toadstool"
   def phase_name(:stopped), do: "Stopped"
-  def phase_name(:buy), do: "Shop"
   def phase_name(:shop), do: "Shop"
-  def phase_name(:rubies), do: "Rubies"
+  def phase_name(:waiting_stir), do: "Stir!"
   def phase_name(:ready), do: "Ready"
   def phase_name(:done), do: "Done"
   def phase_name(:over), do: "Over"

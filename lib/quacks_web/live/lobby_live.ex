@@ -36,6 +36,7 @@ defmodule QuacksWeb.LobbyLive do
     fortune: [true, false],
     rats: [true, false],
     black_solo: [:droplet, :droplet_ruby],
+    overflow: [true, false],
     die: [:standard, :no_orange],
     supply: [:infinite, :limited]
   }
