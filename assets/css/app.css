@@ -376,27 +376,6 @@ html:has([data-layout="full"]) {
   }
 }
 
-/* The bot profiles under an empty seat row: they drop in a little. */
-.bot-choice {
-  transition:
-    opacity 180ms var(--ease-out),
-    translate 180ms var(--ease-out);
-}
-
-@starting-style {
-  .bot-choice {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  @starting-style {
-    .bot-choice {
-      translate: 0 -0.25rem;
-    }
-  }
-}
-
 /* Reduced motion: a short fade instead of a slide or a zoom. */
 @media (prefers-reduced-motion: reduce) {
   .sheet {

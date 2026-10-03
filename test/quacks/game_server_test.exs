@@ -301,8 +301,8 @@ defmodule Quacks.GameServerTest do
       {:ok, id} = GameServer.start(4, {1, 2, 3})
       {:ok, 0} = GameServer.claim_seat(id, "a")
 
-      assert GameServer.add_bot(id, "a", :balanced) == {:ok, 1}
-      assert GameServer.add_bot(id, "a", :balanced) == {:ok, 2}
+      assert GameServer.add_bot(id, "a") == {:ok, 1}
+      assert GameServer.add_bot(id, "a") == {:ok, 2}
       {:ok, table} = GameServer.get(id)
       assert table.bots == %{1 => :balanced, 2 => :balanced}
       assert {table.names[1], table.names[2]} == {"Steady Sam", "Steady Sam 2"}
@@ -314,62 +314,67 @@ defmodule Quacks.GameServerTest do
       assert table.bots == %{2 => :balanced}
       refute Map.has_key?(table.names, 1)
 
+      # names stay unique: the free "Steady Sam" comes first again
+      assert GameServer.add_bot(id, "a") == {:ok, 1}
+      {:ok, table} = GameServer.get(id)
+      assert table.names[1] == "Steady Sam"
+      :ok = GameServer.remove_bot(id, "a", 1)
+
       # a browser takes the lowest free seat, around the bot
       assert GameServer.claim_seat(id, "b") == {:ok, 1}
-      assert GameServer.add_bot(id, "a", :reckless, 1) == {:error, :full}
-      assert GameServer.add_bot(id, "a", :reckless, 3) == {:ok, 3}
-      assert GameServer.add_bot(id, "a", :cautious) == {:error, :full}
+      assert GameServer.add_bot(id, "a", 1) == {:error, :full}
+      assert GameServer.add_bot(id, "a", 3) == {:ok, 3}
+      assert GameServer.add_bot(id, "a") == {:error, :full}
       assert GameServer.configure(id, "a", %{players: 3}) == {:error, :invalid}
     end
 
-    test "only the host, only while waiting, at most 7 bots, known profiles" do
+    test "only the host, only while waiting, at most 7 bots" do
       {:ok, id} = GameServer.start(8, {1, 2, 3})
       {:ok, 0} = GameServer.claim_seat(id, "a")
       {:ok, 1} = GameServer.claim_seat(id, "b")
 
-      assert GameServer.add_bot(id, "b", :balanced) == {:error, :not_creator}
-      assert GameServer.add_bot(id, "a", :genius) == {:error, :invalid}
-      {:ok, 2} = GameServer.add_bot(id, "a", :cautious)
+      assert GameServer.add_bot(id, "b") == {:error, :not_creator}
+      {:ok, 2} = GameServer.add_bot(id, "a")
       assert GameServer.remove_bot(id, "b", 2) == {:error, :not_creator}
 
       :ok = GameServer.leave_seat(id, "b")
 
       for seat <- [1, 3, 4, 5, 6, 7],
-          do: assert(GameServer.add_bot(id, "a", :reckless) == {:ok, seat})
+          do: assert(GameServer.add_bot(id, "a") == {:ok, seat})
 
       # the host leaves: a free seat, but 7 bots is the limit
       :ok = GameServer.leave_seat(id, "a")
-      assert GameServer.add_bot(id, "a", :reckless) == {:error, :too_many_bots}
+      assert GameServer.add_bot(id, "a") == {:error, :too_many_bots}
 
       {:ok, 0} = GameServer.claim_seat(id, "a")
       {:ok, _game} = GameServer.begin(id, "a")
-      assert GameServer.add_bot(id, "a", :reckless) == {:error, :already_started}
+      assert GameServer.add_bot(id, "a") == {:error, :already_started}
       assert GameServer.remove_bot(id, "a", 1) == {:error, :already_started}
     end
 
     test "bots follow the renumbered seats and survive play again" do
       {:ok, id} = GameServer.start(4, {1, 2, 3})
       {:ok, 0} = GameServer.claim_seat(id, "a")
-      {:ok, 1} = GameServer.add_bot(id, "a", :cautious)
-      {:ok, 2} = GameServer.add_bot(id, "a", :reckless)
+      {:ok, 1} = GameServer.add_bot(id, "a")
+      {:ok, 2} = GameServer.add_bot(id, "a")
       :ok = GameServer.remove_bot(id, "a", 1)
       {:ok, %Game{seats: [0, 1]}} = GameServer.begin(id, "a")
 
       {:ok, table} = GameServer.get(id)
-      assert {table.bots, table.names[1]} == {%{1 => :reckless}, "Bold Bruno"}
+      assert {table.bots, table.names[1]} == {%{1 => :balanced}, "Steady Sam 2"}
 
       play_with_bots(id, 0)
       {:ok, new_id} = GameServer.play_again(id, "a")
       {:ok, table} = GameServer.get(new_id)
 
       assert {table.status, table.bots, table.names[1]} ==
-               {:waiting, %{1 => :reckless}, "Bold Bruno"}
+               {:waiting, %{1 => :balanced}, "Steady Sam 2"}
     end
 
     test "1 human and 1 bot play to the end, the human stopping each round" do
       {:ok, id} = GameServer.start(2, {4, 5, 6})
       {:ok, 0} = GameServer.claim_seat(id, "a")
-      {:ok, 1} = GameServer.add_bot(id, "a", :balanced)
+      {:ok, 1} = GameServer.add_bot(id, "a")
       {:ok, _game} = GameServer.begin(id, "a")
 
       game = play_with_bots(id, 0)
@@ -379,10 +384,36 @@ defmodule Quacks.GameServerTest do
       assert Enum.any?(game.log, &match?({1, :draw}, &1))
     end
 
+    test "lockstep: a bot draws no more often than the human, then finishes" do
+      {:ok, id} = GameServer.start(2, {4, 5, 6})
+      {:ok, 0} = GameServer.claim_seat(id, "a")
+      {:ok, 1} = GameServer.add_bot(id, "a")
+      {:ok, _table} = GameServer.configure(id, "a", %{rules: %{fortune: false}})
+      {:ok, _game} = GameServer.begin(id, "a")
+      [{pid, _}] = Registry.lookup(Quacks.GameRegistry, id)
+
+      # the human has not drawn: the bot waits, with no tick
+      game = run_ticks(pid)
+      assert bot_draws(game) == 0
+
+      {:ok, _} = GameServer.apply(id, 0, :draw)
+      game = run_ticks(pid)
+      assert bot_draws(game) == 1
+      assert game.phase == :potions
+
+      {:ok, _} = GameServer.apply(id, 0, :draw)
+      assert bot_draws(run_ticks(pid)) <= 2
+
+      # the human stops: the cap is off and the bot finishes its potion
+      {:ok, _} = GameServer.apply(id, 0, :stop)
+      game = run_ticks(pid)
+      assert game.phase != :potions or game.round > 1
+    end
+
     test "a stale tick does nothing" do
       {:ok, id} = GameServer.start(2, {1, 2, 3})
       {:ok, 0} = GameServer.claim_seat(id, "a")
-      {:ok, 1} = GameServer.add_bot(id, "a", :balanced)
+      {:ok, 1} = GameServer.add_bot(id, "a")
       {:ok, _game} = GameServer.begin(id, "a")
       [{pid, _}] = Registry.lookup(Quacks.GameRegistry, id)
       # forget the pending tick: every tick in the mailbox is stale now
@@ -427,6 +458,20 @@ defmodule Quacks.GameServerTest do
       end
     end)
   end
+
+  # Send the pending bot ticks until there are none; then the game.
+  defp run_ticks(pid, n \\ 200) do
+    state = :sys.get_state(pid)
+
+    if state.bot_ticks == %{} or n == 0 do
+      state.session.game
+    else
+      send_ticks(pid, state.bot_ticks)
+      run_ticks(pid, n - 1)
+    end
+  end
+
+  defp bot_draws(game), do: Enum.count(game.log, &(&1 == {1, :draw}))
 
   defp send_ticks(pid, ticks),
     do: Enum.each(ticks, fn {seat, tick} -> send(pid, {:bot, seat, tick}) end)

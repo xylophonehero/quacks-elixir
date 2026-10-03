@@ -21,11 +21,17 @@ defmodule Quacks.GameServer do
   then any seated browser may begin. After the game is over, `play_again/2` opens a
   new waiting game with the same settings and the same seated browsers.
 
-  Bots: while `:waiting` the host may put a bot (`Quacks.AI`) in a free seat
-  (`add_bot/3`) and take it out again (`remove_bot/3`). A bot holds a seat like a
-  browser does. Once the game is `:playing`, each bot seat that can act gets a tick
-  (`{:bot, seat, tick}`, after `:bot_delay` ms, 700 by default): the bot makes one
-  action through `Quacks.Session`, every page hears it, and the next tick follows.
+  Bots: while `:waiting` the host may put a bot (`Quacks.AI`, always the `:balanced`
+  profile, "Steady Sam") in a free seat (`add_bot/3`) and take it out again
+  (`remove_bot/3`). A bot holds a seat like a browser does. Once the game is
+  `:playing`, each bot seat that can act gets a tick (`{:bot, seat, tick}`, after
+  `:bot_delay` ms, 700 by default): the bot makes one action through
+  `Quacks.Session`, every page hears it, and the next tick follows.
+
+  Lockstep: in the potions phase (rounds 1–8) a bot may `:draw` only while it has
+  drawn fewer times this round than the human seat that drew most. When no human
+  seat still brews, the cap is off. A capped bot gets no tick; the next human
+  action schedules it again.
 
   Games live under `Quacks.GameSupervisor` and are not persisted: a game that sees no
   message for 2 hours stops, and a node restart forgets every game.
@@ -38,6 +44,8 @@ defmodule Quacks.GameServer do
 
   @idle_timeout :timer.hours(2)
   @max_bots 7
+  @bot_profile :balanced
+  @bot_name "Steady Sam"
   @lobby_topic "lobby"
 
   @typedoc "A short game id, 6 lowercase letters."
@@ -180,15 +188,14 @@ defmodule Quacks.GameServer do
   def play_again(id, token), do: call(id, {:play_again, token})
 
   @doc """
-  The host puts a bot with `profile` (see `Profile.all/0`) in the free
-  `seat` (nil: the lowest free seat), while `:waiting`. It gets the profile's name and the next free colour.
-  At most #{@max_bots} bots.
+  The host puts a bot ("Steady Sam", profile `:balanced`) in the free `seat` (nil:
+  the lowest free seat), while `:waiting`. More bots are "Steady Sam 2", "Steady Sam
+  3", …; each gets the next free colour. At most #{@max_bots} bots.
   """
-  @spec add_bot(id, String.t(), Profile.name(), Game.seat() | nil) ::
+  @spec add_bot(id, String.t(), Game.seat() | nil) ::
           {:ok, Game.seat()}
-          | {:error,
-             :not_creator | :already_started | :full | :too_many_bots | :invalid | :not_found}
-  def add_bot(id, token, profile, seat \\ nil), do: call(id, {:add_bot, token, profile, seat})
+          | {:error, :not_creator | :already_started | :full | :too_many_bots | :not_found}
+  def add_bot(id, token, seat \\ nil), do: call(id, {:add_bot, token, seat})
 
   @doc "The host takes the bot out of `seat`, while `:waiting`."
   @spec remove_bot(id, String.t(), Game.seat()) ::
@@ -410,7 +417,7 @@ defmodule Quacks.GameServer do
     end
   end
 
-  def handle_call({:add_bot, token, profile, seat}, _from, state) do
+  def handle_call({:add_bot, token, seat}, _from, state) do
     free_seats = Enum.reject(0..(state.max_players - 1), &Map.has_key?(state.names, &1))
     free = if seat, do: Enum.find(free_seats, &(&1 == seat)), else: List.first(free_seats)
 
@@ -421,9 +428,6 @@ defmodule Quacks.GameServer do
       token != state.creator ->
         {:reply, {:error, :not_creator}, state, @idle_timeout}
 
-      profile not in Profile.all() ->
-        {:reply, {:error, :invalid}, state, @idle_timeout}
-
       map_size(state.bots) >= @max_bots ->
         {:reply, {:error, :too_many_bots}, state, @idle_timeout}
 
@@ -431,7 +435,7 @@ defmodule Quacks.GameServer do
         {:reply, {:error, :full}, state, @idle_timeout}
 
       true ->
-        {:reply, {:ok, free}, seat_bot(state, free, profile), @idle_timeout}
+        {:reply, {:ok, free}, seat_bot(state, free), @idle_timeout}
     end
   end
 
@@ -491,14 +495,15 @@ defmodule Quacks.GameServer do
   end
 
   # A bot's turn to act: one action, then the next ticks. A tick that is not the
-  # seat's pending one is stale.
+  # seat's pending one is stale; a capped bot (a human resumed) waits.
   def handle_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
       when :erlang.map_get(seat, ticks) == tick do
     state = %{state | bot_ticks: Map.delete(ticks, seat)}
     profile = Profile.get(state.bots[seat])
 
     state =
-      with {action, rng} <-
+      with false <- capped?(state, state.session.game, seat),
+           {action, rng} <-
              AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
            {:ok, session} <- Session.apply(state.session, seat, action) do
         game = session.game
@@ -513,7 +518,7 @@ defmodule Quacks.GameServer do
 
   def handle_info({:bot, _seat, _tick}, state), do: {:noreply, state, @idle_timeout}
 
-  # Every bot seat that can act and has no tick pending gets one.
+  # Every bot seat that can act, is not capped and has no tick pending gets one.
   defp schedule_bots(%{session: nil} = state), do: state
 
   defp schedule_bots(state) do
@@ -524,6 +529,7 @@ defmodule Quacks.GameServer do
     |> Map.keys()
     |> Enum.reject(&Map.has_key?(state.bot_ticks, &1))
     |> Enum.filter(&(Game.phase(game, &1) != :stopped and Game.legal_actions(game, &1) != []))
+    |> Enum.reject(&capped?(state, game, &1))
     |> Enum.reduce(state, fn seat, state ->
       tick = state.tick + 1
       Process.send_after(self(), {:bot, seat, tick}, delay)
@@ -531,15 +537,44 @@ defmodule Quacks.GameServer do
     end)
   end
 
-  # The bot with `profile` takes `seat`; a second bot of the same profile gets a number.
-  defp seat_bot(state, seat, profile) do
-    base = Profile.names()[profile]
-    same = Enum.count(state.bots, fn {_seat, other} -> other == profile end)
-    name = if same == 0, do: base, else: "#{base} #{same + 1}"
+  # Lockstep (see the moduledoc): may the bot at `seat` not draw now? Round 9 has
+  # its own lockstep (stir), so no cap there.
+  defp capped?(state, %Game{phase: :potions, round: round} = game, seat) when round < 9 do
+    humans = game.seats -- Map.keys(state.bots)
+    draws = round_draws(game)
+
+    :draw in Game.legal_actions(game, seat) and
+      Enum.any?(humans, &brewing?(Game.player(game, &1))) and
+      Map.get(draws, seat, 0) >= humans |> Enum.map(&Map.get(draws, &1, 0)) |> Enum.max()
+  end
+
+  defp capped?(_state, _game, _seat), do: false
+
+  defp brewing?(%{phase: phase}),
+    do: phase in [:potions, :yellow_choice, :blue_choice, :red_choice, :chip_choice]
+
+  # `:draw` actions per seat in this round's log (newest first, up to the last round end).
+  defp round_draws(game) do
+    game.log
+    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+    |> Enum.frequencies_by(fn
+      {seat, :draw} -> seat
+      _other -> nil
+    end)
+  end
+
+  # A bot takes `seat`, with the first free name of "Steady Sam", "Steady Sam 2", …
+  defp seat_bot(state, seat) do
+    taken = Map.values(state.names)
+
+    name =
+      Stream.iterate(1, &(&1 + 1))
+      |> Stream.map(&if(&1 == 1, do: @bot_name, else: "#{@bot_name} #{&1}"))
+      |> Enum.find(&(&1 not in taken))
 
     state = %{
       state
-      | bots: Map.put(state.bots, seat, profile),
+      | bots: Map.put(state.bots, seat, @bot_profile),
         names: Map.put(state.names, seat, name),
         colours: Map.put(state.colours, seat, free_colour(state.colours, seat))
     }

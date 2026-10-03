@@ -1,7 +1,7 @@
 defmodule QuacksWeb.BotsLiveTest do
   @moduledoc """
-  Bots on the configure screen: the host adds one per empty seat row with a profile,
-  removes it with ×; joiners see bot rows read-only. In the game a bot wears a
+  Bots on the configure screen: the host adds Steady Sam to an empty seat row with
+  one tap, removes it with ×; joiners see bot rows read-only. In the game a bot wears a
   "bot" badge.
   """
   use QuacksWeb.ConnCase, async: true
@@ -22,20 +22,16 @@ defmodule QuacksWeb.BotsLiveTest do
     host = open(browser("a"), id)
 
     refute has_element?(host, "[data-seat='0'] [data-role='add-bot']")
-    refute has_element?(host, "[data-profile]")
 
     host |> element("[data-seat='2'] [data-role='add-bot']") |> render_click()
-    assert has_element?(host, "[data-seat='2'] [data-profile='reckless']", "Bold Bruno")
-    host |> element("[data-seat='2'] [data-profile='reckless']") |> render_click()
-
-    assert has_element?(host, "[data-seat='2']", "Bold Bruno")
+    assert has_element?(host, "[data-seat='2']", "Steady Sam")
     assert has_element?(host, "[data-seat='2'] [data-role='bot-badge']")
-    refute has_element?(host, "[data-profile]")
+    refute has_element?(host, "[data-seat='2'] [data-role='add-bot']")
     assert has_element?(host, "[data-role='waiting-for-players']", "2 of 3 seated")
     refute has_element?(host, "[aria-label='Fewer players'][disabled]")
 
     host |> element("[data-seat='1'] [data-role='add-bot']") |> render_click()
-    host |> element("[data-seat='1'] [data-profile='cautious']") |> render_click()
+    assert has_element?(host, "[data-seat='1']", "Steady Sam 2")
     assert has_element?(host, "[data-role='waiting-for-players']", "3 of 3 seated")
     assert has_element?(host, "[aria-label='Fewer players'][disabled]")
 
@@ -51,7 +47,7 @@ defmodule QuacksWeb.BotsLiveTest do
   test "a joiner sees bot rows read-only and no add control" do
     {:ok, id} = GameServer.start(4, {1, 2, 3})
     {:ok, 0} = GameServer.claim_seat(id, "a")
-    {:ok, 1} = GameServer.add_bot(id, "a", :balanced)
+    {:ok, 1} = GameServer.add_bot(id, "a")
     guest = open(browser("b"), id)
 
     assert has_element?(guest, "[data-seat='1']", "Steady Sam")

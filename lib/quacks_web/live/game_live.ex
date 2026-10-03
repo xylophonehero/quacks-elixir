@@ -65,7 +65,6 @@ defmodule QuacksWeb.GameLive do
 
   import QuacksWeb.SetupComponents
 
-  alias Quacks.AI.Profile
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Books, Chips, TestTubes}
 
@@ -109,8 +108,7 @@ defmodule QuacksWeb.GameLive do
            token: session["player_token"],
            seat: seat,
            seed: table.seed,
-           copied: false,
-           picking_bot: nil
+           copied: false
          )
          |> assign_table(table)
          |> put_game(table.game)}
@@ -204,25 +202,11 @@ defmodule QuacksWeb.GameLive do
 
   def handle_event("load_config", _saved, socket), do: {:noreply, socket}
 
-  # Bots (host only): "Add bot" on an empty seat row opens the profile choice there
-  # (tap again to close it); a profile fills the seat, × empties it again.
-  def handle_event("pick_bot", %{"seat" => seat}, socket) do
-    seat =
-      if seat == to_string(socket.assigns.picking_bot), do: nil, else: String.to_integer(seat)
-
-    {:noreply, assign(socket, picking_bot: seat)}
-  end
-
-  def handle_event("add_bot", %{"seat" => seat, "profile" => profile}, socket) do
-    profile = Enum.find(Profile.all(), &(Atom.to_string(&1) == profile))
-
-    case GameServer.add_bot(
-           socket.assigns.id,
-           socket.assigns.token,
-           profile,
-           String.to_integer(seat)
-         ) do
-      {:ok, _seat} -> {:noreply, assign(socket, picking_bot: nil)}
+  # Bots (host only): "Add bot" on an empty seat row puts Steady Sam there at once;
+  # × empties the seat again.
+  def handle_event("add_bot", %{"seat" => seat}, socket) do
+    case GameServer.add_bot(socket.assigns.id, socket.assigns.token, String.to_integer(seat)) do
+      {:ok, _seat} -> {:noreply, socket}
       {:error, _} -> {:noreply, put_flash(socket, :error, "That seat is not free now.")}
     end
   end
@@ -486,15 +470,13 @@ defmodule QuacksWeb.GameLive do
             <button
               :if={@host and !@names[seat]}
               type="button"
-              phx-click="pick_bot"
+              phx-click="add_bot"
               phx-value-seat={seat}
-              aria-expanded={to_string(@picking_bot == seat)}
               data-role="add-bot"
               class="-mr-1 ml-auto min-h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-ink-soft transition-[color,background-color,transform] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-95"
             >
-              {if @picking_bot == seat, do: "Cancel", else: "+ Add bot"}
+              + Add bot
             </button>
-            <.bot_choice :if={@host and !@names[seat] and @picking_bot == seat} seat={seat} />
           </li>
         </ol>
         <p class="rounded-md bg-droplet/25 px-2 py-1" data-role="waiting-for-players">
@@ -982,40 +964,6 @@ defmodule QuacksWeb.GameLive do
   end
 
   @colour_names ~w(gold teal violet coral lime rose sky slate)
-
-  @bot_blurbs %{
-    cautious: "stops early",
-    balanced: "plays the odds",
-    reckless: "pushes his luck"
-  }
-
-  # The three bot profiles under an empty seat row; one tap fills the seat.
-  attr :seat, :integer, required: true
-
-  defp bot_choice(assigns) do
-    assigns =
-      assign(assigns, profiles: Profile.all(), names: Profile.names(), blurbs: @bot_blurbs)
-
-    ~H"""
-    <div class="bot-choice grid w-full gap-1 pb-2" role="group" aria-label="Choose a bot">
-      <button
-        :for={profile <- @profiles}
-        type="button"
-        phx-click="add_bot"
-        phx-value-seat={@seat}
-        phx-value-profile={profile}
-        data-profile={profile}
-        class="flex min-h-11 cursor-pointer items-baseline gap-2 rounded-md bg-parchment px-3 py-2 text-left ring-1 ring-ink-soft/20 transition-[background-color,transform] duration-150 ease-out hover:bg-gold/30 active:scale-[0.98]"
-      >
-        <span class="font-semibold">{@names[profile]}</span>
-        <span class="text-sm text-ink-soft">{@blurbs[profile]}</span>
-        <span class="ml-auto text-xs font-semibold uppercase tracking-wide text-ink-soft">
-          {Profile.label(profile)}
-        </span>
-      </button>
-    </div>
-    """
-  end
 
   # Your seat's colour picker on the configure screen: the 8 palette colours, one tap
   # sets yours; colours other seats have are struck through and cannot be picked.
