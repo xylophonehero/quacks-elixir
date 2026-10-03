@@ -12,9 +12,18 @@ defmodule QuacksWeb.SetupComponents do
   use Phoenix.Component
 
   import QuacksWeb.CoreComponents, only: [input: 1, sheet: 1]
+  import QuacksWeb.Icons, only: [ingredient_icon: 1]
 
   import QuacksWeb.GameComponents,
-    only: [book_info: 2, book_seal: 1, book_tiers: 1, book_tile: 1, chip: 1, roman: 1]
+    only: [
+      book_info: 2,
+      book_ink: 1,
+      book_seal: 1,
+      book_tiers: 1,
+      book_tile: 1,
+      chip: 1,
+      roman: 1
+    ]
 
   alias Phoenix.LiveView.JS
   alias Quacks.Game
@@ -143,7 +152,10 @@ defmodule QuacksWeb.SetupComponents do
 
     ~H"""
     <.sheet id={"book-picker-#{@colour}"} label={"#{@name} books"}>
-      <h2 class="font-hand text-2xl font-bold text-ink">{@name}</h2>
+      <h2 class="flex items-center gap-2 font-hand text-2xl font-bold text-ink">
+        <.ingredient_icon colour={@colour} class={["size-8 shrink-0", book_ink(@colour)]} />
+        {@name}
+      </h2>
       <p class="text-sm text-ink-soft">
         <span class="capitalize">{@colour}</span>. Tap a book to use it.
       </p>

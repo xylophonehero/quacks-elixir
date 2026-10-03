@@ -13,6 +13,8 @@ defmodule QuacksWeb.GameComponents do
   alias Quacks.Rules.Witches
   alias QuacksWeb.AlchemistsComponents
 
+  import QuacksWeb.Icons
+
   @colours %{
     white: "bg-chip-white text-ink border-2 border-zinc-400",
     orange: "bg-chip-orange text-ink",
@@ -23,6 +25,19 @@ defmodule QuacksWeb.GameComponents do
     purple: "bg-chip-purple text-white",
     black: "bg-chip-black text-white border border-iron",
     locoweed: "bg-chip-locoweed text-white"
+  }
+
+  # Ingredient icons on parchment (`book_ink/1`), as full class names for Tailwind.
+  @book_ink %{
+    white: "text-ink",
+    orange: "text-chip-orange",
+    green: "text-chip-green",
+    blue: "text-chip-blue",
+    red: "text-chip-red",
+    yellow: "text-[#b8860b]",
+    purple: "text-chip-purple",
+    black: "text-chip-black",
+    locoweed: "text-chip-locoweed"
   }
 
   # The witch penny colours, as background classes.
@@ -78,6 +93,9 @@ defmodule QuacksWeb.GameComponents do
   # Chips with a light face get dark ink for their value (contrast >= 4.5:1).
   @light_chips [:white, :orange, :green, :yellow]
 
+  # Chips whose icon is ink; the icon is white on every other chip.
+  @ink_icon_chips [:white, :yellow]
+
   # The spiral pot, laid out once at compile time. Space 0 sits in the centre;
   # spaces 1..53 sit `step` apart (arc length) on the Archimedean spiral
   # r = a + b·θ, which turns anticlockwise on screen like the board. The whole
@@ -111,7 +129,8 @@ defmodule QuacksWeb.GameComponents do
   @groove Enum.map_join([{0.0, 0.0} | positions], " ", fn {x, y} -> "#{x},#{y}" end)
 
   @doc """
-  One chip: a coloured disc that shows its value.
+  One chip: a disc in the chip colour with the ingredient icon and the value in a
+  parchment badge. `size={:xs}` is too small for the icon: it shows only the value.
 
   ## Examples
 
@@ -129,22 +148,53 @@ defmodule QuacksWeb.GameComponents do
       assign(assigns,
         colour: colour,
         value: value,
-        colour_class: Map.get(@colours, colour, "bg-zinc-400 text-white")
+        colour_class: Map.get(@colours, colour, "bg-zinc-400 text-white"),
+        icon_class: if(colour in @ink_icon_chips, do: "text-ink", else: "text-white")
       )
 
     ~H"""
     <span
+      :if={@size == :xs}
       class={[
-        "inline-flex shrink-0 items-center justify-center rounded-full font-bold tabular-nums",
-        @size == :xs && "size-4 text-[9px]",
-        @size == :sm && "size-6 text-xs",
-        @size == :md && "size-9 text-sm",
+        "inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums",
         @colour_class
       ]}
       aria-label={"#{@colour} #{@value}"}
       {@rest}
     >
       {face(@chip)}
+    </span>
+    <span
+      :if={@size != :xs}
+      class={[
+        "chip-token relative inline-flex shrink-0 items-center justify-center rounded-full",
+        @size == :sm && "size-6",
+        @size == :md && "size-9",
+        @colour_class
+      ]}
+      aria-label={"#{@colour} #{@value}"}
+      data-chip-icon={@colour}
+      {@rest}
+    >
+      <.ingredient_icon
+        colour={@colour}
+        class={[
+          "size-[58%]",
+          @icon_class,
+          @colour != :locoweed && "-translate-x-[8%] -translate-y-[8%]"
+        ]}
+      />
+      <span
+        :if={@colour != :locoweed}
+        class={[
+          "absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink",
+          @size == :sm && "-right-1 -bottom-1 size-3.5 text-[9px] ring-1",
+          @size == :md && "-right-1 -bottom-1 size-[18px] text-[11px] ring-2"
+        ]}
+        data-role="chip-value"
+      >
+        {@value}
+      </span>
     </span>
     """
   end
@@ -206,6 +256,11 @@ defmodule QuacksWeb.GameComponents do
           <stop offset="0%" stop-color="var(--color-potion-light)" stop-opacity="0.55" />
           <stop offset="70%" stop-color="var(--color-potion)" />
           <stop offset="100%" stop-color="var(--color-potion-deep)" />
+        </radialGradient>
+        <radialGradient id={"drop-#{@seat}-#{@size}"} cx="35%" cy="55%" r="70%">
+          <stop offset="0%" stop-color="#7fb0ff" />
+          <stop offset="55%" stop-color="var(--color-droplet)" />
+          <stop offset="100%" stop-color="#1f4fb0" />
         </radialGradient>
       </defs>
       <%!-- the table under the pot --%>
@@ -295,13 +350,15 @@ defmodule QuacksWeb.GameComponents do
               {PotTrack.at(index).vp}
             </text>
           </g>
-          <path
+          <.piece_icon
             :if={PotTrack.at(index).ruby?}
-            d="M14 -22 l6 4 -2 7 h-8 l-2 -7 z"
-            fill="var(--color-ruby)"
-            stroke="#7a1410"
-            stroke-width="1"
-            aria-label="ruby"
+            name={:ruby}
+            x="8"
+            y="-27"
+            width="15"
+            height="15"
+            class="text-ruby"
+            style="filter: drop-shadow(0 0 1px #4a0d0a)"
           />
         </g>
         <.pot_chip
@@ -310,15 +367,28 @@ defmodule QuacksWeb.GameComponents do
           size={@size}
         />
         <.scoring_ring :if={@rings_by_index[index]} seats={@rings_by_index[index]} />
-        <path
+        <g
           :if={index == @me.droplet}
-          d="M0 -11 C8 -1 8 7 0 7 C-8 7 -8 -1 0 -11 Z"
-          transform="translate(-20 -13)"
-          fill="var(--color-droplet)"
-          stroke="white"
-          stroke-width="1.5"
+          transform="translate(-20 -9) scale(0.62)"
           aria-label="droplet"
-        />
+          data-role="droplet"
+        >
+          <path
+            d="M0 -22 L8.91 -4.55 A10 10 0 1 1 -8.91 -4.55 Z"
+            fill={"url(#drop-#{@seat}-#{@size})"}
+            stroke="#1f3f8a"
+            stroke-width="2.4"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M-5.5 -5 Q-6 0 -3 3.5"
+            fill="none"
+            stroke="white"
+            stroke-opacity="0.6"
+            stroke-width="2.4"
+            stroke-linecap="round"
+          />
+        </g>
         <ellipse
           :if={index == @rat_index}
           cx="17"
@@ -331,8 +401,17 @@ defmodule QuacksWeb.GameComponents do
           aria-label="rat stone"
           data-role="rat-stone"
         />
+        <.piece_icon
+          :if={index == @rat_index}
+          name={:rat}
+          x="10"
+          y="9"
+          width="14"
+          height="14"
+          class="text-parchment-light"
+        />
       </g>
-      <.flask :if={@flask} full={@flask == :full} click={@flask_click} />
+      <.flask :if={@flask} full={@flask == :full} click={@flask_click} uid={"#{@seat}-#{@size}"} />
     </svg>
     """
   end
@@ -481,6 +560,7 @@ defmodule QuacksWeb.GameComponents do
   # full, grey when empty. Usable: it glows and is a button (click or Enter).
   attr :full, :boolean, required: true
   attr :click, :string, default: nil
+  attr :uid, :string, required: true, doc: "makes the gradient and clip ids unique"
 
   defp flask(assigns) do
     ~H"""
@@ -501,16 +581,46 @@ defmodule QuacksWeb.GameComponents do
       phx-key={@click && "Enter"}
       phx-value-action={@click}
     >
+      <defs>
+        <clipPath id={"flask-body-#{@uid}"}>
+          <path d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z" />
+        </clipPath>
+        <linearGradient id={"flask-brew-#{@uid}"} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--color-potion-light)" />
+          <stop offset="100%" stop-color="var(--color-potion-deep)" />
+        </linearGradient>
+      </defs>
       <rect x="-32" y="-54" width="64" height="88" fill="transparent" />
       <rect x="-9" y="-50" width="18" height="10" rx="2" fill="var(--color-wood)" />
+      <rect x="-9" y="-50" width="18" height="3" rx="1.5" fill="white" fill-opacity="0.18" />
       <path
         d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z"
-        fill={if @full, do: "var(--color-parchment)", else: "#7d8288"}
+        fill={if @full, do: "#dfe6e2", else: "#7d8288"}
+        fill-opacity={if @full, do: "0.55", else: "1"}
+      />
+      <path
+        :if={@full}
+        clip-path={"url(#flask-body-#{@uid})"}
+        d="M-30 -8 q7.5 -4 15 0 t15 0 t15 0 t15 0 V30 H-30 Z"
+        fill={"url(#flask-brew-#{@uid})"}
+        data-role="flask-brew"
+      />
+      <path
+        d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z"
+        fill="none"
         stroke="var(--color-iron-dark)"
         stroke-width="3"
         stroke-linejoin="round"
       />
       <ellipse cx="-9" cy="-4" rx="5" ry="9" fill="white" fill-opacity="0.35" />
+      <path
+        d="M17 -10 A20 20 0 0 1 14 14"
+        fill="none"
+        stroke="white"
+        stroke-opacity="0.2"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
     </g>
     """
   end
@@ -555,8 +665,10 @@ defmodule QuacksWeb.GameComponents do
 
   defp pot_chip(assigns) do
     {colour, value} = assigns.chip
-    ink = if colour in @light_chips, do: "var(--color-ink)", else: "white"
-    assigns = assign(assigns, colour: colour, value: value, ink: ink)
+    icon = if colour in @ink_icon_chips, do: "text-ink", else: "text-white"
+    # The other players' pots are drawn small: a bigger badge keeps the value legible.
+    badge = if assigns.size == :lg, do: {9, 9, 10.5, 16}, else: {8, 8, 12.5, 20}
+    assigns = assign(assigns, colour: colour, value: value, icon: icon, badge: badge)
 
     ~H"""
     <g data-role="pot-chip" aria-label={"#{@colour} #{@value}"}>
@@ -566,15 +678,43 @@ defmodule QuacksWeb.GameComponents do
         stroke={if @colour == :white, do: "#9a9a94", else: "rgb(0 0 0 / 0.4)"}
         stroke-width="2.5"
       />
-      <text
-        dy="0.35em"
-        text-anchor="middle"
-        font-size={if @size == :lg, do: "17", else: "24"}
-        font-weight="700"
-        fill={@ink}
-      >
-        {face(@chip)}
-      </text>
+      <path
+        d="M-15 -9 A17 17 0 0 1 9 -15"
+        fill="none"
+        stroke="white"
+        stroke-opacity="0.35"
+        stroke-width="2"
+      />
+      <.ingredient_icon
+        colour={@colour}
+        x={if @colour == :locoweed, do: "-12", else: "-14"}
+        y={if @colour == :locoweed, do: "-12", else: "-14"}
+        width={if @colour == :locoweed, do: "24", else: "22"}
+        height={if @colour == :locoweed, do: "24", else: "22"}
+        class={@icon}
+      />
+      <g :if={@colour != :locoweed} data-role="chip-value">
+        <circle
+          cx={elem(@badge, 0)}
+          cy={elem(@badge, 1)}
+          r={elem(@badge, 2)}
+          fill="var(--color-parchment-light)"
+          stroke="var(--color-ink)"
+          stroke-width="2"
+        />
+        <text
+          x={elem(@badge, 0)}
+          y={elem(@badge, 1)}
+          dy="0.36em"
+          text-anchor="middle"
+          font-size={elem(@badge, 3)}
+          font-weight="700"
+          font-family="var(--font-hand)"
+          fill="var(--color-ink)"
+        >
+          {@value}
+        </text>
+      </g>
     </g>
     """
   end
@@ -627,7 +767,7 @@ defmodule QuacksWeb.GameComponents do
     <ul class={["mt-1 flex flex-wrap", if(@size == :md, do: "gap-2", else: "gap-x-2 gap-y-1")]}>
       <li :for={{chip, count} <- @counts} class="flex items-center gap-0.5 text-sm">
         <.chip chip={chip} size={@size} />
-        <span class="text-ink-soft tabular-nums" data-role="chip-count">×{count}</span>
+        <span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×{count}</span>
       </li>
       <li :if={@counts == []} class="text-ink-soft">empty</li>
     </ul>
@@ -655,20 +795,58 @@ defmodule QuacksWeb.GameComponents do
       data-role="bag-button"
     >
       <svg viewBox="0 0 48 48" class="size-full" aria-hidden="true">
+        <defs>
+          <linearGradient id="bag-cloth" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#a87444" />
+            <stop offset="55%" stop-color="var(--color-wood)" />
+            <stop offset="100%" stop-color="var(--color-wood-dark)" />
+          </linearGradient>
+        </defs>
+        <%!-- the ruffled top above the drawstring --%>
         <path
-          d="M17 6 h14 l-3 8 h-8 z"
-          fill="var(--color-wood)"
+          d="M17 4 q2 2 3.5 0 q2 2 3.5 0 q2 2 3.5 0 q2 2 3.5 0 L28.5 14 h-9 Z"
+          fill="#a87444"
           stroke="var(--color-wood-dark)"
           stroke-width="1.5"
+          stroke-linejoin="round"
         />
+        <%!-- the sack: a wide round bottom under a pinched neck --%>
         <path
-          d="M19 13 C7 18 4 44 24 45 C44 44 41 18 29 13 Z"
-          fill="#9a6a3a"
+          d="M19.5 14 C9 18 4 30 6 38 C8 45 16 46 24 46 C32 46 40 45 42 38 C44 30 39 18 28.5 14 Z"
+          fill="url(#bag-cloth)"
           stroke="var(--color-wood-dark)"
           stroke-width="2"
           stroke-linejoin="round"
         />
-        <path d="M16 15 q8 4 16 0" fill="none" stroke="var(--color-parchment-dim)" stroke-width="2" />
+        <%!-- cloth folds --%>
+        <g
+          fill="none"
+          stroke="#c99a66"
+          stroke-opacity="0.55"
+          stroke-width="1.3"
+          stroke-linecap="round"
+        >
+          <path d="M17 19 q-5 8 -6 16" />
+          <path d="M31 19 q5 8 6 16" />
+          <path d="M22 17 q-1 4 -2 6" />
+          <path d="M27 17 q1 4 2 6" />
+        </g>
+        <%!-- the drawstring and its knot --%>
+        <path
+          d="M17.5 14.5 q6.5 2.5 13 0"
+          fill="none"
+          stroke="var(--color-parchment-dim)"
+          stroke-width="2"
+          stroke-linecap="round"
+        />
+        <path
+          d="M30 15 q3 3 1 6 M30 15 q5 1 6 5"
+          fill="none"
+          stroke="var(--color-parchment-dim)"
+          stroke-width="1.5"
+          stroke-linecap="round"
+        />
+        <circle cx="30" cy="15" r="1.8" fill="var(--color-parchment-dim)" />
         <text
           x="24"
           y="36"
@@ -755,8 +933,8 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <dl class="paper grid grid-cols-4 gap-1 rounded-lg p-1 text-sm">
-      <.stat label="VP" value={@me.vp} />
-      <.stat label="Rubies" value={@me.rubies} />
+      <.stat label="VP" value={@me.vp} icon={:vp} />
+      <.stat label="Rubies" value={@me.rubies} icon={:ruby} />
       <.stat label="Flask" value={if @me.flask, do: "full", else: "empty"} />
       <.stat
         label="White"
@@ -796,11 +974,18 @@ defmodule QuacksWeb.GameComponents do
 
   attr :label, :string, required: true
   attr :value, :any, required: true
+  attr :icon, :atom, default: nil, doc: "a `QuacksWeb.Icons.piece_icon/1` name"
 
   defp stat(assigns) do
     ~H"""
     <div class="rounded-md bg-parchment-deep/70 px-2 py-0.5">
-      <dt class="text-xs leading-tight text-ink-soft">{@label}</dt>
+      <dt class="flex items-center gap-1 text-xs leading-tight text-ink-soft">
+        <.piece_icon
+          :if={@icon}
+          name={@icon}
+          class={["size-3.5", if(@icon == :ruby, do: "text-ruby", else: "text-ink-soft")]}
+        />{@label}
+      </dt>
       <dd class="font-semibold leading-tight tabular-nums">{@value}</dd>
     </div>
     """
@@ -840,8 +1025,8 @@ defmodule QuacksWeb.GameComponents do
         </span>
       </header>
       <dl class="grid grid-cols-4 gap-1 text-center">
-        <.stat label="VP" value={@p.vp} />
-        <.stat label="Rubies" value={@p.rubies} />
+        <.stat label="VP" value={@p.vp} icon={:vp} />
+        <.stat label="Rubies" value={@p.rubies} icon={:ruby} />
         <.stat label="Flask" value={if @p.flask, do: "full", else: "empty"} />
         <.stat
           label="White"
@@ -1058,7 +1243,7 @@ defmodule QuacksWeb.GameComponents do
     <dl class="space-y-2" data-role="book-list">
       <div :for={{colour, set} <- @books} data-book={"#{colour}-#{set}"}>
         <dt class="flex items-center gap-1.5 text-sm font-semibold">
-          <span class={["inline-block size-3 rounded-full", @colours[colour]]} />
+          <.ingredient_icon colour={colour} class={["size-4", book_ink(colour)]} />
           {String.capitalize(to_string(colour))} {book_set_name(colour, set)}
         </dt>
         <dd><.book_text book={Books.get({colour, set})} players={@players} /></dd>
@@ -1070,7 +1255,7 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   One ingredient book as a parchment recipe card: the colour, the ingredient name,
   the book number as a gold seal, the full rule text and the chip prices. `set` nil
-  is "no locoweed" (locoweed only). The `book-art` slot is empty for now.
+  is "no locoweed" (locoweed only). The `book-art` slot shows the ingredient icon.
   """
   attr :colour, :atom, required: true
   attr :set, :any, required: true, doc: "1..6, or nil for locoweed not in play"
@@ -1093,7 +1278,9 @@ defmodule QuacksWeb.GameComponents do
       data-book={"#{@colour}-#{@set || "off"}"}
     >
       <div class="flex min-w-0 items-center gap-2">
-        <div data-role="book-art" class="hidden size-10 shrink-0" aria-hidden="true" />
+        <div data-role="book-art" class="size-10 shrink-0" aria-hidden="true">
+          <.ingredient_icon colour={@colour} class={["size-full", book_ink(@colour)]} />
+        </div>
         <div class="min-w-0 flex-1">
           <p class="text-[10.5px] font-bold tracking-[0.08em] text-ink-soft uppercase">{@colour}</p>
           <p class="font-hand text-lg leading-tight font-bold">{@book.name}</p>
@@ -1113,6 +1300,13 @@ defmodule QuacksWeb.GameComponents do
     </div>
     """
   end
+
+  @doc """
+  The text class for an ingredient icon on parchment: the chip colour, but ink for
+  white and a darker yellow, which would not show on parchment.
+  """
+  @spec book_ink(Chips.colour()) :: String.t()
+  def book_ink(colour), do: @book_ink[colour]
 
   @doc ~s[A book number as a gold seal: "I".."VI", or "Off" for nil.]
   attr :set, :any, required: true
@@ -1275,8 +1469,11 @@ defmodule QuacksWeb.GameComponents do
         "flex items-center gap-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink",
         penny_class(@card.colour)
       ]}>
-        {@card.colour} witch
-        <span class="ml-auto normal-case">{if @spent, do: "penny spent", else: "1 penny"}</span>
+        <.piece_icon name={:witch} class="size-4" /> {@card.colour} witch
+        <span class="ml-auto inline-flex items-center gap-1 normal-case">
+          <.piece_icon name={:penny} class="size-4" />
+          {if @spent, do: "penny spent", else: "1 penny"}
+        </span>
       </div>
       <div class="space-y-2 px-3 py-2">
         <h3 class="font-bold">{@card.title}</h3>
@@ -1448,6 +1645,72 @@ defmodule QuacksWeb.GameComponents do
   defp narrated_by_event?(_entry), do: false
 
   @doc """
+  One face of the bonus die: a parchment square with its glyph (the VP number on a
+  laurel, a ruby, a droplet or an orange chip).
+  """
+  attr :face, :any, required: true, doc: "`{:vp, n}`, `:ruby`, `:droplet` or `:orange`"
+  attr :class, :any, default: "size-8"
+
+  def die_face(assigns) do
+    ~H"""
+    <svg
+      viewBox="0 0 48 48"
+      class={@class}
+      role="img"
+      aria-label={"Die: #{die_text(@face)}"}
+      data-role="die-face"
+    >
+      <rect
+        x="2"
+        y="2"
+        width="44"
+        height="44"
+        rx="6"
+        fill="var(--color-parchment-light)"
+        stroke="var(--color-ink)"
+        stroke-width="2.5"
+      />
+      <%= case @face do %>
+        <% {:vp, n} -> %>
+          <.piece_icon name={:vp} x="7" y="7" width="34" height="34" class="text-gold" />
+          <text
+            x="24"
+            y="25"
+            dy="0.36em"
+            text-anchor="middle"
+            font-size="20"
+            font-weight="700"
+            font-family="var(--font-hand)"
+            fill="var(--color-ink)"
+          >
+            {n}
+          </text>
+        <% :ruby -> %>
+          <.piece_icon name={:ruby} x="9" y="9" width="30" height="30" class="text-ruby" />
+        <% :droplet -> %>
+          <path
+            d="M24 6 L35.7 21.4 A13 13 0 1 1 12.3 21.4 Z"
+            fill="var(--color-droplet)"
+            stroke="#1f3f8a"
+            stroke-width="2"
+            stroke-linejoin="round"
+          />
+        <% _orange -> %>
+          <circle
+            cx="24"
+            cy="24"
+            r="15"
+            fill="var(--color-chip-orange)"
+            stroke="rgb(0 0 0 / 0.4)"
+            stroke-width="2"
+          />
+          <.ingredient_icon colour={:orange} x="15" y="15" width="18" height="18" class="text-white" />
+      <% end %>
+    </svg>
+    """
+  end
+
+  @doc """
   What each player gained this round: every log entry since the round began that
   gave VP or rubies, plus the bonus die and the Fortune Teller card's outcome, then
   the totals. Below the totals: the rat tails for the next round (2+ players, rats
@@ -1474,7 +1737,13 @@ defmodule QuacksWeb.GameComponents do
           {Map.get(@names, seat, GameServer.default_name(seat))}
         </h3>
         <ul class="space-y-0.5 text-sm">
-          <li :for={{text, _vp, _rubies} <- @results[seat] || []} data-role="result-line">{text}</li>
+          <li
+            :for={{text, _vp, _rubies, face} <- @results[seat] || []}
+            class="flex items-center gap-1.5"
+            data-role="result-line"
+          >
+            <.die_face :if={face} face={face} class="size-6 shrink-0" />{text}
+          </li>
           <li :if={(@results[seat] || []) == []} class="text-ink-soft">Nothing gained this round.</li>
         </ul>
         <p class="font-semibold" data-role="result-total">
@@ -1484,7 +1753,12 @@ defmodule QuacksWeb.GameComponents do
             "rubies"
           )}
         </p>
-        <p :if={tails = rat_tails(@game, seat)} class="text-sm" data-role="result-rats">
+        <p
+          :if={tails = rat_tails(@game, seat)}
+          class="flex items-center gap-1 text-sm"
+          data-role="result-rats"
+        >
+          <.piece_icon name={:rat} class="size-4 text-ink-soft" />
           Rats next round: {tails} {plural(tails, "tail", "tails")}
         </p>
         <p
@@ -1562,7 +1836,7 @@ defmodule QuacksWeb.GameComponents do
     |> Enum.flat_map(fn
       {seat, entry} when is_integer(seat) ->
         case gain(entry) do
-          {vp, rubies} -> [{seat, {label(entry), vp, rubies}}]
+          {vp, rubies} -> [{seat, {label(entry), vp, rubies, rolled(entry)}}]
           nil -> []
         end
 
@@ -1571,6 +1845,11 @@ defmodule QuacksWeb.GameComponents do
     end)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
+
+  # The bonus die face a log entry rolled, or nil.
+  defp rolled({:bonus_die, face}), do: face
+  defp rolled({:effect, {:green, 6}, {:bonus_die, face}}), do: face
+  defp rolled(_entry), do: nil
 
   # `{vp, rubies}` a log entry gave, or nil when it is not a result. The bonus die
   # always counts as a result, whatever its face.
@@ -1651,7 +1930,7 @@ defmodule QuacksWeb.GameComponents do
   def label(:keep), do: "Mandrake: keep the white chip"
   def label({:place, {colour, value}}), do: "Crow skull: place #{colour} #{value}"
   def label(:return_all), do: "Crow skull: return all drawn chips to the bag"
-  def label({:bonus_die, face}), do: "Bonus die: #{die_face(face)}"
+  def label({:bonus_die, face}), do: "Bonus die: #{die_text(face)}"
   def label({:drew, chip, index}), do: "Drew #{chip_name(chip)} → space #{index}"
   def label({:returned, chip}), do: "Returned #{chip_name(chip)} to the bag"
   def label({:exploded, white_sum}), do: "Exploded (white #{white_sum})"
@@ -1896,7 +2175,7 @@ defmodule QuacksWeb.GameComponents do
     do: "drew #{chip_list(chips)} (sum #{chips |> Enum.map(&elem(&1, 1)) |> Enum.sum()})"
 
   defp fortune_outcome({:drew, chips}, _id), do: "drew #{chip_list(chips)}"
-  defp fortune_outcome(face, :p12), do: "rolled the die: #{die_face(face)}"
+  defp fortune_outcome(face, :p12), do: "rolled the die: #{die_text(face)}"
   defp fortune_outcome(:droplet, :p11), do: "droplet +2"
   defp fortune_outcome(:droplet, _id), do: "droplet +1"
   defp fortune_outcome({:take, chip}, _id), do: "took #{chip_name(chip)}"
@@ -1927,11 +2206,11 @@ defmodule QuacksWeb.GameComponents do
   defp essence_use(:hump), do: "Witch's hump"
   defp essence_use({:forget, chip}), do: "#{chip_name(chip)} back to the bag"
 
-  defp die_face({:vp, n}), do: "#{n} VP"
-  defp die_face(:ruby), do: "ruby"
-  defp die_face(:droplet), do: "droplet +1"
-  defp die_face(:orange), do: "orange 1 chip"
-  defp die_face(other), do: inspect(other)
+  defp die_text({:vp, n}), do: "#{n} VP"
+  defp die_text(:ruby), do: "ruby"
+  defp die_text(:droplet), do: "droplet +1"
+  defp die_text(:orange), do: "orange 1 chip"
+  defp die_text(other), do: inspect(other)
 
   @doc ~s(A test-tube glass bonus in words: "1 ruby", "2 VP", "blue 1 chip".)
   @spec tube_bonus(Quacks.Rules.TestTubes.bonus()) :: String.t()

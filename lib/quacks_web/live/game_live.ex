@@ -681,10 +681,10 @@ defmodule QuacksWeb.GameLive do
                   class="absolute top-0 left-0 min-h-9 gap-1.5 rounded-full px-2.5 text-xs lg:hidden"
                   data-role="witches-button"
                 >
-                  <span class="flex -space-x-1">
-                    <span class="size-3 rounded-full bg-penny-silver ring-1 ring-black/40" />
-                    <span class="size-3 rounded-full bg-penny-copper ring-1 ring-black/40" />
-                    <span class="size-3 rounded-full bg-penny-gold ring-1 ring-black/40" />
+                  <span class="flex -space-x-1.5">
+                    <.piece_icon name={:penny} class="size-4 text-penny-silver" />
+                    <.piece_icon name={:penny} class="size-4 text-penny-copper" />
+                    <.piece_icon name={:penny} class="size-4 text-penny-gold" />
                   </span>
                   Witches
                 </.sheet_button>
@@ -1309,7 +1309,7 @@ defmodule QuacksWeb.GameLive do
                 >
                   <.icon name="hero-check" class="size-3.5" />
                 </span>
-                <.chip chip={chip} size={:sm} />
+                <.chip chip={chip} size={:md} />
                 <span class="sr-only sm:not-sr-only">{chip_name(chip)}</span>
                 <span class="ml-auto text-ink-soft" data-role="price">
                   {Chips.price(chip, @sets)}c
