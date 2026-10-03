@@ -16,7 +16,7 @@ defmodule Quacks.Game.Fortune do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.{Evaluation, Potions}
+  alias Quacks.Game.{Essence, Evaluation, Potions}
   alias Quacks.Player
   alias Quacks.Rules.{Chips, ScoringTrack}
   alias Quacks.Rules.Fortune, as: Cards
@@ -75,10 +75,13 @@ defmodule Quacks.Game.Fortune do
       else: g
   end
 
-  @doc "Every potions phase is done: Toil and Trouble pays out first, then the evaluation."
+  @doc """
+  Every potions phase is done: Toil and Trouble pays out first, then the essence
+  phase (The Alchemists) and the evaluation.
+  """
   @spec after_potions(Game.t()) :: Game.t()
   def after_potions(%{fortune_card: :b2} = g), do: open_choices(g)
-  def after_potions(g), do: Evaluation.run(g)
+  def after_potions(g), do: Essence.run(g)
 
   @doc "The card actions `seat` has right now."
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
@@ -312,7 +315,7 @@ defmodule Quacks.Game.Fortune do
       else: continue(%{g | phase: :potions})
   end
 
-  defp continue(%{fortune_card: :b2} = g), do: Evaluation.run(g)
+  defp continue(%{fortune_card: :b2} = g), do: Essence.run(g)
   defp continue(g), do: g
 
   defp choices(%{fortune_card: id} = g, seat), do: choices(id, g, Game.player(g, seat), seat)
@@ -418,7 +421,7 @@ defmodule Quacks.Game.Fortune do
   defp takes(g, fun),
     do:
       for(
-        chip <- Chips.shop(g.expansion, g.sets),
+        chip <- Chips.shop(g.expansions, g.sets),
         fun.(chip),
         Game.available?(g, chip),
         do: {:take, chip}

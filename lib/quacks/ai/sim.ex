@@ -15,7 +15,7 @@ defmodule Quacks.AI.Sim do
   Play `games:` games (default 100) with one bot per entry of `profiles:` (e.g.
   `[:balanced, :cautious]`, seat order; a `Quacks.AI.Profile` struct works too, for
   tuning). `seed:` (integer, default 1) makes the run
-  repeatable; `sets:`, `rules:` and `expansion:` go to `Game.new/1`.
+  repeatable; `sets:`, `rules:`, `expansion:` and `expansions:` go to `Game.new/1`.
 
   Returns a summary per profile (seats with the same profile are pooled):
 
@@ -31,7 +31,7 @@ defmodule Quacks.AI.Sim do
   def run(opts) do
     profiles = Keyword.fetch!(opts, :profiles)
     seed = Keyword.get(opts, :seed, 1)
-    game_opts = Keyword.take(opts, [:sets, :rules, :expansion])
+    game_opts = Keyword.take(opts, [:sets, :rules, :expansion, :expansions])
 
     seats =
       1..Keyword.get(opts, :games, 100)

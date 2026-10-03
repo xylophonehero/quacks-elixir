@@ -26,8 +26,9 @@ defmodule QuacksWeb.SetupComponents do
   # locoweed (nil = not used; I–II are The Herb Witches' books, III–VI The Alchemists'
   # A–D) in every game.
   @extra_books %{orange: [1, 2], black: [1, 2, 3], locoweed: [nil, 1, 2, 3, 4, 5, 6]}
-  # Books the picker shows greyed out: the engine cannot play them yet.
-  @unavailable %{{:locoweed, 3} => "needs the essence phase"}
+  # Books the picker shows greyed out without The Alchemists (they need the essence
+  # phase).
+  @alchemists_only %{{:locoweed, 3} => "needs The Alchemists"}
 
   # Every house rule the Options form offers, with the values it accepts.
   @rule_values %{
@@ -44,13 +45,15 @@ defmodule QuacksWeb.SetupComponents do
   }
 
   @doc """
-  The Ingredient books form (`#books`, event `"sets"`): the expansion toggle and
-  one `book_tile` per colour. The host taps a tile to open its picker sheet, a list
+  The Ingredient books form (`#books`, event `"sets"`): the two expansion toggles
+  (both may be on) and one `book_tile` per colour. Locoweed III is greyed out
+  without The Alchemists. The host taps a tile to open its picker sheet, a list
   of book cards (radio buttons `sets[colour]`); a tap on a card picks that book and
   closes the sheet. Other players see the tiles only.
   """
   attr :sets, :map, required: true, doc: "the chosen books; colours left out use their default"
-  attr :expansion, :boolean, default: false
+  attr :expansion, :boolean, default: false, doc: "The Herb Witches"
+  attr :alchemists, :boolean, default: false, doc: "The Alchemists"
 
   attr :pot_side, :atom,
     default: :front,
@@ -71,6 +74,13 @@ defmodule QuacksWeb.SetupComponents do
             name="expansion"
             label="Herb Witches expansion"
             value={@expansion}
+          />
+          <.input
+            type="checkbox"
+            id="alchemists"
+            name="alchemists"
+            label="The Alchemists"
+            value={@alchemists}
           />
           <%!-- Part of the house rules form (`form="options"`), shown here beside the expansion. --%>
           <.input
@@ -106,6 +116,7 @@ defmodule QuacksWeb.SetupComponents do
               chosen={book(@sets, colour)}
               sets={book_sets(colour)}
               players={@players}
+              alchemists={@alchemists}
             />
           <% end %>
         </div>
@@ -119,11 +130,13 @@ defmodule QuacksWeb.SetupComponents do
   attr :chosen, :any, required: true
   attr :sets, :list, required: true
   attr :players, :integer, default: nil
+  attr :alchemists, :boolean, default: false
 
   defp book_picker(assigns) do
     books =
       Enum.map(assigns.sets, fn set ->
-        {set, book_info(assigns.colour, set), @unavailable[{assigns.colour, set}]}
+        {set, book_info(assigns.colour, set),
+         unavailable(assigns.colour, set, assigns.alchemists)}
       end)
 
     assigns = assign(assigns, books: books, name: books |> hd() |> elem(1) |> Map.get(:name))
@@ -313,20 +326,23 @@ defmodule QuacksWeb.SetupComponents do
   defp book_sets(colour) when is_map_key(@extra_books, colour), do: @extra_books[colour]
   defp book_sets(_colour), do: Enum.to_list(1..6)
 
+  defp unavailable(_colour, _set, true), do: nil
+  defp unavailable(colour, set, false), do: @alchemists_only[{colour, set}]
+
   # The book a colour uses now (orange and locoweed may be left out of `sets`).
   defp book(sets, colour), do: Chips.set(nil, sets, colour)
 
   @doc """
   The form's `%{"green" => "2", ...}` as `%{green: 2, ...}`. A missing, bad or greyed
-  out value is the colour's default book (Set 1, no locoweed). The expansion changes
-  no book. Black is always in the map; orange 1 and "no locoweed" are left out, so
+  out value is the colour's default book (Set 1, no locoweed); locoweed III only
+  with `alchemists?`. The Herb Witches change no book. Black is always in the map; orange 1 and "no locoweed" are left out, so
   default games keep the same `game.sets`.
   """
-  @spec parse_sets(map) :: Chips.sets()
-  def parse_sets(params) do
+  @spec parse_sets(map, boolean) :: Chips.sets()
+  def parse_sets(params, alchemists? \\ false) do
     book_colours()
     |> Map.new(fn colour ->
-      sets = Enum.reject(book_sets(colour), &is_map_key(@unavailable, {colour, &1}))
+      sets = Enum.filter(book_sets(colour), &(unavailable(colour, &1, alchemists?) == nil))
       {colour, parse_set(params[to_string(colour)], sets, book(%{}, colour))}
     end)
     |> Map.reject(&(&1 in [orange: 1, locoweed: nil]))

@@ -37,6 +37,14 @@ defmodule Quacks.Game do
   While a seat has moves waiting, those two are its only actions (`phase/2` is
   `:droplet_choice`), in any game phase. The shop adds `{:rubies, :tube}`.
 
+  The Alchemists (`expansions: [:alchemists]`, `docs/research/alchemists-essences.md`,
+  `Quacks.Game.Essence`): 3 patients are dealt at `new/1` (`patients`) and every seat
+  picks one in `:patient_choice` before round 1. Each round, after the potions phase
+  (and B2), the `:essence` phase moves every essence marker and pays its glass before
+  the evaluation; patient actions follow in the next potions phase. `expansions` is a
+  `MapSet`; `expansion` is the old single field (`:herb_witches` or `nil`), kept for
+  callers that only know The Herb Witches. Use `expansion?/2`.
+
   Fortune Teller cards (`Quacks.Game.Fortune`): each round starts by turning up a
   card. A purple card with a choice puts the game in `:fortune_choice` (every seat
   with a choice at once) before `:potions`; Toil and Trouble (B2) does the same
@@ -55,9 +63,9 @@ defmodule Quacks.Game do
   """
 
   import Kernel, except: [apply: 2, apply: 3]
-  alias Quacks.Game.{Evaluation, Fortune, Potions, Witches}
+  alias Quacks.Game.{Essence, Evaluation, Fortune, Potions, Witches}
   alias Quacks.Player
-  alias Quacks.Rules.{Chips, ScoringTrack, TestTubes}
+  alias Quacks.Rules.{Alchemists, Chips, ScoringTrack, TestTubes}
   alias Quacks.Rules.Witches, as: WitchCards
 
   @rounds 9
@@ -106,11 +114,15 @@ defmodule Quacks.Game do
             sets: @sets,
             rules: @rules,
             expansion: nil,
-            witches: nil
+            expansions: MapSet.new(),
+            witches: nil,
+            patients: nil
 
   @type seat :: 0..4
   @type phase ::
-          :potions
+          :patient_choice
+          | :potions
+          | :essence
           | :fortune_choice
           | :chip_choice
           | :witch_choice
@@ -137,6 +149,25 @@ defmodule Quacks.Game do
           | {:witch, WitchCards.colour()}
           | {:witch, WitchCards.colour(), term}
           | :witch_done
+          | {:patient, Alchemists.id()}
+          | {:essence, essence_choice}
+  @typedoc """
+  An essence action (The Alchemists, `Quacks.Game.Essence`): `{:space, n}` in
+  `:essence_choice`; `{:swap, chip}`, `{:buy, chip}` in `:essence_bonus`; `{:place,
+  chip}` (Nervousness) and `{:forget, chip}` (Forgetfulness) while brewing; `:carrot`,
+  `:double`, `:return`, `:hump` in `:essence_offer`; `:pass` declines a bonus or offer.
+  """
+  @type essence_choice ::
+          {:space, 0..10}
+          | {:swap, Chips.chip()}
+          | {:buy, Chips.chip()}
+          | {:place, Chips.chip()}
+          | {:forget, Chips.chip()}
+          | :carrot
+          | :double
+          | :return
+          | :hump
+          | :pass
   @typedoc """
   A chip choice: step B (G2, G4, P2, P4, G5, P5; see `Quacks.Game.Evaluation`) or on
   draw (Y6 `:yellow_ruby`, locoweed 5 `{:return, chip}`, see `Quacks.Game.Potions`).
@@ -183,6 +214,13 @@ defmodule Quacks.Game do
   `{:bowl, chips, vp}` for the bowl's VP in step D, `{:witch, id, outcome}` for what a
   witch did, `{:rubies_spent, what, 1}` for a 1-ruby spend (G4) and `{:pennies, vp}`
   for the unused witch pennies at the end.
+
+  The Alchemists: `{:essence, space, parts}` (the reached space and its
+  `%{colours:, locoweed:, white7:, neighbours:}`), `{:essence_bonus, term}` for each
+  paid glass (`Quacks.Rules.Alchemists`; also a Witch's hump bonus),
+  `{:essence_spent, n, what}`, `{:essence_vp, n}` in round 9, `{:essence_rat, 1}`
+  for a rat-tail glass at the start of the next round and `{:display, chips}` for the
+  Nervousness draw (whites included; they went back).
   """
   @type event ::
           action
@@ -212,17 +250,24 @@ defmodule Quacks.Game do
           | {:rats, pos_integer}
           | {:fortune, Quacks.Rules.Fortune.id(), term}
           | {:effect, {Chips.colour(), 2..6}, term}
+          | {:essence, 0..10, map}
+          | {:essence_bonus, Alchemists.term_()}
+          | {:essence_spent, pos_integer, term}
+          | {:essence_vp, non_neg_integer}
+          | {:essence_rat, 1}
+          | {:display, [Chips.chip()]}
   @typedoc """
   What happened, newest first. Player events are tagged with their seat; the only
-  game-wide entries are `{:expansion, :herb_witches}` (the first entry of an expansion
-  game), `{:fortune_drawn, id}` and `{:fortune_skipped, id}` at the start of a round and
+  game-wide entries are `{:expansion, x}` (the first entries of an expansion game, The
+  Herb Witches first), `{:patients, ids}` (The Alchemists' deal), `{:fortune_drawn, id}` and `{:fortune_skipped, id}` at the start of a round and
   `{:round_end, round}`, the last event of every round.
   `Quacks.Session` replays from its own action list, not this.
   """
   @type log_entry ::
           {seat, event}
           | {:round_end, 1..9}
-          | {:expansion, :herb_witches}
+          | {:expansion, :herb_witches | :alchemists}
+          | {:patients, [Alchemists.id()]}
           | {:fortune_drawn, Quacks.Rules.Fortune.id()}
           | {:fortune_skipped, Quacks.Rules.Fortune.id()}
   @type t :: %__MODULE__{
@@ -237,9 +282,12 @@ defmodule Quacks.Game do
           fortune_card: Quacks.Rules.Fortune.id() | nil,
           sets: Chips.sets(),
           rules: rules,
-          expansion: Chips.expansion(),
-          witches: nil | %{WitchCards.colour() => WitchCards.id()}
+          expansion: nil | :herb_witches,
+          expansions: MapSet.t(expansion),
+          witches: nil | %{WitchCards.colour() => WitchCards.id()},
+          patients: nil | [Alchemists.id()]
         }
+  @type expansion :: :herb_witches | :alchemists
   @typedoc """
   House rules; the defaults (`default_rules/0`) are the rulebook game.
   `explode_above` is the white limit before chips and cards raise it, `black_solo`
@@ -273,9 +321,12 @@ defmodule Quacks.Game do
   (book III needs the essence phase), in every game (see `Quacks.Rules.Chips.set/3`). `rules:` sets house rules (`t:rules/0`), e.g.
   `%{explode_above: 9}`; rules left out keep their default. With `fortune: true`
   (default) round 1's card is turned up here. `fortune: false` is an old alias for
-  `rules: %{fortune: false}`. `expansion: :herb_witches` turns The Herb Witches on:
-  the expansion chips in the supply (the books stay as `sets:` says), 3 witches (`witches`, dealt from the seed) and 3 witch
-  pennies per player.
+  `rules: %{fortune: false}`. `expansions:` is a list (or `MapSet`) of
+  `:herb_witches` and `:alchemists`; `expansion: :herb_witches` is the old alias (both
+  may be given). The Herb Witches: the expansion chips in the supply (the books stay
+  as `sets:` says), 3 witches (`witches`, dealt from the seed) and 3 witch pennies per
+  player. The Alchemists: locoweed book III may be picked, 3 patients are dealt
+  (`patients`) and the game starts in `:patient_choice` (round 1's card comes after).
   An unknown colour, set, rule or expansion raises `ArgumentError`.
   """
   @spec new(
@@ -284,18 +335,17 @@ defmodule Quacks.Game do
           sets: %{atom => 1..6 | nil},
           rules: map,
           fortune: boolean,
-          expansion: Chips.expansion()
+          expansion: nil | :herb_witches,
+          expansions: Enumerable.t(expansion)
         ) :: t
   def new(opts) do
     seed = Keyword.fetch!(opts, :seed)
-    expansion = Keyword.get(opts, :expansion)
-
-    if expansion not in [nil, :herb_witches],
-      do: raise(ArgumentError, "unknown expansion #{inspect(expansion)}")
+    expansions = expansions!(opts)
+    herb? = MapSet.member?(expansions, :herb_witches)
 
     n = Keyword.get(opts, :players, 1)
     if n not in 1..8, do: raise(ArgumentError, "players must be 1..8, got #{inspect(n)}")
-    sets = sets!(Keyword.get(opts, :sets, %{}))
+    sets = sets!(Keyword.get(opts, :sets, %{}), expansions)
     # `fortune:` is the old top-level option; `rules:` wins when both are given.
     alias_rules = Map.new(Keyword.take(opts, [:fortune]))
     rules = rules!(Map.merge(alias_rules, Keyword.get(opts, :rules, %{})))
@@ -305,7 +355,7 @@ defmodule Quacks.Game do
     starting = List.flatten(List.duplicate(bag, n))
 
     # An infinite supply is the box itself, never counted down.
-    box = Chips.supply(expansion, sets)
+    box = Chips.supply(expansions, sets)
 
     supply =
       if rules.supply == :limited,
@@ -317,7 +367,7 @@ defmodule Quacks.Game do
     player = %{Player.new(bag) | rubies: rules.starting_rubies}
 
     player =
-      if expansion,
+      if herb?,
         do: %{player | pennies: %{silver: true, copper: true, gold: true}},
         else: player
 
@@ -329,23 +379,43 @@ defmodule Quacks.Game do
       fortune_deck: deck,
       sets: sets,
       rules: rules,
-      expansion: expansion,
-      witches: if(expansion, do: WitchCards.deal(rng))
+      expansion: if(herb?, do: :herb_witches),
+      expansions: expansions,
+      witches: if(herb?, do: WitchCards.deal(rng))
     }
 
-    start_round(if expansion, do: record(game, {:expansion, expansion}), else: game)
+    game =
+      Enum.reduce([:herb_witches, :alchemists], game, fn x, g ->
+        if MapSet.member?(expansions, x), do: record(g, {:expansion, x}), else: g
+      end)
+
+    if MapSet.member?(expansions, :alchemists), do: Essence.setup(game), else: start_round(game)
   end
 
+  defp expansions!(opts) do
+    list =
+      List.wrap(Keyword.get(opts, :expansion)) ++ Enum.to_list(Keyword.get(opts, :expansions, []))
+
+    case Enum.reject(list, &(&1 in [:herb_witches, :alchemists])) do
+      [] -> MapSet.new(list)
+      bad -> raise ArgumentError, "unknown expansion #{inspect(hd(bad))}"
+    end
+  end
+
+  @doc "Is expansion `x` (`:herb_witches`, `:alchemists`) in play?"
+  @spec expansion?(t, expansion) :: boolean
+  def expansion?(%__MODULE__{expansions: expansions}, x), do: MapSet.member?(expansions, x)
+
   # Every game: Sets 1..6, black 1, 2 or 3, orange 1 or 2 (2 = the orange 6-chip) and
-  # locoweed nil, 1, 2, 4, 5 or 6 (III needs The Alchemists' essence phase). The
-  # expansion changes no book.
-  defp sets!(sets) do
+  # locoweed nil, 1, 2, 4, 5 or 6; III only with The Alchemists (the essence phase).
+  defp sets!(sets, expansions) do
     sets = Map.merge(@sets, sets)
+    locoweed = if MapSet.member?(expansions, :alchemists), do: [3], else: []
 
     valid? =
       Enum.all?(sets, fn
         {:orange, set} -> set in [1, 2]
-        {:locoweed, set} -> set in [nil, 1, 2, 4, 5, 6]
+        {:locoweed, set} -> set in [nil, 1, 2, 4, 5, 6 | locoweed]
         {:black, set} -> set in [1, 2, 3]
         {colour, set} -> is_map_key(@sets, colour) and set in 1..6
       end)
@@ -379,15 +449,15 @@ defmodule Quacks.Game do
 
   @doc """
   The phase `seat` sees: `:droplet_choice` while droplet moves wait for its choice,
-  else their own state in `:potions` and `:shopping` (`:shop`, `:ready`), or the
-  game's phase.
+  else their own state in `:potions`, `:essence` and `:shopping` (`:shop`, `:ready`),
+  or the game's phase.
   """
   @spec phase(t, seat) :: phase | Player.phase() | :droplet_choice
   def phase(%__MODULE__{phase: phase, players: players}, seat)
       when phase != :over and is_map_key(players, seat) do
     case players[seat] do
       %Player{droplet_moves: n} when n > 0 -> :droplet_choice
-      p when phase in [:potions, :shopping] -> p.phase
+      p when phase in [:potions, :essence, :shopping] -> p.phase
       _p -> phase
     end
   end
@@ -438,8 +508,12 @@ defmodule Quacks.Game do
   def legal_actions(%__MODULE__{}, _seat), do: []
 
   # While the silver witch S2's offer is out, placing from it is all the seat may do.
+  # A patient offer (The Alchemists) waits for its answer first.
   defp phase_actions(%__MODULE__{phase: :potions} = g, seat) do
     case player(g, seat) do
+      %Player{phase: :essence_offer} ->
+        Essence.legal_actions(g, seat)
+
       %Player{phase: :potions, witch_offer: [_ | _]} ->
         Witches.legal_actions(g, seat)
 
@@ -453,9 +527,14 @@ defmodule Quacks.Game do
 
       _ ->
         Potions.legal_actions(g, seat) ++
-          Fortune.legal_actions(g, seat) ++ Witches.legal_actions(g, seat)
+          Fortune.legal_actions(g, seat) ++
+          Witches.legal_actions(g, seat) ++ Essence.legal_actions(g, seat)
     end
   end
+
+  defp phase_actions(%__MODULE__{phase: phase} = g, seat)
+       when phase in [:patient_choice, :essence],
+       do: Essence.legal_actions(g, seat)
 
   defp phase_actions(%__MODULE__{phase: :fortune_choice} = g, seat),
     do: Fortune.legal_actions(g, seat)
@@ -548,17 +627,24 @@ defmodule Quacks.Game do
         {:fortune, _} -> Fortune.step(g, seat, action)
         {:witch, _} -> Witches.step(g, seat, action)
         {:witch, _, _} -> Witches.step(g, seat, action)
+        {:essence, _} -> Essence.step(g, seat, action)
         choice when choice in [:draw, :stop] -> stir_or_step(g, seat, choice)
         _ -> Potions.step(g, seat, action)
       end
 
-    g = g |> stir() |> settle_stops()
+    g = g |> Essence.open_offers() |> stir() |> Essence.open_offers() |> settle_stops()
     if Enum.all?(g.players, fn {_seat, p} -> p.done? end), do: Fortune.after_potions(g), else: g
   end
 
   # -- concurrent choices: Fortune Teller, step B chips, gold witches -----------------
 
   defp step(%{phase: :fortune_choice} = g, seat, action), do: Fortune.step(g, seat, action)
+
+  # -- The Alchemists: the patient choice and the essence phase -----------------------
+
+  defp step(%{phase: phase} = g, seat, action) when phase in [:patient_choice, :essence],
+    do: Essence.step(g, seat, action)
+
   defp step(%{phase: :chip_choice} = g, seat, action), do: Evaluation.step(g, seat, action)
 
   # -- witches outside the potions phase (gold choice, shopping) ----------------------
@@ -657,7 +743,7 @@ defmodule Quacks.Game do
 
   # Still drawing (or deciding about a chip just drawn): a stopped player may resume.
   defp brewing?(%Player{phase: phase}),
-    do: phase in [:potions, :yellow_choice, :blue_choice, :chip_choice]
+    do: phase in [:potions, :yellow_choice, :blue_choice, :chip_choice, :essence_offer]
 
   defp end_round(%{round: @rounds} = g),
     do: record(%{g | phase: :over}, {:round_end, @rounds})
@@ -679,7 +765,16 @@ defmodule Quacks.Game do
   end
 
   # Rulebook §3 steps 1–2: the Fortune Teller card, the rats, then the purple card.
-  defp start_round(g), do: g |> Fortune.draw() |> place_rats() |> Fortune.resolve()
+  # The Alchemists: a rat-tail glass adds to the rats; Nervousness lays out its chips.
+  @doc false
+  def start_round(g) do
+    g
+    |> Fortune.draw()
+    |> place_rats()
+    |> Essence.rats()
+    |> Fortune.resolve()
+    |> Essence.display()
+  end
 
   # Rulebook §7: 5 coins or 2 rubies buy 1 VP, as often as you like. Whatever the seat
   # still has at its round-9 "Done" converts by itself.
@@ -730,7 +825,7 @@ defmodule Quacks.Game do
     price = &Chips.price(&1, g.sets)
 
     singles =
-      Enum.filter(Chips.shop(g.expansion, g.sets), &(price.(&1) <= coins and available?(g, &1)))
+      Enum.filter(Chips.shop(g.expansions, g.sets), &(price.(&1) <= coins and available?(g, &1)))
 
     pairs =
       for {ca, _} = a <- singles,

@@ -7,7 +7,9 @@ defmodule Mix.Tasks.Quacks.Sim do
 
   Options: `--games` (default 100), `--profiles` (comma list of cautious, balanced,
   reckless; one per seat; default balanced,balanced), `--seed` (default 1),
-  `--rules` (house rules as `key:value` pairs, comma list, e.g. `pot_side:back`).
+  `--rules` (house rules as `key:value` pairs, comma list, e.g. `pot_side:back`),
+  `--expansions` (comma list of herb_witches, alchemists) and `--sets` (`colour:set`
+  pairs, e.g. `locoweed:3`).
   """
 
   use Mix.Task
@@ -16,20 +18,7 @@ defmodule Mix.Tasks.Quacks.Sim do
 
   @impl true
   def run(argv) do
-    {opts, _, _} =
-      OptionParser.parse(argv,
-        strict: [games: :integer, profiles: :string, seed: :integer, rules: :string]
-      )
-
-    profiles = opts |> Keyword.get(:profiles, "balanced,balanced") |> parse_profiles()
-
-    summary =
-      Sim.run(
-        games: opts[:games] || 100,
-        profiles: profiles,
-        seed: opts[:seed] || 1,
-        rules: parse_rules(opts[:rules] || "")
-      )
+    summary = Sim.run(options(argv))
 
     Mix.shell().info("#{summary.games} games, #{summary.players} players\n")
 
@@ -61,6 +50,29 @@ defmodule Mix.Tasks.Quacks.Sim do
     end
   end
 
+  defp options(argv) do
+    {opts, _, _} =
+      OptionParser.parse(argv,
+        strict: [
+          games: :integer,
+          profiles: :string,
+          seed: :integer,
+          rules: :string,
+          expansions: :string,
+          sets: :string
+        ]
+      )
+
+    [
+      games: opts[:games] || 100,
+      profiles: opts |> Keyword.get(:profiles, "balanced,balanced") |> parse_profiles(),
+      seed: opts[:seed] || 1,
+      rules: parse_rules(opts[:rules] || ""),
+      expansions: parse_expansions(opts[:expansions] || ""),
+      sets: parse_sets(opts[:sets] || "")
+    ]
+  end
+
   defp parse_profiles(text) do
     known = Map.new(Profile.all(), &{Atom.to_string(&1), &1})
 
@@ -77,6 +89,24 @@ defmodule Mix.Tasks.Quacks.Sim do
       case String.split(pair, ":", parts: 2) do
         [key, value] -> {String.to_existing_atom(key), String.to_existing_atom(value)}
         _ -> Mix.raise("bad rule #{inspect(pair)}, expected key:value")
+      end
+    end
+  end
+
+  defp parse_expansions(text) do
+    known = %{"herb_witches" => :herb_witches, "alchemists" => :alchemists}
+
+    for name <- String.split(text, ",", trim: true),
+        do: Map.get(known, String.trim(name)) || Mix.raise("unknown expansion #{inspect(name)}")
+  end
+
+  defp parse_sets(text) do
+    Code.ensure_loaded!(Quacks.Rules.Chips)
+
+    for pair <- String.split(text, ",", trim: true), into: %{} do
+      case String.split(pair, ":", parts: 2) do
+        [colour, set] -> {String.to_existing_atom(colour), String.to_integer(set)}
+        _ -> Mix.raise("bad set #{inspect(pair)}, expected colour:set")
       end
     end
   end

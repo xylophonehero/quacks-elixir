@@ -8,9 +8,10 @@ defmodule QuacksWeb.GameComponents do
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Potions
-  alias Quacks.Rules.{Books, Chips, PotTrack, ScoringTrack, TestTubes}
+  alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, ScoringTrack, TestTubes}
   alias Quacks.Rules.Fortune
   alias Quacks.Rules.Witches
+  alias QuacksWeb.AlchemistsComponents
 
   @colours %{
     white: "bg-chip-white text-ink border-2 border-zinc-400",
@@ -847,6 +848,7 @@ defmodule QuacksWeb.GameComponents do
           value={"#{Game.white_sum(@game, @seat)} / #{Potions.explode_above(@game, @seat)}"}
         />
       </dl>
+      <AlchemistsComponents.flask_strip :if={@p.patient} game={@game} seat={@seat} size={:sm} />
       <.pot game={@game} seat={@seat} size={:sm} class="mx-auto block h-auto w-full max-w-64" />
       <.bowl :if={@p.bowl != []} chips={@p.bowl} />
       <section aria-label="Bag" data-role="player-bag">
@@ -946,7 +948,9 @@ defmodule QuacksWeb.GameComponents do
   What `seat` does now, in one word: "brewing", "stopped" or "exploded" while
   everyone brews (round 9 with 2+ players: "deciding" until the seat picks Draw or
   Stop, then "chosen"); "shopping" or "ready" in the shop; "choosing" or "ready"
-  while seats answer a card, chip or witch choice. `nil` once the game is over.
+  while seats answer a card, chip or witch choice; with The Alchemists "choosing
+  patient" before round 1 and "essence" in the essence phase. `nil` once the game
+  is over.
   """
   @spec seat_state(Game.t(), Game.seat()) :: String.t() | nil
   def seat_state(%Game{phase: :potions, players: players} = game, seat) do
@@ -963,6 +967,12 @@ defmodule QuacksWeb.GameComponents do
     do: if(players[seat].phase == :ready, do: "ready", else: "shopping")
 
   def seat_state(%Game{phase: :over}, _seat), do: nil
+
+  def seat_state(%Game{phase: :patient_choice, players: players}, seat),
+    do: if(players[seat].patient, do: "ready", else: "choosing patient")
+
+  def seat_state(%Game{phase: :essence} = game, seat),
+    do: if(Game.legal_actions(game, seat) == [], do: "ready", else: "essence")
 
   def seat_state(%Game{} = game, seat),
     do: if(Game.legal_actions(game, seat) == [], do: "ready", else: "choosing")
@@ -1123,7 +1133,7 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   The book `{colour, set}` for display: `Books.get/1` plus `chips`, each buyable
   chip of the colour with its price. Locoweed nil is "not in play"; locoweed III
-  (The Alchemists' A) is shown but not playable yet (it needs the essence phase).
+  (The Alchemists' A) acts in the essence phase.
   """
   @spec book_info(Chips.colour(), 1..6 | nil) :: map
   def book_info(:locoweed, nil) do
@@ -1430,6 +1440,11 @@ defmodule QuacksWeb.GameComponents do
   defp narrated_by_event?({:fortune, _choice}), do: true
   # Every chip choice logs its `{:effect, ...}` right after.
   defp narrated_by_event?({:chip, _choice}), do: true
+  # Every essence spend logs `{:essence_spent, n, what}` right after.
+  defp narrated_by_event?({:essence, what}) when what in [:carrot, :double, :return, :hump],
+    do: true
+
+  defp narrated_by_event?({:essence, {:forget, _chip}}), do: true
   defp narrated_by_event?(_entry), do: false
 
   @doc """
@@ -1589,6 +1604,11 @@ defmodule QuacksWeb.GameComponents do
   defp gain({:fortune, _id, {:rats_back, n}}), do: {0, n}
   # Every other card outcome shows too (what the card did), worth nothing here.
   defp gain({:fortune, _id, outcome}) when outcome != :skip, do: {0, 0}
+  defp gain({:essence, _space, _parts}), do: {0, 0}
+  defp gain({:essence_vp, n}), do: {n, 0}
+  defp gain({:essence_bonus, {:vp, n}}), do: {n, 0}
+  defp gain({:essence_bonus, {:rubies, n}}), do: {0, n}
+  defp gain({:essence_bonus, _term}), do: {0, 0}
   defp gain(_entry), do: nil
 
   @doc """
@@ -1689,6 +1709,36 @@ defmodule QuacksWeb.GameComponents do
   def label({:bowl, _chips, vp}), do: "Overflow bowl: +#{vp} VP"
   def label({:pennies, vp}), do: "Unused witch pennies: +#{vp} VP"
   def label({:expansion, :herb_witches}), do: "Playing with The Herb Witches"
+  def label({:expansion, :alchemists}), do: "Playing with The Alchemists"
+
+  def label({:patients, ids}),
+    do: "Patients dealt: #{Enum.map_join(ids, ", ", &Alchemists.get(&1).name)}"
+
+  def label({:patient, id}), do: "Patient: #{Alchemists.get(id).name}"
+
+  def label({:essence, space, parts}) when is_map(parts),
+    do: "Essence: space #{space} (#{Enum.join(AlchemistsComponents.parts_text(parts), ", ")})"
+
+  def label({:essence, {:space, n}}), do: "Essence: take space #{n}"
+  def label({:essence, {:swap, chip}}), do: "Chicken eyes: swap #{chip_name(chip)}"
+  def label({:essence, {:buy, chip}}), do: "Vampirism: buy #{chip_name(chip)}"
+  def label({:essence, {:place, chip}}), do: "Nervousness: place #{chip_name(chip)}"
+  def label({:essence, {:forget, chip}}), do: "Forgetfulness: return #{chip_name(chip)}"
+  def label({:essence, :pass}), do: "No thanks"
+  def label({:essence, :carrot}), do: "Spend 2 essence: pumpkin to the next ruby space"
+  def label({:essence, :double}), do: "Spend 2 essence: move the white chip double"
+  def label({:essence, :return}), do: "Spend 3 essence: white chip back to the bag"
+  def label({:essence, :hump}), do: "Spend 2 essence: Witch's hump bonus"
+
+  def label({:essence_bonus, term}),
+    do: "Essence bonus: #{AlchemistsComponents.term_text(term)}"
+
+  def label({:essence_vp, n}), do: "Final essence: +#{n} VP"
+  def label({:essence_rat, n}), do: "Essence: rat stone +#{n}"
+
+  def label({:essence_spent, n, what}), do: "Spent #{n} essence: #{essence_use(what)}"
+
+  def label({:display, chips}), do: "Nervousness: laid out #{chip_list(chips)}"
   def label({:witch, colour}), do: "Call the #{colour} witch"
 
   def label({:witch, :silver, n}) when is_integer(n),
@@ -1871,6 +1921,12 @@ defmodule QuacksWeb.GameComponents do
 
   defp chip_list(chips), do: Enum.map_join(chips, ", ", &chip_name/1)
 
+  defp essence_use(:carrot), do: "pumpkin to the next ruby space"
+  defp essence_use(:double), do: "white chip moved double"
+  defp essence_use(:return), do: "white chip back to the bag"
+  defp essence_use(:hump), do: "Witch's hump"
+  defp essence_use({:forget, chip}), do: "#{chip_name(chip)} back to the bag"
+
   defp die_face({:vp, n}), do: "#{n} VP"
   defp die_face(:ruby), do: "ruby"
   defp die_face(:droplet), do: "droplet +1"
@@ -1910,5 +1966,11 @@ defmodule QuacksWeb.GameComponents do
   def phase_name(:ready), do: "Ready"
   def phase_name(:done), do: "Done"
   def phase_name(:over), do: "Over"
+  def phase_name(:patient_choice), do: "Patient"
+  def phase_name(:essence), do: "Essence"
+  def phase_name(:essence_choice), do: "Essence"
+  def phase_name(:essence_bonus), do: "Essence bonus"
+  def phase_name(:ear_worm), do: "Ear worm"
+  def phase_name(:essence_offer), do: "Essence"
   def phase_name(other), do: inspect(other)
 end

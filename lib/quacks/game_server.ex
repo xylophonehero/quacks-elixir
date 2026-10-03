@@ -53,7 +53,8 @@ defmodule Quacks.GameServer do
   What a page needs about a game. `game` is `nil` while `status` is `:waiting`.
   `players` is the number of seats in the game once `:playing`, and the maximum
   (`max_players`) while `:waiting`. `creator` is the creator's seat, `nil` once they left.
-  `sets`, `rules` and `expansion` are the options the game starts (or started) with.
+  `sets`, `rules` and `expansion` are the options the game starts (or started) with;
+  `expansions` is every expansion on (`expansion:` and `expansions:` together).
   `colours` is each claimed seat's colour, `0..7` (the `--color-seat-N` palette),
   unique at the table. `bots` is the profile of each seat a bot holds.
   """
@@ -70,7 +71,8 @@ defmodule Quacks.GameServer do
           creator: Game.seat() | nil,
           sets: Quacks.Rules.Chips.sets(),
           rules: map,
-          expansion: Quacks.Rules.Chips.expansion()
+          expansion: nil | :herb_witches,
+          expansions: MapSet.t(Game.expansion())
         }
 
   @typedoc "A seat colour: an index into the 8-colour palette (`--color-seat-N`)."
@@ -83,7 +85,7 @@ defmodule Quacks.GameServer do
   `begin/2`. A `nil` seed picks a random one. `sets` picks the Ingredient Set per
   colour, e.g. `%{green: 2}` (left out: Set 1). `rules` sets house rules, e.g.
   `%{explode_above: 9}` (left out: the default). `expansion: :herb_witches` turns the
-  expansion on. See `Quacks.Game.new/1`. `start(players)` with the defaults is enough
+  expansion on; a `MapSet` (a game's `expansions`) turns each one on. See `Quacks.Game.new/1`. `start(players)` with the defaults is enough
   when the host sets the game up afterwards (`configure/3`).
   """
   @spec start(
@@ -98,7 +100,7 @@ defmodule Quacks.GameServer do
     start_server(%{
       max_players: players,
       seed: seed || random_seed(),
-      opts: [sets: sets, rules: rules, expansion: expansion],
+      opts: [sets: sets, rules: rules] ++ expansion_opts(expansion),
       tokens: %{},
       names: %{},
       colours: %{},
@@ -106,6 +108,10 @@ defmodule Quacks.GameServer do
       creator: nil
     })
   end
+
+  # A game's `expansions` (a MapSet) or the old single `expansion`.
+  defp expansion_opts(%MapSet{} = expansions), do: [expansions: MapSet.to_list(expansions)]
+  defp expansion_opts(expansion), do: [expansion: expansion]
 
   # Start a game process with `fields` (see `init/1`) under a new id.
   defp start_server(fields) do
@@ -168,7 +174,8 @@ defmodule Quacks.GameServer do
   @doc """
   The host (creator) sets the game up while it is `:waiting`: any of `players:`
   (1..8; not fewer than the seats taken), `sets:`, `rules:`
-  and `expansion:` (keys left out keep their value). Bad values are refused as
+  `expansion:` and `expansions:` (a list of `:herb_witches`, `:alchemists`; keys left
+  out keep their value). Bad values are refused as
   `Quacks.Game.new/1` would refuse them. Waiting pages hear `{:names, id, names}` and
   re-read the table.
   """
@@ -379,7 +386,12 @@ defmodule Quacks.GameServer do
 
   def handle_call({:configure, token, config}, _from, state) do
     max = Map.get(config, :players, state.max_players)
-    opts = Keyword.merge(state.opts, Keyword.new(Map.take(config, [:sets, :rules, :expansion])))
+
+    opts =
+      Keyword.merge(
+        state.opts,
+        Keyword.new(Map.take(config, [:sets, :rules, :expansion, :expansions]))
+      )
 
     cond do
       token != state.creator ->
@@ -561,7 +573,8 @@ defmodule Quacks.GameServer do
   defp capped?(_state, _game, _seat), do: false
 
   defp brewing?(%{phase: phase}),
-    do: phase in [:potions, :yellow_choice, :blue_choice, :red_choice, :chip_choice]
+    do:
+      phase in [:potions, :yellow_choice, :blue_choice, :red_choice, :chip_choice, :essence_offer]
 
   # `:draw` actions per seat in this round's log (newest first, up to the last round end).
   defp round_draws(game) do
@@ -654,7 +667,11 @@ defmodule Quacks.GameServer do
       creator: state.tokens[state.creator],
       sets: state.opts[:sets],
       rules: state.opts[:rules],
-      expansion: state.opts[:expansion]
+      expansion: state.opts[:expansion],
+      expansions:
+        MapSet.new(
+          List.wrap(state.opts[:expansion]) ++ Enum.to_list(state.opts[:expansions] || [])
+        )
     }
   end
 
