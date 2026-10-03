@@ -130,8 +130,9 @@ defmodule QuacksWeb.BooksLiveTest do
     assert has_element?(view, "#shop-book-0 [data-book=orange-2]")
     assert has_element?(view, "#shop-book-4", "Hawkmoth")
     assert has_element?(view, "#shop-book-7 [data-book=locoweed-6]", "Acts as the last coloured")
-    # black 1 now has tiers: the shop popover renders them as a table
-    assert has_element?(view, "#shop-book-4 [data-role=book-tiers]", "2 players: same count")
+    # black 1 has tiers; a solo game shows only the solo row
+    assert has_element?(view, "#shop-book-4 [data-role=book-tiers]", "1+ black")
+    refute has_element?(view, "#shop-book-4 [data-role=book-tiers]", "same count")
     assert has_element?(view, "#shop label", ~r/orange 6\s+22c/)
 
     assert has_element?(view, "#sheet-menu button[popovertarget=sheet-books]", "Books")
@@ -142,7 +143,9 @@ defmodule QuacksWeb.BooksLiveTest do
              "Garden spider"
            )
 
-    assert has_element?(view, "#sheet-books [data-book=orange-2]", "6-chips")
+    # orange has no rule text, only its prices (the 6-chip at 22)
+    assert has_element?(view, "#sheet-books [data-book=orange-2]", "22")
+    refute has_element?(view, "#sheet-books [data-book=orange-2] p", "fill the pot")
     assert has_element?(view, "#sheet-books [data-book=locoweed-6]")
   end
 end

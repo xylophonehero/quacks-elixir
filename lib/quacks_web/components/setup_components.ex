@@ -14,7 +14,7 @@ defmodule QuacksWeb.SetupComponents do
   import QuacksWeb.CoreComponents, only: [input: 1, sheet: 1]
 
   import QuacksWeb.GameComponents,
-    only: [book_info: 2, book_seal: 1, book_tile: 1, chip: 1, roman: 1]
+    only: [book_info: 2, book_seal: 1, book_tiers: 1, book_tile: 1, chip: 1, roman: 1]
 
   alias Phoenix.LiveView.JS
   alias Quacks.Game
@@ -47,6 +47,12 @@ defmodule QuacksWeb.SetupComponents do
   """
   attr :sets, :map, required: true, doc: "the chosen books; colours left out use their default"
   attr :expansion, :boolean, default: false
+
+  attr :pot_side, :atom,
+    default: :front,
+    doc: "the house rule; its checkbox belongs to `#options`"
+
+  attr :players, :integer, default: nil, doc: "the table size, see `book_tiers/1`"
   attr :disabled, :boolean, default: false
 
   def books_form(assigns) do
@@ -54,17 +60,33 @@ defmodule QuacksWeb.SetupComponents do
     <form id="books" phx-change="sets" aria-label="Ingredient books">
       <fieldset disabled={@disabled} class="space-y-2">
         <h3 class="font-bold">Ingredient books</h3>
-        <.input
-          type="checkbox"
-          id="expansion"
-          name="expansion"
-          label="Herb Witches expansion"
-          value={@expansion}
-        />
+        <div class="flex flex-wrap gap-x-5">
+          <.input
+            type="checkbox"
+            id="expansion"
+            name="expansion"
+            label="Herb Witches expansion"
+            value={@expansion}
+          />
+          <%!-- Part of the house rules form (`form="options"`), shown here beside the expansion. --%>
+          <.input
+            type="checkbox"
+            id="rules-pot_side"
+            name="rules[pot_side]"
+            form="options"
+            label="Pot: reverse side (test tubes)"
+            value={@pot_side == :back}
+          />
+        </div>
         <p :if={!@disabled} class="text-sm text-ink-soft">Tap a book to pick another.</p>
         <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           <%= for colour <- book_colours() do %>
-            <.book_tile :if={@disabled} colour={colour} set={book(@sets, colour, @expansion)} />
+            <.book_tile
+              :if={@disabled}
+              colour={colour}
+              set={book(@sets, colour, @expansion)}
+              players={@players}
+            />
             <button
               :if={!@disabled}
               type="button"
@@ -72,13 +94,14 @@ defmodule QuacksWeb.SetupComponents do
               aria-label={"#{colour} book: change"}
               class="block rounded-[14px] text-left transition-[translate,scale,box-shadow] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
             >
-              <.book_tile colour={colour} set={book(@sets, colour, @expansion)} />
+              <.book_tile colour={colour} set={book(@sets, colour, @expansion)} players={@players} />
             </button>
             <.book_picker
               :if={!@disabled}
               colour={colour}
               chosen={book(@sets, colour, @expansion)}
               sets={book_sets(colour, @expansion)}
+              players={@players}
             />
           <% end %>
         </div>
@@ -91,6 +114,7 @@ defmodule QuacksWeb.SetupComponents do
   attr :colour, :atom, required: true
   attr :chosen, :any, required: true
   attr :sets, :list, required: true
+  attr :players, :integer, default: nil
 
   defp book_picker(assigns) do
     books = Enum.map(assigns.sets, &{&1, book_info(assigns.colour, &1)})
@@ -138,7 +162,8 @@ defmodule QuacksWeb.SetupComponents do
               </svg>
             </span>
           </span>
-          <span class="text-sm leading-normal text-pretty">{book.text}</span>
+          <span :if={book.text != ""} class="text-sm leading-normal text-pretty">{book.text}</span>
+          <.book_tiers tiers={book.tiers} players={@players} />
           <span :if={book.chips != []} class="flex flex-wrap gap-1.5">
             <span
               :for={{chip, price} <- book.chips}
@@ -211,13 +236,6 @@ defmodule QuacksWeb.SetupComponents do
           name="rules[overflow]"
           label="Overflow bowl (chips past the last space)"
           value={@rules.overflow}
-        />
-        <.input
-          type="checkbox"
-          id="rules-pot_side"
-          name="rules[pot_side]"
-          label="Pot: reverse side (test tubes)"
-          value={@rules.pot_side == :back}
         />
         <.radios
           name="black_solo"

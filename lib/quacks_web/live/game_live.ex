@@ -471,7 +471,13 @@ defmodule QuacksWeb.GameLive do
         </p>
       </section>
       <section class="paper rounded-lg p-3" aria-label="Settings">
-        <.books_form sets={@sets} expansion={@expansion} disabled={!@host} />
+        <.books_form
+          sets={@sets}
+          expansion={@expansion}
+          pot_side={@rules.pot_side}
+          players={@players}
+          disabled={!@host}
+        />
         <details class="mt-3" open={!@host}>
           <summary class="cursor-pointer font-bold">Options</summary>
           <div class="mt-2"><.options_form rules={@rules} disabled={!@host} /></div>
@@ -771,6 +777,7 @@ defmodule QuacksWeb.GameLive do
             :for={{colour, set} <- Books.in_play(@game.expansion, @game.sets)}
             colour={colour}
             set={set}
+            players={@players}
           />
         </div>
       </.sheet>
@@ -1141,7 +1148,7 @@ defmodule QuacksWeb.GameLive do
           id={"shop-book-#{i}"}
           label="Ingredient book"
         >
-          <.book_list books={row_books(row, @game)} />
+          <.book_list books={row_books(row, @game)} players={map_size(@game.players)} />
         </.sheet>
         <p class="text-sm" data-role="shop-total">
           Selected: {@total} coins. Remaining: {@remaining} of {@me.coins}.
@@ -1415,7 +1422,7 @@ defmodule QuacksWeb.GameLive do
       </button>
       <.sheet id={@id} label="Ingredient books">
         <h2 class="mb-2 text-lg font-bold">Ingredient books</h2>
-        <.book_list books={@books} />
+        <.book_list books={@books} players={map_size(@game.players)} />
       </.sheet>
     </span>
     """
