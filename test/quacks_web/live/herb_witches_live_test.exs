@@ -35,12 +35,16 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {:error, {:live_redirect, %{to: "/g/" <> id}}} =
       view |> element("button", "New game for 5 players") |> render_click()
 
-    {:ok, %{game: game, players: 5}} = GameServer.get(id)
-    assert game.expansion == :herb_witches and length(game.seats) == 5
-    assert %{green: 5, black: 6, locoweed: 6} = game.sets
+    assert {:ok, %{status: :waiting, game: nil, max_players: 5}} = GameServer.get(id)
 
     {:ok, game_view, _html} = live(conn, ~p"/g/#{id}")
     assert has_element?(game_view, "[data-role=waiting-for-players]", "1 of 5 seated")
+
+    # the creator may start alone
+    game_view |> element("button", "Start game") |> render_click()
+    {:ok, %{game: game, players: 1}} = GameServer.get(id)
+    assert game.expansion == :herb_witches and game.seats == [0]
+    assert %{green: 5, black: 6, locoweed: 6} = game.sets
   end
 
   test "parse_sets keeps the expansion books only with the expansion" do
@@ -73,7 +77,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {:ok, _} = GameServer.apply(id, 0, :draw)
     {:ok, _} = GameServer.apply(id, 0, :stop)
     {:ok, %{game: game}} = GameServer.get(id)
-    assert game.phase == :buy_chips
+    assert game.phase == :shopping
 
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     html = view |> render() |> LazyHTML.from_fragment()
@@ -88,7 +92,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
 
     assert has_element?(
              view,
-             "#decision-buy_chips [data-witch=c4] button",
+             "#decision-buy [data-witch=c4] button",
              "Call the copper witch"
            )
 
@@ -189,17 +193,16 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
   end
 
   test "the gold witch choice is a dialog with her card", %{conn: conn} do
-    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false}, :herb_witches)
+    {id, view} = live_solo(conn)
     {:ok, %{game: game}} = GameServer.get(id)
     assert %{gold: :g4} = game.witches
     # G4 is called in the rubies turn: play to it
     {:ok, _} = GameServer.apply(id, 0, :draw)
     {:ok, _} = GameServer.apply(id, 0, :stop)
     {:ok, _} = GameServer.apply(id, 0, {:buy, []})
-    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
 
-    assert has_element?(view, "#decision-spend_rubies [data-witch=g4]")
-    view |> element("#decision-spend_rubies button", "Call the gold witch") |> render_click()
+    assert has_element?(view, "#decision-rubies [data-witch=g4]")
+    view |> element("#decision-rubies button", "Call the gold witch") |> render_click()
     assert has_element?(view, "li", "Cheap rubies: droplet and flask cost 1 ruby")
     assert Game.legal_actions(elem(GameServer.get(id), 1).game, 0) |> List.last() == :end_round
   end

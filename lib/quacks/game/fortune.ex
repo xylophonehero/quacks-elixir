@@ -315,7 +315,7 @@ defmodule Quacks.Game.Fortune do
 
     g
     |> Game.update_player(seat, &%{&1 | pending: [], bag: rest ++ &1.bag})
-    |> Map.update!(:supply, &Map.update!(&1, chip, fn n -> n + 1 end))
+    |> Game.return_supply(chip)
     |> Game.add_from_supply(seat, @upgrade[chip])
     |> log(seat, {:upgrade, chip})
   end
@@ -332,7 +332,7 @@ defmodule Quacks.Game.Fortune do
   defp choose(g, seat, :p6, :remove_white) do
     g
     |> Game.update_player(seat, &%{&1 | bag: List.delete(&1.bag, {:white, 1})})
-    |> Map.update!(:supply, &Map.update!(&1, {:white, 1}, fn n -> n + 1 end))
+    |> Game.return_supply({:white, 1})
     |> log(seat, :remove_white)
   end
 
@@ -392,7 +392,7 @@ defmodule Quacks.Game.Fortune do
 
   # Black Set 5: a black chip from a card goes to the left player; droplet +1.
   defp take(%{sets: %{black: 5}} = g, seat, {:black, 1} = chip) do
-    if g.supply[chip] > 0,
+    if Game.in_supply?(g, chip),
       do:
         g
         |> log(seat, {:take, chip})

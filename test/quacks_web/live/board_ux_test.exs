@@ -23,6 +23,7 @@ defmodule QuacksWeb.BoardUxTest do
     {:ok, id} = GameServer.start(2, {1, 2, 3})
     alice = open(browser("alice"), id)
     _bob = open(browser("bob"), id)
+    {:ok, _} = GameServer.begin(id, "alice")
 
     assert has_element?(alice, ~s(article.border-seat-1[data-seat="1"]))
     assert has_element?(alice, ~s([data-role=player-line][data-seat="1"] .bg-seat-1))

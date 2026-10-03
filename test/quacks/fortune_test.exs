@@ -9,7 +9,8 @@ defmodule Quacks.FortuneTest do
 
   @seed {1, 2, 3}
 
-  defp new(players \\ 1), do: Game.new(seed: @seed, players: players, fortune: false)
+  defp new(players \\ 1),
+    do: Game.new(seed: @seed, players: players, fortune: false, rules: %{supply: :limited})
 
   # A game with blue card `id` in force for round 1.
   defp blue(id, players \\ 1), do: put(new(players), fortune_card: id)
@@ -90,7 +91,7 @@ defmodule Quacks.FortuneTest do
       g = apply!(g, 1, {:fortune, {:take, {:green, 2}}})
       assert {:green, 2} in me(g, 1).bag
       assert logged?(g, 1, :b2, {:take, {:green, 2}})
-      assert g.phase == :buy_chips
+      assert g.phase == :shopping and Game.phase(g, 1) == :buy
     end
 
     test "B3 Second Chances: after the 5th chip, restart the round once" do
@@ -160,7 +161,7 @@ defmodule Quacks.FortuneTest do
       g = apply!(g, {:fortune, {:place, {:red, 1}}})
       assert [{{:red, 1}, 2} | _] = me(g).drawn
       assert {:green, 1} in me(g).bag
-      assert g.phase == :buy_chips
+      assert Game.phase(g, 0) == :buy
     end
 
     # Official ruling (The Herb Witches rulebook): the placed chip cannot explode the
@@ -170,7 +171,7 @@ defmodule Quacks.FortuneTest do
       g = g |> apply!(:stop) |> apply!({:fortune, {:place, {:white, 3}}})
       assert Game.white_sum(g) == 9
       refute me(g).exploded?
-      assert g.phase == :buy_chips and me(g).coins > 0
+      assert Game.phase(g, 0) == :buy and me(g).coins > 0
 
       # a red (Set 1) after an orange moves its printed value only
       g = blue(:b7) |> force_draws([{:orange, 1}]) |> put(bag: [{:red, 1}])

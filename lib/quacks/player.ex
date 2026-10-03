@@ -3,8 +3,11 @@ defmodule Quacks.Player do
   One seat at the table: the bag, the pot, the resources and the player's own state
   inside the potions phase. `Quacks.Game` keeps one per seat in `players`.
 
-  `phase` is the player's own state while the game is in `:potions`; `done?` is true
-  once the player has stopped or resolved an explosion this round (`phase == :done`).
+  `phase` is the player's own state while the game is in `:potions` or `:shopping`.
+  `:stopped` is a soft stop: the player waits and may `:resume` while another player
+  still brews. `done?` is true once the stop is final or the explosion is resolved
+  this round (`phase == :done`). In `:shopping` the phase runs `:buy` → `:rubies` →
+  `:ready`.
   `explosion_choice` remembers `:vp` or `:buy` until the evaluation runs (`:witch`:
   the silver witch S4 took the penalty away).
   `fortune_used?` is true once a once-per-round card power (B3, B10) is used.
@@ -55,7 +58,11 @@ defmodule Quacks.Player do
           | :fortune_choice
           | :red_choice
           | :chip_choice
+          | :stopped
           | :done
+          | :buy
+          | :rubies
+          | :ready
   @typedoc "A chip in the pot and the 0..53 space it sits on."
   @type placed :: {Chips.chip(), 0..53}
   @type t :: %__MODULE__{

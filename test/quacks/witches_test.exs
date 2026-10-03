@@ -45,15 +45,15 @@ defmodule Quacks.WitchesTest do
     end
 
     test "every unused penny is 2 VP at the end; a spent one is not" do
-      g = new() |> put(round: 9, phase: :spend_rubies, rubies: 0)
+      g = new() |> put(round: 9, phase: :rubies, rubies: 0)
       g = apply!(g, :end_round)
       assert me(g).vp == 6 and {0, {:pennies, 6}} in g.log
 
-      g = new() |> put(round: 9, phase: :spend_rubies, rubies: 0)
+      g = new() |> put(round: 9, phase: :rubies, rubies: 0)
       g = put(g, pennies: %{silver: false, copper: true, gold: false}) |> apply!(:end_round)
       assert me(g).vp == 2
 
-      base = Game.new(seed: @seed, fortune: false) |> put(round: 9, phase: :spend_rubies)
+      base = Game.new(seed: @seed, fortune: false) |> put(round: 9, phase: :rubies)
       refute Enum.any?(apply!(base, :end_round).log, &match?({0, {:pennies, _}}, &1))
     end
 
@@ -135,7 +135,7 @@ defmodule Quacks.WitchesTest do
       g = apply!(g, {:witch, :silver})
       assert me(g).explosion_choice == :witch and witch_log?(g, :s4, :no_penalty)
       # index 8 → scoring space 9: 9 coins, 1 VP (solo: always the best space)
-      assert g.phase == :buy_chips and me(g).coins == 9
+      assert Game.phase(g, 0) == :buy and me(g).coins == 9
       assert {0, {:pot_vp, 1, 9}} in g.log
       assert Enum.any?(g.log, &match?({0, {:bonus_die, _}}, &1))
     end
@@ -144,7 +144,7 @@ defmodule Quacks.WitchesTest do
   describe "copper witches" do
     # A solo game in the shop, after an evaluation, with copper witch `id`.
     defp shop(id, fields) do
-      witches([id]) |> put([phase: :buy_chips] ++ fields)
+      witches([id]) |> put([phase: :buy] ++ fields)
     end
 
     test "C1: upgrade the last 2 chips, or 1 chip anywhere; the bigger chip goes in the bag" do
@@ -161,7 +161,7 @@ defmodule Quacks.WitchesTest do
       g = apply!(g, {:witch, :copper, {:upgrade, [{:red, 1}, {:green, 2}]}})
       assert {:red, 2} in me(g).bag and {:green, 4} in me(g).bag
       assert Game.pot_chips(g) == [{:blue, 1}, {:orange, 1}]
-      assert g.phase == :buy_chips and g.turn == 0
+      assert Game.phase(g, 0) == :buy
     end
 
     test "C2 doubles the coins; C4 adds 2 per ruby" do
@@ -182,7 +182,7 @@ defmodule Quacks.WitchesTest do
       g = apply!(g, {:witch, :copper, {:buy, [{:green, 1}, {:orange, 1}], {:green, 1}}})
       # the starting bag has one green 1 already
       assert Enum.count(me(g).bag, &(&1 == {:green, 1})) == 3
-      assert me(g).coins == 0 and g.phase == :spend_rubies
+      assert me(g).coins == 0 and Game.phase(g, 0) == :rubies
       assert witch_log?(g, :c3, {:copy, {:green, 1}})
     end
 
@@ -195,17 +195,17 @@ defmodule Quacks.WitchesTest do
       end
 
       g = vp_shop.(:c4)
-      assert g.phase == :buy_chips and {:witch, :copper} in Game.legal_actions(g)
+      assert Game.phase(g, 0) == :buy and {:witch, :copper} in Game.legal_actions(g)
       g = apply!(g, {:witch, :copper})
       assert me(g).coins == 4
 
-      assert vp_shop.(:c1).phase == :buy_chips
-      assert vp_shop.(:c2).phase == :spend_rubies
+      assert Game.phase(vp_shop.(:c1), 0) == :buy
+      assert Game.phase(vp_shop.(:c2), 0) == :rubies
     end
 
     test "round 9: C2 and C4 in the rubies turn, before the coins become VP" do
       g =
-        witches([:c2]) |> put(round: 9, phase: :spend_rubies, coins: 10, pennies: %{copper: true})
+        witches([:c2]) |> put(round: 9, phase: :rubies, coins: 10, pennies: %{copper: true})
 
       g = g |> apply!({:witch, :copper}) |> apply!(:end_round)
       assert {0, {:final_conversion, 4, 0}} in g.log
@@ -224,7 +224,7 @@ defmodule Quacks.WitchesTest do
       vp = me(g).vp
       g = apply!(g, {:witch, :gold})
       assert me(g).vp >= vp + 3 and witch_log?(g, :g1, {:vp, 3})
-      assert g.phase == :buy_chips
+      assert Game.phase(g, 0) == :buy
     end
 
     test "G1: the chart up to 8 colours; :witch_done keeps the penny" do
@@ -235,7 +235,7 @@ defmodule Quacks.WitchesTest do
       assert witch_log?(g, :g1, {:vp, 14})
 
       g = gold(:g1, [{:orange, 1}]) |> apply!(:witch_done)
-      assert me(g).pennies.gold and g.phase == :buy_chips
+      assert me(g).pennies.gold and Game.phase(g, 0) == :buy
     end
 
     test "G2: 2 VP per coloured 2/4/6-chip, purple and locoweed chip in the bag" do
@@ -277,11 +277,11 @@ defmodule Quacks.WitchesTest do
 
     test "nobody helped: no witch turn" do
       g = gold(:g3, [{:orange, 1}])
-      assert g.phase == :buy_chips
+      assert Game.phase(g, 0) == :buy
     end
 
     test "G4: the droplet and the flask cost 1 ruby for the rest of the turn" do
-      g = witches([:g4]) |> put(phase: :spend_rubies, rubies: 2, flask: false)
+      g = witches([:g4]) |> put(phase: :rubies, rubies: 2, flask: false)
       g = apply!(g, {:witch, :gold})
       g = g |> apply!({:rubies, :droplet}) |> apply!({:rubies, :flask})
       assert me(g).rubies == 0 and me(g).droplet == 1 and me(g).flask

@@ -79,7 +79,9 @@ defmodule Quacks.Game.Potions do
   end
 
   # :fortune_choice (B7) actions come from `Quacks.Game.Fortune`.
-  def legal_actions(%Player{phase: phase}) when phase in [:done, :fortune_choice], do: []
+  # :stopped (`:resume`) comes from `Quacks.Game`: it depends on the other seats.
+  def legal_actions(%Player{phase: phase}) when phase in [:done, :fortune_choice, :stopped],
+    do: []
 
   @doc "Run one legal potions-phase action for `seat`. The action is already logged."
   @spec step(Game.t(), Game.seat(), Game.action()) :: Game.t()
@@ -110,11 +112,15 @@ defmodule Quacks.Game.Potions do
   def step(g, seat, :use_flask),
     do: g |> Game.update_player(seat, &%{&1 | flask: false}) |> take_back(seat)
 
-  # A card may open a choice on stop (B7); otherwise the player is done.
+  # Soft stop: the player waits as `:stopped` and may `:resume` while someone else
+  # still brews. `Quacks.Game` makes the stop final (`stop/2`) once nobody brews.
   def step(g, seat, :stop) do
-    g = Fortune.on_stop(g, seat)
-    if Game.player(g, seat).phase == :fortune_choice, do: g, else: finish(g, seat)
+    g = Game.update_player(g, seat, &%{&1 | phase: :stopped})
+    if length(g.seats) > 1, do: Game.record(g, seat, :stopped), else: g
   end
+
+  def step(g, seat, :resume),
+    do: g |> Game.update_player(seat, &%{&1 | phase: :potions}) |> Game.record(seat, :resumed)
 
   # Yellow (§4): the white chip directly before the yellow goes back in the bag; its
   # space stays empty, the yellow chip does not move back, the white sum reverts.
@@ -202,6 +208,14 @@ defmodule Quacks.Game.Potions do
       true ->
         g
     end
+  end
+
+  @doc false
+  # The stop is final. A card may open a choice on stop (B7); otherwise the player is
+  # done (after the red chips beside the pot).
+  def stop(g, seat) do
+    g = Fortune.on_stop(g, seat)
+    if Game.player(g, seat).phase == :fortune_choice, do: g, else: finish(g, seat)
   end
 
   @doc false

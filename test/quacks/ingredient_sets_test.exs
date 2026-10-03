@@ -10,7 +10,9 @@ defmodule Quacks.IngredientSetsTest do
 
   @seed {1, 2, 3}
 
-  defp new(sets), do: Game.new(seed: @seed, fortune: false, sets: sets)
+  @limited %{supply: :limited}
+
+  defp new(sets), do: Game.new(seed: @seed, fortune: false, sets: sets, rules: @limited)
 
   defp effect?(g, book, detail), do: {0, {:effect, book, detail}} in g.log
 
@@ -60,9 +62,9 @@ defmodule Quacks.IngredientSetsTest do
     end
 
     test "the shop charges the game's set prices" do
-      g = put(new(%{red: 3}), phase: :buy_chips, coins: 5)
+      g = put(new(%{red: 3}), phase: :buy, coins: 5)
       assert {:buy, [{:red, 1}]} in Game.legal_actions(g)
-      refute {:buy, [{:red, 1}]} in Game.legal_actions(put(new(%{}), phase: :buy_chips, coins: 5))
+      refute {:buy, [{:red, 1}]} in Game.legal_actions(put(new(%{}), phase: :buy, coins: 5))
       assert me(apply!(g, {:buy, [{:red, 1}]})).coins == 0
     end
   end
@@ -120,7 +122,7 @@ defmodule Quacks.IngredientSetsTest do
 
       # the last choice ends the turn; steps C/D ran and the shop is open
       g = apply!(g, {:chip, {:gain, {:orange, 1}}})
-      assert g.phase == :buy_chips and me(g).chip_choices == []
+      assert Game.phase(g, 0) == :buy and me(g).chip_choices == []
       assert me(g).coins == PotTrack.at(11).coins
     end
 
@@ -129,7 +131,7 @@ defmodule Quacks.IngredientSetsTest do
       assert chip_actions(g) == [{:chip, {:gain, {:yellow, 1}}}, {:chip, {:gain, {:purple, 1}}}]
       bag = me(g).bag
       g = apply!(g, :chip_done)
-      assert g.phase == :buy_chips and me(g).bag == bag
+      assert Game.phase(g, 0) == :buy and me(g).bag == bag
     end
 
     test "G4: pay up to 1 ruby per green on the last two chips, droplet +1 each" do
@@ -137,13 +139,13 @@ defmodule Quacks.IngredientSetsTest do
       g = new(%{green: 4}) |> put(rubies: 3) |> evaluate(pot)
       assert chip_actions(g) == [{:chip, {:pay_ruby_move, 1}}, {:chip, {:pay_ruby_move, 2}}]
       g = apply!(g, {:chip, {:pay_ruby_move, 2}})
-      assert me(g).rubies == 1 and me(g).droplet == 2 and g.phase == :buy_chips
+      assert me(g).rubies == 1 and me(g).droplet == 2 and Game.phase(g, 0) == :buy
       assert effect?(g, {:green, 4}, {:droplet, 2})
 
       # one ruby: one move at most; no ruby: no choice at all
       g = new(%{green: 4}) |> put(rubies: 1) |> evaluate(pot)
       assert chip_actions(g) == [{:chip, {:pay_ruby_move, 1}}]
-      assert new(%{green: 4}) |> put(rubies: 0) |> evaluate(pot) |> Map.get(:phase) == :buy_chips
+      assert new(%{green: 4}) |> put(rubies: 0) |> evaluate(pot) |> Game.phase(0) == :buy
     end
 
     test "choices go seat by seat from the start seat" do
@@ -155,7 +157,7 @@ defmodule Quacks.IngredientSetsTest do
       g = apply!(g, 0, :chip_done)
       assert g.turn == 1 and Game.legal_actions(g, 0) == []
       g = apply!(g, 1, {:chip, {:gain, {:orange, 1}}})
-      assert g.phase == :buy_chips
+      assert Game.phase(g, 0) == :buy
     end
   end
 
@@ -177,7 +179,7 @@ defmodule Quacks.IngredientSetsTest do
       p = me(g)
       assert Enum.count(p.drawn) == 2 and g.supply[{:purple, 1}] == supply[{:purple, 1}] + 2
       assert {:green, 1} in p.bag and {:blue, 2} in p.bag
-      assert p.vp == 3 and p.droplet == 1 and g.phase == :buy_chips
+      assert p.vp == 3 and p.droplet == 1 and Game.phase(g, 0) == :buy
       assert effect?(g, {:purple, 2}, {:trade, 2})
     end
 
@@ -205,7 +207,7 @@ defmodule Quacks.IngredientSetsTest do
       p = me(g)
       assert {:blue, 4} in p.bag and {:blue, 2} not in Game.pot_chips(g)
       assert effect?(g, {:purple, 4}, {:upgrade, {:blue, 2}, {:blue, 4}})
-      assert g.phase == :buy_chips
+      assert Game.phase(g, 0) == :buy
 
       # 3+ purple: 1 → 4 too
       g = evaluate(new(%{purple: 4}), [{{:red, 1}, 11} | Enum.take(@purples, 3)])
@@ -238,13 +240,13 @@ defmodule Quacks.IngredientSetsTest do
       assert g.phase == :potions
 
       g = apply!(g, {:red, {:return, {:red, 1}}})
-      assert {:red, 1} in me(g).bag and g.phase == :buy_chips
+      assert {:red, 1} in me(g).bag and Game.phase(g, 0) == :buy
     end
 
     test "a kept chip stays beside the pot into the next round" do
       g = force_draws(new(%{red: 2}), [{:white, 1}, {:red, 4}]) |> apply!(:stop)
       g = apply!(g, {:red, {:keep, {:red, 4}}})
-      assert g.phase == :buy_chips
+      assert Game.phase(g, 0) == :buy
       g = run(g, [{:buy, []}, :end_round])
       assert g.round == 2 and me(g).aside == [{:red, 4}]
       refute {:red, 4} in me(g).bag
@@ -270,7 +272,7 @@ defmodule Quacks.IngredientSetsTest do
       assert g.phase == :potions
 
       g = apply!(g, 0, {:red, {:keep, {:red, 1}}})
-      assert g.phase == :buy_chips
+      assert Game.phase(g, 0) == :buy
     end
   end
 
@@ -286,7 +288,7 @@ defmodule Quacks.IngredientSetsTest do
       space = PotTrack.at(9)
       assert p.vp == space.vp and p.coins == space.coins and p.rubies == 2
       refute Enum.any?(g.log, &match?({0, {:bonus_die, _}}, &1))
-      assert g.phase == :buy_chips
+      assert Game.phase(g, 0) == :buy
     end
 
     test "B2: outside the window the explosion is normal; windows take the larger" do
@@ -396,30 +398,34 @@ defmodule Quacks.IngredientSetsTest do
           ) do
       sets = %{green: green, blue: blue, red: red, yellow: yellow, purple: purple}
 
-      Enum.reduce_while(picks, Game.new(seed: seed, players: players, sets: sets), fn pick, g ->
-        active = Enum.filter(g.seats, &(Game.legal_actions(g, &1) != []))
+      Enum.reduce_while(
+        picks,
+        Game.new(seed: seed, players: players, sets: sets, rules: @limited),
+        fn pick, g ->
+          active = Enum.filter(g.seats, &(Game.legal_actions(g, &1) != []))
 
-        if Game.over?(g) do
-          {:halt, g}
-        else
-          assert active != []
-          seat = Enum.at(active, rem(pick, length(active)))
-          actions = Game.legal_actions(g, seat)
-          next = apply!(g, seat, Enum.at(actions, rem(div(pick, 7), length(actions))))
-          assert inventory(next) == inventory(g)
-          assert Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
-          assert Enum.all?(g.seats, &(me(next, &1).pot_index <= 53)) and next.round in 1..9
+          if Game.over?(g) do
+            {:halt, g}
+          else
+            assert active != []
+            seat = Enum.at(active, rem(pick, length(active)))
+            actions = Game.legal_actions(g, seat)
+            next = apply!(g, seat, Enum.at(actions, rem(div(pick, 7), length(actions))))
+            assert inventory(next) == inventory(g)
+            assert Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
+            assert Enum.all?(g.seats, &(me(next, &1).pot_index <= 53)) and next.round in 1..9
 
-          # B3 and B7 draws cannot explode the pot, even over the limit.
-          for s <- next.seats do
-            over? = Game.white_sum(next, s) > Potions.explode_above(next, s)
-            assert me(next, s).exploded? == over? or next.fortune_card in [:b3, :b7]
-            if me(next, s).exploded?, do: assert(over?)
+            # B3 and B7 draws cannot explode the pot, even over the limit.
+            for s <- next.seats do
+              over? = Game.white_sum(next, s) > Potions.explode_above(next, s)
+              assert me(next, s).exploded? == over? or next.fortune_card in [:b3, :b7]
+              if me(next, s).exploded?, do: assert(over?)
+            end
+
+            {:cont, next}
           end
-
-          {:cont, next}
         end
-      end)
+      )
     end
   end
 end

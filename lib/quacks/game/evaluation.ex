@@ -38,7 +38,7 @@ defmodule Quacks.Game.Evaluation do
           do: {{colour, from}, {colour, to}, tier}
 
   @doc """
-  Die → chip actions → (choices) → scoring space, for every seat; then `:buy_chips`.
+  Die → chip actions → (choices) → scoring space, for every seat; then `:shopping`.
   With a choice open, the game waits in `:chip_choice` instead.
   """
   @spec run(Game.t()) :: Game.t()
@@ -85,7 +85,7 @@ defmodule Quacks.Game.Evaluation do
   def score(g) do
     order = Game.turn_order(g)
     g = Enum.reduce(order, g, &payout(&2, &1))
-    g |> Fortune.refill_flasks() |> Game.to_shop(order)
+    g |> Fortune.refill_flasks() |> Game.to_shop()
   end
 
   # Step A: among the non-exploded players the highest scoring space rolls; a true
@@ -305,7 +305,8 @@ defmodule Quacks.Game.Evaluation do
     p.chip_choices |> Enum.flat_map(&options(g, p, &1)) |> Enum.uniq()
   end
 
-  defp options(g, _p, {:gain, v}), do: for(chip <- @g2[v], g.supply[chip] > 0, do: {:gain, chip})
+  defp options(g, _p, {:gain, v}),
+    do: for(chip <- @g2[v], Game.in_supply?(g, chip), do: {:gain, chip})
 
   defp options(_g, p, {:ruby_move, n}),
     do: for(k <- 1..min(n, p.rubies)//1, do: {:pay_ruby_move, k})
@@ -325,7 +326,11 @@ defmodule Quacks.Game.Evaluation do
   defp options(g, p, {:upgrade, tier}) do
     pot = Player.pot_chips(p)
 
-    for {from, to, t} <- @p4, t <= tier, from in pot, g.supply[to] > 0, do: {:upgrade, from, to}
+    for {from, to, t} <- @p4,
+        t <= tier,
+        from in pot,
+        Game.in_supply?(g, to),
+        do: {:upgrade, from, to}
   end
 
   defp choose(g, seat, {:gain, chip}) do
@@ -416,7 +421,7 @@ defmodule Quacks.Game.Evaluation do
   defp discard(g, seat, chip) do
     g
     |> Game.update_player(seat, &%{&1 | drawn: List.keydelete(&1.drawn, chip, 0)})
-    |> Map.update!(:supply, &Map.update!(&1, chip, fn n -> n + 1 end))
+    |> Game.return_supply(chip)
   end
 
   # Black Set 5: a ruby per black chip in the left player's pot (solo: none) and per

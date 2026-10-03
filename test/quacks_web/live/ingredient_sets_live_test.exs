@@ -17,7 +17,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
       {:ok, %{game: game}} = GameServer.get(id)
       actions = Game.legal_actions(game, 0)
 
-      if game.phase == :buy_chips do
+      if game.phase == :shopping do
         {:halt, game}
       else
         preferred = [:stop, :chip_done, {:explosion_choice, :buy}]
@@ -41,7 +41,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
     assert game.sets == %{green: 2, blue: 1, red: 1, yellow: 1, purple: 1}
 
     {:ok, game_view, _html} = live(conn, ~p"/g/#{id}")
-    assert %Game{phase: :buy_chips} = to_shop(id)
+    assert %Game{phase: :shopping} = to_shop(id)
     render(game_view)
 
     assert has_element?(game_view, "[data-role=books]", "green 2 · blue 1")

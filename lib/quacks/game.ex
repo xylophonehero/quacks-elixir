@@ -8,9 +8,10 @@ defmodule Quacks.Game do
 
   Each seat (`0..3`, turn order) has a `Quacks.Player`. Game phases: `:potions`, where
   every player not yet `:done` acts in any order (each has their own potions-phase
-  `phase`), then — as soon as the last player is done — the evaluation runs inside
-  `apply/3` and the game moves to `:buy_chips` and `:spend_rubies`, where exactly one
-  seat (`turn`) acts at a time, in seat order from the round's start player. Ingredient
+  `phase`; `:stop` only marks a player `:stopped`, and they may `:resume` while
+  someone else still brews), then — as soon as nobody brews any more — the evaluation
+  runs inside `apply/3` and the game moves to `:shopping`, where every seat acts at
+  the same time in its own sub-phase (`:buy` → `:rubies` → `:ready`). Ingredient
   books with a choice in the evaluation (G2, G4, P2, P4) put the game in `:chip_choice`
   first, one `turn` seat at a time (`Quacks.Game.Evaluation`). After
   round 9 the phase is `:over`. The struct never rests without a legal action for
@@ -60,6 +61,17 @@ defmodule Quacks.Game do
   # ⚠️ Locoweed enters the shop in round 1 (not in the rulebook; `herb-witches.md` §1.2).
   @expansion_sets %{black: 1, locoweed: 5}
   # House rules (research `ingredient-sets-and-customisation.md` Part 2b): the rulebook game.
+  # The values each house rule accepts.
+  @rule_values %{
+    explode_above: 5..9,
+    round6_white: [true, false],
+    fortune: [true, false],
+    rats: [true, false],
+    black_solo: [:droplet, :droplet_ruby],
+    die: [:standard, :no_orange],
+    starting_rubies: 0..3,
+    supply: [:infinite, :limited]
+  }
   @rules %{
     explode_above: 7,
     round6_white: true,
@@ -67,7 +79,8 @@ defmodule Quacks.Game do
     rats: true,
     black_solo: :droplet,
     die: :standard,
-    starting_rubies: 1
+    starting_rubies: 1,
+    supply: :infinite
   }
 
   defstruct round: 1,
@@ -91,12 +104,12 @@ defmodule Quacks.Game do
           | :fortune_choice
           | :chip_choice
           | :witch_choice
-          | :buy_chips
-          | :spend_rubies
+          | :shopping
           | :over
   @type action ::
           :draw
           | :stop
+          | :resume
           | :use_flask
           | :return_white
           | :keep
@@ -165,6 +178,8 @@ defmodule Quacks.Game do
           | {:bowl, [Chips.chip()], non_neg_integer}
           | {:returned, Chips.chip()}
           | {:exploded, non_neg_integer}
+          | :stopped
+          | :resumed
           | {:bought, [Chips.chip()]}
           | {:rubies_spent, :droplet | :flask}
           | {:rubies_spent, :droplet | :flask, 1}
@@ -215,7 +230,9 @@ defmodule Quacks.Game do
   House rules; the defaults (`default_rules/0`) are the rulebook game.
   `explode_above` is the white limit before chips and cards raise it, `black_solo`
   the solo black payout (rulebook §6.2 suggests `:droplet_ruby`), `die: :no_orange`
-  turns the orange face into a second ruby face (⚠️ unofficial).
+  turns the orange face into a second ruby face (⚠️ unofficial). `supply: :infinite`
+  (default) means the shop never runs out and `supply` is never counted down;
+  `:limited` plays with the box's counts.
   """
   @type rules :: %{
           explode_above: 5..9,
@@ -224,7 +241,8 @@ defmodule Quacks.Game do
           rats: boolean,
           black_solo: :droplet | :droplet_ruby,
           die: :standard | :no_orange,
-          starting_rubies: 0..3
+          starting_rubies: 0..3,
+          supply: :infinite | :limited
         }
 
   @doc """
@@ -269,12 +287,13 @@ defmodule Quacks.Game do
     bag = Chips.starting_bag()
     starting = List.flatten(List.duplicate(bag, n))
 
+    # An infinite supply is the box itself, never counted down.
+    box = Chips.supply(expansion, sets)
+
     supply =
-      Enum.reduce(
-        starting,
-        Chips.supply(expansion, sets),
-        &Map.update!(&2, &1, fn c -> c - 1 end)
-      )
+      if rules.supply == :limited,
+        do: Enum.reduce(starting, box, &Map.update!(&2, &1, fn c -> c - 1 end)),
+        else: box
 
     rng = :rand.seed_s(:exsss, seed)
     deck = if rules.fortune, do: Fortune.deck(rng, n), else: []
@@ -327,10 +346,8 @@ defmodule Quacks.Game do
     rules = Map.merge(@rules, rules)
 
     valid? =
-      map_size(rules) == map_size(@rules) and rules.explode_above in 5..9 and
-        is_boolean(rules.round6_white) and is_boolean(rules.fortune) and
-        is_boolean(rules.rats) and rules.black_solo in [:droplet, :droplet_ruby] and
-        rules.die in [:standard, :no_orange] and rules.starting_rubies in 0..3
+      map_size(rules) == map_size(@rules) and
+        Enum.all?(rules, fn {key, value} -> value in @rule_values[key] end)
 
     if not valid?, do: raise(ArgumentError, "bad rules: #{inspect(rules)}")
     rules
@@ -344,10 +361,14 @@ defmodule Quacks.Game do
   @spec score(t) :: %{seat => non_neg_integer}
   def score(%__MODULE__{players: players}), do: Map.new(players, fn {seat, p} -> {seat, p.vp} end)
 
-  @doc "The phase `seat` sees: their own potions-phase state, or the game's phase."
+  @doc """
+  The phase `seat` sees: their own state in `:potions` and `:shopping` (`:buy`,
+  `:rubies`, `:ready`), or the game's phase.
+  """
   @spec phase(t, seat) :: phase | Player.phase()
-  def phase(%__MODULE__{phase: :potions, players: players}, seat) when is_map_key(players, seat),
-    do: players[seat].phase
+  def phase(%__MODULE__{phase: phase, players: players}, seat)
+      when phase in [:potions, :shopping] and is_map_key(players, seat),
+      do: players[seat].phase
 
   def phase(%__MODULE__{phase: phase}, _seat), do: phase
 
@@ -369,8 +390,9 @@ defmodule Quacks.Game do
 
   @doc """
   Every action `apply/3` accepts for `seat` right now. During `:potions` every seat
-  not yet done has actions; in the shop and rubies phases only `turn` has. Empty for
-  every seat only when `over?/1`.
+  not yet done has actions (a `:stopped` seat only `:resume`, and only while another
+  seat still brews); during `:shopping` every seat not yet `:ready`; in the choice
+  phases only `turn`. Empty for every seat only when `over?/1`.
   """
   @spec legal_actions(t, seat) :: [action]
   def legal_actions(game, seat \\ 0)
@@ -383,6 +405,11 @@ defmodule Quacks.Game do
     case player(g, seat) do
       %Player{phase: :potions, witch_offer: [_ | _]} ->
         Witches.legal_actions(g, seat)
+
+      %Player{phase: :stopped} ->
+        if Enum.any?(g.seats, &(&1 != seat and brewing?(player(g, &1)))),
+          do: [:resume],
+          else: []
 
       _ ->
         Potions.legal_actions(g, seat) ++
@@ -399,18 +426,22 @@ defmodule Quacks.Game do
   def legal_actions(%__MODULE__{phase: :witch_choice, turn: seat} = g, seat),
     do: Witches.legal_actions(g, seat) ++ [:witch_done]
 
-  def legal_actions(%__MODULE__{phase: :buy_chips, turn: seat} = g, seat),
-    do: Enum.map(buys(g, player(g, seat).coins), &{:buy, &1}) ++ Witches.legal_actions(g, seat)
+  def legal_actions(%__MODULE__{phase: :shopping} = g, seat) do
+    case player(g, seat) do
+      %Player{phase: :buy, coins: coins} ->
+        Enum.map(buys(g, coins), &{:buy, &1}) ++ Witches.legal_actions(g, seat)
 
-  def legal_actions(%__MODULE__{phase: :spend_rubies, turn: seat} = g, seat) do
-    %{rubies: rubies, flask: flask, ruby_price: price} = player(g, seat)
+      %Player{phase: :rubies, rubies: rubies, flask: flask, ruby_price: price} ->
+        List.flatten([
+          if(rubies >= price, do: {:rubies, :droplet}, else: []),
+          if(rubies >= price and not flask, do: {:rubies, :flask}, else: []),
+          Witches.legal_actions(g, seat),
+          :end_round
+        ])
 
-    List.flatten([
-      if(rubies >= price, do: {:rubies, :droplet}, else: []),
-      if(rubies >= price and not flask, do: {:rubies, :flask}, else: []),
-      Witches.legal_actions(g, seat),
-      :end_round
-    ])
+      %Player{phase: :ready} ->
+        []
+    end
   end
 
   def legal_actions(%__MODULE__{}, _seat), do: []
@@ -454,6 +485,7 @@ defmodule Quacks.Game do
         _ -> Potions.step(g, seat, action)
       end
 
+    g = settle_stops(g)
     if Enum.all?(g.players, fn {_seat, p} -> p.done? end), do: Fortune.after_potions(g), else: g
   end
 
@@ -465,7 +497,7 @@ defmodule Quacks.Game do
 
   defp step(%{phase: :chip_choice} = g, seat, action), do: Evaluation.step(g, seat, action)
 
-  # -- witches outside the potions phase (gold choice, shop, rubies) ----------------
+  # -- witches outside the potions phase (gold choice, shopping) ----------------------
 
   defp step(g, seat, {:witch, _} = action), do: Witches.step(g, seat, action)
   defp step(g, seat, {:witch, _, _} = action), do: Witches.step(g, seat, action)
@@ -473,12 +505,12 @@ defmodule Quacks.Game do
   defp step(%{phase: :witch_choice} = g, seat, :witch_done),
     do: Witches.step(g, seat, :witch_done)
 
-  # -- shop and rubies: one seat at a time, in turn order ---------------------------
+  # -- shopping: every seat at once, each in its own sub-phase ------------------------
 
-  defp step(%{phase: :buy_chips} = g, seat, {:buy, chips}),
-    do: g |> buy(seat, chips) |> to_shop(seats_after(g, seat))
+  defp step(%{phase: :shopping} = g, seat, {:buy, chips}),
+    do: g |> buy(seat, chips) |> done_buying(seat)
 
-  defp step(%{phase: :spend_rubies} = g, seat, {:rubies, what}) do
+  defp step(%{phase: :shopping} = g, seat, {:rubies, what}) do
     price = player(g, seat).ruby_price
 
     g =
@@ -495,12 +527,31 @@ defmodule Quacks.Game do
       else: record(g, seat, {:rubies_spent, what, price})
   end
 
-  defp step(%{phase: :spend_rubies} = g, seat, :end_round) do
-    case seats_after(g, seat) do
-      [next | _] -> %{g | turn: next}
-      [] -> end_round(g)
+  # The last seat to get `:ready` ends the round.
+  defp step(%{phase: :shopping} = g, seat, :end_round) do
+    g = update_player(g, seat, &%{&1 | phase: :ready})
+    if Enum.all?(g.seats, &(player(g, &1).phase == :ready)), do: end_round(g), else: g
+  end
+
+  # Soft stop: once every player is `:stopped` or `:done`, nobody can resume any more,
+  # so the stops become final (B1, B7 and red chips beside the pot act now), start
+  # seat first.
+  defp settle_stops(g) do
+    phases = Enum.map(g.seats, &player(g, &1).phase)
+
+    if :stopped in phases and Enum.all?(phases, &(&1 in [:stopped, :done])) do
+      g
+      |> turn_order()
+      |> Enum.filter(&(player(g, &1).phase == :stopped))
+      |> Enum.reduce(g, &Potions.stop(&2, &1))
+    else
+      g
     end
   end
+
+  # Still drawing (or deciding about a chip just drawn): a stopped player may resume.
+  defp brewing?(%Player{phase: phase}),
+    do: phase in [:potions, :yellow_choice, :blue_choice, :chip_choice]
 
   # Rulebook §7: 5 coins or 2 rubies buy 1 VP, as often as you like.
   defp end_round(%{round: @rounds} = g) do
@@ -618,17 +669,31 @@ defmodule Quacks.Game do
 
   # A chip can be bought or taken: its book is out this round and the box has one.
   @doc false
-  def available?(%__MODULE__{round: round, supply: supply}, {colour, _} = chip),
-    do: round >= Map.get(@from_round, colour, 1) and Map.fetch!(supply, chip) > 0
+  def available?(%__MODULE__{round: round} = g, {colour, _} = chip),
+    do: round >= Map.get(@from_round, colour, 1) and in_supply?(g, chip)
 
+  # The box has `n` of `chip`; an infinite supply always has (if the chip is in the box).
   @doc false
+  def in_supply?(%__MODULE__{} = g, chip, n \\ 1),
+    do: Map.has_key?(g.supply, chip) and (g.rules.supply == :infinite or g.supply[chip] >= n)
+
+  # An infinite supply is never counted: taking and returning leave it as it is.
+  @doc false
+  def take_supply(%__MODULE__{rules: %{supply: :infinite}} = g, _chip), do: g
+
   def take_supply(%__MODULE__{} = g, chip),
     do: %{g | supply: Map.update!(g.supply, chip, &(&1 - 1))}
+
+  @doc false
+  def return_supply(%__MODULE__{rules: %{supply: :infinite}} = g, _chip), do: g
+
+  def return_supply(%__MODULE__{} = g, chip),
+    do: %{g | supply: Map.update!(g.supply, chip, &(&1 + 1))}
 
   # Move a chip from the supply into a bag; nothing happens when the box is empty.
   @doc false
   def add_from_supply(%__MODULE__{} = g, seat, chip) do
-    if g.supply[chip] > 0,
+    if in_supply?(g, chip),
       do: g |> take_supply(chip) |> update_player(seat, &%{&1 | bag: [chip | &1.bag]}),
       else: g
   end
@@ -646,7 +711,7 @@ defmodule Quacks.Game do
     case left(g, seat) do
       nil ->
         g
-        |> Map.update!(:supply, &Map.update!(&1, {:black, 1}, fn n -> n + 1 end))
+        |> return_supply({:black, 1})
         |> effect(seat, {:black, 5}, :to_supply)
 
       left ->
@@ -670,19 +735,21 @@ defmodule Quacks.Game do
   @doc false
   def seats_after(g, seat), do: g |> turn_order() |> Enum.drop_while(&(&1 != seat)) |> tl()
 
-  # Open the shop for the first of `seats` that may buy (an exploded player who took
-  # the VP skips it, unless a copper witch still helps them: `Witches.shop_turn?/2`);
-  # with nobody left, or in round 9, go to the rubies phase.
+  # Open the shop for every seat at once: each player buys (`:buy`), then spends
+  # rubies (`:rubies`). An exploded player who took the VP skips `:buy`, unless a
+  # copper witch still helps them there (`Witches.shop_turn?/2`).
   # ponytail: round 9 skips the shop; chips bought now are useless (§7). Coins stay on
   # the player and convert to VP in `:end_round`.
   @doc false
-  def to_shop(%__MODULE__{round: @rounds} = g, _seats),
-    do: %{g | phase: :spend_rubies, turn: start_seat(g)}
-
-  def to_shop(%__MODULE__{} = g, seats) do
-    case Enum.find(seats, &(player(g, &1).explosion_choice != :vp or Witches.shop_turn?(g, &1))) do
-      nil -> %{g | phase: :spend_rubies, turn: start_seat(g)}
-      seat -> %{g | phase: :buy_chips, turn: seat}
-    end
+  def to_shop(%__MODULE__{} = g) do
+    Enum.reduce(g.seats, %{g | phase: :shopping, turn: nil}, fn seat, g ->
+      p = player(g, seat)
+      buy? = p.explosion_choice != :vp or Witches.shop_turn?(g, seat)
+      sub = if g.round < @rounds and buy?, do: :buy, else: :rubies
+      update_player(g, seat, &%{&1 | phase: sub})
+    end)
   end
+
+  @doc false
+  def done_buying(g, seat), do: update_player(g, seat, &%{&1 | phase: :rubies})
 end

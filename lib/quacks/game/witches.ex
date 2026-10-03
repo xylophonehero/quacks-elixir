@@ -10,10 +10,10 @@ defmodule Quacks.Game.Witches do
 
   - **silver**, potions phase: S2 (draw 6) and S3 (whites back) while brewing, S1
     (flask) and S4 (no penalty) in the explosion choice;
-  - **copper**, shop: in the seat's `:buy_chips` turn (C2 and C4 also in round 9's
-    `:spend_rubies` turn, before the coins become VP);
+  - **copper**, shop: in the seat's `:buy` sub-phase of `:shopping` (C2 and C4 also in
+    round 9's `:rubies` sub-phase, before the coins become VP);
   - **gold**, evaluation: G1–G3 in the game phase `:witch_choice` (after step B, before
-    steps C/D; seat by seat, only seats she helps), G4 in the `:spend_rubies` turn.
+    steps C/D; seat by seat, only seats she helps), G4 in the `:rubies` sub-phase.
 
   Actions: `{:witch, colour}` calls a witch that needs no choice; `{:witch, colour,
   choice}` calls one with a choice (S3 `1 | 2`, C1 `{:upgrade, chips}`, C3 `{:buy,
@@ -65,11 +65,10 @@ defmodule Quacks.Game.Witches do
   defp now?(%{phase: :potions}, _seat, p, :silver),
     do: p.phase in [:potions, :explosion_choice] and p.witch_offer == []
 
-  defp now?(%{phase: :buy_chips, turn: seat}, seat, _p, :copper), do: true
-  defp now?(%{phase: :spend_rubies, turn: seat, round: 9}, seat, _p, :copper), do: true
-
-  defp now?(%{phase: phase, turn: seat}, seat, _p, :gold),
-    do: phase in [:witch_choice, :spend_rubies]
+  defp now?(%{phase: :shopping}, _seat, %{phase: :buy}, :copper), do: true
+  defp now?(%{phase: :shopping, round: 9}, _seat, %{phase: :rubies}, :copper), do: true
+  defp now?(%{phase: :shopping}, _seat, %{phase: :rubies}, :gold), do: true
+  defp now?(%{phase: :witch_choice, turn: seat}, seat, _p, :gold), do: true
 
   defp now?(_g, _seat, _p, _colour), do: false
 
@@ -89,15 +88,15 @@ defmodule Quacks.Game.Witches do
 
   defp actions(_g, %{phase: :explosion_choice}, :s4), do: [{:witch, :silver}]
 
-  defp actions(%{phase: :buy_chips} = g, p, :c1),
+  defp actions(g, %{phase: :buy} = p, :c1),
     do: for(chips <- upgrades(g, p), do: {:witch, :copper, {:upgrade, chips}})
 
   defp actions(_g, %{coins: coins}, :c2) when coins > 0, do: [{:witch, :copper}]
 
-  defp actions(%{phase: :buy_chips} = g, p, :c3) do
+  defp actions(g, %{phase: :buy} = p, :c3) do
     for chips <- Game.buys(g, p.coins),
         copy <- Enum.uniq(chips),
-        g.supply[copy] > Enum.count(chips, &(&1 == copy)),
+        Game.in_supply?(g, copy, Enum.count(chips, &(&1 == copy)) + 1),
         do: {:witch, :copper, {:buy, chips, copy}}
   end
 
@@ -106,7 +105,7 @@ defmodule Quacks.Game.Witches do
   defp actions(%{phase: :witch_choice} = g, p, id) when id in [:g1, :g2, :g3],
     do: if(gold_gain(g, p, id) > 0, do: [{:witch, :gold}], else: [])
 
-  defp actions(%{phase: :spend_rubies}, _p, :g4), do: [{:witch, :gold}]
+  defp actions(_g, %{phase: :rubies}, :g4), do: [{:witch, :gold}]
   defp actions(_g, _p, _id), do: []
 
   @doc """
@@ -121,7 +120,7 @@ defmodule Quacks.Game.Witches do
     id = g.witches.copper
 
     p.pennies[:copper] == true and id in [:c1, :c4] and
-      actions(%{g | phase: :buy_chips}, p, id) != []
+      actions(g, %{p | phase: :buy}, id) != []
   end
 
   @doc """
@@ -215,7 +214,7 @@ defmodule Quacks.Game.Witches do
     |> gold_turn(Game.seats_after(g, seat))
   end
 
-  # G4: 1 ruby per droplet or flask for the rest of this end-of-round turn.
+  # G4: 1 ruby per droplet or flask for the rest of this `:rubies` sub-phase.
   defp call(g, seat, :g4),
     do: g |> Game.update_player(seat, &%{&1 | ruby_price: 1}) |> log(seat, :g4, :ruby_price)
 
@@ -241,18 +240,18 @@ defmodule Quacks.Game.Witches do
     |> Enum.reduce(g, fn chip, g ->
       g
       |> Game.update_player(seat, &%{&1 | drawn: List.keydelete(&1.drawn, chip, 0)})
-      |> Map.update!(:supply, &Map.update!(&1, chip, fn n -> n + 1 end))
+      |> Game.return_supply(chip)
       |> Game.add_from_supply(seat, @upgrade[chip])
     end)
     |> log(seat, :c1, {:upgrade, chips})
   end
 
-  # C3: buy `chips` and take one more `copy` for free; the shop turn ends.
+  # C3: buy `chips` and take one more `copy` for free; the seat's buying ends.
   defp call(g, seat, :c3, {:buy, chips, copy}) do
     g
     |> Game.buy(seat, chips, [copy])
     |> log(seat, :c3, {:copy, copy})
-    |> Game.to_shop(Game.seats_after(g, seat))
+    |> Game.done_buying(seat)
   end
 
   # C1 choices: one upgradable pot chip, or the last two chips when both are.
@@ -271,7 +270,7 @@ defmodule Quacks.Game.Witches do
     chips
     |> Enum.map(&@upgrade[&1])
     |> Enum.frequencies()
-    |> Enum.all?(fn {chip, n} -> g.supply[chip] >= n end)
+    |> Enum.all?(fn {chip, n} -> Game.in_supply?(g, chip, n) end)
   end
 
   # What a gold witch G1–G3 would give `p` now: VP (G1, G2) or rubies (G3).
