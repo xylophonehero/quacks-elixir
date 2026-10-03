@@ -62,6 +62,10 @@ defmodule Quacks.AI do
   defp choose(:chip_choice, ctx, rng), do: {first(ctx.legal, &(&1 != :chip_done)), rng}
   defp choose(:witch_choice, ctx, rng), do: {first(ctx.legal, &(&1 != :witch_done)), rng}
   defp choose(:fortune_choice, ctx, rng), do: random(undominated(ctx), rng)
+  # Reverse pot side: the test tube while it is legal (until glass 12), else the pot.
+  defp choose(:droplet_choice, ctx, rng),
+    do: {first(ctx.legal, &(&1 == {:droplet, :tube})) || hd(ctx.legal), rng}
+
   defp choose(:shop, ctx, rng), do: {Shop.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
   defp choose(_phase, ctx, rng), do: {hd(ctx.legal), rng}
 

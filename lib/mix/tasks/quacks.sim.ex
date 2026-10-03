@@ -6,7 +6,8 @@ defmodule Mix.Tasks.Quacks.Sim do
       mix quacks.sim --games 500 --profiles balanced,reckless,cautious,balanced --seed 1
 
   Options: `--games` (default 100), `--profiles` (comma list of cautious, balanced,
-  reckless; one per seat; default balanced,balanced), `--seed` (default 1).
+  reckless; one per seat; default balanced,balanced), `--seed` (default 1),
+  `--rules` (house rules as `key:value` pairs, comma list, e.g. `pot_side:back`).
   """
 
   use Mix.Task
@@ -16,10 +17,19 @@ defmodule Mix.Tasks.Quacks.Sim do
   @impl true
   def run(argv) do
     {opts, _, _} =
-      OptionParser.parse(argv, strict: [games: :integer, profiles: :string, seed: :integer])
+      OptionParser.parse(argv,
+        strict: [games: :integer, profiles: :string, seed: :integer, rules: :string]
+      )
 
     profiles = opts |> Keyword.get(:profiles, "balanced,balanced") |> parse_profiles()
-    summary = Sim.run(games: opts[:games] || 100, profiles: profiles, seed: opts[:seed] || 1)
+
+    summary =
+      Sim.run(
+        games: opts[:games] || 100,
+        profiles: profiles,
+        seed: opts[:seed] || 1,
+        rules: parse_rules(opts[:rules] || "")
+      )
 
     Mix.shell().info("#{summary.games} games, #{summary.players} players\n")
 
@@ -56,6 +66,18 @@ defmodule Mix.Tasks.Quacks.Sim do
 
     for name <- String.split(text, ",", trim: true) do
       Map.get(known, String.trim(name)) || Mix.raise("unknown profile #{inspect(name)}")
+    end
+  end
+
+  # Only atom-valued rules (e.g. `pot_side:back`); the values must already exist as atoms.
+  defp parse_rules(text) do
+    Code.ensure_loaded!(Quacks.Game)
+
+    for pair <- String.split(text, ",", trim: true), into: %{} do
+      case String.split(pair, ":", parts: 2) do
+        [key, value] -> {String.to_existing_atom(key), String.to_existing_atom(value)}
+        _ -> Mix.raise("bad rule #{inspect(pair)}, expected key:value")
+      end
     end
   end
 

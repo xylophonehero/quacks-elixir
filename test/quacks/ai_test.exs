@@ -97,6 +97,16 @@ defmodule Quacks.AITest do
     assert action(put(after_buy, rubies: 0)) == :end_round
   end
 
+  test "reverse pot side: droplets and ruby droplets go to the test tube until glass 12" do
+    game =
+      Game.new(seed: @seed, rules: %{fortune: false, pot_side: :back})
+      |> put(round: 4, phase: :buy, coins: 20, rubies: 3)
+
+    assert action(put(game, droplet_moves: 1)) == {:droplet, :tube}
+    assert action(put(game, bought?: true)) == {:rubies, :tube}
+    assert action(put(game, bought?: true, tube: 12)) == {:rubies, :droplet}
+  end
+
   test "round 9 shop turns rubies into VP, then ends" do
     game = Game.new(seed: @seed, fortune: false) |> put(round: 9, phase: :shop, rubies: 3)
     assert action(game) == {:rubies, :vp}

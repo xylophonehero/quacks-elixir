@@ -64,9 +64,11 @@ defmodule Quacks.AI.Shop do
   defp penalty(_chip, _round, _blacks, _profile), do: 0.0
 
   # The first ruby buy of the plan that is legal; droplets only up to `droplet_until`.
+  # On the reverse pot side a droplet buy goes to the test tube while it can.
   defp rubies(game, profile, legal) do
     Enum.find_value(profile.ruby_plan, fn
       :droplet when game.round > profile.droplet_until -> nil
+      :droplet -> Enum.find([{:rubies, :tube}, {:rubies, :droplet}], &(&1 in legal))
       what -> if {:rubies, what} in legal, do: {:rubies, what}
     end)
   end
