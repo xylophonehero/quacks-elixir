@@ -47,7 +47,15 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     refute has_element?(bob, "button", "Undo")
     # only the buyer gets the shop dialog; the other one sees the turn line
     assert has_element?(alice, "dialog#decision-buy_chips")
-    refute has_element?(bob, "dialog")
+    refute has_element?(bob, "dialog#decision-buy_chips")
+    # both get the round results, with each seat's bonus die and totals
+    for view <- [alice, bob], seat <- [0, 1] do
+      assert has_element?(
+               view,
+               ~s(dialog#round-results [data-seat="#{seat}"] [data-role=result-total])
+             )
+    end
+
     assert has_element?(bob, ~s(button[popovertarget="sheet-players"]), "Players")
   end
 

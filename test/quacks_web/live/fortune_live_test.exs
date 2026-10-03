@@ -32,12 +32,12 @@ defmodule QuacksWeb.FortuneLiveTest do
     {:ok, view, _html} = live_game(conn, {30, 30, 30})
     assert has_element?(view, "[data-role=fortune-card][data-colour=purple]", "Boomberry Cleanse")
     assert has_element?(view, "dd", "Fortune teller")
-    refute has_element?(view, "button", "Draw a chip")
+    assert has_element?(view, "button[data-slot=draw][disabled]", "Draw a chip")
 
     view |> element("button", "Score 4 VP") |> render_click()
 
     assert has_element?(view, "li", "Boomberry Cleanse: +4 VP")
-    assert has_element?(view, "button", "Draw a chip")
+    refute has_element?(view, "button[data-slot=draw][disabled]")
     assert has_element?(view, "dd", "Brewing")
   end
 

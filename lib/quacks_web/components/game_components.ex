@@ -27,6 +27,23 @@ defmodule QuacksWeb.GameComponents do
   # The witch penny colours, as background classes.
   @pennies %{silver: "bg-penny-silver", copper: "bg-penny-copper", gold: "bg-penny-gold"}
 
+  # Seat colours (theme tokens `--color-seat-N`), as full class names so Tailwind
+  # finds them in the source.
+  @seat_bg %{
+    0 => "bg-seat-0",
+    1 => "bg-seat-1",
+    2 => "bg-seat-2",
+    3 => "bg-seat-3",
+    4 => "bg-seat-4"
+  }
+  @seat_border %{
+    0 => "border-seat-0",
+    1 => "border-seat-1",
+    2 => "border-seat-2",
+    3 => "border-seat-3",
+    4 => "border-seat-4"
+  }
+
   # Chips with a light face get dark ink for their value (contrast >= 4.5:1).
   @light_chips [:white, :orange, :green, :yellow]
 
@@ -108,8 +125,15 @@ defmodule QuacksWeb.GameComponents do
   `size={:lg}` (your own pot) shows each space's coins (top tag), victory points
   (lower tag) and a ruby gem. `size={:sm}` (another player's pot) shows only the
   chips. In both, the droplet is a blue drop on its space, placed chips sit on their
-  spaces, the scoring space (the one directly after the last chip) has a gold ring
-  and the rat stone, when the player has one, is a grey pebble on its space.
+  spaces and the rat stone, when the player has one, is a grey pebble on its space.
+
+  Scoring spaces (the space directly after the last chip) are rings in the seat
+  colours. `rings` maps seat => scoring space; by default only this seat's ring
+  shows. When seats share a space, the ring splits into one arc per seat.
+
+  An exploded pot gets a red, cracked rim. `flask` (`:full` or `:empty`) draws the
+  flask in the corner; with `flask_click` set it glows and a click sends it as the
+  `"action"` event's value.
 
   The SVG scales to its box and keeps its shape, so `class="block size-full"` fits
   the whole pot into whatever space the page gives it. On phones the VP tags are too
@@ -119,15 +143,19 @@ defmodule QuacksWeb.GameComponents do
   attr :seat, :integer, default: 0
   attr :size, :atom, default: :lg, values: [:sm, :lg]
   attr :class, :string, default: "block h-auto w-full"
+  attr :rings, :map, default: nil, doc: "`%{seat => scoring index}`; nil: this seat only"
+  attr :flask, :atom, default: nil, values: [nil, :full, :empty]
+  attr :flask_click, :string, default: nil, doc: "the encoded `:use_flask` when legal"
 
   def pot(assigns) do
     player = assigns.game.players[assigns.seat]
+    rings = assigns.rings || %{assigns.seat => Game.scoring_index(assigns.game, assigns.seat)}
 
     assigns =
       assign(assigns,
         me: player,
         chips_by_index: chips_by_index(player),
-        scoring_index: Game.scoring_index(assigns.game, assigns.seat),
+        rings_by_index: rings |> Enum.sort() |> Enum.group_by(&elem(&1, 1), &elem(&1, 0)),
         rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
         spaces: 0..PotTrack.last(),
         groove: @groove
@@ -140,6 +168,7 @@ defmodule QuacksWeb.GameComponents do
       class={[@class, "select-none"]}
       role="group"
       aria-label="Pot track"
+      data-exploded={to_string(@me.exploded?)}
     >
       <defs>
         <radialGradient id={"brew-#{@seat}-#{@size}"}>
@@ -151,13 +180,30 @@ defmodule QuacksWeb.GameComponents do
       <%!-- the table under the pot --%>
       <rect x="-268" y="-10" width="536" height="278" rx="14" fill="var(--color-wood)" />
       <%!-- iron rim and the brew --%>
-      <circle r="262" fill="var(--color-iron-dark)" />
+      <circle r="262" fill={if @me.exploded?, do: "#4a1210", else: "var(--color-iron-dark)"} />
       <circle
         r="250"
         fill={"url(#brew-#{@seat}-#{@size})"}
-        stroke="var(--color-iron)"
+        stroke={if @me.exploded?, do: "var(--color-ruby)", else: "var(--color-iron)"}
         stroke-width="12"
       />
+      <g :if={@me.exploded?} data-role="cracked-rim">
+        <circle r="244" fill="var(--color-ruby)" fill-opacity="0.18" />
+        <polyline
+          points="-176,-190 -150,-168 -162,-146 -128,-124 -136,-104"
+          fill="none"
+          stroke="#2a0806"
+          stroke-width="5"
+          stroke-linejoin="round"
+        />
+        <polyline
+          points="196,150 170,138 178,112 150,100"
+          fill="none"
+          stroke="#2a0806"
+          stroke-width="4"
+          stroke-linejoin="round"
+        />
+      </g>
       <%!-- the spiral groove the spaces sit in --%>
       <polyline
         points={@groove}
@@ -232,14 +278,7 @@ defmodule QuacksWeb.GameComponents do
           chip={@chips_by_index[index]}
           size={@size}
         />
-        <circle
-          :if={index == @scoring_index}
-          r="26"
-          fill="none"
-          stroke="var(--color-gold)"
-          stroke-width="5"
-          aria-label="scoring space"
-        />
+        <.scoring_ring :if={@rings_by_index[index]} seats={@rings_by_index[index]} />
         <path
           :if={index == @me.droplet}
           d="M0 -11 C8 -1 8 7 0 7 C-8 7 -8 -1 0 -11 Z"
@@ -262,7 +301,90 @@ defmodule QuacksWeb.GameComponents do
           data-role="rat-stone"
         />
       </g>
+      <.flask :if={@flask} full={@flask == :full} click={@flask_click} />
     </svg>
+    """
+  end
+
+  # A scoring ring: one full circle, or one arc per seat when seats share the space.
+  # `pathLength="100"` lets each arc be "100 / n" long whatever the radius.
+  attr :seats, :list, required: true
+
+  defp scoring_ring(assigns) do
+    assigns = assign(assigns, arc: 100 / length(assigns.seats))
+
+    ~H"""
+    <circle
+      :for={{seat, i} <- Enum.with_index(@seats)}
+      r="26"
+      fill="none"
+      stroke={seat_colour(seat)}
+      stroke-width="5"
+      pathLength="100"
+      stroke-dasharray={if length(@seats) > 1, do: "#{@arc - 3} #{103 - @arc}"}
+      stroke-dashoffset={-@arc * i}
+      transform="rotate(-90)"
+      aria-label="scoring space"
+      data-role="scoring-ring"
+      data-seat={seat}
+    />
+    """
+  end
+
+  # The flask, in the free corner to the upper right of the cauldron. Parchment when
+  # full, grey when empty. Usable: it glows and is a button (click or Enter).
+  attr :full, :boolean, required: true
+  attr :click, :string, default: nil
+
+  defp flask(assigns) do
+    ~H"""
+    <g
+      transform="translate(220 -212)"
+      data-role="flask"
+      data-usable={to_string(@click != nil)}
+      class={@click && "flask-usable"}
+      role={if @click, do: "button", else: "img"}
+      tabindex={@click && "0"}
+      aria-label={
+        if @click,
+          do: "Use flask: put the last white chip back in the bag",
+          else: "Flask #{if @full, do: "full", else: "empty"}"
+      }
+      phx-click={@click && "action"}
+      phx-keydown={@click && "action"}
+      phx-key={@click && "Enter"}
+      phx-value-action={@click}
+    >
+      <rect x="-32" y="-54" width="64" height="88" fill="transparent" />
+      <rect x="-9" y="-50" width="18" height="10" rx="2" fill="var(--color-wood)" />
+      <path
+        d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z"
+        fill={if @full, do: "var(--color-parchment)", else: "#7d8288"}
+        stroke="var(--color-iron-dark)"
+        stroke-width="3"
+        stroke-linejoin="round"
+      />
+      <ellipse cx="-9" cy="-4" rx="5" ry="9" fill="white" fill-opacity="0.35" />
+    </g>
+    """
+  end
+
+  @doc ~s{The CSS colour of a seat, e.g. "var(--color-seat-1)", for SVG fills.}
+  @spec seat_colour(Game.seat()) :: String.t()
+  def seat_colour(seat), do: "var(--color-seat-#{seat})"
+
+  @doc "A small dot in the seat's colour, before a player's name."
+  attr :seat, :integer, required: true
+
+  def seat_dot(assigns) do
+    assigns = assign(assigns, bg: @seat_bg[assigns.seat])
+
+    ~H"""
+    <span
+      class={["inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30", @bg]}
+      data-role="seat-dot"
+      data-seat={@seat}
+    />
     """
   end
 
@@ -420,30 +542,34 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  Another player at the table, read-only: name, resources, whether they are still
-  brewing, whose turn it is, and their pot drawn small.
+  Another player at the table, read-only: name and VP up front (with a band in the
+  seat colour), rubies, flask, whether they are still brewing, whose turn it is, an
+  "Exploded" badge, and their pot drawn small.
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :name, :string, required: true
 
   def player_card(assigns) do
-    assigns = assign(assigns, p: assigns.game.players[assigns.seat])
+    assigns =
+      assign(assigns, p: assigns.game.players[assigns.seat], border: @seat_border[assigns.seat])
 
     ~H"""
-    <article class="paper space-y-2 rounded-lg p-2 text-xs" data-seat={@seat}>
+    <article
+      class={["paper space-y-2 rounded-lg border-t-4 p-2 text-xs", @border]}
+      data-seat={@seat}
+      data-role="player-card"
+    >
       <header class="flex flex-wrap items-center gap-1">
+        <.seat_dot seat={@seat} />
         <span class="font-hand text-sm font-bold" data-role="player-name">{@name}</span>
-        <span :if={@game.phase == :potions} class="rounded bg-parchment-deep px-1">
-          {if @p.done?, do: "done", else: "waiting"}
-        </span>
-        <span :if={@game.turn == @seat} class="rounded bg-gold px-1">their turn</span>
-        <span :if={@p.exploded?} class="rounded bg-ruby px-1 text-white">
-          {exploded_text(@p)}
-        </span>
+        <span class="ml-auto text-sm font-bold tabular-nums" data-role="player-vp">{@p.vp} VP</span>
       </header>
+      <div class="flex flex-wrap items-center gap-1">
+        <.player_state game={@game} seat={@seat} />
+      </div>
       <p class="text-ink-soft">
-        Round {@game.round} · {@p.vp} VP · {@p.rubies} rubies · flask {if @p.flask,
+        {@p.rubies} {plural(@p.rubies, "ruby", "rubies")} · flask {if @p.flask,
           do: "full",
           else: "empty"} · white {Game.white_sum(@game, @seat)} / {Potions.explode_above(
           @game,
@@ -453,6 +579,59 @@ defmodule QuacksWeb.GameComponents do
       <.pot game={@game} seat={@seat} size={:sm} />
       <.bowl :if={@p.bowl != []} chips={@p.bowl} />
     </article>
+    """
+  end
+
+  @doc """
+  Another player in one line, for phones: colour dot, name, VP, rubies and state.
+  The whole line opens the players sheet with the full card.
+  """
+  attr :game, Game, required: true
+  attr :seat, :integer, required: true
+  attr :name, :string, required: true
+
+  def player_line(assigns) do
+    assigns = assign(assigns, p: assigns.game.players[assigns.seat])
+
+    ~H"""
+    <button
+      type="button"
+      popovertarget="sheet-players"
+      class="flex min-h-7 w-full min-w-0 items-center gap-1.5 rounded-md bg-iron-dark/80 px-2 text-xs ring-1 ring-iron"
+      data-seat={@seat}
+      data-role="player-line"
+    >
+      <.seat_dot seat={@seat} />
+      <span class="truncate font-semibold" data-role="player-name">{@name}</span>
+      <span class="font-semibold tabular-nums" data-role="player-vp">{@p.vp} VP</span>
+      <span class="tabular-nums text-parchment-dim">{@p.rubies}<span class="text-ruby">◆</span></span>
+      <span class="ml-auto flex shrink-0 gap-1"><.player_state game={@game} seat={@seat} /></span>
+    </button>
+    """
+  end
+
+  # The small badges after a name: exploded, done or waiting, their turn.
+  attr :game, Game, required: true
+  attr :seat, :integer, required: true
+
+  defp player_state(assigns) do
+    assigns = assign(assigns, p: assigns.game.players[assigns.seat])
+
+    ~H"""
+    <span
+      :if={@p.exploded?}
+      class="rounded bg-ruby px-1.5 font-bold text-white"
+      data-role="exploded-badge"
+    >
+      Exploded
+    </span>
+    <span
+      :if={@game.phase == :potions and not @p.exploded?}
+      class="rounded bg-parchment-deep px-1 text-ink"
+    >
+      {if @p.done?, do: "done", else: "waiting"}
+    </span>
+    <span :if={@game.turn == @seat} class="rounded bg-gold px-1 text-ink">their turn</span>
     """
   end
 
@@ -745,17 +924,21 @@ defmodule QuacksWeb.GameComponents do
     <div class="paper rounded-lg p-3">
       <h2 class="text-lg font-bold">Log</h2>
       <ol class="mt-1 space-y-1 text-sm" aria-label="Recent actions">
-        <li :for={line <- @entries}>{line}</li>
+        <li :for={{seat, line} <- @entries} class="flex items-baseline gap-1.5">
+          <.seat_dot :if={seat} seat={seat} />
+          <span>{line}</span>
+        </li>
         <li :if={@entries == []} class="text-ink-soft">Nothing yet. Draw a chip.</li>
       </ol>
     </div>
     """
   end
 
+  # `{seat, text}`; seat is nil when no dot shows (solo, or an untagged entry).
   defp log_line({seat, entry}, names) when is_integer(seat) and is_map(names),
-    do: "#{Map.get(names, seat, GameServer.default_name(seat))}: #{label(entry)}"
+    do: {seat, "#{Map.get(names, seat, GameServer.default_name(seat))}: #{label(entry)}"}
 
-  defp log_line(entry, _names), do: entry |> untag() |> label()
+  defp log_line(entry, _names), do: {nil, entry |> untag() |> label()}
 
   defp untag({seat, entry}) when is_integer(seat), do: entry
   defp untag(entry), do: entry
@@ -769,6 +952,98 @@ defmodule QuacksWeb.GameComponents do
   # Every chip choice logs its `{:effect, ...}` right after.
   defp narrated_by_event?({:chip, _choice}), do: true
   defp narrated_by_event?(_entry), do: false
+
+  @doc """
+  What each player gained this round: every log entry since the round began that
+  gave VP or rubies, plus the bonus die, then the totals. Read from the log only.
+  With `names` (multiplayer) there is one block per seat, headed by its name.
+  """
+  attr :game, Game, required: true
+  attr :names, :map, default: nil, doc: "`%{seat => name}`; nil for solo"
+
+  def round_results(assigns) do
+    assigns = assign(assigns, results: round_gains(assigns.game))
+
+    ~H"""
+    <section class="space-y-3" aria-label="Round results" data-role="round-results">
+      <h2 class="text-xl font-bold">Round {@game.round} results</h2>
+      <div
+        :for={seat <- @game.seats}
+        class={["space-y-1", @names && ["border-l-4 pl-2", seat_border(seat)]]}
+        data-seat={seat}
+      >
+        <h3 :if={@names} class="flex items-center gap-1.5 font-hand text-base font-bold">
+          <.seat_dot seat={seat} />
+          {Map.get(@names, seat, GameServer.default_name(seat))}
+        </h3>
+        <ul class="space-y-0.5 text-sm">
+          <li :for={{text, _vp, _rubies} <- @results[seat] || []} data-role="result-line">{text}</li>
+          <li :if={(@results[seat] || []) == []} class="text-ink-soft">Nothing gained this round.</li>
+        </ul>
+        <p class="font-semibold" data-role="result-total">
+          Total: +{total(@results[seat], 1)} VP, +{total(@results[seat], 2)} {plural(
+            total(@results[seat], 2),
+            "ruby",
+            "rubies"
+          )}
+        </p>
+      </div>
+    </section>
+    """
+  end
+
+  defp seat_border(seat), do: @seat_border[seat]
+
+  defp total(nil, _pos), do: 0
+  defp total(lines, pos), do: lines |> Enum.map(&elem(&1, pos)) |> Enum.sum()
+
+  # `%{seat => [{text, vp, rubies}]}`, oldest first, for the entries since the last
+  # `{:round_end, _}`.
+  defp round_gains(game) do
+    game.log
+    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+    |> Enum.reverse()
+    |> Enum.flat_map(fn
+      {seat, entry} when is_integer(seat) ->
+        case gain(entry) do
+          {vp, rubies} -> [{seat, {label(entry), vp, rubies}}]
+          nil -> []
+        end
+
+      _untagged ->
+        []
+    end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+
+  # `{vp, rubies}` a log entry gave, or nil when it is not a result. The bonus die
+  # always counts as a result, whatever its face.
+  defp gain({:bonus_die, {:vp, n}}), do: {n, 0}
+  defp gain({:bonus_die, :ruby}), do: {0, 1}
+  defp gain({:bonus_die, _face}), do: {0, 0}
+  defp gain({:green_rubies, n}), do: {0, n}
+  defp gain({:purple, 1, _}), do: {1, 0}
+  defp gain({:purple, 2, _}), do: {1, 1}
+  defp gain({:purple, 3, _}), do: {2, 0}
+  defp gain({:black, :droplet_ruby}), do: {0, 1}
+  defp gain({:pot_ruby, _index}), do: {0, 1}
+  defp gain({:pot_vp, vp, _index}), do: {vp, 0}
+  defp gain({:bowl, _chips, vp}), do: {vp, 0}
+  defp gain({:effect, {:green, 6}, {:bonus_die, face}}), do: gain({:bonus_die, face})
+  defp gain({:effect, {:purple, 2}, {:trade, 1}}), do: {1, 1}
+  defp gain({:effect, {:purple, 2}, {:trade, 2}}), do: {3, 0}
+  defp gain({:effect, {:purple, 2}, {:trade, 3}}), do: {6, 1}
+  defp gain({:effect, _book, {:vp, n}}), do: {n, 0}
+  defp gain({:effect, _book, {:rubies, n}}), do: {0, n}
+  defp gain({:effect, _book, :ruby}), do: {0, 1}
+  defp gain({:effect, _book, :droplet_ruby}), do: {0, 1}
+  defp gain({:witch, _id, {:vp, n}}), do: {n, 0}
+  defp gain({:witch, _id, {:rubies, n}}), do: {0, n}
+  defp gain({:fortune, _id, {:vp, n}}), do: {n, 0}
+  defp gain({:fortune, _id, :ruby}), do: {0, 1}
+  defp gain({:fortune, _id, :rubies}), do: {0, 3}
+  defp gain({:fortune, _id, {:rats_back, n}}), do: {0, n}
+  defp gain(_entry), do: nil
 
   @doc """
   Like `label/1`, but a fortune card choice is worded for `card` (the current

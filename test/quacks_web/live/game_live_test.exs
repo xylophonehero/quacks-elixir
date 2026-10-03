@@ -27,10 +27,13 @@ defmodule QuacksWeb.GameLiveTest do
   defp count(html, selector),
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> Enum.count()
 
-  # The first legal action is the first action button on the page.
+  # The first legal action is the first enabled action button on the page.
   defp first_action(html) do
-    [_, encoded] = Regex.run(~r/phx-value-action="([^"]+)"/, html)
-    encoded
+    html
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("[phx-value-action]:not([disabled])")
+    |> LazyHTML.attribute("phx-value-action")
+    |> hd()
   end
 
   test "mounts round 1 with a Draw button and the seed", %{conn: conn} do
@@ -90,7 +93,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert html =~ "Game over"
     assert html =~ "victory points"
     assert has_element?(view, "button", "New game")
-    refute has_element?(view, "button", "Draw a chip")
+    assert has_element?(view, "button[data-slot=draw][disabled]", "Draw a chip")
 
     {:ok, view, _html} =
       view |> element("section button", "New game") |> render_click() |> follow_redirect(conn)

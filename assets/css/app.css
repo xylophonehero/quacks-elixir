@@ -59,6 +59,13 @@
   --color-penny-silver: #aeb4bb;
   --color-penny-copper: #b8693a;
   --color-penny-gold: #e0b23c;
+
+  /* One fixed colour per seat: player cards, log names and scoring rings. */
+  --color-seat-0: #e0b23c; /* gold */
+  --color-seat-1: #2bb5a6; /* teal */
+  --color-seat-2: #a77bf3; /* violet */
+  --color-seat-3: #f2785f; /* coral */
+  --color-seat-4: #a4d03c; /* lime */
 }
 
 @layer base {
@@ -97,6 +104,32 @@
   background-size: auto, auto, 7px 7px;
   color: var(--color-ink);
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+}
+
+/* The flask beside the pot glows while it can put the last white chip back. */
+.flask-usable {
+  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: scale 100ms ease-out;
+  filter: drop-shadow(0 0 6px var(--color-gold)) drop-shadow(0 0 14px var(--color-gold));
+  animation: flask-glow 1.6s ease-in-out infinite alternate;
+}
+
+.flask-usable:active {
+  scale: 0.95;
+}
+
+@keyframes flask-glow {
+  from {
+    filter: drop-shadow(0 0 3px var(--color-gold));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flask-usable {
+    animation: none;
+  }
 }
 
 /* The game page owns the whole screen: no rubber-band scroll of the page itself. */

@@ -158,6 +158,16 @@ defmodule QuacksWeb.GameLive do
             </h1>
             <div class="ml-auto"><.round_phase game={@game} seat={@seat || 0} /></div>
             <button
+              :if={results?(@game)}
+              type="button"
+              phx-click={JS.dispatch("quacks:modal", to: "#round-results")}
+              aria-label="Round results"
+              class="inline-flex size-11 items-center justify-center"
+              data-role="open-results"
+            >
+              <.icon name="hero-trophy" class="size-6" />
+            </button>
+            <button
               type="button"
               popovertarget="sheet-menu"
               aria-label="Menu"
@@ -169,6 +179,19 @@ defmodule QuacksWeb.GameLive do
 
           <div class="px-2">
             <.status :if={@seat} game={@game} seat={@seat} />
+            <div
+              :if={@players > 1}
+              class="mt-1 grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-1 lg:hidden"
+              aria-label="Other players"
+            >
+              <.player_line
+                :for={seat <- @game.seats}
+                :if={seat != @seat}
+                game={@game}
+                seat={seat}
+                name={name(@names, seat)}
+              />
+            </div>
           </div>
 
           <div class="space-y-1 px-2 pt-1 text-sm">
@@ -204,7 +227,14 @@ defmodule QuacksWeb.GameLive do
           </div>
 
           <div class="relative min-h-0 p-2">
-            <.pot game={@game} seat={@seat || 0} class="block size-full" />
+            <.pot
+              game={@game}
+              seat={@seat || 0}
+              class="block size-full"
+              rings={rings(@game)}
+              flask={@me && if(@me.flask, do: :full, else: :empty)}
+              flask_click={if :use_flask in @actions, do: encode(:use_flask)}
+            />
             <div :if={@me && @me.aside != []} class="absolute bottom-2 left-2">
               <.aside chips={@me.aside} />
             </div>
@@ -221,15 +251,14 @@ defmodule QuacksWeb.GameLive do
               <.sheet_button :if={@game.witches} for="sheet-witches">Witches</.sheet_button>
             </nav>
             <section
-              :if={@actions != []}
-              class="flex gap-2 *:min-h-12 *:flex-1 *:touch-manipulation"
-              aria-label="Actions"
+              :if={extra_actions(@actions) != []}
+              class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation"
+              aria-label="More actions"
             >
               <.button
-                :for={action <- @actions}
+                :for={action <- extra_actions(@actions)}
                 phx-click="action"
                 phx-value-action={encode(action)}
-                variant="primary"
               >
                 {action_label(action, @game, @me)}
               </.button>
@@ -250,6 +279,31 @@ defmodule QuacksWeb.GameLive do
             >
               Show the result
             </.button>
+            <%!-- Fixed slots: Stop, then Draw on the right. Never moved, only disabled. --%>
+            <section
+              :if={@seat}
+              class="grid grid-cols-2 gap-2 *:min-h-12 *:touch-manipulation"
+              aria-label="Actions"
+              data-role="action-bar"
+            >
+              <.button
+                phx-click="action"
+                phx-value-action={encode(:stop)}
+                disabled={:stop not in @actions}
+                data-slot="stop"
+              >
+                Stop
+              </.button>
+              <.button
+                phx-click="action"
+                phx-value-action={encode(:draw)}
+                disabled={:draw not in @actions}
+                variant="primary"
+                data-slot="draw"
+              >
+                Draw a chip
+              </.button>
+            </section>
           </footer>
         </div>
 
@@ -297,15 +351,19 @@ defmodule QuacksWeb.GameLive do
       <.sheet id="sheet-menu" label="Menu">
         <div class="space-y-3 text-sm">
           <h2 class="text-lg font-bold">Game {@id}</h2>
-          <input
-            :if={@seat && @players > 1}
-            type="text"
-            value={name(@names, @seat)}
-            phx-blur="rename"
-            maxlength="20"
-            aria-label="Your name"
-            class="w-full rounded-md border border-ink-soft bg-parchment-light px-2 py-2 text-ink"
-          />
+          <label :if={@seat && @players > 1} class="block space-y-1">
+            <span class="flex items-center gap-1.5 font-semibold">
+              <.seat_dot seat={@seat} /> Your name
+            </span>
+            <input
+              type="text"
+              value={name(@names, @seat)}
+              phx-blur="rename"
+              maxlength="20"
+              aria-label="Your name"
+              class="w-full rounded-md border border-ink-soft bg-parchment-light px-2 py-2 text-base text-ink"
+            />
+          </label>
           <div class="flex flex-wrap gap-2 *:min-h-11">
             <.button :if={@seat && @players == 1} phx-click="undo" disabled={@game.log == []}>
               Undo
@@ -367,6 +425,11 @@ defmodule QuacksWeb.GameLive do
             </.button>
           </section>
         </div>
+      </.dialog_sheet>
+
+      <%!-- After the decision dialog, so it opens on top of the shop. --%>
+      <.dialog_sheet :if={results?(@game)} id="round-results" label="Round results">
+        <.round_results game={@game} names={if @players > 1, do: @names} />
       </.dialog_sheet>
 
       <.dialog_sheet :if={Game.over?(@game)} id="game-over" label="Game over">
@@ -561,6 +624,16 @@ defmodule QuacksWeb.GameLive do
       actions: if(decision, do: [], else: Enum.reject(actions, &witch?/1))
     )
   end
+
+  # The round results show from the shop until the round ends (round 9 has no shop).
+  defp results?(game), do: game.phase in [:buy_chips, :spend_rubies]
+
+  # Every seat's scoring space, for the rings on the big pot.
+  defp rings(game), do: Map.new(game.seats, &{&1, Game.scoring_index(game, &1)})
+
+  # Bar actions without a fixed slot (Draw, Stop) or a pot control (the flask),
+  # e.g. B3's restart or R6's place.
+  defp extra_actions(actions), do: actions -- [:draw, :stop, :use_flask]
 
   defp decision([], _phase, _me), do: nil
   defp decision(_actions, :potions, %{witch_offer: [_ | _]}), do: :witch_offer
