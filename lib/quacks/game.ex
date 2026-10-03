@@ -142,7 +142,7 @@ defmodule Quacks.Game do
           | :witch_done
   @typedoc """
   A chip choice: step B (G2, G4, P2, P4, G5, P5; see `Quacks.Game.Evaluation`) or on
-  draw (Y6 `:yellow_ruby`, see `Quacks.Game.Potions`).
+  draw (Y6 `:yellow_ruby`, locoweed 9 `{:return, chip}`, see `Quacks.Game.Potions`).
   """
   @type chip_choice ::
           {:gain, Chips.chip()}
@@ -152,6 +152,7 @@ defmodule Quacks.Game do
           | {:starter, Chips.chip()}
           | {:buy, [Chips.chip()]}
           | :yellow_ruby
+          | {:return, Chips.chip()}
   @typedoc "A Fortune Teller card choice; see `Quacks.Game.Fortune` and `docs/CONTEXT.md`."
   @type fortune_choice ::
           {:take, Chips.chip()}
@@ -271,7 +272,7 @@ defmodule Quacks.Game do
   (a limited supply stops at 0: with 5+ players the white 2s and 3s run dry).
   `sets:` picks the Ingredient Set (1..6) per colour, e.g. `%{blue: 3}`; colours left
   out use Set 1. `black:` is 1 (the base book), 5 or 6, `orange: 2` adds the orange
-  6-chip and `locoweed: 5 | 6` adds locoweed, in every game (see
+  6-chip and `locoweed: 5 | 6 | 8 | 9 | 10` adds locoweed, in every game (see
   `Quacks.Rules.Chips.set/3`). `rules:` sets house rules (`t:rules/0`), e.g.
   `%{explode_above: 9}`; rules left out keep their default. With `fortune: true`
   (default) round 1's card is turned up here. `fortune: false` is an old alias for
@@ -284,7 +285,7 @@ defmodule Quacks.Game do
   @spec new(
           seed: {integer, integer, integer},
           players: 1..8,
-          sets: %{atom => 1..6},
+          sets: %{atom => 1..10 | nil},
           rules: map,
           fortune: boolean,
           expansion: Chips.expansion()
@@ -340,7 +341,8 @@ defmodule Quacks.Game do
   end
 
   # Every game: Sets 1..6, black 1, 5 or 6, orange 1 or 2 (2 = the orange 6-chip) and
-  # locoweed nil, 5 or 6. The expansion only changes the defaults.
+  # locoweed nil, 5, 6, 8, 9 or 10 (7 is kept for The Alchemists' essence book). The
+  # expansion only changes the defaults.
   defp sets!(sets, expansion) do
     defaults = if expansion, do: Map.merge(@sets, @expansion_sets), else: @sets
     sets = Map.merge(defaults, sets)
@@ -348,7 +350,7 @@ defmodule Quacks.Game do
     valid? =
       Enum.all?(sets, fn
         {:orange, set} -> set in [1, 2]
-        {:locoweed, set} -> set in [nil, 5, 6]
+        {:locoweed, set} -> set in [nil, 5, 6, 8, 9, 10]
         {:black, set} -> set in [1, 5, 6]
         {colour, set} -> is_map_key(@sets, colour) and set in 1..6
       end)

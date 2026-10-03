@@ -416,7 +416,7 @@ defmodule Quacks.HerbWitchesTest do
       yellow: integer(1..6),
       purple: integer(1..6),
       black: member_of([1, 5, 6]),
-      locoweed: member_of([5, 6])
+      locoweed: member_of([5, 6, 8, 9, 10])
     })
   end
 end

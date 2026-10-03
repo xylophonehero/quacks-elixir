@@ -1336,7 +1336,7 @@ defmodule QuacksWeb.GameLive do
   defp pick_chips({:red, {_kind, chip}}), do: [chip]
   defp pick_chips({:witch, :silver, {:place, chip}}), do: [chip]
   defp pick_chips({:fortune, {kind, chip}}) when kind in [:take, :place, :upgrade], do: [chip]
-  defp pick_chips({:chip, {kind, chip}}) when kind in [:gain, :starter], do: [chip]
+  defp pick_chips({:chip, {kind, chip}}) when kind in [:gain, :starter, :return], do: [chip]
   defp pick_chips({:chip, {:upgrade, from, to}}), do: [from, to]
   defp pick_chips({:chip, {:buy, chips}}), do: chips
   defp pick_chips(_action), do: []
@@ -1371,6 +1371,7 @@ defmodule QuacksWeb.GameLive do
 
   defp pick_title({:chip, {:buy, _chips}}, _card), do: "Ghost's breath: take"
   defp pick_title({:chip, {:upgrade, _from, _to}}, _card), do: "Ghost's breath: swap"
+  defp pick_title({:chip, {:return, _chip}}, _card), do: "Locoweed: return one to your bag"
   defp pick_title({:fortune, {:take, _chip}}, :p3), do: "Trade 1 ruby for one"
   defp pick_title({:fortune, {:take, _chip}}, _card), do: "Take one"
   defp pick_title(_action, _card), do: nil

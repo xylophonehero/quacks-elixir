@@ -1027,7 +1027,7 @@ defmodule QuacksWeb.GameComponents do
   is "no locoweed" (locoweed only). The `book-art` slot is empty for now.
   """
   attr :colour, :atom, required: true
-  attr :set, :any, required: true, doc: "1..6, or nil for locoweed not in play"
+  attr :set, :any, required: true, doc: "1..10, or nil for locoweed not in play"
   attr :class, :any, default: nil
 
   def book_tile(assigns) do
@@ -1079,15 +1079,15 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc ~s[A book number in Roman numerals ("Off" for nil).]
-  @spec roman(1..6 | nil) :: String.t()
+  @spec roman(1..10 | nil) :: String.t()
   def roman(nil), do: "Off"
-  def roman(set), do: Enum.at(~w(I II III IV V VI), set - 1)
+  def roman(set), do: Enum.at(~w(I II III IV V VI VII VIII IX X), set - 1)
 
   @doc """
   The book `{colour, set}` for display: `Books.get/1` plus `chips`, each buyable
   chip of the colour with its price. Locoweed nil is "not in play".
   """
-  @spec book_info(Chips.colour(), 1..6 | nil) :: map
+  @spec book_info(Chips.colour(), 1..10 | nil) :: map
   def book_info(:locoweed, nil) do
     %{
       Books.get({:locoweed, 5})
@@ -1658,6 +1658,7 @@ defmodule QuacksWeb.GameComponents do
   def label({:witch, id, outcome}), do: "#{Witches.card(id).title}: #{witch_outcome(outcome, id)}"
   def label(:witch_done), do: "Keep the gold penny"
   def label({:chip, :yellow_ruby}), do: "Mandrake: pay 1 ruby, move 3 more"
+  def label({:chip, {:return, chip}}), do: "Locoweed: return #{chip_name(chip)} to the bag"
 
   def label({:chip, {:starter, chip}}),
     do: "Garden spider: start the next round with #{chip_name(chip)}"
@@ -1735,7 +1736,11 @@ defmodule QuacksWeb.GameComponents do
   defp effect({:black, 6}, :droplet), do: "Hawkmoth: furthest black chip, droplet +1"
   defp effect({:black, 6}, :ruby), do: "Hawkmoth: second furthest black chip, +1 ruby"
   defp effect({:black, 6}, :droplet_ruby), do: "Hawkmoth: droplet +1, +1 ruby"
-  defp effect({:locoweed, 5}, {:moves, n}), do: "Locoweed: moved #{n}"
+  defp effect({:locoweed, _}, {:moves, n}), do: "Locoweed: moved #{n}"
+
+  defp effect({:locoweed, 9}, {:returned, chip}),
+    do: "Locoweed: #{chip_name(chip)} back to the bag"
+
   defp effect({:locoweed, 6}, {:copied, chip}), do: "Locoweed: acted as #{chip_name(chip)}"
   defp effect(book, detail), do: inspect({:effect, book, detail})
 
