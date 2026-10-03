@@ -43,8 +43,9 @@ defmodule QuacksWeb.Round7BooksTest do
 
   test "the configure screen follows the player stepper", %{conn: conn} do
     {_id, view} = configure(conn, 2)
-    black = "#books [data-role=book-tile][data-colour=black] [data-role=book-tiers]"
-    picker = "#book-picker-black [data-set='1'] [data-role=book-tiers]"
+    # The host's tiles are compact; the picker card has the tier table.
+    black = "#book-picker-black [data-set='1'] [data-role=book-tiers]"
+    picker = black
     assert has_element?(view, black, "same count")
     assert has_element?(view, picker, "same count")
 

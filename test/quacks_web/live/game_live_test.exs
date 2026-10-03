@@ -93,11 +93,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert html =~ "Game over"
     assert html =~ "victory points"
 
-    assert has_element?(
-             view,
-             "#game-over [data-role=buying-power]",
-             "Final round buying power: +"
-           )
+    assert has_element?(view, "#game-over [data-role=buying-power]", "Final coins and rubies")
 
     assert has_element?(view, "#game-over [data-role=return-to-lobby]", "Return to lobby")
     refute has_element?(view, "[data-role=action-bar]")
@@ -120,7 +116,7 @@ defmodule QuacksWeb.GameLiveTest do
     for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
     view |> element("button", "Stop") |> render_click()
     assert has_element?(view, "dd", "Shop")
-    assert render(view) =~ "7 coins to spend"
+    assert has_element?(view, "[data-role=coins]", "7 coins to spend")
     view
   end
 
@@ -215,23 +211,34 @@ defmodule QuacksWeb.GameLiveTest do
     view = mount_shop(conn)
     [_, before] = Regex.run(~r/Your chips: (\d+)/, render(view))
     before = String.to_integer(before)
-    assert has_element?(view, "button:disabled", "Buy selected")
+    assert has_element?(view, "button[data-role=shop-buy]:disabled", "Buy")
     assert has_element?(view, checkbox({:orange, 1}) <> ":not(:disabled)")
     assert has_element?(view, checkbox({:yellow, 1}) <> ":disabled")
     assert has_element?(view, checkbox({:green, 2}) <> ":disabled")
 
     select(view, [{:orange, 1}])
     assert has_element?(view, checkbox({:orange, 1}) <> ":checked")
-    assert has_element?(view, "[data-role=shop-total]", "Selected: 3 coins. Remaining: 4 of 7.")
+
+    assert has_element?(
+             view,
+             ~s([data-role=shop-total][aria-label="7 coins, 4 left after this buy"])
+           )
+
+    assert has_element?(view, "button[data-role=shop-buy]", "Buy 1 · 3 coins")
     assert has_element?(view, checkbox({:green, 1}) <> ":not(:disabled)")
 
     select(view, [{:orange, 1}, {:green, 1}])
-    assert has_element?(view, "[data-role=shop-total]", "Selected: 7 coins. Remaining: 0 of 7.")
-    assert has_element?(view, "button:not(:disabled)", "Buy selected")
+
+    assert has_element?(
+             view,
+             ~s([data-role=shop-total][aria-label="7 coins, 0 left after this buy"])
+           )
+
+    assert has_element?(view, "button[data-role=shop-buy]:not(:disabled)", "Buy 2 · 7 coins")
     # with two ticked, every other box is disabled
     assert count(render(view), "#shop input:disabled") == length(Chips.shop()) - 2
 
-    view |> element("button", "Buy selected") |> render_click()
+    view |> element("button[data-role=shop-buy]") |> render_click()
     assert has_element?(view, "li", "Bought green 1 + orange 1")
     # the round ended (nothing left to do): every chip is back in the bag
     assert bag_size(view) == before + 2
@@ -279,8 +286,12 @@ defmodule QuacksWeb.GameLiveTest do
     view = mount_shop(conn)
     # a crafted change event with two greens (same colour) and an unaffordable total
     select(view, [{:green, 1}, {:green, 2}])
-    assert has_element?(view, "button:disabled", "Buy selected")
-    assert has_element?(view, "[data-role=shop-total]", "Selected: 12 coins. Remaining: -5 of 7.")
+    assert has_element?(view, "button[data-role=shop-buy]:disabled", "Buy 2 · 12 coins")
+
+    assert has_element?(
+             view,
+             ~s([data-role=shop-total][aria-label="7 coins, -5 left after this buy"])
+           )
 
     view |> element("[data-role=shop-done]") |> render_click()
     assert has_element?(view, "li", "— Round 1 over —")

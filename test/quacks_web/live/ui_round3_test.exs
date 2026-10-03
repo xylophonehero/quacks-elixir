@@ -179,6 +179,9 @@ defmodule QuacksWeb.UiRound3Test do
       | log: [{1, {:final_conversion, 7, 1, 3, 1}}, {0, {:final_conversion, 3, 2}} | game.log]
     }
 
+    game = game |> put_in([Access.key(:players), 0, Access.key(:vp)], 5)
+    game = game |> put_in([Access.key(:players), 1, Access.key(:vp)], 2)
+
     html =
       render_component(&GameLive.game_over/1,
         game: game,
@@ -186,10 +189,11 @@ defmodule QuacksWeb.UiRound3Test do
         players: 2
       )
 
-    assert html =~ "Ann: 0 victory points"
+    assert html =~ "Ann wins!"
+    assert count(html, ~s([data-role=final-score][data-seat="0"][data-place="1"])) == 1
     assert count(html, ~s([data-seat="0"] [data-role=buying-power])) == 1
-    assert html =~ "Final round buying power: +5 VP"
-    assert html =~ "Final round buying power: +2 VP"
+    assert html =~ ~r/Final coins and rubies\s*<span[^>]*>\+5</
+    assert html =~ ~r/Final coins and rubies\s*<span[^>]*>\+2</
     assert count(html, "button[data-role=play-again][phx-click=play_again]:not([disabled])") == 1
     assert count(html, "button[data-role=return-to-lobby][phx-click=lobby]") == 1
 
@@ -202,7 +206,7 @@ defmodule QuacksWeb.UiRound3Test do
     |> element("#shop")
     |> render_change(%{"chips" => [GameLive.encode({:orange, 1})]})
 
-    view |> element("button", "Buy selected") |> render_click()
+    view |> element("button[data-role=shop-buy]") |> render_click()
     view
   end
 
