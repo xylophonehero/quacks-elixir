@@ -41,11 +41,11 @@ Twemoji codepoints used: bomb 1f4a3, jack-o-lantern 1f383, spider 1f577, skull 1
 | Cherry bomb (white) | `cherry-bomb-1.svg` (unlit-bomb) | game-icons, Lorc | CC BY 3.0 | Round bomb with fuse. Ink icon on the white chip. |
 | Pumpkin (orange) | `pumpkin-1.svg` | game-icons, Delapouite | CC BY 3.0 | Plain ribbed pumpkin. |
 | Garden spider (green) | `spider-1.svg` (hanging-spider) | game-icons, Lorc | CC BY 3.0 | Clearest silhouette at 16 px. |
-| Crow skull (blue) | `crow-skull-2.svg` (raven) | game-icons, Lorc | CC BY 3.0 | Stopgap. No free bird-skull icon. Redraw (below). |
+| Crow skull (blue) | `crow-skull.svg` | own drawing | project | Redrawn 2026-10-04 (replaces the `crow-skull-2.svg` stopgap). |
 | Toadstool (red) | `toadstool-1.svg` (spotted-mushroom) | game-icons, Lorc | CC BY 3.0 | Spots say "toadstool". |
-| Mandrake (yellow) | `mandrake-1.svg` (plant-roots) | game-icons, Delapouite | CC BY 3.0 | Stopgap. Redraw from `mandrake-ref-1.jpg` (Hortus sanitatis 1491, PD). |
+| Mandrake (yellow) | `mandrake.svg` | own drawing | project | Redrawn 2026-10-04 after `mandrake-ref-1.jpg` (replaces the `mandrake-1.svg` stopgap). |
 | Ghost's breath (purple) | `ghosts-breath-1.svg` (ghost) | game-icons, Lorc | CC BY 3.0 | Wispy tail suggests breath. |
-| Hawkmoth (black) | `hawkmoth-1.svg` (butterfly) | game-icons, Lorc | CC BY 3.0 | Stopgap. Redraw from `hawkmoth-ref-1.jpg` (CC BY 2.0). |
+| Hawkmoth (black) | `hawkmoth.svg` | own drawing | project | Redrawn 2026-10-04 after `hawkmoth-ref-1.jpg` (replaces the `hawkmoth-1.svg` stopgap). |
 | Locoweed | `locoweed-2.svg` (herbs-bundle) | game-icons, Delapouite | CC BY 3.0 | Distinct from spider and mandrake shapes. |
 | Flask | `flask-1.svg` (round-bottom-flask) | game-icons, Lorc | CC BY 3.0 | Small glyph only; keep our own pot flask. Kenney `flask-ke*.svg` (CC0) is the alternative with full/empty states. |
 | Droplet | `droplet-1.svg` (drop) | game-icons, Lorc | CC BY 3.0 | |
@@ -72,7 +72,7 @@ With this set, one credit line covers all picks:
 
 > Icons by Lorc, Delapouite, Skoll, Cathelineau and DarkZaitzev from game-icons.net, CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/). Changes: background removed, recoloured.
 
-Missing (no licence-safe icon found): mandrake root, hawkmoth, crow/bird skull. Use the stopgaps and redraw these three.
+Missing (no licence-safe icon found): mandrake root, hawkmoth, crow/bird skull. **Redrawn 2026-10-04** as our own SVG: `crow-skull.svg`, `mandrake.svg`, `hawkmoth.svg` in `priv/static/images/icons/`. Contact sheet: `docs/assets/icons-redraw.png`.
 
 ## Proposed visual system
 
@@ -92,9 +92,9 @@ Keep these in our own SVG (no licence issue):
 - **Droplet.** Path: a circle r=10 at the bottom with tangents meeting at a point 2.2 r above the centre. Radial gradient from `#7fb0ff` (top-left) to `--color-droplet` to `#1f4fb0` (edge). One white crescent highlight at upper left (opacity 0.6). 1.5 px stroke `#1f3f8a`.
 - **Bag.** A sack: wide rounded bottom (ellipse), a pinched neck, a drawstring as two short wavy lines and a knot. Fill `--color-wood` with a linear gradient to `--color-wood-dark` at the bottom; 3 to 4 short lighter curves for cloth folds. Stroke 3 px `--color-wood-dark`.
 - **Cauldron.** The board pot already exists. For the icon, use an iron bowl (half ellipse, wider than tall), a thick rim (rounded rect), three stub legs, green liquid ellipse at the rim with 2 to 3 bubbles. Fill `--color-iron` with a radial gradient light spot at upper left (`#5a5f66`).
-- **Mandrake.** Forked root shaped like a small person: carrot-like body, two "leg" forks, two thin "arm" roots, a crown of 5 to 7 broad leaves (rosette) on top. Base it on `mandrake-ref-1.jpg` (1491 woodcut, PD). Single filled silhouette, 512 viewBox, to match game-icons.
-- **Hawkmoth.** Thick furry body (long ellipse with 3 bands), swept-back triangular forewings, small hindwings, feathered antennae. Optional pale skull mark on the thorax (death's-head hawkmoth). Reference: `hawkmoth-ref-1.jpg`.
-- **Crow skull.** Side-view bird skull: round cranium, big eye socket (negative space), long pointed beak. Filled silhouette.
+- **Mandrake.** *Redrawn 2026-10-04 (`priv/static/images/icons/mandrake.svg`).* Forked root shaped like a small person: carrot-like body, two "leg" forks, two thin "arm" roots, a crown of 5 to 7 broad leaves (rosette) on top. Base it on `mandrake-ref-1.jpg` (1491 woodcut, PD). Single filled silhouette, 512 viewBox, to match game-icons.
+- **Hawkmoth.** *Redrawn 2026-10-04 (`priv/static/images/icons/hawkmoth.svg`).* Thick furry body (long ellipse with 3 bands), swept-back triangular forewings, small hindwings, feathered antennae. Optional pale skull mark on the thorax (death's-head hawkmoth). Reference: `hawkmoth-ref-1.jpg`.
+- **Crow skull.** *Redrawn 2026-10-04 (`priv/static/images/icons/crow-skull.svg`).* Side-view bird skull: round cranium, big eye socket (negative space), long pointed beak. Filled silhouette.
 - **Bonus die faces.** Rounded square (r=6 on 48) in `--color-parchment`, ink border, one glyph in the centre: "1"/"2" VP numbers with the laurel, droplet, ruby, pumpkin (orange chip).
 
 ## Reference bitmaps (not for use in the app)
