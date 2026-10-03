@@ -8,9 +8,9 @@ defmodule Quacks.Rules.Chips do
   - Supply: §1. `Quacks.Game` tracks what is left on its `supply` field.
   - The Herb Witches (`docs/research/herb-witches.md` §1, §1.2): Sets 5–6 prices, the
     orange 6-chip, locoweed and the extra chips. The orange 6-chip (orange Set 2) and
-    locoweed (Set 5 or 6) can also be picked in a base game (`set/3`).
-  - The Alchemists (`docs/research/alchemists.md` §2): locoweed books 8, 9 and 10, in
-    every game.
+    locoweed (books I and II) can be picked in every game (`set/3`).
+  - The Alchemists (`docs/research/alchemists.md` §2): locoweed books IV, V and VI
+    (A–D are III–VI; III needs the essence phase), in every game.
   """
 
   @type colour ::
@@ -22,8 +22,9 @@ defmodule Quacks.Rules.Chips do
 
   # Coins per Ingredient Set 1..6 (research `ingredient-sets-and-customisation.md` §1.1,
   # `herb-witches.md` §1.2). Orange has one book. Black: the base book counts as "Set 1"
-  # (entries 1–4), then Sets 5 and 6. Locoweed has Sets 5 and 6 and The Alchemists'
-  # books 8, 9 and 10 (`alchemists.md` §2; 7 is kept for the essence book).
+  # (entries 1–4), then Sets 5 and 6. Locoweed has six books: I–II from The Herb
+  # Witches, III–VI are The Alchemists' A–D (`alchemists.md` §2; III needs the essence
+  # phase and is not playable yet, `Quacks.Game.new/1` refuses it).
   # ⚠️ Green Set 3 4-chip: 18 (A2, A4); A1 prints 21.
   @prices %{
     {:orange, 1} => [3, 3, 3, 3, 3, 3],
@@ -42,7 +43,7 @@ defmodule Quacks.Rules.Chips do
     {:yellow, 4} => [18, 19, 18, 18, 20, 18],
     {:purple, 1} => [9, 12, 10, 11, 9, 16],
     {:black, 1} => [10, 10, 10, 10, 10, 9],
-    {:locoweed, 1} => [nil, nil, nil, nil, 8, 10, nil, 16, 10, 12]
+    {:locoweed, 1} => [8, 10, 11, 16, 10, 12]
   }
 
   # Chips that are in play only with their book: orange Set 2, a locoweed book.
@@ -113,9 +114,9 @@ defmodule Quacks.Rules.Chips do
 
   @typedoc """
   The Ingredient Set (1..6) of each colour with a choice of books. Orange is 1 or 2
-  (2 adds the orange 6-chip); locoweed is `nil` (not in play), 5, 6, 8, 9 or 10.
+  (2 adds the orange 6-chip); locoweed is `nil` (not in play), 1, 2, 4, 5 or 6.
   """
-  @type sets :: %{optional(colour) => 1..10 | nil}
+  @type sets :: %{optional(colour) => 1..6 | nil}
 
   @doc """
   Price in coins of a buyable chip with the books in `sets` (a colour not in `sets`
@@ -130,22 +131,21 @@ defmodule Quacks.Rules.Chips do
   def price(chip), do: price(chip, %{})
 
   @doc """
-  The book of `colour` in play: `sets[colour]`, else the default. Orange defaults to
-  Set 1 (Set 2 with the expansion), locoweed to `nil` (Set 5 with the expansion).
+  The book of `colour` in play: `sets[colour]`, else the default: Set 1, and `nil`
+  (no locoweed) for locoweed. The expansion changes no default.
 
       iex> Quacks.Rules.Chips.set(nil, %{}, :orange)
       1
       iex> Quacks.Rules.Chips.set(:herb_witches, %{}, :locoweed)
-      5
+      nil
   """
-  @spec set(expansion, sets, colour) :: 1..10 | nil
-  def set(expansion, sets, :orange), do: Map.get(sets, :orange, if(expansion, do: 2, else: 1))
-  def set(expansion, sets, :locoweed), do: Map.get(sets, :locoweed, if(expansion, do: 5))
+  @spec set(expansion, sets, colour) :: 1..6 | nil
+  def set(_expansion, sets, :locoweed), do: Map.get(sets, :locoweed)
   def set(_expansion, sets, colour), do: Map.get(sets, colour, 1)
 
   @doc """
   Every buyable chip, sorted. The orange 6-chip only with orange Set 2, locoweed only
-  with a locoweed book (see `set/3`; both are on by default with the expansion).
+  with a locoweed book (see `set/3`).
   """
   @spec shop(expansion, sets) :: [chip]
   def shop(expansion \\ nil, sets \\ %{}),

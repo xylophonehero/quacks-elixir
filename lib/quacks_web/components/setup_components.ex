@@ -22,9 +22,11 @@ defmodule QuacksWeb.SetupComponents do
 
   # The colours with four ingredient books, in the order the form shows them.
   @book_colours [:green, :blue, :red, :yellow, :purple]
-  # Orange (Set 2 = the orange 6-chip), black and locoweed (nil = not used; 8–10 are
-  # The Alchemists' books) in every game.
-  @extra_books %{orange: [1, 2], black: [1, 5, 6], locoweed: [nil, 5, 6, 8, 9, 10]}
+  # Orange (Set 2 = the orange 6-chip), black and locoweed (nil = not used; I–II are
+  # The Herb Witches' books, III–VI The Alchemists' A–D) in every game.
+  @extra_books %{orange: [1, 2], black: [1, 5, 6], locoweed: [nil, 1, 2, 3, 4, 5, 6]}
+  # Books the picker shows greyed out: the engine cannot play them yet.
+  @unavailable %{{:locoweed, 3} => "needs the essence phase"}
 
   # Every house rule the Options form offers, with the values it accepts.
   @rule_values %{
@@ -85,7 +87,7 @@ defmodule QuacksWeb.SetupComponents do
             <.book_tile
               :if={@disabled}
               colour={colour}
-              set={book(@sets, colour, @expansion)}
+              set={book(@sets, colour)}
               players={@players}
             />
             <button
@@ -95,13 +97,13 @@ defmodule QuacksWeb.SetupComponents do
               aria-label={"#{colour} book: change"}
               class="block rounded-[14px] text-left transition-[translate,scale,box-shadow] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
             >
-              <.book_tile colour={colour} set={book(@sets, colour, @expansion)} players={@players} />
+              <.book_tile colour={colour} set={book(@sets, colour)} players={@players} />
             </button>
             <.book_picker
               :if={!@disabled}
               colour={colour}
-              chosen={book(@sets, colour, @expansion)}
-              sets={book_sets(colour, @expansion)}
+              chosen={book(@sets, colour)}
+              sets={book_sets(colour)}
               players={@players}
             />
           <% end %>
@@ -118,7 +120,11 @@ defmodule QuacksWeb.SetupComponents do
   attr :players, :integer, default: nil
 
   defp book_picker(assigns) do
-    books = Enum.map(assigns.sets, &{&1, book_info(assigns.colour, &1)})
+    books =
+      Enum.map(assigns.sets, fn set ->
+        {set, book_info(assigns.colour, set), @unavailable[{assigns.colour, set}]}
+      end)
+
     assigns = assign(assigns, books: books, name: books |> hd() |> elem(1) |> Map.get(:name))
 
     ~H"""
@@ -129,19 +135,22 @@ defmodule QuacksWeb.SetupComponents do
       </p>
       <div class="mt-3 grid gap-2.5" role="radiogroup" aria-label={"#{@colour} book"}>
         <label
-          :for={{set, book} <- @books}
+          :for={{set, book, unavailable} <- @books}
           class={[
-            "book-card group grid cursor-pointer gap-2 rounded-[14px] bg-parchment-light p-3 pb-3.5 text-ink",
-            "has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet"
+            "book-card group grid gap-2 rounded-[14px] bg-parchment-light p-3 pb-3.5 text-ink",
+            "has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet",
+            if(unavailable, do: "cursor-not-allowed opacity-50 grayscale", else: "cursor-pointer")
           ]}
           data-role="book-card"
           data-set={set || "off"}
+          aria-disabled={unavailable && "true"}
         >
           <input
             type="radio"
             name={"sets[#{@colour}]"}
             value={set || ""}
             checked={set == @chosen}
+            disabled={unavailable != nil}
             class="sr-only"
             phx-click={JS.dispatch("quacks:close", to: "#book-picker-#{@colour}")}
           />
@@ -149,6 +158,12 @@ defmodule QuacksWeb.SetupComponents do
             <.book_seal set={set} />
             <span class="min-w-0 flex-1 font-hand text-lg font-bold">
               {if set, do: "Book #{roman(set)}", else: "Not in play"}
+            </span>
+            <span
+              :if={unavailable}
+              class="shrink-0 rounded-full bg-ink/10 px-2 py-0.5 text-[11px] font-bold text-ink-soft"
+            >
+              {unavailable}
             </span>
             <span class="book-check" aria-hidden="true">
               <svg
@@ -292,39 +307,29 @@ defmodule QuacksWeb.SetupComponents do
   @spec book_colours() :: [atom]
   def book_colours, do: @book_colours ++ [:orange, :black, :locoweed]
 
-  # The books a colour offers, in the order the picker shows them.
-  defp book_sets(colour, _expansion) when is_map_key(@extra_books, colour),
-    do: @extra_books[colour]
-
-  defp book_sets(_colour, true), do: Enum.to_list(1..6)
-  defp book_sets(_colour, false), do: Enum.to_list(1..4)
+  # The books a colour offers, in the order the picker shows them, with or without
+  # the expansion.
+  defp book_sets(colour) when is_map_key(@extra_books, colour), do: @extra_books[colour]
+  defp book_sets(_colour), do: Enum.to_list(1..6)
 
   # The book a colour uses now (orange and locoweed may be left out of `sets`).
-  defp book(sets, colour, expansion),
-    do: Chips.set(if(expansion, do: :herb_witches), sets, colour)
+  defp book(sets, colour), do: Chips.set(nil, sets, colour)
 
   @doc """
-  The form's `%{"green" => "2", ...}` as `%{green: 2, ...}`. A missing or bad value
-  is the colour's default book (Set 1; with the expansion orange 2 and locoweed 5).
-  With `expansion` Sets 5 and 6 are allowed for the five book colours; black is
-  always in the map, locoweed with the expansion. Orange (and locoweed in a base game) is left out at its default, so
+  The form's `%{"green" => "2", ...}` as `%{green: 2, ...}`. A missing, bad or greyed
+  out value is the colour's default book (Set 1, no locoweed). The expansion changes
+  no book. Black is always in the map; orange 1 and "no locoweed" are left out, so
   default games keep the same `game.sets`.
   """
-  @spec parse_sets(map, boolean) :: Chips.sets()
-  def parse_sets(params, expansion \\ false) do
+  @spec parse_sets(map) :: Chips.sets()
+  def parse_sets(params) do
     book_colours()
     |> Map.new(fn colour ->
-      default = book(%{}, colour, expansion)
-      {colour, parse_set(params[to_string(colour)], book_sets(colour, expansion), default)}
+      sets = Enum.reject(book_sets(colour), &is_map_key(@unavailable, {colour, &1}))
+      {colour, parse_set(params[to_string(colour)], sets, book(%{}, colour))}
     end)
-    |> Map.reject(&engine_default?(&1, expansion))
+    |> Map.reject(&(&1 in [orange: 1, locoweed: nil]))
   end
-
-  # Book values the engine fills in by itself and keeps out of `game.sets`: orange
-  # at its default, and "no locoweed" in a base game.
-  defp engine_default?({:orange, set}, expansion), do: set == book(%{}, :orange, expansion)
-  defp engine_default?({:locoweed, nil}, false), do: true
-  defp engine_default?(_book, _expansion), do: false
 
   # "" is "Not used" (nil) for locoweed.
   defp parse_set(value, sets, default) when is_binary(value) do

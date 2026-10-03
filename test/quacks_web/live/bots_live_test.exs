@@ -1,6 +1,6 @@
 defmodule QuacksWeb.BotsLiveTest do
   @moduledoc """
-  Bots on the configure screen: the host adds Steady Sam to an empty seat row with
+  Bots on the configure screen: the host adds a named bot to an empty seat row with
   one tap, removes it with ×; joiners see bot rows read-only. In the game a bot wears a
   "bot" badge.
   """
@@ -8,6 +8,7 @@ defmodule QuacksWeb.BotsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Quacks.AI.Names
   alias Quacks.GameServer
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
@@ -24,14 +25,18 @@ defmodule QuacksWeb.BotsLiveTest do
     refute has_element?(host, "[data-seat='0'] [data-role='add-bot']")
 
     host |> element("[data-seat='2'] [data-role='add-bot']") |> render_click()
-    assert has_element?(host, "[data-seat='2']", "Steady Sam")
+    {:ok, %{names: %{2 => name}}} = GameServer.get(id)
+    assert name in Names.all()
+    assert has_element?(host, "[data-seat='2']", name)
     assert has_element?(host, "[data-seat='2'] [data-role='bot-badge']")
     refute has_element?(host, "[data-seat='2'] [data-role='add-bot']")
     assert has_element?(host, "[data-role='waiting-for-players']", "2 of 3 seated")
     refute has_element?(host, "[aria-label='Fewer players'][disabled]")
 
     host |> element("[data-seat='1'] [data-role='add-bot']") |> render_click()
-    assert has_element?(host, "[data-seat='1']", "Steady Sam 2")
+    {:ok, %{names: %{1 => second}}} = GameServer.get(id)
+    assert second in Names.all() and second != name
+    assert has_element?(host, "[data-seat='1']", second)
     assert has_element?(host, "[data-role='waiting-for-players']", "3 of 3 seated")
     assert has_element?(host, "[aria-label='Fewer players'][disabled]")
 
@@ -48,9 +53,10 @@ defmodule QuacksWeb.BotsLiveTest do
     {:ok, id} = GameServer.start(4, {1, 2, 3})
     {:ok, 0} = GameServer.claim_seat(id, "a")
     {:ok, 1} = GameServer.add_bot(id, "a")
+    {:ok, %{names: %{1 => name}}} = GameServer.get(id)
     guest = open(browser("b"), id)
 
-    assert has_element?(guest, "[data-seat='1']", "Steady Sam")
+    assert has_element?(guest, "[data-seat='1']", name)
     assert has_element?(guest, "[data-seat='1'] [data-role='bot-badge']")
     refute has_element?(guest, "[data-role='remove-bot']")
     refute has_element?(guest, "[data-role='add-bot']")

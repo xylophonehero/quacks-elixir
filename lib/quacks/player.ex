@@ -115,7 +115,7 @@ defmodule Quacks.Player do
   (`{:purple_trade, tier}`), a P4 swap up to `tier` (`{:upgrade, tier}`), a G5
   starter chip worth up to `value` (`{:starter, value}`) or a P5 purchase with
   `coins` (`{:purple_buy, coins}`). During the potions phase (player phase
-  `:chip_choice`) it holds Y6's offer `:yellow_ruby` or locoweed 9's `{:return, chip}`
+  `:chip_choice`) it holds Y6's offer `:yellow_ruby` or locoweed 5's `{:return, chip}`
   (one per coloured chip in the pot).
   """
   @type chip_choice ::

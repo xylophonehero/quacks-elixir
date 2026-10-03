@@ -18,15 +18,17 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {id, view}
   end
 
-  test "the host's toggle offers Sets 5–6", %{conn: conn} do
+  test "Sets 5–6 are offered with or without the toggle", %{conn: conn} do
     {:ok, id} = GameServer.start(4)
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
-    refute has_element?(view, "input[name='sets[green]'][value='6']")
+
+    for colour <- ~w(green blue red yellow purple),
+        do: assert(has_element?(view, "input[name='sets[#{colour}]'][value='6']"))
 
     view |> form("#books", expansion: "true") |> render_change()
 
     view
-    |> form("#books", expansion: "true", sets: %{green: "5", black: "6", locoweed: "6"})
+    |> form("#books", expansion: "true", sets: %{green: "5", black: "6", locoweed: "2"})
     |> render_change()
 
     assert has_element?(view, "input[name='sets[green]'][value='6']")
@@ -40,23 +42,17 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     view |> element("button", "Start game") |> render_click()
     {:ok, %{game: game, players: 1}} = GameServer.get(id)
     assert game.expansion == :herb_witches and game.seats == [0]
-    assert %{green: 5, black: 6, locoweed: 6} = game.sets
+    assert %{green: 5, black: 6, locoweed: 2} = game.sets
   end
 
-  test "parse_sets keeps Sets 5-6 and locoweed only with the expansion; black always" do
+  test "parse_sets keeps Sets 5-6 in every game; black always; bad locoweed is none" do
     params = %{"green" => "6", "black" => "5", "locoweed" => "7"}
 
-    assert SetupComponents.parse_sets(params) == %{
-             green: 1,
-             blue: 1,
-             red: 1,
-             yellow: 1,
-             purple: 1,
-             black: 5
-           }
+    assert SetupComponents.parse_sets(params) ==
+             %{green: 6, blue: 1, red: 1, yellow: 1, purple: 1, black: 5}
 
-    assert SetupComponents.parse_sets(params, true) ==
-             %{green: 6, blue: 1, red: 1, yellow: 1, purple: 1, black: 5, locoweed: 5}
+    assert SetupComponents.parse_sets(%{"locoweed" => "4", "orange" => "2"}) ==
+             %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1, locoweed: 4, orange: 2}
   end
 
   test "the page shows the 3 witches and the bowl; a call opens the silver offer", %{conn: conn} do
@@ -78,7 +74,9 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
   end
 
   test "the shop has the orange 6 and locoweed row and the copper witch", %{conn: conn} do
-    {id, _view} = live_solo(conn)
+    books = %{orange: 2, locoweed: 1}
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, books, %{fortune: false}, :herb_witches)
+    {:ok, _view, _html} = live(conn, ~p"/g/#{id}")
     {:ok, _} = GameServer.apply(id, 0, :draw)
     {:ok, _} = GameServer.apply(id, 0, :stop)
     {:ok, %{game: game}} = GameServer.get(id)
@@ -171,8 +169,8 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
       {{:black, 6}, :droplet},
       {{:black, 6}, :ruby},
       {{:black, 6}, :droplet_ruby},
-      {{:locoweed, 5}, {:moves, 3}},
-      {{:locoweed, 6}, {:copied, {:red, 4}}}
+      {{:locoweed, 1}, {:moves, 3}},
+      {{:locoweed, 2}, {:copied, {:red, 4}}}
     ]
 
     events =

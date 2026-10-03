@@ -22,7 +22,7 @@ defmodule Quacks.GameServer do
   new waiting game with the same settings and the same seated browsers.
 
   Bots: while `:waiting` the host may put a bot (`Quacks.AI`, always the `:balanced`
-  profile, "Steady Sam") in a free seat (`add_bot/3`) and take it out again
+  profile, a name from `Quacks.AI.Names`) in a free seat (`add_bot/3`) and take it out again
   (`remove_bot/3`). A bot holds a seat like a browser does. Once the game is
   `:playing`, each bot seat that can act gets a tick (`{:bot, seat, tick}`, after
   `:bot_delay` ms, 700 by default): the bot makes one action through
@@ -40,12 +40,11 @@ defmodule Quacks.GameServer do
   use GenServer, restart: :temporary
 
   alias Quacks.{AI, Game, Session}
-  alias Quacks.AI.Profile
+  alias Quacks.AI.{Names, Profile}
 
   @idle_timeout :timer.hours(2)
   @max_bots 7
   @bot_profile :balanced
-  @bot_name "Steady Sam"
   @lobby_topic "lobby"
 
   @typedoc "A short game id, 6 lowercase letters."
@@ -188,9 +187,10 @@ defmodule Quacks.GameServer do
   def play_again(id, token), do: call(id, {:play_again, token})
 
   @doc """
-  The host puts a bot ("Steady Sam", profile `:balanced`) in the free `seat` (nil:
-  the lowest free seat), while `:waiting`. More bots are "Steady Sam 2", "Steady Sam
-  3", …; each gets the next free colour. At most #{@max_bots} bots.
+  The host puts a bot (profile `:balanced`) in the free `seat` (nil: the lowest free
+  seat), while `:waiting`. Each bot gets a name from `Quacks.AI.Names` that is not at
+  the table yet (picked with the table's rng) and the next free colour. At most
+  #{@max_bots} bots.
   """
   @spec add_bot(id, String.t(), Game.seat() | nil) ::
           {:ok, Game.seat()}
@@ -261,13 +261,23 @@ defmodule Quacks.GameServer do
   # `fields`: `max_players`, `seed`, `opts` (the `Session.new/3` options), `tokens`
   # (a browser's player token -> its seat), `names`, `colours`, `bots` and `creator`
   # (a token). `session` is nil until begin; `next_id` is the game `play_again/2`
-  # opened. `bot_rngs` holds each bot's own rng; `bot_ticks` the one pending tick per
+  # opened. `name_rng` picks bot names (`Quacks.AI.Names`). `bot_rngs` holds each
+  # bot's own rng; `bot_ticks` the one pending tick per
   # bot seat (seat -> tick number, see `schedule_bots/1`), `tick` the last number.
   @impl true
   def init({id, fields}) do
     state =
       Map.merge(
-        %{id: id, session: nil, next_id: nil, bots: %{}, bot_rngs: %{}, bot_ticks: %{}, tick: 0},
+        %{
+          id: id,
+          session: nil,
+          next_id: nil,
+          bots: %{},
+          bot_rngs: %{},
+          bot_ticks: %{},
+          tick: 0,
+          name_rng: :rand.seed_s(:exsss, fields.seed)
+        },
         fields
       )
 
@@ -563,18 +573,14 @@ defmodule Quacks.GameServer do
     end)
   end
 
-  # A bot takes `seat`, with the first free name of "Steady Sam", "Steady Sam 2", …
+  # A bot takes `seat`, with a name nobody at the table has.
   defp seat_bot(state, seat) do
-    taken = Map.values(state.names)
-
-    name =
-      Stream.iterate(1, &(&1 + 1))
-      |> Stream.map(&if(&1 == 1, do: @bot_name, else: "#{@bot_name} #{&1}"))
-      |> Enum.find(&(&1 not in taken))
+    {name, name_rng} = Names.pick(Map.values(state.names), state.name_rng)
 
     state = %{
       state
-      | bots: Map.put(state.bots, seat, @bot_profile),
+      | name_rng: name_rng,
+        bots: Map.put(state.bots, seat, @bot_profile),
         names: Map.put(state.names, seat, name),
         colours: Map.put(state.colours, seat, free_colour(state.colours, seat))
     }

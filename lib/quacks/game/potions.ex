@@ -22,7 +22,7 @@ defmodule Quacks.Game.Potions do
   Choice books on draw: red Set 6 sets one more chip aside (`aside`), which the
   player places with `{:red, {:place, chip}}` at any time and must place this round;
   yellow Set 6 offers `{:chip, :yellow_ruby}` (1 ruby: the yellow moves 3 more) in
-  the player phase `:chip_choice`; locoweed 9 there offers `{:chip, {:return, chip}}`
+  the player phase `:chip_choice`; locoweed 5 there offers `{:chip, {:return, chip}}`
   (a coloured pot chip back to the bag). Green Set 5 starter chips (`Quacks.Player.starters`)
   are the first chips `:draw` takes.
 
@@ -146,7 +146,7 @@ defmodule Quacks.Game.Potions do
     |> step(seat, :chip_done)
   end
 
-  # Locoweed 9: the newest such chip leaves the pot for the bag; its space stays
+  # Locoweed 5: the newest such chip leaves the pot for the bag; its space stays
   # empty. When it is the newest chip, the next chip counts from the chip before it.
   def step(g, seat, {:chip, {:return, chip}}) do
     g
@@ -155,7 +155,7 @@ defmodule Quacks.Game.Potions do
       %{p | drawn: drawn, pot_index: last_index(drawn, p)}
     end)
     |> return_to_bag(seat, chip)
-    |> Game.effect(seat, {:locoweed, 9}, {:returned, chip})
+    |> Game.effect(seat, {:locoweed, 5}, {:returned, chip})
     |> step(seat, :chip_done)
   end
 
@@ -324,12 +324,12 @@ defmodule Quacks.Game.Potions do
 
   defp next_chip_lost(_g, _seat, book), do: book
 
-  # The chip a drawn chip acts as, and its book. Locoweed Set 6 copies the value and
+  # The chip a drawn chip acts as, and its book. Locoweed Set 2 copies the value and
   # the on-draw action of the last coloured chip in the pot (no coloured chip: value
   # 1, no action, book `:none`). ⚠️ Earlier locoweed chips are skipped (they acted as
   # that same chip); the copy keeps colour locoweed for every count; step-B actions
   # are not copied (`herb-witches.md` §2.3).
-  defp acting(%{sets: %{locoweed: 6}} = g, p, {:locoweed, _} = chip) do
+  defp acting(%{sets: %{locoweed: 2}} = g, p, {:locoweed, _} = chip) do
     case Enum.find(p.drawn, fn {{c, _}, _} -> c not in [:white, :locoweed] end) do
       nil -> {chip, :none}
       {{colour, _} = copied, _index} -> {copied, {colour, set(g, colour)}}
@@ -489,8 +489,8 @@ defmodule Quacks.Game.Potions do
       else: g
   end
 
-  # Locoweed 9: the player may return one coloured pot chip (this locoweed too).
-  defp on_draw(g, seat, _chip, {:locoweed, 9}) do
+  # Locoweed 5: the player may return one coloured pot chip (this locoweed too).
+  defp on_draw(g, seat, _chip, {:locoweed, 5}) do
     choices =
       for {{colour, _} = chip, _} <- Game.player(g, seat).drawn,
           colour != :white,
@@ -514,7 +514,7 @@ defmodule Quacks.Game.Potions do
     move = value + bonus + Fortune.extra_move(g, acting)
 
     effects =
-      if chip == acting, do: effects, else: [{{:locoweed, 6}, {:copied, acting}} | effects]
+      if chip == acting, do: effects, else: [{{:locoweed, 2}, {:copied, acting}} | effects]
 
     {move, effects} =
       if p.mods.next_chip_x2,
@@ -572,21 +572,21 @@ defmodule Quacks.Game.Potions do
     end
   end
 
-  # Locoweed Set 5: rat stone distance + 1, at most 4 (solo: no rats, so 1).
-  defp bonus(_chip, {:locoweed, 5} = book, p) do
+  # Locoweed Set 1: rat stone distance + 1, at most 4 (solo: no rats, so 1).
+  defp bonus(_chip, {:locoweed, 1} = book, p) do
     n = min(p.rat_stone + 1, 4)
     {n - 1, [{book, {:moves, n}}]}
   end
 
-  # Locoweed 8: 1 per colour in the pot, white not counted, locoweed always counted.
-  defp bonus(_chip, {:locoweed, 8} = book, p) do
+  # Locoweed 4: 1 per colour in the pot, white not counted, locoweed always counted.
+  defp bonus(_chip, {:locoweed, 4} = book, p) do
     n = p.drawn |> MapSet.new(fn {{c, _}, _} -> c end) |> MapSet.put(:locoweed)
     n = n |> MapSet.delete(:white) |> MapSet.size()
     {n - 1, [{book, {:moves, n}}]}
   end
 
-  # Locoweed 10: the printed values of the white chips in the pot, at least 1.
-  defp bonus(_chip, {:locoweed, 10} = book, p) do
+  # Locoweed 6: the printed values of the white chips in the pot, at least 1.
+  defp bonus(_chip, {:locoweed, 6} = book, p) do
     n = max(1, Enum.sum(for {{:white, v}, _} <- p.drawn, do: v))
     {n - 1, [{book, {:moves, n}}]}
   end

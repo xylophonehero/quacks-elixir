@@ -1063,7 +1063,7 @@ defmodule QuacksWeb.GameComponents do
   is "no locoweed" (locoweed only). The `book-art` slot is empty for now.
   """
   attr :colour, :atom, required: true
-  attr :set, :any, required: true, doc: "1..10, or nil for locoweed not in play"
+  attr :set, :any, required: true, doc: "1..6, or nil for locoweed not in play"
   attr :players, :integer, default: nil, doc: "the table size, see `book_tiers/1`"
   attr :class, :any, default: nil
 
@@ -1116,22 +1116,33 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc ~s[A book number in Roman numerals ("Off" for nil).]
-  @spec roman(1..10 | nil) :: String.t()
+  @spec roman(1..6 | nil) :: String.t()
   def roman(nil), do: "Off"
-  def roman(set), do: Enum.at(~w(I II III IV V VI VII VIII IX X), set - 1)
+  def roman(set), do: Enum.at(~w(I II III IV V VI), set - 1)
 
   @doc """
   The book `{colour, set}` for display: `Books.get/1` plus `chips`, each buyable
-  chip of the colour with its price. Locoweed nil is "not in play".
+  chip of the colour with its price. Locoweed nil is "not in play"; locoweed III
+  (The Alchemists' A) is shown but not playable yet (it needs the essence phase).
   """
-  @spec book_info(Chips.colour(), 1..10 | nil) :: map
+  @spec book_info(Chips.colour(), 1..6 | nil) :: map
   def book_info(:locoweed, nil) do
     %{
-      Books.get({:locoweed, 5})
+      Books.get({:locoweed, 1})
       | text: "No locoweed chips in the shop this game.",
         prices: []
     }
     |> Map.put(:chips, [])
+  end
+
+  def book_info(:locoweed, 3) do
+    %{
+      Books.get({:locoweed, 1})
+      | text:
+          "Moves 1; in the essence phase your essence marker moves 1 more space for each locoweed in your pot.",
+        prices: [Chips.price({:locoweed, 1}, %{locoweed: 3})]
+    }
+    |> Map.put(:chips, [{{:locoweed, 1}, Chips.price({:locoweed, 1}, %{locoweed: 3})}])
   end
 
   def book_info(colour, set) do
@@ -1775,10 +1786,10 @@ defmodule QuacksWeb.GameComponents do
   defp effect({:black, 6}, :droplet_ruby), do: "Hawkmoth: droplet +1, +1 ruby"
   defp effect({:locoweed, _}, {:moves, n}), do: "Locoweed: moved #{n}"
 
-  defp effect({:locoweed, 9}, {:returned, chip}),
+  defp effect({:locoweed, 5}, {:returned, chip}),
     do: "Locoweed: #{chip_name(chip)} back to the bag"
 
-  defp effect({:locoweed, 6}, {:copied, chip}), do: "Locoweed: acted as #{chip_name(chip)}"
+  defp effect({:locoweed, 2}, {:copied, chip}), do: "Locoweed: acted as #{chip_name(chip)}"
   defp effect(book, detail), do: inspect({:effect, book, detail})
 
   # What a witch did, for the log.
