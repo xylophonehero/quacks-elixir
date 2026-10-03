@@ -6,7 +6,8 @@ defmodule Mix.Tasks.Quacks.Sim do
       mix quacks.sim --games 500 --profiles balanced,reckless,cautious,balanced --seed 1
 
   Options: `--games` (default 100), `--profiles` (comma list of cautious, balanced,
-  reckless; one per seat; default balanced,balanced), `--seed` (default 1),
+  reckless; one per seat; default balanced,balanced; a profile takes `+` modifiers,
+  e.g. `balanced+ev+flaskev`, see `Quacks.AI.Profile.parse/1`), `--seed` (default 1),
   `--rules` (house rules as `key:value` pairs, comma list, e.g. `pot_side:back`),
   `--expansions` (comma list of herb_witches, alchemists) and `--sets` (`colour:set`
   pairs, e.g. `locoweed:3`).
@@ -18,9 +19,11 @@ defmodule Mix.Tasks.Quacks.Sim do
 
   @impl true
   def run(argv) do
-    summary = Sim.run(options(argv))
+    {micros, summary} = :timer.tc(fn -> Sim.run(options(argv)) end)
 
-    Mix.shell().info("#{summary.games} games, #{summary.players} players\n")
+    Mix.shell().info(
+      "#{summary.games} games, #{summary.players} players, #{num(micros / 1_000_000)} s\n"
+    )
 
     Mix.shell().info(
       row(["profile", "seats", "VP", "sd", "win %", "expl %"] ++ Enum.map(1..9, &"e#{&1}"))
@@ -74,10 +77,11 @@ defmodule Mix.Tasks.Quacks.Sim do
   end
 
   defp parse_profiles(text) do
-    known = Map.new(Profile.all(), &{Atom.to_string(&1), &1})
-
     for name <- String.split(text, ",", trim: true) do
-      Map.get(known, String.trim(name)) || Mix.raise("unknown profile #{inspect(name)}")
+      case Profile.parse(name) do
+        {:ok, profile} -> profile
+        {:error, message} -> Mix.raise(message)
+      end
     end
   end
 

@@ -7,7 +7,7 @@ defmodule QuacksWeb.AlchemistsComponents do
   """
   use Phoenix.Component
 
-  import QuacksWeb.CoreComponents, only: [icon: 1]
+  import QuacksWeb.Icons, only: [patient_icon: 1]
   import QuacksWeb.GameComponents, only: [chip_name: 1, seat_colour: 1]
 
   alias Quacks.Game
@@ -59,7 +59,7 @@ defmodule QuacksWeb.AlchemistsComponents do
         ]}
       >
         <span class="grid size-7 shrink-0 place-items-center rounded-full bg-(--bead) text-ink">
-          <.icon name="hero-beaker" class="size-4" />
+          <.patient_icon id={@p.patient} class="size-5" />
         </span>
         <span class="truncate">{@patient.name}</span>
       </button>
@@ -147,6 +147,7 @@ defmodule QuacksWeb.AlchemistsComponents do
     ~H"""
     <div class="space-y-2" data-role="patient-card" data-patient={@id}>
       <div class="flex items-baseline gap-2">
+        <.patient_icon id={@id} class="size-7 shrink-0 self-center text-ink" />
         <h3 class="font-hand text-xl font-bold">{@patient.name}</h3>
         <span class="text-xs text-ink-soft italic">{@patient.de}</span>
       </div>
