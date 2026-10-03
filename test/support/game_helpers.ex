@@ -6,8 +6,8 @@ defmodule Quacks.GameHelpers do
 
   alias Quacks.{Game, Player}
 
-  @game_keys [:round, :supply, :turn, :fortune_card, :fortune_deck]
-  @shopping [:buy, :rubies, :ready]
+  @game_keys [:round, :supply, :fortune_card, :fortune_deck]
+  @shopping [:shop, :ready]
 
   @doc "Apply an action for `seat` (default 0), asserting it is legal."
   def apply!(game, seat \\ 0, action) do
@@ -24,22 +24,33 @@ defmodule Quacks.GameHelpers do
 
   @doc """
   Set fields on the game or on `seat`'s player. `phase: :over` sets the game phase.
-  `phase: :buy | :rubies | :ready` puts the game in `:shopping`; when it was not
-  shopping yet, every seat gets that sub-phase. Any other `phase:` is the player's own
-  phase. `round:`, `supply:`, `turn:`, `fortune_card:` and `fortune_deck:` are game
-  fields; the rest are player fields. Unknown keys raise.
+  `phase: :shop | :ready` puts the game in `:shopping`; when it was not shopping yet,
+  every seat gets that sub-phase. Shorthands: `phase: :buy` is `:shop`; `phase:
+  :rubies` is `:shop` after the buy (`bought?: true`). Any other `phase:` is the
+  player's own phase. `round:`, `supply:`, `fortune_card:` and `fortune_deck:` are
+  game fields; the rest are player fields. Unknown keys raise.
   """
   def put(game, seat \\ 0, fields) do
     Enum.reduce(fields, game, fn
       {:phase, :over}, g ->
-        %{g | phase: :over, turn: nil}
+        %{g | phase: :over}
+
+      {:phase, :buy}, g ->
+        put(g, seat, phase: :shop)
+
+      {:phase, :rubies}, %{phase: :shopping} = g ->
+        put(g, seat, phase: :shop, bought?: true)
+
+      {:phase, :rubies}, g ->
+        g = put(g, seat, phase: :shop)
+        %{g | players: Map.new(g.players, fn {s, p} -> {s, %{p | bought?: true}} end)}
 
       {:phase, sub}, %{phase: :shopping} = g when sub in @shopping ->
         put_in(g.players[seat].phase, sub)
 
       {:phase, sub}, g when sub in @shopping ->
         players = Map.new(g.players, fn {s, p} -> {s, %{p | phase: sub}} end)
-        %{g | phase: :shopping, turn: nil, players: players}
+        %{g | phase: :shopping, players: players}
 
       {:phase, phase}, g ->
         put_in(g.players[seat].phase, phase)

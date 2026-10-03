@@ -159,17 +159,20 @@ defmodule QuacksWeb.GameLiveTest do
     refute has_element?(view, ~s(button[popovertarget="sheet-players"]))
   end
 
-  test "the shop dialog is in the page only while buying", %{conn: conn} do
+  test "the shop dialog is in the page only while shopping", %{conn: conn} do
     {:ok, view, _html} = live_game(conn, {10, 11, 12})
-    refute has_element?(view, "dialog#decision-buy")
+    refute has_element?(view, "dialog#decision-shop")
 
     view = mount_shop(conn)
-    assert has_element?(view, "dialog#decision-buy #shop")
-    assert has_element?(view, "dialog#decision-buy[phx-mounted]")
+    assert has_element?(view, "dialog#decision-shop #shop")
+    assert has_element?(view, "dialog#decision-shop[phx-mounted]")
 
+    # one step: buying nothing keeps the shop open with "End round" in it
     view |> element("button", "Buy nothing") |> render_click()
-    refute has_element?(view, "dialog#decision-buy")
-    assert has_element?(view, "dialog#decision-rubies button", "End round")
+    refute has_element?(view, "button", "Buy nothing")
+    assert has_element?(view, "dialog#decision-shop button", "End round")
+    view |> element("dialog#decision-shop button", "End round") |> render_click()
+    refute has_element?(view, "dialog#decision-shop")
   end
 
   test "an unknown game id sends the browser to the lobby", %{conn: conn} do
@@ -206,7 +209,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert count(render(view), "#shop input:disabled") == length(Chips.shop()) - 2
 
     view |> element("button", "Buy selected") |> render_click()
-    assert has_element?(view, "dd", "Rubies")
+    assert has_element?(view, "dd", "Shop")
     assert has_element?(view, "li", "Bought green 1 + orange 1")
     assert bag_size(view) == before + 2
   end
@@ -252,7 +255,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, "[data-role=shop-total]", "Selected: 12 coins. Remaining: -5 of 7.")
 
     view |> element("button", "Buy nothing") |> render_click()
-    assert has_element?(view, "dd", "Rubies")
+    assert has_element?(view, "dd", "Shop")
   end
 
   test "every engine action in the choice phases has a human label" do
@@ -274,7 +277,9 @@ defmodule QuacksWeb.GameLiveTest do
     assert GameComponents.label({:pot_ruby, 24}) == "Scoring space 24: +1 ruby"
     assert GameComponents.label({:pot_vp, 8, 24}) == "Scoring space 24: +8 VP"
     assert GameComponents.label({:round_end, 4}) == "— Round 4 over —"
-    assert GameComponents.label({:final_conversion, 3, 2}) == "Final: coins → 3 VP, rubies → 2 VP"
+
+    assert GameComponents.label({:final_conversion, 17, 3, 5, 2}) ==
+             "Final: 17 coins → 3 VP, 5 rubies → 2 VP"
 
     for event <- [{:purple, 1, :vp1}, {:purple, 3, :vp2_droplet}] do
       refute GameComponents.label(event) =~ ~r/^[:{]/

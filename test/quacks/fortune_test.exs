@@ -83,7 +83,7 @@ defmodule Quacks.FortuneTest do
         |> force_draws(1, [{:white, 1}])
         |> apply!(1, :stop)
 
-      assert g.phase == :fortune_choice and g.turn == 1
+      assert g.phase == :fortune_choice and me(g, 1).phase == :fortune_choice
       assert {:fortune, {:take, {:green, 2}}} in Game.legal_actions(g, 1)
       refute {:fortune, {:take, {:yellow, 2}}} in Game.legal_actions(g, 1)
       assert Game.legal_actions(g, 0) == []
@@ -91,7 +91,7 @@ defmodule Quacks.FortuneTest do
       g = apply!(g, 1, {:fortune, {:take, {:green, 2}}})
       assert {:green, 2} in me(g, 1).bag
       assert logged?(g, 1, :b2, {:take, {:green, 2}})
-      assert g.phase == :shopping and Game.phase(g, 1) == :buy
+      assert g.phase == :shopping and Game.phase(g, 1) == :shop
     end
 
     test "B3 Second Chances: after the 5th chip, restart the round once" do
@@ -161,7 +161,7 @@ defmodule Quacks.FortuneTest do
       g = apply!(g, {:fortune, {:place, {:red, 1}}})
       assert [{{:red, 1}, 2} | _] = me(g).drawn
       assert {:green, 1} in me(g).bag
-      assert Game.phase(g, 0) == :buy
+      assert Game.phase(g, 0) == :shop
     end
 
     # Official ruling (The Herb Witches rulebook): the placed chip cannot explode the
@@ -171,7 +171,7 @@ defmodule Quacks.FortuneTest do
       g = g |> apply!(:stop) |> apply!({:fortune, {:place, {:white, 3}}})
       assert Game.white_sum(g) == 9
       refute me(g).exploded?
-      assert Game.phase(g, 0) == :buy and me(g).coins > 0
+      assert Game.phase(g, 0) == :shop and me(g).coins > 0
 
       # a red (Set 1) after an orange moves its printed value only
       g = blue(:b7) |> force_draws([{:orange, 1}]) |> put(bag: [{:red, 1}])
@@ -214,7 +214,7 @@ defmodule Quacks.FortuneTest do
   describe "purple cards" do
     test "P1 Choices, Choices: black, a 2-value chip or 3 rubies" do
       g = purple(new(), :p1)
-      assert g.phase == :fortune_choice and g.turn == 0
+      assert g.phase == :fortune_choice and me(g, 0).phase == :fortune_choice
       actions = Game.legal_actions(g)
       assert {:fortune, {:take, {:black, 1}}} in actions
       assert {:fortune, {:take, {:blue, 2}}} in actions
@@ -263,6 +263,31 @@ defmodule Quacks.FortuneTest do
       assert g.supply[{:white, 1}] == new().supply[{:white, 1}] + 1
     end
 
+    test "with 2 players both seats answer the card at the same time, in any order" do
+      g = purple(new(2), :p6)
+      assert g.phase == :fortune_choice
+      assert fortune_actions(g, 0) != [] and fortune_actions(g, 1) != []
+
+      # seat 1 (not the start seat) answers first; the phase waits for seat 0
+      g = apply!(g, 1, {:fortune, :vp})
+      assert g.phase == :fortune_choice and Game.legal_actions(g, 1) == []
+      g = apply!(g, 0, {:fortune, :remove_white})
+      assert g.phase == :potions and me(g, 1).vp == 4 and me(g, 0).vp == 0
+      assert Game.legal_actions(g, 0) == [:draw] and Game.legal_actions(g, 1) == [:draw]
+    end
+
+    test "limited supply: the first seat to take the last chip gets it" do
+      fours = %{{:green, 4} => 0, {:red, 4} => 0, {:yellow, 4} => 0, {:blue, 4} => 1}
+      g = new(2) |> put(supply: Map.merge(new(2).supply, fours)) |> purple(:p10)
+      assert fortune_actions(g, 0) == [{:fortune, {:take, {:blue, 4}}}]
+      assert fortune_actions(g, 1) == [{:fortune, {:take, {:blue, 4}}}]
+
+      g = apply!(g, 1, {:fortune, {:take, {:blue, 4}}})
+      assert {:blue, 4} in me(g, 1).bag and {:blue, 4} not in me(g, 0).bag
+      # nothing left for seat 0: the card is through
+      assert g.phase == :potions
+    end
+
     test "P7 Infestation: the rat stone moves as far again" do
       g = new(2) |> put(1, rat_stone: 2, pot_index: 2) |> purple(:p7)
       assert me(g, 1).rat_stone == 4 and me(g, 1).pot_index == 4
@@ -283,7 +308,7 @@ defmodule Quacks.FortuneTest do
 
     test "P9 Good Start: move the rat stone back for rubies" do
       g = new(2) |> put(1, rat_stone: 4, pot_index: 4) |> purple(:p9)
-      assert g.phase == :fortune_choice and g.turn == 1
+      assert g.phase == :fortune_choice and me(g, 1).phase == :fortune_choice
 
       assert Game.legal_actions(g, 1) ==
                [{:fortune, {:rats_back, 1}}, {:fortune, {:rats_back, 2}}] ++
@@ -301,7 +326,7 @@ defmodule Quacks.FortuneTest do
       # 4 tails between 0 and 12: after 1, 4, 7, 10
       assert me(g, 0).vp == 4
 
-      assert g.turn == 1
+      assert me(g, 1).phase == :fortune_choice and Game.legal_actions(g, 0) == []
       refute {:fortune, :vp} in Game.legal_actions(g, 1)
       g = apply!(g, 1, {:fortune, {:take, {:red, 4}}})
       assert {:red, 4} in me(g, 1).bag and g.phase == :potions

@@ -16,8 +16,10 @@ defmodule Quacks.GameServer do
   yet, browsers take seats (`claim_seat/2`) and leave them (`leave_seat/2`), up to the
   configured number of players. `begin/2` starts the game with the seats taken
   (renumbered `0..n-1` in seat order) and makes it `:playing`; from then on no new
-  seats are given out. The creator is the first browser to take a seat; only the
-  creator may begin, unless the creator left, then any seated browser may.
+  seats are given out. The creator (the host) is the first browser to take a seat;
+  only the creator may `configure/3` the game and begin it, unless the creator left,
+  then any seated browser may begin. After the game is over, `play_again/2` opens a
+  new waiting game with the same settings and the same seated browsers.
 
   Games live under `Quacks.GameSupervisor` and are not persisted: a game that sees no
   message for 2 hours stops, and a node restart forgets every game.
@@ -36,6 +38,7 @@ defmodule Quacks.GameServer do
   What a page needs about a game. `game` is `nil` while `status` is `:waiting`.
   `players` is the number of seats in the game once `:playing`, and the maximum
   (`max_players`) while `:waiting`. `creator` is the creator's seat, `nil` once they left.
+  `sets`, `rules` and `expansion` are the options the game starts (or started) with.
   """
   @type table :: %{
           id: id,
@@ -45,7 +48,10 @@ defmodule Quacks.GameServer do
           players: 1..5,
           max_players: 1..5,
           names: %{Game.seat() => String.t()},
-          creator: Game.seat() | nil
+          creator: Game.seat() | nil,
+          sets: Quacks.Rules.Chips.sets(),
+          rules: map,
+          expansion: Quacks.Rules.Chips.expansion()
         }
 
   # -- API ---------------------------------------------------------------------------
@@ -55,7 +61,8 @@ defmodule Quacks.GameServer do
   `begin/2`. A `nil` seed picks a random one. `sets` picks the Ingredient Set per
   colour, e.g. `%{green: 2}` (left out: Set 1). `rules` sets house rules, e.g.
   `%{explode_above: 9}` (left out: the default). `expansion: :herb_witches` turns the
-  expansion on. See `Quacks.Game.new/1`.
+  expansion on. See `Quacks.Game.new/1`. `start(players)` with the defaults is enough
+  when the host sets the game up afterwards (`configure/3`).
   """
   @spec start(
           1..5,
@@ -66,23 +73,33 @@ defmodule Quacks.GameServer do
         ) :: {:ok, id}
   def start(players, seed \\ nil, sets \\ %{}, rules \\ %{}, expansion \\ nil)
       when players in 1..4 or (players == 5 and expansion == :herb_witches) do
-    id = new_id()
-    seed = seed || random_seed()
-    arg = {id, players, seed, sets, rules, expansion}
+    start_server(%{
+      max_players: players,
+      seed: seed || random_seed(),
+      opts: [sets: sets, rules: rules, expansion: expansion],
+      tokens: %{},
+      names: %{},
+      creator: nil
+    })
+  end
 
-    case DynamicSupervisor.start_child(Quacks.GameSupervisor, {__MODULE__, arg}) do
+  # Start a game process with `fields` (see `init/1`) under a new id.
+  defp start_server(fields) do
+    id = new_id()
+
+    case DynamicSupervisor.start_child(Quacks.GameSupervisor, {__MODULE__, {id, fields}}) do
       {:ok, _pid} ->
         broadcast_lobby()
         {:ok, id}
 
       # Two games drew the same id; try again with a new one.
       {:error, {:already_started, _pid}} ->
-        start(players, seed, sets, rules, expansion)
+        start_server(fields)
     end
   end
 
   @doc false
-  def start_link({id, _players, _seed, _sets, _rules, _expansion} = arg),
+  def start_link({id, _fields} = arg),
     do: GenServer.start_link(__MODULE__, arg, name: {:via, Registry, {Quacks.GameRegistry, id}})
 
   @doc """
@@ -124,6 +141,27 @@ defmodule Quacks.GameServer do
           {:ok, Game.t()} | {:error, :not_creator | :not_seated | :already_started | :not_found}
   def begin(id, token), do: call(id, {:begin, token})
 
+  @doc """
+  The host (creator) sets the game up while it is `:waiting`: any of `players:`
+  (1..4, 5 with the expansion; not fewer than the seats taken), `sets:`, `rules:`
+  and `expansion:` (keys left out keep their value). Bad values are refused as
+  `Quacks.Game.new/1` would refuse them. Waiting pages hear `{:names, id, names}` and
+  re-read the table.
+  """
+  @spec configure(id, String.t(), map) ::
+          {:ok, table}
+          | {:error, :not_creator | :already_started | :invalid | :not_found}
+  def configure(id, token, config), do: call(id, {:configure, token, config})
+
+  @doc """
+  After the game is over, a seated browser opens the next game: a new `:waiting` game
+  with the same settings, seats, names and host (a new seed). Every page hears
+  `{:play_again, id, new_id}` and moves there. Asking again gives the same `new_id`.
+  """
+  @spec play_again(id, String.t()) ::
+          {:ok, id} | {:error, :not_over | :not_seated | :not_found}
+  def play_again(id, token), do: call(id, {:play_again, token})
+
   @doc "Set the nickname of `seat`. A blank name goes back to \"Seat N\"."
   @spec rename(id, Game.seat(), String.t()) :: :ok | {:error, :not_found}
   def rename(id, seat, name), do: call(id, {:rename, seat, name})
@@ -147,7 +185,10 @@ defmodule Quacks.GameServer do
   @spec default_name(Game.seat()) :: String.t()
   def default_name(seat), do: "Seat #{seat + 1}"
 
-  @doc "The PubSub topic of one game. Messages: `{:game, id, game}`, `{:names, id, names}`."
+  @doc """
+  The PubSub topic of one game. Messages: `{:game, id, game}`, `{:names, id, names}`
+  and `{:play_again, id, new_id}`.
+  """
   @spec topic(id) :: String.t()
   def topic(id), do: "game:" <> id
 
@@ -169,20 +210,14 @@ defmodule Quacks.GameServer do
 
   # -- server ------------------------------------------------------------------------
 
+  # `fields`: `max_players`, `seed`, `opts` (the `Session.new/3` options), `tokens`
+  # (a browser's player token -> its seat), `names` and `creator` (a token).
+  # `session` is nil until begin; `next_id` is the game `play_again/2` opened.
   @impl true
-  def init({id, players, seed, sets, rules, expansion}) do
-    # `tokens` maps a browser's player token to its seat; `session` is nil until begin.
-    state = %{
-      id: id,
-      max_players: players,
-      seed: seed,
-      opts: [sets: sets, rules: rules, expansion: expansion],
-      session: nil,
-      tokens: %{},
-      names: %{},
-      creator: nil
-    }
-
+  def init({id, fields}) do
+    state = Map.merge(%{id: id, session: nil, next_id: nil}, fields)
+    # Solo has nobody to wait for (a solo play-again comes with its seat taken).
+    state = if state.max_players == 1 and state.tokens != %{}, do: begin_game(state), else: state
     {:ok, state, @idle_timeout}
   end
 
@@ -267,6 +302,57 @@ defmodule Quacks.GameServer do
     end
   end
 
+  def handle_call({:configure, _token, _config}, _from, %{session: %Session{}} = state),
+    do: {:reply, {:error, :already_started}, state, @idle_timeout}
+
+  def handle_call({:configure, token, config}, _from, state) do
+    max = Map.get(config, :players, state.max_players)
+    opts = Keyword.merge(state.opts, Keyword.new(Map.take(config, [:sets, :rules, :expansion])))
+
+    cond do
+      token != state.creator ->
+        {:reply, {:error, :not_creator}, state, @idle_timeout}
+
+      not valid?(max, opts) or max < map_size(state.names) ->
+        {:reply, {:error, :invalid}, state, @idle_timeout}
+
+      true ->
+        state = %{state | max_players: max, opts: opts}
+        broadcast_names(state)
+        broadcast_lobby()
+        {:reply, {:ok, table(state)}, state, @idle_timeout}
+    end
+  end
+
+  def handle_call({:play_again, token}, _from, state) do
+    cond do
+      state.session == nil or not Game.over?(state.session.game) ->
+        {:reply, {:error, :not_over}, state, @idle_timeout}
+
+      not Map.has_key?(state.tokens, token) ->
+        {:reply, {:error, :not_seated}, state, @idle_timeout}
+
+      state.next_id ->
+        {:reply, {:ok, state.next_id}, state, @idle_timeout}
+
+      true ->
+        creator = if Map.has_key?(state.tokens, state.creator), do: state.creator, else: token
+
+        {:ok, new_id} =
+          start_server(%{
+            max_players: state.max_players,
+            seed: random_seed(),
+            opts: state.opts,
+            tokens: state.tokens,
+            names: state.names,
+            creator: creator
+          })
+
+        Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:play_again, state.id, new_id})
+        {:reply, {:ok, new_id}, %{state | next_id: new_id}, @idle_timeout}
+    end
+  end
+
   def handle_call({:rename, seat, name}, _from, state) do
     name = name |> String.trim() |> String.slice(0, 20)
     name = if name == "", do: default_name(seat), else: name
@@ -302,6 +388,14 @@ defmodule Quacks.GameServer do
     }
   end
 
+  # The settings make a game: the player count fits and `Game.new/1` accepts them.
+  defp valid?(max, opts) do
+    max in 1..if(opts[:expansion] == :herb_witches, do: 5, else: 4) and
+      match?(%Game{}, Game.new([seed: {1, 2, 3}, players: max] ++ opts))
+  rescue
+    ArgumentError -> false
+  end
+
   defp reply_game(state) do
     game = state.session.game
     Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:game, state.id, game})
@@ -322,7 +416,10 @@ defmodule Quacks.GameServer do
       players: if(session, do: session.players, else: state.max_players),
       max_players: state.max_players,
       names: state.names,
-      creator: state.tokens[state.creator]
+      creator: state.tokens[state.creator],
+      sets: state.opts[:sets],
+      rules: state.opts[:rules],
+      expansion: state.opts[:expansion]
     }
   end
 

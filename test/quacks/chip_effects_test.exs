@@ -257,7 +257,7 @@ defmodule Quacks.ChipEffectsTest do
     g = put(new(), phase: :explosion_choice, exploded?: true, pot_index: 4)
     g = put(g, drawn: placed([{:green, 1}, {:purple, 1}, {:black, 1}]))
     g = apply!(g, {:explosion_choice, :vp})
-    assert {me(g).vp, me(g).rubies, me(g).droplet, Game.phase(g, 0)} == {1, 1 + 1 + 1, 1, :rubies}
+    assert {me(g).vp, me(g).rubies, me(g).droplet, Game.phase(g, 0)} == {1, 1 + 1 + 1, 1, :shop}
   end
 
   test "yellow is in the shop from round 2 and purple from round 3" do

@@ -135,7 +135,7 @@ defmodule Quacks.WitchesTest do
       g = apply!(g, {:witch, :silver})
       assert me(g).explosion_choice == :witch and witch_log?(g, :s4, :no_penalty)
       # index 8 → scoring space 9: 9 coins, 1 VP (solo: always the best space)
-      assert Game.phase(g, 0) == :buy and me(g).coins == 9
+      assert Game.phase(g, 0) == :shop and me(g).coins == 9
       assert {0, {:pot_vp, 1, 9}} in g.log
       assert Enum.any?(g.log, &match?({0, {:bonus_die, _}}, &1))
     end
@@ -161,7 +161,7 @@ defmodule Quacks.WitchesTest do
       g = apply!(g, {:witch, :copper, {:upgrade, [{:red, 1}, {:green, 2}]}})
       assert {:red, 2} in me(g).bag and {:green, 4} in me(g).bag
       assert Game.pot_chips(g) == [{:blue, 1}, {:orange, 1}]
-      assert Game.phase(g, 0) == :buy
+      assert Game.phase(g, 0) == :shop
     end
 
     test "C2 doubles the coins; C4 adds 2 per ruby" do
@@ -182,7 +182,8 @@ defmodule Quacks.WitchesTest do
       g = apply!(g, {:witch, :copper, {:buy, [{:green, 1}, {:orange, 1}], {:green, 1}}})
       # the starting bag has one green 1 already
       assert Enum.count(me(g).bag, &(&1 == {:green, 1})) == 3
-      assert me(g).coins == 0 and Game.phase(g, 0) == :rubies
+      assert me(g).coins == 0 and Game.phase(g, 0) == :shop and me(g).bought?
+      refute Enum.any?(Game.legal_actions(g), &match?({:buy, _}, &1))
       assert witch_log?(g, :c3, {:copy, {:green, 1}})
     end
 
@@ -195,12 +196,16 @@ defmodule Quacks.WitchesTest do
       end
 
       g = vp_shop.(:c4)
-      assert Game.phase(g, 0) == :buy and {:witch, :copper} in Game.legal_actions(g)
+      assert Game.phase(g, 0) == :shop and {:witch, :copper} in Game.legal_actions(g)
       g = apply!(g, {:witch, :copper})
       assert me(g).coins == 4
 
-      assert Game.phase(vp_shop.(:c1), 0) == :buy
-      assert Game.phase(vp_shop.(:c2), 0) == :rubies
+      assert {:buy, [{:orange, 1}]} in Game.legal_actions(g)
+
+      c1 = Game.legal_actions(vp_shop.(:c1))
+      assert Enum.any?(c1, &match?({:witch, :copper, {:upgrade, _}}, &1))
+      refute Enum.any?(c1, &match?({:buy, _}, &1))
+      refute {:witch, :copper} in Game.legal_actions(vp_shop.(:c2))
     end
 
     test "round 9: C2 and C4 in the rubies turn, before the coins become VP" do
@@ -208,7 +213,7 @@ defmodule Quacks.WitchesTest do
         witches([:c2]) |> put(round: 9, phase: :rubies, coins: 10, pennies: %{copper: true})
 
       g = g |> apply!({:witch, :copper}) |> apply!(:end_round)
-      assert {0, {:final_conversion, 4, 0}} in g.log
+      assert {0, {:final_conversion, 20, 4, 1, 0}} in g.log
     end
   end
 
@@ -219,12 +224,12 @@ defmodule Quacks.WitchesTest do
 
     test "G1: VP by the colours in the pot; the turn opens after step B" do
       g = gold(:g1, [{:orange, 1}, {:green, 1}, {:white, 1}, {:blue, 1}])
-      assert g.phase == :witch_choice and g.turn == 0
+      assert g.phase == :witch_choice and me(g).phase == :witch_choice
       assert Game.legal_actions(g) == [{:witch, :gold}, :witch_done]
       vp = me(g).vp
       g = apply!(g, {:witch, :gold})
       assert me(g).vp >= vp + 3 and witch_log?(g, :g1, {:vp, 3})
-      assert Game.phase(g, 0) == :buy
+      assert Game.phase(g, 0) == :shop
     end
 
     test "G1: the chart up to 8 colours; :witch_done keeps the penny" do
@@ -235,7 +240,21 @@ defmodule Quacks.WitchesTest do
       assert witch_log?(g, :g1, {:vp, 14})
 
       g = gold(:g1, [{:orange, 1}]) |> apply!(:witch_done)
-      assert me(g).pennies.gold and Game.phase(g, 0) == :buy
+      assert me(g).pennies.gold and Game.phase(g, 0) == :shop
+    end
+
+    test "two seats decide on the gold witch at the same time" do
+      chips = [{:orange, 1}, {:green, 1}]
+      g = new(%{}, 2) |> with_witch(:g1) |> force_draws(0, chips) |> force_draws(1, chips)
+      g = g |> apply!(0, :stop) |> apply!(1, :stop)
+      assert g.phase == :witch_choice
+      assert {:witch, :gold} in Game.legal_actions(g, 0)
+      assert {:witch, :gold} in Game.legal_actions(g, 1)
+
+      g = apply!(g, 1, :witch_done)
+      assert g.phase == :witch_choice and Game.legal_actions(g, 1) == []
+      g = apply!(g, 0, {:witch, :gold})
+      assert g.phase == :shopping and witch_log?(g, 0, :g1, {:vp, 3}) and me(g, 1).pennies.gold
     end
 
     test "G2: 2 VP per coloured 2/4/6-chip, purple and locoweed chip in the bag" do
@@ -277,7 +296,7 @@ defmodule Quacks.WitchesTest do
 
     test "nobody helped: no witch turn" do
       g = gold(:g3, [{:orange, 1}])
-      assert Game.phase(g, 0) == :buy
+      assert Game.phase(g, 0) == :shop
     end
 
     test "G4: the droplet and the flask cost 1 ruby for the rest of the turn" do

@@ -38,7 +38,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
       view |> element("button", "New solo game") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
-    assert game.sets == %{green: 2, blue: 1, red: 1, yellow: 1, purple: 1}
+    assert game.sets == %{green: 2, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}
 
     {:ok, game_view, _html} = live(conn, ~p"/g/#{id}")
     assert %Game{phase: :shopping} = to_shop(id)

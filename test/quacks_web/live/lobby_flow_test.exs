@@ -91,23 +91,19 @@ defmodule QuacksWeb.LobbyFlowTest do
 
     # both shop dialogs are open at the same time, with the round results on top
     for view <- [alice, bob] do
-      assert has_element?(view, "dialog#decision-buy")
+      assert has_element?(view, "dialog#decision-shop")
       assert has_element?(view, "dialog#round-results")
     end
 
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "shopping")
 
+    # one step: after buying nothing bob is still in the shop
     bob |> element("button", "Buy nothing") |> render_click()
+    assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "shopping")
 
-    assert has_element?(
-             alice,
-             ~s(article[data-seat="1"] [data-role=player-state]),
-             "spending rubies"
-           )
+    assert has_element?(alice, "dialog#decision-shop")
 
-    assert has_element?(alice, "dialog#decision-buy")
-
-    bob |> element("dialog#decision-rubies button", "End round") |> render_click()
+    bob |> element("dialog#decision-shop button", "End round") |> render_click()
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "ready")
     assert has_element?(bob, "[data-role=turn]", "Waiting for 1 player: Seat 1.")
   end

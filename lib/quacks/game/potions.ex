@@ -14,9 +14,10 @@ defmodule Quacks.Game.Potions do
 
   The Herb Witches: Sets 5–6 and the locoweed books dispatch the same way. A locoweed
   chip with Set 6 acts as the last coloured chip in the pot (its value, bonus and
-  on-draw action). With the expansion on, a chip drawn after a chip sits on the last
-  space goes in the overflow bowl (`Quacks.Player.bowl`): no action, but a white one
-  still counts toward the explosion.
+  on-draw action). With the house rule `overflow` (default on, every game), a chip
+  drawn after a chip sits on the last space goes in the overflow bowl
+  (`Quacks.Player.bowl`): no action, but a white one still counts toward the
+  explosion.
 
   Choice books on draw: red Set 6 sets one more chip aside (`aside`), which the
   player places with `{:red, {:place, chip}}` at any time and must place this round;
@@ -80,8 +81,9 @@ defmodule Quacks.Game.Potions do
 
   # :fortune_choice (B7) actions come from `Quacks.Game.Fortune`.
   # :stopped (`:resume`) comes from `Quacks.Game`: it depends on the other seats.
-  def legal_actions(%Player{phase: phase}) when phase in [:done, :fortune_choice, :stopped],
-    do: []
+  def legal_actions(%Player{phase: phase})
+      when phase in [:done, :fortune_choice, :stopped, :waiting_stir],
+      do: []
 
   @doc "Run one legal potions-phase action for `seat`. The action is already logged."
   @spec step(Game.t(), Game.seat(), Game.action()) :: Game.t()
@@ -294,13 +296,14 @@ defmodule Quacks.Game.Potions do
     end
   end
 
-  # With the expansion on, a chip after a chip on the last space goes in the bowl.
-  defp overflow?(%{expansion: nil}, _p), do: false
+  # House rule `overflow` (default): a chip after a chip on the last space goes in the
+  # bowl. Without it the chip stays on the last space.
+  defp overflow?(%{rules: %{overflow: false}}, _p), do: false
   defp overflow?(_g, %Player{drawn: drawn}), do: match?([{_, 53} | _], drawn)
 
   # Overflow bowl: on the last space an action for the next chip is lost (the next chip
   # goes in the bowl). Blue Set 1 (the offer) and Y2 (next chip double).
-  defp next_chip_lost(%{expansion: :herb_witches} = g, seat, book)
+  defp next_chip_lost(%{rules: %{overflow: true}} = g, seat, book)
        when book in [{:blue, 1}, {:yellow, 2}] do
     if Game.player(g, seat).pot_index == PotTrack.last(), do: :bowl, else: book
   end
@@ -502,7 +505,7 @@ defmodule Quacks.Game.Potions do
   end
 
   # The chip lands on `index` (clamped to the last space) and becomes the newest chip.
-  # With the expansion on and a chip already on the last space, it goes in the bowl.
+  # With `overflow` and a chip already on the last space, it goes in the bowl.
   defp put_on_pot(g, seat, chip, index) do
     if overflow?(g, Game.player(g, seat)) do
       g

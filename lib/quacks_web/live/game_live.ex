@@ -163,6 +163,10 @@ defmodule QuacksWeb.GameLive do
 
   def handle_info({:names, _id, names}, socket), do: {:noreply, assign(socket, names: names)}
 
+  # Someone opened the next game (`GameServer.play_again/2`): everyone moves there.
+  def handle_info({:play_again, _id, new_id}, socket),
+    do: {:noreply, push_navigate(socket, to: ~p"/g/#{new_id}")}
+
   # A page closed before the game began gives its seat back.
   @impl true
   def terminate(_reason, %{assigns: %{game: nil, seat: seat}} = socket) when is_integer(seat),
@@ -376,7 +380,7 @@ defmodule QuacksWeb.GameLive do
               class="min-h-12 w-full rounded-lg bg-gold font-semibold text-ink shadow"
               phx-click={JS.dispatch("quacks:modal", to: "#decision-#{@decision}")}
             >
-              {if @decision == :buy,
+              {if @decision == :shop,
                 do: "Open the shop",
                 else: "Choose: #{phase_name(@decision)}"}
             </.button>
@@ -496,9 +500,9 @@ defmodule QuacksWeb.GameLive do
       </.sheet>
 
       <.dialog_sheet :if={@decision} id={"decision-#{@decision}"} label={phase_name(@decision)}>
-        <.shop :if={@decision == :buy} game={@game} seat={@seat} selected={@selected} />
-        <div :if={@decision != :buy} class="space-y-3">
-          <h2 class="text-xl font-bold">{phase_name(@decision)}</h2>
+        <.shop :if={@decision == :shop} game={@game} seat={@seat} selected={@selected} />
+        <div class="space-y-3">
+          <h2 :if={@decision != :shop} class="text-xl font-bold">{phase_name(@decision)}</h2>
           <.fortune_card :if={@decision == :fortune_choice} id={@game.fortune_card} />
           <.blue_offer :if={@decision == :blue_choice} pending={@me.pending} />
           <.blue_offer
@@ -525,7 +529,7 @@ defmodule QuacksWeb.GameLive do
           />
           <section class="flex flex-col gap-2 *:min-h-11" aria-label="Actions">
             <.button
-              :for={action <- @all_actions}
+              :for={action <- dialog_actions(@all_actions, @decision)}
               phx-click="action"
               phx-value-action={encode(action)}
               variant="primary"
@@ -656,7 +660,13 @@ defmodule QuacksWeb.GameLive do
         >
           Buy selected
         </.button>
-        <.button phx-click="action" phx-value-action={encode({:buy, []})}>Buy nothing</.button>
+        <.button
+          :if={{:buy, []} in @actions}
+          phx-click="action"
+          phx-value-action={encode({:buy, []})}
+        >
+          Buy nothing
+        </.button>
       </div>
       <.witch_card :if={@copper != []} id={@game.witches.copper}>
         <div class="flex flex-col gap-2 *:min-h-11">
@@ -769,6 +779,12 @@ defmodule QuacksWeb.GameLive do
   defp decision(_actions, :stopped, _me), do: nil
   defp decision(_actions, phase, _me), do: phase
 
+  # The shop dialog has the buys and copper witches in `shop/1`; the rest are buttons.
+  defp dialog_actions(actions, :shop),
+    do: Enum.reject(actions, &(match?({:buy, _}, &1) or match?({:witch, :copper, _}, &1)))
+
+  defp dialog_actions(actions, _decision), do: actions
+
   defp witch?({:witch, _}), do: true
   defp witch?({:witch, _, _}), do: true
   defp witch?(_action), do: false
@@ -823,11 +839,8 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  defp turn_text(%{phase: phase, turn: seat}, seat, _names),
-    do: "Your turn: #{phase_verb(phase)}."
-
-  defp turn_text(%{phase: phase, turn: turn}, _seat, names),
-    do: "#{name(names, turn)}'s turn: #{phase_verb(phase)}."
+  defp turn_text(%{phase: phase}, _seat, _names),
+    do: "Everyone may #{phase_verb(phase)} at the same time."
 
   # The seats `seat` waits for: empty unless `seat` has stopped (or is done) while
   # others brew, or is ready while others shop. Watchers wait for nobody.

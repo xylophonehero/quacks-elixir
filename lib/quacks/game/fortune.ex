@@ -4,8 +4,10 @@ defmodule Quacks.Game.Fortune do
 
   At the start of every round `Quacks.Game` draws the top card into `fortune_card`
   (`draw/1`), places the rats, then calls `resolve/1`. A purple card resolves there:
-  its automatic part for every seat, then a game-level `:fortune_choice` phase for
-  each seat with a choice, one seat (`turn`) at a time from the start seat. A blue
+  its automatic part for every seat, then a game-level `:fortune_choice` phase where
+  every seat with a choice answers at the same time (its player phase is
+  `:fortune_choice` until it answers). Results only touch the seat's own state; with
+  `supply: :limited` the first to take a chip gets it. A blue
   card stays on `fortune_card` for the round and changes the rules through the small
   hooks below, called from `Quacks.Game.Potions` and `Quacks.Game.Evaluation`.
 
@@ -69,19 +71,22 @@ defmodule Quacks.Game.Fortune do
 
   def resolve(g) do
     if Cards.card(g.fortune_card).colour == :purple,
-      do: g |> auto(g.fortune_card) |> next_choice(Game.turn_order(g)),
+      do: g |> auto(g.fortune_card) |> open_choices(),
       else: g
   end
 
   @doc "Every potions phase is done: Toil and Trouble pays out first, then the evaluation."
   @spec after_potions(Game.t()) :: Game.t()
-  def after_potions(%{fortune_card: :b2} = g), do: next_choice(g, Game.turn_order(g))
+  def after_potions(%{fortune_card: :b2} = g), do: open_choices(g)
   def after_potions(g), do: Evaluation.run(g)
 
   @doc "The card actions `seat` has right now."
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
-  def legal_actions(%{phase: :fortune_choice, turn: seat} = g, seat),
-    do: Enum.map(choices(g, seat), &{:fortune, &1})
+  def legal_actions(%{phase: :fortune_choice} = g, seat) do
+    if Game.player(g, seat).phase == :fortune_choice,
+      do: Enum.map(choices(g, seat), &{:fortune, &1}),
+      else: []
+  end
 
   def legal_actions(%{phase: :potions} = g, seat),
     do: Enum.map(potion_choices(g.fortune_card, Game.player(g, seat)), &{:fortune, &1})
@@ -91,7 +96,7 @@ defmodule Quacks.Game.Fortune do
   @doc "Apply one legal `{:fortune, choice}` for `seat`. The action is already logged."
   @spec step(Game.t(), Game.seat(), Game.action()) :: Game.t()
   def step(%{phase: :fortune_choice} = g, seat, {:fortune, choice}) do
-    g |> choose(seat, g.fortune_card, choice) |> next_choice(Game.seats_after(g, seat))
+    g |> choose(seat, g.fortune_card, choice) |> answered(seat) |> close_choices()
   end
 
   # B3 Second Chances: the whole pot goes back in the bag; start the round again.
@@ -261,14 +266,33 @@ defmodule Quacks.Game.Fortune do
 
   defp auto(g, _id), do: g
 
-  # -- purple: the choices, one seat at a time -----------------------------------------
+  # -- purple (and B2): the choices, every seat at once -----------------------------
 
-  # Give the first of `seats` with a choice the turn; with nobody left, carry on.
-  defp next_choice(g, seats) do
-    case Enum.find(seats, &(choices(g, &1) != [])) do
-      nil -> continue(%{g | phase: :potions, turn: nil})
-      seat -> %{g | phase: :fortune_choice, turn: seat}
-    end
+  # Every seat with a choice answers now; with nobody, carry on.
+  defp open_choices(g) do
+    g.seats
+    |> Enum.filter(&(choices(g, &1) != []))
+    |> Enum.reduce(%{g | phase: :fortune_choice}, fn seat, g ->
+      Game.update_player(g, seat, &%{&1 | phase: :fortune_choice})
+    end)
+    |> close_choices()
+  end
+
+  # A seat that answered goes back to brewing (purple) or to done (B2, after brewing).
+  defp answered(g, seat) do
+    back = if g.fortune_card == :b2, do: :done, else: :potions
+    Game.update_player(g, seat, &%{&1 | phase: back})
+  end
+
+  # A seat whose choices ran out (a limited supply, first come) is through as well.
+  # Once nobody answers any more, the round carries on.
+  defp close_choices(g) do
+    open = Enum.filter(g.seats, &(Game.player(g, &1).phase == :fortune_choice))
+    g = open |> Enum.filter(&(choices(g, &1) == [])) |> Enum.reduce(g, &answered(&2, &1))
+
+    if Enum.any?(g.seats, &(Game.player(g, &1).phase == :fortune_choice)),
+      do: g,
+      else: continue(%{g | phase: :potions})
   end
 
   defp continue(%{fortune_card: :b2} = g), do: Evaluation.run(g)

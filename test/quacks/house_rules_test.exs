@@ -99,6 +99,18 @@ defmodule Quacks.HouseRulesTest do
     assert Enum.all?(g.seats, &(me(g, &1).rubies == 0))
   end
 
+  test "overflow (default, every game): chips past the last space go in the bowl" do
+    spoon = [drawn: [{{:orange, 1}, 53}], pot_index: 53]
+    g = new(%{}) |> put(spoon) |> force_draws([{:white, 2}])
+    assert g.expansion == nil and me(g).bowl == [{:white, 2}]
+    assert {0, {:overflow, {:white, 2}}} in g.log
+    assert {0, {:bowl, [{:white, 2}], 1}} in apply!(g, :stop).log
+
+    off = new(%{overflow: false}) |> put(spoon) |> force_draws([{:white, 2}])
+    assert me(off).bowl == []
+    assert [{{:white, 2}, 53} | _] = me(off).drawn
+  end
+
   test "a session keeps its rules through undo" do
     s = Session.new(@seed, 1, rules: %{explode_above: 9, fortune: false})
     {:ok, s} = Session.apply(s, :draw)
