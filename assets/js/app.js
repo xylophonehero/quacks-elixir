@@ -53,8 +53,11 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // A decision <dialog> asks to be opened (see `dialog_sheet` in core_components.ex).
 window.addEventListener("quacks:modal", e => e.target.open || e.target.showModal())
-// A closed dialog may hand over to the next one (`then_open` on `dialog_sheet`).
+// A closed dialog may run its `on_close` JS and hand over to the next one
+// (`then_open` on `dialog_sheet`).
 document.addEventListener("close", e => {
+  const onClose = e.target.dataset?.onClose
+  onClose && liveSocket.execJS(e.target, onClose)
   const next = e.target.dataset?.thenOpen && document.getElementById(e.target.dataset.thenOpen)
   next && !next.open && next.showModal()
 }, true)

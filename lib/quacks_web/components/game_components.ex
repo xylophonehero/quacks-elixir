@@ -6,12 +6,13 @@ defmodule QuacksWeb.GameComponents do
   """
   use Phoenix.Component
 
+  alias Phoenix.LiveView.JS
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Potions
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, ScoringTrack, TestTubes}
   alias Quacks.Rules.Fortune
   alias Quacks.Rules.Witches
-  alias QuacksWeb.AlchemistsComponents
+  alias QuacksWeb.{AlchemistsComponents, Replay}
 
   @colours %{
     white: "bg-chip-white text-ink border-2 border-zinc-400",
@@ -178,6 +179,10 @@ defmodule QuacksWeb.GameComponents do
   attr :flask, :atom, default: nil, values: [nil, :full, :empty]
   attr :flask_click, :string, default: nil, doc: "the encoded `:use_flask` when legal"
 
+  attr :beats, :map,
+    default: %{},
+    doc: "`QuacksWeb.Replay.highlights/1`: the chips, droplet and scoring ring to light up"
+
   def pot(assigns) do
     player = assigns.game.players[assigns.seat]
     rings = assigns.rings || %{assigns.seat => Game.scoring_index(assigns.game, assigns.seat)}
@@ -188,6 +193,7 @@ defmodule QuacksWeb.GameComponents do
         chips_by_index: chips_by_index(player),
         rings_by_index: rings |> Enum.sort() |> Enum.group_by(&elem(&1, 1), &elem(&1, 0)),
         rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
+        ring_index: Game.scoring_index(assigns.game, assigns.seat),
         spaces: 0..PotTrack.last(),
         groove: @groove
       )
@@ -313,8 +319,10 @@ defmodule QuacksWeb.GameComponents do
           seat={@seat}
           index={index}
           size={@size}
+          beat={@beats[index]}
         />
         <.scoring_ring :if={@rings_by_index[index]} seats={@rings_by_index[index]} />
+        <.beat_ring :if={index == @ring_index} beat={@beats[:ring]} r="32" />
       </g>
       <%!-- The droplet and the rat stone sit above the spaces, each in one group with a
            fixed id: when the space changes, only `translate` changes and CSS slides it. --%>
@@ -332,6 +340,7 @@ defmodule QuacksWeb.GameComponents do
           stroke-width="1.5"
           aria-label="droplet"
         />
+        <.beat_ring beat={@beats[:droplet]} r="14" cx="-20" cy="-15" />
       </g>
       <g
         :if={@rat_index}
@@ -583,6 +592,7 @@ defmodule QuacksWeb.GameComponents do
   attr :seat, :integer, required: true
   attr :index, :integer, required: true, doc: "the space the chip sits on"
   attr :size, :atom, required: true
+  attr :beat, :integer, default: nil, doc: "the replay beat this chip lights up on"
 
   defp pot_chip(assigns) do
     {colour, value} = assigns.chip
@@ -611,7 +621,32 @@ defmodule QuacksWeb.GameComponents do
       >
         {face(@chip)}
       </text>
+      <.beat_ring beat={@beat} r="24" />
     </g>
+    """
+  end
+
+  # A gold ring that flashes on its replay beat (app.css, `beat-ring`); nothing
+  # without a beat.
+  attr :beat, :integer, default: nil
+  attr :r, :string, required: true
+  attr :cx, :string, default: "0"
+  attr :cy, :string, default: "0"
+
+  defp beat_ring(assigns) do
+    ~H"""
+    <circle
+      :if={@beat}
+      r={@r}
+      cx={@cx}
+      cy={@cy}
+      fill="none"
+      stroke="var(--color-gold)"
+      stroke-width="5"
+      data-role="beat-ring"
+      data-beat={@beat}
+      style={"--beat: #{@beat}"}
+    />
     """
   end
 
@@ -1547,44 +1582,94 @@ defmodule QuacksWeb.GameComponents do
   the totals. Below the totals: the rat tails for the next round (2+ players, rats
   on) and, in round 9, the final buying power (coins and rubies → VP; from the log
   once the seat is done, else from what it has now). With `names` (multiplayer)
-  there is one block per seat, headed by its name.
+  there is one block per seat, headed by its name; `me` comes first.
+
+  The step-B replay (`QuacksWeb.Replay`): `me`'s lines carry `data-beat` and
+  `--beat`, and CSS reveals them one by one; a die line shows the rolling `die/1`.
+  Every other seat's block is one beat after `me`'s total. "Skip" adds
+  `replay-done` to the dialog, which shows everything at once.
   """
   attr :game, Game, required: true
   attr :names, :map, default: nil, doc: "`%{seat => name}`; nil for solo"
+  attr :me, :integer, default: 0, doc: "the seat whose lines replay beat by beat"
+  attr :dialog, :string, default: "round-results", doc: "the dialog id Skip finishes"
 
   def round_results(assigns) do
-    assigns = assign(assigns, results: round_gains(assigns.game))
+    assigns = assign(assigns, blocks: result_blocks(assigns.game, assigns.me))
 
     ~H"""
     <section class="space-y-3" aria-label="Round results" data-role="round-results">
-      <h2 class="text-xl font-bold">Round {@game.round} results</h2>
+      <div class="flex items-baseline gap-3">
+        <h2 class="text-xl font-bold">Round {@game.round} results</h2>
+        <button
+          type="button"
+          id={"#{@dialog}-skip"}
+          data-role="replay-skip"
+          phx-click={JS.add_class("replay-done", to: "##{@dialog}")}
+          class="min-h-9 rounded-full px-2 text-sm font-semibold text-ink-soft underline underline-offset-2 transition-colors duration-150 hover:text-ink"
+        >
+          Skip
+        </button>
+      </div>
       <div
-        :for={seat <- @game.seats}
-        class={["space-y-1", @names && ["border-l-4 pl-2", seat_border(seat)]]}
-        data-seat={seat}
+        :for={block <- @blocks}
+        class={["space-y-1", @names && ["border-l-4 pl-2", seat_border(block.seat)]]}
+        data-seat={block.seat}
+        data-beat={block.beat}
+        style={beat_style(block.beat)}
       >
         <h3 :if={@names} class="flex items-center gap-1.5 font-hand text-base font-bold">
-          <.seat_dot seat={seat} />
-          {Map.get(@names, seat, GameServer.default_name(seat))}
+          <.seat_dot seat={block.seat} />
+          {Map.get(@names, block.seat, GameServer.default_name(block.seat))}
         </h3>
         <ul class="space-y-0.5 text-sm">
-          <li :for={{text, _vp, _rubies} <- @results[seat] || []} data-role="result-line">{text}</li>
-          <li :if={(@results[seat] || []) == []} class="text-ink-soft">Nothing gained this round.</li>
+          <li
+            :for={line <- block.lines}
+            data-role="result-line"
+            data-kind={line.kind}
+            data-beat={block.own? && line.beat}
+            style={block.own? && beat_style(line.beat)}
+            class={block.own? && line.face && "flex items-center gap-2"}
+          >
+            <.die :if={block.own? && line.face} face={line.face} />
+            <span class={block.own? && line.face && "die-text"}>{line.text}</span>
+          </li>
+          <li
+            :if={block.lines == []}
+            class="text-ink-soft"
+            data-beat={block.own? && 0}
+            style={block.own? && beat_style(0)}
+          >
+            Nothing gained this round.
+          </li>
         </ul>
-        <p class="font-semibold" data-role="result-total">
-          Total: +{total(@results[seat], 1)} VP, +{total(@results[seat], 2)} {plural(
-            total(@results[seat], 2),
+        <p
+          class="font-semibold"
+          data-role="result-total"
+          data-beat={block.own? && block.total}
+          style={block.own? && beat_style(block.total)}
+        >
+          Total: +{total(block.lines, :vp)} VP, +{total(block.lines, :rubies)} {plural(
+            total(block.lines, :rubies),
             "ruby",
             "rubies"
           )}
         </p>
-        <p :if={tails = rat_tails(@game, seat)} class="text-sm" data-role="result-rats">
+        <p
+          :if={tails = rat_tails(@game, block.seat)}
+          class="text-sm"
+          data-role="result-rats"
+          data-beat={block.own? && block.total}
+          style={block.own? && beat_style(block.total)}
+        >
           Rats next round: {tails} {plural(tails, "tail", "tails")}
         </p>
         <p
-          :if={power = final_power(@game, seat)}
+          :if={power = final_power(@game, block.seat)}
           class="text-sm font-semibold"
           data-role="result-buying-power"
+          data-beat={block.own? && block.total}
+          style={block.own? && beat_style(block.total)}
         >
           {power}
         </p>
@@ -1592,6 +1677,120 @@ defmodule QuacksWeb.GameComponents do
     </section>
     """
   end
+
+  # `me`'s block first, its lines on their own beats and the total one beat after
+  # (one after "Nothing gained" when there is nothing); then every other seat as
+  # one block, one beat each.
+  defp result_blocks(game, me) do
+    me = if me in game.seats, do: me, else: hd(game.seats)
+    lines = Replay.beats(game, me)
+    total = max(Replay.next_beat(lines), 1)
+
+    others =
+      (game.seats -- [me])
+      |> Enum.with_index(total + 1)
+      |> Enum.map(fn {seat, beat} ->
+        %{seat: seat, own?: false, beat: beat, total: nil, lines: Replay.beats(game, seat)}
+      end)
+
+    [%{seat: me, own?: true, beat: nil, total: total, lines: lines} | others]
+  end
+
+  defp beat_style(nil), do: nil
+  defp beat_style(beat), do: "--beat: #{beat}"
+
+  defp total(lines, key), do: lines |> Enum.map(&Map.fetch!(&1, key)) |> Enum.sum()
+
+  @die_faces [{:vp, 1}, {:vp, 1}, {:vp, 2}, :ruby, :droplet, :orange]
+
+  @doc """
+  The bonus die for a result line: a strip of seven frames (the six faces in a
+  fixed rotated order, no RNG, then `face`), which CSS steps through and lands on
+  the last. Without motion only the last frame shows. `data-face` names the face.
+  """
+  attr :face, :any, required: true, doc: "a die face from the log: `{:vp, n}`, `:ruby`, ..."
+
+  def die(assigns) do
+    i = Enum.find_index(@die_faces, &(&1 == assigns.face)) || 0
+    {a, b} = Enum.split(@die_faces, rem(i + 3, 6))
+    assigns = assign(assigns, frames: Enum.with_index(b ++ a ++ [assigns.face]))
+
+    ~H"""
+    <span class="die" data-role="die" data-face={die_key(@face)} aria-hidden="true">
+      <svg class="die-strip" viewBox="0 0 40 280">
+        <g :for={{face, n} <- @frames} transform={"translate(0 #{n * 40})"}>
+          <rect
+            x="2"
+            y="2"
+            width="36"
+            height="36"
+            rx="7"
+            fill="var(--color-parchment)"
+            stroke="var(--color-ink)"
+            stroke-width="2"
+          />
+          <.die_glyph face={face} />
+        </g>
+      </svg>
+    </span>
+    """
+  end
+
+  attr :face, :any, required: true
+
+  defp die_glyph(%{face: {:vp, n}} = assigns) do
+    assigns = assign(assigns, n: n)
+
+    ~H"""
+    <text x="20" y="22" text-anchor="middle" font-size="19" font-weight="800" fill="var(--color-ink)">
+      {@n}
+    </text>
+    <text x="20" y="33" text-anchor="middle" font-size="9" font-weight="700" fill="var(--color-ink)">
+      VP
+    </text>
+    """
+  end
+
+  defp die_glyph(%{face: :ruby} = assigns) do
+    ~H"""
+    <path
+      d="M11 16 L15 10 H25 L29 16 L20 31 Z"
+      fill="var(--color-ruby)"
+      stroke="#7a1410"
+      stroke-width="1.5"
+    />
+    """
+  end
+
+  defp die_glyph(%{face: :droplet} = assigns) do
+    ~H"""
+    <path
+      d="M20 8 C29 19 29 31 20 31 C11 31 11 19 20 8 Z"
+      fill="var(--color-droplet)"
+      stroke="white"
+      stroke-width="1.5"
+    />
+    """
+  end
+
+  defp die_glyph(assigns) do
+    ~H"""
+    <circle
+      cx="20"
+      cy="20"
+      r="11"
+      fill="var(--color-chip-orange)"
+      stroke="rgb(0 0 0 / 0.4)"
+      stroke-width="2"
+    />
+    <text x="20" y="25" text-anchor="middle" font-size="14" font-weight="700" fill="var(--color-ink)">
+      1
+    </text>
+    """
+  end
+
+  defp die_key({:vp, n}), do: "vp#{n}"
+  defp die_key(face) when is_atom(face), do: Atom.to_string(face)
 
   # The rat tails `seat` gets at the start of the next round, as the VP stand now;
   # nil when no rats come (solo, house rule off, round 9).
@@ -1643,67 +1842,6 @@ defmodule QuacksWeb.GameComponents do
       _entry -> nil
     end)
   end
-
-  defp total(nil, _pos), do: 0
-  defp total(lines, pos), do: lines |> Enum.map(&elem(&1, pos)) |> Enum.sum()
-
-  # `%{seat => [{text, vp, rubies}]}`, oldest first, for the entries since the last
-  # `{:round_end, _}`.
-  defp round_gains(game) do
-    game.log
-    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
-    |> Enum.reverse()
-    |> Enum.flat_map(fn
-      {seat, entry} when is_integer(seat) ->
-        case gain(entry) do
-          {vp, rubies} -> [{seat, {label(entry), vp, rubies}}]
-          nil -> []
-        end
-
-      _untagged ->
-        []
-    end)
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-  end
-
-  # `{vp, rubies}` a log entry gave, or nil when it is not a result. The bonus die
-  # always counts as a result, whatever its face.
-  defp gain({:bonus_die, {:vp, n}}), do: {n, 0}
-  defp gain({:bonus_die, :ruby}), do: {0, 1}
-  defp gain({:bonus_die, _face}), do: {0, 0}
-  defp gain({:green_rubies, n}), do: {0, n}
-  defp gain({:purple, 1, _}), do: {1, 0}
-  defp gain({:purple, 2, _}), do: {1, 1}
-  defp gain({:purple, 3, _}), do: {2, 0}
-  defp gain({:black, :droplet_ruby}), do: {0, 1}
-  defp gain({:pot_ruby, _index}), do: {0, 1}
-  defp gain({:tube, _glass, {:vp, n}}), do: {n, 0}
-  defp gain({:tube, _glass, :ruby}), do: {0, 1}
-  defp gain({:tube, _glass, _bonus}), do: {0, 0}
-  defp gain({:pot_vp, vp, _index}), do: {vp, 0}
-  defp gain({:bowl, _chips, vp}), do: {vp, 0}
-  defp gain({:effect, {:green, 6}, {:bonus_die, face}}), do: gain({:bonus_die, face})
-  defp gain({:effect, {:purple, 2}, {:trade, 1}}), do: {1, 1}
-  defp gain({:effect, {:purple, 2}, {:trade, 2}}), do: {3, 0}
-  defp gain({:effect, {:purple, 2}, {:trade, 3}}), do: {6, 1}
-  defp gain({:effect, _book, {:vp, n}}), do: {n, 0}
-  defp gain({:effect, _book, {:rubies, n}}), do: {0, n}
-  defp gain({:effect, _book, :ruby}), do: {0, 1}
-  defp gain({:effect, _book, :droplet_ruby}), do: {0, 1}
-  defp gain({:witch, _id, {:vp, n}}), do: {n, 0}
-  defp gain({:witch, _id, {:rubies, n}}), do: {0, n}
-  defp gain({:fortune, _id, {:vp, n}}), do: {n, 0}
-  defp gain({:fortune, _id, :ruby}), do: {0, 1}
-  defp gain({:fortune, _id, :rubies}), do: {0, 3}
-  defp gain({:fortune, _id, {:rats_back, n}}), do: {0, n}
-  # Every other card outcome shows too (what the card did), worth nothing here.
-  defp gain({:fortune, _id, outcome}) when outcome != :skip, do: {0, 0}
-  defp gain({:essence, _space, _parts}), do: {0, 0}
-  defp gain({:essence_vp, n}), do: {n, 0}
-  defp gain({:essence_bonus, {:vp, n}}), do: {n, 0}
-  defp gain({:essence_bonus, {:rubies, n}}), do: {0, n}
-  defp gain({:essence_bonus, _term}), do: {0, 0}
-  defp gain(_entry), do: nil
 
   @doc """
   Like `label/1`, but a fortune card choice is worded for `card` (the current

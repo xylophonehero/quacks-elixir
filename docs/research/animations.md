@@ -280,6 +280,20 @@ memory note).
 6. Budget: dialog slide 300 ms + die 900 ms + ~350 ms per line. A typical round has
    3–6 lines: about 2.5–3.5 s, skippable.
 
+**B2 as built (2026-10-04).** No ticker process and no hook: pot highlights are
+CSS too. `QuacksWeb.Replay` (pure) numbers your seat's result lines (`beats/3`; a die
+line takes two beats, 450 ms each, after a 300 ms lead) and maps each pot mark (chip
+index, `:droplet`, `:ring`, `:essence`) to a beat (`highlights/1`). While the game is in
+`:shopping`, the large pot renders a gold `beat-ring` inside each marked node; the ring
+and the dialog's lines enter the page on the same patch, so one delay formula keeps
+them in step. Skip (`JS.add_class("replay-done")`) and closing the dialog
+(`dialog_sheet on_close`, run by app.js's existing `close` listener through
+`liveSocket.execJS`) finish the replay; `:has(#round-results.replay-done)` hides the
+rings. The JS-added class sticks across patches and reconnects; a full page reload
+plays the replay again. Engine untouched (green "last two" is re-derived from
+`drawn`, not via a public `Evaluation.last_two/2`). On phones the results sheet is
+capped at 45dvh so the upper pot stays in sight; on large screens it sits at the right.
+
 ### B3 — The chip flight hook + opt-in view transitions
 
 1. `.PotMotion` colocated hook on the large pot `<svg id="pot-#{seat}-lg">`

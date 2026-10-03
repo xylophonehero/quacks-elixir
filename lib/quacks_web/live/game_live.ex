@@ -77,6 +77,7 @@ defmodule QuacksWeb.GameLive do
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Alchemists, Books, Chips, TestTubes}
+  alias QuacksWeb.Replay
 
   # The shop, one row per colour in the board's step B order; each row runs from
   # the lowest value to the highest. Chips not in the game's shop drop out.
@@ -661,7 +662,12 @@ defmodule QuacksWeb.GameLive do
           </div>
 
           <div class="flex min-h-0 flex-col p-2">
-            <.flask_strip :if={@me && @me.patient} game={@game} seat={@seat} />
+            <.flask_strip
+              :if={@me && @me.patient}
+              game={@game}
+              seat={@seat}
+              beat={replay_marks(@game, @seat)[:essence]}
+            />
             <%!-- The pot is the largest square that fits (see `.pot-box` in app.css);
                  its controls sit in the square's corners: witches top left, the card
                  top right, the flask (inside the SVG) bottom left, the bag bottom right. --%>
@@ -674,6 +680,7 @@ defmodule QuacksWeb.GameLive do
                   rings={rings(@game)}
                   flask={@me && if(@me.flask, do: :full, else: :empty)}
                   flask_click={if :use_flask in @actions, do: encode(:use_flask)}
+                  beats={replay_marks(@game, @seat)}
                 />
                 <.sheet_button
                   :if={@game.witches}
@@ -1045,9 +1052,13 @@ defmodule QuacksWeb.GameLive do
         id="round-results"
         label="Round results"
         then_open={if after_results?(@decision), do: "decision-#{@decision}"}
+        on_close={JS.add_class("replay-done")}
       >
-        <.round_results game={@game} names={if @players > 1, do: @names} />
-        <form method="dialog" class="mt-3 flex *:min-h-11 *:flex-1">
+        <.round_results game={@game} names={if @players > 1, do: @names} me={@seat || 0} />
+        <form
+          method="dialog"
+          class="sticky -bottom-4 -mx-4 mt-3 flex bg-parchment px-4 pt-2 pb-4 *:min-h-11 *:flex-1"
+        >
           <.button variant="primary" data-role="results-ok">
             {if @decision == :shop, do: "To the shop", else: "OK"}
           </.button>
@@ -1684,6 +1695,12 @@ defmodule QuacksWeb.GameLive do
 
   # The round results show from the shop until the round ends (round 9 has no shop).
   defp results?(game), do: game.phase == :shopping
+
+  # While the round results show: what lights up on the pot on which replay beat
+  # (the same beats as the dialog's lines, so both play in step).
+  defp replay_marks(game, seat) do
+    if results?(game), do: game |> Replay.beats(seat || 0) |> Replay.highlights(), else: %{}
+  end
 
   # A buy that leaves "Done" as the only legal move (no rubies to spend, no witch to
   # call) ends the shop at once, so the player is not asked twice.

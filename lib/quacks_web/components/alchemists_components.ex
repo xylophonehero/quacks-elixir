@@ -26,6 +26,7 @@ defmodule QuacksWeb.AlchemistsComponents do
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :size, :atom, default: :lg, values: [:lg, :sm]
+  attr :beat, :integer, default: nil, doc: "the replay beat the marker lights up on"
 
   def flask_strip(assigns) do
     p = assigns.game.players[assigns.seat]
@@ -96,6 +97,13 @@ defmodule QuacksWeb.AlchemistsComponents do
             <span class={bead_class(@p.essence, @p.essence, @size, @spendable)}>
               {@p.essence}
             </span>
+            <span
+              :if={@beat}
+              class="absolute inset-0 m-auto size-8 rounded-full ring-4 ring-gold"
+              data-role="beat-ring"
+              data-beat={@beat}
+              style={"--beat: #{@beat}"}
+            />
           </span>
         </div>
       </div>

@@ -1,0 +1,172 @@
+defmodule QuacksWeb.Replay do
+  @moduledoc """
+  The step-B replay in the round results (`docs/research/animations.md` §3 B2).
+  Pure functions over the game's log: no state, no timers.
+
+  Each result line of a seat gets a *beat*, a number the CSS turns into an
+  `animation-delay` (`--beat`). The lines come in engine order (bonus die → chip
+  actions → scoring space). A die line takes two beats: the die rolls first, its
+  text shows when it lands. Each line also names what it concerns on the pot
+  (`marks`): the chips by their space index, `:droplet`, `:ring` (the scoring
+  space) or `:essence` (the Alchemists' flask marker). The pot lights those up on
+  the same beat.
+  """
+
+  alias Quacks.Game
+  alias QuacksWeb.GameComponents
+
+  @typedoc "What a line concerns on the pot: a chip's space index or a marker."
+  @type mark :: non_neg_integer | :droplet | :ring | :essence
+
+  @type kind :: :die | :green | :black | :purple | :space | :essence | :card | :other
+
+  @type line :: %{
+          beat: non_neg_integer,
+          text: String.t(),
+          kind: kind,
+          vp: non_neg_integer,
+          rubies: non_neg_integer,
+          face: term | nil,
+          marks: [mark]
+        }
+
+  @doc """
+  This round's result lines for `seat`, oldest first, numbered from beat `from`.
+  """
+  @spec beats(Game.t(), Game.seat(), non_neg_integer) :: [line]
+  def beats(game, seat, from \\ 0) do
+    game
+    |> round_entries(seat)
+    |> Enum.map_reduce(from, fn entry, beat ->
+      line = line(game, seat, entry, beat)
+      {line, beat + span(line)}
+    end)
+    |> elem(0)
+  end
+
+  defp span(%{kind: :die}), do: 2
+  defp span(_line), do: 1
+
+  @doc "The first free beat after `lines` (`from` when there are none)."
+  @spec next_beat([line], non_neg_integer) :: non_neg_integer
+  def next_beat(lines, from \\ 0)
+  def next_beat([], from), do: from
+  def next_beat(lines, _from), do: lines |> List.last() |> then(&(&1.beat + span(&1)))
+
+  @doc """
+  `%{mark => beat}`: on which beat each pot mark lights up (its first line). A die
+  line lights its marks one beat late, when the die lands.
+  """
+  @spec highlights([line]) :: %{mark => non_neg_integer}
+  def highlights(lines) do
+    for line <- lines, mark <- line.marks, reduce: %{} do
+      acc -> Map.put_new(acc, mark, line.beat + span(line) - 1)
+    end
+  end
+
+  # The log entries of `seat` since the round began that are results.
+  defp round_entries(game, seat) do
+    game.log
+    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+    |> Enum.reverse()
+    |> Enum.flat_map(fn
+      {^seat, entry} -> if gain(entry), do: [entry], else: []
+      _other -> []
+    end)
+  end
+
+  defp line(game, seat, entry, beat) do
+    {vp, rubies} = gain(entry)
+    {kind, marks} = concerns(entry, Game.player(game, seat).drawn)
+
+    %{
+      beat: beat,
+      text: GameComponents.label(entry),
+      kind: kind,
+      vp: vp,
+      rubies: rubies,
+      face: face(entry),
+      marks: marks
+    }
+  end
+
+  defp face({:bonus_die, face}), do: face
+  defp face({:effect, {:green, _}, {:bonus_die, face}}), do: face
+  defp face(_entry), do: nil
+
+  # The kind of a line and its marks; `drawn` is `[{chip, index}]`, newest first.
+  defp concerns({:bonus_die, face}, _drawn), do: {:die, die_marks(face)}
+
+  defp concerns({:effect, {:green, _}, {:bonus_die, face}}, drawn),
+    do: {:die, last_two(drawn, :green) ++ die_marks(face)}
+
+  defp concerns({:green_rubies, _}, drawn), do: {:green, last_two(drawn, :green)}
+  defp concerns({:effect, {:green, _}, _}, drawn), do: {:green, last_two(drawn, :green)}
+  defp concerns({:purple, 3, _}, drawn), do: {:purple, all(drawn, :purple) ++ [:droplet]}
+  defp concerns({:purple, _, _}, drawn), do: {:purple, all(drawn, :purple)}
+  defp concerns({:effect, {:purple, _}, _}, drawn), do: {:purple, all(drawn, :purple)}
+  defp concerns({:black, _}, drawn), do: {:black, all(drawn, :black) ++ [:droplet]}
+
+  defp concerns({:effect, {:black, _}, payoff}, drawn) when payoff in [:droplet, :droplet_ruby],
+    do: {:black, all(drawn, :black) ++ [:droplet]}
+
+  defp concerns({:effect, {:black, _}, _}, drawn), do: {:black, all(drawn, :black)}
+
+  defp concerns({:pot_ruby, _}, _drawn), do: {:space, [:ring]}
+  defp concerns({:pot_vp, _, _}, _drawn), do: {:space, [:ring]}
+  defp concerns({:essence, _, _}, _drawn), do: {:essence, [:essence]}
+  defp concerns({:essence_vp, _}, _drawn), do: {:essence, [:essence]}
+  defp concerns({:essence_bonus, _}, _drawn), do: {:essence, [:essence]}
+  defp concerns({:fortune, _, _}, _drawn), do: {:card, []}
+  defp concerns(_entry, _drawn), do: {:other, []}
+
+  defp die_marks(:droplet), do: [:droplet]
+  defp die_marks(_face), do: []
+
+  # Green books read the last two chips (the rule of `Evaluation`'s `last_two/2`).
+  defp last_two(drawn, colour), do: drawn |> Enum.take(2) |> all(colour)
+  defp all(drawn, colour), do: for({{^colour, _}, index} <- drawn, do: index)
+
+  @doc """
+  `{vp, rubies}` a log entry gave, or nil when it is not a result. The bonus die
+  always counts as a result, whatever its face; so does the hawkmoth's droplet.
+  """
+  @spec gain(term) :: {non_neg_integer, non_neg_integer} | nil
+  def gain({:bonus_die, {:vp, n}}), do: {n, 0}
+  def gain({:bonus_die, :ruby}), do: {0, 1}
+  def gain({:bonus_die, _face}), do: {0, 0}
+  def gain({:green_rubies, n}), do: {0, n}
+  def gain({:purple, 1, _}), do: {1, 0}
+  def gain({:purple, 2, _}), do: {1, 1}
+  def gain({:purple, 3, _}), do: {2, 0}
+  def gain({:black, :droplet}), do: {0, 0}
+  def gain({:black, :droplet_ruby}), do: {0, 1}
+  def gain({:pot_ruby, _index}), do: {0, 1}
+  def gain({:tube, _glass, {:vp, n}}), do: {n, 0}
+  def gain({:tube, _glass, :ruby}), do: {0, 1}
+  def gain({:tube, _glass, _bonus}), do: {0, 0}
+  def gain({:pot_vp, vp, _index}), do: {vp, 0}
+  def gain({:bowl, _chips, vp}), do: {vp, 0}
+  def gain({:effect, {:green, 6}, {:bonus_die, face}}), do: gain({:bonus_die, face})
+  def gain({:effect, {:purple, 2}, {:trade, 1}}), do: {1, 1}
+  def gain({:effect, {:purple, 2}, {:trade, 2}}), do: {3, 0}
+  def gain({:effect, {:purple, 2}, {:trade, 3}}), do: {6, 1}
+  def gain({:effect, _book, {:vp, n}}), do: {n, 0}
+  def gain({:effect, _book, {:rubies, n}}), do: {0, n}
+  def gain({:effect, _book, :ruby}), do: {0, 1}
+  def gain({:effect, _book, :droplet_ruby}), do: {0, 1}
+  def gain({:witch, _id, {:vp, n}}), do: {n, 0}
+  def gain({:witch, _id, {:rubies, n}}), do: {0, n}
+  def gain({:fortune, _id, {:vp, n}}), do: {n, 0}
+  def gain({:fortune, _id, :ruby}), do: {0, 1}
+  def gain({:fortune, _id, :rubies}), do: {0, 3}
+  def gain({:fortune, _id, {:rats_back, n}}), do: {0, n}
+  # Every other card outcome shows too (what the card did), worth nothing here.
+  def gain({:fortune, _id, outcome}) when outcome != :skip, do: {0, 0}
+  def gain({:essence, _space, _parts}), do: {0, 0}
+  def gain({:essence_vp, n}), do: {n, 0}
+  def gain({:essence_bonus, {:vp, n}}), do: {n, 0}
+  def gain({:essence_bonus, {:rubies, n}}), do: {0, n}
+  def gain({:essence_bonus, _term}), do: {0, 0}
+  def gain(_entry), do: nil
+end

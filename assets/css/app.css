@@ -615,6 +615,132 @@ html:has([data-layout="full"]) {
   transition: translate 300ms var(--ease-in-out);
 }
 
+/* Motion, batch 2: the step-B replay in the round results (animations.md §3 B2).
+   The server numbers each result line of your seat (`--beat`, `QuacksWeb.Replay`)
+   and the pot marks it concerns (`beat-ring`); both start on the same patch (the
+   dialog enters the page as the shop opens), so one delay formula keeps them in
+   step. A die line takes two beats: the die rolls, then its text shows. "Skip",
+   or closing the dialog, adds `.replay-done`: everything shows at once. */
+:root {
+  --beat-lead: 300ms; /* the sheet slides in first */
+  --beat-step: 450ms;
+  --die-roll: 700ms;
+}
+
+@keyframes beat-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+#round-results [data-beat] {
+  animation: beat-in 220ms var(--ease-out) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+/* The bonus die: a strip of 7 frames stepped through, landing on the real face
+   (the last frame, also the resting place without motion). */
+.die {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 2.25rem;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 0.5rem;
+}
+
+.die-strip {
+  display: block;
+  width: 100%;
+  height: auto;
+  translate: 0 -85.7143%; /* 6 of 7 frames */
+}
+
+@keyframes die-roll {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: 0 -85.7143%;
+  }
+}
+
+@keyframes die-land {
+  from {
+    scale: 1.15;
+  }
+}
+
+#round-results [data-beat] .die-strip {
+  animation: die-roll var(--die-roll) steps(7, jump-none) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+#round-results [data-beat] .die {
+  animation: die-land 200ms var(--ease-out);
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step) + var(--die-roll));
+}
+
+#round-results [data-beat] .die-text {
+  animation: fade-in 200ms var(--ease-out) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step) + var(--die-roll));
+}
+
+/* On the pot (and the essence marker): a gold ring flashes on the line's beat. */
+@keyframes beat-glow {
+  0% {
+    opacity: 0;
+    scale: 0.85;
+  }
+  25% {
+    opacity: 1;
+    scale: 1.08;
+  }
+  100% {
+    opacity: 0;
+    scale: 1;
+  }
+}
+
+[data-role="beat-ring"] {
+  transform-box: fill-box;
+  transform-origin: center;
+  pointer-events: none;
+  opacity: 0;
+  animation: beat-glow 900ms var(--ease-out) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+/* Keep the pot in sight while it lights up: on phones a lower sheet whose content
+   scrolls under its sticky "To the shop" row, on large screens a card at the right. */
+@media (width < 64rem) {
+  #round-results {
+    max-height: min(45dvh, calc(100dvh - env(safe-area-inset-top) - 0.5rem));
+  }
+}
+
+@media (width >= 64rem) {
+  #round-results {
+    max-width: 28rem;
+    margin: auto 1.5rem auto auto;
+  }
+}
+
+#round-results.replay-done [data-beat],
+#round-results.replay-done [data-beat] * {
+  animation-delay: 0s !important;
+  animation-duration: 1ms !important;
+}
+
+#round-results.replay-done [data-role="replay-skip"] {
+  visibility: hidden;
+}
+
+:root:has(#round-results.replay-done) [data-role="beat-ring"] {
+  display: none;
+}
+
 /* Reduced motion: fewer and gentler. Keep opacity and colour, drop translate, scale,
    rotation and shake. */
 @keyframes flash {
@@ -661,5 +787,21 @@ html:has([data-layout="full"]) {
 
   .card-front {
     animation: fade-in 200ms ease 250ms both;
+  }
+
+  /* The replay: every line at once, the die already on its face, no pot flashes. */
+  #round-results [data-beat] {
+    animation: fade-in 200ms ease both;
+  }
+
+  #round-results [data-beat] .die-strip,
+  #round-results [data-beat] .die,
+  #round-results [data-beat] .die-text {
+    animation: none;
+  }
+
+  [data-role="beat-ring"],
+  [data-role="replay-skip"] {
+    display: none;
   }
 }
