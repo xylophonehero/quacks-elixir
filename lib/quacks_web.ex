@@ -81,6 +81,7 @@ defmodule QuacksWeb do
       import Phoenix.HTML
       # Core UI components
       import QuacksWeb.CoreComponents
+      import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1, patient_icon: 1]
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
