@@ -44,7 +44,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
   end
 
   test "parse_sets keeps Sets 5-6 and locoweed only with the expansion; black always" do
-    params = %{"green" => "6", "black" => "5", "locoweed" => "9"}
+    params = %{"green" => "6", "black" => "5", "locoweed" => "7"}
 
     assert SetupComponents.parse_sets(params) == %{
              green: 1,

@@ -22,7 +22,8 @@ defmodule Quacks.Game.Potions do
   Choice books on draw: red Set 6 sets one more chip aside (`aside`), which the
   player places with `{:red, {:place, chip}}` at any time and must place this round;
   yellow Set 6 offers `{:chip, :yellow_ruby}` (1 ruby: the yellow moves 3 more) in
-  the player phase `:chip_choice`. Green Set 5 starter chips (`Quacks.Player.starters`)
+  the player phase `:chip_choice`; locoweed 9 there offers `{:chip, {:return, chip}}`
+  (a coloured pot chip back to the bag). Green Set 5 starter chips (`Quacks.Player.starters`)
   are the first chips `:draw` takes.
 
   Plain functions called from `Quacks.Game`. They take the whole game because draws
@@ -142,6 +143,19 @@ defmodule Quacks.Game.Potions do
       %{p | rubies: p.rubies - 1, drawn: [{chip, i} | rest], pot_index: i}
     end)
     |> Game.effect(seat, {:yellow, 6}, {:extra, 3})
+    |> step(seat, :chip_done)
+  end
+
+  # Locoweed 9: the newest such chip leaves the pot for the bag; its space stays
+  # empty. When it is the newest chip, the next chip counts from the chip before it.
+  def step(g, seat, {:chip, {:return, chip}}) do
+    g
+    |> Game.update_player(seat, fn p ->
+      drawn = List.keydelete(p.drawn, chip, 0)
+      %{p | drawn: drawn, pot_index: last_index(drawn, p)}
+    end)
+    |> return_to_bag(seat, chip)
+    |> Game.effect(seat, {:locoweed, 9}, {:returned, chip})
     |> step(seat, :chip_done)
   end
 
@@ -475,6 +489,17 @@ defmodule Quacks.Game.Potions do
       else: g
   end
 
+  # Locoweed 9: the player may return one coloured pot chip (this locoweed too).
+  defp on_draw(g, seat, _chip, {:locoweed, 9}) do
+    choices =
+      for {{colour, _} = chip, _} <- Game.player(g, seat).drawn,
+          colour != :white,
+          uniq: true,
+          do: {:return, chip}
+
+    Game.update_player(g, seat, &%{&1 | chip_choices: Enum.sort(choices), phase: :chip_choice})
+  end
+
   defp on_draw(g, _seat, _chip, _book), do: g
 
   # Put a chip on the pot `value` (+ bonus) spaces after the previous chip and
@@ -550,6 +575,19 @@ defmodule Quacks.Game.Potions do
   # Locoweed Set 5: rat stone distance + 1, at most 4 (solo: no rats, so 1).
   defp bonus(_chip, {:locoweed, 5} = book, p) do
     n = min(p.rat_stone + 1, 4)
+    {n - 1, [{book, {:moves, n}}]}
+  end
+
+  # Locoweed 8: 1 per colour in the pot, white not counted, locoweed always counted.
+  defp bonus(_chip, {:locoweed, 8} = book, p) do
+    n = p.drawn |> MapSet.new(fn {{c, _}, _} -> c end) |> MapSet.put(:locoweed)
+    n = n |> MapSet.delete(:white) |> MapSet.size()
+    {n - 1, [{book, {:moves, n}}]}
+  end
+
+  # Locoweed 10: the printed values of the white chips in the pot, at least 1.
+  defp bonus(_chip, {:locoweed, 10} = book, p) do
+    n = max(1, Enum.sum(for {{:white, v}, _} <- p.drawn, do: v))
     {n - 1, [{book, {:moves, n}}]}
   end
 

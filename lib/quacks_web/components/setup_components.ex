@@ -22,8 +22,9 @@ defmodule QuacksWeb.SetupComponents do
 
   # The colours with four ingredient books, in the order the form shows them.
   @book_colours [:green, :blue, :red, :yellow, :purple]
-  # Orange (Set 2 = the orange 6-chip), black and locoweed (nil = not used) in every game.
-  @extra_books %{orange: [1, 2], black: [1, 5, 6], locoweed: [nil, 5, 6]}
+  # Orange (Set 2 = the orange 6-chip), black and locoweed (nil = not used; 8–10 are
+  # The Alchemists' books) in every game.
+  @extra_books %{orange: [1, 2], black: [1, 5, 6], locoweed: [nil, 5, 6, 8, 9, 10]}
 
   # Every house rule the Options form offers, with the values it accepts.
   @rule_values %{

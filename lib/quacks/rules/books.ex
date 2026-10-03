@@ -3,7 +3,8 @@ defmodule Quacks.Rules.Books do
   The ingredient books as player-facing text, one entry per `{colour, set}` the
   engine supports. Sources: `docs/research/rulebook.md` §4 (Set 1),
   `docs/research/ingredient-sets-and-customisation.md` §1.3 (Sets 2–4) and
-  `docs/research/herb-witches.md` §2.3–2.5 (Sets 5–6, black, locoweed, orange 6).
+  `docs/research/herb-witches.md` §2.3–2.5 (Sets 5–6, black, locoweed, orange 6) and
+  `docs/research/alchemists.md` §2 (locoweed 8–10).
 
   `trigger` says when the book acts: `:on_draw` (when the chip is placed),
   `:step_b` (evaluation step B), `:passive` (for the rest of the round) or `:none`.
@@ -133,7 +134,17 @@ defmodule Quacks.Rules.Books do
       {:on_draw, "Moves your rat stone distance plus 1, at most 4 (no rats: it moves 1)."},
     {:locoweed, 6} =>
       {:on_draw,
-       "Acts as the last coloured chip in your pot (white and locoweed skipped): same value, bonus move and on-draw action, but it stays locoweed for every count; no coloured chip: it moves 1 with no action."}
+       "Acts as the last coloured chip in your pot (white and locoweed skipped): same value, bonus move and on-draw action, but it stays locoweed for every count; no coloured chip: it moves 1 with no action."},
+    # The Alchemists (`docs/research/alchemists.md` §2). Book A (7) needs the essence phase.
+    {:locoweed, 8} =>
+      {:on_draw,
+       "Moves 1 space for each colour in your pot, white not counted and locoweed always counted (so at least 1)."},
+    {:locoweed, 9} =>
+      {:on_draw,
+       "Moves 1; then you may return 1 coloured chip (not white, this locoweed allowed) from your pot to your bag, and the other chips stay where they are."},
+    {:locoweed, 10} =>
+      {:on_draw,
+       "Moves as many spaces as the printed values of the white chips in your pot add up to, at least 1."}
   }
 
   # The reward tiers, from `docs/research/rulebook.md` §4,
@@ -202,7 +213,7 @@ defmodule Quacks.Rules.Books do
         tiers: []
       }
   """
-  @spec get({Chips.colour(), 1..6}) :: book
+  @spec get({Chips.colour(), 1..10}) :: book
   def get({colour, set} = key) do
     {trigger, text} = Map.fetch!(@books, key)
     sets = %{colour => set}
@@ -236,18 +247,18 @@ defmodule Quacks.Rules.Books do
   defp shows?({_label, _text, players: range}, players), do: players in range
 
   @doc "Every supported `{colour, set}`, sorted."
-  @spec keys() :: [{Chips.colour(), 1..6}]
+  @spec keys() :: [{Chips.colour(), 1..10}]
   def keys, do: @books |> Map.keys() |> Enum.sort()
 
   @doc "The sets of `colour` that have a book, e.g. `[1, 5, 6]` for black."
-  @spec sets(Chips.colour()) :: [1..6]
+  @spec sets(Chips.colour()) :: [1..10]
   def sets(colour), do: for({^colour, set} <- keys(), do: set)
 
   @doc """
   The books in play, as `{colour, set}` in table order: orange, green, blue, red,
   yellow, purple, black, then locoweed when it is picked.
   """
-  @spec in_play(Chips.expansion(), Chips.sets()) :: [{Chips.colour(), 1..6}]
+  @spec in_play(Chips.expansion(), Chips.sets()) :: [{Chips.colour(), 1..10}]
   def in_play(expansion, sets) do
     colours = [:orange, :green, :blue, :red, :yellow, :purple, :black]
     books = for colour <- colours, do: {colour, Chips.set(expansion, sets, colour)}

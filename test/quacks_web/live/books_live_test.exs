@@ -104,6 +104,50 @@ defmodule QuacksWeb.BooksLiveTest do
     assert %{orange: 2, locoweed: 5} = game.sets
   end
 
+  test "the locoweed picker lists Off, 5, 6 and The Alchemists' books 8, 9, 10", %{conn: conn} do
+    {id, view} = configure(conn)
+    card = "#book-picker-locoweed [data-role=book-card]"
+
+    for set <- ~w(off 5 6 8 9 10), do: assert(has_element?(view, "#{card}[data-set='#{set}']"))
+    refute has_element?(view, "#{card}[data-set='7']")
+    assert has_element?(view, "#{card}[data-set='8']", "Book VIII")
+    assert has_element?(view, "#{card}[data-set='8']", "each colour in your pot")
+    assert has_element?(view, "#{card}[data-set='9']", "return 1 coloured chip")
+    assert has_element?(view, "#{card}[data-set='10']", "white chips in your pot")
+    assert has_element?(view, "#{card}[data-set='8']", "16")
+
+    view |> form("#books", sets: %{locoweed: "10"}) |> render_change()
+    assert has_element?(view, "#books [data-book=locoweed-10] .book-seal", "X")
+    assert {:ok, %{sets: %{locoweed: 10}}} = GameServer.get(id)
+
+    # a saved config with locoweed 9 comes back on a fresh screen
+    {id, view} = configure(conn)
+    render_hook(view, "load_config", %{"sets" => %{"locoweed" => "9"}, "expansion" => false})
+    assert {:ok, %{sets: %{locoweed: 9}}} = GameServer.get(id)
+  end
+
+  test "locoweed 9: the pot's coloured chips are taps that return one", %{conn: conn} do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{locoweed: 9}, %{fortune: false})
+    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+
+    Quacks.GameHelpers.replace_game(
+      id,
+      &Quacks.GameHelpers.force_draws(&1, [{:green, 1}, {:locoweed, 1}])
+    )
+
+    assert has_element?(view, "[data-role=chip-picks]", "Locoweed: return one to your bag")
+
+    assert has_element?(
+             view,
+             "[data-role=chip-pick][aria-label='Locoweed: return green 1 to the bag']"
+           )
+
+    view |> element("[data-role=chip-pick][aria-label*='green 1']") |> render_click()
+
+    {:ok, %{game: game}} = GameServer.get(id)
+    assert [{{:locoweed, 1}, 2}] = game.players[0].drawn
+  end
+
   test "the expansion toggle defaults orange to 2 and locoweed to 5", %{conn: conn} do
     {_id, view} = configure(conn)
     view |> form("#books", expansion: "true") |> render_change()

@@ -9,6 +9,8 @@ defmodule Quacks.Rules.Chips do
   - The Herb Witches (`docs/research/herb-witches.md` §1, §1.2): Sets 5–6 prices, the
     orange 6-chip, locoweed and the extra chips. The orange 6-chip (orange Set 2) and
     locoweed (Set 5 or 6) can also be picked in a base game (`set/3`).
+  - The Alchemists (`docs/research/alchemists.md` §2): locoweed books 8, 9 and 10, in
+    every game.
   """
 
   @type colour ::
@@ -20,7 +22,8 @@ defmodule Quacks.Rules.Chips do
 
   # Coins per Ingredient Set 1..6 (research `ingredient-sets-and-customisation.md` §1.1,
   # `herb-witches.md` §1.2). Orange has one book. Black: the base book counts as "Set 1"
-  # (entries 1–4), then Sets 5 and 6. Locoweed has only Sets 5 and 6.
+  # (entries 1–4), then Sets 5 and 6. Locoweed has Sets 5 and 6 and The Alchemists'
+  # books 8, 9 and 10 (`alchemists.md` §2; 7 is kept for the essence book).
   # ⚠️ Green Set 3 4-chip: 18 (A2, A4); A1 prints 21.
   @prices %{
     {:orange, 1} => [3, 3, 3, 3, 3, 3],
@@ -39,10 +42,10 @@ defmodule Quacks.Rules.Chips do
     {:yellow, 4} => [18, 19, 18, 18, 20, 18],
     {:purple, 1} => [9, 12, 10, 11, 9, 16],
     {:black, 1} => [10, 10, 10, 10, 10, 9],
-    {:locoweed, 1} => [nil, nil, nil, nil, 8, 10]
+    {:locoweed, 1} => [nil, nil, nil, nil, 8, 10, nil, 16, 10, 12]
   }
 
-  # Chips that are in play only with their book: orange Set 2, locoweed Set 5 or 6.
+  # Chips that are in play only with their book: orange Set 2, a locoweed book.
   @book_only [{:orange, 6}, {:locoweed, 1}]
 
   @supply %{
@@ -110,9 +113,9 @@ defmodule Quacks.Rules.Chips do
 
   @typedoc """
   The Ingredient Set (1..6) of each colour with a choice of books. Orange is 1 or 2
-  (2 adds the orange 6-chip); locoweed is `nil` (not in play), 5 or 6.
+  (2 adds the orange 6-chip); locoweed is `nil` (not in play), 5, 6, 8, 9 or 10.
   """
-  @type sets :: %{optional(colour) => 1..6 | nil}
+  @type sets :: %{optional(colour) => 1..10 | nil}
 
   @doc """
   Price in coins of a buyable chip with the books in `sets` (a colour not in `sets`
@@ -135,7 +138,7 @@ defmodule Quacks.Rules.Chips do
       iex> Quacks.Rules.Chips.set(:herb_witches, %{}, :locoweed)
       5
   """
-  @spec set(expansion, sets, colour) :: 1..6 | nil
+  @spec set(expansion, sets, colour) :: 1..10 | nil
   def set(expansion, sets, :orange), do: Map.get(sets, :orange, if(expansion, do: 2, else: 1))
   def set(expansion, sets, :locoweed), do: Map.get(sets, :locoweed, if(expansion, do: 5))
   def set(_expansion, sets, colour), do: Map.get(sets, colour, 1)
