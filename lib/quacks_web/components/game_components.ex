@@ -1116,28 +1116,25 @@ defmodule QuacksWeb.GameComponents do
   defp penny_class(colour), do: @pennies[colour]
 
   @doc """
-  The chips a blue chip drew, duplicates included, so two identical offers are both
-  visible. The action buttons below it show one button per distinct chip.
-  `title` and `hint` let the fortune cards B7 and P13 reuse the strip.
+  The strip of a chip offer: a title, the chips (the slot; `GameLive` renders them
+  as the controls) and a hint. The crow skull, the silver witch S2, the toadstools
+  (Set 2) and the fortune cards B7 and P13 use it.
   """
-  attr :pending, :list, required: true, doc: "the player's `pending` chips"
   attr :title, :string, default: "Crow skull drew:"
-  attr :hint, :string, default: "Place one of them, or return them all."
+  attr :hint, :string, default: "Tap a chip to place it, or return them all."
   attr :label, :string, default: "Crow skull offer"
   attr :accent, :string, default: "border-droplet", doc: "left border colour class"
+  slot :inner_block, required: true, doc: "the offered chips"
 
   def blue_offer(assigns) do
     ~H"""
     <div
-      class={[
-        "paper flex flex-wrap items-center gap-2 rounded-md border-l-4 p-2 text-sm",
-        @accent
-      ]}
+      class={["paper space-y-1.5 rounded-md border-l-4 p-2 text-sm", @accent]}
       aria-label={@label}
     >
-      <span class="font-semibold">{@title}</span>
-      <.chip :for={chip <- @pending} chip={chip} data-role="offer-chip" />
-      <span class="text-ink-soft">{@hint}</span>
+      <p class="font-semibold">{@title}</p>
+      {render_slot(@inner_block)}
+      <p class="text-ink-soft">{@hint}</p>
     </div>
     """
   end
@@ -1147,29 +1144,31 @@ defmodule QuacksWeb.GameComponents do
   P13 Flea Market (trade one up). Same strip as the crow skull offer.
   """
   attr :card, :atom, required: true, doc: "`game.fortune_card`"
-  attr :pending, :list, required: true, doc: "the player's `pending` chips"
+  slot :inner_block, required: true, doc: "the offered chips"
 
   def fortune_offer(%{card: :p13} = assigns) do
     ~H"""
     <.blue_offer
-      pending={@pending}
       title="Flea Market drew:"
-      hint="Trade one in for the next value up, or skip."
+      hint="Tap a chip to trade it for the next value up, or skip."
       label="Fortune teller offer"
       accent="border-chip-purple"
-    />
+    >
+      {render_slot(@inner_block)}
+    </.blue_offer>
     """
   end
 
   def fortune_offer(assigns) do
     ~H"""
     <.blue_offer
-      pending={@pending}
       title="Safety Procedure drew:"
-      hint="Place one of them, or return them all."
+      hint="Tap a chip to place it, or return them all."
       label="Fortune teller offer"
       accent="border-chip-purple"
-    />
+    >
+      {render_slot(@inner_block)}
+    </.blue_offer>
     """
   end
 

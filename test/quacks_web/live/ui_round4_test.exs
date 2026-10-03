@@ -25,7 +25,8 @@ defmodule QuacksWeb.UiRound4Test do
       actions = Game.legal_actions(game, 0)
 
       if game.phase == :shopping do
-        game
+        # coins to buy with: a seat that can buy nothing skips the shop
+        Quacks.GameHelpers.replace_game(id, &Quacks.GameHelpers.put(&1, 0, coins: 30))
       else
         action =
           Enum.find([:stop, :chip_done, {:explosion_choice, :buy}], hd(actions), &(&1 in actions))

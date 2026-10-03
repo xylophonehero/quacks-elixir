@@ -67,6 +67,10 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     alice |> element("button[data-slot=stop]", "Resume") |> render_click()
     alice |> element("button", "Stop") |> render_click()
     bob |> element("button", "Stop") |> render_click()
+    # coins to buy with: a seat that can buy nothing skips the shop
+    Quacks.GameHelpers.replace_game(id, fn g ->
+      Enum.reduce([0, 1], g, &Quacks.GameHelpers.put(&2, &1, coins: 30))
+    end)
 
     for view <- [alice, bob] do
       assert has_element?(view, "dd", "Shop")

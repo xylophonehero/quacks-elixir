@@ -128,7 +128,7 @@ defmodule QuacksWeb.UiRound3bTest do
 
   test "the shop: Done, no Buy nothing, no rubies; round 9 trades 2 rubies for 1 VP" do
     {id, alice, _bob} = duo()
-    replace_game(id, &H.put(&1, 0, phase: :shop, rubies: 3))
+    replace_game(id, &H.put(&1, 0, phase: :shop, rubies: 3, coins: 30))
 
     assert has_element?(alice, "dialog#decision-shop #shop")
     assert has_element?(alice, "dialog#decision-shop [data-role=shop-bag]")
