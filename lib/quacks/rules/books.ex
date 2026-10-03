@@ -4,7 +4,7 @@ defmodule Quacks.Rules.Books do
   engine supports. Sources: `docs/research/rulebook.md` §4 (Set 1),
   `docs/research/ingredient-sets-and-customisation.md` §1.3 (Sets 2–4) and
   `docs/research/herb-witches.md` §2.3–2.5 (Sets 5–6, black, locoweed, orange 6) and
-  `docs/research/alchemists.md` §2 (locoweed IV–VI; III needs the essence phase).
+  `docs/research/alchemists.md` §2 (locoweed III–VI; III needs The Alchemists).
 
   `trigger` says when the book acts: `:on_draw` (when the chip is placed),
   `:step_b` (evaluation step B), `:passive` (for the rest of the round) or `:none`.
@@ -137,6 +137,9 @@ defmodule Quacks.Rules.Books do
        "Acts as the last coloured chip in your pot (white and locoweed skipped): same value, bonus move and on-draw action, but it stays locoweed for every count; no coloured chip: it moves 1 with no action."},
     # The Alchemists (`docs/research/alchemists.md` §2): A–D are III–VI. III (A) needs the
     # essence phase and is not here yet.
+    {:locoweed, 3} =>
+      {:on_draw,
+       "Moves 1; in the essence phase (The Alchemists) your essence marker moves 1 more space for each locoweed in your pot."},
     {:locoweed, 4} =>
       {:on_draw,
        "Moves 1 space for each colour in your pot, white not counted and locoweed always counted (so at least 1)."},

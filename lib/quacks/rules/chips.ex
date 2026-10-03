@@ -17,14 +17,17 @@ defmodule Quacks.Rules.Chips do
           :white | :orange | :green | :blue | :red | :yellow | :purple | :black | :locoweed
   @typedoc "Locoweed has no printed value; the engine uses 1 (`herb-witches.md` §2.3)."
   @type chip :: {colour, 1 | 2 | 3 | 4 | 6}
-  @typedoc "An expansion: `nil` (base game) or `:herb_witches`."
-  @type expansion :: nil | :herb_witches
+  @typedoc """
+  The expansions in play: a `MapSet` of `:herb_witches | :alchemists` (the game's
+  `expansions`), or the old single value `nil | :herb_witches`.
+  """
+  @type expansion :: nil | :herb_witches | MapSet.t(:herb_witches | :alchemists)
 
   # Coins per Ingredient Set 1..6 (research `ingredient-sets-and-customisation.md` §1.1,
   # `herb-witches.md` §1.2). Orange has one book. Black: the base book is I, then The
   # Herb Witches' books II and III (Sets 5 and 6 in the box). Locoweed has six books:
   # I–II from The Herb Witches, III–VI are The Alchemists' A–D (`alchemists.md` §2; III
-  # needs the essence phase and is not playable yet, `Quacks.Game.new/1` refuses it).
+  # needs The Alchemists' essence phase, `Quacks.Game.new/1` refuses it without).
   # ⚠️ Green Set 3 4-chip: 18 (A2, A4); A1 prints 21.
   @prices %{
     {:orange, 1} => [3, 3, 3, 3, 3, 3],
@@ -152,17 +155,28 @@ defmodule Quacks.Rules.Chips do
     do: Enum.sort((Map.keys(@prices) -- @book_only) ++ book_chips(expansion, sets))
 
   @doc """
-  Number of chips of each kind in the box (§1). The expansion adds its chips; a base
-  game with orange Set 2 or a locoweed book adds those chips (expansion counts).
+  Number of chips of each kind in the box (§1). The Herb Witches adds its chips; a
+  game without it but with orange Set 2 or a locoweed book adds those chips (The Herb
+  Witches' counts). The Alchemists adds its 30 locoweed when a locoweed book is in
+  play (⚠️ instead of The Herb Witches' 25 without that box).
   """
   @spec supply(expansion, sets) :: %{chip => pos_integer}
-  def supply(expansion \\ nil, sets \\ %{})
+  def supply(expansion \\ nil, sets \\ %{}) do
+    box =
+      if has?(expansion, :herb_witches),
+        do: Map.merge(@supply, @expansion_supply, fn _, a, b -> a + b end),
+        else: Map.merge(@supply, Map.take(@expansion_supply, book_chips(expansion, sets)))
 
-  def supply(nil, sets),
-    do: Map.merge(@supply, Map.take(@expansion_supply, book_chips(nil, sets)))
+    if has?(expansion, :alchemists) and set(expansion, sets, :locoweed) do
+      herb = if has?(expansion, :herb_witches), do: @expansion_supply[{:locoweed, 1}], else: 0
+      Map.put(box, {:locoweed, 1}, herb + 30)
+    else
+      box
+    end
+  end
 
-  def supply(:herb_witches, _sets),
-    do: Map.merge(@supply, @expansion_supply, fn _, a, b -> a + b end)
+  defp has?(%MapSet{} = expansions, x), do: MapSet.member?(expansions, x)
+  defp has?(expansion, x), do: expansion == x
 
   # The book-only chips that `sets` puts in play.
   defp book_chips(expansion, sets) do
