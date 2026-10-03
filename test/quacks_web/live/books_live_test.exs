@@ -113,7 +113,7 @@ defmodule QuacksWeb.BooksLiveTest do
     for set <- ~w(off 1 2 3 4 5 6), do: assert(has_element?(view, "#{card}[data-set='#{set}']"))
     refute has_element?(view, "#{card}[data-set='7']")
     assert has_element?(view, "#{card}[data-set='1']", "rat stone")
-    assert has_element?(view, "#{card}[data-set='3'][aria-disabled]", "needs the essence phase")
+    assert has_element?(view, "#{card}[data-set='3'][aria-disabled]", "needs The Alchemists")
     assert has_element?(view, "#{card}[data-set='3'] input[disabled]")
     refute has_element?(view, "#{card}[data-set='4'][aria-disabled]")
     assert has_element?(view, "#{card}[data-set='4']", "Book IV")

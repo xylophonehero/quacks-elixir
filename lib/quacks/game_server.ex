@@ -85,7 +85,7 @@ defmodule Quacks.GameServer do
   `begin/2`. A `nil` seed picks a random one. `sets` picks the Ingredient Set per
   colour, e.g. `%{green: 2}` (left out: Set 1). `rules` sets house rules, e.g.
   `%{explode_above: 9}` (left out: the default). `expansion: :herb_witches` turns the
-  expansion on. See `Quacks.Game.new/1`. `start(players)` with the defaults is enough
+  expansion on; a `MapSet` (a game's `expansions`) turns each one on. See `Quacks.Game.new/1`. `start(players)` with the defaults is enough
   when the host sets the game up afterwards (`configure/3`).
   """
   @spec start(
@@ -100,7 +100,7 @@ defmodule Quacks.GameServer do
     start_server(%{
       max_players: players,
       seed: seed || random_seed(),
-      opts: [sets: sets, rules: rules, expansion: expansion],
+      opts: [sets: sets, rules: rules] ++ expansion_opts(expansion),
       tokens: %{},
       names: %{},
       colours: %{},
@@ -108,6 +108,10 @@ defmodule Quacks.GameServer do
       creator: nil
     })
   end
+
+  # A game's `expansions` (a MapSet) or the old single `expansion`.
+  defp expansion_opts(%MapSet{} = expansions), do: [expansions: MapSet.to_list(expansions)]
+  defp expansion_opts(expansion), do: [expansion: expansion]
 
   # Start a game process with `fields` (see `init/1`) under a new id.
   defp start_server(fields) do

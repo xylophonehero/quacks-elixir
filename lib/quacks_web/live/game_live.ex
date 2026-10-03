@@ -56,6 +56,14 @@ defmodule QuacksWeb.GameLive do
   pot, and each waiting droplet move opens the "Droplet" dialog (pot droplet or
   test tube). After the evaluation it waits for the round results, like the shop.
 
+  With The Alchemists every seat first picks a patient (a dialog with 3 cards).
+  The flask strip runs above the pot: the patient badge (it opens the patient
+  sheet) and the essence marker. A lower essence space is picked in a dialog with
+  a stepper; Chicken eyes and Vampirism pick a chip; Ear worm draws with the Draw
+  button. Next round, the patient's offers open as a decision under the drawn
+  chip, Nervousness lays its chips out above the action bar and Forgetfulness
+  returns a pot chip from its sheet.
+
   Actions travel to the browser as a URL-safe binary (see `encode/1`) so tuples like
   `{:buy, [{:green, 2}]}` survive the round trip without a parser per action shape.
   """
@@ -65,8 +73,10 @@ defmodule QuacksWeb.GameLive do
 
   import QuacksWeb.SetupComponents
 
+  import QuacksWeb.AlchemistsComponents
+
   alias Quacks.{Game, GameServer, Player}
-  alias Quacks.Rules.{Books, Chips, TestTubes}
+  alias Quacks.Rules.{Alchemists, Books, Chips, TestTubes}
 
   # The shop, one row per colour in the board's step B order; each row runs from
   # the lowest value to the highest. Chips not in the game's shop drop out.
@@ -162,9 +172,9 @@ defmodule QuacksWeb.GameLive do
   end
 
   def handle_event("sets", %{"sets" => params} = form, socket) when is_map(params) do
-    # The expansion toggle changes no book.
-    expansion = form["expansion"] == "true"
-    config = %{sets: parse_sets(params), expansion: if(expansion, do: :herb_witches)}
+    # The Herb Witches change no book; without The Alchemists locoweed III falls back.
+    alchemists = form["alchemists"] == "true"
+    config = %{sets: parse_sets(params, alchemists)} |> Map.merge(expansions(form, alchemists))
     {:noreply, configure(socket, config)}
   end
 
@@ -175,19 +185,22 @@ defmodule QuacksWeb.GameLive do
   # `ConfigMemory` hook in app.js). Bad or stale values fall back to the defaults.
   def handle_event("load_config", saved, %{assigns: %{fresh: true}} = socket)
       when is_map(saved) do
-    expansion = saved["expansion"] == true
+    alchemists = saved["alchemists"] == true
     form = fn key -> if is_map(saved[key]), do: saved[key], else: %{} end
     players = if is_integer(saved["players"]), do: saved["players"], else: socket.assigns.players
 
     players =
       players |> min(8) |> max(max(map_size(socket.assigns.names), 1))
 
-    config = %{
-      players: players,
-      sets: parse_sets(form.("sets")),
-      rules: parse_rules(form.("rules")),
-      expansion: if(expansion, do: :herb_witches)
-    }
+    config =
+      Map.merge(
+        %{
+          players: players,
+          sets: parse_sets(form.("sets"), alchemists),
+          rules: parse_rules(form.("rules"))
+        },
+        expansions(%{"expansion" => to_string(saved["expansion"] == true)}, alchemists)
+      )
 
     case GameServer.configure(socket.assigns.id, socket.assigns.token, config) do
       {:ok, table} -> {:noreply, assign_table(socket, table)}
@@ -218,6 +231,17 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
+  # The essence choice's stepper: a space between 0 and the reach.
+  def handle_event("essence_pick", %{"space" => space}, socket) do
+    case {Integer.parse(space), socket.assigns.me} do
+      {{n, ""}, %{essence_pending: {:space, reach}}} when n in 0..reach//1 ->
+        {:noreply, assign(socket, essence_pick: n)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("undo", _params, socket) do
     case GameServer.undo(socket.assigns.id) do
       {:ok, game} -> {:noreply, put_game(socket, game)}
@@ -227,8 +251,8 @@ defmodule QuacksWeb.GameLive do
 
   # Solo menu: a new game for the same books, house rules and expansion.
   def handle_event("new_game", _params, socket) do
-    %{sets: sets, rules: rules, expansion: expansion} = socket.assigns.game
-    {:ok, id} = GameServer.start(socket.assigns.players, nil, sets, rules, expansion)
+    %{sets: sets, rules: rules, expansions: expansions} = socket.assigns.game
+    {:ok, id} = GameServer.start(socket.assigns.players, nil, sets, rules, expansions)
     {:ok, 0} = GameServer.claim_seat(id, socket.assigns.token)
     {:noreply, push_navigate(socket, to: ~p"/g/#{id}")}
   end
@@ -333,10 +357,21 @@ defmodule QuacksWeb.GameLive do
       creator: table.creator,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
-      expansion: table.expansion == :herb_witches,
+      expansion: :herb_witches in table.expansions,
+      alchemists: :alchemists in table.expansions,
       # Nobody changed the books or options yet (see "load_config").
-      fresh: table.sets in [nil, %{}] and table.rules in [nil, %{}] and is_nil(table.expansion)
+      fresh:
+        table.sets in [nil, %{}] and table.rules in [nil, %{}] and
+          MapSet.size(table.expansions) == 0
     )
+  end
+
+  # The configure form's two toggles as `GameServer.configure/3` options.
+  defp expansions(form, alchemists) do
+    %{
+      expansion: if(form["expansion"] == "true", do: :herb_witches),
+      expansions: if(alchemists, do: [:alchemists], else: [])
+    }
   end
 
   # Send the host's change to the server; the reply is the new table, which the
@@ -364,7 +399,8 @@ defmodule QuacksWeb.GameLive do
       players: table.players,
       sets: form.(table.sets),
       rules: form.(table.rules),
-      expansion: table.expansion == :herb_witches
+      expansion: :herb_witches in table.expansions,
+      alchemists: :alchemists in table.expansions
     }
   end
 
@@ -506,6 +542,7 @@ defmodule QuacksWeb.GameLive do
         <.books_form
           sets={@sets}
           expansion={@expansion}
+          alchemists={@alchemists}
           pot_side={@rules.pot_side}
           players={@players}
           disabled={!@host}
@@ -624,6 +661,7 @@ defmodule QuacksWeb.GameLive do
           </div>
 
           <div class="flex min-h-0 flex-col p-2">
+            <.flask_strip :if={@me && @me.patient} game={@game} seat={@seat} />
             <%!-- The pot is the largest square that fits (see `.pot-box` in app.css);
                  its controls sit in the square's corners: witches top left, the card
                  top right, the flask (inside the SVG) bottom left, the bag bottom right. --%>
@@ -706,6 +744,48 @@ defmodule QuacksWeb.GameLive do
             >
               Show the result
             </.button>
+            <p
+              :if={left = @me && ear_worm_left(@me)}
+              class="rounded-md bg-gold px-2 py-1 text-sm font-bold text-ink"
+              data-role="ear-worm"
+            >
+              Ear worm: draw {left} more, no explosion
+            </p>
+            <section
+              :if={places(@actions) != [] or forgets(@actions) != []}
+              class="flex min-h-11 items-center gap-2"
+              aria-label="Patient actions"
+              data-role="patient-actions"
+            >
+              <div
+                :if={places(@actions) != []}
+                class="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto"
+                data-role="display"
+              >
+                <span class="shrink-0 text-xs leading-tight font-semibold text-parchment-dim">
+                  Laid out:<br />tap to place
+                </span>
+                <button
+                  :for={chip <- @me.display}
+                  type="button"
+                  phx-click="action"
+                  phx-value-action={encode({:essence, {:place, chip}})}
+                  aria-label={"Place #{chip_name(chip)}"}
+                  data-role="display-chip"
+                  class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full transition-transform duration-100 ease-out touch-manipulation active:scale-90"
+                >
+                  <.chip chip={chip} />
+                </button>
+              </div>
+              <.sheet_button
+                :if={forgets(@actions) != []}
+                for="sheet-forget"
+                class="ml-auto shrink-0"
+                data-role="forget-button"
+              >
+                <.icon name="hero-arrow-uturn-left" class="size-4" /> Forget a chip
+              </.sheet_button>
+            </section>
             <%!-- Two fixed slots: Stop (Resume while stopped) left, Draw right.
                  Never moved, only disabled. --%>
             <section
@@ -762,6 +842,33 @@ defmodule QuacksWeb.GameLive do
         </aside>
       </div>
 
+      <.sheet :if={@me && @me.patient} id="sheet-patient" label="Patient">
+        <.patient_card id={@me.patient} reached={if @me.essence > 0, do: @me.essence} />
+        <p class="mt-2 text-sm font-semibold" data-role="patient-essence">
+          Essence: {@me.essence}
+        </p>
+      </.sheet>
+      <.sheet :if={forgets(@actions) != []} id="sheet-forget" label="Forgetfulness">
+        <h2 class="font-hand text-2xl font-bold">Forgetfulness</h2>
+        <p class="text-sm text-ink-soft">
+          Tap a chip in your pot to return it to the bag. It costs as much essence as its value. You have {@me.essence}.
+        </p>
+        <ul class="mt-3 flex flex-wrap gap-2" data-role="forget-chips">
+          <li :for={{:essence, {:forget, chip}} = action <- forgets(@actions)}>
+            <button
+              type="button"
+              phx-click="action"
+              phx-value-action={encode(action)}
+              popovertarget="sheet-forget"
+              popovertargetaction="hide"
+              data-role="forget-chip"
+              class="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full bg-parchment-light py-1 pr-3 pl-1 text-sm font-semibold shadow-sm ring-1 ring-ink/25 transition-[scale] duration-150 ease-out touch-manipulation active:scale-[0.96]"
+            >
+              <.chip chip={chip} /> Return (−{elem(chip, 1)})
+            </button>
+          </li>
+        </ul>
+      </.sheet>
       <.sheet :if={@me} id="sheet-bag" label="Bag">
         <.bag bag={@me.bag} />
       </.sheet>
@@ -807,6 +914,13 @@ defmodule QuacksWeb.GameLive do
             Seed
             <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>
           </p>
+          <p :if={MapSet.size(@game.expansions) > 0} class="text-xs" data-role="expansions">
+            Expansions: {Enum.map_join(
+              Enum.filter([:herb_witches, :alchemists], &Game.expansion?(@game, &1)),
+              " · ",
+              &expansion_name/1
+            )}
+          </p>
           <.books sets={@game.sets} />
           <.house_rules rules={@game.rules} />
         </div>
@@ -839,7 +953,19 @@ defmodule QuacksWeb.GameLive do
           selected={@selected}
           step={@decision}
         />
-        <div :if={not shop_step?(@decision)} class="space-y-3">
+        <.patient_picks :if={@decision == :patient_choice} picks={patient_actions(@all_actions)} />
+        <.essence_choice
+          :if={@decision == :essence_choice}
+          patient={@me.patient}
+          reach={elem(@me.essence_pending, 1)}
+          pick={@essence_pick}
+          parts={essence_parts(@game.log, @seat)}
+          take={encode({:essence, {:space, @essence_pick}})}
+        />
+        <div
+          :if={not shop_step?(@decision) and @decision not in [:patient_choice, :essence_choice]}
+          class="space-y-3"
+        >
           <div class="flex items-center gap-1">
             <h2 class="text-xl font-bold">{phase_name(@decision)}</h2>
             <.offer_books
@@ -857,6 +983,22 @@ defmodule QuacksWeb.GameLive do
             </p>
             <.test_tubes tube={@me.tube} />
           </div>
+          <p
+            :if={hint = bonus_hint(@me.essence_pending)}
+            class="text-sm font-semibold"
+            data-role="essence-bonus"
+          >
+            {hint}
+          </p>
+          <.blue_offer
+            :if={@decision == :essence_offer}
+            title={offer_hint(@me.essence_pending)}
+            hint={"Your essence: #{@me.essence}"}
+            label="Patient offer"
+            accent="border-gold"
+          >
+            <.chip :if={chip = offer_chip(@me.essence_pending)} chip={chip} data-role="offer-chip" />
+          </.blue_offer>
           <.blue_offer :if={@decision == :blue_choice}>
             <.chip_picks actions={@all_actions} pool={@me.pending} game={@game} me={@me} />
           </.blue_offer>
@@ -1390,6 +1532,7 @@ defmodule QuacksWeb.GameLive do
   defp pick_chips({:chip, {kind, chip}}) when kind in [:gain, :starter, :return], do: [chip]
   defp pick_chips({:chip, {:upgrade, from, to}}), do: [from, to]
   defp pick_chips({:chip, {:buy, chips}}), do: chips
+  defp pick_chips({:essence, {kind, chip}}) when kind in [:swap, :buy], do: [chip]
   defp pick_chips(_action), do: []
 
   # The toadstool's keep and return: small buttons under their chip.
@@ -1425,6 +1568,8 @@ defmodule QuacksWeb.GameLive do
   defp pick_title({:chip, {:return, _chip}}, _card), do: "Locoweed: return one to your bag"
   defp pick_title({:fortune, {:take, _chip}}, :p3), do: "Trade 1 ruby for one"
   defp pick_title({:fortune, {:take, _chip}}, _card), do: "Take one"
+  defp pick_title({:essence, {:swap, _chip}}, _card), do: "Swap one"
+  defp pick_title({:essence, {:buy, _chip}}, _card), do: "Buy one"
   defp pick_title(_action, _card), do: nil
 
   # A choice in the card's dialog sends its action and closes the dialog.
@@ -1502,7 +1647,8 @@ defmodule QuacksWeb.GameLive do
       decision: nil,
       all_actions: [],
       actions: [],
-      stop_slot: :stop
+      stop_slot: :stop,
+      essence_pick: nil
     )
   end
 
@@ -1520,9 +1666,17 @@ defmodule QuacksWeb.GameLive do
       all_actions: actions,
       actions: if(decision, do: [], else: Enum.reject(actions, &witch?/1)),
       stop_slot:
-        if(me != nil and me.phase == :stopped and not stir?(game), do: :resume, else: :stop)
+        if(me != nil and me.phase == :stopped and not stir?(game), do: :resume, else: :stop),
+      essence_pick: essence_pick(me, socket.assigns[:essence_pick])
     )
   end
+
+  # The stepper keeps its space while the essence choice is open; it starts at the reach.
+  defp essence_pick(%{essence_pending: {:space, reach}}, pick) when pick in 0..reach//1,
+    do: pick
+
+  defp essence_pick(%{essence_pending: {:space, reach}}, _pick), do: reach
+  defp essence_pick(_me, _pick), do: nil
 
   # The dialog that holds this seat's decision (the fortune choice is in the card's).
   defp decision_dialog(:fortune_choice, game), do: "#card-round-#{game.round}"
@@ -1559,7 +1713,51 @@ defmodule QuacksWeb.GameLive do
 
   # Bar actions without a fixed slot (Draw, Stop/Resume) or a pot control (the flask),
   # e.g. B3's restart or R6's place.
-  defp extra_actions(actions), do: actions -- [:draw, :stop, :resume, :use_flask]
+  # Patient actions have their own rows (Nervousness display, Forgetfulness sheet).
+  defp extra_actions(actions),
+    do: Enum.reject(actions -- [:draw, :stop, :resume, :use_flask], &match?({:essence, _}, &1))
+
+  defp places(actions), do: for({:essence, {:place, chip}} <- actions, do: chip)
+  defp forgets(actions), do: for({:essence, {:forget, _}} = action <- actions, do: action)
+
+  # `[{id, encoded}]` for the patient choice.
+  defp patient_actions(actions), do: for({:patient, id} = a <- actions, do: {id, encode(a)})
+
+  # The `{:essence, reach, parts}` log entry of `seat` (newest), for the essence choice.
+  defp essence_parts(log, seat) do
+    Enum.find_value(log, fn
+      {^seat, {:essence, _reach, %{} = parts}} -> parts
+      _entry -> nil
+    end)
+  end
+
+  # The Ear worm line: draws left, no explosion.
+  defp ear_worm_left(%{phase: :ear_worm, essence_pending: {:ear_worm, n}}), do: n
+  defp ear_worm_left(_me), do: nil
+
+  # What a Chicken eyes or Vampirism bonus asks for.
+  defp bonus_hint({:swap, 1, to}),
+    do: "Chicken eyes: swap a 1-chip in your pot for a #{to}-chip of the same colour."
+
+  defp bonus_hint({:buy, coins}), do: "Vampirism: buy 1 chip for up to #{coins} coins."
+  defp bonus_hint(_pending), do: nil
+
+  # The patient offer waiting now, for its dialog.
+  defp offer_hint({:offers, [{:carrot, _} | _]}), do: "Carrot nose: you drew a pumpkin."
+
+  defp offer_hint({:offers, [{kind, _} | _]}) when kind in [:wing, :wing_bowl],
+    do: "Wing ears: you drew a white chip."
+
+  defp offer_hint({:offers, [{:hump, chip} | _]}),
+    do: "Witch's hump: a chip on a ruby space. Bonus: #{term_text(Alchemists.hump_bonus(chip))}."
+
+  defp offer_hint(_pending), do: nil
+
+  defp offer_chip({:offers, [{_kind, chip} | _]}), do: chip
+  defp offer_chip(_pending), do: nil
+
+  defp expansion_name(:herb_witches), do: "The Herb Witches"
+  defp expansion_name(:alchemists), do: "The Alchemists"
 
   defp decision([], _phase, _me), do: nil
   # The shop's two steps: buy while a buy is legal, then rubies.
@@ -1569,6 +1767,8 @@ defmodule QuacksWeb.GameLive do
     do: if(Enum.any?(actions, &shop_action?/1), do: :shop, else: :rubies)
 
   defp decision(_actions, :potions, %{witch_offer: [_ | _]}), do: :witch_offer
+  # Ear worm draws with the bar's Draw button.
+  defp decision(_actions, :ear_worm, _me), do: nil
   defp decision(_actions, :potions, _me), do: nil
   defp decision(_actions, :stopped, _me), do: nil
   defp decision(_actions, phase, _me), do: phase
@@ -1622,6 +1822,11 @@ defmodule QuacksWeb.GameLive do
       "Spend #{if me.ruby_price == 1, do: "1 ruby", else: "2 rubies"}: #{ruby_use(what, game, me)}"
 
   defp action_label({:droplet, :tube}, _game, me), do: "Test tube (#{next_glass(me)})"
+
+  defp action_label({:essence, :hump}, _game, %{essence_pending: {:offers, [{:hump, c} | _]}}),
+    do: "Spend 2 essence: #{term_text(Alchemists.hump_bonus(c))}"
+
+  defp action_label({:essence, :pass}, _game, %{phase: :essence_offer}), do: "No"
   defp action_label(action, game, _me), do: label(action, game.fortune_card)
 
   defp ruby_use(:droplet, %{rules: %{pot_side: :back}}, _me), do: "pot droplet +1"
@@ -1672,11 +1877,20 @@ defmodule QuacksWeb.GameLive do
   # for the stir), shopping, or answering the concurrent choice of the game phase.
   defp busy?(%{phase: :potions}, player), do: player.phase not in [:stopped, :done, :waiting_stir]
   defp busy?(%{phase: :shopping}, player), do: player.phase != :ready
+  defp busy?(%{phase: :patient_choice}, player), do: player.patient == nil
+
+  defp busy?(%{phase: :essence}, player),
+    do:
+      player.phase in [:essence_choice, :essence_bonus, :ear_worm] or
+        player.phase in [:blue_choice, :yellow_choice, :chip_choice]
+
   defp busy?(%{phase: phase}, player), do: player.phase == phase
 
   defp phase_verb(:fortune_choice), do: "resolve the fortune teller card"
   defp phase_verb(:chip_choice), do: "choose chip actions"
   defp phase_verb(:witch_choice), do: "decide on the gold witch"
+  defp phase_verb(:patient_choice), do: "choose a patient"
+  defp phase_verb(:essence), do: "distil their essence"
 
   # Seats by VP, highest first.
   defp ranking(game), do: game |> Game.score() |> Enum.sort_by(fn {_seat, vp} -> -vp end)
