@@ -278,10 +278,25 @@ defmodule QuacksWeb.GameComponents do
       data-round={@size == :lg && @game.round}
     >
       <defs>
-        <radialGradient id={"brew-#{@seat}-#{@size}"}>
-          <stop offset="0%" stop-color="var(--color-potion-light)" stop-opacity="0.55" />
-          <stop offset="70%" stop-color="var(--color-potion)" />
-          <stop offset="100%" stop-color="var(--color-potion-deep)" />
+        <%!-- The brew; an exploded pot's brew turns a dull, spoiled olive. --%>
+        <radialGradient
+          id={"brew-#{@seat}-#{@size}"}
+          data-role="brew"
+          data-spoiled={@me.exploded? && "true"}
+        >
+          <stop
+            offset="0%"
+            stop-color={if @me.exploded?, do: "#8a9560", else: "var(--color-potion-light)"}
+            stop-opacity="0.55"
+          />
+          <stop
+            offset="70%"
+            stop-color={if @me.exploded?, do: "#5b6b3a", else: "var(--color-potion)"}
+          />
+          <stop
+            offset="100%"
+            stop-color={if @me.exploded?, do: "#3b4526", else: "var(--color-potion-deep)"}
+          />
         </radialGradient>
         <radialGradient :if={@size == :lg} id={"vp-gold-#{@seat}"} cx="35%" cy="30%">
           <stop offset="0%" stop-color="#fff1bf" />
@@ -324,11 +339,23 @@ defmodule QuacksWeb.GameComponents do
       <polyline
         points={@groove}
         fill="none"
-        stroke="var(--color-potion-deep)"
-        stroke-opacity="0.45"
+        stroke={if @me.exploded?, do: "#2f3820", else: "var(--color-potion-deep)"}
+        stroke-opacity="0.7"
         stroke-width="46"
         stroke-linecap="round"
         stroke-linejoin="round"
+        data-role="groove"
+      />
+      <%!-- a thin highlight along the groove, so the spiral reads at a glance --%>
+      <polyline
+        points={@groove}
+        fill="none"
+        stroke="var(--color-potion-light)"
+        stroke-opacity="0.35"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        transform="translate(0 -1)"
       />
       <g
         :for={index <- @spaces}
@@ -1840,9 +1867,38 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
+  # A small picture per fortune card: a game piece, an ingredient, or nil (a sparkle).
+  @card_motifs %{
+    b1: :droplet,
+    b2: :cauldron,
+    b3: :bag,
+    b4: :die,
+    b5: :cauldron,
+    b6: {:ingredient, :orange},
+    b7: :bag,
+    b8: :ruby,
+    b9: :flask,
+    b10: :flask,
+    b11: :ruby,
+    p1: nil,
+    p2: :droplet,
+    p3: :ruby,
+    p4: :ruby,
+    p5: {:ingredient, :green},
+    p6: :vp,
+    p7: :rat,
+    p8: :bag,
+    p9: :rat,
+    p10: :rat,
+    p11: :droplet,
+    p12: :die,
+    p13: :bag
+  }
+
   @doc """
   The Fortune Teller card of this round: a colour band (blue = a rule for the whole
-  round, purple = resolved once at the start), its name and its full text.
+  round, purple = resolved once at the start), a motif (`@card_motifs`), its name in
+  Kalam and its full text.
 
   ## Examples
 
@@ -1860,8 +1916,8 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <div id={"card-flip-#{@id}"} class="card-flip" data-role="card-flip">
       <div class="card-flip-inner">
-        <div class="card-back" aria-hidden="true">
-          <span class="flex flex-col items-center gap-1 font-hand font-bold text-gold">
+        <div class="card-back" aria-hidden="true" data-role="card-back">
+          <span class="flex flex-col items-center gap-1 rounded-full bg-[#3b1d78]/80 px-4 py-2 font-hand font-bold text-gold">
             <QuacksWeb.CoreComponents.icon name="hero-sparkles" class="size-8" /> Fortune teller
           </span>
         </div>
@@ -1874,29 +1930,70 @@ defmodule QuacksWeb.GameComponents do
   end
 
   def fortune_card(assigns) do
-    assigns = assign(assigns, card: Fortune.card(assigns.id))
+    assigns = assign(assigns, card: Fortune.card(assigns.id), motif: @card_motifs[assigns.id])
 
     ~H"""
     <section
-      class="paper overflow-hidden rounded-lg text-sm"
+      class="paper fortune-face relative overflow-hidden rounded-lg text-sm shadow-md shadow-black/25"
       aria-label="Fortune teller card"
       data-role="fortune-card"
       data-colour={@card.colour}
     >
       <div class={[
-        "px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white",
+        "flex items-center gap-1.5 px-3 py-1 text-xs font-semibold tracking-wide text-white uppercase",
         @card.colour == :blue && "bg-chip-blue",
         @card.colour == :purple && "bg-chip-purple"
       ]}>
+        <QuacksWeb.CoreComponents.icon name="hero-sparkles-mini" class="size-3.5 opacity-80" />
         {band_text(@card.colour, @choice)}
       </div>
-      <div class="px-3 py-2">
-        <h2 class="text-lg font-bold">{@card.name}</h2>
-        <p class="text-ink-soft">{@card.text}</p>
+      <div class="flex gap-3 px-3 py-2.5">
+        <div
+          class={[
+            "grid size-12 shrink-0 place-items-center rounded-full ring-2",
+            @card.colour == :blue && "bg-chip-blue/12 text-chip-blue ring-chip-blue/35",
+            @card.colour == :purple && "bg-chip-purple/12 text-chip-purple ring-chip-purple/35"
+          ]}
+          aria-hidden="true"
+          data-role="card-motif"
+          data-motif={motif_name(@motif)}
+        >
+          <.card_motif motif={@motif} />
+        </div>
+        <div class="min-w-0">
+          <h2 class="font-hand text-xl leading-tight font-bold">{@card.name}</h2>
+          <p class="mt-0.5 leading-snug text-pretty text-ink-soft">{@card.text}</p>
+        </div>
       </div>
     </section>
     """
   end
+
+  attr :motif, :any, required: true
+
+  defp card_motif(%{motif: {:ingredient, colour}} = assigns) do
+    assigns = assign(assigns, colour: colour)
+
+    ~H"""
+    <.ingredient_icon colour={@colour} class="size-8" />
+    """
+  end
+
+  defp card_motif(%{motif: nil} = assigns) do
+    ~H"""
+    <QuacksWeb.CoreComponents.icon name="hero-sparkles" class="size-7" />
+    """
+  end
+
+  defp card_motif(assigns) do
+    ~H"""
+    <.piece_icon name={@motif} class="size-8" />
+    """
+  end
+
+  defp motif_name({:ingredient, colour}), do: colour
+  defp motif_name(nil), do: "sparkle"
+  defp motif_name(piece), do: piece
 
   # The card's colour band: a blue card is a rule for the round; a purple one acts
   # once, and says so only when it waits for this player.
