@@ -51,7 +51,11 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  # LiveView refuses WebSocket connections whose Origin does not match this host,
+  # so a wrong fallback would silently break the app. Fail loudly instead.
+  host =
+    System.get_env("PHX_HOST") ||
+      raise "environment variable PHX_HOST is missing (e.g. quacks.fly.dev)"
 
   config :quacks, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 

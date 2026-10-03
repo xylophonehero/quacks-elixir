@@ -1,0 +1,17 @@
+# Deploys master to Fly.io. Needs the FLY_API_TOKEN repository secret
+# (create with `fly tokens create deploy -x 999999h`).
+name: Fly Deploy
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+concurrency: deploy-group
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
