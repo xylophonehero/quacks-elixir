@@ -83,8 +83,6 @@ defmodule QuacksWeb.GameLive do
 
   # The colours with an ingredient book (white has none), for `offer_books/1`.
   @book_colours [:orange, :blue, :red, :yellow, :black, :green, :purple, :locoweed]
-  # The shape of the saved configure settings (see `saved_config/1`).
-  @config_version 2
 
   @doc "Join game `id`: take a free seat, or watch when the game is full."
   @impl true
@@ -186,7 +184,7 @@ defmodule QuacksWeb.GameLive do
 
     config = %{
       players: players,
-      sets: parse_sets(saved_sets(form.("sets"), saved["version"], expansion)),
+      sets: parse_sets(form.("sets")),
       rules: parse_rules(form.("rules")),
       expansion: if(expansion, do: :herb_witches)
     }
@@ -356,24 +354,13 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # Configs saved before version 2 number the locoweed books 5, 6, 8, 9, 10 (now I, II,
-  # IV, V, VI; anything else is no locoweed) and left the expansion's orange 2 out.
-  @old_locoweed %{"5" => "1", "6" => "2", "8" => "4", "9" => "5", "10" => "6"}
-  defp saved_sets(sets, @config_version, _expansion), do: sets
-
-  defp saved_sets(sets, _version, expansion) do
-    sets = Map.put(sets, "locoweed", Map.get(@old_locoweed, sets["locoweed"], ""))
-    if expansion, do: Map.put_new(sets, "orange", "2"), else: sets
-  end
-
-  # The table's settings in the shape of the configure forms (strings) and a
-  # `version`, for the browser's memory; "load_config" reads them back through
-  # `saved_sets/3`, `parse_sets/1` and `parse_rules/1`.
+  # The table's settings in the shape of the configure forms (strings), for the
+  # browser's memory; "load_config" reads them back through `parse_sets/1` and
+  # `parse_rules/1`.
   defp saved_config(table) do
     form = fn map -> Map.new(map || %{}, fn {key, value} -> {key, to_string(value)} end) end
 
     %{
-      version: @config_version,
       players: table.players,
       sets: form.(table.sets),
       rules: form.(table.rules),
@@ -568,6 +555,15 @@ defmodule QuacksWeb.GameLive do
               </span>
             </p>
             <div class="ml-auto shrink-0"><.round_phase game={@game} seat={@seat || 0} /></div>
+            <button
+              type="button"
+              popovertarget="sheet-books"
+              aria-label="Ingredient books"
+              class="-mx-1 inline-flex size-11 shrink-0 items-center justify-center"
+              data-role="open-books"
+            >
+              <.icon name="hero-book-open" class="size-6" />
+            </button>
             <button
               :if={results?(@game)}
               type="button"

@@ -17,7 +17,7 @@ defmodule Quacks.BooksTest do
   test "every supported {colour, set} has a book with a name, text and trigger" do
     supported =
       for(colour <- [:green, :blue, :red, :yellow, :purple], set <- 1..6, do: {colour, set}) ++
-        [black: 1, black: 5, black: 6, locoweed: 1, locoweed: 2, locoweed: 4, locoweed: 5] ++
+        [black: 1, black: 2, black: 3, locoweed: 1, locoweed: 2, locoweed: 4, locoweed: 5] ++
         [locoweed: 6, orange: 1, orange: 2, white: 1]
 
     assert Enum.sort(supported) == Books.keys()

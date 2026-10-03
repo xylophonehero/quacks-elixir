@@ -21,10 +21,10 @@ defmodule Quacks.Rules.Chips do
   @type expansion :: nil | :herb_witches
 
   # Coins per Ingredient Set 1..6 (research `ingredient-sets-and-customisation.md` §1.1,
-  # `herb-witches.md` §1.2). Orange has one book. Black: the base book counts as "Set 1"
-  # (entries 1–4), then Sets 5 and 6. Locoweed has six books: I–II from The Herb
-  # Witches, III–VI are The Alchemists' A–D (`alchemists.md` §2; III needs the essence
-  # phase and is not playable yet, `Quacks.Game.new/1` refuses it).
+  # `herb-witches.md` §1.2). Orange has one book. Black: the base book is I, then The
+  # Herb Witches' books II and III (Sets 5 and 6 in the box). Locoweed has six books:
+  # I–II from The Herb Witches, III–VI are The Alchemists' A–D (`alchemists.md` §2; III
+  # needs the essence phase and is not playable yet, `Quacks.Game.new/1` refuses it).
   # ⚠️ Green Set 3 4-chip: 18 (A2, A4); A1 prints 21.
   @prices %{
     {:orange, 1} => [3, 3, 3, 3, 3, 3],
@@ -42,7 +42,7 @@ defmodule Quacks.Rules.Chips do
     {:yellow, 2} => [12, 13, 12, 12, 14, 12],
     {:yellow, 4} => [18, 19, 18, 18, 20, 18],
     {:purple, 1} => [9, 12, 10, 11, 9, 16],
-    {:black, 1} => [10, 10, 10, 10, 10, 9],
+    {:black, 1} => [10, 10, 9],
     {:locoweed, 1} => [8, 10, 11, 16, 10, 12]
   }
 

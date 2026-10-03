@@ -124,10 +124,10 @@ defmodule Quacks.Rules.Books do
       {:step_b,
        "Each purple chip scores VP equal to the printed value of the chip right after it (locoweed 1)."},
     {:black, 1} => {:step_b, "Compare your black chips with the other players' (see table)."},
-    {:black, 5} =>
+    {:black, 2} =>
       {:step_b,
        "A black chip you buy or get from a card goes into the left player's bag (solo: back to the supply) and your droplet moves 1; at step B take 1 ruby per black chip in the left player's pot and per black chip that is your last or next-to-last chip."},
-    {:black, 6} =>
+    {:black, 3} =>
       {:step_b,
        "The owner of the furthest black chip at the table moves the droplet 1 and the owner of the second-furthest takes 1 ruby; one player can get both and ties share (solo: 1 black chip gives the droplet, 2 the ruby too)."},
     {:locoweed, 1} =>
@@ -251,7 +251,7 @@ defmodule Quacks.Rules.Books do
   @spec keys() :: [{Chips.colour(), 1..6}]
   def keys, do: @books |> Map.keys() |> Enum.sort()
 
-  @doc "The sets of `colour` that have a book, e.g. `[1, 5, 6]` for black."
+  @doc "The sets of `colour` that have a book, e.g. `[1, 2, 3]` for black."
   @spec sets(Chips.colour()) :: [1..6]
   def sets(colour), do: for({^colour, set} <- keys(), do: set)
 

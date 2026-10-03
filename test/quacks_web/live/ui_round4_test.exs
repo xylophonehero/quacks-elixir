@@ -42,15 +42,16 @@ defmodule QuacksWeb.UiRound4Test do
     view = open(browser("host"), id)
 
     refute has_element?(view, "#expansion[checked]")
-    assert has_element?(view, "input[name='sets[black]'][value='5']")
-    assert has_element?(view, "input[name='sets[black]'][value='6']")
+    assert has_element?(view, "input[name='sets[black]'][value='2']")
+    assert has_element?(view, "input[name='sets[black]'][value='3']")
+    refute has_element?(view, "input[name='sets[black]'][value='5']")
 
-    view |> form("#books", sets: %{black: "6"}) |> render_change()
+    view |> form("#books", sets: %{black: "3"}) |> render_change()
     view |> element("button", "Start game") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
     assert game.expansion == nil
-    assert game.sets.black == 6
+    assert game.sets.black == 3
   end
 
   test "the host's changes go to the browser; a fresh screen takes them back once" do
@@ -60,7 +61,7 @@ defmodule QuacksWeb.UiRound4Test do
 
     saved = %{
       "players" => 9,
-      "sets" => %{"green" => "3", "black" => "5", "blue" => "bad"},
+      "sets" => %{"green" => "3", "black" => "2", "blue" => "bad"},
       "rules" => %{"rats" => "false", "explode_above" => "42"},
       "expansion" => false
     }
@@ -68,7 +69,7 @@ defmodule QuacksWeb.UiRound4Test do
     render_hook(host, "load_config", saved)
     {:ok, table} = GameServer.get(id)
     assert table.max_players == 8
-    assert %{green: 3, black: 5, blue: 1} = table.sets
+    assert %{green: 3, black: 2, blue: 1} = table.sets
     assert %{rats: false, explode_above: 7} = table.rules
     refute has_element?(host, "#config-memory[data-fresh]")
 
@@ -82,7 +83,7 @@ defmodule QuacksWeb.UiRound4Test do
 
     assert_push_event(host, "save_config", %{
       players: 8,
-      sets: %{green: "2", black: "5"},
+      sets: %{green: "2", black: "2"},
       rules: %{rats: "false"},
       expansion: false
     })

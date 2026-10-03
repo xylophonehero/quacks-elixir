@@ -15,7 +15,7 @@ defmodule Quacks.Game.Evaluation do
   run after the last seat. Without such a book nobody has a choice and the
   evaluation runs in one go.
 
-  The Herb Witches: G6, P6 and black Sets 5 and 6 are automatic step-B books; G5
+  The Herb Witches: G6, P6 and black books II and III are automatic step-B books; G5
   (`{:starter, chip}`: first chips of the next round) and P5 (`{:buy, chips}` with
   the VP of the purple spaces as coins) are choices. After the choices, the gold
   witches G1–G3 are asked (`Quacks.Game.Witches.open_gold/1`). Step D adds the
@@ -396,7 +396,7 @@ defmodule Quacks.Game.Evaluation do
     |> Game.effect(seat, {:green, 5}, {:starter, chip})
   end
 
-  # P5: free chips for the bag (black Set 5 still sends a black chip left).
+  # P5: free chips for the bag (black book II still sends a black chip left).
   defp choose(g, seat, {:buy, chips}) do
     g
     |> use_choice(seat, &match?({:purple_buy, _}, &1))
@@ -431,9 +431,9 @@ defmodule Quacks.Game.Evaluation do
     |> Game.return_supply(chip)
   end
 
-  # Black Set 5: a ruby per black chip in the left player's pot (solo: none) and per
+  # Black book II: a ruby per black chip in the left player's pot (solo: none) and per
   # black chip on my last two positions.
-  defp black(g, seat, 5, g0) do
+  defp black(g, seat, 2, g0) do
     left = Game.left(g0, seat)
     theirs = if left, do: count(:black, Game.pot_chips(g0, left)), else: 0
 
@@ -444,15 +444,15 @@ defmodule Quacks.Game.Evaluation do
       n ->
         g
         |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + n})
-        |> Game.effect(seat, {:black, 5}, {:rubies, n})
+        |> Game.effect(seat, {:black, 2}, {:rubies, n})
     end
   end
 
-  # Black Set 6: the owner(s) of the furthest black chip at the table move the droplet
+  # Black book III: the owner(s) of the furthest black chip at the table move the droplet
   # 1, of the second furthest take 1 ruby; one player may get both. Solo this ranks my
   # own chips (1+ black: droplet, 2+: ruby too). ⚠️ A tie for furthest shares the
   # droplet; "second" is then the next lower space.
-  defp black(g, seat, 6, g0) do
+  defp black(g, seat, 3, g0) do
     spaces = fn s -> for {{:black, _}, i} <- Game.player(g0, s).drawn, do: i end
     ranked = g0.seats |> Enum.flat_map(spaces) |> Enum.uniq() |> Enum.sort(:desc)
     mine = spaces.(seat)
@@ -467,7 +467,7 @@ defmodule Quacks.Game.Evaluation do
         g
         |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + if(ruby?, do: 1, else: 0)})
         |> Game.move_droplet(seat, if(droplet?, do: 1, else: 0))
-        |> Game.effect(seat, {:black, 6}, payoff(droplet?, ruby?))
+        |> Game.effect(seat, {:black, 3}, payoff(droplet?, ruby?))
     end
   end
 

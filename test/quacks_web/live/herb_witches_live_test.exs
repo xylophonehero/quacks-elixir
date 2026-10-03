@@ -28,11 +28,11 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     view |> form("#books", expansion: "true") |> render_change()
 
     view
-    |> form("#books", expansion: "true", sets: %{green: "5", black: "6", locoweed: "2"})
+    |> form("#books", expansion: "true", sets: %{green: "5", black: "3", locoweed: "2"})
     |> render_change()
 
     assert has_element?(view, "input[name='sets[green]'][value='6']")
-    assert has_element?(view, "#books [data-book=black-6]", "Hawkmoth")
+    assert has_element?(view, "#books [data-book=black-3]", "Hawkmoth")
 
     view |> element("button[aria-label='More players']") |> render_click()
     assert {:ok, %{status: :waiting, game: nil, max_players: 5}} = GameServer.get(id)
@@ -42,14 +42,14 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     view |> element("button", "Start game") |> render_click()
     {:ok, %{game: game, players: 1}} = GameServer.get(id)
     assert game.expansion == :herb_witches and game.seats == [0]
-    assert %{green: 5, black: 6, locoweed: 2} = game.sets
+    assert %{green: 5, black: 3, locoweed: 2} = game.sets
   end
 
   test "parse_sets keeps Sets 5-6 in every game; black always; bad locoweed is none" do
-    params = %{"green" => "6", "black" => "5", "locoweed" => "7"}
+    params = %{"green" => "6", "black" => "2", "locoweed" => "7"}
 
     assert SetupComponents.parse_sets(params) ==
-             %{green: 6, blue: 1, red: 1, yellow: 1, purple: 1, black: 5}
+             %{green: 6, blue: 1, red: 1, yellow: 1, purple: 1, black: 2}
 
     assert SetupComponents.parse_sets(%{"locoweed" => "4", "orange" => "2"}) ==
              %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1, locoweed: 4, orange: 2}
@@ -163,12 +163,12 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
       {{:purple, 5}, {:bought, [chip]}},
       {{:purple, 5}, {:vp, 3}},
       {{:purple, 6}, {:vp, 4}},
-      {{:black, 5}, {:to_left, 1}},
-      {{:black, 5}, :to_supply},
-      {{:black, 5}, {:rubies, 2}},
-      {{:black, 6}, :droplet},
-      {{:black, 6}, :ruby},
-      {{:black, 6}, :droplet_ruby},
+      {{:black, 2}, {:to_left, 1}},
+      {{:black, 2}, :to_supply},
+      {{:black, 2}, {:rubies, 2}},
+      {{:black, 3}, :droplet},
+      {{:black, 3}, :ruby},
+      {{:black, 3}, :droplet_ruby},
       {{:locoweed, 1}, {:moves, 3}},
       {{:locoweed, 2}, {:copied, {:red, 4}}}
     ]

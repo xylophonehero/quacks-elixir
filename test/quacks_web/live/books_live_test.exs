@@ -78,9 +78,10 @@ defmodule QuacksWeb.BooksLiveTest do
     assert has_element?(view, "#{picker} input[value='3'][checked]")
     {:ok, %{sets: %{green: 3}}} = GameServer.get(id)
 
-    assert has_element?(view, "#book-picker-black [data-role=book-card][data-set='5']")
-    assert has_element?(view, "#book-picker-black [data-role=book-card][data-set='6']")
-    refute has_element?(view, "#book-picker-black [data-role=book-card][data-set='2']")
+    black = "#book-picker-black [data-role=book-card]"
+    assert has_element?(view, "#{black}[data-set='2']", "Book II")
+    assert has_element?(view, "#{black}[data-set='3']", "Book III")
+    refute has_element?(view, "#{black}[data-set='5']")
     assert has_element?(view, "#book-picker-orange [data-role=book-card][data-set='2']", "6")
   end
 
@@ -131,30 +132,18 @@ defmodule QuacksWeb.BooksLiveTest do
     refute Map.has_key?(sets, :locoweed)
   end
 
-  test "a saved config from before the renumbering maps old locoweed books", %{conn: conn} do
-    for {old, new} <- [{"5", 1}, {"6", 2}, {"8", 4}, {"9", 5}, {"10", 6}] do
-      {id, view} = configure(conn)
-      render_hook(view, "load_config", %{"sets" => %{"locoweed" => old}, "expansion" => false})
-      assert {:ok, %{sets: %{locoweed: ^new}}} = GameServer.get(id)
-    end
-
-    {id, view} = configure(conn)
-    render_hook(view, "load_config", %{"sets" => %{"locoweed" => "7"}, "expansion" => true})
-    assert {:ok, %{sets: sets, expansion: :herb_witches}} = GameServer.get(id)
-    # the old expansion default orange 2 is kept; 7 is no locoweed
-    assert sets.orange == 2 and not Map.has_key?(sets, :locoweed)
-
-    # a version 2 config is read as it is
+  test "a saved config with unknown book values falls back to the defaults", %{conn: conn} do
     {id, view} = configure(conn)
 
     render_hook(view, "load_config", %{
-      "version" => 2,
-      "sets" => %{"locoweed" => "5"},
+      "sets" => %{"locoweed" => "10", "black" => "6", "green" => "2"},
       "expansion" => true
     })
 
-    assert {:ok, %{sets: %{locoweed: 5} = sets}} = GameServer.get(id)
-    refute Map.has_key?(sets, :orange)
+    assert {:ok, %{sets: sets, expansion: :herb_witches}} = GameServer.get(id)
+    assert sets.green == 2
+    assert sets.black == 1
+    refute Map.has_key?(sets, :locoweed)
   end
 
   test "locoweed 5: the pot's coloured chips are taps that return one", %{conn: conn} do
@@ -181,7 +170,7 @@ defmodule QuacksWeb.BooksLiveTest do
 
   test "the expansion toggle changes no book", %{conn: conn} do
     {id, view} = configure(conn)
-    books = %{green: "5", orange: "2", locoweed: "4", black: "6"}
+    books = %{green: "5", orange: "2", locoweed: "4", black: "3"}
     view |> form("#books", sets: books) |> render_change()
     {:ok, %{sets: before}} = GameServer.get(id)
 
@@ -226,6 +215,7 @@ defmodule QuacksWeb.BooksLiveTest do
     assert has_element?(view, "#shop label", ~r/orange 6\s+22c/)
 
     assert has_element?(view, "#sheet-menu button[popovertarget=sheet-books]", "Books")
+    assert has_element?(view, "header button[data-role=open-books][popovertarget=sheet-books]")
 
     assert has_element?(
              view,
@@ -237,5 +227,11 @@ defmodule QuacksWeb.BooksLiveTest do
     assert has_element?(view, "#sheet-books [data-book=orange-2]", "22")
     refute has_element?(view, "#sheet-books [data-book=orange-2] p", "fill the pot")
     assert has_element?(view, "#sheet-books [data-book=locoweed-2]")
+
+    assert has_element?(
+             view,
+             "#sheet-books [data-book=black-1] [data-role=book-tiers]",
+             "1+ black"
+           )
   end
 end
