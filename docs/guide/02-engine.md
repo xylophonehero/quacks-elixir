@@ -71,7 +71,7 @@ test: `doctest Game` in `test/quacks/game_test.exs:10`.)
 Four consumers read the same list:
 
 - the **page** draws one button per action (chapter 5, 6);
-- the **bot** picks one action out of it (`lib/quacks/ai.ex:38-51`);
+- the **bot** picks one action out of it (`lib/quacks/ai.ex:40-53`);
 - the **property test** picks random actions out of it (chapter 8);
 - `apply/3` itself checks against it.
 
@@ -291,14 +291,59 @@ The expansions plug in at the same seams:
   `{:witch, colour}` actions when that colour may be called now. In the base game
   `witches` is `nil` and the first clause returns `[]`
   (`lib/quacks/game/witches.ex:43`).
-- **The Alchemists** (`lib/quacks/game/essence.ex`). A patient pick before round 1
-  (`:patient_choice`) and an `:essence` phase between the potions and the evaluation.
-  `Essence.run/1` is the switch: with the expansion it opens the phase, else it calls
-  `Evaluation.run/1` directly.
+- **The Alchemists** (`lib/quacks/game/essence.ex`). Two new game phases. At
+  `Game.new/1`, `Essence.setup/1` deals 3 patients and sets `phase: :patient_choice`
+  (`lib/quacks/game/essence.ex:43-46`); each seat answers `{:patient, id}`, and the
+  last answer starts round 1. After the potions, `Essence.run/1` is the switch
+  (`lib/quacks/game/essence.ex:226-228`): with the expansion it opens `:essence`, in
+  which each seat's essence marker moves and may wait for a choice
+  (`:essence_choice`, `:essence_bonus`); else it calls `Evaluation.run/1` directly.
+  The patients' data is in `Quacks.Rules.Alchemists` (chapter 7).
 
 Each expansion module has the same shape: `legal_actions(g, seat)` and
 `step(g, seat, action)`. `Game.phase_actions/2` concatenates their lists with `++`
 (`lib/quacks/game.ex:528-531`).
+
+### Expansions are a set
+
+A game can have both expansions, so `expansions` is a `MapSet`
+(`lib/quacks/game.ex:117`), the Elixir `Set`. `Game.new/1` accepts a list and
+checks it (`expansions!/1`, `lib/quacks/game.ex:395-403`). The rest of the code asks
+one question (`lib/quacks/game.ex:405-407`):
+
+```elixir
+@doc "Is expansion `x` (`:herb_witches`, `:alchemists`) in play?"
+@spec expansion?(t, expansion) :: boolean
+def expansion?(%__MODULE__{expansions: expansions}, x), do: MapSet.member?(expansions, x)
+```
+
+The old field `expansion` (`:herb_witches` or `nil`) stays for code that only knows
+The Herb Witches (`lib/quacks/game.ex:44-46`). New code calls `expansion?/2`, for
+example `Essence.run/1` and the "Expansions:" line on the page
+(`lib/quacks_web/live/game_live.ex:924-929`). It is a small API in front of the data:
+the callers do not care if the field is a set, a list or two booleans.
+
+### One door for droplet moves
+
+Many rules move the droplet: the bonus die, black chips, fortune cards, an essence
+glass. All of them call `Game.move_droplet/3` (`lib/quacks/game.ex:863-870`):
+
+```elixir
+def move_droplet(%__MODULE__{} = g, _seat, 0), do: g
+
+def move_droplet(%__MODULE__{} = g, seat, n) do
+  if g.rules.pot_side == :back and player(g, seat).tube < TestTubes.last(),
+    do: update_player(g, seat, &%{&1 | droplet_moves: &1.droplet_moves + n}),
+    else: update_player(g, seat, &pot_droplet(&1, n))
+end
+```
+
+On the normal pot side the droplet moves at once. On the reverse pot side (house
+rule `pot_side: :back`) each move waits for the player's choice: the pot droplet or
+one glass on the test-tube track (`Quacks.Rules.TestTubes`, chapter 7). The moves
+wait in `droplet_moves`, and `Game.phase/2` shows `:droplet_choice` while any wait,
+in any game phase (`lib/quacks/game.ex:455-465`). Because every caller uses this
+one function, the house rule needed no change in the callers.
 
 ## Randomness lives in the struct
 
@@ -331,7 +376,7 @@ the engine. Why it matters:
 - **Tests**: `test "a fixed seed draws the same chips every time"`
   (`test/quacks/game_test.exs:40-46`). A bug report is a seed and a list of moves.
 - **Bots**: a bot reads the game but has its own rng (`Quacks.AI.new_rng/2`,
-  `lib/quacks/ai.ex:30`), so adding a bot never changes the chips a human draws.
+  `lib/quacks/ai.ex:32`), so adding a bot never changes the chips a human draws.
 
 One more trick: the fortune deck and the witches shuffle with a *jump* of the game
 rng (`:rand.jump/1`, `lib/quacks/game/fortune.ex:48` and

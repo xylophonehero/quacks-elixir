@@ -78,7 +78,7 @@ A builder is done when:
      (`lib/quacks/game/evaluation.ex:145-300`); a choice adds to `chip_choices` and
      needs `options/3` and `choose/3` clauses (`lib/quacks/game/evaluation.ex:316-414`).
 5. Log it with `Game.effect/4` and add a label: `defp effect(book, detail)` in
-   `lib/quacks_web/components/game_components.ex:1773-1843`.
+   `lib/quacks_web/components/game_components.ex:2227-2297`.
 6. Tests: `force_draws/3` in `test/quacks/chip_effects_test.exs` or
    `test/quacks/ingredient_sets_test.exs`. Update `docs/CONTEXT.md`.
 
@@ -92,21 +92,21 @@ A builder is done when:
 3. Blue (all round): a hook clause that other modules call, like
    `die_rolls/1` (`lib/quacks/game/fortune.ex:161-228`). If no hook fits, add one and
    call it from `Potions` or `Evaluation`.
-4. Labels: `fortune_choice/2` in `lib/quacks_web/components/game_components.ex:1870-1892`.
+4. Labels: `fortune_choice/2` in `lib/quacks_web/components/game_components.ex:2324-2346`.
 5. Tests: `test/quacks/fortune_test.exs` (set `fortune_card:` with `put/3`).
 
 ### ...you add a UI dialog for a new decision
 
 1. The engine gives the seat a new player phase, so `Game.phase/2` returns it.
-2. `decision/3` in `lib/quacks_web/live/game_live.ex:1762-1774` already maps any
+2. `decision/3` in `lib/quacks_web/live/game_live.ex:1789-1801` already maps any
    unknown phase to itself, so `@decision` becomes your phase.
 3. The decision dialog renders with id `"decision-#{@decision}"`
-   (`lib/quacks_web/live/game_live.ex:943-948`). Add your content inside it, guarded by
+   (`lib/quacks_web/live/game_live.ex:950-955`). Add your content inside it, guarded by
    `:if={@decision == :your_phase}`.
 4. Its title comes from `phase_name/1`
-   (`lib/quacks_web/components/game_components.ex:1952-1975`).
+   (`lib/quacks_web/components/game_components.ex:2406-2429`).
 5. If the choices are chips, teach `pick_chips/1` the action shape
-   (`lib/quacks_web/live/game_live.ex:1528-1536`); `chip_picks/1` does the rest.
+   (`lib/quacks_web/live/game_live.ex:1539-1547`); `chip_picks/1` does the rest.
 6. Test with `has_element?(view, "#decision-your_phase")` and `render_click`.
 
 ### ...you add a house rule
@@ -115,9 +115,9 @@ A builder is done when:
    (`lib/quacks/game.ex:80-103`), the `@type rules` (`lib/quacks/game.ex:301-312`), then
    read `g.rules.your_rule` where it matters.
 2. Configure screen: `options_form/1` and the copy of `@rule_values` in
-   `lib/quacks_web/components/setup_components.ex:34` and `:218`; `parse_rules/1`
+   `lib/quacks_web/components/setup_components.ex:43` and `:218`; `parse_rules/1`
    turns the form into the map.
-3. In-game summary: `rule_label/1` near `lib/quacks_web/components/game_components.ex:1207`.
+3. In-game summary: `rule_label/1` near `lib/quacks_web/components/game_components.ex:1540`.
 4. Tests: add the rule to the `rules()` generator (`test/quacks/game_test.exs:736-749`)
    so the property test plays it, and a focused test in
    `test/quacks/house_rules_test.exs`.

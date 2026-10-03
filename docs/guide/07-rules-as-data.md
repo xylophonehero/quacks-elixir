@@ -154,6 +154,46 @@ function clause in `Quacks.Game.Evaluation`
 (`defp chip_action(g, seat, {:green, 1})`, `lib/quacks/game/evaluation.ex:214`). The
 engine dispatches on the same `{colour, set}` key.
 
+## The Alchemists and the test tubes
+
+Two newer data modules show the same pattern with less familiar data.
+
+**Patients.** `Quacks.Rules.Alchemists` holds, per patient, one list of glasses for
+the flask spaces 1..10 (`lib/quacks/rules/alchemists.ex:66-88`, shortened):
+
+```elixir
+@slots %{
+  nervousness: [[:rat] | for(n <- [1, 2, 3, 4, 5, 6, 7, 8, 10], do: [{:draw, n}])],
+  carrot_nose: [[:rat], [], [:rat], [], [:rat], []] ++ @vp_tail,
+  chicken_eyes: [
+    [{:rubies, 1}],
+    [{:chip, {:orange, 1}}],
+    [{:swap, 1, 2}],
+    ...
+```
+
+Each glass is a list of *terms* (`{:vp, n}`, `:rat`, `{:draw, n}`, ...), and
+`@type term_` lists them all (`lib/quacks/rules/alchemists.ex:28-39`). The module
+only describes a glass. `Quacks.Game.Essence` pays it, one function clause per term
+(for example `defp pay_now(g, seat, {:droplet, n})`,
+`lib/quacks/game/essence.ex:335`). `get/1` joins the slots with the card texts in
+`@info` for the UI (`lib/quacks/rules/alchemists.ex:123-127`). The ⚠️ on the module
+says the slot values come from small card pictures; a fix is one line of `@slots`.
+
+**Test tubes.** `Quacks.Rules.TestTubes` is the whole reverse pot side track in one
+tuple, glass 0 to 12 (`lib/quacks/rules/test_tubes.ex:12-14`):
+
+```elixir
+@glasses {nil, :ruby, {:vp, 1}, {:chip, {:blue, 1}}, {:vp, 2}, {:chip, {:black, 1}}, {:vp, 2},
+          {:chip, {:red, 2}}, {:vp, 3}, {:chip, {:purple, 1}}, {:vp, 3}, {:chip, {:yellow, 4}},
+          {:vp, 4}}
+```
+
+`bonus/1` is `elem(@glasses, glass)` and `last/0` is `tuple_size(@glasses) - 1`, so
+the end of the track follows the data. The engine (`Game.move_droplet/3`,
+chapter 2) and the pot component (`lib/quacks_web/components/game_components.ex:471`)
+both read `TestTubes.last()`, never a literal 12.
+
 ## House rules are data too
 
 The engine keeps the allowed values of each house rule in a map

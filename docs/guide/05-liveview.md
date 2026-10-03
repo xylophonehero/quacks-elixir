@@ -54,13 +54,13 @@ sequenceDiagram
 `mount/3` runs **twice**. The first run answers the HTTP request with plain HTML
 (fast first paint). Then `app.js` opens the websocket and a new LiveView process
 mounts again. That process lives as long as the tab. So `mount` subscribes only when
-connected (`lib/quacks_web/live/game_live.ex:102`):
+connected (`lib/quacks_web/live/game_live.ex:103`):
 
 ```elixir
 if connected?(socket), do: Phoenix.PubSub.subscribe(Quacks.PubSub, GameServer.topic(id))
 ```
 
-`GameLive.mount/3` (`lib/quacks_web/live/game_live.ex:99-130`) gets the table (not
+`GameLive.mount/3` (`lib/quacks_web/live/game_live.ex:100-131`) gets the table (not
 found: flash and `push_navigate` to `/`), subscribes, claims a seat (`nil` for a
 spectator), and assigns the id, token, seat, table and game.
 
@@ -82,11 +82,11 @@ parts that read it, and sends only the diff.
 </.button>
 ```
 
-(`lib/quacks_web/live/game_live.ex:805-813`)
+(`lib/quacks_web/live/game_live.ex:812-820`)
 
 `phx-click="action"` sends the event `"action"`; `phx-value-action` adds
 `%{"action" => "..."}` to the params. One handler serves every game move
-(`lib/quacks_web/live/game_live.ex:133-148`):
+(`lib/quacks_web/live/game_live.ex:134-149`):
 
 ```elixir
 def handle_event("action", %{"action" => encoded}, %{assigns: %{seat: seat}} = socket)
@@ -116,13 +116,13 @@ def handle_event("action", _params, socket),
 ## Encoding actions into `phx-value-*`
 
 Actions are terms like `{:buy, [{:green, 2}]}`; HTML attributes are strings. So
-(`lib/quacks_web/live/game_live.ex:1902`):
+(`lib/quacks_web/live/game_live.ex:1929`):
 
 ```elixir
 def encode(action), do: action |> :erlang.term_to_binary() |> Base.url_encode64(padding: false)
 ```
 
-`decode/1` (`lib/quacks_web/live/game_live.ex:1909-1918`) reverses it with
+`decode/1` (`lib/quacks_web/live/game_live.ex:1936-1945`) reverses it with
 `Plug.Crypto.non_executable_binary_to_term(binary, [:safe])`. The value comes from
 the browser, so it is untrusted. `[:safe]` refuses to create new atoms (atoms are
 never garbage-collected, so atoms from users are a memory leak), and
@@ -133,7 +133,7 @@ engine is the only validator.
 ## Broadcasts arrive as `handle_info`
 
 PubSub messages arrive in the mailbox like any message
-(`lib/quacks_web/live/game_live.ex:302-312`):
+(`lib/quacks_web/live/game_live.ex:303-313`):
 
 ```elixir
 # The game began: seats were renumbered, so ask for ours again.
@@ -150,12 +150,12 @@ end
 
 `game == socket.assigns.game` compares by value, deeply. No custom `equals`.
 `{:play_again, _id, new_id}` calls `push_navigate/2`, so every tab moves to the next
-game (`lib/quacks_web/live/game_live.ex:324-325`).
+game (`lib/quacks_web/live/game_live.ex:325-326`).
 
 ## Derived assigns: `@me`, `@decision`, `@actions`
 
 The template never calls the engine in a loop. `put_game/2` computes what the page
-needs, once per new game (`lib/quacks_web/live/game_live.ex:1655-1672`):
+needs, once per new game (`lib/quacks_web/live/game_live.ex:1666-1684`):
 
 ```elixir
 seat = socket.assigns.seat
@@ -167,7 +167,7 @@ decision = decision(actions, seat && Game.phase(game, seat), me)
 - `@me`: this seat's `%Player{}`, or `nil` for a spectator.
 - `@all_actions`: every legal action of this seat.
 - `@decision`: which decision dialog must be open, from the seat's phase
-  (`lib/quacks_web/live/game_live.ex:1762-1774`); `nil` while brewing.
+  (`lib/quacks_web/live/game_live.ex:1789-1801`); `nil` while brewing.
 - `@actions`: the actions for the bottom bar; empty while a decision is open, so the
   bar cannot bypass the dialog.
 
@@ -181,11 +181,11 @@ these assigns, the reply path and the broadcast path cannot disagree.
 - `push_navigate(socket, to: ~p"/g/#{id}")` starts a new LiveView. `~p` is a
   *verified route*: the compiler checks that the path exists in the router.
 - Before the game begins, `@game` is `nil`. `render/1` has two clauses
-  (`lib/quacks_web/live/game_live.ex:412` and `:562`): `def render(%{game: nil} =
+  (`lib/quacks_web/live/game_live.ex:413` and `:562`): `def render(%{game: nil} =
   assigns)` draws the configure screen, the other the board. The begin broadcast
   sets `@game`, and the next render picks the other clause.
 - `terminate/2` frees the seat when a tab closes before the start
-  (`lib/quacks_web/live/game_live.ex:331-334`).
+  (`lib/quacks_web/live/game_live.ex:332-335`).
 
 `LobbyLive` is the small version of the same pattern: subscribe to `"lobby"`, list
 `GameServer.open_games/0`, list again on `:games_changed`

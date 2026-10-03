@@ -56,7 +56,7 @@ mismatch leaves the chain.
 
 `GameLive.handle_event("action", ...)` chains `decode/1` and `GameServer.apply/3`
 this way and handles both error shapes in one `else`
-(`lib/quacks_web/live/game_live.ex:135-144`, quoted in chapter 5).
+(`lib/quacks_web/live/game_live.ex:136-145`, quoted in chapter 5).
 
 The bot tick uses `with` for a chain where the first step is a boolean
 (`lib/quacks/game_server.ex:527-536`): `with false <- capped?(...), {action, rng} <- AI.decide(...), ...`.

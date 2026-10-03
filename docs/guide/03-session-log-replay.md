@@ -103,7 +103,7 @@ scoring space". The UI needs both.
 ### Who reads the log
 
 - **The log sheet.** `GameComponents.action_log/1` turns each entry into text with
-  `label/1` (`lib/quacks_web/components/game_components.ex:1402-1423`). It hides
+  `label/1` (`lib/quacks_web/components/game_components.ex:1760-1781`). It hides
   actions that an event already tells, so the log does not say things twice:
 
   ```elixir
@@ -112,18 +112,18 @@ scoring space". The UI needs both.
   defp narrated_by_event?({:rubies, _}), do: true
   ```
 
-  (`lib/quacks_web/components/game_components.ex:1434-1436`)
+  (`lib/quacks_web/components/game_components.ex:1792-1794`)
 
 - **Labels.** `label/1` has one clause per entry shape
-  (`lib/quacks_web/components/game_components.ex:1628-1769`), for example
+  (`lib/quacks_web/components/game_components.ex:2082-2223`), for example
   `def label({:drew, chip, index}), do: "Drew #{chip_name(chip)} → space #{index}"`
-  (line 1655). The same function labels buttons, because an action is also a log
-  entry. The last clause, `def label(other), do: inspect(other)` (line 1769), keeps
+  (line 2109). The same function labels buttons, because an action is also a log
+  entry. The last clause, `def label(other), do: inspect(other)` (line 2223), keeps
   an unknown entry visible instead of crashing.
 
-- **Round results.** `round_gains/1` takes the entries since the last
+- **Round results.** `QuacksWeb.Replay.beats/3` takes the entries since the last
   `{:round_end, _}` and keeps the ones that gave VP or rubies
-  (`lib/quacks_web/components/game_components.ex:1558-1573`):
+  (`round_entries/2`, `lib/quacks_web/replay.ex:68-76`):
 
   ```elixir
   game.log
@@ -131,11 +131,12 @@ scoring space". The UI needs both.
   |> Enum.reverse()
   ```
 
-  `gain/1` (from line 1577) maps each entry to `{vp, rubies}`. The round summary is
-  a view of the log, not a second set of counters.
+  `Replay.gain/1` (from `lib/quacks_web/replay.ex:134`) maps each entry to
+  `{vp, rubies}`. The round summary is a view of the log, not a second set of
+  counters. Chapter 6 shows how the same lines also drive the replay animation.
 
 - **The essence preview.** `essence_parts/2` finds the newest `{:essence, reach,
-  parts}` entry for this seat (`lib/quacks_web/live/game_live.ex:1727`).
+  parts}` entry for this seat (`lib/quacks_web/live/game_live.ex:1754`).
 
 - **Bot lockstep.** `GameServer.round_draws/1` counts `{seat, :draw}` entries since
   the last round end, so a bot never draws more chips than the human who drew most

@@ -19,14 +19,15 @@ lib/
     router.ex, endpoint.ex
     plugs/player_token.ex browser identity
     live/                 LobbyLive (/) and GameLive (/g/:id)
-    components/           function components (core, game, setup, alchemists, layouts)
+    components/           function components (core, game, setup, alchemists, icons, layouts)
+    replay.ex             beat numbers for the round-results replay
   mix/tasks/quacks.sim.ex `mix quacks.sim`
 test/
   quacks/                 engine and GameServer tests
   quacks_web/live/        LiveView tests
   support/game_helpers.ex helpers to hand-build game states
-assets/js/app.js          about 40 lines of our own JS
-assets/css/app.css        Tailwind v4 theme and the sheet CSS
+assets/js/app.js          about 160 lines of our own JS (dialogs, PotMotion)
+assets/css/app.css        Tailwind v4 theme, the sheet CSS and the motion
 config/                   config.exs, dev.exs, test.exs, runtime.exs
 docs/                     CONTEXT.md glossary, research/, this guide
 ```

@@ -106,7 +106,7 @@ Every LiveView of the game re-renders from the *same* struct. There is no diff
 protocol of our own: the struct goes to each LiveView process in memory, and
 LiveView sends only the changed HTML to each browser. The acting page gets the game
 twice (reply and broadcast) and skips the copy it already has
-(`lib/quacks_web/live/game_live.ex:307-312`).
+(`lib/quacks_web/live/game_live.ex:308-313`).
 
 ## Seats and identity
 
@@ -124,7 +124,7 @@ end
 ```
 
 `GameLive.mount/3` reads it from `session` and calls `claim_seat/2`
-(`lib/quacks_web/live/game_live.ex:104-108`). The same token gets the same seat
+(`lib/quacks_web/live/game_live.ex:105-109`). The same token gets the same seat
 back, so a reload keeps your seat (`lib/quacks/game_server.ex:321-322`). Later
 clicks send only `seat` and `action`; the seat is a server-side assign, so the
 browser cannot pick another seat.
@@ -169,6 +169,38 @@ tick. (`:erlang.map_get/2` is allowed in a guard; `Map.get/2` is not.)
 more chips this round than the human who drew most
 (`lib/quacks/game_server.ex:564-573`). A capped bot gets no tick; the next human
 action schedules it again.
+
+Lockstep makes a bot brew at human speed: draw for draw, never ahead of the
+fastest human. Round 9 has no cap, because the stir (chapter 2) already makes every
+seat pick together.
+
+**Each bot has its own rng.** `AI.decide/4` takes an rng and gives back the next
+one: `{action, rng}`. The GameServer keeps one per bot seat in `bot_rngs`. At the
+start, `begin_game/1` seeds them from the game seed and the seat
+(`lib/quacks/game_server.ex:627`):
+
+```elixir
+bot_rngs: Map.new(bots, fn {seat, _} -> {seat, AI.new_rng(state.seed, seat)} end)
+```
+
+After each bot move, the tick handler stores the new state:
+`bot_rngs: Map.put(state.bot_rngs, seat, rng)` (`lib/quacks/game_server.ex:533`).
+This is a `useReducer` that threads its own seed instead of calling
+`Math.random()`. The bot never touches `game.rng`, so a bot's choice cannot change
+the chips anyone draws. Chapter 11 says more.
+
+**Bot names.** `add_bot/3` gives the bot a name that nobody at the table has
+(`seat_bot/2`, `lib/quacks/game_server.ex:590-604`):
+
+```elixir
+{name, name_rng} = Names.pick(Map.values(state.names), state.name_rng)
+```
+
+`Quacks.AI.Names` (`lib/quacks/ai/names.ex`) is a list of 20 alchemist names and
+one pure function. `pick/2` takes a free name with `:rand.uniform_s/2` on the
+table's `name_rng`, seeded from the game seed in `init/1`
+(`lib/quacks/game_server.ex:286`). When the list runs out, the bot is "Bot N". So
+the same seed gives the same names, and a test can name them in advance.
 
 ## Sequence: a human draws, the bots follow
 
