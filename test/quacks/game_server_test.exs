@@ -234,11 +234,11 @@ defmodule Quacks.GameServerTest do
     assert {:ok, table} =
              GameServer.configure(id, "a", %{
                players: 3,
-               sets: %{black: 5},
+               sets: %{black: 2},
                rules: %{overflow: false}
              })
 
-    assert {table.max_players, table.sets, table.rules} == {3, %{black: 5}, %{overflow: false}}
+    assert {table.max_players, table.sets, table.rules} == {3, %{black: 2}, %{overflow: false}}
     assert_receive {:forwarded, ^one, {:names, ^id, %{1 => "Player 2"}}}
 
     # fewer seats than taken, more than 8, a set that does not exist
@@ -250,12 +250,12 @@ defmodule Quacks.GameServerTest do
              GameServer.configure(id, "a", %{players: 5, expansion: :herb_witches})
 
     {:ok, game} = GameServer.begin(id, "a")
-    assert {game.sets.black, game.rules.overflow, game.expansion} == {5, false, :herb_witches}
+    assert {game.sets.black, game.rules.overflow, game.expansion} == {2, false, :herb_witches}
     assert GameServer.configure(id, "a", %{players: 2}) == {:error, :already_started}
   end
 
   test "play again: a new waiting game with the same settings, seats and names" do
-    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{black: 5}, %{overflow: false})
+    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{black: 2}, %{overflow: false})
     {:ok, 0} = GameServer.claim_seat(id, "a")
     {:ok, 1} = GameServer.claim_seat(id, "b")
     :ok = GameServer.rename(id, 1, "Bea")
@@ -275,7 +275,7 @@ defmodule Quacks.GameServerTest do
     assert {table.status, table.max_players, table.creator} == {:waiting, 2, 0}
 
     assert {table.sets, table.rules, table.names} ==
-             {%{black: 5}, %{overflow: false}, %{0 => "Player 1", 1 => "Bea"}}
+             {%{black: 2}, %{overflow: false}, %{0 => "Player 1", 1 => "Bea"}}
 
     assert GameServer.claim_seat(new_id, "b") == {:ok, 1}
     assert {:ok, %Game{round: 1}} = GameServer.begin(new_id, "a")

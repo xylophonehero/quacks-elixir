@@ -431,8 +431,8 @@ defmodule Quacks.Game.Fortune do
     |> Enum.filter(&(Map.has_key?(@upgrade, &1) and Game.available?(g, @upgrade[&1])))
   end
 
-  # Black Set 5: a black chip from a card goes to the left player; droplet +1.
-  defp take(%{sets: %{black: 5}} = g, seat, {:black, 1} = chip) do
+  # Black book II: a black chip from a card goes to the left player; droplet +1.
+  defp take(%{sets: %{black: 2}} = g, seat, {:black, 1} = chip) do
     if Game.in_supply?(g, chip),
       do:
         g

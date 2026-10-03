@@ -212,6 +212,7 @@ an orange 6 counts as one.
 | Black 6 | phase B | "The player whose black chip is the furthest in their pot can move their droplet 1 space forward. The player whose black chip is the second furthest in their pot receives 1 ruby." Note: "It is possible for one player to receive both bonuses. If there is a tie, all of the players involved receive the corresponding bonus." So the ranking is over **chips** (pot index), not players. |
 
 The Set 5/6 black books replace the 2p / 3-4p black book when chosen; they ignore player count.
+Note (round 9): the app numbers them black books II and III (`sets: %{black: 2 | 3}`), after the base book I.
 Pumpkin has one book only. White has none.
 
 ### 2.6 Fortune Teller clarifications (H1)

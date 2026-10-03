@@ -268,10 +268,9 @@ defmodule Quacks.Game do
   `players:` is 1 (default) to 8. Every starting bag comes out of the shared supply
   (a limited supply stops at 0: with 5+ players the white 2s and 3s run dry).
   `sets:` picks the Ingredient Set (1..6) per colour, e.g. `%{blue: 3}`; colours left
-  out use Set 1. `black:` is 1 (the base book), 5 or 6, `orange: 2` adds the orange
-  6-chip and `locoweed: 1 | 2 | 4 | 5 | 6` adds locoweed (book III needs the essence
-  phase), in every game (see
-  `Quacks.Rules.Chips.set/3`). `rules:` sets house rules (`t:rules/0`), e.g.
+  out use Set 1. `black:` is 1 (the base book), 2 or 3 (The Herb Witches' books),
+  `orange: 2` adds the orange 6-chip and `locoweed: 1 | 2 | 4 | 5 | 6` adds locoweed
+  (book III needs the essence phase), in every game (see `Quacks.Rules.Chips.set/3`). `rules:` sets house rules (`t:rules/0`), e.g.
   `%{explode_above: 9}`; rules left out keep their default. With `fortune: true`
   (default) round 1's card is turned up here. `fortune: false` is an old alias for
   `rules: %{fortune: false}`. `expansion: :herb_witches` turns The Herb Witches on:
@@ -337,7 +336,7 @@ defmodule Quacks.Game do
     start_round(if expansion, do: record(game, {:expansion, expansion}), else: game)
   end
 
-  # Every game: Sets 1..6, black 1, 5 or 6, orange 1 or 2 (2 = the orange 6-chip) and
+  # Every game: Sets 1..6, black 1, 2 or 3, orange 1 or 2 (2 = the orange 6-chip) and
   # locoweed nil, 1, 2, 4, 5 or 6 (III needs The Alchemists' essence phase). The
   # expansion changes no book.
   defp sets!(sets) do
@@ -347,7 +346,7 @@ defmodule Quacks.Game do
       Enum.all?(sets, fn
         {:orange, set} -> set in [1, 2]
         {:locoweed, set} -> set in [nil, 1, 2, 4, 5, 6]
-        {:black, set} -> set in [1, 5, 6]
+        {:black, set} -> set in [1, 2, 3]
         {colour, set} -> is_map_key(@sets, colour) and set in 1..6
       end)
 
@@ -746,12 +745,12 @@ defmodule Quacks.Game do
 
   @doc false
   # Pay for `chips` and put them, plus the `free` ones (the copper witch C3), in the
-  # bag. Black Set 5: a black chip goes to the player on the left (`give_black/2`).
+  # bag. Black book II: a black chip goes to the player on the left (`give_black/2`).
   def buy(g, seat, chips, free \\ []) do
     cost = chips |> Enum.map(&Chips.price(&1, g.sets)) |> Enum.sum()
     all = chips ++ free
     g = Enum.reduce(all, g, &take_supply(&2, &1))
-    {black, mine} = Enum.split_with(all, &(&1 == {:black, 1} and g.sets[:black] == 5))
+    {black, mine} = Enum.split_with(all, &(&1 == {:black, 1} and g.sets[:black] == 2))
     g = update_player(g, seat, &%{&1 | coins: &1.coins - cost, bag: mine ++ &1.bag})
     g = if chips == [], do: g, else: record(g, seat, {:bought, chips})
 
@@ -860,19 +859,19 @@ defmodule Quacks.Game do
   def left(%__MODULE__{seats: seats}, seat), do: rem(seat + 1, length(seats))
 
   @doc false
-  # Black Set 5: a black chip out of the supply goes into the left player's bag
+  # Black book II: a black chip out of the supply goes into the left player's bag
   # (solo: back to the supply). The caller moves the receiver's droplet.
   def give_black(%__MODULE__{} = g, seat) do
     case left(g, seat) do
       nil ->
         g
         |> return_supply({:black, 1})
-        |> effect(seat, {:black, 5}, :to_supply)
+        |> effect(seat, {:black, 2}, :to_supply)
 
       left ->
         g
         |> update_player(left, &%{&1 | bag: [{:black, 1} | &1.bag]})
-        |> effect(seat, {:black, 5}, {:to_left, left})
+        |> effect(seat, {:black, 2}, {:to_left, left})
     end
   end
 

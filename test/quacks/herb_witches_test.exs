@@ -51,10 +51,10 @@ defmodule Quacks.HerbWitchesTest do
       for book <- [blue: 5, blue: 6, red: 5, yellow: 5, green: 6, purple: 6],
           do: assert(new(Map.new([book])).sets == Map.merge(new().sets, Map.new([book])))
 
-      assert new(%{black: 5, locoweed: 2}).sets.black == 5
+      assert new(%{black: 2, locoweed: 2}).sets.black == 2
       assert Game.new(seed: @seed, sets: %{blue: 5}).sets.blue == 5
-      assert Game.new(seed: @seed, sets: %{black: 6}).sets.black == 6
-      assert_raise ArgumentError, fn -> new(%{black: 2}) end
+      assert Game.new(seed: @seed, sets: %{black: 3}).sets.black == 3
+      assert_raise ArgumentError, fn -> new(%{black: 5}) end
       assert_raise ArgumentError, fn -> new(%{locoweed: 3}) end
       assert_raise ArgumentError, fn -> new(%{blue: 7}) end
 
@@ -102,7 +102,7 @@ defmodule Quacks.HerbWitchesTest do
       assert Chips.price({:orange, 6}, %{}) == 22
       assert Chips.price({:locoweed, 1}, %{locoweed: 1}) == 8
       assert Chips.price({:locoweed, 1}, %{locoweed: 2}) == 10
-      assert Chips.price({:black, 1}, %{black: 6}) == 9
+      assert Chips.price({:black, 1}, %{black: 3}) == 9
       assert Chips.price({:blue, 1}, %{blue: 5}) == 8
       assert Chips.price({:purple, 1}, %{purple: 6}) == 16
 
@@ -204,17 +204,17 @@ defmodule Quacks.HerbWitchesTest do
       assert effect?(g, {:purple, 6}, {:vp, 1})
     end
 
-    test "Black 5, 2 players: a bought black goes to the left bag, droplet +1" do
-      g = new(%{black: 5}, 2) |> put(0, phase: :buy, coins: 10)
+    test "Black II, 2 players: a bought black goes to the left bag, droplet +1" do
+      g = new(%{black: 2}, 2) |> put(0, phase: :buy, coins: 10)
       g = apply!(g, 0, {:buy, [{:black, 1}]})
       refute {:black, 1} in me(g, 0).bag
       assert Enum.count(me(g, 1).bag, &(&1 == {:black, 1})) == 1
-      assert me(g, 0).droplet == 1 and effect?(g, {:black, 5}, {:to_left, 1})
+      assert me(g, 0).droplet == 1 and effect?(g, {:black, 2}, {:to_left, 1})
     end
 
-    test "Black 5 in a base game: a bought black goes to the left bag, droplet +1" do
+    test "Black II in a base game: a bought black goes to the left bag, droplet +1" do
       g =
-        Game.new(seed: @seed, fortune: false, players: 2, sets: %{black: 5})
+        Game.new(seed: @seed, fortune: false, players: 2, sets: %{black: 2})
         |> put(0, phase: :buy, coins: 10)
 
       assert g.expansion == nil and g.witches == nil
@@ -222,63 +222,63 @@ defmodule Quacks.HerbWitchesTest do
       assert {:black, 1} in me(g, 1).bag and me(g, 0).droplet == 1
     end
 
-    test "Black 5 solo: a bought black goes back to the supply, droplet +1" do
-      g = new(%{black: 5}) |> put(phase: :buy, coins: 10)
+    test "Black II solo: a bought black goes back to the supply, droplet +1" do
+      g = new(%{black: 2}) |> put(phase: :buy, coins: 10)
       supply = g.supply[{:black, 1}]
       g = apply!(g, {:buy, [{:black, 1}]})
       refute {:black, 1} in me(g).bag
       assert g.supply[{:black, 1}] == supply and me(g).droplet == 1
-      assert effect?(g, {:black, 5}, :to_supply)
+      assert effect?(g, {:black, 2}, :to_supply)
     end
 
-    test "Black 5: a black chip from a card (P1) goes to the left bag too" do
-      g = new(%{black: 5}, 2) |> put(fortune_card: :p1) |> Fortune.resolve()
+    test "Black II: a black chip from a card (P1) goes to the left bag too" do
+      g = new(%{black: 2}, 2) |> put(fortune_card: :p1) |> Fortune.resolve()
       assert g.phase == :fortune_choice and me(g, 0).phase == :fortune_choice
       g = apply!(g, 0, {:fortune, {:take, {:black, 1}}})
       assert {:black, 1} in me(g, 1).bag and me(g, 0).droplet == 1
       assert me(g, 0).pot_index == 1
     end
 
-    test "Black 5: rubies for blacks in the left pot and my last two" do
+    test "Black II: rubies for blacks in the left pot and my last two" do
       g =
-        new(%{black: 5}, 2)
+        new(%{black: 2}, 2)
         |> force_draws(0, [{:black, 1}, {:white, 1}, {:black, 1}])
         |> force_draws(1, [{:black, 1}, {:black, 1}])
         |> apply!(0, :stop)
         |> apply!(1, :stop)
 
-      assert effect?(g, 0, {:black, 5}, {:rubies, 3})
-      assert effect?(g, 1, {:black, 5}, {:rubies, 4})
+      assert effect?(g, 0, {:black, 2}, {:rubies, 3})
+      assert effect?(g, 1, {:black, 2}, {:rubies, 4})
 
-      solo = new(%{black: 5}) |> force_draws([{:black, 1}, {:white, 1}]) |> apply!(:stop)
-      assert effect?(solo, {:black, 5}, {:rubies, 1})
+      solo = new(%{black: 2}) |> force_draws([{:black, 1}, {:white, 1}]) |> apply!(:stop)
+      assert effect?(solo, {:black, 2}, {:rubies, 1})
     end
 
-    test "Black 6, 2 players: furthest black moves the droplet, second gets a ruby" do
+    test "Black III, 2 players: furthest black moves the droplet, second gets a ruby" do
       stop_both = fn g -> g |> apply!(0, :stop) |> apply!(1, :stop) end
 
       g =
-        new(%{black: 6}, 2)
+        new(%{black: 3}, 2)
         |> force_draws(0, [{:black, 1}])
         |> force_draws(1, [{:white, 3}, {:black, 1}])
         |> stop_both.()
 
-      assert effect?(g, 1, {:black, 6}, :droplet) and effect?(g, 0, {:black, 6}, :ruby)
+      assert effect?(g, 1, {:black, 3}, :droplet) and effect?(g, 0, {:black, 3}, :ruby)
 
       tie =
-        new(%{black: 6}, 2)
+        new(%{black: 3}, 2)
         |> force_draws(0, [{:black, 1}])
         |> force_draws(1, [{:black, 1}])
         |> stop_both.()
 
-      assert effect?(tie, 0, {:black, 6}, :droplet) and effect?(tie, 1, {:black, 6}, :droplet)
+      assert effect?(tie, 0, {:black, 3}, :droplet) and effect?(tie, 1, {:black, 3}, :droplet)
     end
 
-    test "Black 6 solo: 1 black → droplet, 2 → droplet and ruby" do
-      g = new(%{black: 6}) |> force_draws([{:black, 1}]) |> apply!(:stop)
-      assert effect?(g, {:black, 6}, :droplet)
-      g = new(%{black: 6}) |> force_draws([{:black, 1}, {:black, 1}]) |> apply!(:stop)
-      assert effect?(g, {:black, 6}, :droplet_ruby)
+    test "Black III solo: 1 black → droplet, 2 → droplet and ruby" do
+      g = new(%{black: 3}) |> force_draws([{:black, 1}]) |> apply!(:stop)
+      assert effect?(g, {:black, 3}, :droplet)
+      g = new(%{black: 3}) |> force_draws([{:black, 1}, {:black, 1}]) |> apply!(:stop)
+      assert effect?(g, {:black, 3}, :droplet_ruby)
     end
   end
 
@@ -352,7 +352,7 @@ defmodule Quacks.HerbWitchesTest do
   end
 
   test "a 5-player game runs to the end" do
-    g = Game.new(seed: @seed, players: 5, expansion: @hw, sets: %{black: 6, locoweed: 2})
+    g = Game.new(seed: @seed, players: 5, expansion: @hw, sets: %{black: 3, locoweed: 2})
 
     g =
       Enum.reduce_while(1..5000, g, fn _, g ->
@@ -425,7 +425,7 @@ defmodule Quacks.HerbWitchesTest do
       red: integer(1..6),
       yellow: integer(1..6),
       purple: integer(1..6),
-      black: member_of([1, 5, 6]),
+      black: member_of([1, 2, 3]),
       locoweed: member_of([nil, 1, 2, 4, 5, 6])
     })
   end

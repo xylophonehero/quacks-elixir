@@ -1773,17 +1773,17 @@ defmodule QuacksWeb.GameComponents do
   defp effect({:purple, 5}, {:vp, n}), do: "Ghost's breath: +#{n} VP from the purple spaces"
   defp effect({:purple, 6}, {:vp, n}), do: "Ghost's breath: +#{n} VP from the chips after purple"
 
-  defp effect({:black, 5}, {:to_left, _seat}),
+  defp effect({:black, 2}, {:to_left, _seat}),
     do: "Hawkmoth: black chip into the left player's bag, droplet +1"
 
-  defp effect({:black, 5}, :to_supply), do: "Hawkmoth: black chip back to the supply, droplet +1"
+  defp effect({:black, 2}, :to_supply), do: "Hawkmoth: black chip back to the supply, droplet +1"
 
-  defp effect({:black, 5}, {:rubies, n}),
+  defp effect({:black, 2}, {:rubies, n}),
     do: "Hawkmoth: +#{n} #{plural(n, "ruby", "rubies")}"
 
-  defp effect({:black, 6}, :droplet), do: "Hawkmoth: furthest black chip, droplet +1"
-  defp effect({:black, 6}, :ruby), do: "Hawkmoth: second furthest black chip, +1 ruby"
-  defp effect({:black, 6}, :droplet_ruby), do: "Hawkmoth: droplet +1, +1 ruby"
+  defp effect({:black, 3}, :droplet), do: "Hawkmoth: furthest black chip, droplet +1"
+  defp effect({:black, 3}, :ruby), do: "Hawkmoth: second furthest black chip, +1 ruby"
+  defp effect({:black, 3}, :droplet_ruby), do: "Hawkmoth: droplet +1, +1 ruby"
   defp effect({:locoweed, _}, {:moves, n}), do: "Locoweed: moved #{n}"
 
   defp effect({:locoweed, 5}, {:returned, chip}),

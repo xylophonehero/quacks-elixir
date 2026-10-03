@@ -22,9 +22,10 @@ defmodule QuacksWeb.SetupComponents do
 
   # The colours with four ingredient books, in the order the form shows them.
   @book_colours [:green, :blue, :red, :yellow, :purple]
-  # Orange (Set 2 = the orange 6-chip), black and locoweed (nil = not used; I–II are
-  # The Herb Witches' books, III–VI The Alchemists' A–D) in every game.
-  @extra_books %{orange: [1, 2], black: [1, 5, 6], locoweed: [nil, 1, 2, 3, 4, 5, 6]}
+  # Orange (Set 2 = the orange 6-chip), black (II–III are The Herb Witches' books) and
+  # locoweed (nil = not used; I–II are The Herb Witches' books, III–VI The Alchemists'
+  # A–D) in every game.
+  @extra_books %{orange: [1, 2], black: [1, 2, 3], locoweed: [nil, 1, 2, 3, 4, 5, 6]}
   # Books the picker shows greyed out: the engine cannot play them yet.
   @unavailable %{{:locoweed, 3} => "needs the essence phase"}
 
