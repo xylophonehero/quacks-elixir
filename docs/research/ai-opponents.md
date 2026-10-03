@@ -145,6 +145,33 @@ Thresholds are starting points from §1.1 (early pushes are cheap; late explosio
 4. **Solo:** do bots replace solo mode, or does solo also get a "beat the ghost" variant (Rival Quack style, no seat bot)?
 5. **Scope of books and cards:** v1 plays Set 1 well and the other books/witches with simple defaults. Is that enough, or must bots play every book well before launch? Fortune choices random: confirmed?
 
+## 5. Tuning results
+
+Date: 2026-10-03. Code: `Quacks.AI`, profiles in `Quacks.AI.Profile`. Command, 1,000 games per mix, Set 1 books, default rules:
+
+```
+mix quacks.sim --games 1000 --profiles <mix> --seed 1
+```
+
+| Mix | Profile | VP mean (sd) | Win % | Explosion % |
+|---|---|---|---|---|
+| 4 × balanced | balanced | 51.2 (8.6) | 25.0 | 39.3 |
+| balanced, reckless, cautious, balanced | balanced | 53.4 (8.8) | 38.3 | 38.4 |
+| | cautious | 47.2 (8.0) | 9.5 | 16.4 |
+| | reckless | 46.2 (9.7) | 13.9 | 64.2 |
+| balanced + 3 × cautious | balanced | 54.8 (9.6) | 60.9 | 38.7 |
+| | cautious | 46.9 (7.9) | 13.0 | 16.7 |
+| reckless + 3 × cautious | reckless | 45.6 (9.9) | 27.7 | 63.7 |
+| | cautious | 46.3 (8.0) | 24.1 | 16.5 |
+| balanced vs cautious | balanced | 55.8 (10.4) | 79.5 | 34.9 |
+| balanced vs reckless | balanced | 54.6 (9.5) | 74.1 | 32.0 |
+
+- Balanced beats cautious and reckless; reckless explodes most; balanced lands at 39 % explosions (S1: 41.7 %). Per round, balanced explodes 39/45/56/57 % in rounds 1–4 and 24–28 % in rounds 7–9 (S1: about 60 % early).
+- Buys per game in the 4-player mix: balanced red 4.6, purple 3.0, orange 2.2, green 2.1, blue 1.4, black 1.0 (S1 winner: red 3.2, orange 2.3, purple 2.3, blue 2.2, black 1.4, green 1.3). Cautious: orange 6.8, blue 4.7. Reckless: red 6.6.
+- No stalls in any run, also with The Herb Witches, Sets 2–6 and a limited supply (500 games each, 5 bots).
+- What the tuning changed (balanced against 3 copies of itself, win % with parity 25): purple and black weight 1.0 → 3.0 with `black_max` 1 (+16), `max_bust` rounds 1–4 +0.25 and rounds 5–6 +0.05/+0.10 (+5), round 9 0.20 → 0.10, droplet before flask (+4), `flask_min_white` 3 (+3, the flask on a white 1 or 2 lost 6), `explode_vp_from` 7, value weight of a 4-chip 2.6 → 3.2 (+6). The margin shift and `droplet_until` hardly mattered.
+- Tuning helper (not committed): a `mix run` script that plays a `%Profile{name: :test}` variant against 3 balanced with `Sim.run(profiles: [variant, :balanced, :balanced, :balanced])`; `Sim` accepts profile structs for this.
+
 ## Sources
 
 - S1 Quackulator (Set 1 solver and self-play simulator): https://github.com/coreyduval/Quackulator, maxims https://raw.githubusercontent.com/coreyduval/Quackulator/main/MAXIMS.md
