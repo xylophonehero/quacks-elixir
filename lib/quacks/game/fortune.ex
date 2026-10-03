@@ -338,7 +338,9 @@ defmodule Quacks.Game.Fortune do
     takes(g, &(elem(&1, 1) == 4)) ++ vp
   end
 
-  defp choices(:p11, g, _p, _seat), do: [:droplet | takes(g, &(&1 == {:purple, 1}))]
+  # The card grants the purple chip, so the shop's "purple from round 3" does not apply.
+  defp choices(:p11, g, _p, _seat),
+    do: [:droplet | if(Game.in_supply?(g, {:purple, 1}), do: [{:take, {:purple, 1}}], else: [])]
 
   defp choices(:p13, g, %{pending: [_ | _]}, seat),
     do: Enum.map(upgrades(g, seat), &{:upgrade, &1}) ++ [:skip]

@@ -55,7 +55,8 @@ defmodule QuacksWeb.PolishTest do
   test "the bar shows what the next space pays" do
     {id, view} = solo({1, 2, 3})
     space = PotTrack.at(Game.scoring_index(game(id), 0))
-    assert has_element?(view, "[data-role=next-reward]", "Next: #{space.coins} coins")
+    coins = if space.coins == 1, do: "1 coin", else: "#{space.coins} coins"
+    assert has_element?(view, "[data-role=next-reward]", "Next: #{coins}")
   end
 
   test "button variants: primary gold, secondary parchment, ghost text, default for the table" do

@@ -60,17 +60,44 @@ defmodule Quacks.GameServerTest do
     assert {:ok, _} = GameServer.apply(id, 1, :draw)
   end
 
-  test "only the creator may begin, unless the creator left" do
+  test "only the creator may begin; when the host leaves, the next seat is host" do
     {:ok, id} = GameServer.start(3)
+    one = listener(id)
     {:ok, 0} = GameServer.claim_seat(id, "a")
     {:ok, 1} = GameServer.claim_seat(id, "b")
+    {:ok, 2} = GameServer.claim_seat(id, "c")
     assert GameServer.begin(id, "b") == {:error, :not_creator}
     assert GameServer.begin(id, "nobody") == {:error, :not_seated}
 
     :ok = GameServer.leave_seat(id, "a")
+    assert_receive {:forwarded, ^one, {:host, ^id, 1}}
+    assert {:ok, %{creator: 1}} = GameServer.get(id)
+    assert GameServer.begin(id, "c") == {:error, :not_creator}
+    assert {:ok, _table} = GameServer.configure(id, "b", %{players: 2})
+
+    # nobody left: no host
+    :ok = GameServer.leave_seat(id, "c")
+    :ok = GameServer.leave_seat(id, "b")
     assert {:ok, %{creator: nil}} = GameServer.get(id)
-    assert {:ok, game} = GameServer.begin(id, "b")
+    {:ok, 0} = GameServer.claim_seat(id, "d")
+    assert {:ok, %{creator: 0}} = GameServer.get(id)
+    assert {:ok, game} = GameServer.begin(id, "d")
     assert game.seats == [0]
+  end
+
+  test "ack/4 keeps per seat the round of the card and results it closed" do
+    {:ok, id} = GameServer.start(2)
+    {:ok, 0} = GameServer.claim_seat(id, "a")
+    {:ok, 1} = GameServer.claim_seat(id, "b")
+    {:ok, _game} = GameServer.begin(id, "a")
+    assert {:ok, %{seen: seen}} = GameServer.get(id)
+    assert seen == %{}
+
+    :ok = GameServer.ack(id, 0, :card, 1)
+    :ok = GameServer.ack(id, 0, :results, 1)
+    :ok = GameServer.ack(id, 1, :card, 1)
+    :ok = GameServer.ack(id, 0, :card, 2)
+    assert {:ok, %{seen: %{0 => %{card: 2, results: 1}, 1 => %{card: 1}}}} = GameServer.get(id)
   end
 
   test "leave_seat frees a seat while waiting; begin renumbers the seats" do
@@ -355,9 +382,9 @@ defmodule Quacks.GameServerTest do
       bot_names = for {seat, _} <- table.bots, do: table.names[seat]
       assert length(Enum.uniq(bot_names)) == 7 and Enum.all?(bot_names, &(&1 in Names.all()))
 
-      # the host leaves: a free seat, but 7 bots is the limit
+      # the host leaves and no browser is left: nobody hosts
       :ok = GameServer.leave_seat(id, "a")
-      assert GameServer.add_bot(id, "a") == {:error, :too_many_bots}
+      assert GameServer.add_bot(id, "a") == {:error, :not_creator}
 
       {:ok, 0} = GameServer.claim_seat(id, "a")
       {:ok, _game} = GameServer.begin(id, "a")

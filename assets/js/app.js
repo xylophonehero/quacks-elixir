@@ -39,6 +39,20 @@ const ConfigMemory = {
   }
 }
 
+// Your name on the configure screen: kept in this browser, and filled in on a new
+// table where your seat still has the default name ("Player N").
+const NameMemory = {
+  mounted() {
+    this.el.addEventListener("input", () => {
+      try { localStorage.setItem("quacks:name", this.el.value.trim()) } catch (_e) {}
+    })
+    try {
+      const saved = localStorage.getItem("quacks:name")
+      if (saved && this.el.value === "") { this.el.value = saved; this.pushEvent("rename", {name: saved}) }
+    } catch (_e) {}
+  }
+}
+
 // The large pot's motion (docs/research/animations.md §3 B3). Every patch already
 // shows the final pot; this only plays WAAPI `transform`/`opacity` on top, so it
 // never holds up a tap. A new chip flies out of the bag, hops along the spiral and
@@ -151,18 +165,24 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ConfigMemory, PotMotion},
+  hooks: {...colocatedHooks, ConfigMemory, NameMemory, PotMotion},
   // Opt-in view transitions (animations.md §1.4): the server marks the one patch
   // that changes the round (`quacks:vt`, dispatched before it); every other patch,
   // bots' included, goes straight in, except while a transition's patch waits for
   // its snapshot: then patches queue behind it, so they stay in order.
   dom: {
+    // A hidden tab skips the transition (the browser would abort it); an aborted one
+    // still applies its patch, so a sheet never waits on the animation.
     onDocumentPatch(start) {
-      const go = vtNext && document.startViewTransition && !reduced()
+      const go = vtNext && document.startViewTransition && !reduced() && !document.hidden
       vtNext = false
       if (vtQueue) return queue(vtQueue.then(start).catch(console.error))
-      if (go) return queue(document.startViewTransition(start).updateCallbackDone.catch(console.error))
-      start()
+      if (!go) return start()
+      let done = false
+      const once = () => { if (!done) { done = true; start() } }
+      const vt = document.startViewTransition(once)
+      vt.finished.catch(() => {})
+      queue(vt.updateCallbackDone.catch(once))
     },
   },
 })

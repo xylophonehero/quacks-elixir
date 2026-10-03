@@ -43,7 +43,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     assert has_element?(bob, "[data-role=waiting-for-host]", "Waiting for Player 1 to start")
 
     # a name set in the waiting room carries into the game
-    bob |> element("input[aria-label='Your name']") |> render_blur(%{"value" => "Bob"})
+    bob |> form("#rename-form", name: "Bob") |> render_change()
     assert has_element?(alice, ~s([data-role=seat-slot][data-seat="1"]), "Bob")
 
     # one empty seat left: the game starts with the two seated players

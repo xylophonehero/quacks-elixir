@@ -17,8 +17,10 @@ defmodule Quacks.GameServer do
   configured number of players (1 to 8). `begin/2` starts the game with the seats taken
   (renumbered `0..n-1` in seat order) and makes it `:playing`; from then on no new
   seats are given out. The creator (the host) is the first browser to take a seat;
-  only the creator may `configure/3` the game and begin it, unless the creator left,
-  then any seated browser may begin. After the game is over, `play_again/2` opens a
+  only the host may `configure/3` the game and begin it. The host is the creator
+  while seated; when the creator leaves a waiting game, the seated browser with the
+  lowest seat is host (pages hear `{:host, id, seat}`) until the creator comes back;
+  with nobody left the game idles out. After the game is over, `play_again/2` opens a
   new waiting game with the same settings and the same seated browsers.
 
   Bots: while `:waiting` the host may put a bot (`Quacks.AI`, always the `:balanced`
@@ -52,11 +54,13 @@ defmodule Quacks.GameServer do
   @typedoc """
   What a page needs about a game. `game` is `nil` while `status` is `:waiting`.
   `players` is the number of seats in the game once `:playing`, and the maximum
-  (`max_players`) while `:waiting`. `creator` is the creator's seat, `nil` once they left.
+  (`max_players`) while `:waiting`. `creator` is the host's seat (see the moduledoc), `nil` with nobody seated.
   `sets`, `rules` and `expansion` are the options the game starts (or started) with;
   `expansions` is every expansion on (`expansion:` and `expansions:` together).
   `colours` is each claimed seat's colour, `0..7` (the `--color-seat-N` palette),
-  unique at the table. `bots` is the profile of each seat a bot holds.
+  unique at the table. `bots` is the profile of each seat a bot holds. `seen` is,
+  per seat, the round of the fortune card (`card`) and of the round results
+  (`results`) that seat closed last (`ack/4`), so a reload does not show them again.
   """
   @type table :: %{
           id: id,
@@ -68,6 +72,7 @@ defmodule Quacks.GameServer do
           names: %{Game.seat() => String.t()},
           colours: %{Game.seat() => colour},
           bots: %{Game.seat() => Profile.name()},
+          seen: %{Game.seat() => %{optional(:card | :results) => 1..9}},
           creator: Game.seat() | nil,
           sets: Quacks.Rules.Chips.sets(),
           rules: map,
@@ -164,8 +169,8 @@ defmodule Quacks.GameServer do
   def leave_seat(id, token), do: call(id, {:leave_seat, token})
 
   @doc """
-  Start the game with the seats taken now. Only the creator may, or any seated
-  browser once the creator left. Broadcasts the new game and the renumbered names.
+  Start the game with the seats taken now. Only the host may (see the moduledoc).
+  Broadcasts the new game and the renumbered names.
   """
   @spec begin(id, String.t()) ::
           {:ok, Game.t()} | {:error, :not_creator | :not_seated | :already_started | :not_found}
@@ -221,6 +226,14 @@ defmodule Quacks.GameServer do
           :ok | {:error, :taken | :invalid | :not_found}
   def set_colour(id, seat, colour), do: call(id, {:set_colour, seat, colour})
 
+  @doc """
+  `seat` closed the fortune card (`:card`) or the round results (`:results`) of
+  `round`. The table keeps it (`seen`), so a reload does not open them again.
+  """
+  @spec ack(id, Game.seat(), :card | :results, 1..9) :: :ok | {:error, :not_found}
+  def ack(id, seat, kind, round) when kind in [:card, :results] and is_integer(round),
+    do: call(id, {:ack, seat, kind, round})
+
   @doc "Games on this node that are still `:waiting` with a free seat, sorted by id."
   @spec open_games() :: [table]
   def open_games do
@@ -241,8 +254,8 @@ defmodule Quacks.GameServer do
   def default_name(seat), do: "Player #{seat + 1}"
 
   @doc """
-  The PubSub topic of one game. Messages: `{:game, id, game}`, `{:names, id, names}`
-  and `{:play_again, id, new_id}`.
+  The PubSub topic of one game. Messages: `{:game, id, game}`, `{:names, id, names}`,
+  `{:host, id, seat}` and `{:play_again, id, new_id}`.
   """
   @spec topic(id) :: String.t()
   def topic(id), do: "game:" <> id
@@ -282,6 +295,7 @@ defmodule Quacks.GameServer do
           bots: %{},
           bot_rngs: %{},
           bot_ticks: %{},
+          seen: %{},
           tick: 0,
           name_rng: :rand.seed_s(:exsss, fields.seed)
         },
@@ -354,6 +368,9 @@ defmodule Quacks.GameServer do
             colours: Map.delete(state.colours, seat)
         }
 
+        if token == host(%{state | tokens: Map.put(tokens, token, seat)}) and host(state),
+          do: broadcast(state, {:host, state.id, tokens[host(state)]})
+
         broadcast_names(state)
         broadcast_lobby()
         {:reply, :ok, state, @idle_timeout}
@@ -361,6 +378,11 @@ defmodule Quacks.GameServer do
   end
 
   def handle_call({:leave_seat, _token}, _from, state), do: {:reply, :ok, state, @idle_timeout}
+
+  def handle_call({:ack, seat, kind, round}, _from, state) do
+    seen = Map.update(state.seen, seat, %{kind => round}, &Map.put(&1, kind, round))
+    {:reply, :ok, %{state | seen: seen}, @idle_timeout}
+  end
 
   def handle_call({:begin, _token}, _from, %{session: %Session{}} = state),
     do: {:reply, {:error, :already_started}, state, @idle_timeout}
@@ -370,7 +392,7 @@ defmodule Quacks.GameServer do
       not Map.has_key?(state.tokens, token) ->
         {:reply, {:error, :not_seated}, state, @idle_timeout}
 
-      token != state.creator and Map.has_key?(state.tokens, state.creator) ->
+      token != host(state) ->
         {:reply, {:error, :not_creator}, state, @idle_timeout}
 
       true ->
@@ -394,7 +416,7 @@ defmodule Quacks.GameServer do
       )
 
     cond do
-      token != state.creator ->
+      token != host(state) ->
         {:reply, {:error, :not_creator}, state, @idle_timeout}
 
       not valid?(max, opts) or max < map_size(state.names) ->
@@ -420,7 +442,7 @@ defmodule Quacks.GameServer do
         {:reply, {:ok, state.next_id}, state, @idle_timeout}
 
       true ->
-        creator = if Map.has_key?(state.tokens, state.creator), do: state.creator, else: token
+        creator = host(state) || token
 
         {:ok, new_id} =
           start_server(%{
@@ -447,7 +469,7 @@ defmodule Quacks.GameServer do
       state.session != nil ->
         {:reply, {:error, :already_started}, state, @idle_timeout}
 
-      token != state.creator ->
+      token != host(state) ->
         {:reply, {:error, :not_creator}, state, @idle_timeout}
 
       map_size(state.bots) >= @max_bots ->
@@ -466,7 +488,7 @@ defmodule Quacks.GameServer do
       state.session != nil ->
         {:reply, {:error, :already_started}, state, @idle_timeout}
 
-      token != state.creator ->
+      token != host(state) ->
         {:reply, {:error, :not_creator}, state, @idle_timeout}
 
       not Map.has_key?(state.bots, seat) ->
@@ -648,6 +670,20 @@ defmodule Quacks.GameServer do
     {:reply, {:ok, game}, state, @idle_timeout}
   end
 
+  # The host's token: the creator while seated, else the seated browser with the
+  # lowest seat (nil: nobody). A creator who comes back (a reload) is host again.
+  defp host(%{tokens: tokens, creator: creator}) when is_map_key(tokens, creator), do: creator
+
+  defp host(%{tokens: tokens}) do
+    case Enum.min_by(tokens, fn {_token, seat} -> seat end, fn -> nil end) do
+      {token, _seat} -> token
+      nil -> nil
+    end
+  end
+
+  defp broadcast(state, message),
+    do: Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), message)
+
   defp broadcast_names(state),
     do: Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:names, state.id, state.names})
 
@@ -664,7 +700,8 @@ defmodule Quacks.GameServer do
       names: state.names,
       colours: state.colours,
       bots: state.bots,
-      creator: state.tokens[state.creator],
+      seen: state.seen,
+      creator: state.tokens[host(state)],
       sets: state.opts[:sets],
       rules: state.opts[:rules],
       expansion: state.opts[:expansion],

@@ -98,7 +98,7 @@ defmodule QuacksWeb.AlchemistsLiveTest do
       |> Map.update!(:log, &[{0, :stopped}, {0, {:essence, 2, parts}} | &1])
     end)
 
-    assert has_element?(view, "[data-role=essence-choice]", "Essence: space 2")
+    assert has_element?(view, "[data-role=essence-choice]", "Essence: you reach space 2")
     assert has_element?(view, "[data-role=essence-parts]", "2 colours")
     assert has_element?(view, "[data-role=essence-pick]", "Space 2")
     assert has_element?(view, "[data-role=essence-choice]", "lay out 1")

@@ -103,10 +103,9 @@ defmodule QuacksWeb.BoardUxTest do
     for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
-    # in the shop both slots stay, disabled
+    # while everyone shops the bar goes (QA V4: the shop has its own buttons)
     assert has_element?(view, "dd", "Shop")
-    assert has_element?(view, "button[data-slot=stop][disabled]")
-    assert has_element?(view, "button[data-slot=draw][disabled]")
+    refute has_element?(view, "[data-role=action-bar]")
   end
 
   test "the round results list the bonus die and the totals, from the shop to the round end" do
