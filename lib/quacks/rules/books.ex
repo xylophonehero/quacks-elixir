@@ -8,18 +8,24 @@ defmodule Quacks.Rules.Books do
   `trigger` says when the book acts: `:on_draw` (when the chip is placed),
   `:step_b` (evaluation step B), `:passive` (for the rest of the round) or `:none`.
   A book whose reward grows with the number of chips also has `tiers`, one
-  `{label, text}` row per tier; its `text` is then the one-line summary.
+  `{label, text}` row per tier; its `text` is then the one-line summary. A row that
+  is true only at one table size is `{label, text, players: n}` (`n` an integer or a
+  range); the components show it only at that size. Orange books have no rule text
+  (`""`), as in the real game.
   """
 
   alias Quacks.Rules.Chips
 
   @type trigger :: :on_draw | :step_b | :passive | :none
+  @type tier ::
+          {String.t(), String.t()}
+          | {String.t(), String.t(), [{:players, pos_integer | Range.t()}]}
   @type book :: %{
           name: String.t(),
           text: String.t(),
           trigger: trigger,
           prices: [pos_integer],
-          tiers: [{String.t(), String.t()}]
+          tiers: [tier]
         }
 
   @names %{
@@ -38,15 +44,13 @@ defmodule Quacks.Rules.Books do
     {:white, 1} =>
       {:none,
        "Your pot explodes when your white chips total more than your limit (7, unless a house rule, mandrake Set 3 or a card raises it); the chip is still placed and you must stop."},
-    {:orange, 1} => {:none, "The chip only fills the pot."},
-    {:orange, 2} =>
-      {:none,
-       "Orange 1- and 6-chips only fill the pot 1 or 6 spaces; no book, witch or card can upgrade an orange chip."},
+    {:orange, 1} => {:none, ""},
+    {:orange, 2} => {:none, ""},
     {:green, 1} =>
       {:step_b, "1 ruby for each green chip that is your last or next-to-last chip."},
     {:green, 2} =>
       {:step_b,
-       "For each green chip that is your last or next-to-last chip, you may put 1 chip from the supply into your bag."},
+       "For each green chip that is your last or next-to-last chip, take a 1-chip from the supply into your bag; its colour depends on the green chip's value (see table)."},
     {:green, 3} =>
       {:step_b,
        "If your white chips total exactly 7, your last chip moves on by the sum of your green values."},
@@ -177,11 +181,11 @@ defmodule Quacks.Rules.Books do
       {"space 30+", "3 VP"}
     ],
     {:black, 1} => [
-      {"2 players: same count", "droplet +1"},
-      {"2 players: more", "droplet +1 · 1 ruby"},
-      {"3+ players: more than 1 neighbour", "droplet +1"},
-      {"3+ players: more than both", "droplet +1 · 1 ruby"},
-      {"solo: 1+ black", "droplet +1 (house rule: also 1 ruby)"}
+      {"same count", "droplet +1", players: 2},
+      {"more", "droplet +1 · 1 ruby", players: 2},
+      {"more than 1 neighbour", "droplet +1", players: 3..8},
+      {"more than both", "droplet +1 · 1 ruby", players: 3..8},
+      {"1+ black", "droplet +1 (house rule: also 1 ruby)", players: 1}
     ]
   }
 
@@ -214,6 +218,22 @@ defmodule Quacks.Rules.Books do
       tiers: Map.get(@tiers, key, [])
     }
   end
+
+  @doc """
+  The `tiers` rows for a table of `players` (nil: every row), as `{label, text}`.
+
+      iex> Quacks.Rules.Books.get({:black, 1}).tiers |> Quacks.Rules.Books.tiers_for(2)
+      [{"same count", "droplet +1"}, {"more", "droplet +1 · 1 ruby"}]
+  """
+  @spec tiers_for([tier], pos_integer | nil) :: [{String.t(), String.t()}]
+  def tiers_for(tiers, players) do
+    for tier <- tiers, shows?(tier, players), do: {elem(tier, 0), elem(tier, 1)}
+  end
+
+  defp shows?({_label, _text}, _players), do: true
+  defp shows?(_tier, nil), do: true
+  defp shows?({_label, _text, players: n}, players) when is_integer(n), do: n == players
+  defp shows?({_label, _text, players: range}, players), do: players in range
 
   @doc "Every supported `{colour, set}`, sorted."
   @spec keys() :: [{Chips.colour(), 1..6}]

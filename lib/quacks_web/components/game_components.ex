@@ -970,21 +970,28 @@ defmodule QuacksWeb.GameComponents do
   a `Quacks.Rules.Books.get/1` map.
   """
   attr :book, :map, required: true
+  attr :players, :integer, default: nil, doc: "the table size; tier rows for other sizes hide"
 
   def book_text(assigns) do
     ~H"""
     <p class="text-xs text-ink-soft" data-role="book-text">
       <span class="font-semibold text-ink">{@book.name}</span>
-      · {trigger_label(@book.trigger)} · {@book.text}
+      <span :if={@book.text != ""}>· {trigger_label(@book.trigger)} · {@book.text}</span>
     </p>
-    <.book_tiers tiers={@book.tiers} />
+    <.book_tiers tiers={@book.tiers} players={@players} />
     """
   end
 
-  @doc "A book's reward tiers as a small table (nothing when the book has none)."
+  @doc """
+  A book's reward tiers as a small table (nothing when the book has none). With
+  `players` only the rows for that table size show (`Books.tiers_for/2`).
+  """
   attr :tiers, :list, required: true
+  attr :players, :integer, default: nil
 
   def book_tiers(assigns) do
+    assigns = assign(assigns, :tiers, Books.tiers_for(assigns.tiers, assigns.players))
+
     ~H"""
     <table :if={@tiers != []} class="mt-1 w-full text-xs" data-role="book-tiers">
       <tbody class="divide-y divide-ink/10">
@@ -1004,6 +1011,7 @@ defmodule QuacksWeb.GameComponents do
   sheet. `books` is a list of `{colour, set}` (`Quacks.Rules.Books.in_play/2`).
   """
   attr :books, :list, required: true
+  attr :players, :integer, default: nil, doc: "the table size, see `book_tiers/1`"
 
   def book_list(assigns) do
     assigns = assign(assigns, :colours, @colours)
@@ -1015,7 +1023,7 @@ defmodule QuacksWeb.GameComponents do
           <span class={["inline-block size-3 rounded-full", @colours[colour]]} />
           {String.capitalize(to_string(colour))} {book_set_name(colour, set)}
         </dt>
-        <dd><.book_text book={Books.get({colour, set})} /></dd>
+        <dd><.book_text book={Books.get({colour, set})} players={@players} /></dd>
       </div>
     </dl>
     """
@@ -1028,6 +1036,7 @@ defmodule QuacksWeb.GameComponents do
   """
   attr :colour, :atom, required: true
   attr :set, :any, required: true, doc: "1..6, or nil for locoweed not in play"
+  attr :players, :integer, default: nil, doc: "the table size, see `book_tiers/1`"
   attr :class, :any, default: nil
 
   def book_tile(assigns) do
@@ -1053,8 +1062,8 @@ defmodule QuacksWeb.GameComponents do
         </div>
         <.book_seal set={@set} />
       </div>
-      <p class="text-[13px] leading-snug text-pretty">{@book.text}</p>
-      <.book_tiers tiers={@book.tiers} />
+      <p :if={@book.text != ""} class="text-[13px] leading-snug text-pretty">{@book.text}</p>
+      <.book_tiers tiers={@book.tiers} players={@players} />
       <div :if={@book.chips != []} class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
         <span
           :for={{chip, price} <- @book.chips}

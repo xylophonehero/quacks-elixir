@@ -23,7 +23,9 @@ defmodule Quacks.BooksTest do
 
     for key <- supported do
       book = Books.get(key)
-      assert book.name != "" and book.text != ""
+      assert book.name != ""
+      # orange books have no rule text in the real game
+      assert book.text == "" == match?({:orange, _}, key)
       assert book.trigger in [:on_draw, :step_b, :passive, :none]
     end
 
@@ -44,6 +46,31 @@ defmodule Quacks.BooksTest do
     end
 
     assert {"space 10–19", "1 VP"} in Books.get({:purple, 3}).tiers
+  end
+
+  test "black 1 tier rows follow the table size; untagged rows always show" do
+    tiers = Books.get({:black, 1}).tiers
+    assert [{"1+ black", _}] = Books.tiers_for(tiers, 1)
+    assert [{"same count", _}, {"more", _}] = Books.tiers_for(tiers, 2)
+    assert [{"more than 1 neighbour", _}, {"more than both", _}] = Books.tiers_for(tiers, 3)
+    assert Books.tiers_for(tiers, 8) == Books.tiers_for(tiers, 3)
+    assert length(Books.tiers_for(tiers, nil)) == 5
+
+    purple = Books.get({:purple, 1}).tiers
+    assert Books.tiers_for(purple, 1) == purple and Books.tiers_for(purple, 4) == purple
+  end
+
+  # The engine gives the same chips (`Evaluation` @g2, see ingredient_sets_test "G2").
+  test "green 2: a 1-chip by the green chip's value" do
+    book = Books.get({:green, 2})
+    assert book.text =~ "take a 1-chip from the supply into your bag"
+    refute book.text =~ "you may put 1 chip"
+
+    assert book.tiers == [
+             {"green 1", "orange 1"},
+             {"green 2", "blue 1 or red 1"},
+             {"green 4", "yellow 1 or purple 1"}
+           ]
   end
 
   test "book texts are one sentence and say what the audit found missing" do
