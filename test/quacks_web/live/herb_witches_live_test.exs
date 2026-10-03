@@ -21,7 +21,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
   test "the host's toggle offers Sets 5–6", %{conn: conn} do
     {:ok, id} = GameServer.start(4)
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
-    refute has_element?(view, "select[name='sets[green]'] option[value='6']")
+    refute has_element?(view, "input[name='sets[green]'][value='6']")
 
     view |> form("#books", expansion: "true") |> render_change()
 
@@ -29,8 +29,8 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     |> form("#books", expansion: "true", sets: %{green: "5", black: "6", locoweed: "6"})
     |> render_change()
 
-    assert has_element?(view, "select[name='sets[green]'] option[value='6']")
-    assert has_element?(view, "select[name='sets[black]'] option", "Base")
+    assert has_element?(view, "input[name='sets[green]'][value='6']")
+    assert has_element?(view, "#books [data-book=black-6]", "Hawkmoth")
 
     view |> element("button[aria-label='More players']") |> render_click()
     assert {:ok, %{status: :waiting, game: nil, max_players: 5}} = GameServer.get(id)

@@ -34,24 +34,67 @@ defmodule QuacksWeb.BooksLiveTest do
     {id, view}
   end
 
-  test "the configure screen shows the chosen book's text and updates it", %{conn: conn} do
+  test "the configure screen shows one book tile per colour", %{conn: conn} do
     {_id, view} = configure(conn)
-    green = "[data-colour=green] [data-role=chosen-book]"
+
+    for colour <- ~w(green blue red yellow purple orange black locoweed) do
+      assert has_element?(view, "#books [data-role=book-tile][data-colour=#{colour}]")
+      assert has_element?(view, "#books button[popovertarget=book-picker-#{colour}]")
+    end
+
+    green = "#books [data-role=book-tile][data-colour=green]"
     assert has_element?(view, green, "Garden spider")
-    assert has_element?(view, green, "1 ruby for each green chip")
+
+    assert has_element?(
+             view,
+             green,
+             "1 ruby for each green chip that is your last or next-to-last chip."
+           )
+
+    assert has_element?(view, "#{green} .book-seal", "I")
+    assert has_element?(view, "#books [data-book=locoweed-off] .book-seal", "Off")
+  end
+
+  test "a picker lists the books of a colour; a card changes the book", %{conn: conn} do
+    {id, view} = configure(conn)
+    picker = "#book-picker-green[popover]"
+    assert has_element?(view, picker, "Garden spider")
+    assert has_element?(view, "#{picker} [data-role=book-card]", "Book I")
+    assert has_element?(view, "#{picker} [data-role=book-card]", "Book IV")
+    refute has_element?(view, "#{picker} [data-role=book-card]", "Book V")
+    assert has_element?(view, "#{picker} input[name='sets[green]'][value='1'][checked]")
+
+    assert has_element?(
+             view,
+             "#{picker} input[value='3'][phx-click*='quacks:close']"
+           )
 
     view |> form("#books", sets: %{green: "3"}) |> render_change()
+    green = "#books [data-role=book-tile][data-colour=green]"
     assert has_element?(view, green, "exactly 7")
-    refute has_element?(view, green, "1 ruby for each green chip")
+    assert has_element?(view, "#{green} .book-seal", "III")
+    assert has_element?(view, "#{picker} input[value='3'][checked]")
+    {:ok, %{sets: %{green: 3}}} = GameServer.get(id)
+
+    assert has_element?(view, "#book-picker-black [data-role=book-card][data-set='5']")
+    assert has_element?(view, "#book-picker-black [data-role=book-card][data-set='6']")
+    refute has_element?(view, "#book-picker-black [data-role=book-card][data-set='2']")
+    assert has_element?(view, "#book-picker-orange [data-role=book-card][data-set='2']", "6")
   end
 
   test "the host picks orange 2 and locoweed in a base game", %{conn: conn} do
     {id, view} = configure(conn)
-    assert has_element?(view, "select[name='sets[locoweed]'] option[value='']", "Not used")
-    refute has_element?(view, "[data-colour=locoweed] [data-role=chosen-book]")
+    not_in_play = "#book-picker-locoweed [data-role=book-card][data-set=off]"
+    assert has_element?(view, not_in_play, "Not in play")
+    assert has_element?(view, "#{not_in_play} input[value=''][checked]")
+    assert has_element?(view, "#books [data-book=locoweed-off]", "No locoweed chips")
 
     view |> form("#books", sets: %{orange: "2", locoweed: "5"}) |> render_change()
-    assert has_element?(view, "[data-colour=locoweed] [data-role=chosen-book]", "rat stone")
+    assert has_element?(view, "#books [data-book=locoweed-5]", "rat stone")
+
+    view |> form("#books", sets: %{locoweed: ""}) |> render_change()
+    assert has_element?(view, "#books [data-book=locoweed-off]")
+    view |> form("#books", sets: %{locoweed: "5"}) |> render_change()
 
     view |> element("button", "Start game") |> render_click()
 
@@ -63,8 +106,9 @@ defmodule QuacksWeb.BooksLiveTest do
   test "the expansion toggle defaults orange to 2 and locoweed to 5", %{conn: conn} do
     {_id, view} = configure(conn)
     view |> form("#books", expansion: "true") |> render_change()
-    assert has_element?(view, "select[name='sets[orange]'] option[value='2'][selected]")
-    assert has_element?(view, "select[name='sets[locoweed]'] option[value='5'][selected]")
+    assert has_element?(view, "input[name='sets[orange]'][value='2'][checked]")
+    assert has_element?(view, "input[name='sets[locoweed]'][value='5'][checked]")
+    assert has_element?(view, "#book-picker-green [data-role=book-card][data-set='6']")
   end
 
   test "the shop has an info button per row; the menu lists the chosen books", %{conn: conn} do
@@ -88,7 +132,13 @@ defmodule QuacksWeb.BooksLiveTest do
     assert has_element?(view, "#shop label", ~r/orange 6\s+22c/)
 
     assert has_element?(view, "#sheet-menu button[popovertarget=sheet-books]", "Books")
-    assert has_element?(view, "#sheet-books [data-book=green-1]", "Garden spider")
+
+    assert has_element?(
+             view,
+             "#sheet-books [data-role=book-tile][data-book=green-1]",
+             "Garden spider"
+           )
+
     assert has_element?(view, "#sheet-books [data-book=orange-2]", "orange 6-chip")
     assert has_element?(view, "#sheet-books [data-book=locoweed-6]")
   end

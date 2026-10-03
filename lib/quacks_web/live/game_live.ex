@@ -749,7 +749,13 @@ defmodule QuacksWeb.GameLive do
 
       <.sheet id="sheet-books" label="Ingredient books">
         <h2 class="mb-2 text-lg font-bold">Ingredient books</h2>
-        <.book_list books={Books.in_play(@game.expansion, @game.sets)} />
+        <div class="grid gap-2.5 sm:grid-cols-2" data-role="books-in-play">
+          <.book_tile
+            :for={{colour, set} <- Books.in_play(@game.expansion, @game.sets)}
+            colour={colour}
+            set={set}
+          />
+        </div>
       </.sheet>
 
       <%!-- The shop waits for the round results (they hand over on close). The

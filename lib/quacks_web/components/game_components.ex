@@ -888,6 +888,87 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
+  @doc """
+  One ingredient book as a parchment recipe card: the colour, the ingredient name,
+  the book number as a gold seal, the full rule text and the chip prices. `set` nil
+  is "no locoweed" (locoweed only). The `book-art` slot is empty for now.
+  """
+  attr :colour, :atom, required: true
+  attr :set, :any, required: true, doc: "1..6, or nil for locoweed not in play"
+  attr :class, :any, default: nil
+
+  def book_tile(assigns) do
+    assigns = assign(assigns, book: book_info(assigns.colour, assigns.set))
+
+    ~H"""
+    <div
+      class={[
+        "paper relative flex h-full flex-col gap-1.5 overflow-hidden rounded-[14px] py-3 pr-3 pl-4 text-left",
+        "before:absolute before:inset-y-0 before:left-0 before:w-[5px] before:bg-(--c)",
+        @class
+      ]}
+      style={"--c: var(--color-chip-#{@colour})"}
+      data-role="book-tile"
+      data-colour={@colour}
+      data-book={"#{@colour}-#{@set || "off"}"}
+    >
+      <div class="flex min-w-0 items-center gap-2">
+        <div data-role="book-art" class="hidden size-10 shrink-0" aria-hidden="true" />
+        <div class="min-w-0 flex-1">
+          <p class="text-[10.5px] font-bold tracking-[0.08em] text-ink-soft uppercase">{@colour}</p>
+          <p class="font-hand text-lg leading-tight font-bold">{@book.name}</p>
+        </div>
+        <.book_seal set={@set} />
+      </div>
+      <p class="text-[13px] leading-snug text-pretty">{@book.text}</p>
+      <div :if={@book.chips != []} class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
+        <span
+          :for={{chip, price} <- @book.chips}
+          class="inline-flex items-center gap-1 font-bold tabular-nums"
+        >
+          <.chip chip={chip} size={:xs} />{price}
+        </span>
+      </div>
+    </div>
+    """
+  end
+
+  @doc ~s[A book number as a gold seal: "I".."VI", or "Off" for nil.]
+  attr :set, :any, required: true
+
+  def book_seal(assigns) do
+    ~H"""
+    <span class="book-seal" title={if @set, do: "Book #{@set}", else: "Not in play"}>
+      {roman(@set)}
+    </span>
+    """
+  end
+
+  @doc ~s[A book number in Roman numerals ("Off" for nil).]
+  @spec roman(1..6 | nil) :: String.t()
+  def roman(nil), do: "Off"
+  def roman(set), do: Enum.at(~w(I II III IV V VI), set - 1)
+
+  @doc """
+  The book `{colour, set}` for display: `Books.get/1` plus `chips`, each buyable
+  chip of the colour with its price. Locoweed nil is "not in play".
+  """
+  @spec book_info(Chips.colour(), 1..6 | nil) :: map
+  def book_info(:locoweed, nil) do
+    %{
+      Books.get({:locoweed, 5})
+      | text: "No locoweed chips in the shop this game.",
+        prices: []
+    }
+    |> Map.put(:chips, [])
+  end
+
+  def book_info(colour, set) do
+    sets = %{colour => set}
+    chips = for {^colour, _} = chip <- Chips.shop(:herb_witches, sets), do: chip
+    Map.put(Books.get({colour, set}), :chips, Enum.map(chips, &{&1, Chips.price(&1, sets)}))
+  end
+
   defp book_set_name(:white, _set), do: ""
   defp book_set_name(:black, 1), do: "(base)"
   defp book_set_name(_colour, set), do: "Set #{set}"

@@ -31,7 +31,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
   test "the host picks green 2; the shop shows green 1 at 6 coins", %{conn: conn} do
     {:ok, id} = GameServer.start(2, {1, 2, 3})
     {:ok, game_view, _html} = live(conn, ~p"/g/#{id}")
-    assert has_element?(game_view, "#books select[name='sets[green]']")
+    assert has_element?(game_view, "#books input[name='sets[green]']")
 
     game_view |> form("#books", sets: %{green: "2"}) |> render_change()
     game_view |> element("button", "Start game") |> render_click()

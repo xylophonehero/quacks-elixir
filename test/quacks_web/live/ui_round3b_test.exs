@@ -50,7 +50,10 @@ defmodule QuacksWeb.UiRound3bTest do
     assert has_element?(bob, ~s([data-role=seat-slot][data-seat="2"]), "empty")
 
     alice |> form("#books", sets: %{green: "2"}) |> render_change()
-    assert has_element?(bob, "select[name='sets[green]'] option[value='2'][selected]")
+    assert has_element?(bob, "#books [data-book=green-2]")
+    # a joiner sees the tiles but no pickers
+    refute has_element?(bob, "#books button[popovertarget]")
+    refute has_element?(bob, "#book-picker-green")
 
     alice |> element("#options") |> render_change(%{"rules" => %{"rats" => "false"}})
     assert has_element?(bob, "#rules-rats:not([checked])")

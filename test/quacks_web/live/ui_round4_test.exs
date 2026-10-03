@@ -41,8 +41,8 @@ defmodule QuacksWeb.UiRound4Test do
     view = open(browser("host"), id)
 
     refute has_element?(view, "#expansion[checked]")
-    assert has_element?(view, "select[name='sets[black]'] option[value='5']")
-    assert has_element?(view, "select[name='sets[black]'] option[value='6']")
+    assert has_element?(view, "input[name='sets[black]'][value='5']")
+    assert has_element?(view, "input[name='sets[black]'][value='6']")
 
     view |> form("#books", sets: %{black: "6"}) |> render_change()
     view |> element("button", "Start game") |> render_click()

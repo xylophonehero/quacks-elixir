@@ -11,11 +11,14 @@ defmodule QuacksWeb.SetupComponents do
   """
   use Phoenix.Component
 
-  import QuacksWeb.CoreComponents, only: [input: 1]
-  import QuacksWeb.GameComponents, only: [book_list: 1, book_text: 1]
+  import QuacksWeb.CoreComponents, only: [input: 1, sheet: 1]
 
+  import QuacksWeb.GameComponents,
+    only: [book_info: 2, book_seal: 1, book_tile: 1, chip: 1, roman: 1]
+
+  alias Phoenix.LiveView.JS
   alias Quacks.Game
-  alias Quacks.Rules.{Books, Chips}
+  alias Quacks.Rules.Chips
 
   # The colours with four ingredient books, in the order the form shows them.
   @book_colours [:green, :blue, :red, :yellow, :purple]
@@ -37,7 +40,9 @@ defmodule QuacksWeb.SetupComponents do
 
   @doc """
   The Ingredient books form (`#books`, event `"sets"`): the expansion toggle and
-  one select per colour, with the chosen book's text under it.
+  one `book_tile` per colour. The host taps a tile to open its picker sheet, a list
+  of book cards (radio buttons `sets[colour]`); a tap on a card picks that book and
+  closes the sheet. Other players see the tiles only.
   """
   attr :sets, :map, required: true, doc: "the chosen books; colours left out use their default"
   attr :expansion, :boolean, default: false
@@ -55,30 +60,98 @@ defmodule QuacksWeb.SetupComponents do
           label="Herb Witches expansion"
           value={@expansion}
         />
-        <div class="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2">
-          <div :for={colour <- book_colours()} data-role="book" data-colour={colour}>
-            <.input
-              type="select"
-              id={"sets-#{colour}"}
-              name={"sets[#{colour}]"}
-              label={String.capitalize(to_string(colour))}
-              value={book(@sets, colour, @expansion)}
-              options={Enum.map(book_sets(colour, @expansion), &{set_name(&1, colour), &1})}
-              class="w-full rounded-lg border border-ink-soft bg-parchment-light px-3 py-2 text-base text-ink sm:text-sm"
+        <p :if={!@disabled} class="text-sm text-ink-soft">Tap a book to pick another.</p>
+        <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <%= for colour <- book_colours() do %>
+            <.book_tile :if={@disabled} colour={colour} set={book(@sets, colour, @expansion)} />
+            <button
+              :if={!@disabled}
+              type="button"
+              popovertarget={"book-picker-#{colour}"}
+              aria-label={"#{colour} book: change"}
+              class="block rounded-[14px] text-left transition-[translate,scale,box-shadow] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
+            >
+              <.book_tile colour={colour} set={book(@sets, colour, @expansion)} />
+            </button>
+            <.book_picker
+              :if={!@disabled}
+              colour={colour}
+              chosen={book(@sets, colour, @expansion)}
+              sets={book_sets(colour, @expansion)}
             />
-            <div :if={book(@sets, colour, @expansion)} data-role="chosen-book">
-              <.book_text book={Books.get({colour, book(@sets, colour, @expansion)})} />
-            </div>
-            <details class="text-xs">
-              <summary class="cursor-pointer text-ink-soft">All {colour} books</summary>
-              <div class="mt-1">
-                <.book_list books={for set <- book_sets(colour, @expansion), set, do: {colour, set}} />
-              </div>
-            </details>
-          </div>
+          <% end %>
         </div>
       </fieldset>
     </form>
+    """
+  end
+
+  # The picker sheet of one colour: a card (radio button) per book.
+  attr :colour, :atom, required: true
+  attr :chosen, :any, required: true
+  attr :sets, :list, required: true
+
+  defp book_picker(assigns) do
+    books = Enum.map(assigns.sets, &{&1, book_info(assigns.colour, &1)})
+    assigns = assign(assigns, books: books, name: books |> hd() |> elem(1) |> Map.get(:name))
+
+    ~H"""
+    <.sheet id={"book-picker-#{@colour}"} label={"#{@name} books"}>
+      <h2 class="font-hand text-2xl font-bold text-ink">{@name}</h2>
+      <p class="text-sm text-ink-soft">
+        <span class="capitalize">{@colour}</span>. Tap a book to use it.
+      </p>
+      <div class="mt-3 grid gap-2.5" role="radiogroup" aria-label={"#{@colour} book"}>
+        <label
+          :for={{set, book} <- @books}
+          class={[
+            "book-card group grid cursor-pointer gap-2 rounded-[14px] bg-parchment-light p-3 pb-3.5 text-ink",
+            "has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet"
+          ]}
+          data-role="book-card"
+          data-set={set || "off"}
+        >
+          <input
+            type="radio"
+            name={"sets[#{@colour}]"}
+            value={set || ""}
+            checked={set == @chosen}
+            class="sr-only"
+            phx-click={JS.dispatch("quacks:close", to: "#book-picker-#{@colour}")}
+          />
+          <span class="flex min-w-0 items-center gap-2">
+            <.book_seal set={set} />
+            <span class="min-w-0 flex-1 font-hand text-lg font-bold">
+              {if set, do: "Book #{roman(set)}", else: "Not in play"}
+            </span>
+            <span class="book-check" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#3a2508"
+                stroke-width="3.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M5 12.5l4.5 4.5L19 7.5" />
+              </svg>
+            </span>
+          </span>
+          <span class="text-sm leading-normal text-pretty">{book.text}</span>
+          <span :if={book.chips != []} class="flex flex-wrap gap-1.5">
+            <span
+              :for={{chip, price} <- book.chips}
+              class="inline-flex items-center gap-1.5 rounded-full bg-ink/8 py-0.5 pr-2.5 pl-0.5 text-[13px] font-bold tabular-nums ring-1 ring-ink/12 ring-inset"
+            >
+              <.chip chip={chip} size={:sm} />{price} <span class="book-coin" />
+            </span>
+          </span>
+          <span :if={book.chips == []} class="text-[13px] text-ink-soft">
+            No chips to buy
+          </span>
+        </label>
+      </div>
+    </.sheet>
     """
   end
 
@@ -192,7 +265,7 @@ defmodule QuacksWeb.SetupComponents do
   @spec book_colours() :: [atom]
   def book_colours, do: @book_colours ++ [:orange, :black, :locoweed]
 
-  # The books a colour offers, in the order the select shows them.
+  # The books a colour offers, in the order the picker shows them.
   defp book_sets(colour, _expansion) when is_map_key(@extra_books, colour),
     do: @extra_books[colour]
 
@@ -202,11 +275,6 @@ defmodule QuacksWeb.SetupComponents do
   # The book a colour uses now (orange and locoweed may be left out of `sets`).
   defp book(sets, colour, expansion),
     do: Chips.set(if(expansion, do: :herb_witches), sets, colour)
-
-  defp set_name(nil, :locoweed), do: "Not used"
-  defp set_name(1, :black), do: "Base"
-  defp set_name(2, :orange), do: "Set 2 (+ orange 6)"
-  defp set_name(set, _colour), do: "Set #{set}"
 
   @doc """
   The form's `%{"green" => "2", ...}` as `%{green: 2, ...}`. A missing or bad value

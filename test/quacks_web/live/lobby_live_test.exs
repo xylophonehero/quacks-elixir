@@ -19,7 +19,7 @@ defmodule QuacksWeb.LobbyLiveTest do
     # The game waits for players; the creator (host) sets it up and may start it.
     assert has_element?(game_view, "[data-role=waiting-for-players]", "1 of 2 seated")
     assert has_element?(game_view, "[data-role=count]", "2")
-    assert has_element?(game_view, "#books select[name='sets[green]']:not([disabled])")
+    assert has_element?(game_view, "#books button[popovertarget=book-picker-green]")
     assert has_element?(game_view, "[data-role=copy-link]", "Copy link")
     assert has_element?(game_view, "button[phx-click=begin]", "Start game")
   end

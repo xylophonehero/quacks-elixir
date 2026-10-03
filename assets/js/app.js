@@ -58,8 +58,9 @@ document.addEventListener("close", e => {
   const next = e.target.dataset?.thenOpen && document.getElementById(e.target.dataset.thenOpen)
   next && !next.open && next.showModal()
 }, true)
-// A choice inside a dialog closes it once it is sent.
-window.addEventListener("quacks:close", e => e.target.close?.())
+// A choice inside a dialog (or popover sheet) closes it once it is sent.
+window.addEventListener("quacks:close", e =>
+  e.target.matches("[popover]") ? e.target.hidePopover() : e.target.close?.())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
 
