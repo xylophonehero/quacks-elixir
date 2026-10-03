@@ -24,7 +24,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
   test "the waiting page: only the creator starts the game" do
     {id, alice, bob} = start_duo()
     assert has_element?(alice, "[data-role=waiting-for-players]", "2 of 2 seated")
-    assert has_element?(bob, ~s(li[data-seat="0"]), "Seat 1")
+    assert has_element?(bob, ~s(li[data-seat="0"]), "Player 1")
     refute has_element?(bob, "button", "Start game")
 
     alice |> element("button", "Start game") |> render_click()
@@ -36,13 +36,13 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     {:ok, id} = GameServer.start(3, {1, 2, 3})
     _alice = open(browser("alice"), id)
     bob = open(browser("bob"), id)
-    assert {:ok, %{names: %{1 => "Seat 2"}}} = GameServer.get(id)
+    assert {:ok, %{names: %{1 => "Player 2"}}} = GameServer.get(id)
 
     # the test process is linked to the page; closing it must not stop the test
     Process.flag(:trap_exit, true)
     GenServer.stop(bob.pid, {:shutdown, :closed})
     assert {:ok, %{names: names}} = GameServer.get(id)
-    assert names == %{0 => "Seat 1"}
+    assert names == %{0 => "Player 1"}
   end
 
   test "two browsers play one 2-player game and both see the evaluation" do
@@ -59,7 +59,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     bob |> element("button", "Draw a chip") |> render_click()
     # Alice's draw reached Bob's page through PubSub
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=pot-chip]))
-    assert has_element?(bob, "li", ~r/^Seat 1: Drew white \d/)
+    assert has_element?(bob, "li", ~r/^Player 1: Drew white \d/)
 
     # a soft stop: alice may resume while bob still brews
     alice |> element("button", "Stop") |> render_click()
@@ -70,7 +70,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
 
     for view <- [alice, bob] do
       assert has_element?(view, "dd", "Shop")
-      assert has_element?(view, "li", ~r/^Seat \d: Bonus die/)
+      assert has_element?(view, "li", ~r/^Player \d: Bonus die/)
       # everyone shops at once, each in their own shop dialog
       assert has_element?(view, "[data-role=turn]", "Everyone shops at the same time.")
       assert has_element?(view, "dialog#decision-shop")
@@ -93,7 +93,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
 
     # bob is done shopping first (1 ruby: nothing to spend, so he is ready at once)
     bob |> element("[data-role=shop-done]") |> render_click()
-    assert has_element?(bob, "[data-role=turn]", "Waiting for 1 player: Seat 1.")
+    assert has_element?(bob, "[data-role=turn]", "Waiting for 1 player: Player 1.")
     assert has_element?(alice, "dialog#decision-shop")
   end
 

@@ -60,12 +60,26 @@
   --color-penny-copper: #b8693a;
   --color-penny-gold: #e0b23c;
 
-  /* One fixed colour per seat: player cards, log names and scoring rings. */
+  /* The 8 seat colours a player picks from (`GameServer.set_colour/3`). */
   --color-seat-0: #e0b23c; /* gold */
   --color-seat-1: #2bb5a6; /* teal */
   --color-seat-2: #a77bf3; /* violet */
   --color-seat-3: #f2785f; /* coral */
   --color-seat-4: #a4d03c; /* lime */
+  --color-seat-5: #e86a9e; /* rose */
+  --color-seat-6: #6cc3ec; /* sky */
+  --color-seat-7: #8a94a6; /* slate */
+
+  /* Seat N's chosen colour: player cards, log names and scoring rings. The game
+     page overrides these on <main> (`GameComponents.seat_style/1`). */
+  --color-player-0: var(--color-seat-0);
+  --color-player-1: var(--color-seat-1);
+  --color-player-2: var(--color-seat-2);
+  --color-player-3: var(--color-seat-3);
+  --color-player-4: var(--color-seat-4);
+  --color-player-5: var(--color-seat-5);
+  --color-player-6: var(--color-seat-6);
+  --color-player-7: var(--color-seat-7);
 }
 
 @layer base {

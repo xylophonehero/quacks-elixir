@@ -95,15 +95,15 @@ defmodule QuacksWeb.UiRound3Test do
   test "the players row: one chip per seat, yours marked; a tap opens the detail sheet" do
     {_id, alice, _bob} = duo()
 
-    assert has_element?(alice, "[data-role=you-are] .bg-seat-0", "Seat 1")
-    assert has_element?(alice, "[data-role=my-seat].border-seat-0")
+    assert has_element?(alice, "[data-role=you-are] .bg-player-0", "Player 1")
+    assert has_element?(alice, "[data-role=my-seat].border-player-0")
 
     html = render(alice)
     assert count(html, "[data-role=players-row] [data-role=player-chip]") == 2
 
     assert has_element?(
              alice,
-             ~s([data-role=player-chip][data-seat="0"][data-you].ring-seat-0),
+             ~s([data-role=player-chip][data-seat="0"][data-you].ring-player-0),
              "you"
            )
 

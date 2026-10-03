@@ -62,11 +62,11 @@ defmodule Quacks.HerbWitchesTest do
           do: assert(new(%{colour => set}).sets[colour] == set)
     end
 
-    test "5 players only with the expansion" do
+    test "5 to 8 players with or without the expansion" do
       g = new(%{}, 5)
       assert g.seats == [0, 1, 2, 3, 4]
-      assert_raise ArgumentError, fn -> Game.new(seed: @seed, players: 5) end
-      assert_raise ArgumentError, fn -> new(%{}, 6) end
+      assert Game.new(seed: @seed, players: 8).seats == Enum.to_list(0..7)
+      assert_raise ArgumentError, fn -> new(%{}, 9) end
     end
 
     test "Session passes the expansion on, through undo too" do

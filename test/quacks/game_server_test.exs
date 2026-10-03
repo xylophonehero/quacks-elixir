@@ -81,7 +81,7 @@ defmodule Quacks.GameServerTest do
     :ok = GameServer.rename(id, 2, "Cleo")
 
     :ok = GameServer.leave_seat(id, "b")
-    assert_receive {:forwarded, ^one, {:names, ^id, %{0 => "Seat 1", 2 => "Cleo"}}}
+    assert_receive {:forwarded, ^one, {:names, ^id, %{0 => "Player 1", 2 => "Cleo"}}}
     assert [_] = Enum.filter(GameServer.open_games(), &(&1.id == id))
 
     # the free seat goes to the next browser
@@ -91,7 +91,7 @@ defmodule Quacks.GameServerTest do
     {:ok, game} = GameServer.begin(id, "a")
     assert game.seats == [0, 1]
     assert GameServer.claim_seat(id, "c") == {:ok, 1}
-    assert {:ok, %{names: %{0 => "Seat 1", 1 => "Cleo"}}} = GameServer.get(id)
+    assert {:ok, %{names: %{0 => "Player 1", 1 => "Cleo"}}} = GameServer.get(id)
     assert_receive {:forwarded, ^one, {:game, ^id, ^game}}
 
     # once playing, leaving changes nothing
@@ -110,7 +110,7 @@ defmodule Quacks.GameServerTest do
     assert GameServer.claim_seat(id, "b") == {:ok, 1}
     assert GameServer.claim_seat(id, "a") == {:ok, 0}
     assert GameServer.claim_seat(id, "c") == {:error, :full}
-    assert {:ok, %{names: %{0 => "Seat 1", 1 => "Seat 2"}}} = GameServer.get(id)
+    assert {:ok, %{names: %{0 => "Player 1", 1 => "Player 2"}}} = GameServer.get(id)
   end
 
   test "apply broadcasts the new game to every subscriber" do
@@ -133,13 +133,13 @@ defmodule Quacks.GameServerTest do
     {:ok, id} = GameServer.start(2)
     one = listener(id)
     {:ok, 0} = GameServer.claim_seat(id, "a")
-    assert_receive {:forwarded, ^one, {:names, ^id, %{0 => "Seat 1"}}}
+    assert_receive {:forwarded, ^one, {:names, ^id, %{0 => "Player 1"}}}
 
     :ok = GameServer.rename(id, 0, "  Nick  ")
     assert_receive {:forwarded, ^one, {:names, ^id, %{0 => "Nick"}}}
 
     :ok = GameServer.rename(id, 0, "   ")
-    assert_receive {:forwarded, ^one, {:names, ^id, %{0 => "Seat 1"}}}
+    assert_receive {:forwarded, ^one, {:names, ^id, %{0 => "Player 1"}}}
   end
 
   test "undo works in solo only" do
@@ -238,11 +238,11 @@ defmodule Quacks.GameServerTest do
              })
 
     assert {table.max_players, table.sets, table.rules} == {3, %{black: 5}, %{overflow: false}}
-    assert_receive {:forwarded, ^one, {:names, ^id, %{1 => "Seat 2"}}}
+    assert_receive {:forwarded, ^one, {:names, ^id, %{1 => "Player 2"}}}
 
-    # fewer seats than taken, 5 without the expansion, a set that does not exist
+    # fewer seats than taken, more than 8, a set that does not exist
     assert GameServer.configure(id, "a", %{players: 1}) == {:error, :invalid}
-    assert GameServer.configure(id, "a", %{players: 5}) == {:error, :invalid}
+    assert GameServer.configure(id, "a", %{players: 9}) == {:error, :invalid}
     assert GameServer.configure(id, "a", %{sets: %{blue: 9}}) == {:error, :invalid}
 
     assert {:ok, %{max_players: 5, expansion: :herb_witches}} =
@@ -274,7 +274,7 @@ defmodule Quacks.GameServerTest do
     assert {table.status, table.max_players, table.creator} == {:waiting, 2, 0}
 
     assert {table.sets, table.rules, table.names} ==
-             {%{black: 5}, %{overflow: false}, %{0 => "Seat 1", 1 => "Bea"}}
+             {%{black: 5}, %{overflow: false}, %{0 => "Player 1", 1 => "Bea"}}
 
     assert GameServer.claim_seat(new_id, "b") == {:ok, 1}
     assert {:ok, %Game{round: 1}} = GameServer.begin(new_id, "a")

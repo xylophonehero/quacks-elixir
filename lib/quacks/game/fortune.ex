@@ -42,7 +42,7 @@ defmodule Quacks.Game.Fortune do
   from the seed but leaves the game's own random stream untouched, so a seed draws
   the same chips with or without cards.
   """
-  @spec deck(:rand.state(), 1..5) :: [Cards.id()]
+  @spec deck(:rand.state(), 1..8) :: [Cards.id()]
   def deck(rng, players) do
     {keyed, _rng} =
       Enum.map_reduce(Cards.ids(players), :rand.jump(rng), fn id, rng ->

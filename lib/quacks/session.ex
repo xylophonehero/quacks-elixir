@@ -11,7 +11,7 @@ defmodule Quacks.Session do
 
   @type t :: %__MODULE__{
           seed: {integer, integer, integer},
-          players: 1..5,
+          players: 1..8,
           sets: Quacks.Rules.Chips.sets(),
           rules: Game.rules(),
           expansion: Quacks.Rules.Chips.expansion(),
@@ -28,7 +28,7 @@ defmodule Quacks.Session do
   Teller cards, `expansion: :herb_witches` turns The Herb Witches on (see
   `Quacks.Game.new/1`).
   """
-  @spec new({integer, integer, integer}, 1..5,
+  @spec new({integer, integer, integer}, 1..8,
           sets: map,
           rules: map,
           fortune: boolean,
@@ -69,7 +69,7 @@ defmodule Quacks.Session do
     }
 
   @doc "Rebuild a game from its actions (newest first). `opts` as in `new/3`."
-  @spec replay({integer, integer, integer}, 1..5, [{Game.seat(), Game.action()}], keyword) ::
+  @spec replay({integer, integer, integer}, 1..8, [{Game.seat(), Game.action()}], keyword) ::
           Game.t()
   def replay(seed, players, actions, opts \\ []) do
     Enum.reduce(Enum.reverse(actions), new_game(seed, players, opts), fn {seat, action}, game ->

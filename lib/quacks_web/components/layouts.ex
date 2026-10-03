@@ -31,14 +31,16 @@ defmodule QuacksWeb.Layouts do
     default: false,
     doc: "true: no padding and no width cap; the page lays out the whole screen itself"
 
+  attr :style, :string, default: nil, doc: "inline style on <main>, e.g. the seat colours"
+
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <main :if={@full} data-layout="full">
+    <main :if={@full} data-layout="full" style={@style}>
       {render_slot(@inner_block)}
     </main>
-    <main :if={!@full} class="px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
+    <main :if={!@full} class="px-4 py-6 sm:px-6 sm:py-12 lg:px-8" style={@style}>
       <div class="mx-auto max-w-2xl space-y-4">
         {render_slot(@inner_block)}
       </div>

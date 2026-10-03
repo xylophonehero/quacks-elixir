@@ -14,7 +14,7 @@ defmodule Quacks.GameServer do
 
   A game has two statuses. `:waiting` (the pre-game lobby): there is no `Quacks.Game`
   yet, browsers take seats (`claim_seat/2`) and leave them (`leave_seat/2`), up to the
-  configured number of players. `begin/2` starts the game with the seats taken
+  configured number of players (1 to 8). `begin/2` starts the game with the seats taken
   (renumbered `0..n-1` in seat order) and makes it `:playing`; from then on no new
   seats are given out. The creator (the host) is the first browser to take a seat;
   only the creator may `configure/3` the game and begin it, unless the creator left,
@@ -39,25 +39,31 @@ defmodule Quacks.GameServer do
   `players` is the number of seats in the game once `:playing`, and the maximum
   (`max_players`) while `:waiting`. `creator` is the creator's seat, `nil` once they left.
   `sets`, `rules` and `expansion` are the options the game starts (or started) with.
+  `colours` is each claimed seat's colour, `0..7` (the `--color-seat-N` palette),
+  unique at the table.
   """
   @type table :: %{
           id: id,
           status: :waiting | :playing,
           game: Game.t() | nil,
           seed: {integer, integer, integer},
-          players: 1..5,
-          max_players: 1..5,
+          players: 1..8,
+          max_players: 1..8,
           names: %{Game.seat() => String.t()},
+          colours: %{Game.seat() => colour},
           creator: Game.seat() | nil,
           sets: Quacks.Rules.Chips.sets(),
           rules: map,
           expansion: Quacks.Rules.Chips.expansion()
         }
 
+  @typedoc "A seat colour: an index into the 8-colour palette (`--color-seat-N`)."
+  @type colour :: 0..7
+
   # -- API ---------------------------------------------------------------------------
 
   @doc """
-  Open a game for at most 1 to 4 players (5 with The Herb Witches); it waits for
+  Open a game for at most 1 to 8 players; it waits for
   `begin/2`. A `nil` seed picks a random one. `sets` picks the Ingredient Set per
   colour, e.g. `%{green: 2}` (left out: Set 1). `rules` sets house rules, e.g.
   `%{explode_above: 9}` (left out: the default). `expansion: :herb_witches` turns the
@@ -65,20 +71,21 @@ defmodule Quacks.GameServer do
   when the host sets the game up afterwards (`configure/3`).
   """
   @spec start(
-          1..5,
+          1..8,
           {integer, integer, integer} | nil,
           Quacks.Rules.Chips.sets(),
           map,
           Quacks.Rules.Chips.expansion()
         ) :: {:ok, id}
   def start(players, seed \\ nil, sets \\ %{}, rules \\ %{}, expansion \\ nil)
-      when players in 1..4 or (players == 5 and expansion == :herb_witches) do
+      when players in 1..8 do
     start_server(%{
       max_players: players,
       seed: seed || random_seed(),
       opts: [sets: sets, rules: rules, expansion: expansion],
       tokens: %{},
       names: %{},
+      colours: %{},
       creator: nil
     })
   end
@@ -143,7 +150,7 @@ defmodule Quacks.GameServer do
 
   @doc """
   The host (creator) sets the game up while it is `:waiting`: any of `players:`
-  (1..4, 5 with the expansion; not fewer than the seats taken), `sets:`, `rules:`
+  (1..8; not fewer than the seats taken), `sets:`, `rules:`
   and `expansion:` (keys left out keep their value). Bad values are refused as
   `Quacks.Game.new/1` would refuse them. Waiting pages hear `{:names, id, names}` and
   re-read the table.
@@ -162,9 +169,17 @@ defmodule Quacks.GameServer do
           {:ok, id} | {:error, :not_over | :not_seated | :not_found}
   def play_again(id, token), do: call(id, {:play_again, token})
 
-  @doc "Set the nickname of `seat`. A blank name goes back to \"Seat N\"."
+  @doc "Set the nickname of `seat`. A blank name goes back to \"Player N\"."
   @spec rename(id, Game.seat(), String.t()) :: :ok | {:error, :not_found}
   def rename(id, seat, name), do: call(id, {:rename, seat, name})
+
+  @doc """
+  Give `seat` the palette colour `colour` (0..7). A colour another seat has is
+  refused. Pages hear `{:names, id, names}` and re-read the table.
+  """
+  @spec set_colour(id, Game.seat(), colour) ::
+          :ok | {:error, :taken | :invalid | :not_found}
+  def set_colour(id, seat, colour), do: call(id, {:set_colour, seat, colour})
 
   @doc "Games on this node that are still `:waiting` with a free seat, sorted by id."
   @spec open_games() :: [table]
@@ -181,9 +196,9 @@ defmodule Quacks.GameServer do
     |> Enum.sort_by(& &1.id)
   end
 
-  @doc "\"Seat 1\" for seat 0: the name a seat has before anyone renames it."
+  @doc "\"Player 1\" for seat 0: the name a seat has before anyone renames it."
   @spec default_name(Game.seat()) :: String.t()
-  def default_name(seat), do: "Seat #{seat + 1}"
+  def default_name(seat), do: "Player #{seat + 1}"
 
   @doc """
   The PubSub topic of one game. Messages: `{:game, id, game}`, `{:names, id, names}`
@@ -211,7 +226,7 @@ defmodule Quacks.GameServer do
   # -- server ------------------------------------------------------------------------
 
   # `fields`: `max_players`, `seed`, `opts` (the `Session.new/3` options), `tokens`
-  # (a browser's player token -> its seat), `names` and `creator` (a token).
+  # (a browser's player token -> its seat), `names`, `colours` and `creator` (a token).
   # `session` is nil until begin; `next_id` is the game `play_again/2` opened.
   @impl true
   def init({id, fields}) do
@@ -254,6 +269,7 @@ defmodule Quacks.GameServer do
           state
           | tokens: Map.put(state.tokens, token, free),
             names: Map.put(state.names, free, default_name(free)),
+            colours: Map.put(state.colours, free, free_colour(state.colours, free)),
             creator: state.creator || token
         }
 
@@ -274,7 +290,13 @@ defmodule Quacks.GameServer do
         {:reply, :ok, state, @idle_timeout}
 
       {seat, tokens} ->
-        state = %{state | tokens: tokens, names: Map.delete(state.names, seat)}
+        state = %{
+          state
+          | tokens: tokens,
+            names: Map.delete(state.names, seat),
+            colours: Map.delete(state.colours, seat)
+        }
+
         broadcast_names(state)
         broadcast_lobby()
         {:reply, :ok, state, @idle_timeout}
@@ -345,6 +367,7 @@ defmodule Quacks.GameServer do
             opts: state.opts,
             tokens: state.tokens,
             names: state.names,
+            colours: state.colours,
             creator: creator
           })
 
@@ -359,6 +382,21 @@ defmodule Quacks.GameServer do
     state = %{state | names: Map.put(state.names, seat, name)}
     broadcast_names(state)
     {:reply, :ok, state, @idle_timeout}
+  end
+
+  def handle_call({:set_colour, seat, colour}, _from, state) do
+    cond do
+      colour not in 0..7 or not Map.has_key?(state.colours, seat) ->
+        {:reply, {:error, :invalid}, state, @idle_timeout}
+
+      Enum.any?(state.colours, fn {other, c} -> c == colour and other != seat end) ->
+        {:reply, {:error, :taken}, state, @idle_timeout}
+
+      true ->
+        state = %{state | colours: Map.put(state.colours, seat, colour)}
+        broadcast_names(state)
+        {:reply, :ok, state, @idle_timeout}
+    end
   end
 
   # No message for @idle_timeout: nobody plays this game any more.
@@ -384,13 +422,20 @@ defmodule Quacks.GameServer do
       state
       | session: Session.new(state.seed, map_size(renumber), state.opts),
         tokens: Map.new(state.tokens, fn {token, seat} -> {token, renumber[seat]} end),
-        names: names
+        names: names,
+        colours: Map.new(state.colours, fn {seat, colour} -> {renumber[seat], colour} end)
     }
+  end
+
+  # A new seat gets its own index as colour, or else the lowest free one.
+  defp free_colour(colours, seat) do
+    taken = Map.values(colours)
+    if seat in taken, do: Enum.find(0..7, &(&1 not in taken)), else: seat
   end
 
   # The settings make a game: the player count fits and `Game.new/1` accepts them.
   defp valid?(max, opts) do
-    max in 1..if(opts[:expansion] == :herb_witches, do: 5, else: 4) and
+    max in 1..8 and
       match?(%Game{}, Game.new([seed: {1, 2, 3}, players: max] ++ opts))
   rescue
     ArgumentError -> false
@@ -416,6 +461,7 @@ defmodule Quacks.GameServer do
       players: if(session, do: session.players, else: state.max_players),
       max_players: state.max_players,
       names: state.names,
+      colours: state.colours,
       creator: state.tokens[state.creator],
       sets: state.opts[:sets],
       rules: state.opts[:rules],

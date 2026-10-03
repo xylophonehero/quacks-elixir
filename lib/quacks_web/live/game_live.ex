@@ -1,6 +1,6 @@
 defmodule QuacksWeb.GameLive do
   @moduledoc """
-  The game page, `/g/:id`, for 1 to 4 players (5 with The Herb Witches). The game itself lives in a
+  The game page, `/g/:id`, for 1 to 8 players. The game itself lives in a
   `Quacks.GameServer` process; this LiveView asks it for a seat on mount (by the
   browser's player token), subscribes to the game's PubSub topic and re-renders on
   every `{:game, id, game}` broadcast. Every button comes from
@@ -160,10 +160,6 @@ defmodule QuacksWeb.GameLive do
         else: Map.drop(params, ["orange", "locoweed"])
 
     config = %{sets: parse_sets(params, expansion), expansion: if(expansion, do: :herb_witches)}
-    # 5 players need the expansion.
-    config =
-      if expansion, do: config, else: Map.put(config, :players, min(socket.assigns.players, 4))
-
     {:noreply, configure(socket, config)}
   end
 
@@ -179,7 +175,7 @@ defmodule QuacksWeb.GameLive do
     players = if is_integer(saved["players"]), do: saved["players"], else: socket.assigns.players
 
     players =
-      players |> min(if expansion, do: 5, else: 4) |> max(max(map_size(socket.assigns.names), 1))
+      players |> min(8) |> max(max(map_size(socket.assigns.names), 1))
 
     config = %{
       players: players,
@@ -235,14 +231,30 @@ defmodule QuacksWeb.GameLive do
     {:noreply, assign(socket, copied: true)}
   end
 
-  # The nickname input sends its value when it loses focus.
+  # The nickname: the seat row's input sends it as you type (`"name"`), the menu's
+  # input when it loses focus (`"value"`).
+  def handle_event("rename", %{"name" => name}, socket),
+    do: handle_event("rename", %{"value" => name}, socket)
+
   def handle_event("rename", %{"value" => name}, %{assigns: %{seat: seat}} = socket)
-      when is_integer(seat) do
+      when is_integer(seat) and is_binary(name) do
     :ok = GameServer.rename(socket.assigns.id, seat, name)
     {:noreply, socket}
   end
 
   def handle_event("rename", _params, socket), do: {:noreply, socket}
+
+  # The colour picker in your seat row. A colour taken in the meantime does nothing:
+  # the broadcast re-renders it as taken.
+  def handle_event("colour", %{"colour" => colour}, %{assigns: %{seat: seat}} = socket)
+      when is_integer(seat) do
+    with {colour, ""} <- Integer.parse(colour),
+         do: GameServer.set_colour(socket.assigns.id, seat, colour)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("colour", _params, socket), do: {:noreply, socket}
 
   @impl true
   # The game began: seats were renumbered, so ask for ours again.
@@ -260,7 +272,10 @@ defmodule QuacksWeb.GameLive do
   def handle_info({:names, _id, _names}, %{assigns: %{game: nil}} = socket),
     do: {:noreply, reseat(socket)}
 
-  def handle_info({:names, _id, names}, socket), do: {:noreply, assign(socket, names: names)}
+  def handle_info({:names, id, _names}, socket) do
+    {:ok, table} = GameServer.get(id)
+    {:noreply, assign(socket, names: table.names, colours: table.colours)}
+  end
 
   # Someone pressed "Play again": everyone follows to the new game.
   def handle_info({:play_again, _id, new_id}, socket),
@@ -294,6 +309,7 @@ defmodule QuacksWeb.GameLive do
     assign(socket,
       players: table.players,
       names: table.names,
+      colours: table.colours,
       creator: table.creator,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
@@ -341,7 +357,7 @@ defmodule QuacksWeb.GameLive do
     assigns = assign(assigns, host: host?(assigns.seat, assigns.creator))
 
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} style={seat_style(@colours)}>
       <h1 class="font-hand text-2xl font-bold">
         <.link navigate={~p"/"}>Quacks</.link>
         <span class="font-mono text-xs font-normal text-parchment-dim">{@id}</span>
@@ -369,7 +385,7 @@ defmodule QuacksWeb.GameLive do
           <.button
             phx-click="players"
             phx-value-count={@players + 1}
-            disabled={!@host or @players >= if(@expansion, do: 5, else: 4)}
+            disabled={!@host or @players >= 8}
             aria-label="More players"
             class="size-11 text-xl"
           >
@@ -379,31 +395,46 @@ defmodule QuacksWeb.GameLive do
         <ol class="space-y-1" aria-label="Seats">
           <li
             :for={seat <- 0..(@players - 1)}
-            class="flex min-h-9 items-center gap-2 rounded-md bg-parchment-light px-2"
+            class="flex min-h-9 flex-wrap items-center gap-x-2 rounded-md bg-parchment-light px-2"
             data-seat={seat}
             data-role="seat-slot"
           >
-            <.seat_dot seat={seat} />
-            <span :if={@names[seat]} class="font-semibold">{@names[seat]}</span>
+            <.seat_dot :if={@names[seat]} seat={seat} />
+            <span
+              :if={!@names[seat]}
+              class="size-2.5 shrink-0 rounded-full ring-1 ring-ink-soft/40 ring-inset"
+            />
+            <form
+              :if={seat == @seat}
+              id="rename-form"
+              phx-change="rename"
+              phx-submit="rename"
+              class="min-w-0 flex-1"
+            >
+              <input
+                type="text"
+                name="name"
+                id="seat-name"
+                value={if @names[seat] != GameServer.default_name(seat), do: @names[seat]}
+                placeholder={GameServer.default_name(seat)}
+                phx-debounce="300"
+                phx-blur="rename"
+                maxlength="20"
+                autocomplete="off"
+                aria-label="Your name"
+                class="w-full border-0 border-b border-dashed border-transparent bg-transparent py-1.5 text-base font-semibold text-ink outline-none transition-colors duration-150 placeholder:text-ink placeholder:opacity-100 hover:border-ink-soft/40 focus:border-ink-soft focus:placeholder:text-ink-soft/60"
+              />
+            </form>
+            <span :if={@names[seat] && seat != @seat} class="font-semibold">{@names[seat]}</span>
             <span :if={!@names[seat]} class="text-ink-soft italic">empty</span>
             <span :if={@names[seat] && seat == @creator} class="text-xs text-ink-soft">host</span>
             <span :if={seat == @seat} class="ml-auto text-xs font-semibold">you</span>
+            <.colour_picker :if={seat == @seat} colours={@colours} seat={seat} />
           </li>
         </ol>
         <p class="rounded-md bg-droplet/25 px-2 py-1" data-role="waiting-for-players">
           {map_size(@names)} of {@players} seated.
         </p>
-        <label :if={@seat} class="block space-y-1 text-sm">
-          <span class="font-semibold">Your name</span>
-          <input
-            type="text"
-            value={name(@names, @seat)}
-            phx-blur="rename"
-            maxlength="20"
-            aria-label="Your name"
-            class="w-full rounded-md border border-ink-soft bg-parchment-light px-2 py-2 text-base text-ink"
-          />
-        </label>
         <div :if={@players > 1} class="space-y-1 text-sm">
           <span class="font-semibold">Share this link to invite players</span>
           <div class="flex gap-2">
@@ -445,7 +476,7 @@ defmodule QuacksWeb.GameLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} full>
+    <Layouts.app flash={@flash} full style={seat_style(@colours)}>
       <div class="lg:grid lg:h-dvh lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div
           class={[
@@ -676,7 +707,7 @@ defmodule QuacksWeb.GameLive do
         :for={seat <- @game.seats}
         :if={@players > 1}
         id={"sheet-player-#{seat}"}
-        label={"Player #{name(@names, seat)}"}
+        label={name(@names, seat)}
       >
         <.player_card game={@game} seat={seat} name={name(@names, seat)} you={seat == @seat} />
       </.sheet>
@@ -834,6 +865,53 @@ defmodule QuacksWeb.GameLive do
         </div>
       </.dialog_sheet>
     </Layouts.app>
+    """
+  end
+
+  @colour_names ~w(gold teal violet coral lime rose sky slate)
+
+  # Your seat's colour picker on the configure screen: the 8 palette colours, one tap
+  # sets yours; colours other seats have are struck through and cannot be picked.
+  attr :colours, :map, required: true
+  attr :seat, :integer, required: true
+
+  defp colour_picker(assigns) do
+    assigns =
+      assign(assigns,
+        mine: assigns.colours[assigns.seat],
+        taken: assigns.colours |> Map.delete(assigns.seat) |> Map.values(),
+        swatches: Enum.with_index(@colour_names, &{&2, &1})
+      )
+
+    ~H"""
+    <div
+      class="flex w-full gap-1.5 pt-0.5 pb-2"
+      role="group"
+      aria-label="Your colour"
+      data-role="colour-picker"
+    >
+      <button
+        :for={{colour, label} <- @swatches}
+        type="button"
+        phx-click="colour"
+        phx-value-colour={colour}
+        disabled={colour in @taken}
+        aria-label={if colour in @taken, do: "#{label} (taken)", else: label}
+        aria-pressed={to_string(colour == @mine)}
+        data-colour={colour}
+        class={[
+          "relative size-8 shrink-0 cursor-pointer overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
+          palette_bg(colour),
+          colour == @mine && "ring-2 ring-ink ring-offset-2 ring-offset-parchment-light"
+        ]}
+      >
+        <span
+          :if={colour in @taken}
+          class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 -rotate-45 bg-ink"
+          aria-hidden="true"
+        />
+      </button>
+    </div>
     """
   end
 

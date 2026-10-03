@@ -27,30 +27,51 @@ defmodule QuacksWeb.GameComponents do
   # The witch penny colours, as background classes.
   @pennies %{silver: "bg-penny-silver", copper: "bg-penny-copper", gold: "bg-penny-gold"}
 
-  # Seat colours (theme tokens `--color-seat-N`), as full class names so Tailwind
-  # finds them in the source.
+  # Seat colours (theme tokens `--color-player-N`, see `seat_style/1`), as full class
+  # names so Tailwind finds them in the source.
   @seat_bg %{
-    0 => "bg-seat-0",
-    1 => "bg-seat-1",
-    2 => "bg-seat-2",
-    3 => "bg-seat-3",
-    4 => "bg-seat-4"
+    0 => "bg-player-0",
+    1 => "bg-player-1",
+    2 => "bg-player-2",
+    3 => "bg-player-3",
+    4 => "bg-player-4",
+    5 => "bg-player-5",
+    6 => "bg-player-6",
+    7 => "bg-player-7"
   }
   @seat_border %{
-    0 => "border-seat-0",
-    1 => "border-seat-1",
-    2 => "border-seat-2",
-    3 => "border-seat-3",
-    4 => "border-seat-4"
+    0 => "border-player-0",
+    1 => "border-player-1",
+    2 => "border-player-2",
+    3 => "border-player-3",
+    4 => "border-player-4",
+    5 => "border-player-5",
+    6 => "border-player-6",
+    7 => "border-player-7"
   }
 
   # Your own chip in the players row: a ring and a wash in your seat colour.
   @seat_you %{
-    0 => "ring-seat-0 bg-seat-0/20",
-    1 => "ring-seat-1 bg-seat-1/20",
-    2 => "ring-seat-2 bg-seat-2/20",
-    3 => "ring-seat-3 bg-seat-3/20",
-    4 => "ring-seat-4 bg-seat-4/20"
+    0 => "ring-player-0 bg-player-0/20",
+    1 => "ring-player-1 bg-player-1/20",
+    2 => "ring-player-2 bg-player-2/20",
+    3 => "ring-player-3 bg-player-3/20",
+    4 => "ring-player-4 bg-player-4/20",
+    5 => "ring-player-5 bg-player-5/20",
+    6 => "ring-player-6 bg-player-6/20",
+    7 => "ring-player-7 bg-player-7/20"
+  }
+
+  # The palette itself (`--color-seat-N`), for the colour picker.
+  @palette_bg %{
+    0 => "bg-seat-0",
+    1 => "bg-seat-1",
+    2 => "bg-seat-2",
+    3 => "bg-seat-3",
+    4 => "bg-seat-4",
+    5 => "bg-seat-5",
+    6 => "bg-seat-6",
+    7 => "bg-seat-7"
   }
 
   # Chips with a light face get dark ink for their value (contrast >= 4.5:1).
@@ -379,9 +400,25 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  @doc ~s{The CSS colour of a seat, e.g. "var(--color-seat-1)", for SVG fills.}
+  @doc ~s{The CSS colour of a seat, e.g. "var(--color-player-1)", for SVG fills.}
   @spec seat_colour(Game.seat()) :: String.t()
-  def seat_colour(seat), do: "var(--color-seat-#{seat})"
+  def seat_colour(seat), do: "var(--color-player-#{seat})"
+
+  @doc """
+  The inline style that gives each seat its chosen colour: `colours` is
+  `%{seat => 0..7}` (`GameServer` table), e.g. `%{0 => 5}` gives
+  `"--color-player-0: var(--color-seat-5);"`. Put it on an element around the page.
+  """
+  @spec seat_style(%{Game.seat() => 0..7}) :: String.t()
+  def seat_style(colours),
+    do:
+      Enum.map_join(colours, " ", fn {seat, c} ->
+        "--color-player-#{seat}: var(--color-seat-#{c});"
+      end)
+
+  @doc "The background class of palette colour `colour` (0..7), e.g. `\"bg-seat-5\"`."
+  @spec palette_bg(0..7) :: String.t()
+  def palette_bg(colour), do: @palette_bg[colour]
 
   @doc "A small dot in the seat's colour, before a player's name."
   attr :seat, :integer, required: true
@@ -1169,11 +1206,11 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  @doc "The border class of a seat's colour, e.g. `\"border-seat-1\"`."
+  @doc "The border class of a seat's colour, e.g. `\"border-player-1\"`."
   @spec seat_border(Game.seat()) :: String.t()
   def seat_border(seat), do: @seat_border[seat]
 
-  @doc "The background class of a seat's colour, e.g. `\"bg-seat-1\"`."
+  @doc "The background class of a seat's colour, e.g. `\"bg-player-1\"`."
   @spec seat_bg(Game.seat()) :: String.t()
   def seat_bg(seat), do: @seat_bg[seat]
 

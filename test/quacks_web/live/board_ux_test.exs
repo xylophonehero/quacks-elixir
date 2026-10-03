@@ -25,8 +25,8 @@ defmodule QuacksWeb.BoardUxTest do
     _bob = open(browser("bob"), id)
     {:ok, _} = GameServer.begin(id, "alice")
 
-    assert has_element?(alice, ~s(article.border-seat-1[data-seat="1"]))
-    assert has_element?(alice, ~s([data-role=player-chip][data-seat="1"] .bg-seat-1))
+    assert has_element?(alice, ~s(article.border-player-1[data-seat="1"]))
+    assert has_element?(alice, ~s([data-role=player-chip][data-seat="1"] .bg-player-1))
     # Alice's big pot rings both scoring spaces, each in its seat's colour
     html = render(alice)
 
@@ -36,7 +36,7 @@ defmodule QuacksWeb.BoardUxTest do
         |> query(~s(div.relative svg [data-role=scoring-ring][data-seat="#{seat}"]))
         |> LazyHTML.attribute("stroke")
 
-      assert stroke == "var(--color-seat-#{seat})"
+      assert stroke == "var(--color-player-#{seat})"
     end
   end
 

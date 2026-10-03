@@ -66,7 +66,7 @@ defmodule QuacksWeb.UiRound4Test do
 
     render_hook(host, "load_config", saved)
     {:ok, table} = GameServer.get(id)
-    assert table.max_players == 4
+    assert table.max_players == 8
     assert %{green: 3, black: 5, blue: 1} = table.sets
     assert %{rats: false, explode_above: 7} = table.rules
     refute has_element?(host, "#config-memory[data-fresh]")
@@ -80,7 +80,7 @@ defmodule QuacksWeb.UiRound4Test do
     host |> form("#books", sets: %{green: "2"}) |> render_change()
 
     assert_push_event(host, "save_config", %{
-      players: 4,
+      players: 8,
       sets: %{green: "2", black: "5"},
       rules: %{rats: "false"},
       expansion: false

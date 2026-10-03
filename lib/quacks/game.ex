@@ -1,6 +1,6 @@
 defmodule Quacks.Game do
   @moduledoc """
-  Pure Quacks engine for 1 to 4 players (5 with The Herb Witches): one struct, one reducer.
+  Pure Quacks engine for 1 to 8 players: one struct, one reducer.
 
   A 9-round game (see `docs/research/rulebook.md` §2, §3, §3.2, §4, §7) with the pot
   track, bags, draw/stop, explosion, flask, rats, bonus die, rubies, the Ingredient
@@ -253,7 +253,8 @@ defmodule Quacks.Game do
 
   @doc """
   A fresh game. `seed:` is a `{int, int, int}` tuple for `:rand.seed_s(:exsss, seed)`;
-  `players:` is 1 (default) to 4. Every starting bag comes out of the shared supply.
+  `players:` is 1 (default) to 8. Every starting bag comes out of the shared supply
+  (a limited supply stops at 0: with 5+ players the white 2s and 3s run dry).
   `sets:` picks the Ingredient Set (1..6) per colour, e.g. `%{blue: 3}`; colours left
   out use Set 1. `black:` is 1 (the base book), 5 or 6, `orange: 2` adds the orange
   6-chip and `locoweed: 5 | 6` adds locoweed, in every game (see
@@ -261,14 +262,14 @@ defmodule Quacks.Game do
   `%{explode_above: 9}`; rules left out keep their default. With `fortune: true`
   (default) round 1's card is turned up here. `fortune: false` is an old alias for
   `rules: %{fortune: false}`. `expansion: :herb_witches` turns The Herb Witches on:
-  `players:` 1 to 5, orange Set 2 and locoweed Set 5 by default, the expansion chips
+  orange Set 2 and locoweed Set 5 by default, the expansion chips
   in the supply and the shop, 3 witches (`witches`, dealt from the seed) and 3 witch
   pennies per player.
   An unknown colour, set, rule or expansion raises `ArgumentError`.
   """
   @spec new(
           seed: {integer, integer, integer},
-          players: 1..5,
+          players: 1..8,
           sets: %{atom => 1..6},
           rules: map,
           fortune: boolean,
@@ -282,8 +283,7 @@ defmodule Quacks.Game do
       do: raise(ArgumentError, "unknown expansion #{inspect(expansion)}")
 
     n = Keyword.get(opts, :players, 1)
-    max = if expansion, do: 5, else: 4
-    if n not in 1..max, do: raise(ArgumentError, "players must be 1..#{max}, got #{inspect(n)}")
+    if n not in 1..8, do: raise(ArgumentError, "players must be 1..8, got #{inspect(n)}")
     sets = sets!(Keyword.get(opts, :sets, %{}), expansion)
     # `fortune:` is the old top-level option; `rules:` wins when both are given.
     alias_rules = Map.new(Keyword.take(opts, [:fortune]))
@@ -298,7 +298,7 @@ defmodule Quacks.Game do
 
     supply =
       if rules.supply == :limited,
-        do: Enum.reduce(starting, box, &Map.update!(&2, &1, fn c -> c - 1 end)),
+        do: Enum.reduce(starting, box, &Map.update!(&2, &1, fn c -> max(c - 1, 0) end)),
         else: box
 
     rng = :rand.seed_s(:exsss, seed)

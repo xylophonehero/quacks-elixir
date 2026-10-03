@@ -18,10 +18,9 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {id, view}
   end
 
-  test "the host's toggle offers Sets 5–6 and 5 players", %{conn: conn} do
+  test "the host's toggle offers Sets 5–6", %{conn: conn} do
     {:ok, id} = GameServer.start(4)
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
-    assert has_element?(view, "button[aria-label='More players'][disabled]")
     refute has_element?(view, "select[name='sets[green]'] option[value='6']")
 
     view |> form("#books", expansion: "true") |> render_change()

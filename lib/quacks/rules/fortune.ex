@@ -95,7 +95,7 @@ defmodule Quacks.Rules.Fortune do
   end
 
   @doc "The card ids in a deck for `players` players: solo leaves out four cards."
-  @spec ids(1..4) :: [id]
+  @spec ids(1..8) :: [id]
   def ids(1), do: @ids -- @not_solo
   def ids(_players), do: @ids
 end

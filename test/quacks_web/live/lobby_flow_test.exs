@@ -30,7 +30,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     alice = open(browser("alice"), id)
 
     assert has_element?(alice, "[data-role=waiting-for-players]", "1 of 3 seated")
-    assert has_element?(alice, ~s([data-role=seat-slot][data-seat="0"]), "Seat 1")
+    assert has_element?(alice, ~s([data-seat="0"] input#seat-name[placeholder="Player 1"]))
     assert has_element?(alice, ~s([data-role=seat-slot][data-seat="0"]), "you")
     assert has_element?(alice, ~s([data-role=seat-slot][data-seat="1"]), "empty")
     assert has_element?(alice, ~s([data-role=seat-slot][data-seat="2"]), "empty")
@@ -38,9 +38,9 @@ defmodule QuacksWeb.LobbyFlowTest do
 
     bob = open(browser("bob"), id)
     # bob's arrival reaches alice's page
-    assert has_element?(alice, ~s([data-role=seat-slot][data-seat="1"]), "Seat 2")
+    assert has_element?(alice, ~s([data-role=seat-slot][data-seat="1"]), "Player 2")
     refute has_element?(bob, "button", "Start game")
-    assert has_element?(bob, "[data-role=waiting-for-host]", "Waiting for Seat 1 to start")
+    assert has_element?(bob, "[data-role=waiting-for-host]", "Waiting for Player 1 to start")
 
     # a name set in the waiting room carries into the game
     bob |> element("input[aria-label='Your name']") |> render_blur(%{"value" => "Bob"})
@@ -65,7 +65,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     assert has_element?(bob, ~s([data-role=seat-slot][data-seat="0"]), "empty")
     assert has_element?(bob, "[data-role=waiting-for-players]", "1 of 2 seated")
     bob |> element("button", "Start game") |> render_click()
-    assert {:ok, %{status: :playing, players: 1, names: %{0 => "Seat 1"}}} = GameServer.get(id)
+    assert {:ok, %{status: :playing, players: 1, names: %{0 => "Player 1"}}} = GameServer.get(id)
   end
 
   test "a stopped player sees Resume and who still brews" do
@@ -74,7 +74,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     alice |> element("button[data-slot=stop]", "Stop") |> render_click()
     assert has_element?(alice, "button[data-slot=stop]:not([disabled])", "Resume")
     assert has_element?(alice, "button[data-slot=draw][disabled]")
-    assert has_element?(alice, "[data-role=turn]", "Waiting for 1 player: Seat 2.")
+    assert has_element?(alice, "[data-role=turn]", "Waiting for 1 player: Player 2.")
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=player-state]), "stopped")
     assert has_element?(bob, "[data-role=turn]", "Everyone brews at the same time.")
 
@@ -101,7 +101,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     bob |> element("[data-role=shop-done]") |> render_click()
     assert has_element?(alice, "dialog#decision-shop")
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "ready")
-    assert has_element?(bob, "[data-role=turn]", "Waiting for 1 player: Seat 1.")
+    assert has_element?(bob, "[data-role=turn]", "Waiting for 1 player: Player 1.")
   end
 
   test "the host's chip supply option" do

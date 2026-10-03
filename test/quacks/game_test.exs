@@ -284,7 +284,7 @@ defmodule Quacks.GameTest do
       assert g.seats == [0, 1, 2]
       assert Enum.all?(g.players, fn {_seat, p} -> length(p.bag) == 9 end)
       assert g.supply[{:white, 1}] == 20 - 3 * 4
-      assert_raise ArgumentError, fn -> Game.new(seed: @seed, players: 5) end
+      assert_raise ArgumentError, fn -> Game.new(seed: @seed, players: 9) end
     end
 
     test "players draw and stop in any order; the evaluation runs once the last is done" do
