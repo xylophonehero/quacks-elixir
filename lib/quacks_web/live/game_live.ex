@@ -1664,6 +1664,7 @@ defmodule QuacksWeb.GameLive do
   end
 
   defp put_game(socket, game) do
+    socket = mark_round_change(socket, game)
     seat = socket.assigns.seat
     me = if seat, do: game.players[seat]
     actions = if seat && not Game.over?(game), do: Game.legal_actions(game, seat), else: []
@@ -1681,6 +1682,15 @@ defmodule QuacksWeb.GameLive do
       essence_pick: essence_pick(me, socket.assigns[:essence_pick])
     )
   end
+
+  # The patch that moves on to a new round runs as a view transition (app.js,
+  # `quacks:vt`; app.css moves only the round counter). The event goes out before
+  # the patch.
+  defp mark_round_change(%{assigns: %{game: %Game{round: old}}} = socket, %Game{round: new})
+       when new > old,
+       do: push_event(socket, "quacks:vt", %{}, dispatch: :before)
+
+  defp mark_round_change(socket, _game), do: socket
 
   # The stepper keeps its space while the essence choice is open; it starts at the reach.
   defp essence_pick(%{essence_pending: {:space, reach}}, pick) when pick in 0..reach//1,

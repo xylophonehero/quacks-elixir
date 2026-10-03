@@ -29,7 +29,7 @@ defmodule QuacksWeb.MotionTest do
 
     view |> element("button", "Draw a chip") |> render_click()
     [first] = ids(render(view), "[data-role=pot-chip]")
-    assert first =~ ~r/^pot-chip-0-\d+$/
+    assert first =~ ~r/^pot-chip-0-\d+-1$/
 
     view |> element("button", "Draw a chip") |> render_click()
     chips = ids(render(view), "[data-role=pot-chip]")
@@ -56,13 +56,13 @@ defmodule QuacksWeb.MotionTest do
     game = put_in(game.players[1].exploded?, true)
 
     html = render_component(&GameComponents.pot/1, game: game, seat: 1, size: :sm)
-    assert ids(html, "[data-role=pot-chip]") == ["pot-chip-1-1-sm", "pot-chip-1-4-sm"]
-    assert has_element_html?(html, "#pot-chip-1-4-sm[data-order='0']")
+    assert ids(html, "[data-role=pot-chip]") == ["pot-chip-1-1-0-sm", "pot-chip-1-4-0-sm"]
+    assert has_element_html?(html, "#pot-chip-1-4-0-sm[data-order='0']")
     assert has_element_html?(html, "#rat-1-sm[data-role=rat-stone]")
     assert has_element_html?(html, "#cracked-rim-1-sm [data-role=puff]")
 
     html = render_component(&GameComponents.pot/1, game: game, seat: 1)
-    assert ids(html, "[data-role=pot-chip]") == ["pot-chip-1-1", "pot-chip-1-4"]
+    assert ids(html, "[data-role=pot-chip]") == ["pot-chip-1-1-0", "pot-chip-1-4-0"]
   end
 
   test "the new card of the round turns over; the info sheet's card does not" do

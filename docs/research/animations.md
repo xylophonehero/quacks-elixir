@@ -317,6 +317,40 @@ capped at 45dvh so the upper pot stays in sight; on large screens it sits at the
    `::view-transition-group(*) { animation-duration: 300ms; animation-timing-function: var(--ease-in-out) }`.
 5. Round transition (§2.2) with `phx-remove` on pot chips.
 
+**B3 as built (2026-10-04).** One external hook, `PotMotion` in `assets/js/app.js`
+(about 95 lines, WAAPI only, no `phx-update="ignore"` on the pot), on the large pot
+`<svg phx-hook="PotMotion" data-round>`. `beforeUpdate` finishes its running
+animations and records the chips, the rat index, the flask and the round; `updated`
+compares. A new chip (1–2 per patch) flies from the bag button's centre (converted
+with `getScreenCTM().inverse()`) to the previous chip's space (or the rat stone, or
+the droplet), hops through at most 3 sampled spaces (`data-x`/`data-y` on each space
+of the large pot) and lands with a `--ease-spring` pop: 240 ms + 80 ms per hop + 160
+ms, at most 720 ms. Its CSS `chip-land` is cancelled first so the pop plays once. A
+single chip that leaves (no new chip) is a ghost: the detached node, re-parented
+into `<g id="pot-fx-N" phx-update="ignore">`, flies to the flask when the flask just
+emptied, else to the bag (mandrake, crow skull), 260 ms. At a new round
+(`data-round` changed) the old chips fade as ghosts, 180 ms, 20 ms stagger newest
+first. The rat stone hops from the droplet to its space, one 14-unit arc per counted
+space (at most 5), 120 ms each; its CSS `translate` transition is cancelled first.
+Reduced motion: no flight, ghost or hop; the CSS fade (chips) and ghost fades stay.
+**Chip ids** now carry the placement count of that space this game
+(`pot-chip-0-5-2`, from the log's `{:drew, chip, 5}` events), so a chip on a space a
+returned chip left is a new node and lands again (the B1 gap); `data-index` too.
+**View transitions**: only the round counter (`.round-counter`,
+`view-transition-name: round-counter`). `put_game/2` pushes `quacks:vt` with
+`dispatch: :before` when the round goes up; `dom.onDocumentPatch` wraps that one
+patch in `document.startViewTransition` (feature-detected, skipped under reduced
+motion). The root snapshot does not animate, the group does not slide (the phase
+pill beside it changes width), the old number rolls up and out (200 ms), the new one
+in (300 ms), `--ease-out`; `::view-transition { pointer-events: none }`. Patches that
+arrive while the transition waits for its snapshot queue behind it (a promise chain),
+so LiveView diffs stay in order. **Not done**: the essence marker keeps its B1 CSS
+`translate` transition; a view transition there would double the motion and block
+taps for nothing. Found while testing: at a round change the page sometimes shows
+round N+1, then N, then N+1 within ~20 ms (an older broadcast arrives after the
+LiveView's own reply; `handle_info({:game, …})` only skips an identical copy). Only
+round increases mark a transition, and the queue keeps it to one.
+
 Data attributes added overall: `id` on pot chips / droplet / rat stone, `data-order`,
 `data-x`/`data-y` on spaces, `data-beat` + `--beat`, `data-face`, `data-motion` (root),
 `view-transition-name` only on the essence marker and the round counter.

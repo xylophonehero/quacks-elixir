@@ -39,11 +39,132 @@ const ConfigMemory = {
   }
 }
 
+// The large pot's motion (docs/research/animations.md §3 B3). Every patch already
+// shows the final pot; this only plays WAAPI `transform`/`opacity` on top, so it
+// never holds up a tap. A new chip flies out of the bag, hops along the spiral and
+// lands with a pop; a chip that leaves flies as a ghost to the flask (or the bag);
+// the rat stone hops; at a new round the old chips fade. Reduced motion: fades only.
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
+const easing = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+const at = (p, o, s = 1) => `translate(${p.x - o.x}px, ${p.y - o.y}px) scale(${s})`
+// At most `n` of the spaces strictly between `from` and `to`, evenly spread.
+const between = (from, to, n) => {
+  const gap = Math.abs(to - from) - 1, dir = Math.sign(to - from), k = Math.min(n, gap)
+  return Array.from({length: k}, (_, i) => from + dir * Math.round(((i + 1) * (gap + 1)) / (k + 1)))
+}
+
+const PotMotion = {
+  mounted() { this.anims = new Set(); this.snapshot() },
+  beforeUpdate() { this.anims.forEach(a => a.finish()); this.snapshot() },
+  updated() {
+    const chips = [...this.el.querySelectorAll("[data-role=pot-chip]")]
+    const added = chips.filter(c => !this.chips.has(c.id))
+    const gone = [...this.chips.values()].filter(c => !c.isConnected)
+    const flask = this.full && !this.el.querySelector("[data-role=flask-brew]")
+    const rat = this.el.querySelector("[data-role=rat-stone]")
+    if (this.el.dataset.round !== this.round)
+      gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, null, i * 20))
+    else if (gone.length === 1 && added.length === 0)
+      this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
+    else if (added.length <= 2) added.forEach(c => this.fly(c, chips))
+    if (rat && rat.dataset.index !== this.rat) this.hop(rat, this.droplet())
+    this.snapshot()
+  },
+  snapshot() {
+    this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
+    this.rat = this.el.querySelector("[data-role=rat-stone]")?.dataset.index
+    this.full = !!this.el.querySelector("[data-role=flask-brew]")
+    this.round = this.el.dataset.round
+  },
+  play(el, frames, opts) {
+    const a = el.animate(frames, opts)
+    this.anims.add(a)
+    a.finished.catch(() => {}).finally(() => this.anims.delete(a))
+    return a
+  },
+  pos(i) { const g = this.el.querySelector(`[data-space="${i}"]`).dataset; return {x: +g.x, y: +g.y} },
+  droplet() { return this.el.querySelector("[data-role=droplet]").dataset.index },
+  bag() { return document.querySelector("[data-role=bag-button]") },
+  // An element's centre in the pot's SVG units; the lower right corner without one.
+  centre(el) {
+    const r = el?.getBoundingClientRect()
+    if (!r?.width) return {x: 230, y: 230}
+    return new DOMPoint(r.x + r.width / 2, r.y + r.height / 2).matrixTransform(this.el.getScreenCTM().inverse())
+  },
+  fly(chip, chips) {
+    if (reduced()) return
+    const to = +chip.dataset.index, end = this.pos(to)
+    const lower = chips.map(c => +c.dataset.index).filter(i => i < to)
+    const start = this.el.querySelector("[data-role=rat-stone]")?.dataset.index ?? this.droplet()
+    const from = lower.length ? Math.max(...lower) : +start
+    const pts = [this.centre(this.bag()), this.pos(from), ...between(from, to, 3).map(i => this.pos(i)), end]
+    const segs = pts.slice(1).map((_, i) => (i === 0 ? 240 : 80)), total = segs.reduce((a, b) => a + b) + 160
+    let t = 0
+    const frames = pts.map((p, i) => {
+      const f = {transform: at(p, end, i === 0 ? 0.9 : 1), opacity: i === 0 ? 0 : 1, offset: t / total,
+        easing: i === 0 ? easing("--ease-out") : easing("--ease-in-out")}
+      t += segs[i] ?? 0
+      return f
+    })
+    Object.assign(frames.at(-1), {transform: at(end, end, 1.08), easing: easing("--ease-spring")})
+    chip.getAnimations().forEach(a => a.cancel())
+    this.play(chip, [...frames, {transform: at(end, end), opacity: 1, offset: 1}], {duration: total})
+  },
+  // A chip that left, put back where it was (out of LiveView's way) to fly to
+  // `target`, or, without one, to fade out after `delay` ms.
+  ghost(el, target, delay = 0) {
+    const fx = this.el.querySelector("[data-role=pot-fx]"), p = this.pos(el.dataset.index)
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g")
+    g.setAttribute("transform", `translate(${p.x} ${p.y})`)
+    el.removeAttribute("id")
+    g.append(el)
+    fx.append(g)
+    el.getAnimations().forEach(a => a.cancel())
+    const fade = reduced() || !target
+    const frames = fade
+      ? [{opacity: 1}, {opacity: 0}]
+      : [{transform: at(p, p), opacity: 1}, {transform: at(target, p, 0.6), opacity: 1, offset: 0.75},
+         {transform: at(target, p, 0.5), opacity: 0}]
+    this.play(el, frames, {duration: fade ? 180 : 260, delay, fill: "backwards", easing: easing("--ease-out")})
+      .finished.catch(() => {}).finally(() => g.remove())
+  },
+  // From the droplet, one small arc per space counted (at most 5 shown).
+  hop(rat, from) {
+    if (reduced()) return
+    const to = +rat.dataset.index, end = this.pos(to), up = easing("--ease-out")
+    const pts = [this.pos(from), ...between(+from, to, 4).map(i => this.pos(i)), end]
+    const frames = pts.flatMap((p, i) => {
+      if (i === 0) return [{transform: at(p, end), easing: up}]
+      const q = pts[i - 1], mid = {x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 - 14}
+      return [{transform: at(mid, end), easing: easing("--ease-in-out")}, {transform: at(p, end), easing: up}]
+    })
+    rat.getAnimations().forEach(a => a.cancel())
+    this.play(rat, frames, {duration: 120 * (pts.length - 1)})
+  },
+}
+
+let vtNext = false, vtQueue = null
+window.addEventListener("phx:quacks:vt", () => { vtNext = true })
+const queue = p => { vtQueue = p; p.then(() => { if (vtQueue === p) vtQueue = null }) }
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ConfigMemory},
+  hooks: {...colocatedHooks, ConfigMemory, PotMotion},
+  // Opt-in view transitions (animations.md §1.4): the server marks the one patch
+  // that changes the round (`quacks:vt`, dispatched before it); every other patch,
+  // bots' included, goes straight in, except while a transition's patch waits for
+  // its snapshot: then patches queue behind it, so they stay in order.
+  dom: {
+    onDocumentPatch(start) {
+      const go = vtNext && document.startViewTransition && !reduced()
+      vtNext = false
+      if (vtQueue) return queue(vtQueue.then(start).catch(console.error))
+      if (go) return queue(document.startViewTransition(start).updateCallbackDone.catch(console.error))
+      start()
+    },
+  },
 })
 
 // Show progress bar on live navigation and form submits

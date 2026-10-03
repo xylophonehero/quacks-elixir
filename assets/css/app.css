@@ -741,6 +741,57 @@ html:has([data-layout="full"]) {
   display: none;
 }
 
+/* Motion, batch 3 (animations.md §3 B3). The chip flight, the ghost of a returned
+   chip and the rat hop are WAAPI in app.js (`PotMotion`); the ghosts live in
+   `pot-fx`, which LiveView leaves alone. */
+[data-role="pot-fx"] {
+  pointer-events: none;
+}
+
+/* The one opt-in view transition (app.js, `quacks:vt`): at a new round the round
+   counter rolls up to the next number. The rest of the page swaps at once, and the
+   overlay lets taps through. */
+.round-counter {
+  view-transition-name: round-counter;
+}
+
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* The counter does not slide when the phase pill beside it changes width: it rolls
+   in place, at its new spot, as the rest of the header does. */
+::view-transition-group(round-counter) {
+  animation: none;
+}
+
+::view-transition-old(round-counter) {
+  animation: round-out 200ms var(--ease-out) both;
+}
+
+::view-transition-new(round-counter) {
+  animation: round-in 300ms var(--ease-out) both;
+}
+
+@keyframes round-out {
+  to {
+    opacity: 0;
+    translate: 0 -60%;
+  }
+}
+
+@keyframes round-in {
+  from {
+    opacity: 0;
+    translate: 0 60%;
+  }
+}
+
 /* Reduced motion: fewer and gentler. Keep opacity and colour, drop translate, scale,
    rotation and shake. */
 @keyframes flash {

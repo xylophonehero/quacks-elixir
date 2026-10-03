@@ -86,12 +86,20 @@ defmodule QuacksWeb.ReplayTest do
     beats = game |> Replay.beats(0) |> Replay.highlights()
     html = render_component(&GameComponents.pot/1, game: game, beats: beats)
 
-    assert has?(html, ~s(#pot-chip-0-12 [data-role=beat-ring][data-beat="3"][style="--beat: 3"]))
-    assert has?(html, ~s(#pot-chip-0-3 [data-role=beat-ring][data-beat="4"]))
+    assert has?(
+             html,
+             ~s([data-role=pot-chip][data-index='12'] [data-role=beat-ring][data-beat="3"][style="--beat: 3"])
+           )
+
+    assert has?(
+             html,
+             ~s([data-role=pot-chip][data-index='3'] [data-role=beat-ring][data-beat="4"])
+           )
+
     assert has?(html, ~s(#droplet-0-lg [data-role=beat-ring][data-beat="1"]))
     ring = Game.scoring_index(game, 0)
     assert has?(html, ~s([data-space="#{ring}"] [data-role=beat-ring][data-beat="5"]))
-    refute has?(html, "#pot-chip-0-5 [data-role=beat-ring]")
+    refute has?(html, "[data-role=pot-chip][data-index='5'] [data-role=beat-ring]")
 
     html = render_component(&GameComponents.pot/1, game: game)
     refute has?(html, "[data-role=beat-ring]")

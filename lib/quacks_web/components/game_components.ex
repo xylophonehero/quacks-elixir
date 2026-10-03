@@ -241,6 +241,8 @@ defmodule QuacksWeb.GameComponents do
       assign(assigns,
         me: player,
         chips_by_index: chips_by_index(player),
+        placed: placements(assigns.game.log, assigns.seat),
+        positions: @positions,
         rings_by_index: rings |> Enum.sort() |> Enum.group_by(&elem(&1, 1), &elem(&1, 0)),
         rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
         ring_index: Game.scoring_index(assigns.game, assigns.seat),
@@ -257,6 +259,8 @@ defmodule QuacksWeb.GameComponents do
       role="group"
       aria-label="Pot track"
       data-exploded={to_string(@me.exploded?)}
+      phx-hook={@size == :lg && "PotMotion"}
+      data-round={@size == :lg && @game.round}
     >
       <defs>
         <radialGradient id={"brew-#{@seat}-#{@size}"}>
@@ -308,7 +312,13 @@ defmodule QuacksWeb.GameComponents do
         stroke-linecap="round"
         stroke-linejoin="round"
       />
-      <g :for={index <- @spaces} data-space={index} transform={translate(index)}>
+      <g
+        :for={index <- @spaces}
+        data-space={index}
+        data-x={@size == :lg && elem(elem(@positions, index), 0)}
+        data-y={@size == :lg && elem(elem(@positions, index), 1)}
+        transform={translate(index)}
+      >
         <title :if={@size == :lg}>{space_title(index)}</title>
         <circle
           r="22"
@@ -375,6 +385,7 @@ defmodule QuacksWeb.GameComponents do
           order={elem(@chips_by_index[index], 1)}
           seat={@seat}
           index={index}
+          placed={Map.get(@placed, index, 0)}
           size={@size}
           beat={@beats[index]}
         />
@@ -442,6 +453,8 @@ defmodule QuacksWeb.GameComponents do
         click={@flask_click}
         uid={"#{@seat}-#{@size}"}
       />
+      <%!-- The chip flight's ghosts (app.js `PotMotion`) live here, out of LiveView's way. --%>
+      <g :if={@size == :lg} id={"pot-fx-#{@seat}"} phx-update="ignore" data-role="pot-fx" />
     </svg>
     """
   end
@@ -697,6 +710,7 @@ defmodule QuacksWeb.GameComponents do
   attr :order, :integer, required: true, doc: "position in `player.drawn` (0 = newest)"
   attr :seat, :integer, required: true
   attr :index, :integer, required: true, doc: "the space the chip sits on"
+  attr :placed, :integer, required: true, doc: "how many chips were placed on this space"
   attr :size, :atom, required: true
   attr :beat, :integer, default: nil, doc: "the replay beat this chip lights up on"
 
@@ -709,9 +723,10 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <g
-      id={pot_chip_id(@seat, @index, @size)}
+      id={pot_chip_id(@seat, @index, @placed, @size)}
       data-role="pot-chip"
       data-order={@order}
+      data-index={@index}
       aria-label={"#{@colour} #{@value}"}
     >
       <circle
@@ -801,10 +816,20 @@ defmodule QuacksWeb.GameComponents do
     "translate: #{x}px #{y}px"
   end
 
-  # Fixed per seat and space, so LiveView patches the same node and a new chip is a
-  # new node (its landing keyframe plays once). Your own pot: `pot-chip-0-5`.
-  defp pot_chip_id(seat, index, :lg), do: "pot-chip-#{seat}-#{index}"
-  defp pot_chip_id(seat, index, size), do: "pot-chip-#{seat}-#{index}-#{size}"
+  # Fixed per seat, space and placement, so LiveView patches the same node and a new
+  # chip is a new node (its landing plays once), also on a space a returned chip
+  # left. Your own pot, the first chip on space 5: `pot-chip-0-5-1`.
+  defp pot_chip_id(seat, index, placed, :lg), do: "pot-chip-#{seat}-#{index}-#{placed}"
+  defp pot_chip_id(seat, index, placed, size), do: "pot-chip-#{seat}-#{index}-#{placed}-#{size}"
+
+  # `%{index => n}`: how many chips `seat` placed on each space this game (the log's
+  # `{:drew, chip, index}` events).
+  defp placements(log, seat) do
+    Enum.reduce(log, %{}, fn
+      {^seat, {:drew, _chip, index}}, acc -> Map.update(acc, index, 1, &(&1 + 1))
+      _entry, acc -> acc
+    end)
+  end
 
   defp space_title(index) do
     space = PotTrack.at(index)
@@ -991,7 +1016,9 @@ defmodule QuacksWeb.GameComponents do
     <dl class="flex items-center gap-2 text-sm">
       <div class="flex items-baseline gap-1">
         <dt class="text-parchment-dim">Round</dt>
-        <dd class="font-semibold tabular-nums">{@game.round} / 9</dd>
+        <dd class="round-counter font-semibold tabular-nums" data-role="round-counter">
+          {@game.round} / 9
+        </dd>
       </div>
       <div>
         <dt class="sr-only">Phase</dt>
