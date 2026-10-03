@@ -52,8 +52,8 @@ defmodule QuacksWeb.IconsTest do
 
   test "every bonus die face draws" do
     for face <- [{:vp, 1}, {:vp, 2}, :ruby, :droplet, :orange] do
-      html = render_component(&GameComponents.die_face/1, face: face)
-      assert Enum.count(query(html, "svg[data-role=die-face]")) == 1
+      html = render_component(&GameComponents.die/1, face: face)
+      assert Enum.count(query(html, "[data-role=die] .die-strip > g")) == 7
     end
   end
 
