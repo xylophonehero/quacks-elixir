@@ -184,7 +184,7 @@ defmodule Quacks.Game.Fortune do
   @spec on_stop(Game.t(), Game.seat()) :: Game.t()
   def on_stop(%{fortune_card: :b1} = g, seat) do
     if Game.white_sum(g, seat) == 7,
-      do: g |> Game.update_player(seat, &%{&1 | droplet: &1.droplet + 1}) |> log(seat, :droplet),
+      do: g |> Game.move_droplet(seat, 1) |> log(seat, :droplet),
       else: g
   end
 
@@ -226,7 +226,7 @@ defmodule Quacks.Game.Fortune do
 
   # -- purple: the automatic part ------------------------------------------------------
 
-  defp auto(g, :p2), do: each(g, &(&1 |> move_droplet(&2, 1) |> log(&2, :droplet)))
+  defp auto(g, :p2), do: each(g, &(&1 |> Game.move_droplet(&2, 1) |> log(&2, :droplet)))
 
   defp auto(g, :p4) do
     fewest = g |> fewest(& &1.rubies)
@@ -380,7 +380,7 @@ defmodule Quacks.Game.Fortune do
   defp choose(g, seat, :p9, {:rats_back, n}),
     do: g |> move_rats(seat, -n) |> add_rubies(seat, n) |> log(seat, {:rats_back, n})
 
-  defp choose(g, seat, :p11, :droplet), do: g |> move_droplet(seat, 2) |> log(seat, :droplet)
+  defp choose(g, seat, :p11, :droplet), do: g |> Game.move_droplet(seat, 2) |> log(seat, :droplet)
   defp choose(g, seat, :p13, :skip), do: g |> return_offer(seat) |> log(seat, :skip)
   defp choose(g, seat, _id, :skip), do: log(g, seat, :skip)
 
@@ -439,7 +439,7 @@ defmodule Quacks.Game.Fortune do
         |> log(seat, {:take, chip})
         |> Game.take_supply(chip)
         |> Game.give_black(seat)
-        |> move_droplet(seat, 1),
+        |> Game.move_droplet(seat, 1),
       else: g
   end
 
@@ -462,10 +462,6 @@ defmodule Quacks.Game.Fortune do
     leader = g.players |> Map.values() |> Enum.map(& &1.vp) |> Enum.max()
     ScoringTrack.rat_tails(Game.player(g, seat).vp, leader)
   end
-
-  # Before the first draw the pot starts at droplet + rat stone; keep it in step.
-  defp move_droplet(g, seat, n),
-    do: Game.update_player(g, seat, &restart(%{&1 | droplet: &1.droplet + n}))
 
   defp move_rats(g, seat, n),
     do: Game.update_player(g, seat, &restart(%{&1 | rat_stone: &1.rat_stone + n}))

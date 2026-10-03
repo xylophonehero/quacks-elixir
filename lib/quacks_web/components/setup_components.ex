@@ -35,7 +35,8 @@ defmodule QuacksWeb.SetupComponents do
     black_solo: [:droplet, :droplet_ruby],
     overflow: [true, false],
     die: [:standard, :no_orange],
-    supply: [:infinite, :limited]
+    supply: [:infinite, :limited],
+    pot_side: [:front, :back]
   }
 
   @doc """
@@ -211,6 +212,13 @@ defmodule QuacksWeb.SetupComponents do
           label="Overflow bowl (chips past the last space)"
           value={@rules.overflow}
         />
+        <.input
+          type="checkbox"
+          id="rules-pot_side"
+          name="rules[pot_side]"
+          label="Pot: reverse side (test tubes)"
+          value={@rules.pot_side == :back}
+        />
         <.radios
           name="black_solo"
           legend="Solo black chips"
@@ -315,9 +323,17 @@ defmodule QuacksWeb.SetupComponents do
   @doc """
   The Options form's `%{"explode_above" => "9", "rats" => "false", ...}` as house
   rules. A missing or bad value keeps its default (`Quacks.Game.default_rules/0`).
+  The reverse-side checkbox sends `"pot_side" => "true"` (the saved config `"back"`).
   """
   @spec parse_rules(map) :: Game.rules()
   def parse_rules(params) do
+    params =
+      case params["pot_side"] do
+        "true" -> Map.put(params, "pot_side", "back")
+        "false" -> Map.put(params, "pot_side", "front")
+        _other -> params
+      end
+
     Map.new(@rule_values, fn {key, values} ->
       default = Game.default_rules()[key]
       {key, Enum.find(values, default, &(to_string(&1) == params[to_string(key)]))}

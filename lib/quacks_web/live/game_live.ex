@@ -47,6 +47,10 @@ defmodule QuacksWeb.GameLive do
   right column on large screens) with a button to call one when the engine allows
   it. The overflow bowl shows under the pot once it has chips.
 
+  With the reverse pot side (`pot_side: :back`) the test-tube rack shows under the
+  pot, and each waiting droplet move opens the "Droplet" dialog (pot droplet or
+  test tube). After the evaluation it waits for the round results, like the shop.
+
   Actions travel to the browser as a URL-safe binary (see `encode/1`) so tuples like
   `{:buy, [{:green, 2}]}` survive the round trip without a parser per action shape.
   """
@@ -57,7 +61,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.SetupComponents
 
   alias Quacks.{Game, GameServer, Player}
-  alias Quacks.Rules.{Books, Chips}
+  alias Quacks.Rules.{Books, Chips, TestTubes}
 
   # The shop, one row per colour in the board's step B order; each row runs from
   # the lowest value to the highest. Chips not in the game's shop drop out.
@@ -601,6 +605,11 @@ defmodule QuacksWeb.GameLive do
                 <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
               </div>
             </div>
+            <.test_tubes
+              :if={@game.rules.pot_side == :back}
+              tube={@game.players[@seat || 0].tube}
+              class="mx-auto block h-auto w-full max-w-sm shrink-0 pt-1"
+            />
             <div
               :if={(@me && @me.aside != []) || @game.players[@seat || 0].bowl != []}
               class="flex items-start gap-2 pt-1"
@@ -767,7 +776,7 @@ defmodule QuacksWeb.GameLive do
         :if={@decision && @decision != :fortune_choice}
         id={"decision-#{@decision}"}
         label={phase_name(@decision)}
-        auto_open={not (shop_step?(@decision) and results?(@game) and not @me.bought?)}
+        auto_open={not (after_results?(@decision) and results?(@game) and not @me.bought?)}
       >
         <.shop
           :if={shop_step?(@decision)}
@@ -784,6 +793,15 @@ defmodule QuacksWeb.GameLive do
               game={@game}
               offer={[@me.pending, @me.witch_offer, @all_actions]}
             />
+          </div>
+          <div :if={@decision == :droplet_choice} class="space-y-2" data-role="droplet-choice">
+            <p class="text-sm">
+              Move your pot droplet or your test-tube droplet.
+              <span :if={@me.droplet_moves > 1} class="font-semibold">
+                {@me.droplet_moves} moves to place.
+              </span>
+            </p>
+            <.test_tubes tube={@me.tube} />
           </div>
           <.blue_offer :if={@decision == :blue_choice} pending={@me.pending} />
           <.blue_offer
@@ -820,7 +838,7 @@ defmodule QuacksWeb.GameLive do
         :if={results?(@game)}
         id="round-results"
         label="Round results"
-        then_open={if shop_step?(@decision), do: "decision-#{@decision}"}
+        then_open={if after_results?(@decision), do: "decision-#{@decision}"}
       >
         <.round_results game={@game} names={if @players > 1, do: @names} />
         <form method="dialog" class="mt-3 flex *:min-h-11 *:flex-1">
@@ -828,6 +846,7 @@ defmodule QuacksWeb.GameLive do
             {cond do
               @decision == :shop -> "To the shop"
               @decision == :rubies -> "To the rubies"
+              @decision == :droplet_choice -> "To the droplet"
               true -> "OK"
             end}
           </.button>
@@ -1342,6 +1361,9 @@ defmodule QuacksWeb.GameLive do
 
   defp shop_step?(decision), do: decision in [:shop, :rubies]
 
+  # The decisions that wait while the round results show (they open on "OK").
+  defp after_results?(decision), do: decision in [:shop, :rubies, :droplet_choice]
+
   # The shop dialog has the buys and copper witches in `shop/1`; the rest are buttons.
   defp dialog_actions(actions, :shop),
     do: Enum.reject(actions, &(match?({:buy, _}, &1) or match?({:witch, :copper, _}, &1)))
@@ -1376,14 +1398,22 @@ defmodule QuacksWeb.GameLive do
   defp call_text({:witch, _colour, 1}), do: "Call: the last white back"
   defp call_text({:witch, _colour, n}), do: "Call: the last #{n} whites back"
 
-  # A button label; G4 makes the rubies phase cost 1 ruby.
-  defp action_label({:rubies, :droplet}, _game, %{ruby_price: 1}),
-    do: "Spend 1 ruby: droplet +1"
+  # A button label; G4 makes the rubies phase cost 1 ruby. The reverse pot side
+  # names the droplet ("pot droplet") and the next glass's bonus.
+  defp action_label({:rubies, what}, game, me) when what in [:droplet, :tube, :flask],
+    do:
+      "Spend #{if me.ruby_price == 1, do: "1 ruby", else: "2 rubies"}: #{ruby_use(what, game, me)}"
 
-  defp action_label({:rubies, :flask}, _game, %{ruby_price: 1}),
-    do: "Spend 1 ruby: refill flask"
-
+  defp action_label({:droplet, :tube}, _game, me), do: "Test tube (#{next_glass(me)})"
   defp action_label(action, game, _me), do: label(action, game.fortune_card)
+
+  defp ruby_use(:droplet, %{rules: %{pot_side: :back}}, _me), do: "pot droplet +1"
+  defp ruby_use(:droplet, _game, _me), do: "droplet +1"
+  defp ruby_use(:flask, _game, _me), do: "refill flask"
+
+  defp ruby_use(:tube, _game, me), do: "test tube (#{next_glass(me)})"
+
+  defp next_glass(me), do: "bonus: #{tube_bonus(TestTubes.bonus(me.tube + 1))}"
 
   defp name(names, seat), do: Map.get(names, seat, GameServer.default_name(seat))
 
