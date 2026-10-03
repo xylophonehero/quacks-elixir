@@ -2,8 +2,8 @@ defmodule QuacksWeb.Icons do
   @moduledoc """
   Game icons as inline SVG: one per ingredient colour, game piece and patient.
 
-  The files are in `priv/static/images/icons/` (game-icons.net, CC BY 3.0; see
-  `docs/CREDITS.md`). They are read at compile time, so the page gets the paths
+  The files are in `priv/static/images/icons/` (game-icons.net, CC BY 3.0, and our
+  own crow skull, mandrake and hawkmoth; see `docs/CREDITS.md`). They are read at compile time, so the page gets the paths
   inline and the browser fetches nothing. Each icon is one filled silhouette on a
   512 viewBox with `fill="currentColor"`: set its colour with a `text-*` class.
 
@@ -19,11 +19,11 @@ defmodule QuacksWeb.Icons do
     white: "cherry-bomb-1.svg",
     orange: "pumpkin-1.svg",
     green: "spider-1.svg",
-    blue: "crow-skull-2.svg",
+    blue: "crow-skull.svg",
     red: "toadstool-1.svg",
-    yellow: "mandrake-1.svg",
+    yellow: "mandrake.svg",
     purple: "ghosts-breath-1.svg",
-    black: "hawkmoth-1.svg",
+    black: "hawkmoth.svg",
     locoweed: "locoweed-2.svg",
     flask: "flask-1.svg",
     droplet: "droplet-1.svg",

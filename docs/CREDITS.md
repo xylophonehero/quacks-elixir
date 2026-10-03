@@ -11,11 +11,8 @@ The files are in `priv/static/images/icons/`. The app shows this credit in the l
 | `cherry-bomb-1.svg` | white chip (cherry bomb) | unlit-bomb | Lorc |
 | `pumpkin-1.svg` | orange chip (pumpkin) | pumpkin | Delapouite |
 | `spider-1.svg` | green chip (garden spider) | hanging-spider | Lorc |
-| `crow-skull-2.svg` | blue chip (crow skull), stopgap | raven | Lorc |
 | `toadstool-1.svg` | red chip (toadstool) | spotted-mushroom | Lorc |
-| `mandrake-1.svg` | yellow chip (mandrake), stopgap | plant-roots | Delapouite |
 | `ghosts-breath-1.svg` | purple chip (ghost's breath) | ghost | Lorc |
-| `hawkmoth-1.svg` | black chip (hawkmoth), stopgap | butterfly | Lorc |
 | `locoweed-2.svg` | locoweed | herbs-bundle | Delapouite |
 | `flask-1.svg` | flask glyph | round-bottom-flask | Lorc |
 | `droplet-1.svg` | droplet glyph | drop | Lorc |
@@ -38,6 +35,8 @@ The files are in `priv/static/images/icons/`. The app shows this credit in the l
 | `patient-forgetfulness-1.svg` | Forgetfulness | brain-leak | Delapouite |
 | `patient-vampirism-2.svg` | Vampirism | fangs | Skoll |
 
-Our own SVG (no licence needed): the pot flask, the droplet on the pot, the bag beside the pot, the bonus die faces, the cauldron board and the test tubes.
+Our own icons, drawn for this project (same licence as the project; no attribution needed): `crow-skull.svg` (blue chip), `mandrake.svg` (yellow chip), `hawkmoth.svg` (black chip). The paths are hand-written; reference pictures were used only to study the shapes (see `docs/research/art-assets.md`).
+
+Our own SVG in the templates (no licence needed): the pot flask, the droplet on the pot, the bag beside the pot, the bonus die faces, the cauldron board and the test tubes.
 
 The other candidates and their sources: `docs/research/art-assets.md`.
