@@ -21,7 +21,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
   test "the lobby toggle offers Sets 5–6, black and locoweed, and 5 players", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
     refute has_element?(view, "button", "New game for 5 players")
-    refute has_element?(view, "select[name='sets[locoweed]']")
+    refute has_element?(view, "select[name='sets[black]']")
 
     view |> form("#books", expansion: "true") |> render_change()
 

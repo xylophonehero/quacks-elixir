@@ -8,7 +8,7 @@ defmodule QuacksWeb.GameComponents do
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Potions
-  alias Quacks.Rules.{Chips, PotTrack}
+  alias Quacks.Rules.{Books, Chips, PotTrack}
   alias Quacks.Rules.Fortune
   alias Quacks.Rules.Witches
 
@@ -466,7 +466,7 @@ defmodule QuacksWeb.GameComponents do
     <p class="text-xs text-ink-soft" data-role="books">
       Ingredient books: {Enum.map_join(
         Enum.filter(
-          [:green, :blue, :red, :yellow, :purple, :black, :locoweed],
+          [:orange, :green, :blue, :red, :yellow, :purple, :black, :locoweed],
           &Map.has_key?(@sets, &1)
         ),
         " · ",
@@ -475,6 +475,54 @@ defmodule QuacksWeb.GameComponents do
     </p>
     """
   end
+
+  @doc """
+  One ingredient book as a short line: name, when it acts, and its text. `book` is
+  a `Quacks.Rules.Books.get/1` map.
+  """
+  attr :book, :map, required: true
+
+  def book_text(assigns) do
+    ~H"""
+    <p class="text-xs text-ink-soft" data-role="book-text">
+      <span class="font-semibold text-ink">{@book.name}</span>
+      · {trigger_label(@book.trigger)} · {@book.text}
+    </p>
+    """
+  end
+
+  @doc """
+  A list of books, each with its colour, set and text, e.g. for the menu's "Books"
+  sheet. `books` is a list of `{colour, set}` (`Quacks.Rules.Books.in_play/2`).
+  """
+  attr :books, :list, required: true
+
+  def book_list(assigns) do
+    assigns = assign(assigns, :colours, @colours)
+
+    ~H"""
+    <dl class="space-y-2" data-role="book-list">
+      <div :for={{colour, set} <- @books} data-book={"#{colour}-#{set}"}>
+        <dt class="flex items-center gap-1.5 text-sm font-semibold">
+          <span class={["inline-block size-3 rounded-full", @colours[colour]]} />
+          {String.capitalize(to_string(colour))} {book_set_name(colour, set)}
+        </dt>
+        <dd><.book_text book={Books.get({colour, set})} /></dd>
+      </div>
+    </dl>
+    """
+  end
+
+  defp book_set_name(:white, _set), do: ""
+  defp book_set_name(:black, 1), do: "(base)"
+  defp book_set_name(_colour, set), do: "Set #{set}"
+
+  @doc ~s[When a book acts, as a label: "On draw", "Evaluation (step B)", ...]
+  @spec trigger_label(Books.trigger()) :: String.t()
+  def trigger_label(:on_draw), do: "On draw"
+  def trigger_label(:step_b), do: "Evaluation (step B)"
+  def trigger_label(:passive), do: "All round"
+  def trigger_label(:none), do: "No action"
 
   @doc """
   The game's house rules that differ from the rulebook game, e.g. "House rules:

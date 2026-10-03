@@ -20,7 +20,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.GameComponents
 
   alias Quacks.{Game, GameServer}
-  alias Quacks.Rules.{Chips, Fortune}
+  alias Quacks.Rules.{Books, Chips, Fortune}
 
   # The shop, one row per colour. The single-value colours share the top row; the
   # other rows run 1 / 2 / 4 from left to right.
@@ -31,7 +31,7 @@ defmodule QuacksWeb.GameLive do
     [{:red, 1}, {:red, 2}, {:red, 4}],
     [{:yellow, 1}, {:yellow, 2}, {:yellow, 4}]
   ]
-  # The Herb Witches adds a row under the top one.
+  # Orange Set 2 and locoweed (on with The Herb Witches) add a row under the top one.
   @expansion_row [{:orange, 6}, {:locoweed, 1}]
 
   @doc "Join game `id`: take a free seat, or watch when the game is full."
@@ -312,6 +312,7 @@ defmodule QuacksWeb.GameLive do
             </.button>
             <.button :if={@seat && @players == 1} phx-click="new_game">New game</.button>
             <.button navigate={~p"/"}>Lobby</.button>
+            <.sheet_button for="sheet-books">Books</.sheet_button>
           </div>
           <p>
             Seed
@@ -320,6 +321,11 @@ defmodule QuacksWeb.GameLive do
           <.books sets={@game.sets} />
           <.house_rules rules={@game.rules} />
         </div>
+      </.sheet>
+
+      <.sheet id="sheet-books" label="Ingredient books">
+        <h2 class="mb-2 text-lg font-bold">Ingredient books</h2>
+        <.book_list books={Books.in_play(@game.expansion, @game.sets)} />
       </.sheet>
 
       <.dialog_sheet :if={@decision} id={"decision-#{@decision}"} label={phase_name(@decision)}>
@@ -410,6 +416,7 @@ defmodule QuacksWeb.GameLive do
         actions: actions,
         copper: copper_actions(actions, assigns.selected),
         sets: sets,
+        rows: shop_rows(assigns.game.expansion, sets),
         total: total,
         coins: coins,
         remaining: coins - total
@@ -422,8 +429,8 @@ defmodule QuacksWeb.GameLive do
       <.books sets={@sets} />
       <form id="shop" phx-change="select" class="space-y-1.5">
         <ul
-          :for={row <- shop_rows(@game.expansion)}
-          class="grid grid-cols-3 gap-1.5"
+          :for={{row, i} <- Enum.with_index(@rows)}
+          class="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5"
           data-role="shop-row"
         >
           <li :for={chip <- row}>
@@ -445,8 +452,26 @@ defmodule QuacksWeb.GameLive do
               </span>
             </label>
           </li>
+          <li class="col-start-4">
+            <button
+              type="button"
+              popovertarget={"shop-book-#{i}"}
+              class="inline-flex size-11 items-center justify-center text-ink-soft"
+              data-role="book-info"
+            >
+              <.icon name="hero-information-circle" class="size-6" />
+              <span class="sr-only">Book</span>
+            </button>
+          </li>
         </ul>
       </form>
+      <.sheet
+        :for={{row, i} <- Enum.with_index(@rows)}
+        id={"shop-book-#{i}"}
+        label="Ingredient book"
+      >
+        <.book_list books={row_books(row, @game)} />
+      </.sheet>
       <p class="text-sm" data-role="shop-total">
         Selected: {@total} coins. Remaining: {@remaining} of {@coins}.
       </p>
@@ -489,13 +514,25 @@ defmodule QuacksWeb.GameLive do
   end
 
   @doc """
-  The shop's chips as rows, one per colour; together they are `Chips.shop/1` for
-  `expansion`.
+  The shop's chips as rows, one per colour; together they are `Chips.shop/2` for
+  `expansion` and `sets`. The orange 6 and locoweed row shows only when one of them
+  is in play.
   """
-  @spec shop_rows(Chips.expansion()) :: [[Chips.chip()]]
-  def shop_rows(expansion \\ nil)
-  def shop_rows(nil), do: @shop_rows
-  def shop_rows(:herb_witches), do: [hd(@shop_rows), @expansion_row | tl(@shop_rows)]
+  @spec shop_rows(Chips.expansion(), Chips.sets()) :: [[Chips.chip()]]
+  def shop_rows(expansion \\ nil, sets \\ %{}) do
+    shop = Chips.shop(expansion, sets)
+
+    case Enum.filter(@expansion_row, &(&1 in shop)) do
+      [] -> @shop_rows
+      row -> [hd(@shop_rows), row | tl(@shop_rows)]
+    end
+  end
+
+  # The books of the colours in a shop row, e.g. orange, purple and black.
+  defp row_books(row, game) do
+    for colour <- row |> Enum.map(&elem(&1, 0)) |> Enum.uniq(),
+        do: {colour, Chips.set(game.expansion, game.sets, colour)}
+  end
 
   # A ticked chip can always be unticked; an unticked one is blocked unless adding it
   # to the selection is a legal buy.
