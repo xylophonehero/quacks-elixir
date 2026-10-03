@@ -79,6 +79,15 @@ defmodule QuacksWeb.LobbyLive do
           <li :if={@games == []} class="text-sm text-parchment-dim">No open games. Start one.</li>
         </ul>
       </section>
+
+      <footer id="credits" class="pt-6 text-center text-xs text-parchment-dim">
+        Credits: icons by Lorc, Delapouite, Skoll, Cathelineau and DarkZaitzev from <a
+          href="https://game-icons.net"
+          class="underline hover:text-parchment"
+        >game-icons.net</a>,
+        <a href="https://creativecommons.org/licenses/by/3.0/" class="underline hover:text-parchment">CC BY 3.0</a>
+        (background removed, recoloured).
+      </footer>
     </Layouts.app>
     """
   end

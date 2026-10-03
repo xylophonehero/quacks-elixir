@@ -154,7 +154,7 @@ defmodule QuacksWeb.GameLiveTest do
 
     for size <- [:lg, :sm] do
       html = render_component(&GameComponents.pot/1, game: game, seat: 1, size: size)
-      assert count(html, ~s([data-space="5"] [data-role=rat-stone])) == 1
+      assert count(html, ~s([data-role=rat-stone][data-index="5"])) == 1
       assert count(html, "[data-role=rat-stone]") == 1
     end
   end

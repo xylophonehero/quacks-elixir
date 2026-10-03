@@ -159,12 +159,15 @@ defmodule QuacksWeb.CoreComponents do
   opens it again.
 
   With `auto_open={false}` it waits for that dispatch; `then_open` names a dialog
-  to open when this one closes (the round results open the shop that way).
+  to open when this one closes (the round results open the shop that way), and
+  `on_close` runs JS commands then (they stick across patches, unlike a class set
+  by plain JS).
   """
   attr :id, :string, required: true
   attr :label, :string, required: true
   attr :auto_open, :boolean, default: true
   attr :then_open, :string, default: nil, doc: "id of a dialog to open on close"
+  attr :on_close, JS, default: nil, doc: "JS commands app.js runs when it closes"
   slot :inner_block, required: true
 
   def dialog_sheet(assigns) do
@@ -182,6 +185,7 @@ defmodule QuacksWeb.CoreComponents do
           else: JS.ignore_attributes("open")
       }
       data-then-open={@then_open}
+      data-on-close={@on_close}
     >
       <form method="dialog">
         <button class="sheet-close" aria-label="Close">
