@@ -7,7 +7,8 @@ defmodule Quacks.Rules.Chips do
   - Starting bag: §2.
   - Supply: §1. `Quacks.Game` tracks what is left on its `supply` field.
   - The Herb Witches (`docs/research/herb-witches.md` §1, §1.2): Sets 5–6 prices, the
-    orange 6-chip, locoweed and the extra chips. Only with the expansion on.
+    orange 6-chip, locoweed and the extra chips. The orange 6-chip (orange Set 2) and
+    locoweed (Set 5 or 6) can also be picked in a base game (`set/3`).
   """
 
   @type colour ::
@@ -41,8 +42,8 @@ defmodule Quacks.Rules.Chips do
     {:locoweed, 1} => [nil, nil, nil, nil, 8, 10]
   }
 
-  # Chips that exist only with The Herb Witches.
-  @expansion_only [{:orange, 6}, {:locoweed, 1}]
+  # Chips that are in play only with their book: orange Set 2, locoweed Set 5 or 6.
+  @book_only [{:orange, 6}, {:locoweed, 1}]
 
   @supply %{
     {:white, 1} => 20,
@@ -107,8 +108,11 @@ defmodule Quacks.Rules.Chips do
   @spec starting_bag() :: [chip]
   def starting_bag, do: @starting_bag
 
-  @typedoc "The Ingredient Set (1..6) of each colour with a choice of books."
-  @type sets :: %{optional(colour) => 1..6}
+  @typedoc """
+  The Ingredient Set (1..6) of each colour with a choice of books. Orange is 1 or 2
+  (2 adds the orange 6-chip); locoweed is `nil` (not in play), 5 or 6.
+  """
+  @type sets :: %{optional(colour) => 1..6 | nil}
 
   @doc """
   Price in coins of a buyable chip with the books in `sets` (a colour not in `sets`
@@ -122,15 +126,45 @@ defmodule Quacks.Rules.Chips do
   @spec price(chip) :: pos_integer
   def price(chip), do: price(chip, %{})
 
-  @doc "Every buyable chip, sorted. Orange 6 and locoweed only with the expansion."
-  @spec shop(expansion) :: [chip]
-  def shop(expansion \\ nil)
-  def shop(nil), do: Enum.sort(Map.keys(@prices) -- @expansion_only)
-  def shop(:herb_witches), do: @prices |> Map.keys() |> Enum.sort()
+  @doc """
+  The book of `colour` in play: `sets[colour]`, else the default. Orange defaults to
+  Set 1 (Set 2 with the expansion), locoweed to `nil` (Set 5 with the expansion).
 
-  @doc "Number of chips of each kind in the box (§1). The expansion adds its chips."
-  @spec supply(expansion) :: %{chip => pos_integer}
-  def supply(expansion \\ nil)
-  def supply(nil), do: @supply
-  def supply(:herb_witches), do: Map.merge(@supply, @expansion_supply, fn _, a, b -> a + b end)
+      iex> Quacks.Rules.Chips.set(nil, %{}, :orange)
+      1
+      iex> Quacks.Rules.Chips.set(:herb_witches, %{}, :locoweed)
+      5
+  """
+  @spec set(expansion, sets, colour) :: 1..6 | nil
+  def set(expansion, sets, :orange), do: Map.get(sets, :orange, if(expansion, do: 2, else: 1))
+  def set(expansion, sets, :locoweed), do: Map.get(sets, :locoweed, if(expansion, do: 5))
+  def set(_expansion, sets, colour), do: Map.get(sets, colour, 1)
+
+  @doc """
+  Every buyable chip, sorted. The orange 6-chip only with orange Set 2, locoweed only
+  with a locoweed book (see `set/3`; both are on by default with the expansion).
+  """
+  @spec shop(expansion, sets) :: [chip]
+  def shop(expansion \\ nil, sets \\ %{}),
+    do: Enum.sort((Map.keys(@prices) -- @book_only) ++ book_chips(expansion, sets))
+
+  @doc """
+  Number of chips of each kind in the box (§1). The expansion adds its chips; a base
+  game with orange Set 2 or a locoweed book adds those chips (expansion counts).
+  """
+  @spec supply(expansion, sets) :: %{chip => pos_integer}
+  def supply(expansion \\ nil, sets \\ %{})
+
+  def supply(nil, sets),
+    do: Map.merge(@supply, Map.take(@expansion_supply, book_chips(nil, sets)))
+
+  def supply(:herb_witches, _sets),
+    do: Map.merge(@supply, @expansion_supply, fn _, a, b -> a + b end)
+
+  # The book-only chips that `sets` puts in play.
+  defp book_chips(expansion, sets) do
+    orange = if set(expansion, sets, :orange) == 2, do: [{:orange, 6}], else: []
+    locoweed = if set(expansion, sets, :locoweed), do: [{:locoweed, 1}], else: []
+    orange ++ locoweed
+  end
 end

@@ -29,7 +29,7 @@ defmodule Quacks.IngredientSetsTest do
       end
 
       assert_raise ArgumentError, fn -> new(%{yellow: 5}) end
-      assert_raise ArgumentError, fn -> new(%{orange: 2}) end
+      assert_raise ArgumentError, fn -> new(%{orange: 3}) end
     end
 
     test "Session passes the sets on, through undo too" do

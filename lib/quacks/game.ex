@@ -206,7 +206,7 @@ defmodule Quacks.Game do
           seats: [seat],
           fortune_deck: [Quacks.Rules.Fortune.id()],
           fortune_card: Quacks.Rules.Fortune.id() | nil,
-          sets: %{(:green | :blue | :red | :yellow | :purple | :black | :locoweed) => 1..6},
+          sets: Chips.sets(),
           rules: rules,
           expansion: Chips.expansion(),
           witches: nil | %{WitchCards.colour() => WitchCards.id()}
@@ -231,11 +231,13 @@ defmodule Quacks.Game do
   A fresh game. `seed:` is a `{int, int, int}` tuple for `:rand.seed_s(:exsss, seed)`;
   `players:` is 1 (default) to 4. Every starting bag comes out of the shared supply.
   `sets:` picks the Ingredient Set (1..4) per colour, e.g. `%{blue: 3}`; colours left
-  out use Set 1. `rules:` sets house rules (`t:rules/0`), e.g. `%{explode_above: 9}`;
+  out use Set 1. `orange: 2` adds the orange 6-chip and `locoweed: 5 | 6` adds
+  locoweed, in base games too (see `Quacks.Rules.Chips.set/3`). `rules:` sets house rules (`t:rules/0`), e.g. `%{explode_above: 9}`;
   rules left out keep their default. With `fortune: true` (default) round 1's card
   is turned up here. `fortune: false` is an old alias for `rules: %{fortune: false}`.
   `expansion: :herb_witches` turns The Herb Witches on: `players:` 1 to 5, `sets:`
-  1..6 per colour plus `black:` (1 = base book, 5, 6) and `locoweed:` (5 default, 6),
+  1..6 per colour plus `black:` (1 = base book, 5, 6), `locoweed:` (5 default, 6, nil)
+  and `orange:` (2 default, 1),
   the expansion chips in the supply and the shop, the overflow bowl, 3 witches
   (`witches`, dealt from the seed) and 3 witch pennies per player.
   An unknown colour, set, rule or expansion raises `ArgumentError`.
@@ -268,7 +270,11 @@ defmodule Quacks.Game do
     starting = List.flatten(List.duplicate(bag, n))
 
     supply =
-      Enum.reduce(starting, Chips.supply(expansion), &Map.update!(&2, &1, fn c -> c - 1 end))
+      Enum.reduce(
+        starting,
+        Chips.supply(expansion, sets),
+        &Map.update!(&2, &1, fn c -> c - 1 end)
+      )
 
     rng = :rand.seed_s(:exsss, seed)
     deck = if rules.fortune, do: Fortune.deck(rng, n), else: []
@@ -294,30 +300,22 @@ defmodule Quacks.Game do
     start_round(if expansion, do: record(game, {:expansion, expansion}), else: game)
   end
 
-  defp sets!(sets, nil) do
-    sets = Map.merge(@sets, sets)
-
-    if map_size(sets) != map_size(@sets) or Enum.any?(sets, fn {_, set} -> set not in 1..4 end),
-      do: raise(ArgumentError, "sets must map #{inspect(Map.keys(@sets))} to 1..4")
-
-    sets
-  end
-
-  defp sets!(sets, :herb_witches) do
-    all = Map.merge(@sets, @expansion_sets)
-    sets = Map.merge(all, sets)
+  # Base game: Sets 1..4. The expansion adds Sets 5..6 and the black book. Both may
+  # pick orange 1 or 2 (2 = the orange 6-chip) and locoweed nil, 5 or 6.
+  defp sets!(sets, expansion) do
+    defaults = if expansion, do: Map.merge(@sets, @expansion_sets), else: @sets
+    max = if expansion, do: 6, else: 4
+    sets = Map.merge(defaults, sets)
 
     valid? =
-      map_size(sets) == map_size(all) and
-        Enum.all?(sets, fn
-          {:black, set} -> set in [1, 5, 6]
-          {:locoweed, set} -> set in [5, 6]
-          {_colour, set} -> set in 1..6
-        end)
+      Enum.all?(sets, fn
+        {:orange, set} -> set in [1, 2]
+        {:locoweed, set} -> set in [nil, 5, 6]
+        {:black, set} -> expansion != nil and set in [1, 5, 6]
+        {colour, set} -> is_map_key(@sets, colour) and set in 1..max
+      end)
 
-    if not valid?,
-      do: raise(ArgumentError, "bad sets for The Herb Witches: #{inspect(sets)}")
-
+    if not valid?, do: raise(ArgumentError, "bad sets: #{inspect(sets)}")
     sets
   end
 
@@ -574,7 +572,9 @@ defmodule Quacks.Game do
   # colours (the shop, and purple Set 5's step-B purchase).
   def buys(g, coins) do
     price = &Chips.price(&1, g.sets)
-    singles = Enum.filter(Chips.shop(g.expansion), &(price.(&1) <= coins and available?(g, &1)))
+
+    singles =
+      Enum.filter(Chips.shop(g.expansion, g.sets), &(price.(&1) <= coins and available?(g, &1)))
 
     pairs =
       for {ca, _} = a <- singles,

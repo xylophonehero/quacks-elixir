@@ -377,7 +377,7 @@ defmodule Quacks.Game.Fortune do
   defp takes(g, fun),
     do:
       for(
-        chip <- Chips.shop(g.expansion),
+        chip <- Chips.shop(g.expansion, g.sets),
         fun.(chip),
         Game.available?(g, chip),
         do: {:take, chip}
