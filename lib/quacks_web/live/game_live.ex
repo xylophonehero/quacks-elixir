@@ -182,6 +182,9 @@ defmodule QuacksWeb.GameLive do
   def handle_event("rules", %{"rules" => params}, socket) when is_map(params),
     do: {:noreply, configure(socket, %{rules: parse_rules(params)})}
 
+  def handle_event("rule_step", %{"rule" => rule, "to" => to}, socket),
+    do: {:noreply, configure(socket, %{rules: step_rule(socket.assigns.rules, rule, to)})}
+
   # A fresh configure screen gets the host's last settings from the browser (the
   # `ConfigMemory` hook in app.js). Bad or stale values fall back to the defaults.
   def handle_event("load_config", saved, %{assigns: %{fresh: true}} = socket)
@@ -1013,6 +1016,7 @@ defmodule QuacksWeb.GameLive do
         id={"decision-#{@decision}"}
         label={phase_name(@decision)}
         auto_open={not (after_results?(@decision) and results?(@game) and not @me.bought?)}
+        focus_self={not primary_on_open?(@decision, @all_actions)}
       >
         <.shop
           :if={shop_step?(@decision)}
@@ -1108,6 +1112,7 @@ defmodule QuacksWeb.GameLive do
               phx-click="action"
               phx-value-action={encode(action)}
               variant={choice_variant(dialog_buttons(@all_actions, @decision))}
+              autofocus={choice_variant(dialog_buttons(@all_actions, @decision)) == :primary}
               class={choice_class(action)}
             >
               {action_label(action, @game, @me)}
@@ -1128,7 +1133,7 @@ defmodule QuacksWeb.GameLive do
           method="dialog"
           class="sticky -bottom-4 -mx-4 mt-3 flex bg-parchment px-4 pt-2 pb-4 *:min-h-11 *:flex-1"
         >
-          <.button variant={:primary} data-role="results-ok">
+          <.button variant={:primary} data-role="results-ok" autofocus>
             {if @decision == :shop, do: "To the shop", else: "OK"}
           </.button>
         </form>
@@ -1146,6 +1151,9 @@ defmodule QuacksWeb.GameLive do
         :if={@game.fortune_card && not Game.over?(@game)}
         id={"card-round-#{@game.round}"}
         label="New fortune teller card"
+        focus_self={
+          @decision == :fortune_choice and choice_variant(text_actions(@all_actions)) != :primary
+        }
       >
         <div class="space-y-3" data-role="card-modal">
           <div class="flex items-center gap-1">
@@ -1181,13 +1189,14 @@ defmodule QuacksWeb.GameLive do
                 phx-click={card_click(@game)}
                 phx-value-action={encode(action)}
                 variant={choice_variant(text_actions(@all_actions))}
+                autofocus={choice_variant(text_actions(@all_actions)) == :primary}
               >
                 {action_label(action, @game, @me)}
               </.button>
             </section>
           <% else %>
             <form method="dialog" class="flex *:min-h-11 *:flex-1">
-              <.button variant={:primary}>OK</.button>
+              <.button variant={:primary} autofocus>OK</.button>
             </form>
           <% end %>
         </div>
@@ -1487,71 +1496,79 @@ defmodule QuacksWeb.GameLive do
       </div>
       <div :if={@buying?} class="space-y-2">
         <p class="text-sm">Tap up to two chips of different colours.</p>
-        <.books sets={@sets} />
-        <form id="shop" phx-change="select" class="space-y-1.5">
-          <ul
-            :for={{row, i} <- Enum.with_index(@rows)}
-            class="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5"
-            data-role="shop-row"
-          >
-            <li :for={chip <- row}>
-              <%!-- A tile, not a checkbox: the box is hidden, the tile shows its state. --%>
-              <label class={[
-                "relative flex min-h-12 items-center gap-1.5 rounded-lg bg-parchment-light px-2 text-sm",
-                "ring-1 ring-ink/20 select-none touch-manipulation",
-                "transition-[scale,box-shadow,background-color] duration-150 ease-out",
-                "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink",
-                "has-focus-visible:outline-3 has-focus-visible:outline-droplet",
-                cond do
-                  elem(chip, 0) in @locked -> "shop-locked"
-                  blocked?(chip, @selected, @actions) -> "opacity-40"
-                  true -> "cursor-pointer active:scale-[0.96]"
-                end
-              ]}>
-                <input
-                  type="checkbox"
-                  name="chips[]"
-                  value={encode(chip)}
-                  checked={chip in @selected}
-                  disabled={blocked?(chip, @selected, @actions)}
-                  class="peer sr-only"
-                />
-                <span
-                  class="absolute -top-2 -right-2 hidden size-5 items-center justify-center rounded-full bg-ink text-gold shadow peer-checked:flex"
-                  data-role="tile-check"
+        <form id="shop" phx-change="select" class="space-y-2">
+          <div :for={{row, i} <- Enum.with_index(@rows)} class="space-y-0.5">
+            <p class="flex items-baseline gap-1.5 pl-0.5" data-role="shop-row-label">
+              <span class="font-hand text-[15px] leading-tight font-bold">
+                {Books.get({elem(hd(row), 0), 1}).name}
+              </span>
+              <span class="text-[11px] text-ink-soft">
+                {elem(hd(row), 0)} · book {roman(Chips.set(@game.expansion, @sets, elem(hd(row), 0)))}
+              </span>
+            </p>
+            <ul
+              class="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5"
+              data-role="shop-row"
+            >
+              <li :for={chip <- row}>
+                <%!-- A tile, not a checkbox: the box is hidden, the tile shows its state. --%>
+                <label class={[
+                  "relative flex min-h-12 items-center gap-1.5 rounded-lg bg-parchment-light px-2 text-sm",
+                  "ring-1 ring-ink/20 select-none touch-manipulation",
+                  "transition-[scale,box-shadow,background-color] duration-150 ease-out",
+                  "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink",
+                  "has-focus-visible:outline-3 has-focus-visible:outline-droplet",
+                  cond do
+                    elem(chip, 0) in @locked -> "shop-locked"
+                    blocked?(chip, @selected, @actions) -> "opacity-40"
+                    true -> "cursor-pointer active:scale-[0.96]"
+                  end
+                ]}>
+                  <input
+                    type="checkbox"
+                    name="chips[]"
+                    value={encode(chip)}
+                    checked={chip in @selected}
+                    disabled={blocked?(chip, @selected, @actions)}
+                    class="peer sr-only"
+                  />
+                  <span
+                    class="absolute -top-2 -right-2 hidden size-5 items-center justify-center rounded-full bg-ink text-gold shadow peer-checked:flex"
+                    data-role="tile-check"
+                  >
+                    <.icon name="hero-check" class="size-3.5" />
+                  </span>
+                  <span
+                    :if={elem(chip, 0) in @locked}
+                    class="absolute -top-1.5 -left-1.5 grid size-5 place-items-center rounded-full bg-iron-dark text-parchment shadow"
+                    data-role="tile-lock"
+                  >
+                    <.icon name="hero-lock-closed-mini" class="size-3" />
+                    <span class="sr-only">Not in the shop yet</span>
+                  </span>
+                  <.chip chip={chip} size={:md} />
+                  <span class="sr-only sm:not-sr-only">{chip_name(chip)}</span>
+                  <span
+                    class="ml-auto inline-flex items-center gap-1 font-semibold tabular-nums text-ink-soft"
+                    data-role="price"
+                  >
+                    {Chips.price(chip, @sets)}<span class="book-coin" /><span class="sr-only">coins</span>
+                  </span>
+                </label>
+              </li>
+              <li class="col-start-4">
+                <button
+                  type="button"
+                  popovertarget={"shop-book-#{i}"}
+                  class="inline-flex size-11 items-center justify-center text-ink-soft"
+                  data-role="book-info"
                 >
-                  <.icon name="hero-check" class="size-3.5" />
-                </span>
-                <span
-                  :if={elem(chip, 0) in @locked}
-                  class="absolute -top-1.5 -left-1.5 grid size-5 place-items-center rounded-full bg-iron-dark text-parchment shadow"
-                  data-role="tile-lock"
-                >
-                  <.icon name="hero-lock-closed-mini" class="size-3" />
-                  <span class="sr-only">Not in the shop yet</span>
-                </span>
-                <.chip chip={chip} size={:md} />
-                <span class="sr-only sm:not-sr-only">{chip_name(chip)}</span>
-                <span
-                  class="ml-auto inline-flex items-center gap-1 font-semibold tabular-nums text-ink-soft"
-                  data-role="price"
-                >
-                  {Chips.price(chip, @sets)}<span class="book-coin" /><span class="sr-only">coins</span>
-                </span>
-              </label>
-            </li>
-            <li class="col-start-4">
-              <button
-                type="button"
-                popovertarget={"shop-book-#{i}"}
-                class="inline-flex size-11 items-center justify-center text-ink-soft"
-                data-role="book-info"
-              >
-                <.icon name="hero-information-circle" class="size-6" />
-                <span class="sr-only">Book</span>
-              </button>
-            </li>
-          </ul>
+                  <.icon name="hero-information-circle" class="size-6" />
+                  <span class="sr-only">Book</span>
+                </button>
+              </li>
+            </ul>
+          </div>
         </form>
         <.sheet
           :for={{row, i} <- Enum.with_index(@rows)}
@@ -1593,6 +1610,7 @@ defmodule QuacksWeb.GameLive do
           phx-click="action"
           phx-value-action={encode({:buy, []})}
           variant={if @buying?, do: :secondary, else: :primary}
+          autofocus={!@buying?}
           class={["flex-1", @buying? && "px-3"]}
           data-role="shop-done"
         >
@@ -1635,6 +1653,7 @@ defmodule QuacksWeb.GameLive do
           phx-click="action"
           phx-value-action={encode(:end_round)}
           variant={if ruby_options?(@others), do: :ghost, else: :primary}
+          autofocus={!ruby_options?(@others)}
           data-role="rubies-done"
         >
           {if ruby_options?(@others), do: "Keep rubies", else: "Done"}
@@ -2055,6 +2074,17 @@ defmodule QuacksWeb.GameLive do
   defp decision(_actions, phase, _me), do: phase
 
   defp shop_step?(decision), do: decision in [:shop, :rubies]
+
+  # Whether a decision dialog opens with one enabled primary button (it takes the
+  # focus); otherwise the dialog itself does. The shop's Buy is disabled until a
+  # chip is ticked; ruby options make "Keep rubies" a ghost.
+  defp primary_on_open?(:shop, actions), do: not Enum.any?(actions, &match?({:buy, _}, &1))
+  defp primary_on_open?(:rubies, actions), do: not ruby_options?(actions)
+  defp primary_on_open?(:patient_choice, _actions), do: false
+  defp primary_on_open?(:essence_choice, _actions), do: true
+
+  defp primary_on_open?(decision, actions),
+    do: choice_variant(dialog_buttons(actions, decision)) == :primary
 
   # The decisions that wait while the round results show (they open on "OK").
   defp after_results?(decision), do: decision in [:shop, :rubies, :droplet_choice]

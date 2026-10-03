@@ -162,12 +162,22 @@ defmodule QuacksWeb.CoreComponents do
   to open when this one closes (the round results open the shop that way), and
   `on_close` runs JS commands then (they stick across patches, unlike a class set
   by plain JS).
+
+  Focus on open: give the dialog's one primary button `autofocus`; a dialog with no
+  primary button sets `focus_self` instead (an empty focus target at its top), so
+  the close × never takes the focus.
   """
   attr :id, :string, required: true
   attr :label, :string, required: true
   attr :auto_open, :boolean, default: true
   attr :then_open, :string, default: nil, doc: "id of a dialog to open on close"
   attr :on_close, JS, default: nil, doc: "JS commands app.js runs when it closes"
+
+  attr :focus_self, :boolean,
+    default: false,
+    doc:
+      "the dialog itself takes the focus on open (a choice without one primary button); otherwise the button with `autofocus` does"
+
   slot :inner_block, required: true
 
   def dialog_sheet(assigns) do
@@ -187,6 +197,8 @@ defmodule QuacksWeb.CoreComponents do
       data-then-open={@then_open}
       data-on-close={@on_close}
     >
+      <%!-- Chrome ignores `autofocus` on the <dialog> itself, so the focus starts here. --%>
+      <span :if={@focus_self} tabindex="-1" autofocus data-role="focus-start" class="outline-none" />
       <form method="dialog">
         <button class="sheet-close" aria-label="Close">
           <.icon name="hero-x-mark" class="size-5" />
@@ -212,7 +224,7 @@ defmodule QuacksWeb.CoreComponents do
       <.button navigate={~p"/"}>Home</.button>
   """
   attr :rest, :global,
-    include: ~w(href navigate patch method download name value disabled autofocus)
+    include: ~w(href navigate patch method download name value disabled autofocus type)
 
   attr :class, :any, default: nil, doc: "extra classes, added after the variant's"
   attr :variant, :atom, default: nil, values: [nil, :primary, :secondary, :ghost]

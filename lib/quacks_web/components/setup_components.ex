@@ -11,7 +11,7 @@ defmodule QuacksWeb.SetupComponents do
   """
   use Phoenix.Component
 
-  import QuacksWeb.CoreComponents, only: [input: 1, sheet: 1]
+  import QuacksWeb.CoreComponents, only: [button: 1, input: 1, sheet: 1]
   import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
 
   import QuacksWeb.GameComponents,
@@ -299,23 +299,17 @@ defmodule QuacksWeb.SetupComponents do
     <form id="options" phx-change="rules" aria-label="House rules">
       <fieldset disabled={@disabled} class="space-y-2">
         <div class="grid grid-cols-2 gap-x-2">
-          <.input
-            type="number"
-            id="rules-explode_above"
-            name="rules[explode_above]"
+          <.rule_stepper
+            rule={:explode_above}
             label="Explodes above (white)"
             value={@rules.explode_above}
-            min="5"
-            max="9"
+            disabled={@disabled}
           />
-          <.input
-            type="number"
-            id="rules-starting_rubies"
-            name="rules[starting_rubies]"
+          <.rule_stepper
+            rule={:starting_rubies}
             label="Starting rubies"
             value={@rules.starting_rubies}
-            min="0"
-            max="3"
+            disabled={@disabled}
           />
         </div>
         <.input
@@ -449,6 +443,72 @@ defmodule QuacksWeb.SetupComponents do
   end
 
   defp parse_set(_value, _sets, default), do: default
+
+  @doc """
+  A number house rule as a − / + stepper (event `"rule_step"`). The value rides in a
+  hidden input with the old number input's id, so the form's `"rules"` change still
+  sends it.
+  """
+  attr :rule, :atom, required: true, values: [:explode_above, :starting_rubies]
+  attr :label, :string, required: true
+  attr :value, :integer, required: true
+  attr :disabled, :boolean, default: false
+
+  def rule_stepper(assigns) do
+    assigns = assign(assigns, range: @rule_values[assigns.rule])
+
+    ~H"""
+    <div class="mb-2" data-role="rule-stepper" data-rule={@rule}>
+      <span class="mb-1 block text-sm font-semibold" id={"rules-#{@rule}-label"}>{@label}</span>
+      <div class="flex items-center gap-2" role="group" aria-labelledby={"rules-#{@rule}-label"}>
+        <input type="hidden" id={"rules-#{@rule}"} name={"rules[#{@rule}]"} value={@value} />
+        <.button
+          type="button"
+          phx-click="rule_step"
+          phx-value-rule={@rule}
+          phx-value-to={@value - 1}
+          disabled={@disabled or @value <= @range.first}
+          aria-label={"#{@label}: less"}
+          variant={:secondary}
+          class="size-11 px-0 text-xl"
+        >
+          −
+        </.button>
+        <span class="w-6 text-center text-2xl font-bold tabular-nums" data-role="rule-value">
+          {@value}
+        </span>
+        <.button
+          type="button"
+          phx-click="rule_step"
+          phx-value-rule={@rule}
+          phx-value-to={@value + 1}
+          disabled={@disabled or @value >= @range.last}
+          aria-label={"#{@label}: more"}
+          variant={:secondary}
+          class="size-11 px-0 text-xl"
+        >
+          +
+        </.button>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  The house rules after one stepper tap: `rules` with `rule` (a string from the
+  page) set to `to`. A bad rule or value changes nothing.
+  """
+  @spec step_rule(Game.rules(), String.t(), String.t()) :: Game.rules()
+  def step_rule(rules, rule, to) when rule in ["explode_above", "starting_rubies"] do
+    key = String.to_existing_atom(rule)
+
+    case Integer.parse(to) do
+      {n, ""} -> if n in @rule_values[key], do: Map.put(rules, key, n), else: rules
+      _ -> rules
+    end
+  end
+
+  def step_rule(rules, _rule, _to), do: rules
 
   @doc """
   The Options form's `%{"explode_above" => "9", "rats" => "false", ...}` as house
