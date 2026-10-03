@@ -76,7 +76,8 @@ defmodule QuacksWeb.LobbyFlowTest do
     assert has_element?(alice, "button[data-slot=draw][disabled]")
     assert has_element?(alice, "[data-role=turn]", "Waiting for 1 player: Player 2.")
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=player-state]), "stopped")
-    assert has_element?(bob, "[data-role=turn]", "Everyone brews at the same time.")
+    # Bob is brewing and drew already: no hint line for him
+    refute has_element?(bob, "[data-role=turn]")
 
     # Resume puts alice back to brewing
     alice |> element("button[data-slot=stop]", "Resume") |> render_click()

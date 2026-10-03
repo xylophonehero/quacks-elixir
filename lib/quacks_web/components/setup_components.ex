@@ -12,7 +12,7 @@ defmodule QuacksWeb.SetupComponents do
   use Phoenix.Component
 
   import QuacksWeb.CoreComponents, only: [input: 1, sheet: 1]
-  import QuacksWeb.Icons, only: [ingredient_icon: 1]
+  import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
 
   import QuacksWeb.GameComponents,
     only: [
@@ -55,7 +55,10 @@ defmodule QuacksWeb.SetupComponents do
 
   @doc """
   The Ingredient books form (`#books`, event `"sets"`): the two expansion toggles
-  (both may be on) and one `book_tile` per colour. Locoweed III is greyed out
+  as cards on top (both may be on), with the reverse pot side as a third, smaller
+  card (that switch belongs to `#options`), then one `book_tile` per colour. The
+  host sees compact tiles (icon, name, book seal) in a grid; the picker has the full
+  text. Locoweed III is greyed out
   without The Alchemists. The host taps a tile to open its picker sheet, a list
   of book cards (radio buttons `sets[colour]`); a tap on a card picks that book and
   closes the sheet. Other players see the tiles only.
@@ -75,34 +78,42 @@ defmodule QuacksWeb.SetupComponents do
     ~H"""
     <form id="books" phx-change="sets" aria-label="Ingredient books">
       <fieldset disabled={@disabled} class="space-y-2">
-        <h3 class="font-bold">Ingredient books</h3>
-        <div class="flex flex-wrap gap-x-5">
-          <.input
-            type="checkbox"
+        <h3 class="font-bold">Expansions</h3>
+        <div class="grid grid-cols-2 gap-2" data-role="expansion-cards">
+          <.toggle_card
             id="expansion"
             name="expansion"
-            label="Herb Witches expansion"
-            value={@expansion}
+            checked={@expansion}
+            title="The Herb Witches"
+            text="Witch cards, overflow bowl"
+            icon={:witch}
           />
-          <.input
-            type="checkbox"
+          <.toggle_card
             id="alchemists"
             name="alchemists"
-            label="The Alchemists"
-            value={@alchemists}
+            checked={@alchemists}
+            title="The Alchemists"
+            text="Patients and essence"
+            icon={:flask}
           />
-          <%!-- Part of the house rules form (`form="options"`), shown here beside the expansion. --%>
-          <.input
-            type="checkbox"
+          <%!-- Part of the house rules form (`form="options"`), shown here beside the expansions. --%>
+          <.toggle_card
             id="rules-pot_side"
             name="rules[pot_side]"
             form="options"
-            label="Pot: reverse side (test tubes)"
-            value={@pot_side == :back}
+            checked={@pot_side == :back}
+            title="Pot: reverse side"
+            text="Test tubes"
+            icon={:tube}
+            small
           />
         </div>
+        <h3 class="pt-1 font-bold">Ingredient books</h3>
         <p :if={!@disabled} class="text-sm text-ink-soft">Tap a book to pick another.</p>
-        <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div class={[
+          "grid gap-2.5",
+          if(@disabled, do: "grid-cols-1 sm:grid-cols-2", else: "grid-cols-2 sm:grid-cols-3")
+        ]}>
           <%= for colour <- book_colours() do %>
             <.book_tile
               :if={@disabled}
@@ -115,9 +126,9 @@ defmodule QuacksWeb.SetupComponents do
               type="button"
               popovertarget={"book-picker-#{colour}"}
               aria-label={"#{colour} book: change"}
-              class="block rounded-[14px] text-left transition-[translate,scale,box-shadow] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
+              class="block cursor-pointer rounded-[14px] text-left transition-[translate,scale,box-shadow] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
             >
-              <.book_tile colour={colour} set={book(@sets, colour)} players={@players} />
+              <.book_tile colour={colour} set={book(@sets, colour)} players={@players} compact />
             </button>
             <.book_picker
               :if={!@disabled}
@@ -131,6 +142,62 @@ defmodule QuacksWeb.SetupComponents do
         </div>
       </fieldset>
     </form>
+    """
+  end
+
+  # An on/off card: a switch (a real checkbox, `.switch` in app.css) with an icon, a
+  # title and a line of text. The hidden "false" goes first, so an unticked box still
+  # sends its name.
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :checked, :boolean, required: true
+  attr :title, :string, required: true
+  attr :text, :string, required: true
+  attr :icon, :atom, required: true
+  attr :form, :string, default: nil
+  attr :small, :boolean, default: false
+
+  defp toggle_card(assigns) do
+    ~H"""
+    <label
+      for={@id}
+      class={[
+        "toggle-card grid cursor-pointer items-center gap-x-2.5 rounded-xl bg-parchment-light p-2.5 ring-1 ring-ink/15",
+        "transition-[box-shadow,background-color,scale] duration-150 ease-out active:scale-[0.98]",
+        "has-checked:bg-potion/15 has-checked:ring-2 has-checked:ring-potion-deep/60",
+        "has-disabled:cursor-default has-disabled:active:scale-100",
+        "has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet",
+        if(@small,
+          do: "col-span-2 grid-cols-[auto_1fr_auto] py-2",
+          else: "grid-cols-[1fr_auto] content-start gap-y-1"
+        )
+      ]}
+      data-role="toggle-card"
+    >
+      <.piece_icon
+        name={@icon}
+        class={["shrink-0 text-ink-soft", if(@small, do: "size-6", else: "size-9")]}
+      />
+      <span class={["min-w-0", !@small && "col-span-2 row-start-2"]}>
+        <span class={[
+          "block leading-tight font-bold",
+          if(@small, do: "text-sm", else: "font-hand text-lg")
+        ]}>
+          {@title}
+        </span>
+        <span class="block text-xs leading-snug text-ink-soft">{@text}</span>
+      </span>
+      <input type="hidden" name={@name} value="false" form={@form} />
+      <input
+        type="checkbox"
+        id={@id}
+        name={@name}
+        value="true"
+        checked={@checked}
+        form={@form}
+        class={["switch shrink-0", !@small && "col-start-2 row-start-1"]}
+      />
+    </label>
     """
   end
 
@@ -257,6 +324,7 @@ defmodule QuacksWeb.SetupComponents do
           name="rules[round6_white]"
           label="Extra white 1-chip before round 6"
           value={@rules.round6_white}
+          class="switch"
         />
         <.input
           type="checkbox"
@@ -264,6 +332,7 @@ defmodule QuacksWeb.SetupComponents do
           name="rules[fortune]"
           label="Fortune Teller cards"
           value={@rules.fortune}
+          class="switch"
         />
         <.input
           type="checkbox"
@@ -271,6 +340,7 @@ defmodule QuacksWeb.SetupComponents do
           name="rules[rats]"
           label="Rats (2+ players)"
           value={@rules.rats}
+          class="switch"
         />
         <.input
           type="checkbox"
@@ -278,6 +348,7 @@ defmodule QuacksWeb.SetupComponents do
           name="rules[overflow]"
           label="Overflow bowl (chips past the last space)"
           value={@rules.overflow}
+          class="switch"
         />
         <.radios
           name="black_solo"
@@ -312,16 +383,22 @@ defmodule QuacksWeb.SetupComponents do
     ~H"""
     <fieldset class="text-sm">
       <legend class="mb-1">{@legend}</legend>
-      <label :for={{value, label} <- @options} class="mr-4 inline-flex items-center gap-1">
-        <input
-          type="radio"
-          id={"rules-#{@name}-#{value}"}
-          name={"rules[#{@name}]"}
-          value={value}
-          checked={@value == value}
-        />
-        {label}
-      </label>
+      <div class="segmented flex gap-1 rounded-lg bg-parchment-deep p-1">
+        <label
+          :for={{value, label} <- @options}
+          class="relative flex min-h-10 flex-1 cursor-pointer items-center justify-center px-2 py-1 text-center leading-tight"
+        >
+          <input
+            type="radio"
+            id={"rules-#{@name}-#{value}"}
+            name={"rules[#{@name}]"}
+            value={value}
+            checked={@value == value}
+            class="segment"
+          />
+          <span class="relative">{label}</span>
+        </label>
+      </div>
     </fieldset>
     """
   end

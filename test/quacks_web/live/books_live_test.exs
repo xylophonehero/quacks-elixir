@@ -45,10 +45,12 @@ defmodule QuacksWeb.BooksLiveTest do
 
     green = "#books [data-role=book-tile][data-colour=green]"
     assert has_element?(view, green, "Garden spider")
+    # the host's tiles are compact: the rule text is in the picker
+    refute has_element?(view, green, "1 ruby for each green chip")
 
     assert has_element?(
              view,
-             green,
+             "#book-picker-green [data-set='1']",
              "1 ruby for each green chip that is your last or next-to-last chip."
            )
 
@@ -73,7 +75,7 @@ defmodule QuacksWeb.BooksLiveTest do
 
     view |> form("#books", sets: %{green: "3"}) |> render_change()
     green = "#books [data-role=book-tile][data-colour=green]"
-    assert has_element?(view, green, "exactly 7")
+    assert has_element?(view, "#{picker} [data-set='3']", "exactly 7")
     assert has_element?(view, "#{green} .book-seal", "III")
     assert has_element?(view, "#{picker} input[value='3'][checked]")
     {:ok, %{sets: %{green: 3}}} = GameServer.get(id)
@@ -90,10 +92,12 @@ defmodule QuacksWeb.BooksLiveTest do
     not_in_play = "#book-picker-locoweed [data-role=book-card][data-set=off]"
     assert has_element?(view, not_in_play, "Not in play")
     assert has_element?(view, "#{not_in_play} input[value=''][checked]")
-    assert has_element?(view, "#books [data-book=locoweed-off]", "No locoweed chips")
+    assert has_element?(view, "#books [data-book=locoweed-off]")
+    assert has_element?(view, not_in_play, "No locoweed chips")
 
     view |> form("#books", sets: %{orange: "2", locoweed: "1"}) |> render_change()
-    assert has_element?(view, "#books [data-book=locoweed-1]", "rat stone")
+    assert has_element?(view, "#books [data-book=locoweed-1]")
+    assert has_element?(view, "#book-picker-locoweed [data-set='1']", "rat stone")
 
     view |> form("#books", sets: %{locoweed: ""}) |> render_change()
     assert has_element?(view, "#books [data-book=locoweed-off]")

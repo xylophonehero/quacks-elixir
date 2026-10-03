@@ -141,6 +141,7 @@ defmodule QuacksWeb.CoreComponents do
       class={[
         "inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-3",
         "bg-iron-dark text-sm font-semibold text-parchment ring-1 ring-iron touch-manipulation",
+        "cursor-pointer transition-[scale,background-color] duration-150 ease-out hover:bg-iron active:scale-[.98]",
         @class
       ]}
       {@rest}
@@ -199,31 +200,43 @@ defmodule QuacksWeb.CoreComponents do
   @doc """
   Renders a button with navigation support.
 
+  `variant`: `:primary` (gold, the one main action of a dialog), `:secondary`
+  (parchment with an ink ring, for other choices on parchment) or `:ghost` (text
+  only, for skip or cancel). Without a variant the button is the outline style
+  for the wood table (Stop, the bar's extra actions).
+
   ## Examples
 
       <.button>Send!</.button>
-      <.button phx-click="go" variant="primary">Send!</.button>
+      <.button phx-click="go" variant={:primary}>Send!</.button>
       <.button navigate={~p"/"}>Home</.button>
   """
-  attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :rest, :global,
+    include: ~w(href navigate patch method download name value disabled autofocus)
+
+  attr :class, :any, default: nil, doc: "extra classes, added after the variant's"
+  attr :variant, :atom, default: nil, values: [nil, :primary, :secondary, :ghost]
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
     variants = %{
-      "primary" => "bg-gold text-ink shadow hover:brightness-110",
-      nil => "bg-iron-dark text-parchment ring-1 ring-iron hover:bg-iron"
+      primary: "bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110",
+      secondary: "bg-parchment-light text-ink shadow-sm ring-1 ring-ink/25 hover:bg-white",
+      ghost: "text-ink-soft underline-offset-4 hover:bg-ink/10 hover:text-ink hover:underline",
+      nil:
+        "bg-iron-dark/60 text-parchment ring-2 ring-parchment/45 ring-inset hover:bg-iron-dark hover:ring-parchment/70"
     }
 
     assigns =
-      assign_new(assigns, :class, fn ->
-        [
-          "inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold",
-          "transition-colors disabled:opacity-50 disabled:pointer-events-none",
-          Map.fetch!(variants, assigns[:variant])
-        ]
-      end)
+      assign(assigns, :class, [
+        "inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold",
+        "touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out",
+        "active:scale-[.98] phx-click-loading:opacity-70",
+        "focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet",
+        "disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100",
+        Map.fetch!(variants, assigns.variant),
+        assigns.class
+      ])
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""

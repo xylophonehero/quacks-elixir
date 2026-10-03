@@ -168,8 +168,9 @@ defmodule QuacksWeb.UiRound4Test do
     checked = ~s(#shop input[value="#{QuacksWeb.GameLive.encode(chip)}"][checked])
     assert has_element?(view, checked)
     assert has_element?(view, "#shop label.has-checked\\:ring-\\[3px\\] input[checked]")
-    # another orange is not a legal second chip: its tile is dimmed and disabled
-    assert has_element?(view, "#shop label.opacity-40 input:disabled")
+    # yellow is not for sale in round 1: its tile is hatched, locked and disabled
+    assert has_element?(view, "#shop label.shop-locked [data-role=tile-lock]")
+    assert has_element?(view, "#shop label.shop-locked input:disabled")
   end
 
   test "a chip offer has an info button with the books of the colours offered" do

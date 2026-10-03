@@ -44,7 +44,8 @@ defmodule QuacksWeb.LobbyLiveTest do
   end
 
   test "the host's Options set house rules for the game", %{conn: conn} do
-    {:ok, id} = GameServer.start(2)
+    # A fixed seed: some random first fortunes open a choice, which hides the fuse.
+    {:ok, id} = GameServer.start(2, {1, 2, 3})
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
 
     view
@@ -54,7 +55,7 @@ defmodule QuacksWeb.LobbyLiveTest do
     render_click(view, "players", %{"count" => "1"})
     view |> element("button", "Start game") |> render_click()
 
-    assert has_element?(view, "dd", "0 / 9")
+    assert has_element?(view, ~s(#fuse-meter[data-white="0"][data-limit="9"]), "0 / 9")
     assert has_element?(view, "[data-role=house-rules]", "explodes above 9 · no rats")
   end
 
