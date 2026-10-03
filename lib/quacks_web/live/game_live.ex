@@ -306,8 +306,12 @@ defmodule QuacksWeb.GameLive do
     do: {:noreply, socket |> reseat() |> put_game(game)}
 
   # Our own moves arrive twice (reply and broadcast); skip the copy we already have.
+  # A broadcast sent before our own call's reply can come after it: every action
+  # adds to the log, so a shorter log is an older game, and we skip it too.
   def handle_info({:game, _id, game}, socket) do
-    if game == socket.assigns.game,
+    current = socket.assigns.game
+
+    if game == current or length(game.log) < length(current.log),
       do: {:noreply, socket},
       else: {:noreply, put_game(socket, game)}
   end
