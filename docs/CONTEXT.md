@@ -20,7 +20,9 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **bag** | A player's hidden pool of chips. Chips are drawn from it blind. Starting bag: 4x white 1, 2x white 2, 1x white 3, 1x orange 1, 1x green 1. |
 | **pot** | The cauldron track: 54 spaces (index 0-53). Each space has a coin number, some have VP and a ruby. Drawn chips are placed on it; a chip lands `value` spaces after the previous chip. Every player has their own pot. |
 | **drawn** | The chips in a player's pot this round, as `{chip, index}` pairs, newest first (`Quacks.Player.drawn`). `index` is the 0-53 space the chip sits on, recorded when it is placed. The UI draws chips from these positions; a returned white chip (mandrake) leaves its space empty and later chips keep their index. `Quacks.Game.pot_chips/2` strips the positions. |
-| **droplet** | The marker for a player's permanent start position on the pot. The first chip of a round is placed relative to it (or to the rat stone). Moves forward with 2 rubies or chip actions; never moves back. |
+| **droplet** | The marker for a player's permanent start position on the pot. The first chip of a round is placed relative to it (or to the rat stone). Moves forward with 2 rubies or chip actions; never moves back. Every move from a chip, die, card or book goes through `Game.move_droplet/3` (before the round's first draw the pot's start follows it). |
+| **test tubes** | The reverse side of the pot (house rule `pot_side: :back`, default `:front`; lobby option "Pot: reverse side (test tubes)"; source `docs/research/pot-reverse-and-faq.md` §1). A second droplet, `Quacks.Player.tube` (glass 0..12), on a 12-glass track (`Quacks.Rules.TestTubes`): 1 ruby, 1 VP, blue 1, 2 VP, black 1, 2 VP, red 2, 3 VP, purple 1, 3 VP, yellow 4, 4 VP. Each droplet move waits in `Player.droplet_moves` for a choice (**droplet choice**); the shop also sells a glass, `{:rubies, :tube}`. A glass pays its bonus at once (chips into the bag; limited supply: none when empty). ⚠️ House readings: a move of 2 is 2 single choices; on glass 12 only the pot droplet moves (no choice). |
+| **droplet choice** | `Game.phase/2` returns `:droplet_choice` while `droplet_moves > 0` (reverse pot side), in any game phase but `:over`. The seat's only actions are then `{:droplet, :pot}` (pot droplet +1) and `{:droplet, :tube}` (next glass, bonus now), one per move. Other seats are not blocked; the seat's own shop "Done" waits for it, so no move is left at the end of a round. |
 | **rat tails** | Marks between some spaces of the 0-50 VP track: after VP 1, 3 and every even VP from 6 to 50 (⚠️ reconstructed, rulebook §1.2). `Quacks.Rules.ScoringTrack.rat_tails(my_vp, leader_vp)` counts the tails strictly between two markers. |
 | **rat stone** | From round 2 with 2+ players: every player behind the leader (highest VP; a tie for the lead gives nobody rats) starts the round `rat_tails` spaces past their droplet. `Quacks.Player.rat_stone` holds that distance (0 when none); it is set when a round starts and cleared when it ends. The flask falls back to droplet + rat stone when the pot is empty. |
 | **flask** | One-shot per round: put the last drawn white chip back in the bag. Not usable if that chip caused the explosion. Refill for 2 rubies in the end-of-round phase. |
@@ -42,7 +44,7 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **purple card** | Resolved once at the start of the round, after the rats: an automatic part for every seat, then `:fortune_choice` for every seat with a choice at the same time (see **concurrent choice**). |
 | **blue card** | A rule for the whole round: explosion limit 9 (B5), orange +1 space (B6), first white back (B10), exactly 7 white on stop → droplet (B1), bonus die rolled twice with both rewards (B4), free flask refill after the evaluation (B9), ruby scoring space → 2 VP (B8) or +1 ruby (B11), restart once after the 5th chip (B3), a 5-chip offer on stop (B7), a 2-value chip for the player left of an exploded pot after the potions phase (B2). |
 | **black house rule** | ⚠️ Solo has no opponent to compare black chips with. The engine treats 1+ black chip in the pot as "tied with the opponent": droplet +1, no ruby. Rulebook §6.2 suggests droplet +1 and 1 ruby instead; that is the house rule `black_solo: :droplet_ruby`. |
-| **house rules** | `Game.new(rules: %{...})`, merged over `Quacks.Game.default_rules/0` (the rulebook game) and kept in `game.rules`: `explode_above` (5..9, default 7), `round6_white` (the white 1-chip before round 6), `fortune` (Fortune Teller cards), `rats` (rat stones, 2+ players), `black_solo` (`:droplet` or `:droplet_ruby`), `die` (`:standard`, or `:no_orange`: the orange face is a second ruby face, ⚠️ unofficial), `starting_rubies` (0..3, default 1), `supply` (`:infinite` default, or `:limited`; see **supply**; the lobby's "Chip supply" option), `overflow` (`true` default: the **overflow bowl**; `false`: chips past the last space stay on it). Unknown rules or bad values raise `ArgumentError`. `Quacks.Session` and `Quacks.GameServer.start/4` pass them on, separate from `sets`. The lobby's "Options" block picks them; the game page lists the non-default ones as "House rules". Source: `docs/research/ingredient-sets-and-customisation.md` Part 2b. |
+| **house rules** | `Game.new(rules: %{...})`, merged over `Quacks.Game.default_rules/0` (the rulebook game) and kept in `game.rules`: `explode_above` (5..9, default 7), `round6_white` (the white 1-chip before round 6), `fortune` (Fortune Teller cards), `rats` (rat stones, 2+ players), `black_solo` (`:droplet` or `:droplet_ruby`), `die` (`:standard`, or `:no_orange`: the orange face is a second ruby face, ⚠️ unofficial), `starting_rubies` (0..3, default 1), `supply` (`:infinite` default, or `:limited`; see **supply**; the lobby's "Chip supply" option), `overflow` (`true` default: the **overflow bowl**; `false`: chips past the last space stay on it), `pot_side` (`:front` default, or `:back`: the **test tubes**). Unknown rules or bad values raise `ArgumentError`. `Quacks.Session` and `Quacks.GameServer.start/4` pass them on, separate from `sets`. The lobby's "Options" block picks them; the game page lists the non-default ones as "House rules". Source: `docs/research/ingredient-sets-and-customisation.md` Part 2b. |
 | **game id** | 6 lowercase letters naming one running game, as in `/g/:id`. `Quacks.GameServer` registers each game process under its id in `Quacks.GameRegistry`. |
 | **waiting game** | `GameServer` status `:waiting`, the pre-game lobby: `start/5` opens it with no `Quacks.Game` (`table.game` is `nil`); `claim_seat/2` gives the lowest free seat up to the configured count (`max_players`); `leave_seat/2` frees one (the game page calls it when it closes before the start); `begin/2` (the creator, or any seated browser once the creator left) creates the game with the seats taken, renumbered `0..n-1`, and makes it `:playing`. A solo game begins as soon as its seat is taken. `configure(id, token, %{players:, sets:, rules:, expansion:})` lets the creator (host) change the settings while waiting (any keys; bad values, or fewer players than seated, give `{:error, :invalid}`); waiting pages hear `{:names, id, names}` and re-read the table, which also shows `sets`, `rules` and `expansion`. After game over, `play_again(id, token)` (any seated browser) opens a new waiting game with the same settings, seated tokens, names and host and a new seed, returns `{:ok, new_id}` (the same id when asked again) and broadcasts `{:play_again, id, new_id}`; a solo one begins at once. The lobby lists waiting games with a free seat. The game page shows it as the **waiting room**: one slot per seat (name or "empty"; your own slot holds your name as an inline input, placeholder "Player N", sent as you type via `GameServer.rename/3`, and the **seat colour** picker), the share link (a read-only field) and "Start game" for whoever may begin. The game page of a waiting game is the **configure screen**: the lobby's "New game" opens a 2-player waiting game, and the host sets the count (1 to 8, in every game), books and options there (`GameServer.configure/3`); the others see them read-only. The host's browser keeps the last settings (localStorage) and applies them to a fresh configure screen. |
 | **player token** | A random value in the browser's session cookie (`QuacksWeb.Plugs.PlayerToken`). It stands in for an account: a `GameServer` maps token → seat on the first `claim_seat`. Seats fill lowest-free first; the creator (first token seated) is seat 0. Shown to people as "Player N" with N = seat + 1 (`GameServer.default_name/1`), or a nickname. |
@@ -63,7 +65,8 @@ Newest first. Every entry that concerns one player is tagged with the seat: `{se
 | `:stopped` | After `:stop` with 2+ players: the player waits and may still resume. |
 | `:resumed` | After `:resume`: the player brews again. |
 | `{:bought, chips}` | A purchase of one or two chips (`{:buy, []}` logs only the action). |
-| `{:rubies_spent, :droplet \| :flask \| :vp}` | Two rubies spent in the shop (`:vp`: round 9, 1 VP). |
+| `{:rubies_spent, :droplet \| :tube \| :flask \| :vp}` | Two rubies spent in the shop (`:vp`: round 9, 1 VP; `:tube`: one glass, followed by `{:tube, ...}`). |
+| `{:tube, glass, bonus}` | Reverse pot side: the test-tube droplet moved to `glass` and paid `bonus` (`:ruby`, `{:vp, n}` or `{:chip, chip}`). |
 | `{:bonus_die, face}` | A die roll in the evaluation; only the seat(s) on the highest scoring space roll. |
 | `{:black, :droplet}` | Step B: black paid the droplet only (solo house rule, 2p tie, 3-4p more than one neighbour). |
 | `{:black, :droplet_ruby}` | Step B: black paid droplet and ruby (2p more than the opponent, 3-4p more than both neighbours). |
@@ -74,7 +77,7 @@ Newest first. Every entry that concerns one player is tagged with the seat: `{se
 | `{:final_conversion, coins, coins_vp, rubies, rubies_vp}` | Round 9, at the seat's `:end_round`: its `coins` gave `coins_vp` (5 each) and its leftover `rubies` gave `rubies_vp` (2 each). |
 | `{:pennies, vp}` | Round 9, The Herb Witches: 2 VP per unused witch penny (not logged at 0). |
 | `{:witch, id, outcome}` | What herb witch `id` did for this player (see **Witch actions**). |
-| `{:rubies_spent, :droplet \| :flask, 1}` | Like `{:rubies_spent, what}`, for 1 ruby (gold witch G4). |
+| `{:rubies_spent, :droplet \| :tube \| :flask, 1}` | Like `{:rubies_spent, what}`, for 1 ruby (gold witch G4). |
 | `{:rats, tails}` | A new round started with this player `tails` spaces ahead on the rat stone. |
 | `{:fortune_drawn, id}` | Untagged. A Fortune Teller card was turned up at the start of the round. |
 | `{:fortune_skipped, id}` | Untagged. Solo only: P7 or P9 came up and was put aside. |
@@ -89,8 +92,8 @@ Card outcomes (`{seat, {:fortune, id, outcome}}`):
 |---|---|
 | B1 | `:droplet` |
 | B2, P1, P3, P5, P10, P11 | `{:take, chip}` (the chip went from the supply to the bag) |
-| B3 | `:restart_round` |
-| B7 | `{:place, chip}`, `:return_all` |
+| B3 | `{:drew, chips}` (the 5 safe draws, oldest first), then `:restart_round` |
+| B7 | `{:drew, offer}` (on stop), then `{:place, chip}` or `:return_all` |
 | B8 | `{:vp, 2}` |
 | B9 | `:flask` |
 | B10 | `:return_white` |
@@ -100,11 +103,11 @@ Card outcomes (`{seat, {:fortune, id, outcome}}`):
 | P3, P9, P13 | `:skip` |
 | P6 | `{:vp, 4}`, `:remove_white` |
 | P7 | `{:rats, extra}` |
-| P8 | `{:take, {:blue, 2}}` |
+| P8 | `{:drew, chips}` (each seat's 5 chips), then `{:take, {:blue, 2}}` or `:ruby` |
 | P9 | `{:rats_back, n}` |
 | P10 | `{:vp, n}` |
 | P12 | the die face, e.g. `{:vp, 2}` or `:ruby` |
-| P13 | `{:upgrade, chip}` (`chip` went to the supply, the next value up to the bag), `{:take, {:green, 1}}` |
+| P13 | `{:drew, offer}` (the 4 chips), then `{:upgrade, chip}` (`chip` went to the supply, the next value up to the bag), `{:take, {:green, 1}}` |
 
 B4 logs nothing of its own: the second `{:bonus_die, face}` shows it.
 
@@ -189,8 +192,10 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 
 | Shopping sub-phase (`Quacks.Player.phase`) | Actions | When |
 |---|---|---|
-| `:shop` | `{:buy, [chip]}` (once, not in round 9; C3's free copy is the buy), `{:rubies, :droplet \| :flask}` (round 9: `{:rubies, :vp}`), copper witch actions (before the buy; round 9 C2, C4), gold G4 (not round 9), `:end_round` (`{:rubies, :skip}` is an alias) | Steps 4e and 4f in one step, any order. |
+| `:shop` | `{:buy, [chip]}` (once, not in round 9; C3's free copy is the buy), `{:rubies, :droplet \| :flask}` (reverse pot side, below glass 12: also `{:rubies, :tube}`; round 9: `{:rubies, :vp}`), copper witch actions (before the buy; round 9 C2, C4), gold G4 (not round 9), `:end_round` (`{:rubies, :skip}` is an alias) | Steps 4e and 4f in one step, any order. |
 | `:ready` | none | Waiting for the other seats to end the round. |
+
+`:droplet_choice` (reverse pot side) is not a stored phase: `Game.phase/2` returns it, in any game phase, while the seat has `droplet_moves`; it takes `{:droplet, :pot}` and `{:droplet, :tube}` only (see **droplet choice**).
 
 ## Fortune choices (`{:fortune, choice}`)
 
@@ -242,6 +247,8 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 
 | Date | Change |
 |---|---|
+| 2026-10-03 | **Reverse pot side (test tubes)** as a house rule (`pot_side: :back`). Every droplet move goes through `Game.move_droplet/3`; on the reverse side each move waits for `{:droplet, :pot \| :tube}` (`:droplet_choice`). New shop action `{:rubies, :tube}`, log `{:tube, glass, bonus}`, `Player.tube` and `Player.droplet_moves`. Front side unchanged, except that a droplet move before the round's first draw now always moves the pot's start too (before: only from cards). |
+| 2026-10-03 | **Second Chances (B3) resets the whole round** (from the fourth playtest). German card: "beginne die Runde komplett neu". `:restart_round` also returns the red chips set aside **this round** (`aside`, R2/R6, found from this round's `{:effect, {:red, _}, {:aside, chip}}` entries) and any open offer (`pending`) to the bag, and resets the round modifiers (`mods`: Y2 doubling, Y3 limit, R4, B2 protection). ⚠️ House reading (no official ruling on reds): red Set 2 chips kept from an earlier round stay beside the pot. Rat stone, droplet, rubies, VP and a used flask stay. |
 | 2026-10-03 | **Round 9 stir, concurrent choices, one-step shop, overflow and black book everywhere, play again** (from the second 2-player game). Round 9 draws in lockstep (**stir**, `:waiting_stir`, no `:resume`). `:fortune_choice`, `:chip_choice` and `:witch_choice` are concurrent; `Game.turn` is gone. The shop is one sub-phase `:shop` (buy once, rubies, "Done"); round 9 offers `{:rubies, :vp}` and logs `{:final_conversion, coins, coins_vp, rubies, rubies_vp}`. House rule `overflow` (default on) replaces the expansion-only bowl. Sets 5–6, black 1/5/6, orange 2 and locoweed in every game. `GameServer.configure/3` and `play_again/2`. |
 | 2026-10-03 | **Soft stop, simultaneous shopping, infinite supply, waiting lobby** (from the first real 2-player game). `:stop` is soft (`:stopped`, `:resume`); `:buy_chips` and `:spend_rubies` are replaced by one concurrent `:shopping` phase with per-seat sub-phases `:buy` → `:rubies` → `:ready` (`turn` is `nil`); the house rule `supply` defaults to `:infinite`; `GameServer` waits for players (`:waiting`, `begin/2`, `leave_seat/2`). |
 | 2026-10-03 | **Fortune card draws cannot explode the pot** (official ruling in The Herb Witches rulebook, applied to the base game too). B7 Safety Procedure: the placed chip moves its printed value, has no action (no red/Y2 bonus either, ⚠️) and cannot explode the pot. B3 Second Chances: the round's first 5 draws, before the player may start again, cannot explode the pot (⚠️ "the draws the card asks for" read as these 5). The pot can then be over the limit without exploding; the next normal draw explodes it. `Fortune.safe_draw?/2`. |

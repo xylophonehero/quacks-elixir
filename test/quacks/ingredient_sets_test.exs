@@ -405,13 +405,15 @@ defmodule Quacks.IngredientSetsTest do
             red <- integer(1..4),
             yellow <- integer(1..4),
             purple <- integer(1..4),
+            pot_side <- member_of([:front, :back]),
             picks <- list_of(non_negative_integer(), min_length: 20, max_length: 200)
           ) do
       sets = %{green: green, blue: blue, red: red, yellow: yellow, purple: purple}
+      rules = Map.put(@limited, :pot_side, pot_side)
 
       Enum.reduce_while(
         picks,
-        Game.new(seed: seed, players: players, sets: sets, rules: @limited),
+        Game.new(seed: seed, players: players, sets: sets, rules: rules),
         fn pick, g ->
           active = Enum.filter(g.seats, &(Game.legal_actions(g, &1) != []))
 

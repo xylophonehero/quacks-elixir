@@ -7,12 +7,20 @@ defmodule Quacks.Rules.Books do
 
   `trigger` says when the book acts: `:on_draw` (when the chip is placed),
   `:step_b` (evaluation step B), `:passive` (for the rest of the round) or `:none`.
+  A book whose reward grows with the number of chips also has `tiers`, one
+  `{label, text}` row per tier; its `text` is then the one-line summary.
   """
 
   alias Quacks.Rules.Chips
 
   @type trigger :: :on_draw | :step_b | :passive | :none
-  @type book :: %{name: String.t(), text: String.t(), trigger: trigger, prices: [pos_integer]}
+  @type book :: %{
+          name: String.t(),
+          text: String.t(),
+          trigger: trigger,
+          prices: [pos_integer],
+          tiers: [{String.t(), String.t()}]
+        }
 
   @names %{
     white: "Cherry bomb",
@@ -85,16 +93,15 @@ defmodule Quacks.Rules.Books do
       {:on_draw,
        "Peek at one more chip: the yellow moves on by its value (locoweed 1). The chip goes back."},
     {:yellow, 6} => {:on_draw, "You may pay 1 ruby to move it 3 more spaces."},
-    {:purple, 1} =>
-      {:step_b, "1 purple chip: 1 VP. 2: 1 VP and 1 ruby. 3 or more: 2 VP and droplet +1."},
+    {:purple, 1} => {:step_b, "VP, rubies and droplet moves by the number of purple chips."},
     {:purple, 2} =>
       {:step_b,
-       "You may trade in 1, 2 or 3 purple chips for new chips, VP, rubies and droplet moves. More chips, bigger reward."},
+       "You may trade in 1, 2 or 3 purple chips from your pot (back to the supply) for one reward tier. Once per round. You may trade fewer than you drew."},
     {:purple, 3} =>
       {:step_b, "VP per purple chip by its space: 0–9 none, 10–19 1 VP, 20–29 2 VP, 30+ 3 VP."},
     {:purple, 4} =>
       {:step_b,
-       "1 purple chip: swap a pot 1-chip for a 2-chip of its colour. 2: a 2-chip for a 4-chip. 3+: a 1-chip for a 4-chip."},
+       "Swap one chip in your pot for a bigger chip of its colour (into your bag); more purple chips, bigger swap."},
     {:purple, 5} =>
       {:step_b,
        "The VP of the spaces with a purple chip become coins to buy up to 2 chips. Round 9: VP, 5 for 1."},
@@ -117,16 +124,36 @@ defmodule Quacks.Rules.Books do
        "Copies the move and action of the last coloured chip in your pot (white skipped). None: moves 1, no action."}
   }
 
+  # The reward tiers, from `docs/research/ingredient-sets-and-customisation.md` §1.3.
+  @tiers %{
+    {:purple, 1} => [
+      {"1 purple", "1 VP"},
+      {"2 purple", "1 VP · 1 ruby"},
+      {"3+ purple", "2 VP · droplet +1"}
+    ],
+    {:purple, 2} => [
+      {"1 purple", "black 1 · 1 VP · 1 ruby"},
+      {"2 purple", "green 1 · blue 2 · 3 VP · droplet +1"},
+      {"3 purple", "yellow 4 · 6 VP · 1 ruby · droplet +2"}
+    ],
+    {:purple, 4} => [
+      {"1 purple", "a 1-chip → a 2-chip"},
+      {"2 purple", "a 2-chip → a 4-chip"},
+      {"3+ purple", "a 1-chip → a 4-chip"}
+    ]
+  }
+
   @doc """
-  The book `{colour, set}`: its name, trigger, text and prices (coins per chip value,
-  low to high).
+  The book `{colour, set}`: its name, trigger, text, prices (coins per chip value,
+  low to high) and reward `tiers` (`[]` for most books).
 
       iex> Quacks.Rules.Books.get({:green, 1})
       %{
         name: "Garden spider",
         trigger: :step_b,
         text: "1 ruby for each green chip that is your last or next-to-last chip.",
-        prices: [4, 8, 14]
+        prices: [4, 8, 14],
+        tiers: []
       }
   """
   @spec get({Chips.colour(), 1..6}) :: book
@@ -137,7 +164,13 @@ defmodule Quacks.Rules.Books do
     prices =
       for {^colour, _} = chip <- Chips.shop(:herb_witches, sets), do: Chips.price(chip, sets)
 
-    %{name: @names[colour], trigger: trigger, text: text, prices: prices}
+    %{
+      name: @names[colour],
+      trigger: trigger,
+      text: text,
+      prices: prices,
+      tiers: Map.get(@tiers, key, [])
+    }
   end
 
   @doc "Every supported `{colour, set}`, sorted."

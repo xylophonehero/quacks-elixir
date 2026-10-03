@@ -8,7 +8,7 @@ defmodule QuacksWeb.GameComponents do
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Potions
-  alias Quacks.Rules.{Books, Chips, PotTrack}
+  alias Quacks.Rules.{Books, Chips, PotTrack, ScoringTrack, TestTubes}
   alias Quacks.Rules.Fortune
   alias Quacks.Rules.Witches
 
@@ -335,6 +335,120 @@ defmodule QuacksWeb.GameComponents do
     </svg>
     """
   end
+
+  @doc """
+  The test-tube rack of the reverse pot side: glass 0 (the start) and the 12 bonus
+  glasses, each with its bonus (a ruby, the VP, or the chip). The droplet sits above
+  the glass the player reached; glasses already paid are dimmed.
+  """
+  attr :tube, :integer, required: true, doc: "the player's `tube` (0..12)"
+  attr :class, :any, default: "block h-auto w-full"
+
+  def test_tubes(assigns) do
+    assigns = assign(assigns, glasses: 0..TestTubes.last(), last: TestTubes.last())
+
+    ~H"""
+    <svg
+      viewBox="0 -18 364 84"
+      class={[@class, "select-none"]}
+      role="img"
+      aria-label={"Test tubes: glass #{@tube} of #{@last}"}
+      data-role="test-tubes"
+      data-tube={@tube}
+    >
+      <rect x="2" y="54" width="360" height="9" rx="3" fill="var(--color-wood)" />
+      <rect x="2" y="54" width="360" height="3" rx="1.5" fill="var(--color-wood-dark)" opacity="0.5" />
+      <g
+        :for={glass <- @glasses}
+        transform={"translate(#{14 + 28 * glass} 0)"}
+        data-role="glass"
+        data-filled={to_string(glass > 0 and glass <= @tube)}
+        opacity={if glass > 0 and glass <= @tube, do: "0.4"}
+        class="transition-opacity duration-300 motion-reduce:transition-none"
+      >
+        <title>{glass_title(glass)}</title>
+        <path
+          d={
+            if glass == 0,
+              do: "M-7 22 v20 a7 7 0 0 0 14 0 v-20",
+              else: "M-10 6 v38 a10 10 0 0 0 20 0 v-38"
+          }
+          fill="var(--color-parchment-light)"
+          fill-opacity="0.85"
+          stroke="var(--color-iron)"
+          stroke-width="2"
+        />
+        <line
+          x1={if glass == 0, do: "-9", else: "-12"}
+          x2={if glass == 0, do: "9", else: "12"}
+          y1={if glass == 0, do: "22", else: "6"}
+          y2={if glass == 0, do: "22", else: "6"}
+          stroke="var(--color-iron)"
+          stroke-width="3"
+          stroke-linecap="round"
+        />
+        <.glass_bonus :if={glass > 0} bonus={TestTubes.bonus(glass)} />
+        <path
+          :if={glass == @tube}
+          d="M0 -11 C8 -1 8 7 0 7 C-8 7 -8 -1 0 -11 Z"
+          transform="translate(0 -4)"
+          fill="var(--color-droplet)"
+          stroke="white"
+          stroke-width="1.5"
+          aria-label="test-tube droplet"
+          data-role="tube-droplet"
+        />
+      </g>
+    </svg>
+    """
+  end
+
+  attr :bonus, :any, required: true
+
+  defp glass_bonus(%{bonus: :ruby} = assigns) do
+    ~H"""
+    <path
+      d="M0 22 l7 5 -2.5 8 h-9 l-2.5 -8 z"
+      fill="var(--color-ruby)"
+      stroke="#7a1410"
+      stroke-width="1"
+    />
+    """
+  end
+
+  defp glass_bonus(%{bonus: {:vp, n}} = assigns) do
+    assigns = assign(assigns, n: n)
+
+    ~H"""
+    <text y="31" text-anchor="middle" font-size="15" font-weight="800" fill="var(--color-ink)">
+      {@n}
+    </text>
+    <text y="42" text-anchor="middle" font-size="7" font-weight="700" fill="var(--color-ink-soft)">
+      VP
+    </text>
+    """
+  end
+
+  defp glass_bonus(%{bonus: {:chip, {colour, value}}} = assigns) do
+    ink = if colour in @light_chips, do: "var(--color-ink)", else: "white"
+    assigns = assign(assigns, colour: colour, value: value, ink: ink)
+
+    ~H"""
+    <circle
+      cy="30"
+      r="8"
+      fill={"var(--color-chip-#{@colour})"}
+      stroke="rgb(0 0 0 / 0.4)"
+      stroke-width="1.5"
+    />
+    <text y="33.5" text-anchor="middle" font-size="10" font-weight="700" fill={@ink}>
+      {@value}
+    </text>
+    """
+  end
+
+  defp glass_title(0), do: "Start"
+  defp glass_title(glass), do: "Glass #{glass}: #{tube_bonus(TestTubes.bonus(glass))}"
 
   # A scoring ring: one full circle, or one arc per seat when seats share the space.
   # `pathLength="100"` lets each arc be "100 / n" long whatever the radius.
@@ -863,6 +977,25 @@ defmodule QuacksWeb.GameComponents do
       <span class="font-semibold text-ink">{@book.name}</span>
       · {trigger_label(@book.trigger)} · {@book.text}
     </p>
+    <.book_tiers tiers={@book.tiers} />
+    """
+  end
+
+  @doc "A book's reward tiers as a small table (nothing when the book has none)."
+  attr :tiers, :list, required: true
+
+  def book_tiers(assigns) do
+    ~H"""
+    <table :if={@tiers != []} class="mt-1 w-full text-xs" data-role="book-tiers">
+      <tbody class="divide-y divide-ink/10">
+        <tr :for={{label, text} <- @tiers}>
+          <th class="py-0.5 pr-2 text-left font-semibold whitespace-nowrap tabular-nums">
+            {label}
+          </th>
+          <td class="py-0.5">{text}</td>
+        </tr>
+      </tbody>
+    </table>
     """
   end
 
@@ -921,6 +1054,7 @@ defmodule QuacksWeb.GameComponents do
         <.book_seal set={@set} />
       </div>
       <p class="text-[13px] leading-snug text-pretty">{@book.text}</p>
+      <.book_tiers tiers={@book.tiers} />
       <div :if={@book.chips != []} class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
         <span
           :for={{chip, price} <- @book.chips}
@@ -998,7 +1132,8 @@ defmodule QuacksWeb.GameComponents do
       :rats,
       :black_solo,
       :die,
-      :supply
+      :supply,
+      :pot_side
     ]
 
     changed = for key <- keys, rules[key] != default[key], do: {key, rules[key]}
@@ -1019,6 +1154,7 @@ defmodule QuacksWeb.GameComponents do
   defp rule_label({:black_solo, :droplet_ruby}), do: "solo black pays a ruby"
   defp rule_label({:die, :no_orange}), do: "die: ruby instead of orange"
   defp rule_label({:supply, :limited}), do: "limited chip supply"
+  defp rule_label({:pot_side, :back}), do: "reverse pot side (test tubes)"
 
   @doc "Red Set 2 chips waiting beside the pot (not in the bag)."
   attr :chips, :list, required: true, doc: "the player's `aside` chips"
@@ -1241,6 +1377,7 @@ defmodule QuacksWeb.GameComponents do
   defp narrated_by_event?(:draw), do: true
   defp narrated_by_event?({:buy, [_ | _]}), do: true
   defp narrated_by_event?({:rubies, _}), do: true
+  defp narrated_by_event?({:droplet, :tube}), do: true
   defp narrated_by_event?(:end_round), do: true
   # Every card choice logs its outcome right after, as `{:fortune, id, outcome}`.
   defp narrated_by_event?({:fortune, _choice}), do: true
@@ -1250,8 +1387,11 @@ defmodule QuacksWeb.GameComponents do
 
   @doc """
   What each player gained this round: every log entry since the round began that
-  gave VP or rubies, plus the bonus die, then the totals. Read from the log only.
-  With `names` (multiplayer) there is one block per seat, headed by its name.
+  gave VP or rubies, plus the bonus die and the Fortune Teller card's outcome, then
+  the totals. Below the totals: the rat tails for the next round (2+ players, rats
+  on) and, in round 9, the final buying power (coins and rubies → VP; from the log
+  once the seat is done, else from what it has now). With `names` (multiplayer)
+  there is one block per seat, headed by its name.
   """
   attr :game, Game, required: true
   attr :names, :map, default: nil, doc: "`%{seat => name}`; nil for solo"
@@ -1282,10 +1422,48 @@ defmodule QuacksWeb.GameComponents do
             "rubies"
           )}
         </p>
+        <p :if={tails = rat_tails(@game, seat)} class="text-sm" data-role="result-rats">
+          Rats next round: {tails} {plural(tails, "tail", "tails")}
+        </p>
+        <p
+          :if={power = final_power(@game, seat)}
+          class="text-sm font-semibold"
+          data-role="result-buying-power"
+        >
+          {power}
+        </p>
       </div>
     </section>
     """
   end
+
+  # The rat tails `seat` gets at the start of the next round, as the VP stand now;
+  # nil when no rats come (solo, house rule off, round 9).
+  defp rat_tails(%{seats: [_]}, _seat), do: nil
+  defp rat_tails(%{rules: %{rats: false}}, _seat), do: nil
+  defp rat_tails(%{round: 9}, _seat), do: nil
+
+  defp rat_tails(game, seat) do
+    leader = game.players |> Map.values() |> Enum.map(& &1.vp) |> Enum.max()
+    ScoringTrack.rat_tails(game.players[seat].vp, leader)
+  end
+
+  # Round 9: "Final buying power: ..." from the seat's conversion entry, or what its
+  # coins and rubies will give now.
+  defp final_power(%{round: 9} = game, seat) do
+    entry =
+      Enum.find_value(game.log, fn
+        {^seat, {:final_conversion, _, _, _, _} = entry} -> entry
+        _entry -> nil
+      end)
+
+    %{coins: coins, rubies: rubies} = game.players[seat]
+    {_, coins, cvp, rubies, rvp} = entry || {nil, coins, div(coins, 5), rubies, div(rubies, 2)}
+
+    "Final buying power: #{coins} coins → #{cvp} VP, #{rubies} #{plural(rubies, "ruby", "rubies")} → #{rvp} VP"
+  end
+
+  defp final_power(_game, _seat), do: nil
 
   @doc "The border class of a seat's colour, e.g. `\"border-player-1\"`."
   @spec seat_border(Game.seat()) :: String.t()
@@ -1343,6 +1521,9 @@ defmodule QuacksWeb.GameComponents do
   defp gain({:purple, 3, _}), do: {2, 0}
   defp gain({:black, :droplet_ruby}), do: {0, 1}
   defp gain({:pot_ruby, _index}), do: {0, 1}
+  defp gain({:tube, _glass, {:vp, n}}), do: {n, 0}
+  defp gain({:tube, _glass, :ruby}), do: {0, 1}
+  defp gain({:tube, _glass, _bonus}), do: {0, 0}
   defp gain({:pot_vp, vp, _index}), do: {vp, 0}
   defp gain({:bowl, _chips, vp}), do: {vp, 0}
   defp gain({:effect, {:green, 6}, {:bonus_die, face}}), do: gain({:bonus_die, face})
@@ -1359,6 +1540,8 @@ defmodule QuacksWeb.GameComponents do
   defp gain({:fortune, _id, :ruby}), do: {0, 1}
   defp gain({:fortune, _id, :rubies}), do: {0, 3}
   defp gain({:fortune, _id, {:rats_back, n}}), do: {0, n}
+  # Every other card outcome shows too (what the card did), worth nothing here.
+  defp gain({:fortune, _id, outcome}) when outcome != :skip, do: {0, 0}
   defp gain(_entry), do: nil
 
   @doc """
@@ -1387,6 +1570,10 @@ defmodule QuacksWeb.GameComponents do
   def label({:rubies, :droplet}), do: "Spend 2 rubies: droplet +1"
   def label({:rubies, :flask}), do: "Spend 2 rubies: refill flask"
   def label({:rubies, :vp}), do: "2 rubies → 1 VP"
+  def label({:rubies, :tube}), do: "Spend 2 rubies: test tube +1"
+  def label({:droplet, :pot}), do: "Pot droplet +1"
+  def label({:droplet, :tube}), do: "Test tube +1"
+  def label({:tube, glass, bonus}), do: "Test tube #{glass}: #{tube_bonus(bonus)}"
   def label({:buy, []}), do: "Buy nothing"
 
   # No price here: it depends on the game's books. The shop shows the prices.
@@ -1397,10 +1584,7 @@ defmodule QuacksWeb.GameComponents do
   def label(:keep), do: "Mandrake: keep the white chip"
   def label({:place, {colour, value}}), do: "Crow skull: place #{colour} #{value}"
   def label(:return_all), do: "Crow skull: return all drawn chips to the bag"
-  def label({:bonus_die, {:vp, n}}), do: "Bonus die: #{n} VP"
-  def label({:bonus_die, :ruby}), do: "Bonus die: ruby"
-  def label({:bonus_die, :droplet}), do: "Bonus die: droplet +1"
-  def label({:bonus_die, :orange}), do: "Bonus die: orange 1 chip"
+  def label({:bonus_die, face}), do: "Bonus die: #{die_face(face)}"
   def label({:drew, chip, index}), do: "Drew #{chip_name(chip)} → space #{index}"
   def label({:returned, chip}), do: "Returned #{chip_name(chip)} to the bag"
   def label({:exploded, white_sum}), do: "Exploded (white #{white_sum})"
@@ -1408,6 +1592,7 @@ defmodule QuacksWeb.GameComponents do
   def label({:rubies_spent, :droplet}), do: "Spent 2 rubies: droplet +1"
   def label({:rubies_spent, :flask}), do: "Spent 2 rubies: flask refilled"
   def label({:rubies_spent, :vp}), do: "Spent 2 rubies: +1 VP"
+  def label({:rubies_spent, :tube}), do: "Spent 2 rubies: test tube +1"
   def label({:green_rubies, n}), do: "Garden spider: +#{n} #{plural(n, "ruby", "rubies")}"
   def label({:purple, 1, :vp1}), do: "Ghost's breath (tier 1): +1 VP"
   def label({:purple, 2, :vp1_ruby}), do: "Ghost's breath (tier 2): +1 VP, +1 ruby"
@@ -1452,6 +1637,7 @@ defmodule QuacksWeb.GameComponents do
   def label({:red, {:return, chip}}), do: "Toadstool: return #{chip_name(chip)} to the bag"
   def label({:rubies_spent, :droplet, 1}), do: "Spent 1 ruby: droplet +1"
   def label({:rubies_spent, :flask, 1}), do: "Spent 1 ruby: flask refilled"
+  def label({:rubies_spent, :tube, 1}), do: "Spent 1 ruby: test tube +1"
   def label({:overflow, chip}), do: "#{chip_name(chip)} went in the overflow bowl"
   def label({:bowl, _chips, vp}), do: "Overflow bowl: +#{vp} VP"
   def label({:pennies, vp}), do: "Unused witch pennies: +#{vp} VP"
@@ -1604,6 +1790,11 @@ defmodule QuacksWeb.GameComponents do
   defp fortune_choice(other, _card), do: inspect({:fortune, other})
 
   # What a card did for a player, for the log.
+  defp fortune_outcome({:drew, chips}, :p8),
+    do: "drew #{chip_list(chips)} (sum #{chips |> Enum.map(&elem(&1, 1)) |> Enum.sum()})"
+
+  defp fortune_outcome({:drew, chips}, _id), do: "drew #{chip_list(chips)}"
+  defp fortune_outcome(face, :p12), do: "rolled the die: #{die_face(face)}"
   defp fortune_outcome(:droplet, :p11), do: "droplet +2"
   defp fortune_outcome(:droplet, _id), do: "droplet +1"
   defp fortune_outcome({:take, chip}, _id), do: "took #{chip_name(chip)}"
@@ -1626,6 +1817,20 @@ defmodule QuacksWeb.GameComponents do
   defp fortune_outcome(:orange, _id), do: "orange 1 chip"
   defp fortune_outcome(other, _id), do: inspect(other)
 
+  defp chip_list(chips), do: Enum.map_join(chips, ", ", &chip_name/1)
+
+  defp die_face({:vp, n}), do: "#{n} VP"
+  defp die_face(:ruby), do: "ruby"
+  defp die_face(:droplet), do: "droplet +1"
+  defp die_face(:orange), do: "orange 1 chip"
+  defp die_face(other), do: inspect(other)
+
+  @doc ~s(A test-tube glass bonus in words: "1 ruby", "2 VP", "blue 1 chip".)
+  @spec tube_bonus(Quacks.Rules.TestTubes.bonus()) :: String.t()
+  def tube_bonus(:ruby), do: "1 ruby"
+  def tube_bonus({:vp, n}), do: "#{n} VP"
+  def tube_bonus({:chip, chip}), do: "#{chip_name(chip)} chip"
+
   defp plural(1, one, _many), do: one
   defp plural(_n, _one, many), do: many
 
@@ -1647,6 +1852,8 @@ defmodule QuacksWeb.GameComponents do
   def phase_name(:red_choice), do: "Toadstool"
   def phase_name(:stopped), do: "Stopped"
   def phase_name(:shop), do: "Shop"
+  def phase_name(:rubies), do: "Spend rubies"
+  def phase_name(:droplet_choice), do: "Droplet"
   def phase_name(:waiting_stir), do: "Stir!"
   def phase_name(:ready), do: "Ready"
   def phase_name(:done), do: "Done"

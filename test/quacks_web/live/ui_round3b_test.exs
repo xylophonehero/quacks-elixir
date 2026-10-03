@@ -126,18 +126,20 @@ defmodule QuacksWeb.UiRound3bTest do
     assert state(alice, 1) =~ "choosing"
   end
 
-  test "the shop is one step: Done, no Buy nothing; round 9 trades 2 rubies for 1 VP" do
+  test "the shop: Done, no Buy nothing, no rubies; round 9 trades 2 rubies for 1 VP" do
     {id, alice, _bob} = duo()
-    replace_game(id, &H.put(&1, 0, phase: :shop))
+    replace_game(id, &H.put(&1, 0, phase: :shop, rubies: 3))
 
     assert has_element?(alice, "dialog#decision-shop #shop")
     assert has_element?(alice, "dialog#decision-shop [data-role=shop-bag]")
     assert has_element?(alice, "dialog#decision-shop [data-role=shop-done]", "Done")
     refute has_element?(alice, "button", "Buy nothing")
+    refute has_element?(alice, "dialog#decision-shop [data-role=shop-rubies]")
 
     replace_game(id, &(&1 |> H.put(round: 9) |> H.put(0, rubies: 3)))
-    refute has_element?(alice, "dialog#decision-shop #shop")
-    alice |> element("dialog#decision-shop button", "2 rubies → 1 VP") |> render_click()
+    refute has_element?(alice, "dialog#decision-shop")
+    assert has_element?(alice, "dialog#round-results[data-then-open=decision-rubies]")
+    alice |> element("dialog#decision-rubies button", "2 rubies → 1 VP") |> render_click()
     assert has_element?(alice, "li", "Spent 2 rubies: +1 VP")
   end
 
