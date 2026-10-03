@@ -610,12 +610,17 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  # The small badges after a name: exploded, done or waiting, their turn.
+  # The small badges after a name: exploded, what the seat does now (see
+  # `seat_state/2`), their turn.
   attr :game, Game, required: true
   attr :seat, :integer, required: true
 
   defp player_state(assigns) do
-    assigns = assign(assigns, p: assigns.game.players[assigns.seat])
+    assigns =
+      assign(assigns,
+        p: assigns.game.players[assigns.seat],
+        state: seat_state(assigns.game, assigns.seat)
+      )
 
     ~H"""
     <span
@@ -626,14 +631,40 @@ defmodule QuacksWeb.GameComponents do
       Exploded
     </span>
     <span
-      :if={@game.phase == :potions and not @p.exploded?}
-      class="rounded bg-parchment-deep px-1 text-ink"
+      :if={@state}
+      class={["rounded px-1", state_class(@state)]}
+      data-role="player-state"
+      data-state={@state}
     >
-      {if @p.done?, do: "done", else: "waiting"}
+      {@state}
     </span>
     <span :if={@game.turn == @seat} class="rounded bg-gold px-1 text-ink">their turn</span>
     """
   end
+
+  @doc """
+  What `seat` does now, in a word or two, while everyone acts at once: "brewing",
+  "choosing", "stopped" or "done" in the potions phase; "shopping", "spending
+  rubies" or "ready" in the shop. `nil` in the other phases (`turn` tells who acts).
+  """
+  @spec seat_state(Game.t(), Game.seat()) :: String.t() | nil
+  def seat_state(%Game{phase: phase, players: players}, seat)
+      when phase in [:potions, :shopping] do
+    case players[seat].phase do
+      p when p in [:explosion_choice, :red_choice] -> "choosing"
+      :stopped -> "stopped"
+      :done -> "done"
+      :buy -> "shopping"
+      :rubies -> "spending rubies"
+      :ready -> "ready"
+      _brewing -> "brewing"
+    end
+  end
+
+  def seat_state(%Game{}, _seat), do: nil
+
+  defp state_class(state) when state in ["stopped", "done", "ready"], do: "bg-iron text-parchment"
+  defp state_class(_state), do: "bg-parchment-deep text-ink"
 
   @doc """
   The game's Ingredient book per colour, e.g. "green 2 · blue 1 · ...".
@@ -713,7 +744,17 @@ defmodule QuacksWeb.GameComponents do
     %{rules: rules} = assigns
     default = Game.default_rules()
     # A fixed order: map keys have no order to rely on.
-    keys = [:explode_above, :starting_rubies, :round6_white, :fortune, :rats, :black_solo, :die]
+    keys = [
+      :explode_above,
+      :starting_rubies,
+      :round6_white,
+      :fortune,
+      :rats,
+      :black_solo,
+      :die,
+      :supply
+    ]
+
     changed = for key <- keys, rules[key] != default[key], do: {key, rules[key]}
     assigns = assign(assigns, changed: changed)
 
@@ -731,6 +772,7 @@ defmodule QuacksWeb.GameComponents do
   defp rule_label({:rats, false}), do: "no rats"
   defp rule_label({:black_solo, :droplet_ruby}), do: "solo black pays a ruby"
   defp rule_label({:die, :no_orange}), do: "die: ruby instead of orange"
+  defp rule_label({:supply, :limited}), do: "limited chip supply"
 
   @doc "Red Set 2 chips waiting beside the pot (not in the bag)."
   attr :chips, :list, required: true, doc: "the player's `aside` chips"

@@ -183,6 +183,12 @@ defmodule QuacksWeb.LobbyLive do
             value={@rules.die}
             options={[standard: "standard", no_orange: "ruby instead of orange (unofficial)"]}
           />
+          <.radios
+            name="supply"
+            legend="Chip supply"
+            value={@rules.supply}
+            options={[infinite: "infinite", limited: "limited (the chips in the box)"]}
+          />
         </form>
       </details>
 

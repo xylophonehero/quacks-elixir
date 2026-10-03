@@ -52,8 +52,8 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     refute has_element?(alice, "[data-role=waiting-for-players]")
     assert has_element?(alice, "[data-role=turn]", "Everyone brews at the same time.")
     # each sees the other one small, still brewing
-    assert has_element?(alice, ~s(article[data-seat="1"]), "waiting")
-    assert has_element?(bob, ~s(article[data-seat="0"]), "waiting")
+    assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "brewing")
+    assert has_element?(bob, ~s(article[data-seat="0"] [data-role=player-state]), "brewing")
 
     alice |> element("button", "Draw a chip") |> render_click()
     bob |> element("button", "Draw a chip") |> render_click()
@@ -63,8 +63,8 @@ defmodule QuacksWeb.MultiplayerLiveTest do
 
     # a soft stop: alice may resume while bob still brews
     alice |> element("button", "Stop") |> render_click()
-    assert has_element?(alice, "button", "Resume brewing")
-    alice |> element("button", "Resume brewing") |> render_click()
+    assert has_element?(alice, "button[data-slot=stop]", "Resume")
+    alice |> element("button[data-slot=stop]", "Resume") |> render_click()
     alice |> element("button", "Stop") |> render_click()
     bob |> element("button", "Stop") |> render_click()
 
