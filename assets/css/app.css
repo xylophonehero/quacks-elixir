@@ -83,16 +83,33 @@
 }
 
 @layer base {
+  /* A dark tabletop: a vignette, plank seams and long horizontal grain, all
+     gradients. `fixed`, so the table stays put behind sheets and scrolling. */
   body {
     background-color: var(--color-wood-dark);
-    /* faint wood grain */
-    background-image: repeating-linear-gradient(
-      90deg,
-      rgb(0 0 0 / 0.1) 0 2px,
-      transparent 2px 23px,
-      rgb(255 255 255 / 0.03) 23px 25px,
-      transparent 25px 61px
-    );
+    background-image:
+      radial-gradient(ellipse at 50% 45%, transparent 50%, rgb(0 0 0 / 0.5)),
+      repeating-linear-gradient(
+        180deg,
+        transparent 0 179px,
+        rgb(0 0 0 / 0.28) 179px 180px,
+        rgb(255 255 255 / 0.04) 180px 181px
+      ),
+      repeating-linear-gradient(
+        178.6deg,
+        transparent 0 7px,
+        rgb(0 0 0 / 0.07) 7px 8px,
+        transparent 8px 19px,
+        rgb(255 220 170 / 0.035) 19px 21px
+      ),
+      repeating-linear-gradient(
+        181.2deg,
+        transparent 0 13px,
+        rgb(0 0 0 / 0.06) 13px 15px,
+        transparent 15px 41px
+      ),
+      linear-gradient(180deg, #4a3219, var(--color-wood-dark) 60%, #33220f);
+    background-attachment: fixed;
     color: var(--color-parchment);
   }
 
@@ -243,6 +260,64 @@
   .book-check svg {
     transition: none;
   }
+}
+
+/* The white fuse above Stop / Draw (`GameComponents.fuse_meter/1`). Notches light
+   one by one (a short stagger); the whole fuse turns amber, then red. */
+.fuse-notch {
+  background-color: rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.4);
+  transition: background-color 220ms var(--ease-out) calc(var(--i) * 30ms);
+}
+
+.fuse-notch[data-lit="true"] {
+  background-color: var(--color-parchment);
+  box-shadow: inset 0 -2px 0 rgb(120 80 30 / 0.25);
+}
+
+/* Amber, warmer than the gold of buttons and VP. */
+.fuse[data-level="warn"] .fuse-notch[data-lit="true"] {
+  background-color: #f0892a;
+}
+
+.fuse[data-level="danger"] .fuse-notch[data-lit="true"] {
+  background-color: var(--color-ruby);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.25);
+}
+
+.fuse-label {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background-color: rgb(35 38 42 / 0.88);
+  color: var(--color-parchment);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+  transition: background-color 220ms var(--ease-out);
+}
+
+.fuse[data-level="danger"] .fuse-label {
+  background-color: #5c0f0b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fuse-notch,
+  .fuse-label {
+    transition: none;
+  }
+}
+
+/* The pot sits on the table: a soft shadow under it and a faint hearth glow. */
+.pot-hearth {
+  background-image:
+    radial-gradient(closest-side, rgb(224 178 60 / 0.14), rgb(216 50 43 / 0.06) 70%, transparent),
+    radial-gradient(ellipse 50% 46% at 50% 54%, rgb(0 0 0 / 0.5), transparent);
 }
 
 /* The pot is the largest square that fits its box, so the controls in the

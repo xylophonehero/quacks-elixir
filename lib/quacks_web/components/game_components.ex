@@ -63,6 +63,18 @@ defmodule QuacksWeb.GameComponents do
     7 => "ring-player-7 bg-player-7/20"
   }
 
+  # A ring in the seat colour (the "You" name pill).
+  @seat_ring %{
+    0 => "ring-player-0",
+    1 => "ring-player-1",
+    2 => "ring-player-2",
+    3 => "ring-player-3",
+    4 => "ring-player-4",
+    5 => "ring-player-5",
+    6 => "ring-player-6",
+    7 => "ring-player-7"
+  }
+
   # The palette itself (`--color-seat-N`), for the colour picker.
   @palette_bg %{
     0 => "bg-seat-0",
@@ -153,10 +165,12 @@ defmodule QuacksWeb.GameComponents do
   One seat's 54-space pot track, drawn as the board's cauldron: an inline SVG with
   the spaces on a spiral from the centre (space 0) out to the rim (space 53).
 
-  `size={:lg}` (your own pot) shows each space's coins (top tag), victory points
-  (lower tag, on every space that has some, also on phones) and a ruby gem. `size={:sm}` (another player's pot) shows only the
-  chips. In both, the droplet is a blue drop on its space, placed chips sit on their
-  spaces and the rat stone, when the player has one, is a grey pebble on its space.
+  `size={:lg}` (your own pot) shows each space's coins (a plain numeral), its
+  victory points (a small gold seal, only where VP > 0) and a ruby gem. Spaces
+  before the scoring space are dimmed; the scoring space glows gold. `size={:sm}`
+  (another player's pot) shows only the chips. In both, the droplet is a blue drop
+  with a dark outline on its space, placed chips sit on their spaces and the rat
+  stone, when the player has one, is a grey pebble on its space.
 
   Scoring spaces (the space directly after the last chip) are rings in the seat
   colours. `rings` maps seat => scoring space; by default only this seat's ring
@@ -188,6 +202,7 @@ defmodule QuacksWeb.GameComponents do
         chips_by_index: chips_by_index(player),
         rings_by_index: rings |> Enum.sort() |> Enum.group_by(&elem(&1, 1), &elem(&1, 0)),
         rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
+        scoring: Game.scoring_index(assigns.game, assigns.seat),
         spaces: 0..PotTrack.last(),
         groove: @groove
       )
@@ -207,9 +222,12 @@ defmodule QuacksWeb.GameComponents do
           <stop offset="70%" stop-color="var(--color-potion)" />
           <stop offset="100%" stop-color="var(--color-potion-deep)" />
         </radialGradient>
+        <radialGradient :if={@size == :lg} id={"vp-gold-#{@seat}"} cx="35%" cy="30%">
+          <stop offset="0%" stop-color="#fff1bf" />
+          <stop offset="50%" stop-color="var(--color-gold)" />
+          <stop offset="100%" stop-color="#a97d17" />
+        </radialGradient>
       </defs>
-      <%!-- the table under the pot --%>
-      <rect x="-268" y="-10" width="536" height="278" rx="14" fill="var(--color-wood)" />
       <%!-- iron rim and the brew --%>
       <circle r="262" fill={if @me.exploded?, do: "#4a1210", else: "var(--color-iron-dark)"} />
       <circle
@@ -253,56 +271,62 @@ defmodule QuacksWeb.GameComponents do
           stroke="var(--color-potion-deep)"
           stroke-width="2"
         />
-        <g :if={@size == :lg}>
-          <rect
-            x="-13"
-            y="-19"
-            width="26"
-            height="17"
-            rx="2"
-            fill="var(--color-parchment)"
-            stroke="var(--color-ink-soft)"
-            stroke-width="0.75"
-          />
+        <circle
+          :if={@size == :lg and index == @scoring}
+          r="22"
+          fill="var(--color-gold)"
+          fill-opacity="0.35"
+          data-role="next-space"
+        />
+        <g
+          :if={@size == :lg}
+          opacity={if index < @scoring, do: "0.45"}
+          data-passed={index < @scoring && "true"}
+        >
           <text
-            y="-5.5"
+            dy="0.35em"
             text-anchor="middle"
-            font-size="14"
-            font-weight="700"
-            font-family="var(--font-hand)"
+            font-size="17"
+            font-weight="600"
             fill="var(--color-ink)"
+            fill-opacity="0.75"
+            class="tabular-nums"
           >
             {PotTrack.at(index).coins}
           </text>
-          <g :if={PotTrack.at(index).vp > 0} data-role="vp-tag">
-            <rect
-              x="-10"
-              y="0"
-              width="20"
-              height="16"
-              rx="2"
-              fill="var(--color-parchment-deep)"
-              stroke="var(--color-ink-soft)"
-              stroke-width="0.75"
+          <g :if={PotTrack.at(index).vp > 0} transform="translate(14 14)" data-role="vp-tag">
+            <circle
+              r="9"
+              fill={"url(#vp-gold-#{@seat})"}
+              stroke="#7a5a10"
+              stroke-width="1"
             />
             <text
-              y="12.5"
+              dy="0.35em"
               text-anchor="middle"
-              font-size="13"
+              font-size="12"
               font-weight="700"
-              fill="var(--color-ink)"
+              fill="#3a2508"
             >
               {PotTrack.at(index).vp}
             </text>
           </g>
-          <path
-            :if={PotTrack.at(index).ruby?}
-            d="M14 -22 l6 4 -2 7 h-8 l-2 -7 z"
-            fill="var(--color-ruby)"
-            stroke="#7a1410"
-            stroke-width="1"
-            aria-label="ruby"
-          />
+          <g :if={PotTrack.at(index).ruby?} aria-label="ruby" data-role="ruby-space">
+            <path
+              d="M14 -22 l6 4 -2 7 h-8 l-2 -7 z"
+              transform="translate(15 -18) scale(1.6) translate(-14 18)"
+              fill="var(--color-ruby)"
+              stroke="#5e0e0a"
+              stroke-width="0.8"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M11.5 -19.5 l3.5 -1.5 l2 1.5 z"
+              transform="translate(15 -18) scale(1.6) translate(-14 18)"
+              fill="white"
+              fill-opacity="0.75"
+            />
+          </g>
         </g>
         <.pot_chip
           :if={Map.has_key?(@chips_by_index, index)}
@@ -313,10 +337,12 @@ defmodule QuacksWeb.GameComponents do
         <path
           :if={index == @me.droplet}
           d="M0 -11 C8 -1 8 7 0 7 C-8 7 -8 -1 0 -11 Z"
-          transform="translate(-20 -13)"
+          transform="translate(-20 -13) scale(1.6)"
           fill="var(--color-droplet)"
-          stroke="white"
-          stroke-width="1.5"
+          stroke="#0b1f4d"
+          stroke-width="1.6"
+          stroke-linejoin="round"
+          paint-order="stroke"
           aria-label="droplet"
         />
         <ellipse
@@ -744,8 +770,9 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  One seat's score and resources in one row, plus a badge while it buys (its coins)
-  or after an explosion.
+  One seat's score and resources in one row (VP, rubies, flask), plus a badge while
+  it buys (its coins) or after an explosion. The white total is the fuse
+  (`fuse_meter/1`) above the action bar.
   """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
@@ -754,17 +781,13 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, me: assigns.game.players[assigns.seat])
 
     ~H"""
-    <dl class="paper grid grid-cols-4 gap-1 rounded-lg p-1 text-sm">
+    <dl class="paper grid grid-cols-3 gap-1 rounded-lg p-1 text-sm">
       <.stat label="VP" value={@me.vp} />
       <.stat label="Rubies" value={@me.rubies} />
       <.stat label="Flask" value={if @me.flask, do: "full", else: "empty"} />
-      <.stat
-        label="White"
-        value={"#{Game.white_sum(@game, @seat)} / #{Potions.explode_above(@game, @seat)}"}
-      />
       <div
         :if={Game.phase(@game, @seat) == :shop or @me.exploded?}
-        class="col-span-4 flex flex-wrap gap-1"
+        class="col-span-3 flex flex-wrap gap-1"
       >
         <span
           :if={Game.phase(@game, @seat) == :shop}
@@ -781,6 +804,75 @@ defmodule QuacksWeb.GameComponents do
         </span>
       </div>
     </dl>
+    """
+  end
+
+  @doc """
+  The white total as a fuse: one notch per white point the pot may hold
+  (`Potions.explode_above/2`), lit by the white sum. It turns amber one point
+  before the limit and red at the limit (one more white explodes) or after an
+  explosion. The label inside says "White 5 / 7".
+  """
+  attr :game, Game, required: true
+  attr :seat, :integer, default: 0
+
+  def fuse_meter(assigns) do
+    white = Game.white_sum(assigns.game, assigns.seat)
+    limit = Potions.explode_above(assigns.game, assigns.seat)
+    exploded? = assigns.game.players[assigns.seat].exploded?
+
+    level =
+      cond do
+        exploded? or white >= limit -> "danger"
+        white == limit - 1 -> "warn"
+        true -> "safe"
+      end
+
+    assigns = assign(assigns, white: white, limit: limit, level: level)
+
+    ~H"""
+    <div
+      id="fuse-meter"
+      class="fuse relative h-7 min-w-0 flex-1"
+      role="meter"
+      aria-label="White total"
+      aria-valuemin="0"
+      aria-valuemax={@limit}
+      aria-valuenow={@white}
+      aria-valuetext={"White #{@white} of #{@limit}"}
+      data-white={@white}
+      data-limit={@limit}
+      data-level={@level}
+    >
+      <div class="flex h-full gap-0.5 overflow-hidden rounded-md">
+        <span
+          :for={i <- 1..@limit}
+          class="fuse-notch flex-1"
+          style={"--i: #{i}"}
+          data-lit={to_string(i <= @white)}
+        />
+      </div>
+      <span class="fuse-label">
+        White <span class="tabular-nums">{@white} / {@limit}</span>
+      </span>
+    </div>
+    """
+  end
+
+  @doc ~s{What the scoring space pays, for the bar: "Next: 8 coins · 2 VP · ruby".}
+  attr :game, Game, required: true
+  attr :seat, :integer, default: 0
+
+  def next_reward(assigns) do
+    assigns = assign(assigns, space: PotTrack.at(Game.scoring_index(assigns.game, assigns.seat)))
+
+    ~H"""
+    <p class="shrink-0 text-right text-xs leading-tight text-parchment-dim" data-role="next-reward">
+      Next:
+      <span class="font-semibold text-parchment">{@space.coins} coins</span><span :if={@space.vp > 0}> · <span class="font-semibold text-gold">{@space.vp} VP</span></span><span :if={
+        @space.ruby?
+      }> · <span class="font-semibold text-ruby">ruby</span></span>
+    </p>
     """
   end
 
@@ -905,22 +997,28 @@ defmodule QuacksWeb.GameComponents do
       type="button"
       popovertarget={"sheet-player-#{@seat}"}
       class={[
-        "flex min-h-9 w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs touch-manipulation",
-        "transition-transform duration-100 ease-out active:scale-[0.97]",
-        if(@you, do: ["ring-2", @you_class], else: "bg-iron-dark/80 ring-1 ring-iron")
+        "flex min-h-11 w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-lg px-1.5 py-1 text-left text-xs touch-manipulation",
+        "transition-[scale,background-color] duration-150 ease-out active:scale-[0.97]",
+        if(@you,
+          do: ["ring-2", @you_class],
+          else: "bg-iron-dark/80 ring-1 ring-iron hover:bg-iron-dark"
+        )
       ]}
+      title={@name}
       data-seat={@seat}
       data-role="player-chip"
       data-you={@you && "true"}
     >
-      <.seat_dot seat={@seat} />
-      <span class="min-w-0 truncate font-semibold" data-role="player-name">{@name}</span>
-      <span :if={@you} class="text-[10px] font-bold uppercase text-parchment-dim">you</span>
-      <.bot_badge :if={@bot} compact class="shrink-0 py-0.5 bg-parchment/15 text-parchment-dim" />
-      <span class="ml-auto shrink-0 font-semibold tabular-nums" data-role="player-vp">
-        {@p.vp} VP
+      <span class="flex w-full min-w-0 items-center gap-1">
+        <.seat_dot seat={@seat} />
+        <span class="min-w-0 truncate font-semibold" data-role="player-name">{@name}</span>
+        <.bot_badge :if={@bot} compact class="shrink-0 bg-parchment/15 text-parchment-dim" />
       </span>
-      <.player_state game={@game} seat={@seat} />
+      <span class="flex w-full min-w-0 items-center gap-1">
+        <span class="shrink-0 font-semibold tabular-nums" data-role="player-vp">{@p.vp} VP</span>
+        <span :if={@you} class="sr-only">you</span>
+        <span class="ml-auto min-w-0 truncate"><.player_state game={@game} seat={@seat} /></span>
+      </span>
     </button>
     """
   end
@@ -1534,6 +1632,10 @@ defmodule QuacksWeb.GameComponents do
   @doc "The background class of a seat's colour, e.g. `\"bg-player-1\"`."
   @spec seat_bg(Game.seat()) :: String.t()
   def seat_bg(seat), do: @seat_bg[seat]
+
+  @doc "The ring class of seat `seat`'s colour, e.g. `\"ring-player-1\"`."
+  @spec seat_ring(Game.seat()) :: String.t()
+  def seat_ring(seat), do: @seat_ring[seat]
 
   @doc """
   The VP `seat` got from the last round's coins and rubies (the round 9

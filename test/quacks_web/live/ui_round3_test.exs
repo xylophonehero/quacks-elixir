@@ -95,7 +95,9 @@ defmodule QuacksWeb.UiRound3Test do
   test "the players row: one chip per seat, yours marked; a tap opens the detail sheet" do
     {_id, alice, _bob} = duo()
 
-    assert has_element?(alice, "[data-role=you-are] .bg-player-0", "Player 1")
+    # an outlined pill (seat-colour ring, parchment fill), not a gold button look-alike
+    assert has_element?(alice, "[data-role=you-are] .ring-player-0.bg-parchment", "Player 1")
+    refute has_element?(alice, "[data-role=you-are] .bg-player-0")
     assert has_element?(alice, "[data-role=my-seat].border-player-0")
 
     html = render(alice)

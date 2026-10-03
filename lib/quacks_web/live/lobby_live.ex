@@ -74,7 +74,7 @@ defmodule QuacksWeb.LobbyLive do
               <span class="font-mono font-semibold">{game.id}</span>
               · {map_size(game.names)} of {game.players} seated
             </span>
-            <.button navigate={~p"/g/#{game.id}"}>Join</.button>
+            <.button navigate={~p"/g/#{game.id}"} variant={:primary}>Join</.button>
           </li>
           <li :if={@games == []} class="text-sm text-parchment-dim">No open games. Start one.</li>
         </ul>

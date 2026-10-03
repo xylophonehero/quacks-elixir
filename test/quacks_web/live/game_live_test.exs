@@ -100,7 +100,9 @@ defmodule QuacksWeb.GameLiveTest do
            )
 
     assert has_element?(view, "#game-over [data-role=return-to-lobby]", "Return to lobby")
-    assert has_element?(view, "button[data-slot=draw][disabled]", "Draw a chip")
+    refute has_element?(view, "[data-role=action-bar]")
+    refute has_element?(view, "button[data-slot=draw]")
+    refute has_element?(view, "button[data-slot=stop]")
 
     {:ok, view, _html} =
       view
