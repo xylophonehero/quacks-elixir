@@ -187,14 +187,26 @@ defmodule QuacksWeb.GameLiveTest do
     assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, ~p"/g/nosuch")
   end
 
-  test "the crow skull strip lists duplicate offers; the buttons list each chip once" do
+  test "the crow skull strip shows duplicate offers, each chip a button" do
     game = Game.new(seed: {1, 2, 3})
     game = put_in(game.players[0].phase, :blue_choice)
     game = put_in(game.players[0].pending, [{:white, 1}, {:white, 1}])
-
-    html = render_component(&GameComponents.blue_offer/1, pending: game.players[0].pending)
-    assert count(html, ~s([data-role="offer-chip"][aria-label="white 1"])) == 2
     assert Game.legal_actions(game) == [{:place, {:white, 1}}, :return_all]
+
+    html =
+      render_component(&GameLive.chip_picks/1,
+        actions: Game.legal_actions(game),
+        pool: game.players[0].pending,
+        game: game,
+        me: game.players[0]
+      )
+
+    place = GameLive.encode({:place, {:white, 1}})
+
+    assert count(
+             html,
+             ~s(button[phx-value-action="#{place}"] [data-role="offer-chip"][aria-label="white 1"])
+           ) == 2
   end
 
   test "shop: tick two chips, buy them, the bag grows", %{conn: conn} do

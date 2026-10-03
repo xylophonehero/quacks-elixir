@@ -283,12 +283,13 @@ defmodule Quacks.Game.Evaluation do
     end
   end
 
-  # P3: per purple chip, VP by its pot field: 0–9 → 0, 10–19 → 1, 20–29 → 2, 30+ → 3.
+  # P3: per purple chip, VP by the number printed on its space (its coins value, not
+  # the track index): 0–9 → 0, 10–19 → 1, 20–29 → 2, 30+ → 3.
   defp chip_action(g, seat, {:purple, 3} = book) do
     vp =
       for {{:purple, _}, i} <- Game.player(g, seat).drawn,
           reduce: 0,
-          do: (acc -> acc + min(div(i, 10), 3))
+          do: (acc -> acc + min(div(PotTrack.at(i).coins, 10), 3))
 
     if vp > 0,
       do:
@@ -504,7 +505,7 @@ defmodule Quacks.Game.Evaluation do
   defp payoff(false, true), do: :ruby
 
   # My black chips against the neighbours' counts: one (2p) or two (3–4p).
-  defp black_payoff(0, _others), do: nil
+  # 2 players with 0–0 black chips: both move the droplet (book text "same number").
   defp black_payoff(mine, [opp]) when mine > opp, do: :droplet_ruby
   defp black_payoff(mine, [opp]) when mine == opp, do: :droplet
   defp black_payoff(mine, [a, b]) when mine > a and mine > b, do: :droplet_ruby

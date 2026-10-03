@@ -384,8 +384,9 @@ defmodule Quacks.IngredientSetsTest do
   end
 
   describe "purple" do
-    test "P3: VP per purple by its pot field band" do
-      pot = [{{:purple, 1}, 35}, {{:purple, 1}, 25}, {{:purple, 1}, 12}, {{:purple, 1}, 5}]
+    test "P3: VP per purple by the number printed on its space, not the track index" do
+      # Track index 53/25/20/5 is printed 35/20/17/5: 3 + 2 + 1 + 0 VP.
+      pot = [{{:purple, 1}, 53}, {{:purple, 1}, 25}, {{:purple, 1}, 20}, {{:purple, 1}, 5}]
 
       g =
         new(%{purple: 3})
@@ -393,6 +394,20 @@ defmodule Quacks.IngredientSetsTest do
         |> apply!({:explosion_choice, :buy})
 
       assert me(g).vp == 6 and effect?(g, {:purple, 3}, {:vp, 6})
+    end
+
+    test "P3: a purple chip on track index 20 (printed 17) scores 1 VP" do
+      g =
+        new(%{purple: 3})
+        |> put(
+          phase: :explosion_choice,
+          exploded?: true,
+          drawn: [{{:purple, 1}, 20}],
+          pot_index: 0
+        )
+        |> apply!({:explosion_choice, :buy})
+
+      assert me(g).vp == 1 and effect?(g, {:purple, 3}, {:vp, 1})
     end
   end
 
