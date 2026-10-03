@@ -18,11 +18,11 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {id, view}
   end
 
-  test "the host's toggle offers Sets 5–6, black and locoweed, and 5 players", %{conn: conn} do
+  test "the host's toggle offers Sets 5–6 and 5 players", %{conn: conn} do
     {:ok, id} = GameServer.start(4)
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     assert has_element?(view, "button[aria-label='More players'][disabled]")
-    refute has_element?(view, "select[name='sets[black]']")
+    refute has_element?(view, "select[name='sets[green]'] option[value='6']")
 
     view |> form("#books", expansion: "true") |> render_change()
 
@@ -44,7 +44,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     assert %{green: 5, black: 6, locoweed: 6} = game.sets
   end
 
-  test "parse_sets keeps the expansion books only with the expansion" do
+  test "parse_sets keeps Sets 5-6 and locoweed only with the expansion; black always" do
     params = %{"green" => "6", "black" => "5", "locoweed" => "9"}
 
     assert SetupComponents.parse_sets(params) == %{
@@ -52,7 +52,8 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
              blue: 1,
              red: 1,
              yellow: 1,
-             purple: 1
+             purple: 1,
+             black: 5
            }
 
     assert SetupComponents.parse_sets(params, true) ==
@@ -87,13 +88,13 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     html = view |> render() |> LazyHTML.from_fragment()
 
-    second_row =
-      html
-      |> LazyHTML.query("[data-role=shop-row]")
-      |> Enum.at(1)
-      |> LazyHTML.query("[aria-label]")
+    rows = LazyHTML.query(html, "[data-role=shop-row]")
 
-    assert LazyHTML.attribute(second_row, "aria-label") == ["orange 6", "locoweed 1"]
+    labels =
+      &(rows |> Enum.at(&1) |> LazyHTML.query("[aria-label]") |> LazyHTML.attribute("aria-label"))
+
+    assert labels.(0) == ["orange 1", "orange 6"]
+    assert labels.(-1) == ["locoweed 1"]
 
     assert has_element?(
              view,

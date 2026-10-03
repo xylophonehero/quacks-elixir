@@ -25,11 +25,25 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/quacks"
 import topbar from "../vendor/topbar"
 
+// The configure screen remembers the host's last settings (see `ConfigMemory` in
+// game_live.ex): the server pushes each change; a fresh screen sends them back once.
+const ConfigMemory = {
+  mounted() {
+    this.handleEvent("save_config", config => {
+      try { localStorage.setItem("quacks:config", JSON.stringify(config)) } catch (_e) {}
+    })
+    try {
+      const saved = JSON.parse(localStorage.getItem("quacks:config"))
+      if (saved && typeof saved === "object" && this.el.dataset.fresh !== undefined) this.pushEvent("load_config", saved)
+    } catch (_e) {}
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, ConfigMemory},
 })
 
 // Show progress bar on live navigation and form submits
@@ -39,6 +53,13 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // A decision <dialog> asks to be opened (see `dialog_sheet` in core_components.ex).
 window.addEventListener("quacks:modal", e => e.target.open || e.target.showModal())
+// A closed dialog may hand over to the next one (`then_open` on `dialog_sheet`).
+document.addEventListener("close", e => {
+  const next = e.target.dataset?.thenOpen && document.getElementById(e.target.dataset.thenOpen)
+  next && !next.open && next.showModal()
+}, true)
+// A choice inside a dialog closes it once it is sent.
+window.addEventListener("quacks:close", e => e.target.close?.())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
 

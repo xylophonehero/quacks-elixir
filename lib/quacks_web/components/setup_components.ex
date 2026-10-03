@@ -19,10 +19,8 @@ defmodule QuacksWeb.SetupComponents do
 
   # The colours with four ingredient books, in the order the form shows them.
   @book_colours [:green, :blue, :red, :yellow, :purple]
-  # Orange (Set 2 = the orange 6-chip) and locoweed (nil = not used) in every game.
-  @extra_books %{orange: [1, 2], locoweed: [nil, 5, 6]}
-  # The Herb Witches adds Sets 5 and 6 and the black books.
-  @expansion_books %{black: [1, 5, 6]}
+  # Orange (Set 2 = the orange 6-chip), black and locoweed (nil = not used) in every game.
+  @extra_books %{orange: [1, 2], black: [1, 5, 6], locoweed: [nil, 5, 6]}
 
   # Every house rule the Options form offers, with the values it accepts.
   @rule_values %{
@@ -58,7 +56,7 @@ defmodule QuacksWeb.SetupComponents do
           value={@expansion}
         />
         <div class="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2">
-          <div :for={colour <- book_colours(@expansion)} data-role="book" data-colour={colour}>
+          <div :for={colour <- book_colours()} data-role="book" data-colour={colour}>
             <.input
               type="select"
               id={"sets-#{colour}"}
@@ -66,7 +64,7 @@ defmodule QuacksWeb.SetupComponents do
               label={String.capitalize(to_string(colour))}
               value={book(@sets, colour, @expansion)}
               options={Enum.map(book_sets(colour, @expansion), &{set_name(&1, colour), &1})}
-              class="w-full rounded-lg border border-ink-soft bg-parchment-light px-3 py-2 text-sm text-ink"
+              class="w-full rounded-lg border border-ink-soft bg-parchment-light px-3 py-2 text-base text-ink sm:text-sm"
             />
             <div :if={book(@sets, colour, @expansion)} data-role="chosen-book">
               <.book_text book={Books.get({colour, book(@sets, colour, @expansion)})} />
@@ -188,20 +186,15 @@ defmodule QuacksWeb.SetupComponents do
   end
 
   @doc """
-  The colours the Ingredient books form offers: the five book colours, orange and
-  locoweed (with the expansion: black too).
+  The colours the Ingredient books form offers: the five book colours, orange, black
+  and locoweed (in every game).
   """
-  @spec book_colours(boolean) :: [atom]
-  def book_colours(expansion \\ false)
-  def book_colours(false), do: @book_colours ++ [:orange, :locoweed]
-  def book_colours(true), do: @book_colours ++ [:orange, :black, :locoweed]
+  @spec book_colours() :: [atom]
+  def book_colours, do: @book_colours ++ [:orange, :black, :locoweed]
 
   # The books a colour offers, in the order the select shows them.
   defp book_sets(colour, _expansion) when is_map_key(@extra_books, colour),
     do: @extra_books[colour]
-
-  defp book_sets(colour, true) when is_map_key(@expansion_books, colour),
-    do: @expansion_books[colour]
 
   defp book_sets(_colour, true), do: Enum.to_list(1..6)
   defp book_sets(_colour, false), do: Enum.to_list(1..4)
@@ -218,13 +211,13 @@ defmodule QuacksWeb.SetupComponents do
   @doc """
   The form's `%{"green" => "2", ...}` as `%{green: 2, ...}`. A missing or bad value
   is the colour's default book (Set 1; with the expansion orange 2 and locoweed 5).
-  With `expansion` the expansion's books are allowed and black and locoweed are in
-  the map. Orange (and locoweed in a base game) is left out at its default, so
+  With `expansion` Sets 5 and 6 are allowed for the five book colours; black is
+  always in the map, locoweed with the expansion. Orange (and locoweed in a base game) is left out at its default, so
   default games keep the same `game.sets`.
   """
   @spec parse_sets(map, boolean) :: Chips.sets()
   def parse_sets(params, expansion \\ false) do
-    book_colours(expansion)
+    book_colours()
     |> Map.new(fn colour ->
       default = book(%{}, colour, expansion)
       {colour, parse_set(params[to_string(colour)], book_sets(colour, expansion), default)}

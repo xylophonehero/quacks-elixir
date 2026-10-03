@@ -113,13 +113,13 @@ defmodule QuacksWeb.UiRound3bTest do
     {_id, alice, bob} = duo({30, 30, 30}, %{})
 
     for view <- [alice, bob] do
-      assert has_element?(view, "dialog#decision-fortune_choice[phx-mounted]")
+      assert has_element?(view, "dialog#card-round-1[phx-mounted] [data-role=card-modal]")
     end
 
-    alice |> element("#decision-fortune_choice button", "No thanks") |> render_click()
-    refute has_element?(alice, "dialog#decision-fortune_choice")
+    alice |> element("#card-round-1 button", "No thanks") |> render_click()
+    refute has_element?(alice, "#card-round-1 button", "No thanks")
     assert has_element?(alice, "[data-role=turn]", "Waiting for 1 player: Seat 2.")
-    assert has_element?(bob, "dialog#decision-fortune_choice")
+    assert has_element?(bob, "#card-round-1 button", "No thanks")
     assert state(alice, 1) =~ "choosing"
   end
 

@@ -74,15 +74,17 @@ defmodule QuacksWeb.BooksLiveTest do
     html = render(view)
 
     rows = html |> LazyHTML.from_fragment() |> LazyHTML.query("[data-role=shop-row]")
-    assert Enum.count(rows) == 6
+    # orange (1, 6), blue, red, yellow, black, green, purple, locoweed
+    assert Enum.count(rows) == 8
 
     for {_row, i} <- Enum.with_index(rows) do
       assert has_element?(view, "[data-role=shop-row] button[popovertarget=shop-book-#{i}]")
       assert has_element?(view, "#shop-book-#{i} [data-role=book-text]")
     end
 
-    assert has_element?(view, "#shop-book-0", "Hawkmoth")
-    assert has_element?(view, "#shop-book-1 [data-book=locoweed-6]", "Copies")
+    assert has_element?(view, "#shop-book-0 [data-book=orange-2]")
+    assert has_element?(view, "#shop-book-4", "Hawkmoth")
+    assert has_element?(view, "#shop-book-7 [data-book=locoweed-6]", "Copies")
     assert has_element?(view, "#shop label", ~r/orange 6\s+22c/)
 
     assert has_element?(view, "#sheet-menu button[popovertarget=sheet-books]", "Books")

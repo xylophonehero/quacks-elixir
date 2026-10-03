@@ -27,7 +27,9 @@ defmodule QuacksWeb.CoreComponents do
   alias Phoenix.HTML.Form
   alias Phoenix.LiveView.JS
 
-  @field_class "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
+  # text-base on phones: iOS zooms into a focused field under 16px, and the page stays
+  # zoomed, so bottom sheets end up below the screen.
+  @field_class "w-full rounded-lg border border-zinc-300 px-3 py-2 text-base sm:text-sm focus:border-zinc-500 focus:outline-none"
   @field_error_class "border-red-400"
 
   @doc """
@@ -154,9 +156,14 @@ defmodule QuacksWeb.CoreComponents do
   server needs no "is open" state. The backdrop stays see-through, so the pot shows
   behind. Close it to look at the board; `JS.dispatch("quacks:modal", to: "#id")`
   opens it again.
+
+  With `auto_open={false}` it waits for that dispatch; `then_open` names a dialog
+  to open when this one closes (the round results open the shop that way).
   """
   attr :id, :string, required: true
   attr :label, :string, required: true
+  attr :auto_open, :boolean, default: true
+  attr :then_open, :string, default: nil, doc: "id of a dialog to open on close"
   slot :inner_block, required: true
 
   def dialog_sheet(assigns) do
@@ -168,7 +175,12 @@ defmodule QuacksWeb.CoreComponents do
       id={@id}
       class="sheet paper"
       aria-label={@label}
-      phx-mounted={JS.ignore_attributes("open") |> JS.dispatch("quacks:modal")}
+      phx-mounted={
+        if @auto_open,
+          do: JS.ignore_attributes("open") |> JS.dispatch("quacks:modal"),
+          else: JS.ignore_attributes("open")
+      }
+      data-then-open={@then_open}
     >
       <form method="dialog">
         <button class="sheet-close" aria-label="Close">

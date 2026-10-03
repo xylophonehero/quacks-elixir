@@ -1044,6 +1044,7 @@ defmodule QuacksWeb.GameComponents do
       <.fortune_card id={:b7} />
   """
   attr :id, :atom, required: true, doc: "a card id from `Quacks.Rules.Fortune`"
+  attr :choice, :boolean, default: false, doc: "the card asks this player a choice now"
 
   def fortune_card(assigns) do
     assigns = assign(assigns, card: Fortune.card(assigns.id))
@@ -1060,7 +1061,7 @@ defmodule QuacksWeb.GameComponents do
         @card.colour == :blue && "bg-chip-blue",
         @card.colour == :purple && "bg-chip-purple"
       ]}>
-        Fortune teller · {if @card.colour == :blue, do: "this round", else: "now"}
+        {band_text(@card.colour, @choice)}
       </div>
       <div class="px-3 py-2">
         <h2 class="text-lg font-bold">{@card.name}</h2>
@@ -1069,6 +1070,12 @@ defmodule QuacksWeb.GameComponents do
     </section>
     """
   end
+
+  # The card's colour band: a blue card is a rule for the round; a purple one acts
+  # once, and says so only when it waits for this player.
+  defp band_text(:blue, _choice), do: "Fortune teller · this round"
+  defp band_text(_colour, true), do: "Fortune teller · resolve now"
+  defp band_text(_colour, false), do: "Fortune teller"
 
   @doc """
   The last few game events, newest first. Every log entry runs through `label/1`.

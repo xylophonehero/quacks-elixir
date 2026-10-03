@@ -48,7 +48,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
 
   test "a bad set from the form falls back to Set 1" do
     assert QuacksWeb.SetupComponents.parse_sets(%{"green" => "9", "red" => "2", "blue" => %{}}) ==
-             %{green: 1, blue: 1, red: 2, yellow: 1, purple: 1}
+             %{green: 1, blue: 1, red: 2, yellow: 1, purple: 1, black: 1}
   end
 
   test "a protected explosion shows in the status strip and the log" do

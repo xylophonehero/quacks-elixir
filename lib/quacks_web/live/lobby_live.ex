@@ -45,11 +45,22 @@ defmodule QuacksWeb.LobbyLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <h1 class="text-3xl font-bold">Quacks</h1>
+      <h1 class="text-center text-4xl font-bold">Quacks</h1>
 
-      <.button phx-click="new_game" variant="primary" class="min-h-12 w-full text-lg">
-        New game
-      </.button>
+      <%!-- The page's one action: hero-sized, a press you can feel. --%>
+      <button
+        id="new-game"
+        type="button"
+        phx-click="new_game"
+        class={[
+          "flex min-h-24 w-full touch-manipulation items-center justify-center gap-3 rounded-2xl",
+          "bg-gold px-6 font-hand text-4xl font-bold text-ink shadow-lg ring-2 ring-parchment/60",
+          "transition-[scale,filter] duration-150 ease-out hover:brightness-110 active:scale-[0.97]",
+          "phx-click-loading:opacity-80 motion-reduce:transition-none"
+        ]}
+      >
+        <.icon name="hero-sparkles" class="size-8" /> New game
+      </button>
 
       <section aria-label="Open games">
         <h2 class="text-lg font-semibold text-parchment-dim">Open games</h2>

@@ -223,7 +223,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert bag_size(view) == before + 2
   end
 
-  test "shop: one row per colour, single-value colours on top", %{conn: conn} do
+  test "shop: one row per colour in step B order, chips as tiles", %{conn: conn} do
     html = conn |> mount_shop() |> render() |> LazyHTML.from_fragment()
 
     first_per_row =
@@ -231,9 +231,10 @@ defmodule QuacksWeb.GameLiveTest do
       |> LazyHTML.query("[data-role=shop-row] li:first-child [aria-label]")
       |> LazyHTML.attribute("aria-label")
 
-    assert first_per_row == ["orange 1", "green 1", "blue 1", "red 1", "yellow 1"]
+    assert first_per_row ==
+             ["orange 1", "blue 1", "red 1", "yellow 1", "black 1", "green 1", "purple 1"]
 
-    green_row = html |> LazyHTML.query("[data-role=shop-row]") |> Enum.at(1)
+    green_row = html |> LazyHTML.query("[data-role=shop-row]") |> Enum.at(5)
 
     assert LazyHTML.attribute(LazyHTML.query(green_row, "[aria-label]"), "aria-label") ==
              ["green 1", "green 2", "green 4"]
@@ -242,6 +243,11 @@ defmodule QuacksWeb.GameLiveTest do
              length(Chips.shop())
 
     assert GameLive.shop_rows() |> List.flatten() |> Enum.sort() == Chips.shop()
+    # no visible checkboxes: each box is hidden inside its tile, with a check glyph
+    assert html |> LazyHTML.query("#shop input[type=checkbox]:not(.sr-only)") |> Enum.empty?()
+
+    assert html |> LazyHTML.query("#shop label [data-role=tile-check]") |> Enum.count() ==
+             length(Chips.shop())
   end
 
   test "the log narrates the scoring space and the round end", %{conn: conn} do

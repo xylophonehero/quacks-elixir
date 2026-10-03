@@ -164,7 +164,8 @@ html:has([data-layout="full"]) {
   width: 100%;
   max-width: 40rem;
   height: auto;
-  max-height: 85dvh;
+  /* Always inside the visible screen; long content scrolls in the sheet. */
+  max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top) - 0.5rem));
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 0;
