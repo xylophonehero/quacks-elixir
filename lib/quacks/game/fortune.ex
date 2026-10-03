@@ -100,15 +100,20 @@ defmodule Quacks.Game.Fortune do
   end
 
   # B3 Second Chances: the whole pot goes back in the bag; start the round again.
+  # Everything drawn this round returns (also the chips beside the pot or on offer) and
+  # the round modifiers (Y2, Y3, R4, B2) reset.
   def step(g, seat, {:fortune, :restart_round}) do
     g
     |> Game.update_player(seat, fn p ->
       %{
         p
-        | bag: Player.pot_chips(p) ++ p.bowl ++ p.bag,
+        | bag: Player.pot_chips(p) ++ p.bowl ++ p.aside ++ p.pending ++ p.bag,
           drawn: [],
           bowl: [],
+          aside: [],
+          pending: [],
           pot_index: Player.start_index(p),
+          mods: %Player{}.mods,
           fortune_used?: true
       }
     end)

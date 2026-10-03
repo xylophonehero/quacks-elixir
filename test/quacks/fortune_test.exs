@@ -111,6 +111,32 @@ defmodule Quacks.FortuneTest do
       assert fortune_actions(g) == []
     end
 
+    test "B3 Second Chances resets the whole round: Y2 doubling and R2 chips beside the pot" do
+      g =
+        Game.new(seed: @seed, fortune: false, sets: %{yellow: 2, red: 2})
+        |> put(fortune_card: :b3)
+        |> force_draws([
+          {:white, 1},
+          {:red, 1},
+          {:orange, 1},
+          {:red, 2},
+          {:green, 1},
+          {:white, 1}
+        ])
+        |> force_draws([{:yellow, 1}])
+
+      assert me(g).mods.next_chip_x2 and length(me(g).aside) == 2
+      assert fortune_actions(g) == [{:fortune, :restart_round}]
+
+      bag = length(me(g).bag)
+      g = apply!(g, {:fortune, :restart_round})
+      p = me(g)
+      assert p.aside == [] and p.pending == [] and p.drawn == []
+      assert p.mods == %Quacks.Player{}.mods
+      assert length(p.bag) == bag + 7
+      refute Enum.any?(Game.legal_actions(g, 0), &match?({:red, _}, &1))
+    end
+
     # Official ruling (The Herb Witches rulebook): card draws cannot explode the pot.
     test "B3 Second Chances: the first 5 draws cannot explode the pot; later draws can" do
       five = [{:white, 3}, {:white, 3}, {:white, 2}, {:white, 1}, {:green, 1}]
