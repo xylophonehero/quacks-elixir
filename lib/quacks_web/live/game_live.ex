@@ -55,6 +55,7 @@ defmodule QuacksWeb.GameLive do
 
   import QuacksWeb.SetupComponents
 
+  alias Quacks.AI.Profile
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Books, Chips}
 
@@ -98,7 +99,8 @@ defmodule QuacksWeb.GameLive do
            token: session["player_token"],
            seat: seat,
            seed: table.seed,
-           copied: false
+           copied: false,
+           picking_bot: nil
          )
          |> assign_table(table)
          |> put_game(table.game)}
@@ -191,6 +193,34 @@ defmodule QuacksWeb.GameLive do
   end
 
   def handle_event("load_config", _saved, socket), do: {:noreply, socket}
+
+  # Bots (host only): "Add bot" on an empty seat row opens the profile choice there
+  # (tap again to close it); a profile fills the seat, × empties it again.
+  def handle_event("pick_bot", %{"seat" => seat}, socket) do
+    seat =
+      if seat == to_string(socket.assigns.picking_bot), do: nil, else: String.to_integer(seat)
+
+    {:noreply, assign(socket, picking_bot: seat)}
+  end
+
+  def handle_event("add_bot", %{"seat" => seat, "profile" => profile}, socket) do
+    profile = Enum.find(Profile.all(), &(Atom.to_string(&1) == profile))
+
+    case GameServer.add_bot(
+           socket.assigns.id,
+           socket.assigns.token,
+           profile,
+           String.to_integer(seat)
+         ) do
+      {:ok, _seat} -> {:noreply, assign(socket, picking_bot: nil)}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "That seat is not free now.")}
+    end
+  end
+
+  def handle_event("remove_bot", %{"seat" => seat}, socket) do
+    GameServer.remove_bot(socket.assigns.id, socket.assigns.token, String.to_integer(seat))
+    {:noreply, socket}
+  end
 
   def handle_event("begin", _params, socket) do
     case GameServer.begin(socket.assigns.id, socket.assigns.token) do
@@ -310,6 +340,7 @@ defmodule QuacksWeb.GameLive do
       players: table.players,
       names: table.names,
       colours: table.colours,
+      bots: table.bots,
       creator: table.creator,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
@@ -426,10 +457,34 @@ defmodule QuacksWeb.GameLive do
               />
             </form>
             <span :if={@names[seat] && seat != @seat} class="font-semibold">{@names[seat]}</span>
+            <.bot_badge :if={@bots[seat]} />
             <span :if={!@names[seat]} class="text-ink-soft italic">empty</span>
             <span :if={@names[seat] && seat == @creator} class="text-xs text-ink-soft">host</span>
             <span :if={seat == @seat} class="ml-auto text-xs font-semibold">you</span>
             <.colour_picker :if={seat == @seat} colours={@colours} seat={seat} />
+            <button
+              :if={@host and @bots[seat]}
+              type="button"
+              phx-click="remove_bot"
+              phx-value-seat={seat}
+              aria-label={"Remove #{@names[seat]}"}
+              data-role="remove-bot"
+              class="-mr-1 ml-auto grid size-9 cursor-pointer place-items-center rounded-full text-ink-soft transition-[color,background-color,transform] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-90"
+            >
+              <.icon name="hero-x-mark" class="size-4" />
+            </button>
+            <button
+              :if={@host and !@names[seat]}
+              type="button"
+              phx-click="pick_bot"
+              phx-value-seat={seat}
+              aria-expanded={to_string(@picking_bot == seat)}
+              data-role="add-bot"
+              class="-mr-1 ml-auto min-h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-ink-soft transition-[color,background-color,transform] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-95"
+            >
+              {if @picking_bot == seat, do: "Cancel", else: "+ Add bot"}
+            </button>
+            <.bot_choice :if={@host and !@names[seat] and @picking_bot == seat} seat={seat} />
           </li>
         </ol>
         <p class="rounded-md bg-droplet/25 px-2 py-1" data-role="waiting-for-players">
@@ -541,6 +596,7 @@ defmodule QuacksWeb.GameLive do
                 seat={seat}
                 name={name(@names, seat)}
                 you={seat == @seat}
+                bot={Map.has_key?(@bots, seat)}
               />
             </nav>
           </div>
@@ -822,7 +878,7 @@ defmodule QuacksWeb.GameLive do
       </.dialog_sheet>
 
       <.dialog_sheet :if={Game.over?(@game)} id="game-over" label="Game over">
-        <.game_over game={@game} names={@names} players={@players} />
+        <.game_over game={@game} names={@names} players={@players} bots={@bots} />
       </.dialog_sheet>
 
       <%!-- The new card of the round, on top of everything. Its id names the round,
@@ -875,6 +931,40 @@ defmodule QuacksWeb.GameLive do
   end
 
   @colour_names ~w(gold teal violet coral lime rose sky slate)
+
+  @bot_blurbs %{
+    cautious: "stops early",
+    balanced: "plays the odds",
+    reckless: "pushes his luck"
+  }
+
+  # The three bot profiles under an empty seat row; one tap fills the seat.
+  attr :seat, :integer, required: true
+
+  defp bot_choice(assigns) do
+    assigns =
+      assign(assigns, profiles: Profile.all(), names: Profile.names(), blurbs: @bot_blurbs)
+
+    ~H"""
+    <div class="bot-choice grid w-full gap-1 pb-2" role="group" aria-label="Choose a bot">
+      <button
+        :for={profile <- @profiles}
+        type="button"
+        phx-click="add_bot"
+        phx-value-seat={@seat}
+        phx-value-profile={profile}
+        data-profile={profile}
+        class="flex min-h-11 cursor-pointer items-baseline gap-2 rounded-md bg-parchment px-3 py-2 text-left ring-1 ring-ink-soft/20 transition-[background-color,transform] duration-150 ease-out hover:bg-gold/30 active:scale-[0.98]"
+      >
+        <span class="font-semibold">{@names[profile]}</span>
+        <span class="text-sm text-ink-soft">{@blurbs[profile]}</span>
+        <span class="ml-auto text-xs font-semibold uppercase tracking-wide text-ink-soft">
+          {Profile.label(profile)}
+        </span>
+      </button>
+    </div>
+    """
+  end
 
   # Your seat's colour picker on the configure screen: the 8 palette colours, one tap
   # sets yours; colours other seats have are struck through and cannot be picked.
@@ -948,6 +1038,7 @@ defmodule QuacksWeb.GameLive do
   attr :game, Game, required: true
   attr :names, :map, required: true
   attr :players, :integer, required: true
+  attr :bots, :map, default: %{}
 
   def game_over(assigns) do
     ~H"""
@@ -960,6 +1051,7 @@ defmodule QuacksWeb.GameLive do
         <li :for={{seat, vp} <- ranking(@game)} data-seat={seat} data-role="final-score">
           <p :if={@players > 1} class="flex items-center justify-center gap-1.5 font-hand text-lg">
             <.seat_dot seat={seat} /> {name(@names, seat)}: {vp} victory points
+            <.bot_badge :if={@bots[seat]} />
           </p>
           <p
             :if={power = buying_power(@game.log, seat)}

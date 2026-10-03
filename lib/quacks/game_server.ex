@@ -21,15 +21,23 @@ defmodule Quacks.GameServer do
   then any seated browser may begin. After the game is over, `play_again/2` opens a
   new waiting game with the same settings and the same seated browsers.
 
+  Bots: while `:waiting` the host may put a bot (`Quacks.AI`) in a free seat
+  (`add_bot/3`) and take it out again (`remove_bot/3`). A bot holds a seat like a
+  browser does. Once the game is `:playing`, each bot seat that can act gets a tick
+  (`{:bot, seat, tick}`, after `:bot_delay` ms, 700 by default): the bot makes one
+  action through `Quacks.Session`, every page hears it, and the next tick follows.
+
   Games live under `Quacks.GameSupervisor` and are not persisted: a game that sees no
   message for 2 hours stops, and a node restart forgets every game.
   """
 
   use GenServer, restart: :temporary
 
-  alias Quacks.{Game, Session}
+  alias Quacks.{AI, Game, Session}
+  alias Quacks.AI.Profile
 
   @idle_timeout :timer.hours(2)
+  @max_bots 7
   @lobby_topic "lobby"
 
   @typedoc "A short game id, 6 lowercase letters."
@@ -40,7 +48,7 @@ defmodule Quacks.GameServer do
   (`max_players`) while `:waiting`. `creator` is the creator's seat, `nil` once they left.
   `sets`, `rules` and `expansion` are the options the game starts (or started) with.
   `colours` is each claimed seat's colour, `0..7` (the `--color-seat-N` palette),
-  unique at the table.
+  unique at the table. `bots` is the profile of each seat a bot holds.
   """
   @type table :: %{
           id: id,
@@ -51,6 +59,7 @@ defmodule Quacks.GameServer do
           max_players: 1..8,
           names: %{Game.seat() => String.t()},
           colours: %{Game.seat() => colour},
+          bots: %{Game.seat() => Profile.name()},
           creator: Game.seat() | nil,
           sets: Quacks.Rules.Chips.sets(),
           rules: map,
@@ -86,6 +95,7 @@ defmodule Quacks.GameServer do
       tokens: %{},
       names: %{},
       colours: %{},
+      bots: %{},
       creator: nil
     })
   end
@@ -169,6 +179,22 @@ defmodule Quacks.GameServer do
           {:ok, id} | {:error, :not_over | :not_seated | :not_found}
   def play_again(id, token), do: call(id, {:play_again, token})
 
+  @doc """
+  The host puts a bot with `profile` (see `Profile.all/0`) in the free
+  `seat` (nil: the lowest free seat), while `:waiting`. It gets the profile's name and the next free colour.
+  At most #{@max_bots} bots.
+  """
+  @spec add_bot(id, String.t(), Profile.name(), Game.seat() | nil) ::
+          {:ok, Game.seat()}
+          | {:error,
+             :not_creator | :already_started | :full | :too_many_bots | :invalid | :not_found}
+  def add_bot(id, token, profile, seat \\ nil), do: call(id, {:add_bot, token, profile, seat})
+
+  @doc "The host takes the bot out of `seat`, while `:waiting`."
+  @spec remove_bot(id, String.t(), Game.seat()) ::
+          :ok | {:error, :not_creator | :already_started | :not_a_bot | :not_found}
+  def remove_bot(id, token, seat), do: call(id, {:remove_bot, token, seat})
+
   @doc "Set the nickname of `seat`. A blank name goes back to \"Player N\"."
   @spec rename(id, Game.seat(), String.t()) :: :ok | {:error, :not_found}
   def rename(id, seat, name), do: call(id, {:rename, seat, name})
@@ -226,11 +252,18 @@ defmodule Quacks.GameServer do
   # -- server ------------------------------------------------------------------------
 
   # `fields`: `max_players`, `seed`, `opts` (the `Session.new/3` options), `tokens`
-  # (a browser's player token -> its seat), `names`, `colours` and `creator` (a token).
-  # `session` is nil until begin; `next_id` is the game `play_again/2` opened.
+  # (a browser's player token -> its seat), `names`, `colours`, `bots` and `creator`
+  # (a token). `session` is nil until begin; `next_id` is the game `play_again/2`
+  # opened. `bot_rngs` holds each bot's own rng; `bot_ticks` the one pending tick per
+  # bot seat (seat -> tick number, see `schedule_bots/1`), `tick` the last number.
   @impl true
   def init({id, fields}) do
-    state = Map.merge(%{id: id, session: nil, next_id: nil}, fields)
+    state =
+      Map.merge(
+        %{id: id, session: nil, next_id: nil, bots: %{}, bot_rngs: %{}, bot_ticks: %{}, tick: 0},
+        fields
+      )
+
     # Solo has nobody to wait for (a solo play-again comes with its seat taken).
     state = if state.max_players == 1 and state.tokens != %{}, do: begin_game(state), else: state
     {:ok, state, @idle_timeout}
@@ -244,7 +277,7 @@ defmodule Quacks.GameServer do
 
   def handle_call({:apply, seat, action}, _from, state) do
     case Session.apply(state.session, seat, action) do
-      {:ok, session} -> reply_game(%{state | session: session})
+      {:ok, session} -> reply_game(schedule_bots(%{state | session: session}))
       error -> {:reply, error, state, @idle_timeout}
     end
   end
@@ -368,11 +401,62 @@ defmodule Quacks.GameServer do
             tokens: state.tokens,
             names: state.names,
             colours: state.colours,
+            bots: state.bots,
             creator: creator
           })
 
         Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:play_again, state.id, new_id})
         {:reply, {:ok, new_id}, %{state | next_id: new_id}, @idle_timeout}
+    end
+  end
+
+  def handle_call({:add_bot, token, profile, seat}, _from, state) do
+    free_seats = Enum.reject(0..(state.max_players - 1), &Map.has_key?(state.names, &1))
+    free = if seat, do: Enum.find(free_seats, &(&1 == seat)), else: List.first(free_seats)
+
+    cond do
+      state.session != nil ->
+        {:reply, {:error, :already_started}, state, @idle_timeout}
+
+      token != state.creator ->
+        {:reply, {:error, :not_creator}, state, @idle_timeout}
+
+      profile not in Profile.all() ->
+        {:reply, {:error, :invalid}, state, @idle_timeout}
+
+      map_size(state.bots) >= @max_bots ->
+        {:reply, {:error, :too_many_bots}, state, @idle_timeout}
+
+      free == nil ->
+        {:reply, {:error, :full}, state, @idle_timeout}
+
+      true ->
+        {:reply, {:ok, free}, seat_bot(state, free, profile), @idle_timeout}
+    end
+  end
+
+  def handle_call({:remove_bot, token, seat}, _from, state) do
+    cond do
+      state.session != nil ->
+        {:reply, {:error, :already_started}, state, @idle_timeout}
+
+      token != state.creator ->
+        {:reply, {:error, :not_creator}, state, @idle_timeout}
+
+      not Map.has_key?(state.bots, seat) ->
+        {:reply, {:error, :not_a_bot}, state, @idle_timeout}
+
+      true ->
+        state = %{
+          state
+          | bots: Map.delete(state.bots, seat),
+            names: Map.delete(state.names, seat),
+            colours: Map.delete(state.colours, seat)
+        }
+
+        broadcast_names(state)
+        broadcast_lobby()
+        {:reply, :ok, state, @idle_timeout}
     end
   end
 
@@ -406,6 +490,65 @@ defmodule Quacks.GameServer do
     {:stop, :normal, state}
   end
 
+  # A bot's turn to act: one action, then the next ticks. A tick that is not the
+  # seat's pending one is stale.
+  def handle_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
+      when :erlang.map_get(seat, ticks) == tick do
+    state = %{state | bot_ticks: Map.delete(ticks, seat)}
+    profile = Profile.get(state.bots[seat])
+
+    state =
+      with {action, rng} <-
+             AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
+           {:ok, session} <- Session.apply(state.session, seat, action) do
+        game = session.game
+        Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:game, state.id, game})
+        %{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)}
+      else
+        _none_or_error -> state
+      end
+
+    {:noreply, schedule_bots(state), @idle_timeout}
+  end
+
+  def handle_info({:bot, _seat, _tick}, state), do: {:noreply, state, @idle_timeout}
+
+  # Every bot seat that can act and has no tick pending gets one.
+  defp schedule_bots(%{session: nil} = state), do: state
+
+  defp schedule_bots(state) do
+    game = state.session.game
+    delay = Application.get_env(:quacks, :bot_delay, 700)
+
+    state.bots
+    |> Map.keys()
+    |> Enum.reject(&Map.has_key?(state.bot_ticks, &1))
+    |> Enum.filter(&(Game.phase(game, &1) != :stopped and Game.legal_actions(game, &1) != []))
+    |> Enum.reduce(state, fn seat, state ->
+      tick = state.tick + 1
+      Process.send_after(self(), {:bot, seat, tick}, delay)
+      %{state | tick: tick, bot_ticks: Map.put(state.bot_ticks, seat, tick)}
+    end)
+  end
+
+  # The bot with `profile` takes `seat`; a second bot of the same profile gets a number.
+  defp seat_bot(state, seat, profile) do
+    base = Profile.names()[profile]
+    same = Enum.count(state.bots, fn {_seat, other} -> other == profile end)
+    name = if same == 0, do: base, else: "#{base} #{same + 1}"
+
+    state = %{
+      state
+      | bots: Map.put(state.bots, seat, profile),
+        names: Map.put(state.names, seat, name),
+        colours: Map.put(state.colours, seat, free_colour(state.colours, seat))
+    }
+
+    broadcast_names(state)
+    broadcast_lobby()
+    state
+  end
+
   # The seats taken become seats 0..n-1, in seat order. An untouched default name
   # follows the new seat number.
   defp begin_game(state) do
@@ -418,13 +561,17 @@ defmodule Quacks.GameServer do
         {new, if(name == default_name(old), do: default_name(new), else: name)}
       end)
 
-    %{
+    bots = Map.new(state.bots, fn {seat, profile} -> {renumber[seat], profile} end)
+
+    schedule_bots(%{
       state
       | session: Session.new(state.seed, map_size(renumber), state.opts),
         tokens: Map.new(state.tokens, fn {token, seat} -> {token, renumber[seat]} end),
         names: names,
-        colours: Map.new(state.colours, fn {seat, colour} -> {renumber[seat], colour} end)
-    }
+        colours: Map.new(state.colours, fn {seat, colour} -> {renumber[seat], colour} end),
+        bots: bots,
+        bot_rngs: Map.new(bots, fn {seat, _} -> {seat, AI.new_rng(state.seed, seat)} end)
+    })
   end
 
   # A new seat gets its own index as colour, or else the lowest free one.
@@ -462,6 +609,7 @@ defmodule Quacks.GameServer do
       max_players: state.max_players,
       names: state.names,
       colours: state.colours,
+      bots: state.bots,
       creator: state.tokens[state.creator],
       sets: state.opts[:sets],
       rules: state.opts[:rules],
