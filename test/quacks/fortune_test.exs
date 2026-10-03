@@ -374,7 +374,12 @@ defmodule Quacks.FortuneTest do
     end
 
     test "P11 Decisions, Decisions: droplet 2 forward or a purple chip" do
-      assert fortune_actions(purple(new(), :p11)) == [{:fortune, :droplet}]
+      # The card grants purple in every round (the shop rule limits only buying).
+      assert fortune_actions(purple(new(), :p11)) ==
+               [{:fortune, :droplet}, {:fortune, {:take, {:purple, 1}}}]
+
+      g = apply!(purple(new(), :p11), {:fortune, {:take, {:purple, 1}}})
+      assert {:purple, 1} in me(g).bag
 
       g = new() |> put(round: 3) |> purple(:p11)
       assert fortune_actions(g) == [{:fortune, :droplet}, {:fortune, {:take, {:purple, 1}}}]
