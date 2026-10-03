@@ -419,14 +419,14 @@ html:has([data-layout="full"]) {
   color: var(--color-ink-soft);
 }
 
-/* On a phone the sheet is the parchment; a card inside it drops its own. */
-@media (width < 64rem) {
-  .sheet > .paper {
-    background: none;
-    box-shadow: none;
-    padding: 0;
-  }
+/* The sheet is the parchment; a card inside it drops its own (not the sheets that
+   sit in the page on large screens: there the card is the panel). */
+.sheet:not(.sheet-inline-lg) > .paper {
+  background: none;
+  box-shadow: none;
+  padding: 0;
 }
+
 
 @media (width >= 64rem) {
   .sheet {
@@ -709,9 +709,10 @@ html:has([data-layout="full"]) {
   --die-roll: 700ms;
 }
 
+/* A line waits dimmed, not hidden, so the sheet does not open empty. */
 @keyframes beat-in {
   from {
-    opacity: 0;
+    opacity: 0.2;
     translate: 0 6px;
   }
 }
@@ -802,10 +803,22 @@ html:has([data-layout="full"]) {
   }
 }
 
+/* Large screens: the top of the right column, and the log moves down under it. */
 @media (width >= 64rem) {
+  :root {
+    --results-h: min(60dvh, 34rem);
+  }
+
   #round-results {
-    max-width: 28rem;
-    margin: auto 1.5rem auto auto;
+    inset: 0.75rem 0.75rem auto auto;
+    margin: 0;
+    width: calc(22rem - 0.75rem);
+    max-width: none;
+    height: var(--results-h);
+  }
+
+  :root:has(#round-results[open]) [data-role="side-column"] {
+    padding-top: calc(var(--results-h) + 1.5rem);
   }
 }
 

@@ -1,0 +1,253 @@
+defmodule QuacksWeb.QaFixesTest do
+  @moduledoc """
+  The QA pass of 2026-10-04 (`docs/research/qa-2026-10-04.md`): reloads keep the
+  closed card and results closed (B2, B3), the rename survives a colour tap (B4),
+  the host passes on (B5), white picks warn (B6), the rubies wait for the results
+  (B7), and the visual and text fixes.
+  """
+  use QuacksWeb.ConnCase, async: true
+
+  import Phoenix.LiveViewTest
+  import Quacks.GameHelpers, only: [replace_game: 2]
+
+  alias Quacks.{Game, GameServer}
+  alias Quacks.GameHelpers, as: H
+  alias QuacksWeb.{GameComponents, GameLive}
+
+  defp browser(name), do: init_test_session(build_conn(), player_token: name)
+
+  defp open(conn, id) do
+    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+    view
+  end
+
+  defp auto_open?(view, dialog),
+    do: has_element?(view, "dialog#{dialog}[phx-mounted*='quacks:modal']")
+
+  describe "B2/B3: a reload keeps what the seat closed" do
+    test "the round's card opens once; after it closed, a reload leaves it closed" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3})
+      token = "card-#{System.unique_integer()}"
+      view = open(browser(token), id)
+
+      assert auto_open?(view, "#card-round-1")
+      assert has_element?(view, "dialog#card-round-1[data-on-close*='seen']")
+
+      render_hook(view, "seen", %{"kind" => "card", "round" => 1})
+      assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
+
+      reloaded = open(browser(token), id)
+      assert has_element?(reloaded, "dialog#card-round-1")
+      refute auto_open?(reloaded, "#card-round-1")
+    end
+
+    test "the round results replay once; after they closed, a reload opens the shop" do
+      {:ok, id} = GameServer.start(1, {10, 11, 12})
+      token = "results-#{System.unique_integer()}"
+      view = open(browser(token), id)
+      for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+      view |> element("button", "Stop") |> render_click()
+
+      assert auto_open?(view, "#round-results")
+      refute has_element?(view, "#round-results.replay-done")
+      refute auto_open?(view, "#decision-shop")
+
+      render_hook(view, "seen", %{"kind" => "results", "round" => 1})
+
+      reloaded = open(browser(token), id)
+      refute auto_open?(reloaded, "#round-results")
+      assert has_element?(reloaded, "dialog#round-results.replay-done")
+      assert auto_open?(reloaded, "#decision-shop")
+    end
+
+    test "a stale or foreign 'seen' does nothing" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3})
+      view = open(browser("stale-#{System.unique_integer()}"), id)
+      render_hook(view, "seen", %{"kind" => "bogus", "round" => 1})
+      render_hook(view, "seen", %{"kind" => "card", "round" => "1"})
+      assert {:ok, %{seen: seen}} = GameServer.get(id)
+      assert seen == %{}
+    end
+  end
+
+  test "B7: the rubies step waits for the round results to close" do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+    view = open(browser("rubies-#{System.unique_integer()}"), id)
+
+    replace_game(
+      id,
+      &H.put(&1, 0, phase: :shop, exploded?: true, explosion_choice: :vp, rubies: 2)
+    )
+
+    assert has_element?(view, "dialog#round-results[data-then-open=decision-rubies]")
+    assert has_element?(view, "dialog#decision-rubies")
+    refute auto_open?(view, "#decision-rubies")
+  end
+
+  describe "B4/B5: the configure screen" do
+    test "the name goes on blur and with a colour tap, so a fast tap keeps both" do
+      {:ok, id} = GameServer.start(2)
+      alice = open(browser("alice-#{System.unique_integer()}"), id)
+
+      assert has_element?(alice, "#seat-name[phx-debounce=blur][phx-hook=NameMemory]")
+
+      swatch = ~s([data-role=colour-picker] button[data-colour="5"])
+      assert has_element?(alice, "#{swatch}[phx-click*='#rename-form']")
+
+      alice |> form("#rename-form", name: "Zed") |> render_submit()
+      alice |> element(swatch) |> render_click()
+
+      {:ok, table} = GameServer.get(id)
+      assert table.names[0] == "Zed" and table.colours[0] == 5
+    end
+
+    test "when the host leaves, the next seat is host with full controls" do
+      {:ok, id} = GameServer.start(3)
+      host = open(browser("alice-#{System.unique_integer()}"), id)
+      bob = open(browser("bob-#{System.unique_integer()}"), id)
+
+      assert has_element?(bob, "[data-role=read-only]")
+      refute has_element?(bob, "[data-role=add-bot]")
+      assert has_element?(bob, "button[aria-label='More players'][disabled]")
+
+      # the host's page closes (its seat is freed in `terminate/2`)
+      ref = Process.monitor(host.pid)
+      GenServer.stop(host.pid)
+      assert_receive {:DOWN, ^ref, :process, _pid, _reason}
+
+      assert render(bob) =~ "You are now the host."
+      refute has_element?(bob, "[data-role=read-only]")
+      assert has_element?(bob, "[data-role=add-bot]")
+      refute has_element?(bob, "button[aria-label='More players'][disabled]")
+      assert has_element?(bob, ~s([data-seat="1"]), "host")
+      assert has_element?(bob, "[data-role=start-game]")
+    end
+  end
+
+  describe "B6: a white pick that takes the pot over the limit" do
+    defp picks_html(game, actions, pool) do
+      render_component(&GameLive.chip_picks/1,
+        actions: actions,
+        pool: pool,
+        game: game,
+        me: game.players[0]
+      )
+    end
+
+    test "the crow skull warns 'explodes!' on that chip only" do
+      game =
+        Game.new(seed: {1, 2, 3}, fortune: false)
+        |> H.put(drawn: [{{:white, 3}, 3}, {{:white, 2}, 5}])
+
+      html =
+        picks_html(game, [{:place, {:white, 3}}, {:place, {:white, 1}}], [
+          {:white, 3},
+          {:white, 1}
+        ])
+
+      doc = LazyHTML.from_fragment(html)
+      assert [warning] = Enum.to_list(LazyHTML.query(doc, "[data-role=explode-warning]"))
+      assert LazyHTML.text(warning) =~ "explodes!"
+      assert html =~ ~s(data-over="explodes")
+      assert html =~ "Crow skull: place white 3: explodes the pot"
+      # the safe chip says what a tap does
+      assert LazyHTML.text(LazyHTML.query(doc, "[data-role=pick-verb]")) =~ "Place"
+    end
+
+    test "Safety Procedure says the chip goes over the limit but cannot explode" do
+      game =
+        Game.new(seed: {1, 2, 3}, fortune: false)
+        |> H.put(fortune_card: :b7, drawn: [{{:white, 3}, 3}, {{:white, 2}, 5}])
+
+      html =
+        picks_html(game, [{:fortune, {:place, {:white, 3}}}, {:fortune, :return_all}], [
+          {:white, 3}
+        ])
+
+      assert html =~ "over 7, safe"
+      assert html =~ ~s(data-over="safe")
+      refute html =~ "explodes!"
+    end
+  end
+
+  describe "visual fixes" do
+    test "the bar has no Stop/Draw while everyone shops; the side column is marked" do
+      {:ok, id} = GameServer.start(1, {10, 11, 12})
+      view = open(browser("bar-#{System.unique_integer()}"), id)
+      assert has_element?(view, "[data-role=action-bar]")
+      assert has_element?(view, "aside[data-role=side-column]")
+      for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+      view |> element("button", "Stop") |> render_click()
+      refute has_element?(view, "[data-role=action-bar]")
+    end
+
+    test "the seat colour edge runs over both columns on large screens" do
+      {:ok, id} = GameServer.start(2, {1, 2, 3})
+      alice = open(browser("edge-a"), id)
+      _bob = open(browser("edge-b"), id)
+      {:ok, _} = GameServer.begin(id, "edge-a")
+      assert has_element?(alice, "div.lg\\:border-t-4.border-player-0")
+      assert has_element?(alice, "[data-role=my-seat].lg\\:border-t-0")
+    end
+
+    test "the menu's sheet buttons are parchment like their neighbours" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3})
+      view = open(browser("menu-#{System.unique_integer()}"), id)
+
+      assert has_element?(
+               view,
+               "#sheet-menu button[popovertarget=sheet-books].bg-parchment-light"
+             )
+
+      refute has_element?(view, "#sheet-menu button[popovertarget=sheet-books].bg-iron-dark")
+    end
+
+    test "the witches button is a small tile in the pot's corner" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{}, :herb_witches)
+      view = open(browser("witch-#{System.unique_integer()}"), id)
+      assert has_element?(view, "[data-role=witches-button].flex-col.top-0.left-0", "Witches")
+    end
+
+    test "a usable flask says so" do
+      {:ok, id} = GameServer.start(1, {10, 11, 12})
+      view = open(browser("flask-#{System.unique_integer()}"), id)
+      refute has_element?(view, "[data-role=flask-hint]")
+      view |> element("button", "Draw a chip") |> render_click()
+      assert has_element?(view, "[data-role=flask-hint]", "Tap the flask")
+    end
+  end
+
+  describe "text" do
+    test "the game-over breakdown names witches, cards and pennies" do
+      log = [
+        {0, {:witch, :g1, {:vp, 4}}},
+        {0, {:fortune, :p6, {:vp, 4}}},
+        {0, {:pennies, 2}},
+        {0, {:pot_vp, 3, 12}}
+      ]
+
+      assert GameComponents.vp_breakdown(log, 0, 14) ==
+               [brewing: 3, witches: 4, cards: 4, pennies: 2, other: 1]
+
+      assert GameComponents.vp_part_name(:pennies) == "Unused pennies"
+      assert GameComponents.vp_part_hint(:other) =~ "no other part"
+    end
+
+    test "Second Chances logs the chips it put back; Stop and Stopped are one line" do
+      log = [
+        {0, {:fortune, :b3, {:drew, [{:white, 1}, {:green, 1}]}}},
+        {1, :stopped},
+        {1, :stop},
+        {0, :stop}
+      ]
+
+      html =
+        render_component(&GameComponents.action_log/1, log: log, names: %{0 => "A", 1 => "B"})
+
+      assert html =~ "Second Chances: put back white 1, green 1"
+      assert html =~ "B: Stopped (may resume while others brew)"
+      refute html =~ "B: Stop<"
+      assert html =~ "A: Stop<"
+    end
+  end
+end

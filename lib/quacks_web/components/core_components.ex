@@ -130,6 +130,12 @@ defmodule QuacksWeb.CoreComponents do
   @doc "A button that opens the `sheet` with id `for`."
   attr :for, :string, required: true
   attr :class, :any, default: nil
+
+  attr :variant, :atom,
+    default: nil,
+    values: [nil, :secondary],
+    doc: "`:secondary` for parchment, beside `button/1`'s secondary buttons"
+
   attr :rest, :global
   slot :inner_block, required: true
 
@@ -140,8 +146,12 @@ defmodule QuacksWeb.CoreComponents do
       popovertarget={@for}
       class={[
         "inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-3",
-        "bg-iron-dark text-sm font-semibold text-parchment ring-1 ring-iron touch-manipulation",
-        "cursor-pointer transition-[scale,background-color] duration-150 ease-out hover:bg-iron active:scale-[.98]",
+        "text-sm font-semibold touch-manipulation",
+        "cursor-pointer transition-[scale,background-color] duration-150 ease-out active:scale-[.98]",
+        if(@variant == :secondary,
+          do: "bg-parchment-light text-ink shadow-sm ring-1 ring-ink/25 hover:bg-white",
+          else: "bg-iron-dark text-parchment ring-1 ring-iron hover:bg-iron"
+        ),
         @class
       ]}
       {@rest}
@@ -172,6 +182,7 @@ defmodule QuacksWeb.CoreComponents do
   attr :auto_open, :boolean, default: true
   attr :then_open, :string, default: nil, doc: "id of a dialog to open on close"
   attr :on_close, JS, default: nil, doc: "JS commands app.js runs when it closes"
+  attr :class, :any, default: nil, doc: "extra classes"
 
   attr :focus_self, :boolean,
     default: false,
@@ -187,7 +198,7 @@ defmodule QuacksWeb.CoreComponents do
     ~H"""
     <dialog
       id={@id}
-      class="sheet paper"
+      class={["sheet paper", @class]}
       aria-label={@label}
       phx-mounted={
         if @auto_open,

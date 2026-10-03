@@ -216,7 +216,10 @@ defmodule QuacksWeb.UiRound3Test do
     assert has_element?(view, "li", "— Round 1 over —")
 
     {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, %{starting_rubies: 3})
-    view = browser("rich") |> open(id) |> to_shop() |> buy_orange()
+    view = browser("rich") |> open(id) |> to_shop()
+    # the round results were closed (their close sends "seen")
+    render_hook(view, "seen", %{"kind" => "results", "round" => 1})
+    view = buy_orange(view)
 
     refute has_element?(view, "#decision-shop")
     assert has_element?(view, "dialog#decision-rubies[phx-mounted*='quacks:modal']")

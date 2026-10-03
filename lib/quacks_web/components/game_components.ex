@@ -669,6 +669,7 @@ defmodule QuacksWeb.GameComponents do
       phx-key={@click && "Enter"}
       phx-value-action={@click}
     >
+      <title :if={@click}>Tap the flask to put the white chip back in the bag</title>
       <defs>
         <clipPath id={"flask-body-#{@uid}"}>
           <path d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z" />
@@ -1210,9 +1211,9 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <p class="shrink-0 text-right text-xs leading-tight text-parchment-dim" data-role="next-reward">
       Next:
-      <span class="font-semibold text-parchment">{@space.coins} coins</span><span :if={@space.vp > 0}> · <span class="font-semibold text-gold">{@space.vp} VP</span></span><span :if={
-        @space.ruby?
-      }> · <span class="font-semibold text-ruby">ruby</span></span>
+      <span class="font-semibold text-parchment">{@space.coins} {plural(@space.coins, "coin", "coins")}</span><span :if={
+        @space.vp > 0
+      }> · <span class="font-semibold text-gold">{@space.vp} VP</span></span><span :if={@space.ruby?}> · <span class="font-semibold text-ruby">ruby</span></span>
     </p>
     """
   end
@@ -1858,7 +1859,7 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <.blue_offer
       title="Safety Procedure drew:"
-      hint="Tap a chip to place it, or return them all."
+      hint="Tap a chip to place it, or return them all. The placed chip cannot explode the pot."
       label="Fortune teller offer"
       accent="border-chip-purple"
     >
@@ -2015,6 +2016,7 @@ defmodule QuacksWeb.GameComponents do
   def action_log(assigns) do
     entries =
       assigns.log
+      |> drop_stop_before_stopped()
       |> Enum.reject(&(&1 |> untag() |> narrated_by_event?()))
       |> Enum.take(assigns.limit)
       |> Enum.map(&log_line(&1, assigns.names))
@@ -2040,6 +2042,14 @@ defmodule QuacksWeb.GameComponents do
     do: {seat, "#{Map.get(names, seat, GameServer.default_name(seat))}: #{label(entry)}"}
 
   defp log_line(entry, _names), do: {nil, entry |> untag() |> label()}
+
+  # "Stop" and "Stopped (may resume…)" are one event: keep the second line only.
+  defp drop_stop_before_stopped(log) do
+    [nil | log]
+    |> Enum.zip(log)
+    |> Enum.reject(fn {newer, entry} -> match?({{s, :stopped}, {s, :stop}}, {newer, entry}) end)
+    |> Enum.map(&elem(&1, 1))
+  end
 
   defp untag({seat, entry}) when is_integer(seat), do: entry
   defp untag(entry), do: entry
@@ -2329,8 +2339,9 @@ defmodule QuacksWeb.GameComponents do
   fixed order, parts with 0 VP left out. The parts: `:brewing` (scoring spaces,
   overflow bowl, test tubes), `:die` (bonus die), `:chips` (chip and book
   actions), `:rubies` (2 rubies for 1 VP), `:final` (the round 9 conversion),
-  `:essence` (The Alchemists) and `:other`, the rest of `total` (witches, fortune
-  cards, pennies, patient actions), so the parts always add up to `total`.
+  `:essence` (The Alchemists), `:witches` (witch calls), `:cards` (fortune teller
+  cards), `:pennies` (unused witch pennies at the end) and `:other`, the rest of
+  `total`, so the parts always add up to `total`.
   """
   @spec vp_breakdown([term], Game.seat(), integer) :: [{atom, integer}]
   def vp_breakdown(log, seat, total) do
@@ -2342,7 +2353,18 @@ defmodule QuacksWeb.GameComponents do
     other = total - (known |> Map.values() |> Enum.sum())
     parts = Map.put(known, :other, other)
 
-    for part <- [:brewing, :die, :chips, :rubies, :final, :essence, :other],
+    for part <- [
+          :brewing,
+          :die,
+          :chips,
+          :rubies,
+          :final,
+          :essence,
+          :witches,
+          :cards,
+          :pennies,
+          :other
+        ],
         vp = Map.get(parts, part, 0),
         vp != 0,
         do: {part, vp}
@@ -2356,7 +2378,23 @@ defmodule QuacksWeb.GameComponents do
   def vp_part_name(:rubies), do: "Rubies"
   def vp_part_name(:final), do: "Final coins and rubies"
   def vp_part_name(:essence), do: "Essence"
+  def vp_part_name(:witches), do: "Witches"
+  def vp_part_name(:cards), do: "Fortune cards"
+  def vp_part_name(:pennies), do: "Unused pennies"
   def vp_part_name(:other), do: "Other"
+
+  @doc "What a `vp_breakdown/3` part counts, for its tooltip."
+  @spec vp_part_hint(atom) :: String.t()
+  def vp_part_hint(:brewing), do: "Victory points of your scoring spaces"
+  def vp_part_hint(:die), do: "The bonus die"
+  def vp_part_hint(:chips), do: "Purple, green, black and other chip actions"
+  def vp_part_hint(:rubies), do: "2 rubies for 1 victory point"
+  def vp_part_hint(:final), do: "Round 9: coins and rubies turned into victory points"
+  def vp_part_hint(:essence), do: "The Alchemists: essence and the patient's glasses"
+  def vp_part_hint(:witches), do: "Victory points from the witches you called"
+  def vp_part_hint(:cards), do: "Victory points from fortune teller cards"
+  def vp_part_hint(:pennies), do: "2 victory points for each witch penny you did not use"
+  def vp_part_hint(:other), do: "Points that no other part shows, for example rat tails"
 
   defp vp_part({:pot_vp, vp, _index}), do: {:brewing, vp}
   defp vp_part({:bowl, _chips, vp}), do: {:brewing, vp}
@@ -2368,6 +2406,9 @@ defmodule QuacksWeb.GameComponents do
   defp vp_part({:final_conversion, _coins, cvp, _rubies, rvp}), do: {:final, cvp + rvp}
   defp vp_part({:essence_vp, n}), do: {:essence, n}
   defp vp_part({:essence_bonus, {:vp, n}}), do: {:essence, n}
+  defp vp_part({:witch, _id, {:vp, n}}), do: {:witches, n}
+  defp vp_part({:fortune, _id, {:vp, n}}), do: {:cards, n}
+  defp vp_part({:pennies, n}), do: {:pennies, n}
 
   defp vp_part({:purple, _, _} = entry), do: {:chips, gain_vp(entry)}
   defp vp_part({:effect, _, _} = entry), do: {:chips, gain_vp(entry)}
@@ -2667,6 +2708,7 @@ defmodule QuacksWeb.GameComponents do
   defp fortune_outcome({:drew, chips}, :p8),
     do: "drew #{chip_list(chips)} (sum #{chips |> Enum.map(&elem(&1, 1)) |> Enum.sum()})"
 
+  defp fortune_outcome({:drew, chips}, :b3), do: "put back #{chip_list(chips)}"
   defp fortune_outcome({:drew, chips}, _id), do: "drew #{chip_list(chips)}"
   defp fortune_outcome(face, :p12), do: "rolled the die: #{die_text(face)}"
   defp fortune_outcome(:droplet, :p11), do: "droplet +2"
