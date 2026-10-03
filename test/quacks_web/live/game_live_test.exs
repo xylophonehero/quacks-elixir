@@ -158,15 +158,15 @@ defmodule QuacksWeb.GameLiveTest do
 
   test "the shop dialog is in the page only while buying", %{conn: conn} do
     {:ok, view, _html} = live_game(conn, {10, 11, 12})
-    refute has_element?(view, "dialog#decision-buy_chips")
+    refute has_element?(view, "dialog#decision-buy")
 
     view = mount_shop(conn)
-    assert has_element?(view, "dialog#decision-buy_chips #shop")
-    assert has_element?(view, "dialog#decision-buy_chips[phx-mounted]")
+    assert has_element?(view, "dialog#decision-buy #shop")
+    assert has_element?(view, "dialog#decision-buy[phx-mounted]")
 
     view |> element("button", "Buy nothing") |> render_click()
-    refute has_element?(view, "dialog#decision-buy_chips")
-    assert has_element?(view, "dialog#decision-spend_rubies button", "End round")
+    refute has_element?(view, "dialog#decision-buy")
+    assert has_element?(view, "dialog#decision-rubies button", "End round")
   end
 
   test "an unknown game id sends the browser to the lobby", %{conn: conn} do

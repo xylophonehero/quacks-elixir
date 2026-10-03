@@ -8,6 +8,10 @@ defmodule QuacksWeb.GameLive do
   `Quacks.GameServer.apply/3`. The page itself knows no rules. A browser without a
   seat (the game is full) watches: it sees every pot and no buttons.
 
+  Before the game begins (`GameServer` status `:waiting`) the page shows who sits
+  down and, for the creator, a "Start game" button (`GameServer.begin/2`). Closing
+  the page before the start frees the seat (`terminate/2`).
+
   With The Herb Witches the page also shows the 3 witches (a sheet on phones, the
   right column on large screens) with a button to call one when the engine allows
   it, and the overflow bowl under the pot.
@@ -59,7 +63,8 @@ defmodule QuacksWeb.GameLive do
            seat: seat,
            seed: table.seed,
            players: table.players,
-           names: table.names
+           names: table.names,
+           creator: table.creator
          )
          |> put_game(table.game)}
 
@@ -103,6 +108,13 @@ defmodule QuacksWeb.GameLive do
     {:noreply, assign(socket, selected: selected)}
   end
 
+  def handle_event("begin", _params, socket) do
+    case GameServer.begin(socket.assigns.id, socket.assigns.token) do
+      {:ok, game} -> {:noreply, socket |> reseat() |> put_game(game)}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Only the creator can start.")}
+    end
+  end
+
   def handle_event("undo", _params, socket) do
     case GameServer.undo(socket.assigns.id) do
       {:ok, game} -> {:noreply, put_game(socket, game)}
@@ -129,6 +141,10 @@ defmodule QuacksWeb.GameLive do
   def handle_event("rename", _params, socket), do: {:noreply, socket}
 
   @impl true
+  # The game began: seats were renumbered, so ask for ours again.
+  def handle_info({:game, _id, game}, %{assigns: %{game: nil}} = socket),
+    do: {:noreply, socket |> reseat() |> put_game(game)}
+
   # Our own moves arrive twice (reply and broadcast); skip the copy we already have.
   def handle_info({:game, _id, game}, socket) do
     if game == socket.assigns.game,
@@ -136,13 +152,69 @@ defmodule QuacksWeb.GameLive do
       else: {:noreply, put_game(socket, game)}
   end
 
+  # While waiting, a seat change may also change the creator.
+  def handle_info({:names, _id, _names}, %{assigns: %{game: nil}} = socket),
+    do: {:noreply, reseat(socket)}
+
   def handle_info({:names, _id, names}, socket), do: {:noreply, assign(socket, names: names)}
+
+  # A page closed before the game began gives its seat back.
+  @impl true
+  def terminate(_reason, %{assigns: %{game: nil, seat: seat}} = socket) when is_integer(seat),
+    do: GameServer.leave_seat(socket.assigns.id, socket.assigns.token)
+
+  def terminate(_reason, _socket), do: :ok
+
+  defp reseat(socket) do
+    %{id: id, token: token} = socket.assigns
+    {:ok, table} = GameServer.get(id)
+
+    seat =
+      case GameServer.claim_seat(id, token) do
+        {:ok, seat} -> seat
+        {:error, _full} -> nil
+      end
+
+    assign(socket,
+      seat: seat,
+      players: table.players,
+      names: table.names,
+      creator: table.creator
+    )
+  end
 
   # Phones: one screen, no page scroll. Rows: header, status, notices, the pot (takes
   # the free space), the bottom bar. Bag, log, players, card text and the menu are
   # sheets; a decision opens as a dialog over the pot. Large screens add a right
   # column where the bag, log and players sheets show in place.
   @impl true
+  def render(%{game: nil} = assigns) do
+    ~H"""
+    <Layouts.app flash={@flash}>
+      <h1 class="font-hand text-2xl font-bold">
+        <.link navigate={~p"/"}>Quacks</.link>
+        <span class="font-mono text-xs font-normal text-parchment-dim">{@id}</span>
+      </h1>
+      <p class="rounded-md bg-droplet/25 px-2 py-1" data-role="waiting-for-players">
+        Waiting for players: {map_size(@names)} of {@players} seated. Share this page's link.
+      </p>
+      <ul class="space-y-1" aria-label="Seated players">
+        <li :for={{seat, name} <- Enum.sort(@names)} data-seat={seat}>{name}</li>
+      </ul>
+      <.button
+        :if={@seat && (@creator == nil or @creator == @seat)}
+        phx-click="begin"
+        variant="primary"
+      >
+        Start game
+      </.button>
+      <p :if={is_nil(@seat)} class="rounded-md bg-iron-dark px-2 py-1" data-role="spectator">
+        All seats are taken. You are watching.
+      </p>
+    </Layouts.app>
+    """
+  end
+
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} full>
@@ -239,7 +311,7 @@ defmodule QuacksWeb.GameLive do
               class="min-h-12 w-full rounded-lg bg-gold font-semibold text-ink shadow"
               phx-click={JS.dispatch("quacks:modal", to: "#decision-#{@decision}")}
             >
-              {if @decision == :buy_chips,
+              {if @decision == :buy,
                 do: "Open the shop",
                 else: "Choose: #{phase_name(@decision)}"}
             </.button>
@@ -329,8 +401,8 @@ defmodule QuacksWeb.GameLive do
       </.sheet>
 
       <.dialog_sheet :if={@decision} id={"decision-#{@decision}"} label={phase_name(@decision)}>
-        <.shop :if={@decision == :buy_chips} game={@game} seat={@seat} selected={@selected} />
-        <div :if={@decision != :buy_chips} class="space-y-3">
+        <.shop :if={@decision == :buy} game={@game} seat={@seat} selected={@selected} />
+        <div :if={@decision != :buy} class="space-y-3">
           <h2 class="text-xl font-bold">{phase_name(@decision)}</h2>
           <.fortune_card :if={@decision == :fortune_choice} id={@game.fortune_card} />
           <.blue_offer :if={@decision == :blue_choice} pending={@me.pending} />
@@ -546,6 +618,10 @@ defmodule QuacksWeb.GameLive do
   # `@all_actions` are every legal action of this seat; witch calls show on the witch
   # cards, so the bottom bar leaves them out. The silver witch S2's offer is a
   # decision of its own (`:witch_offer`).
+  defp put_game(socket, nil) do
+    assign(socket, game: nil, me: nil, selected: [], decision: nil, all_actions: [], actions: [])
+  end
+
   defp put_game(socket, game) do
     seat = socket.assigns.seat
     me = if seat, do: game.players[seat]
@@ -565,6 +641,7 @@ defmodule QuacksWeb.GameLive do
   defp decision([], _phase, _me), do: nil
   defp decision(_actions, :potions, %{witch_offer: [_ | _]}), do: :witch_offer
   defp decision(_actions, :potions, _me), do: nil
+  defp decision(_actions, :stopped, _me), do: nil
   defp decision(_actions, phase, _me), do: phase
 
   defp witch?({:witch, _}), do: true
@@ -607,6 +684,7 @@ defmodule QuacksWeb.GameLive do
   defp name(names, seat), do: Map.get(names, seat, GameServer.default_name(seat))
 
   defp turn_text(%{phase: :potions}, _seat, _names), do: "Everyone brews at the same time."
+  defp turn_text(%{phase: :shopping}, _seat, _names), do: "Everyone shops at the same time."
 
   defp turn_text(%{phase: phase, turn: seat}, seat, _names),
     do: "Your turn: #{phase_verb(phase)}."
@@ -617,8 +695,6 @@ defmodule QuacksWeb.GameLive do
   defp phase_verb(:fortune_choice), do: "resolve the fortune teller card"
   defp phase_verb(:chip_choice), do: "choose chip actions"
   defp phase_verb(:witch_choice), do: "decide on the gold witch"
-  defp phase_verb(:buy_chips), do: "buy chips"
-  defp phase_verb(:spend_rubies), do: "spend rubies, then end the round"
 
   # Seats by VP, highest first.
   defp ranking(game), do: game |> Game.score() |> Enum.sort_by(fn {_seat, vp} -> -vp end)

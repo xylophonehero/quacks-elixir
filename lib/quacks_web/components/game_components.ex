@@ -376,11 +376,11 @@ defmodule QuacksWeb.GameComponents do
         value={"#{Game.white_sum(@game, @seat)} / #{Potions.explode_above(@game, @seat)}"}
       />
       <div
-        :if={(@game.phase == :buy_chips and @game.turn == @seat) or @me.exploded?}
+        :if={Game.phase(@game, @seat) == :buy or @me.exploded?}
         class="col-span-4 flex flex-wrap gap-1"
       >
         <span
-          :if={@game.phase == :buy_chips and @game.turn == @seat}
+          :if={Game.phase(@game, @seat) == :buy}
           class="rounded-md bg-gold px-2 font-semibold text-ink"
         >
           {@me.coins} coins to spend
@@ -786,6 +786,9 @@ defmodule QuacksWeb.GameComponents do
   @spec label(term) :: String.t()
   def label(:draw), do: "Draw a chip"
   def label(:stop), do: "Stop"
+  def label(:resume), do: "Resume brewing"
+  def label(:stopped), do: "Stopped (may resume while others brew)"
+  def label(:resumed), do: "Resumed brewing"
   def label(:use_flask), do: "Use flask"
   def label(:end_round), do: "End round"
   def label({:explosion_choice, :vp}), do: "Exploded: take the victory points"
@@ -1048,8 +1051,10 @@ defmodule QuacksWeb.GameComponents do
   def phase_name(:witch_choice), do: "Gold witch"
   def phase_name(:witch_offer), do: "Silver witch"
   def phase_name(:red_choice), do: "Toadstool"
-  def phase_name(:buy_chips), do: "Shop"
-  def phase_name(:spend_rubies), do: "Rubies"
+  def phase_name(:stopped), do: "Stopped"
+  def phase_name(:buy), do: "Shop"
+  def phase_name(:rubies), do: "Rubies"
+  def phase_name(:ready), do: "Ready"
   def phase_name(:done), do: "Done"
   def phase_name(:over), do: "Over"
   def phase_name(other), do: inspect(other)

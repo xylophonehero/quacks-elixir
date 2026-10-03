@@ -10,9 +10,18 @@ defmodule Quacks.HerbWitchesTest do
 
   @seed {1, 2, 3}
   @hw :herb_witches
+  @limited %{supply: :limited}
 
   defp new(sets \\ %{}, players \\ 1),
-    do: Game.new(seed: @seed, fortune: false, expansion: @hw, sets: sets, players: players)
+    do:
+      Game.new(
+        seed: @seed,
+        fortune: false,
+        expansion: @hw,
+        sets: sets,
+        players: players,
+        rules: @limited
+      )
 
   defp effect?(g, seat \\ 0, book, detail), do: {seat, {:effect, book, detail}} in g.log
   defp effects(g, seat, book), do: for({^seat, {:effect, ^book, d}} <- g.log, do: d)
@@ -61,7 +70,7 @@ defmodule Quacks.HerbWitchesTest do
     end
 
     test "Session passes the expansion on, through undo too" do
-      s = Session.new(@seed, 5, expansion: @hw, fortune: false)
+      s = Session.new(@seed, 5, expansion: @hw, fortune: false, rules: @limited)
       {:ok, s} = Session.apply(s, 4, :draw)
       assert s.expansion == @hw and Session.undo(s).game.expansion == @hw
       assert Session.undo(s).game == new(%{}, 5)
@@ -91,13 +100,13 @@ defmodule Quacks.HerbWitchesTest do
       assert {:orange, 6} in Chips.shop(@hw) and {:locoweed, 1} in Chips.shop(@hw)
       refute {:orange, 6} in Chips.shop() or {:locoweed, 1} in Chips.shop()
 
-      g = put(new(), phase: :buy_chips, coins: 22)
+      g = put(new(), phase: :buy, coins: 22)
       assert {:buy, [{:orange, 6}]} in Game.legal_actions(g)
       assert {:buy, [{:locoweed, 1}]} in Game.legal_actions(g)
       g = apply!(g, {:buy, [{:orange, 6}]})
       assert {:orange, 6} in me(g).bag and g.supply[{:orange, 6}] == 19
 
-      base = put(Game.new(seed: @seed, fortune: false), phase: :buy_chips, coins: 35)
+      base = put(Game.new(seed: @seed, fortune: false), phase: :buy, coins: 35)
       refute Enum.any?(Game.legal_actions(base), &match?({:buy, [{:orange, 6} | _]}, &1))
     end
 
@@ -186,7 +195,7 @@ defmodule Quacks.HerbWitchesTest do
     end
 
     test "Black 5, 2 players: a bought black goes to the left bag, droplet +1" do
-      g = new(%{black: 5}, 2) |> put(0, phase: :buy_chips, coins: 10)
+      g = new(%{black: 5}, 2) |> put(0, phase: :buy, coins: 10)
       g = apply!(g, 0, {:buy, [{:black, 1}]})
       refute {:black, 1} in me(g, 0).bag
       assert Enum.count(me(g, 1).bag, &(&1 == {:black, 1})) == 1
@@ -194,7 +203,7 @@ defmodule Quacks.HerbWitchesTest do
     end
 
     test "Black 5 solo: a bought black goes back to the supply, droplet +1" do
-      g = new(%{black: 5}) |> put(phase: :buy_chips, coins: 10)
+      g = new(%{black: 5}) |> put(phase: :buy, coins: 10)
       supply = g.supply[{:black, 1}]
       g = apply!(g, {:buy, [{:black, 1}]})
       refute {:black, 1} in me(g).bag
@@ -326,7 +335,8 @@ defmodule Quacks.HerbWitchesTest do
         if Game.over?(g) do
           {:halt, g}
         else
-          seat = Enum.find(g.seats, &(Game.legal_actions(g, &1) != []))
+          # a stopped seat does not resume
+          seat = Enum.find(g.seats, &(Game.legal_actions(g, &1) not in [[], [:resume]]))
           actions = Game.legal_actions(g, seat)
           # draw up to 6 chips, then stop; otherwise the last action (end/skip)
           action =
@@ -352,7 +362,8 @@ defmodule Quacks.HerbWitchesTest do
             sets <- sets(expansion),
             picks <- list_of(non_negative_integer(), min_length: 20, max_length: 300)
           ) do
-      g = Game.new(seed: seed, players: players, sets: sets, expansion: expansion)
+      g =
+        Game.new(seed: seed, players: players, sets: sets, expansion: expansion, rules: @limited)
 
       Enum.reduce_while(picks, g, fn pick, g ->
         active = Enum.filter(g.seats, &(Game.legal_actions(g, &1) != []))

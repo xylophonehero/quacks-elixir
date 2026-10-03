@@ -12,7 +12,7 @@ defmodule Quacks.BooksTest do
   @seed {1, 2, 3}
 
   defp base(sets), do: Game.new(seed: @seed, fortune: false, sets: sets)
-  defp buys(g), do: Game.legal_actions(put(g, phase: :buy_chips, coins: 22))
+  defp buys(g), do: Game.legal_actions(put(g, phase: :buy, coins: 22))
 
   test "every supported {colour, set} has a book with a name, text and trigger" do
     supported =

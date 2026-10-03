@@ -7,7 +7,7 @@ defmodule Quacks.GameHelpers do
   alias Quacks.{Game, Player}
 
   @game_keys [:round, :supply, :turn, :fortune_card, :fortune_deck]
-  @game_phases [:buy_chips, :spend_rubies, :over]
+  @shopping [:buy, :rubies, :ready]
 
   @doc "Apply an action for `seat` (default 0), asserting it is legal."
   def apply!(game, seat \\ 0, action) do
@@ -23,17 +23,32 @@ defmodule Quacks.GameHelpers do
     do: Enum.reduce(chips, game, &apply!(put(&2, seat, bag: [&1]), seat, :draw))
 
   @doc """
-  Set fields on the game or on `seat`'s player. `phase:` sets the game phase (and
-  makes `seat` the turn) for `:buy_chips`, `:spend_rubies` and `:over`, otherwise the
-  player's own phase. `round:`, `supply:`, `turn:`, `fortune_card:` and
-  `fortune_deck:` are game fields; the rest are player fields. Unknown keys raise.
+  Set fields on the game or on `seat`'s player. `phase: :over` sets the game phase.
+  `phase: :buy | :rubies | :ready` puts the game in `:shopping`; when it was not
+  shopping yet, every seat gets that sub-phase. Any other `phase:` is the player's own
+  phase. `round:`, `supply:`, `turn:`, `fortune_card:` and `fortune_deck:` are game
+  fields; the rest are player fields. Unknown keys raise.
   """
   def put(game, seat \\ 0, fields) do
     Enum.reduce(fields, game, fn
-      {:phase, phase}, g when phase in @game_phases -> %{g | phase: phase, turn: seat}
-      {:phase, phase}, g -> put_in(g.players[seat].phase, phase)
-      {key, value}, g when key in @game_keys -> Map.replace!(g, key, value)
-      {key, value}, g -> put_in(g.players[seat], Map.replace!(g.players[seat], key, value))
+      {:phase, :over}, g ->
+        %{g | phase: :over, turn: nil}
+
+      {:phase, sub}, %{phase: :shopping} = g when sub in @shopping ->
+        put_in(g.players[seat].phase, sub)
+
+      {:phase, sub}, g when sub in @shopping ->
+        players = Map.new(g.players, fn {s, p} -> {s, %{p | phase: sub}} end)
+        %{g | phase: :shopping, turn: nil, players: players}
+
+      {:phase, phase}, g ->
+        put_in(g.players[seat].phase, phase)
+
+      {key, value}, g when key in @game_keys ->
+        Map.replace!(g, key, value)
+
+      {key, value}, g ->
+        put_in(g.players[seat], Map.replace!(g.players[seat], key, value))
     end)
   end
 

@@ -19,13 +19,9 @@ defmodule QuacksWeb.LobbyLiveTest do
       |> render_click()
       |> follow_redirect(conn)
 
-    # A purple fortune card may open the round with a choice instead of drawing,
-    # so assert on any action button rather than "Draw a chip". If that choice is
-    # the other seat's turn, this seat has no buttons and the banner says so.
-    assert has_element?(game_view, "button[phx-click=action]") or
-             has_element?(game_view, "[data-role=turn]", "Seat 2's turn")
-
+    # The game waits for players; the creator may start it.
     assert has_element?(game_view, "[data-role=waiting-for-players]", "1 of 2 seated")
+    assert has_element?(game_view, "button[phx-click=begin]", "Start game")
   end
 
   test "a seed in the lobby URL seeds the new game", %{conn: conn} do

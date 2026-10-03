@@ -15,7 +15,7 @@ defmodule QuacksWeb.BooksLiveTest do
       {:ok, %{game: game}} = GameServer.get(id)
       actions = Game.legal_actions(game, 0)
 
-      if game.phase == :buy_chips do
+      if game.phase == :shopping do
         game
       else
         action =

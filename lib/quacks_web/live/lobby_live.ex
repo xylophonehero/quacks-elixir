@@ -36,7 +36,8 @@ defmodule QuacksWeb.LobbyLive do
     fortune: [true, false],
     rats: [true, false],
     black_solo: [:droplet, :droplet_ruby],
-    die: [:standard, :no_orange]
+    die: [:standard, :no_orange],
+    supply: [:infinite, :limited]
   }
 
   @impl true
@@ -208,7 +209,7 @@ defmodule QuacksWeb.LobbyLive do
           >
             <span>
               <span class="font-mono font-semibold">{game.id}</span>
-              · {map_size(game.names)} of {game.players} seated · round {game.game.round}
+              · {map_size(game.names)} of {game.players} seated
             </span>
             <.button navigate={~p"/g/#{game.id}"}>Join</.button>
           </li>

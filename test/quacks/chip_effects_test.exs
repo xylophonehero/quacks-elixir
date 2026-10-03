@@ -8,8 +8,10 @@ defmodule Quacks.ChipEffectsTest do
 
   @seed {1, 2, 3}
 
-  defp new, do: Game.new(seed: @seed, fortune: false)
-  defp new(players), do: Game.new(seed: @seed, players: players, fortune: false)
+  defp new, do: Game.new(seed: @seed, fortune: false, rules: %{supply: :limited})
+
+  defp new(players),
+    do: Game.new(seed: @seed, players: players, fortune: false, rules: %{supply: :limited})
 
   # Draw `chip` with `others` left in the bag: put `chip` where the rng will pick it.
   defp force_draw_leaving(game, chip, others) do
@@ -53,7 +55,7 @@ defmodule Quacks.ChipEffectsTest do
   # Give hand-built pot chips (newest first) a position each, so `drawn` has its shape.
   defp placed(chips), do: chips |> Enum.reverse() |> Enum.with_index(1) |> Enum.reverse()
 
-  defp shop(round, coins), do: put(new(), phase: :buy_chips, round: round, coins: coins)
+  defp shop(round, coins), do: put(new(), phase: :buy, round: round, coins: coins)
 
   defp buyable?(game, chip), do: {:buy, [chip]} in Game.legal_actions(game)
 
@@ -255,7 +257,7 @@ defmodule Quacks.ChipEffectsTest do
     g = put(new(), phase: :explosion_choice, exploded?: true, pot_index: 4)
     g = put(g, drawn: placed([{:green, 1}, {:purple, 1}, {:black, 1}]))
     g = apply!(g, {:explosion_choice, :vp})
-    assert {me(g).vp, me(g).rubies, me(g).droplet, g.phase} == {1, 1 + 1 + 1, 1, :spend_rubies}
+    assert {me(g).vp, me(g).rubies, me(g).droplet, Game.phase(g, 0)} == {1, 1 + 1 + 1, 1, :rubies}
   end
 
   test "yellow is in the shop from round 2 and purple from round 3" do
@@ -287,12 +289,28 @@ defmodule Quacks.ChipEffectsTest do
     assert buyable?(out, {:green, 1})
   end
 
+  test "the default infinite supply is the box, never counted down, never empty" do
+    g = Game.new(seed: @seed, fortune: false)
+    assert g.rules.supply == :infinite and g.supply == Chips.supply()
+
+    # even a box at 0 sells, and nothing is counted down
+    empty = Map.new(g.supply, fn {chip, _} -> {chip, 0} end)
+    g = put(g, phase: :buy, coins: 20, supply: empty)
+    assert buyable?(g, {:orange, 1})
+    g = apply!(g, {:buy, [{:orange, 1}, {:red, 2}]})
+    assert g.supply == empty
+    assert {:orange, 1} in me(g).bag and {:red, 2} in me(g).bag
+
+    g = apply!(put(g, phase: :rubies, round: 5), :end_round)
+    assert Enum.count(me(g).bag, &(&1 == {:white, 1})) == 5 and g.supply == empty
+  end
+
   test "the orange die face and the round-6 white chip come from the supply" do
-    g = apply!(put(new(), phase: :spend_rubies, round: 5), :end_round)
+    g = apply!(put(new(), phase: :rubies, round: 5), :end_round)
     assert g.supply[{:white, 1}] == 15
     assert Enum.count(me(g).bag, &(&1 == {:white, 1})) == 5
 
-    none = put(g, supply: Map.put(g.supply, {:white, 1}, 0), phase: :spend_rubies, round: 5)
+    none = put(g, supply: Map.put(g.supply, {:white, 1}, 0), phase: :rubies, round: 5)
     assert me(apply!(none, :end_round)).bag == me(g).bag
   end
 end

@@ -47,7 +47,7 @@ defmodule Quacks.HouseRulesTest do
   end
 
   test "round6_white: false adds no white chip before round 6" do
-    g = new(%{round6_white: false}) |> put(round: 5, phase: :spend_rubies) |> apply!(:end_round)
+    g = new(%{round6_white: false}) |> put(round: 5, phase: :rubies) |> apply!(:end_round)
     assert g.round == 6
     assert Enum.count(me(g).bag, &(&1 == {:white, 1})) == 4
   end
@@ -57,7 +57,7 @@ defmodule Quacks.HouseRulesTest do
       new(%{rats: false}, 2)
       |> put(0, vp: 12)
       |> put(1, vp: 3)
-      |> put(phase: :spend_rubies)
+      |> put(phase: :rubies)
       |> apply!(0, :end_round)
       |> apply!(1, :end_round)
 

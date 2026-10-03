@@ -11,10 +11,12 @@ defmodule Quacks.GameTest do
   doctest ScoringTrack
 
   @seed {1, 2, 3}
-  @no_cards [fortune: false]
+  @no_cards [fortune: false, rules: %{supply: :limited}]
 
-  defp new, do: Game.new(seed: @seed, fortune: false)
-  defp new(players), do: Game.new(seed: @seed, players: players, fortune: false)
+  defp new, do: Game.new(seed: @seed, fortune: false, rules: %{supply: :limited})
+
+  defp new(players),
+    do: Game.new(seed: @seed, players: players, fortune: false, rules: %{supply: :limited})
 
   defp rolled?(game, seat \\ 0), do: Enum.any?(game.log, &match?({^seat, {:bonus_die, _}}, &1))
 
@@ -27,7 +29,7 @@ defmodule Quacks.GameTest do
   defp cautious(g) do
     case Game.phase(g, 0) do
       :potions -> if Game.white_sum(g) <= 4 or me(g).drawn == [], do: :draw, else: :stop
-      :buy_chips -> g |> Game.legal_actions() |> List.last()
+      :buy -> g |> Game.legal_actions() |> List.last()
       _ -> g |> Game.legal_actions() |> hd()
     end
   end
@@ -95,7 +97,7 @@ defmodule Quacks.GameTest do
     # pot_index 4 -> scoring space 5: 5 coins, 0 VP, ruby
     g = new() |> force_draws([{:white, 3}, {:orange, 1}]) |> apply!(:stop)
     assert rolled?(g)
-    assert g.phase == :buy_chips
+    assert Game.phase(g, 0) == :buy
     assert me(g).coins == 5
     assert me(g).rubies >= 2
   end
@@ -105,16 +107,16 @@ defmodule Quacks.GameTest do
     boom = force_draws(new(), [{:white, 3}, {:white, 3}, {:white, 2}])
 
     vp = apply!(boom, {:explosion_choice, :vp})
-    assert {me(vp).vp, me(vp).rubies, me(vp).coins, vp.phase} == {1, 2, 0, :spend_rubies}
+    assert {me(vp).vp, me(vp).rubies, me(vp).coins, Game.phase(vp, 0)} == {1, 2, 0, :rubies}
     refute rolled?(vp)
 
     buy = apply!(boom, {:explosion_choice, :buy})
-    assert {me(buy).vp, me(buy).rubies, me(buy).coins, buy.phase} == {0, 2, 9, :buy_chips}
+    assert {me(buy).vp, me(buy).rubies, me(buy).coins, Game.phase(buy, 0)} == {0, 2, 9, :buy}
     refute rolled?(buy)
   end
 
   test "buying 0, 1 or 2 chips of different colours within the coins" do
-    g = put(new(), phase: :buy_chips, coins: 8)
+    g = put(new(), phase: :buy, coins: 8)
     actions = Game.legal_actions(g)
     assert {:buy, []} in actions
     assert {:buy, [{:green, 2}]} in actions
@@ -124,7 +126,7 @@ defmodule Quacks.GameTest do
 
     g = apply!(g, {:buy, [{:orange, 1}, {:green, 1}]})
     assert me(g).coins == 1
-    assert g.phase == :spend_rubies
+    assert Game.phase(g, 0) == :rubies
     assert Enum.count(me(g).bag, &(&1 == {:green, 1})) == 2
     assert {:error, _} = Game.apply(g, {:buy, []})
   end
@@ -132,7 +134,7 @@ defmodule Quacks.GameTest do
   test "spending rubies, then ending the round" do
     g =
       put(new(),
-        phase: :spend_rubies,
+        phase: :rubies,
         rubies: 4,
         flask: false,
         drawn: [{{:white, 1}, 1}],
@@ -152,7 +154,7 @@ defmodule Quacks.GameTest do
   end
 
   test "round 9 converts coins 5->1 VP and rubies 2->1 VP, then the game is over" do
-    g = put(new(), round: 9, phase: :spend_rubies, coins: 12, rubies: 5, vp: 10)
+    g = put(new(), round: 9, phase: :rubies, coins: 12, rubies: 5, vp: 10)
     g = apply!(g, :end_round)
     assert Game.over?(g)
     assert Game.score(g) == %{0 => 10 + 2 + 2}
@@ -162,7 +164,7 @@ defmodule Quacks.GameTest do
 
   test "round 9 skips the shop" do
     g = new() |> put(round: 9) |> force_draws([{:white, 3}, {:orange, 1}]) |> apply!(:stop)
-    assert g.phase == :spend_rubies
+    assert Game.phase(g, 0) == :rubies
     assert me(g).coins == 5
   end
 
@@ -184,12 +186,12 @@ defmodule Quacks.GameTest do
     assert hd(boom.log) == {0, {:exploded, 8}}
 
     shop =
-      new() |> put(phase: :buy_chips, coins: 8) |> apply!({:buy, [{:orange, 1}, {:green, 1}]})
+      new() |> put(phase: :buy, coins: 8) |> apply!({:buy, [{:orange, 1}, {:green, 1}]})
 
     assert hd(shop.log) == {0, {:bought, [{:green, 1}, {:orange, 1}]}}
-    assert hd(apply!(put(new(), phase: :buy_chips), {:buy, []}).log) == {0, {:buy, []}}
+    assert hd(apply!(put(new(), phase: :buy), {:buy, []}).log) == {0, {:buy, []}}
 
-    rubies = apply!(put(new(), phase: :spend_rubies, rubies: 2), {:rubies, :droplet})
+    rubies = apply!(put(new(), phase: :rubies, rubies: 2), {:rubies, :droplet})
     assert hd(rubies.log) == {0, {:rubies_spent, :droplet}}
   end
 
@@ -229,12 +231,12 @@ defmodule Quacks.GameTest do
   end
 
   test "the log ends every round with {:round_end, round}" do
-    g = apply!(put(new(), phase: :spend_rubies, round: 3), :end_round)
+    g = apply!(put(new(), phase: :rubies, round: 3), :end_round)
     assert hd(g.log) == {:round_end, 3}
   end
 
   test "the log records the final conversion in round 9, then the round end" do
-    g = put(new(), round: 9, phase: :spend_rubies, coins: 12, rubies: 5)
+    g = put(new(), round: 9, phase: :rubies, coins: 12, rubies: 5)
     g = apply!(g, :end_round)
 
     assert Enum.take(g.log, 3) == [
@@ -293,13 +295,15 @@ defmodule Quacks.GameTest do
         |> force_draws(0, [{:white, 2}])
 
       g = apply!(g, 0, :stop)
-      assert Game.legal_actions(g, 0) == [] and Game.phase(g, 0) == :done
+      assert Game.legal_actions(g, 0) == [:resume] and Game.phase(g, 0) == :stopped
       assert g.phase == :potions and Game.legal_actions(g, 1) == [:stop, :use_flask]
+      assert hd(g.log) == {0, :stopped}
       refute rolled?(g, 0)
-      assert {:error, {:illegal_action, :draw, :done}} = Game.apply(g, 0, :draw)
+      assert {:error, {:illegal_action, :draw, :stopped}} = Game.apply(g, 0, :draw)
 
       g = apply!(g, 1, :stop)
-      assert g.phase == :buy_chips and g.turn == 0
+      assert g.phase == :shopping and g.turn == nil
+      assert Game.phase(g, 0) == :buy and Game.phase(g, 1) == :buy
       assert me(g, 0).coins == 6 and me(g, 1).coins == 2
       assert {0, {:pot_vp, 1, 6}} in g.log
       assert rolled?(g, 0) and not rolled?(g, 1)
@@ -351,7 +355,7 @@ defmodule Quacks.GameTest do
       assert ScoringTrack.rat_tails(6, 8) == 1
       assert ScoringTrack.rat_tails(0, 50) == 23
 
-      g = new(2) |> put(0, vp: 12) |> put(1, vp: 3, droplet: 2) |> put(phase: :spend_rubies)
+      g = new(2) |> put(0, vp: 12) |> put(1, vp: 3, droplet: 2) |> put(phase: :rubies)
       g = g |> apply!(0, :end_round) |> apply!(1, :end_round)
       assert g.round == 2
       assert {me(g, 0).rat_stone, me(g, 0).pot_index} == {0, 0}
@@ -365,36 +369,81 @@ defmodule Quacks.GameTest do
       assert me(apply!(g, 1, :use_flask), 1).pot_index == 5
 
       # a tie for the lead gives nobody rats; the stone is gone at the next round end
-      level = new(2) |> put(0, vp: 5) |> put(1, vp: 5) |> put(phase: :spend_rubies)
+      level = new(2) |> put(0, vp: 5) |> put(1, vp: 5) |> put(phase: :rubies)
       level = level |> apply!(0, :end_round) |> apply!(1, :end_round)
       assert me(level, 0).rat_stone == 0 and me(level, 1).rat_stone == 0
 
       # round 2: seat 1 is the start seat, so seat 0 ends the round
-      caught_up = g |> put(0, vp: 3) |> put(1, phase: :spend_rubies)
+      caught_up = g |> put(0, vp: 3) |> put(1, phase: :rubies)
       caught_up = caught_up |> apply!(1, :end_round) |> apply!(0, :end_round)
       assert {me(caught_up, 1).rat_stone, me(caught_up, 1).pot_index} == {0, 2}
     end
 
-    test "the shop and the rubies phase go round the table from the start seat" do
+    test "soft stop: a stopped player may resume until the last player stops" do
+      g =
+        new(2)
+        |> put(0, drawn: [{{:orange, 1}, 1}], pot_index: 1)
+        |> put(1, drawn: [{{:orange, 1}, 1}], pot_index: 1)
+
+      g = apply!(g, 0, :stop)
+      g = apply!(g, 0, :resume)
+      assert Game.phase(g, 0) == :potions and hd(g.log) == {0, :resumed}
+      assert :draw in Game.legal_actions(g, 0)
+
+      # stop again; seat 1 draws on, seat 0 still may resume
+      g = g |> apply!(0, :stop) |> force_draws(1, [{:orange, 1}])
+      assert Game.legal_actions(g, 0) == [:resume]
+
+      # the last stop ends the potions phase for both: nobody may resume any more
+      g = apply!(g, 1, :stop)
+      assert g.phase == :shopping and Game.legal_actions(g, 0) != [:resume]
+      assert Enum.count(g.log, &match?({_, {:bonus_die, _}}, &1)) == 1
+    end
+
+    test "soft stop: an exploded player cannot resume; the evaluation waits for them" do
+      g =
+        new(2)
+        |> put(0, drawn: [{{:orange, 1}, 1}], pot_index: 1)
+        |> put(1, drawn: [{{:white, 3}, 3}, {{:white, 3}, 6}], pot_index: 6)
+
+      g = apply!(g, 0, :stop)
+      g = force_draws(g, 1, [{:white, 2}])
+      assert Game.phase(g, 1) == :explosion_choice
+      assert Game.legal_actions(g, 1) == [{:explosion_choice, :vp}, {:explosion_choice, :buy}]
+      # nobody brews any more, so seat 0 cannot resume; no evaluation yet
+      assert Game.legal_actions(g, 0) == [] and g.phase == :potions
+
+      g = apply!(g, 1, {:explosion_choice, :buy})
+      assert g.phase == :shopping
+      refute :resume in Game.legal_actions(g, 1)
+    end
+
+    test "solo: stop evaluates at once" do
+      g = new() |> put(drawn: [{{:orange, 1}, 1}], pot_index: 1) |> apply!(:stop)
+      assert g.phase == :shopping and Game.phase(g, 0) == :buy
+      refute Enum.any?(g.log, &match?({0, :stopped}, &1))
+    end
+
+    test "shopping: every seat buys and spends rubies at once; the last :end_round ends the round" do
       g =
         new(2)
         |> put(0, drawn: [{{:orange, 1}, 1}], pot_index: 1)
         |> put(1, drawn: [{{:orange, 1}, 1}], pot_index: 1)
 
       g = g |> apply!(0, :stop) |> apply!(1, :stop)
-      assert {g.phase, g.turn} == {:buy_chips, 0}
-      assert Game.legal_actions(g, 1) == []
-      assert {:error, {:illegal_action, {:buy, []}, :buy_chips}} = Game.apply(g, 1, {:buy, []})
+      assert {g.phase, g.turn} == {:shopping, nil}
+      assert {Game.phase(g, 0), Game.phase(g, 1)} == {:buy, :buy}
+      assert {:buy, []} in Game.legal_actions(g, 1)
 
-      g = apply!(g, 0, {:buy, []})
-      assert {g.phase, g.turn} == {:buy_chips, 1}
+      # interleaved: seat 1 buys first, seat 0 is still in the shop
       g = apply!(g, 1, {:buy, []})
-      assert {g.phase, g.turn} == {:spend_rubies, 0}
-      assert Game.legal_actions(g, 1) == []
-
-      g = apply!(g, 0, :end_round)
-      assert {g.phase, g.turn} == {:spend_rubies, 1}
+      assert {Game.phase(g, 0), Game.phase(g, 1)} == {:buy, :rubies}
+      assert {:error, {:illegal_action, {:buy, []}, :rubies}} = Game.apply(g, 1, {:buy, []})
       g = apply!(g, 1, :end_round)
+      assert Game.phase(g, 1) == :ready and Game.legal_actions(g, 1) == []
+      assert g.round == 1
+
+      g = g |> apply!(0, {:buy, []}) |> apply!(0, :end_round)
       assert {g.round, g.phase, g.turn} == {2, :potions, nil}
       assert hd(g.log) == {:round_end, 1}
 
@@ -405,7 +454,7 @@ defmodule Quacks.GameTest do
         |> put(1, drawn: [{{:orange, 1}, 1}], pot_index: 1)
 
       g = g |> apply!(0, :stop) |> apply!(1, :stop)
-      assert {g.phase, g.turn} == {:buy_chips, 1}
+      assert g.phase == :shopping
       assert Game.start_seat(g) == 1
     end
 
@@ -421,8 +470,8 @@ defmodule Quacks.GameTest do
 
       g = g |> put(1, drawn: [{{:orange, 1}, 4}], pot_index: 4)
       g = g |> apply!(0, {:explosion_choice, :vp}) |> apply!(1, :stop)
-      assert {g.phase, g.turn} == {:buy_chips, 1}
-      assert Game.legal_actions(g, 0) == []
+      assert {Game.phase(g, 0), Game.phase(g, 1)} == {:rubies, :buy}
+      assert {:buy, []} not in Game.legal_actions(g, 0)
       assert me(g, 0).coins == 0
 
       # both took the VP: straight to the rubies phase, start seat first
@@ -445,13 +494,13 @@ defmodule Quacks.GameTest do
         )
 
       both = both |> apply!(0, {:explosion_choice, :vp}) |> apply!(1, {:explosion_choice, :vp})
-      assert {both.phase, both.turn} == {:spend_rubies, 0}
+      assert {Game.phase(both, 0), Game.phase(both, 1)} == {:rubies, :rubies}
     end
 
     test "round 6 gives every player a white chip; round 9 converts for everyone" do
       g =
         new(2)
-        |> put(round: 5, phase: :spend_rubies)
+        |> put(round: 5, phase: :rubies)
         |> apply!(0, :end_round)
         |> apply!(1, :end_round)
 
@@ -461,7 +510,7 @@ defmodule Quacks.GameTest do
 
       last =
         new(2)
-        |> put(round: 9, phase: :spend_rubies)
+        |> put(round: 9, phase: :rubies)
         |> put(0, coins: 10, vp: 3)
         |> put(1, rubies: 4, vp: 7)
 
@@ -501,24 +550,58 @@ defmodule Quacks.GameTest do
           assert active == []
           {:halt, g}
         else
-          # exactly the expected seats may act: everyone not done, or the turn seat
+          # exactly the expected seats may act: everyone not done (a stopped seat only
+          # while another one brews), everyone not ready, or the turn seat
           assert active != []
-
-          if g.phase == :potions,
-            do: assert(active == Enum.reject(g.seats, &me(g, &1).done?)),
-            else: assert(active == [g.turn])
+          assert active == expected_active(g)
 
           seat = Enum.at(active, rem(pick, length(active)))
           actions = Game.legal_actions(g, seat)
-          next = apply!(g, seat, Enum.at(actions, rem(div(pick, 7), length(actions))))
-          # chips are conserved: supply + bags + pots + blue offers per kind is constant
-          assert inventory(next) == inventory(g)
+          action = Enum.at(actions, rem(div(pick, 7), length(actions)))
+          next = apply!(g, seat, action)
+          assert_chips_conserved(g, next, seat, action)
           assert Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
           assert Enum.all?(g.seats, &(me(next, &1).pot_index <= 53)) and next.round in 1..9
           {:cont, next}
         end
       end)
     end
+  end
+
+  defp expected_active(%{phase: :potions} = g) do
+    brewing =
+      Enum.filter(
+        g.seats,
+        &(Game.phase(g, &1) in [:potions, :yellow_choice, :blue_choice, :chip_choice])
+      )
+
+    Enum.filter(g.seats, fn seat ->
+      case me(g, seat) do
+        %{done?: true} -> false
+        %{phase: :stopped} -> Enum.any?(brewing, &(&1 != seat))
+        _ -> true
+      end
+    end)
+  end
+
+  defp expected_active(%{phase: :shopping} = g),
+    do: Enum.reject(g.seats, &(Game.phase(g, &1) == :ready))
+
+  defp expected_active(g), do: [g.turn]
+
+  # `:limited`: supply + bags + pots + offers per kind is constant. `:infinite`: the
+  # supply never changes, and the chips the players gain are exactly what the same
+  # action takes out of a (huge) limited supply.
+  defp assert_chips_conserved(%{rules: %{supply: :limited}} = g, next, _seat, _action),
+    do: assert(inventory(next) == inventory(g))
+
+  defp assert_chips_conserved(g, next, seat, action) do
+    assert next.supply == g.supply
+    big = Map.new(g.supply, fn {chip, _} -> {chip, 1000} end)
+    limited = %{g | supply: big, rules: %{g.rules | supply: :limited}}
+    shadow = apply!(limited, seat, action)
+    assert shadow.players == next.players
+    assert inventory(shadow) == inventory(limited)
   end
 
   # Random house rules for the property test (see `Quacks.Game.t:rules/0`).
@@ -530,7 +613,8 @@ defmodule Quacks.GameTest do
       rats: boolean(),
       black_solo: member_of([:droplet, :droplet_ruby]),
       die: member_of([:standard, :no_orange]),
-      starting_rubies: integer(0..3)
+      starting_rubies: integer(0..3),
+      supply: member_of([:infinite, :limited])
     })
   end
 end
