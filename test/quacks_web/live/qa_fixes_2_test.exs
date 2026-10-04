@@ -88,17 +88,20 @@ defmodule QuacksWeb.QaFixes2Test do
   end
 
   describe "N4: the rubies step" do
-    test "with nothing to spend it is skipped once the results close" do
+    test "with nothing to spend it is one Done button; the update chips stay until then" do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
       view = open(browser(token("rubies")), id)
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 1))
 
-      assert has_element?(view, "[data-role=results-ok]", "OK")
       refute has_element?(view, "dialog#decision-rubies")
-      refute has_element?(view, "dialog#round-results[data-then-open]")
+      refute has_element?(view, "#players-row[data-on-replay-end*=decision]")
       refute has_element?(view, "[data-role=decision-button]")
 
       render_hook(view, "seen", %{"kind" => "results", "round" => 1})
+      assert {:ok, %{game: %Game{round: 1}}} = GameServer.get(id)
+      assert has_element?(view, "[data-role=update-chip]")
+
+      view |> element("[data-role=round-done]", "Done") |> render_click()
       assert {:ok, %{game: %Game{round: 2}}} = GameServer.get(id)
     end
 
@@ -179,8 +182,8 @@ defmodule QuacksWeb.QaFixes2Test do
       refute auto_open?(watcher, "#card-round-1")
 
       replace_game(id, &H.put(&1, 0, phase: :shop))
-      assert has_element?(watcher, "dialog#round-results")
-      refute auto_open?(watcher, "#round-results")
+      assert has_element?(watcher, "#players-row.replay-done [data-role=update-chip]")
+      refute has_element?(watcher, "#players-row[data-on-replay-end]")
     end
   end
 

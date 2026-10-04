@@ -91,11 +91,11 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     # shopping is simultaneous: both players get their own shop dialog
     assert has_element?(alice, "dialog#decision-shop")
     assert has_element?(bob, "dialog#decision-shop")
-    # both get the round results, with each seat's bonus die and totals
+    # both get the round results: update chips on every name card
     for view <- [alice, bob], seat <- [0, 1] do
       assert has_element?(
                view,
-               ~s(dialog#round-results [data-seat="#{seat}"] [data-role=result-total])
+               ~s(#players-row [data-seat="#{seat}"] [data-role=update-chip][data-kind=stopped])
              )
     end
 

@@ -105,84 +105,97 @@ defmodule QuacksWeb.ReplayTest do
     refute has?(html, "[data-role=beat-ring]")
   end
 
-  test "result lines carry --beat in order, the die line a rolling die" do
-    html = render_component(&GameComponents.round_results/1, game: game())
-    beats = attr(html, "[data-role=result-line]", "data-beat")
-    assert beats == ~w(0 2 3 4 5 6)
-    assert attr(html, "[data-role=result-line]", "style") == Enum.map(beats, &"--beat: #{&1}")
-    assert attr(html, "[data-role=result-total]", "data-beat") == ["7"]
+  test "update chips: how the brew ended, then the VP, rubies and droplet sums on their last beat" do
+    assert Replay.updates(game(), 0) == [
+             %{kind: :stopped, text: "stopped", beat: 0},
+             %{kind: :droplet, text: "+2", beat: 2},
+             %{kind: :rubies, text: "+3", beat: 5},
+             %{kind: :vp, text: "+4 VP", beat: 6}
+           ]
+
+    exploded = put_in(game().players[0].exploded?, true)
+    assert hd(Replay.updates(exploded, 0)) == %{kind: :exploded, text: "exploded", beat: 0}
+
+    nothing = %{game() | log: [{:round_end, 0}]}
+    assert Replay.updates(nothing, 0) == [%{kind: :stopped, text: "stopped", beat: 0}]
+    assert Replay.last_beat(game()) == 6
+  end
+
+  test "the name card shows its update chips on their beats; the last one ends the replay" do
+    game = game()
+
+    html =
+      render_component(&GameComponents.player_chip/1,
+        game: game,
+        seat: 0,
+        name: "Ann",
+        updates: Replay.updates(game, 0),
+        last: Replay.last_beat(game)
+      )
+
+    assert attr(html, "[data-role=update-chip]", "data-kind") == ~w(stopped droplet rubies vp)
+
+    assert attr(html, "[data-role=update-chip]", "style") ==
+             ~w(0 2 5 6) |> Enum.map(&"--beat: #{&1}")
+
+    assert attr(html, "[data-role=update-chip][data-replay-last]", "data-kind") == ["vp"]
+  end
+
+  test "the player sheet lists the result lines with the die face and the totals" do
+    html = render_component(&GameComponents.result_lines/1, game: game(), seat: 0)
+    assert length(query(html, "[data-role=result-line]") |> Enum.to_list()) == 6
 
     assert has?(
              html,
              ~s([data-role=result-line][data-kind=die] [data-role=die][data-face=droplet])
            )
 
-    assert has?(html, "[data-role=die] .die-strip")
-    assert has?(html, "[data-role=result-line] .die-text")
-    assert has?(html, "button#round-results-skip[data-role=replay-skip][phx-click*=replay-done]")
+    assert has?(html, "[data-role=result-total]")
+    refute has?(html, "[data-beat]")
   end
 
-  test "multiplayer: my block first, line by line; each other seat one beat after" do
-    game = game(2)
-    game = put_in(game.players[1].drawn, @drawn)
-
-    log =
-      Enum.map(@log, fn
-        {0, entry} -> {1, entry}
-        other -> other
-      end)
-
-    game = %{game | log: log ++ [{0, {:pot_vp, 1, 4}}]}
-    names = %{0 => "Ann", 1 => "Bob"}
-
-    html = render_component(&GameComponents.round_results/1, game: game, names: names, me: 1)
-    assert attr(html, "section > [data-seat]", "data-seat") == ["1", "0"]
-    assert attr(html, "section > [data-seat]", "data-beat") == ["8"]
-    assert attr(html, ~s([data-seat="1"] [data-role=result-line]), "data-beat") == ~w(0 2 3 4 5 6)
-    refute has?(html, ~s([data-seat="0"] [data-role=result-line][data-beat]))
-    refute has?(html, ~s([data-seat="0"] [data-role=die]))
-  end
-
-  test "the results dialog replays once: Skip and closing finish it" do
+  test "the update chips replay once: Skip ends it and marks the round as seen" do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     {:ok, view, _html} = live(init_test_session(build_conn(), player_token: "solo"), ~p"/g/#{id}")
 
     for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
-    assert has_element?(view, "dialog#round-results[data-on-close*=replay-done]")
-    assert has_element?(view, "#round-results-skip[phx-click*=replay-done]")
-
-    assert has_element?(
-             view,
-             "#round-results [data-role=result-line][data-beat='0'] [data-role=die]"
-           )
+    assert has_element?(view, "#players-row[data-on-replay-end*=seen]")
+    refute has_element?(view, "#players-row.replay-done")
+    assert has_element?(view, "#replay-skip[phx-click*=replay-done]")
+    assert has_element?(view, "[data-role=update-chip][data-replay-last]")
 
     html = render(view)
 
     beats =
       html
-      |> attr("#round-results [data-role=result-line]", "data-beat")
+      |> attr("[data-role=update-chip]", "data-beat")
       |> Enum.map(&String.to_integer/1)
 
     assert beats == Enum.sort(beats) and beats != []
 
-    # every pot flash belongs to a line's beat (the die's lands one beat later)
+    # every pot flash lands within the replay
     for beat <- attr(html, "#pot-0-lg [data-role=beat-ring]", "data-beat") do
-      assert String.to_integer(beat) in Enum.flat_map(beats, &[&1, &1 + 1])
+      assert String.to_integer(beat) <= Enum.max(beats)
     end
+
+    view |> element("#replay-skip") |> render_click()
+    assert has_element?(view, "#players-row.replay-done")
+    refute has_element?(view, "#players-row[data-on-replay-end]")
+    refute has_element?(view, "#replay-skip")
+    assert has_element?(view, "[data-role=update-chip]")
   end
 
-  test "the CSS has the replay keyframes, Skip and a reduced-motion fallback" do
+  test "the CSS has the replay keyframes, the replay end and a reduced-motion fallback" do
     css = File.read!(Path.expand("../../../assets/css/app.css", __DIR__))
 
-    for name <- ~w(beat-in die-roll die-land beat-glow), do: assert(css =~ "@keyframes #{name}")
+    for name <- ~w(update-in beat-glow), do: assert(css =~ "@keyframes #{name}")
     assert css =~ "calc(var(--beat-lead) + var(--beat) * var(--beat-step))"
-    assert css =~ "#round-results.replay-done [data-beat]"
+    assert css =~ "#players-row.replay-done .update-chip"
 
     [_, reduced] = String.split(css, "/* Reduced motion: fewer and gentler.", parts: 2)
-    assert reduced =~ "#round-results [data-beat] {"
-    assert reduced =~ "#round-results [data-beat] .die-strip"
+    assert reduced =~ ".update-chip {"
     assert reduced =~ ~s([data-role="beat-ring"])
   end
 end

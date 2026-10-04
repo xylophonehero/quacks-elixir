@@ -184,8 +184,8 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, ~s([data-role=pot-area] button[popovertarget="sheet-bag"]), "9")
     assert has_element?(view, ~s(#sheet-menu button[popovertarget="sheet-log"]), "Log")
     assert has_element?(view, "#sheet-log[popover]")
-    # solo: no other players, so no players row
-    refute has_element?(view, "[data-role=players-row]")
+    # solo: one name card, for the update chips of the round
+    assert has_element?(view, "[data-role=players-row] [data-role=player-chip]")
   end
 
   test "the shop dialog is in the page only while shopping", %{conn: conn} do

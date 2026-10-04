@@ -113,22 +113,23 @@ defmodule QuacksWeb.BoardUxTest do
     refute has_element?(view, "[data-role=action-bar]")
   end
 
-  test "the round results list the bonus die and the totals, from the shop to the round end" do
+  test "the round results: update chips on the card and lines in its sheet, from the shop to the round end" do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     view = open(browser("solo"), id)
+    refute has_element?(view, "[data-role=update-chip]")
     refute has_element?(view, "#round-results")
-    refute has_element?(view, "[data-role=open-results]")
 
     for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
-    assert has_element?(view, "dialog#round-results[phx-mounted]", "Round 1 results")
-    assert has_element?(view, "#round-results [data-role=result-line]", "Bonus die:")
-    assert has_element?(view, "#round-results [data-role=result-total]", ~r/Total: \+\d+ VP/)
-    assert has_element?(view, "[data-role=open-results]")
+    assert has_element?(view, "[data-role=player-chip] [data-role=update-chip]", "stopped")
+    view |> element(~s([data-role=player-chip][data-seat="0"])) |> render_click()
+    assert has_element?(view, "#sheet-player-0 [data-role=round-results]", "Round 1 results")
+    assert has_element?(view, "#sheet-player-0 [data-role=result-line]", "Bonus die:")
+    assert has_element?(view, "#sheet-player-0 [data-role=result-total]", ~r/Total: \+\d+ VP/)
 
     # with one ruby there is nothing left to do after the buy: the round ends at once
     view |> element("[data-role=shop-done]") |> render_click()
-    refute has_element?(view, "#round-results")
+    refute has_element?(view, "[data-role=update-chip]")
   end
 end

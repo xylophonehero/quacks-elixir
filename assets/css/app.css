@@ -732,33 +732,17 @@ html:has([data-layout="full"]) {
   transition: translate 300ms var(--ease-in-out);
 }
 
-/* Motion, batch 2: the step-B replay in the round results (animations.md §3 B2).
-   The server numbers each result line of your seat (`--beat`, `QuacksWeb.Replay`)
-   and the pot marks it concerns (`beat-ring`); both start on the same patch (the
-   dialog enters the page as the shop opens), so one delay formula keeps them in
-   step. A die line takes two beats: the die rolls, then its text shows. "Skip",
-   or closing the dialog, adds `.replay-done`: everything shows at once. */
+/* Motion, batch 2: the step-B replay (animations.md §3 B2; since layout 1 on the
+   name cards). The server numbers each update chip (`--beat`, `QuacksWeb.Replay`)
+   and the pot marks of your own lines (`beat-ring`); both start on the same patch
+   (the shop phase begins), so one delay formula keeps them in step. */
 :root {
-  --beat-lead: 300ms; /* the sheet slides in first */
+  --beat-lead: 300ms;
   --beat-step: 450ms;
-  --die-roll: 700ms;
 }
 
-/* A line waits dimmed, not hidden, so the sheet does not open empty. */
-@keyframes beat-in {
-  from {
-    opacity: 0.2;
-    translate: 0 6px;
-  }
-}
-
-#round-results [data-beat] {
-  animation: beat-in 220ms var(--ease-out) both;
-  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
-}
-
-/* The bonus die: a strip of 7 frames stepped through, landing on the real face
-   (the last frame, also the resting place without motion). */
+/* The bonus die in the result lines: a strip of 7 frames that shows its last
+   frame, the real face. */
 .die {
   display: inline-block;
   flex-shrink: 0;
@@ -773,36 +757,6 @@ html:has([data-layout="full"]) {
   width: 100%;
   height: auto;
   translate: 0 -85.7143%; /* 6 of 7 frames */
-}
-
-@keyframes die-roll {
-  from {
-    translate: 0 0;
-  }
-  to {
-    translate: 0 -85.7143%;
-  }
-}
-
-@keyframes die-land {
-  from {
-    scale: 1.15;
-  }
-}
-
-#round-results [data-beat] .die-strip {
-  animation: die-roll var(--die-roll) steps(7, jump-none) both;
-  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
-}
-
-#round-results [data-beat] .die {
-  animation: die-land 200ms var(--ease-out);
-  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step) + var(--die-roll));
-}
-
-#round-results [data-beat] .die-text {
-  animation: fade-in 200ms var(--ease-out) both;
-  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step) + var(--die-roll));
 }
 
 /* On the pot (and the essence marker): a gold ring flashes on the line's beat. */
@@ -830,44 +784,38 @@ html:has([data-layout="full"]) {
   animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
 }
 
-/* Keep the pot in sight while it lights up: on phones a lower sheet whose content
-   scrolls under its sticky "To the shop" row, on large screens a card at the right. */
-@media (width < 64rem) {
-  #round-results {
-    max-height: min(45dvh, calc(100dvh - env(safe-area-inset-top) - 0.5rem));
+/* The round results as update chips on the name cards (layout 1): each chip pops
+   in on its beat, together with the pot marks. When the replay ends (the last chip
+   landed, Skip, or a tap on a card) `#players-row` gets `.replay-done`: everything
+   shows at once and the pot marks stop. */
+.update-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 9999px;
+  padding: 0 5px;
+  font-size: 10.5px;
+  line-height: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  animation: update-in 320ms var(--ease-spring) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+@keyframes update-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
   }
 }
 
-/* Large screens: the top of the right column, and the log moves down under it. */
-@media (width >= 64rem) {
-  :root {
-    --results-h: min(60dvh, 34rem);
-  }
-
-  #round-results {
-    inset: 0.75rem 0.75rem auto auto;
-    margin: 0;
-    width: calc(22rem - 0.75rem);
-    max-width: none;
-    height: var(--results-h);
-  }
-
-  :root:has(#round-results[open]) [data-role="side-column"] {
-    padding-top: calc(var(--results-h) + 1.5rem);
-  }
-}
-
-#round-results.replay-done [data-beat],
-#round-results.replay-done [data-beat] * {
+#players-row.replay-done .update-chip {
   animation-delay: 0s !important;
   animation-duration: 1ms !important;
 }
 
-#round-results.replay-done [data-role="replay-skip"] {
-  visibility: hidden;
-}
-
-:root:has(#round-results.replay-done) [data-role="beat-ring"] {
+:root:has(#players-row.replay-done) [data-role="beat-ring"] {
   display: none;
 }
 
@@ -970,15 +918,10 @@ html:has([data-layout="full"]) {
     animation: fade-in 200ms ease 250ms both;
   }
 
-  /* The replay: every line at once, the die already on its face, no pot flashes. */
-  #round-results [data-beat] {
-    animation: fade-in 200ms ease both;
-  }
-
-  #round-results [data-beat] .die-strip,
-  #round-results [data-beat] .die,
-  #round-results [data-beat] .die-text {
-    animation: none;
+  /* The replay: every update chip at once (a 1 ms animation, so its end still
+     ends the replay and opens the shop), no pot flashes. */
+  .update-chip {
+    animation: update-in 1ms both !important;
   }
 
   [data-role="beat-ring"],

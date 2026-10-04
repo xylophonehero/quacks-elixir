@@ -64,6 +64,57 @@ defmodule QuacksWeb.Replay do
     end
   end
 
+  @typedoc "An update chip on a name card: what it shows, and on which beat it lands."
+  @type update :: %{
+          kind: :exploded | :stopped | :vp | :rubies | :droplet,
+          text: String.t(),
+          beat: non_neg_integer
+        }
+
+  @doc """
+  The update chips of `seat`'s name card for the round that just ended, in beat
+  order: first how the brew ended ("exploded" or "stopped", beat 0), then the VP,
+  the rubies and the droplet moves of the round, each a sum that lands on the beat
+  of its last line (so it is complete when it shows). Nothing gained, no chip.
+  """
+  @spec updates(Game.t(), Game.seat()) :: [update]
+  def updates(game, seat) do
+    lines = beats(game, seat)
+    ended = if Game.player(game, seat).exploded?, do: :exploded, else: :stopped
+
+    sums = [
+      sum(lines, :vp, & &1.vp, &"+#{&1} VP"),
+      sum(lines, :rubies, & &1.rubies, &"+#{&1}"),
+      sum(lines, :droplet, &Enum.count(&1.marks, fn mark -> mark == :droplet end), &"+#{&1}")
+    ]
+
+    [%{kind: ended, text: Atom.to_string(ended), beat: 0} | Enum.reject(sums, &is_nil/1)]
+    |> Enum.sort_by(& &1.beat)
+  end
+
+  defp sum(lines, kind, count, text) do
+    case for(line <- lines, (n = count.(line)) > 0, do: {n, line.beat + span(line) - 1}) do
+      [] ->
+        nil
+
+      parts ->
+        %{
+          kind: kind,
+          text: text.(parts |> Enum.map(&elem(&1, 0)) |> Enum.sum()),
+          beat: parts |> List.last() |> elem(1)
+        }
+    end
+  end
+
+  @doc "The beat the last update chip of any seat lands on (the end of the replay)."
+  @spec last_beat(Game.t()) :: non_neg_integer
+  def last_beat(game) do
+    game.seats
+    |> Enum.flat_map(&updates(game, &1))
+    |> Enum.map(& &1.beat)
+    |> Enum.max(fn -> 0 end)
+  end
+
   # The log entries of `seat` since the round began that are results.
   defp round_entries(game, seat) do
     game.log

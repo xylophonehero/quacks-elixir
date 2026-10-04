@@ -17,9 +17,9 @@ defmodule QuacksWeb.GameLive do
   Closing the page before the start frees the seat (`terminate/2`).
 
   The layout, top to bottom: the header ("You are" and your seat colour, which also
-  runs along the top edge), your status, the players row (one chip per seat; a tap
-  opens that player's sheet), the pot, and the bottom bar with only Stop/Resume and
-  Draw. Around the pot: the witches (top left), this round's fortune card (top
+  runs along the top edge), your status, the players row (one name card per seat,
+  solo too; a tap opens that player's sheet), the pot, and the bottom bar with only
+  Stop/Resume and Draw. Around the pot: the witches (top left), this round's fortune card (top
   right), the flask (bottom left) and the bag (bottom right). The log, the share
   link and the books are in the menu. A new fortune card shows in a small dialog
   once per round.
@@ -31,10 +31,17 @@ defmodule QuacksWeb.GameLive do
   A new fortune card shows in one dialog; when it asks this seat a choice, the
   choice is in the same dialog. The shop has two steps, each its own dialog: first
   your chips, the buy (one row of chip tiles per colour) and "Done"; then "Spend
-  rubies" (the ruby options and witch calls) and "Keep rubies". The first step opens
-  when the round results close. A seat that can buy nothing (it exploded and took
-  the VP, or has too few coins) skips it: the results say "OK" and the rubies step
-  follows. A buy that leaves nothing else to do ends the round for this seat at once.
+  rubies" (the ruby options and witch calls) and "Keep rubies".
+
+  Round results (layout 1): no dialog. When the shop phase begins, each name card
+  plays its update chips ("stopped", "+7 VP", rubies, droplet) on their replay beats
+  (`QuacksWeb.Replay.updates/2`), in step with the marks on your pot. The chip that
+  lands last, "Skip" or a first tap on a card ends the replay: the round counts as
+  seen (`"seen"`, `GameServer.ack/4`) and the shop opens (`replay_end/3`); a tap
+  opens the card's sheet with the result lines instead. A seat that can buy nothing
+  (it exploded and took the VP, or has too few coins) skips the buy and gets the
+  rubies step; with nothing to spend there either, one "Done" button ends its round.
+  A buy that leaves nothing else to do ends the round for this seat at once.
 
   In every choice between chips (crow skull, toadstool, silver witch, fortune cards,
   chip actions) the chips themselves are the buttons (`chip_picks/1`); only options
@@ -311,7 +318,7 @@ defmodule QuacksWeb.GameLive do
       when is_integer(seat) and kind in ["card", "results"] and is_integer(round) do
     kind = String.to_existing_atom(kind)
     GameServer.ack(socket.assigns.id, seat, kind, round)
-    {:noreply, socket |> update(:seen, &Map.put(&1, kind, round)) |> skip_rubies()}
+    {:noreply, update(socket, :seen, &Map.put(&1, kind, round))}
   end
 
   def handle_event("seen", _params, socket), do: {:noreply, socket}
@@ -754,16 +761,6 @@ defmodule QuacksWeb.GameLive do
               <.icon name="hero-book-open" class="size-6" />
             </button>
             <button
-              :if={results?(@game)}
-              type="button"
-              phx-click={JS.dispatch("quacks:modal", to: "#round-results")}
-              aria-label="Round results"
-              class="-mx-1 inline-flex size-11 shrink-0 items-center justify-center"
-              data-role="open-results"
-            >
-              <.icon name="hero-trophy" class="size-6" />
-            </button>
-            <button
               type="button"
               popovertarget="sheet-menu"
               aria-label="Menu"
@@ -775,11 +772,18 @@ defmodule QuacksWeb.GameLive do
 
           <div class="space-y-1 px-2">
             <.status :if={@seat} game={@game} seat={@seat} />
+            <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
+                 brew each card plays its update chips (the round results); the last
+                 one to land ends the replay (`replay_end/3`, app.js). --%>
             <nav
-              :if={@players > 1}
-              class="grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-1 sm:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]"
+              id="players-row"
+              class={[
+                "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)]",
+                not replaying?(@game, @seen) && "replay-done"
+              ]}
               aria-label="Players"
               data-role="players-row"
+              data-on-replay-end={replaying?(@game, @seen) && replay_end(@game, @decision, true)}
             >
               <.player_chip
                 :for={seat <- @game.seats}
@@ -788,6 +792,11 @@ defmodule QuacksWeb.GameLive do
                 name={name(@names, seat)}
                 you={seat == @seat}
                 bot={Map.has_key?(@bots, seat)}
+                updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
+                last={replaying?(@game, @seen) && Replay.last_beat(@game)}
+                on_tap={
+                  if replaying?(@game, @seen), do: replay_end(@game, @decision, false), else: %JS{}
+                }
               />
             </nav>
           </div>
@@ -801,13 +810,30 @@ defmodule QuacksWeb.GameLive do
             >
               Stir! Everyone draws together.
             </p>
-            <p
-              :if={text = @players > 1 and not Game.over?(@game) and turn_text(@game, @seat, @names)}
-              class="px-1 font-semibold"
-              data-role="turn"
+            <div
+              :if={replaying?(@game, @seen) or (@players > 1 and not Game.over?(@game))}
+              class="flex items-center gap-2"
             >
-              {text}
-            </p>
+              <p
+                :if={
+                  text = @players > 1 and not Game.over?(@game) and turn_text(@game, @seat, @names)
+                }
+                class="min-w-0 flex-1 px-1 font-semibold"
+                data-role="turn"
+              >
+                {text}
+              </p>
+              <button
+                :if={replaying?(@game, @seen)}
+                type="button"
+                id="replay-skip"
+                data-role="replay-skip"
+                phx-click={replay_end(@game, @decision, true)}
+                class="hit-44 ml-auto min-h-8 shrink-0 rounded-full px-2 text-sm font-semibold text-parchment-dim underline underline-offset-2 transition-colors duration-150 hover:text-parchment"
+              >
+                Skip
+              </button>
+            </div>
             <p
               :if={rats = round_rats(@game, @names)}
               class="flex items-center gap-1 px-1"
@@ -906,6 +932,18 @@ defmodule QuacksWeb.GameLive do
                 {action_label(action, @game, @me)}
               </.button>
             </section>
+            <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
+                 the update chips stay on the cards until then. --%>
+            <.button
+              :if={@skip_rubies}
+              variant={:primary}
+              class="min-h-12 w-full text-base"
+              phx-click="action"
+              phx-value-action={encode(:end_round)}
+              data-role="round-done"
+            >
+              Done
+            </.button>
             <%!-- Hidden while a dialog is open: it would show above the sheet's edge. --%>
             <.button
               :if={@decision}
@@ -1084,18 +1122,14 @@ defmodule QuacksWeb.GameLive do
       </.sheet>
       <.sheet
         :for={seat <- @game.seats}
-        :if={@players > 1}
         id={"sheet-player-#{seat}"}
         label={name(@names, seat)}
         data-on-hide={JS.push("close_player", value: %{seat: seat})}
       >
-        <.player_card
-          :if={@open_sheet == seat}
-          game={@game}
-          seat={seat}
-          name={name(@names, seat)}
-          you={seat == @seat}
-        />
+        <div :if={@open_sheet == seat} class="space-y-2">
+          <.result_lines :if={results?(@game)} game={@game} seat={seat} />
+          <.player_card game={@game} seat={seat} name={name(@names, seat)} you={seat == @seat} />
+        </div>
       </.sheet>
 
       <.sheet id="sheet-menu" label="Menu">
@@ -1296,29 +1330,6 @@ defmodule QuacksWeb.GameLive do
             </.button>
           </section>
         </div>
-      </.dialog_sheet>
-
-      <.dialog_sheet
-        :if={results?(@game)}
-        id="round-results"
-        label="Round results"
-        auto_open={not seen?(@seen, :results, @game)}
-        class={seen?(@seen, :results, @game) && "replay-done"}
-        then_open={if after_results?(@decision), do: "decision-#{@decision}"}
-        on_close={
-          JS.add_class("replay-done")
-          |> JS.push("seen", value: %{kind: "results", round: @game.round})
-        }
-      >
-        <.round_results game={@game} names={if @players > 1, do: @names} me={@seat || 0} />
-        <form
-          method="dialog"
-          class="sticky -bottom-4 -mx-4 mt-3 flex bg-parchment px-4 pt-2 pb-4 *:min-h-11 *:flex-1"
-        >
-          <.button variant={:primary} data-role="results-ok" autofocus>
-            {if @decision == :shop, do: "To the shop", else: "OK"}
-          </.button>
-        </form>
       </.dialog_sheet>
 
       <.dialog_sheet :if={Game.over?(@game)} id="game-over" label="Game over">
@@ -2252,7 +2263,6 @@ defmodule QuacksWeb.GameLive do
       stop_slot: stop_slot(game, me),
       essence_pick: essence_pick(me, socket.assigns[:essence_pick])
     )
-    |> skip_rubies()
   end
 
   # This seat's decision, and whether it is a rubies step to skip (nothing to spend,
@@ -2269,21 +2279,6 @@ defmodule QuacksWeb.GameLive do
 
   defp stop_slot(game, %Player{phase: :stopped}), do: if(stir?(game), do: :stop, else: :resume)
   defp stop_slot(_game, _me), do: :stop
-
-  # The empty rubies step ends the round for this seat once it closed the round
-  # results (before that, the results would vanish with the round).
-  defp skip_rubies(%{assigns: %{skip_rubies: true, seen: seen, game: game}} = socket) do
-    if seen?(seen, :results, game) do
-      case GameServer.apply(socket.assigns.id, socket.assigns.seat, :end_round) do
-        {:ok, game} -> put_game(socket, game)
-        _error -> socket
-      end
-    else
-      socket
-    end
-  end
-
-  defp skip_rubies(socket), do: socket
 
   defp ruby_step_action?({:rubies, _}), do: true
   defp ruby_step_action?(action), do: witch?(action)
@@ -2318,6 +2313,22 @@ defmodule QuacksWeb.GameLive do
 
   # The round results show from the shop until the round ends (round 9 has no shop).
   defp results?(game), do: game.phase == :shopping
+
+  # The update chips of the round still play (this seat has not seen them).
+  defp replaying?(game, seen), do: results?(game) and not seen?(seen, :results, game)
+
+  # The end of the replay: the last update chip landed, Skip, or a first tap on a
+  # card. Every chip and pot mark shows at once, the round counts as seen
+  # (`GameServer.ack/4`) and, with `open?`, the decision that waited opens.
+  defp replay_end(game, decision, open?) do
+    js =
+      JS.add_class("replay-done", to: "#players-row")
+      |> JS.push("seen", value: %{kind: "results", round: game.round})
+
+    if open? and after_results?(decision),
+      do: JS.dispatch(js, "quacks:modal", to: "#decision-#{decision}"),
+      else: js
+  end
 
   # While the round results show: what lights up on the pot on which replay beat
   # (the same beats as the dialog's lines, so both play in step).

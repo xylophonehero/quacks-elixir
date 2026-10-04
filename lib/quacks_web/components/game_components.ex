@@ -1415,28 +1415,42 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  One player in the players row under the status strip (their name card): colour
-  dot, name, VP and what they do now, then their rubies, flask, rat tails and, when
-  those rules are on, essence and test tube. A tap opens that player's detail sheet (`sheet-player-N`).
-  Your own chip says "you" and wears your seat colour as a ring.
+  One player in the players row (their name card), a button that opens the
+  player's detail sheet (`sheet-player-N`). Row 1: the seat disc with the initial,
+  the name (two lines on phones, never cut short to "Pla…"), the BOT badge and the
+  status graphic (`player_state/1`). Row 2: VP, rubies, the flask, the rat tails
+  (one icon and a number), essence or test tube, and the patient or the witch
+  pennies. Row 3: the update chips of the round (`updates`, see
+  `QuacksWeb.Replay.updates/2`). Your own card wears your seat colour as a ring.
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :name, :string, required: true
   attr :you, :boolean, default: false
   attr :bot, :boolean, default: false
+  attr :updates, :list, default: [], doc: "the update chips, `Replay.updates/2`"
+
+  attr :last, :integer,
+    default: nil,
+    doc: "while the replay runs: its last beat (that chip ends the replay, see app.js)"
+
+  attr :on_tap, JS, default: %JS{}, doc: "JS to run on a tap, before the sheet opens"
 
   def player_chip(assigns) do
     assigns =
-      assign(assigns, p: assigns.game.players[assigns.seat], you_class: @seat_you[assigns.seat])
+      assign(assigns,
+        p: assigns.game.players[assigns.seat],
+        you_class: @seat_you[assigns.seat],
+        bg: @seat_bg[assigns.seat]
+      )
 
     ~H"""
     <button
       type="button"
       popovertarget={"sheet-player-#{@seat}"}
-      phx-click={JS.push("open_player", value: %{seat: @seat})}
+      phx-click={JS.push(@on_tap, "open_player", value: %{seat: @seat})}
       class={[
-        "flex min-h-11 w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-lg px-1 py-1 text-left text-xs touch-manipulation sm:px-1.5",
+        "flex min-h-11 w-full min-w-0 cursor-pointer flex-col justify-start gap-1 rounded-lg px-1 py-1 text-left text-xs touch-manipulation sm:px-2",
         "transition-[scale,background-color] duration-150 ease-out active:scale-[0.97]",
         if(@you,
           do: ["ring-2", @you_class],
@@ -1448,34 +1462,97 @@ defmodule QuacksWeb.GameComponents do
       data-role="player-chip"
       data-you={@you && "true"}
     >
-      <span class="flex w-full min-w-0 items-center gap-1">
-        <.seat_dot seat={@seat} />
-        <span class="min-w-0 truncate font-semibold" data-role="player-name">{@name}</span>
-        <.bot_badge :if={@bot} compact class="shrink-0 bg-parchment/15 text-parchment-dim" />
-      </span>
-      <span class="flex w-full min-w-0 items-center gap-1">
-        <span class="shrink-0 font-semibold tabular-nums" data-role="player-vp">{@p.vp} VP</span>
-        <span :if={@you} class="sr-only">you</span>
-        <span class="ml-auto min-w-0 truncate"><.player_state game={@game} seat={@seat} /></span>
+      <span class="flex w-full min-w-0 items-center gap-1.5 sm:gap-2">
+        <%!-- The status sits on the disc, like a presence badge: it costs no width. --%>
+        <span class="relative shrink-0">
+          <span
+            class={[
+              "grid size-5 place-items-center rounded-full font-hand text-[13px] leading-none font-bold text-ink ring-1 ring-black/30 sm:size-6 sm:text-sm",
+              @bg
+            ]}
+            aria-hidden="true"
+            data-role="seat-disc"
+          >
+            {initial(@name)}
+          </span>
+          <.player_state game={@game} seat={@seat} class="absolute -right-1.5 -bottom-1" />
+        </span>
+        <span
+          class="line-clamp-2 min-w-0 text-xs leading-tight font-semibold wrap-anywhere sm:line-clamp-1 sm:text-[13px]"
+          data-role="player-name"
+        >
+          {@name}<span :if={@you} class="sr-only"> (you)</span>
+          <.bot_badge :if={@bot} class="bg-parchment/15 align-[1px] text-parchment-dim" />
+        </span>
       </span>
       <.chip_stats game={@game} p={@p} />
+      <span
+        :if={@updates != []}
+        class="flex w-full min-w-0 flex-wrap gap-0.5"
+        data-role="update-chips"
+      >
+        <span
+          :for={update <- @updates}
+          class={["update-chip", update_class(update.kind)]}
+          data-role="update-chip"
+          data-kind={update.kind}
+          data-beat={update.beat}
+          data-replay-last={@last == update.beat}
+          style={"--beat: #{update.beat}"}
+        >
+          <.update_icon kind={update.kind} />{update.text}<span
+            :if={update.kind in [:rubies, :droplet]}
+            class="sr-only"
+          >{if update.kind == :rubies, do: " rubies", else: " droplet"}</span>
+        </span>
+      </span>
     </button>
     """
   end
 
+  defp initial(name),
+    do: name |> String.trim() |> String.first() |> Kernel.||("?") |> String.upcase()
+
+  defp update_class(:vp), do: "bg-gold text-ink"
+  defp update_class(:rubies), do: "bg-ruby text-white"
+  defp update_class(:droplet), do: "bg-droplet text-white"
+  defp update_class(:exploded), do: "bg-ruby-light/25 text-ruby-light ring-1 ring-ruby-light/50"
+  defp update_class(_kind), do: "bg-parchment/15 text-parchment"
+
+  attr :kind, :atom, required: true
+
+  defp update_icon(%{kind: kind} = assigns) when kind in [:vp, :rubies, :droplet] do
+    assigns = assign(assigns, name: %{vp: :vp, rubies: :ruby, droplet: :droplet}[kind])
+
+    ~H"""
+    <.piece_icon name={@name} class="size-3 shrink-0" />
+    """
+  end
+
+  defp update_icon(assigns), do: ~H""
+
   attr :game, Game, required: true
   attr :p, Player, required: true
 
-  # The name card's pieces, icons and numbers: rubies, the flask (full or empty),
-  # this round's rat tails (rats on), essence (The Alchemists), the test tube
-  # (reverse pot side).
+  # The name card's second row, icons and numbers: VP, rubies, the flask (full or
+  # empty), this round's rat tails (rats on: one icon and the count), essence (The
+  # Alchemists), the test tube (reverse pot side), then the patient or the witch
+  # pennies (spent ones dim).
   defp chip_stats(assigns) do
     ~H"""
     <span
-      class="flex w-full min-w-0 flex-wrap items-center gap-x-1 text-[11px] max-sm:gap-x-0.5 leading-4 font-semibold tabular-nums"
+      class="flex w-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-4 font-semibold tabular-nums max-sm:gap-x-1"
       data-role="player-stats"
     >
-      <span class="flex items-center gap-px" title="Rubies" data-role="player-rubies">
+      <span class="flex items-center gap-px font-hand text-[15px] font-bold" data-role="player-vp">
+        <.piece_icon name={:vp} class="size-3.5 text-gold" />{@p.vp}
+        <span class="sr-only">VP</span>
+      </span>
+      <span
+        class="flex items-center gap-px font-hand text-[15px] font-bold"
+        title="Rubies"
+        data-role="player-rubies"
+      >
         <.piece_icon name={:ruby} class="size-3 text-ruby-light" />{@p.rubies}
         <span class="sr-only">rubies</span>
       </span>
@@ -1487,7 +1564,7 @@ defmodule QuacksWeb.GameComponents do
       >
         <.piece_icon
           name={:flask}
-          class={["size-3", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
+          class={["size-3.5", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
         />
         <span class="sr-only">flask {flask_word(@p.flask)}</span>
       </span>
@@ -1497,7 +1574,7 @@ defmodule QuacksWeb.GameComponents do
         title="Rat tails"
         data-role="player-rats"
       >
-        <.piece_icon name={:rat} class="size-3 text-parchment-dim" />{@p.rat_stone}
+        <.piece_icon name={:rat} class="size-3.5 text-parchment-dim" />{@p.rat_stone}
         <span class="sr-only">rat tails</span>
       </span>
       <span
@@ -1518,28 +1595,108 @@ defmodule QuacksWeb.GameComponents do
         <.piece_icon name={:tube} class="size-3 text-droplet" />{@p.tube}
         <span class="sr-only">test tube</span>
       </span>
+      <span
+        :if={@p.patient}
+        class="ml-auto grid size-4 place-items-center rounded-full bg-parchment text-ink"
+        title={Alchemists.get(@p.patient).name}
+        data-role="player-patient"
+      >
+        <.patient_icon id={@p.patient} class="size-3" />
+        <span class="sr-only">patient {Alchemists.get(@p.patient).name}</span>
+      </span>
+      <span
+        :if={@game.witches && !@p.patient}
+        class="ml-auto flex -space-x-1"
+        data-role="player-pennies"
+      >
+        <.piece_icon
+          :for={colour <- [:silver, :copper, :gold]}
+          name={:penny}
+          class={["size-3", penny_text(colour), !@p.pennies[colour] && "opacity-30"]}
+        />
+        <span class="sr-only">
+          witch pennies left: {Enum.count([:silver, :copper, :gold], &@p.pennies[&1])}
+        </span>
+      </span>
     </span>
     """
   end
 
-  # The badge with what the seat does now (see `seat_state/2`).
+  defp penny_text(:silver), do: "text-penny-silver"
+  defp penny_text(:copper), do: "text-penny-copper"
+  defp penny_text(:gold), do: "text-penny-gold"
+
+  # The status graphic (see `seat_state/2`): a steam wisp while brewing, a lid once
+  # stopped, a burst after an explosion, three dots while choosing, a tick when
+  # ready. No word on screen: the word is for screen readers only. Everyone shops at
+  # once, so the shop shows nothing.
   attr :game, Game, required: true
   attr :seat, :integer, required: true
+  attr :class, :any, default: nil
 
   defp player_state(assigns) do
     assigns = assign(assigns, state: seat_state(assigns.game, assigns.seat))
 
     ~H"""
     <span
-      :if={@state}
-      class={["shrink-0 rounded px-1 text-[11px] leading-4", state_class(@state)]}
+      :if={@state && @state not in ["shopping"]}
+      class={[
+        "grid size-3.5 shrink-0 place-items-center rounded-full ring-[1.5px] ring-iron-dark sm:size-4",
+        state_class(@state),
+        @class
+      ]}
+      title={@state}
       data-role="player-state"
       data-state={@state}
     >
-      {@state}
+      <svg
+        viewBox="0 0 16 16"
+        class="size-2.5 sm:size-3"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <%= case state_graphic(@state) do %>
+          <% :steam -> %>
+            <path d="M5 14c-1.6-1.8 1.6-2.7 0-4.5S6.6 6.8 5 5M8.5 13c-1.6-1.8 1.6-2.7 0-4.5S10.1 5.8 8.5 4M12 14c-1.6-1.8 1.6-2.7 0-4.5" />
+          <% :lid -> %>
+            <path d="M2 12h12M3.2 12a4.8 4.4 0 0 1 9.6 0" /><circle
+              cx="8"
+              cy="6"
+              r="1.3"
+              fill="currentColor"
+            />
+          <% :burst -> %>
+            <path
+              d="M8 1.5l1.3 3.6 3.7-1.4-1.6 3.5 3.1 2-3.7.6.3 3.8L8 11.4 4.9 13.6l.3-3.8-3.7-.6 3.1-2L3 3.7l3.7 1.4z"
+              fill="currentColor"
+              stroke-width="0.8"
+            />
+          <% :dots -> %>
+            <circle cx="3.5" cy="8" r="1.3" fill="currentColor" stroke="none" /><circle
+              cx="8"
+              cy="8"
+              r="1.3"
+              fill="currentColor"
+              stroke="none"
+            /><circle cx="12.5" cy="8" r="1.3" fill="currentColor" stroke="none" />
+          <% :tick -> %>
+            <path d="M3 8.5l3.2 3L13 4.5" />
+        <% end %>
+      </svg>
+      <span class="sr-only">{@state}</span>
     </span>
     """
   end
+
+  defp state_graphic("brewing"), do: :steam
+  defp state_graphic("stopped"), do: :lid
+  defp state_graphic("exploded"), do: :burst
+  defp state_graphic(state) when state in ["ready", "chosen"], do: :tick
+  defp state_graphic(_choosing), do: :dots
 
   @doc """
   What `seat` does now, in one word: "brewing", "stopped" or "exploded" while
@@ -1575,10 +1732,12 @@ defmodule QuacksWeb.GameComponents do
   def seat_state(%Game{} = game, seat),
     do: if(Game.legal_actions(game, seat) == [], do: "ready", else: "choosing")
 
+  defp state_class("brewing"), do: "bg-potion-deep text-parchment"
+  defp state_class("exploded"), do: "bg-ruby text-white"
+
   defp state_class(state) when state in ["stopped", "ready", "chosen"],
     do: "bg-iron text-parchment"
 
-  defp state_class("exploded"), do: "bg-ruby font-bold text-white"
   defp state_class(_state), do: "bg-parchment-deep text-ink"
 
   @doc """
@@ -2276,117 +2435,55 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  What each player gained this round: every log entry since the round began that
-  gave VP or rubies, plus the bonus die and the Fortune Teller card's outcome, then
-  the totals. Below the totals, in round 9: the final buying power (coins and rubies → VP; from the log
-  once the seat is done, else from what it has now). With `names` (multiplayer)
-  there is one block per seat, headed by its name; `me` comes first.
-
-  The step-B replay (`QuacksWeb.Replay`): `me`'s lines carry `data-beat` and
-  `--beat`, and CSS reveals them one by one; a die line shows the rolling `die/1`.
-  Every other seat's block is one beat after `me`'s total. "Skip" adds
-  `replay-done` to the dialog, which shows everything at once.
+  What `seat` gained this round, for its player sheet (the name card's update
+  chips in full): every log entry since the round began that gave VP or rubies,
+  plus the bonus die (its face) and the Fortune Teller card's outcome, then the
+  totals. In round 9 also the final buying power (coins and rubies → VP; from the
+  log once the seat is done, else from what it has now).
   """
   attr :game, Game, required: true
-  attr :names, :map, default: nil, doc: "`%{seat => name}`; nil for solo"
-  attr :me, :integer, default: 0, doc: "the seat whose lines replay beat by beat"
-  attr :dialog, :string, default: "round-results", doc: "the dialog id Skip finishes"
+  attr :seat, :integer, required: true
 
-  def round_results(assigns) do
-    assigns = assign(assigns, blocks: result_blocks(assigns.game, assigns.me))
+  def result_lines(assigns) do
+    assigns = assign(assigns, lines: Replay.beats(assigns.game, assigns.seat))
 
     ~H"""
-    <section class="space-y-3" aria-label="Round results" data-role="round-results">
-      <div class="flex items-baseline gap-3">
-        <h2 class="text-xl font-bold">Round {@game.round} results</h2>
-        <button
-          type="button"
-          id={"#{@dialog}-skip"}
-          data-role="replay-skip"
-          phx-click={JS.add_class("replay-done", to: "##{@dialog}")}
-          class="hit-44 min-h-9 rounded-full px-2 text-sm font-semibold text-ink-soft underline underline-offset-2 transition-colors duration-150 hover:text-ink"
+    <section
+      class="space-y-1 rounded-md bg-parchment-deep/60 px-2 py-1.5"
+      aria-label="Round results"
+      data-role="round-results"
+      data-seat={@seat}
+    >
+      <h3 class="font-hand text-base font-bold">Round {@game.round} results</h3>
+      <ul class="space-y-0.5 text-sm">
+        <li
+          :for={line <- @lines}
+          data-role="result-line"
+          data-kind={line.kind}
+          class={line.face && "flex items-center gap-2"}
         >
-          Skip
-        </button>
-      </div>
-      <div
-        :for={block <- @blocks}
-        class={["space-y-1", @names && ["border-l-4 pl-2", seat_border(block.seat)]]}
-        data-seat={block.seat}
-        data-beat={block.beat}
-        style={beat_style(block.beat)}
+          <.die :if={line.face} face={line.face} />
+          <span>{line.text}</span>
+        </li>
+        <li :if={@lines == []} class="text-ink-soft">Nothing gained this round.</li>
+      </ul>
+      <p class="font-semibold" data-role="result-total">
+        Total: +{total(@lines, :vp)} VP, +{total(@lines, :rubies)} {plural(
+          total(@lines, :rubies),
+          "ruby",
+          "rubies"
+        )}
+      </p>
+      <p
+        :if={power = final_power(@game, @seat)}
+        class="text-sm font-semibold"
+        data-role="result-buying-power"
       >
-        <h3 :if={@names} class="flex items-center gap-1.5 font-hand text-base font-bold">
-          <.seat_dot seat={block.seat} />
-          {Map.get(@names, block.seat, GameServer.default_name(block.seat))}
-        </h3>
-        <ul class="space-y-0.5 text-sm">
-          <li
-            :for={line <- block.lines}
-            data-role="result-line"
-            data-kind={line.kind}
-            data-beat={block.own? && line.beat}
-            style={block.own? && beat_style(line.beat)}
-            class={line.face && "flex items-center gap-2"}
-          >
-            <.die :if={line.face} face={line.face} />
-            <span class={line.face && "die-text"}>{line.text}</span>
-          </li>
-          <li
-            :if={block.lines == []}
-            class="text-ink-soft"
-            data-beat={block.own? && 0}
-            style={block.own? && beat_style(0)}
-          >
-            Nothing gained this round.
-          </li>
-        </ul>
-        <p
-          class="font-semibold"
-          data-role="result-total"
-          data-beat={block.own? && block.total}
-          style={block.own? && beat_style(block.total)}
-        >
-          Total: +{total(block.lines, :vp)} VP, +{total(block.lines, :rubies)} {plural(
-            total(block.lines, :rubies),
-            "ruby",
-            "rubies"
-          )}
-        </p>
-        <p
-          :if={power = final_power(@game, block.seat)}
-          class="text-sm font-semibold"
-          data-role="result-buying-power"
-          data-beat={block.own? && block.total}
-          style={block.own? && beat_style(block.total)}
-        >
-          {power}
-        </p>
-      </div>
+        {power}
+      </p>
     </section>
     """
   end
-
-  # `me`'s block first, its lines on their own beats and the total one beat after
-  # (one after "Nothing gained" when there is nothing); then every other seat as
-  # one block, one beat each.
-  defp result_blocks(game, me) do
-    me = if me in game.seats, do: me, else: hd(game.seats)
-    lines = Replay.beats(game, me)
-    total = max(Replay.next_beat(lines), 1)
-
-    others =
-      (game.seats -- [me])
-      |> Enum.with_index(total + 1)
-      |> Enum.map(fn {seat, beat} ->
-        %{seat: seat, own?: false, beat: beat, total: nil, lines: Replay.beats(game, seat)}
-      end)
-
-    [%{seat: me, own?: true, beat: nil, total: total, lines: lines} | others]
-  end
-
-  defp beat_style(nil), do: nil
-  defp beat_style(beat), do: "--beat: #{beat}"
 
   defp total(lines, key), do: lines |> Enum.map(&Map.fetch!(&1, key)) |> Enum.sum()
 

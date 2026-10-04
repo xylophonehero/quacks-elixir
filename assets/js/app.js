@@ -178,6 +178,14 @@ document.addEventListener("toggle", e => {
 // A choice inside a dialog (or popover sheet) closes it once it is sent.
 window.addEventListener("quacks:close", e =>
   e.target.matches("[popover]") ? e.target.hidePopover() : e.target.close?.())
+// The round results play as update chips on the name cards; the chip that lands
+// last ends the replay: the players row runs its `data-on-replay-end` JS
+// (`replay_end/3` in game_live.ex: seen, and the shop opens).
+document.addEventListener("animationend", e => {
+  if (!e.target.matches?.("[data-replay-last]")) return
+  const row = e.target.closest("[data-on-replay-end]")
+  row && !row.classList.contains("replay-done") && liveSocket.execJS(row, row.dataset.onReplayEnd)
+})
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
 
