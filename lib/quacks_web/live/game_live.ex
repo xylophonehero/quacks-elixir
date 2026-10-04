@@ -55,6 +55,13 @@ defmodule QuacksWeb.GameLive do
   With the reverse pot side (`pot_side: :back`) the test-tube rack shows under the
   pot, and each waiting droplet move opens the "Droplet" dialog (pot droplet or
   test tube). After the evaluation it waits for the round results, like the shop.
+  The dialog says the move is free and names where it came from (e.g. the
+  Hawkmoth); the rubies step comes after it and after the buy.
+
+  Mandrake: the server answers "put the white chip back?" for a human seat at once
+  (`GameServer.keep_white/2`); a bar above the buttons offers "Keep the white chip
+  instead" until the next action of any seat. The rat tails of the round show under
+  the players row while the round brews.
 
   With The Alchemists every seat first picks a patient (a dialog with 3 cards).
   The flask strip runs above the pot: the patient badge (it opens the patient
@@ -153,6 +160,17 @@ defmodule QuacksWeb.GameLive do
 
   def handle_event("action", _params, socket),
     do: {:noreply, put_flash(socket, :error, "You are watching this game.")}
+
+  # Mandrake: the server put the white chip back for us; keep it instead (only right
+  # after, see `GameServer.keep_white/2`).
+  def handle_event("keep_white", _params, %{assigns: %{seat: seat}} = socket)
+      when is_integer(seat) do
+    case GameServer.keep_white(socket.assigns.id, seat) do
+      {:ok, game} -> {:noreply, put_game(socket, game)}
+      {:error, :not_found} -> {:noreply, ended(socket)}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Too late to keep the white chip.")}
+    end
+  end
 
   # The shop form re-sends every ticked checkbox on each change; no key means none.
   def handle_event("select", params, socket) do
@@ -354,12 +372,17 @@ defmodule QuacksWeb.GameLive do
   end
 
   # A player detail sheet renders its body only while open: the players row's chip
-  # sends "open_player", the sheet's closing (app.js, `data-on-hide`) "close_player".
+  # sends "open_player", the sheet's closing (app.js, `data-on-hide`) "close_player"
+  # with its seat. A tap on a second chip while a sheet is open closes the first one
+  # (the popovers light-dismiss), and that close can arrive after the new open: it
+  # only clears the sheet it names.
   def handle_event("open_player", %{"seat" => seat}, socket) when is_integer(seat),
     do: {:noreply, assign(socket, open_sheet: seat)}
 
-  def handle_event("close_player", _params, socket),
+  def handle_event("close_player", %{"seat" => seat}, %{assigns: %{open_sheet: seat}} = socket),
     do: {:noreply, assign(socket, open_sheet: nil)}
+
+  def handle_event("close_player", _params, socket), do: {:noreply, socket}
 
   def handle_event("colour", _params, socket), do: {:noreply, socket}
 
@@ -785,6 +808,13 @@ defmodule QuacksWeb.GameLive do
             >
               {text}
             </p>
+            <p
+              :if={rats = round_rats(@game, @names)}
+              class="flex items-center gap-1 px-1"
+              data-role="round-rats"
+            >
+              <.piece_icon name={:rat} class="size-4 shrink-0" /> {rats}
+            </p>
           </div>
 
           <div class="flex min-h-0 flex-col p-2">
@@ -847,6 +877,22 @@ defmodule QuacksWeb.GameLive do
           </div>
 
           <footer class="space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <section
+              :if={keep_white?(@game, @seat, @bots)}
+              class="flex items-center gap-2 rounded-lg bg-iron-dark/60 px-2 py-1 text-sm text-parchment"
+              aria-label="Mandrake"
+              data-role="mandrake-undo"
+            >
+              <span class="min-w-0 flex-1">Mandrake: the white chip went back in your bag.</span>
+              <.button
+                id="keep-white"
+                phx-click="keep_white"
+                variant={:secondary}
+                class="min-h-11 shrink-0"
+              >
+                Keep the white chip instead
+              </.button>
+            </section>
             <section
               :if={extra_actions(@actions) != []}
               class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation"
@@ -1039,7 +1085,7 @@ defmodule QuacksWeb.GameLive do
         :if={@players > 1}
         id={"sheet-player-#{seat}"}
         label={name(@names, seat)}
-        data-on-hide={JS.push("close_player")}
+        data-on-hide={JS.push("close_player", value: %{seat: seat})}
       >
         <.player_card
           :if={@open_sheet == seat}
@@ -1170,11 +1216,18 @@ defmodule QuacksWeb.GameLive do
           </div>
           <div :if={@decision == :droplet_choice} class="space-y-2" data-role="droplet-choice">
             <p class="text-sm">
-              Move your pot droplet or your test-tube droplet.
+              A free move (no rubies): move your pot droplet or your test-tube droplet.
               <span :if={@me.droplet_moves > 1} class="font-semibold">
                 {@me.droplet_moves} moves to place.
               </span>
             </p>
+            <ul
+              :if={(sources = droplet_sources(@game.log, @seat)) != []}
+              class="text-xs text-ink-soft"
+              data-role="droplet-sources"
+            >
+              <li :for={source <- sources}>{source}</li>
+            </ul>
             <.test_tubes tube={@me.tube} />
           </div>
           <p
@@ -2316,6 +2369,46 @@ defmodule QuacksWeb.GameLive do
     end)
   end
 
+  # The server's Mandrake answer for this seat is the newest action (nothing happened
+  # since), so the player may still keep the white chip. Bots answer for themselves.
+  defp keep_white?(game, seat, bots) when is_integer(seat) and not is_map_key(bots, seat),
+    do: match?([{^seat, {:returned, {:white, _}}}, {^seat, :return_white} | _], game.log)
+
+  defp keep_white?(_game, _seat, _bots), do: false
+
+  # The rat tails of this round (rulebook §3 step 2), at its start: "Rats this round:
+  # Sam (2 tails), Clara (1 tail)". Shown while the round brews; nil without rats.
+  defp round_rats(%Game{phase: phase} = game, names) when phase in [:potions, :fortune_choice] do
+    case for(seat <- game.seats, (tails = game.players[seat].rat_stone) > 0, do: {seat, tails}) do
+      [] -> nil
+      rats -> "Rats this round: " <> Enum.map_join(rats, ", ", &rat_text(&1, names))
+    end
+  end
+
+  defp round_rats(_game, _names), do: nil
+
+  defp rat_text({seat, 1}, names), do: "#{name(names, seat)} (1 tail)"
+  defp rat_text({seat, n}, names), do: "#{name(names, seat)} (#{n} tails)"
+
+  # Why the waiting droplet moves came (reverse pot side): this seat's log events that
+  # moved its droplet since its last droplet choice (or the round's start).
+  defp droplet_sources(log, seat) do
+    log
+    |> Enum.take_while(
+      &(not match?({^seat, {:droplet, _}}, &1) and not match?({:round_end, _}, &1))
+    )
+    |> Enum.filter(fn
+      {^seat, {:black, _}} -> true
+      {^seat, {:bonus_die, :droplet}} -> true
+      {^seat, {:purple, 3, _}} -> true
+      {^seat, {:fortune, _id, :droplet}} -> true
+      {^seat, {:essence_bonus, {:droplet, _}}} -> true
+      _entry -> false
+    end)
+    |> Enum.reverse()
+    |> Enum.map(fn {_seat, event} -> label(event) end)
+  end
+
   # The Ear worm line: draws left, no explosion.
   defp ear_worm_left(%{phase: :ear_worm, essence_pending: {:ear_worm, n}}), do: n
   defp ear_worm_left(_me), do: nil
@@ -2515,7 +2608,8 @@ defmodule QuacksWeb.GameLive do
     not buys?(game, seat) and Enum.any?(others, &buys?(game, &1))
   end
 
-  defp buys?(game, seat), do: Enum.any?(Game.legal_actions(game, seat), &match?({:buy, _}, &1))
+  defp buys?(game, seat),
+    do: Enum.any?(Game.legal_actions(game, seat), &match?({:buy, [_ | _]}, &1))
 
   defp chose_text(game, seat, busy, names),
     do: "You chose #{game.players[seat].pending_choice}. " <> waiting_text(busy, names)

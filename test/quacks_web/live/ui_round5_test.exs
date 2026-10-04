@@ -1,7 +1,6 @@
 defmodule QuacksWeb.UiRound5Test do
   @moduledoc """
-  Nick's fourth game: the round summary shows the rat tails for the next round, the
-  Fortune Teller card's outcome (the die of Take a Chance) and, in round 9, the final
+  Nick's fourth game: the round summary shows the Fortune Teller card's outcome (the die of Take a Chance) and, in round 9, the final
   buying power.
   """
   use QuacksWeb.ConnCase, async: true
@@ -19,7 +18,7 @@ defmodule QuacksWeb.UiRound5Test do
     do:
       render_component(&GameComponents.round_results/1, game: game, names: %{0 => "A", 1 => "B"})
 
-  test "the summary shows rat tails and the Take a Chance die per seat" do
+  test "the summary shows the Take a Chance die per seat, not the rats (round start)" do
     game =
       Game.new(seed: {1, 2, 3}, players: 2, fortune: false)
       |> H.put(0, vp: 3)
@@ -38,10 +37,9 @@ defmodule QuacksWeb.UiRound5Test do
     html = results(game)
     assert html =~ "Take a Chance: rolled the die: 2 VP"
     assert html =~ "Take a Chance: rolled the die: droplet +1"
-    assert html =~ "Rats next round: 3 tails"
     assert html =~ "Less is More: drew white 1, white 2 (sum 3)"
-    assert html =~ "Rats next round: 0 tails"
-    assert count(html, ~s([data-seat="0"] [data-role=result-rats])) == 1
+    refute html =~ "Rats next round"
+    assert count(html, "[data-role=result-rats]") == 0
     assert count(html, "[data-role=result-buying-power]") == 0
   end
 

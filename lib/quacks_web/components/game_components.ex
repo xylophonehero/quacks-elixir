@@ -9,7 +9,7 @@ defmodule QuacksWeb.GameComponents do
   alias Phoenix.LiveView.JS
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Potions
-  alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, ScoringTrack, TestTubes}
+  alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
   alias Quacks.Rules.Fortune
   alias Quacks.Rules.Witches
   alias QuacksWeb.{AlchemistsComponents, Replay}
@@ -1292,7 +1292,8 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   One player at the table, read-only, for the player detail sheet: name and VP up
   front (with a band in the seat colour), what they do now, rubies, flask, white
-  sum, their pot drawn small, the bowl and what is in their bag (counts only).
+  sum, their essence strip (The Alchemists), their pot drawn small, their test-tube
+  rack (reverse pot side), the bowl and what is in their bag (counts only).
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
@@ -1333,6 +1334,11 @@ defmodule QuacksWeb.GameComponents do
       </dl>
       <AlchemistsComponents.flask_strip :if={@p.patient} game={@game} seat={@seat} size={:sm} />
       <.pot game={@game} seat={@seat} size={:sm} class="mx-auto block h-auto w-full max-w-64" />
+      <.test_tubes
+        :if={@game.rules.pot_side == :back}
+        tube={@p.tube}
+        class="mx-auto block h-auto w-full max-w-64"
+      />
       <.bowl :if={@p.bowl != []} chips={@p.bowl} />
       <section aria-label="Bag" data-role="player-bag">
         <h3 class="text-xs font-semibold text-ink-soft">In the bag: {length(@p.bag)}</h3>
@@ -2197,8 +2203,7 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   What each player gained this round: every log entry since the round began that
   gave VP or rubies, plus the bonus die and the Fortune Teller card's outcome, then
-  the totals. Below the totals: the rat tails for the next round (2+ players, rats
-  on) and, in round 9, the final buying power (coins and rubies → VP; from the log
+  the totals. Below the totals, in round 9: the final buying power (coins and rubies → VP; from the log
   once the seat is done, else from what it has now). With `names` (multiplayer)
   there is one block per seat, headed by its name; `me` comes first.
 
@@ -2274,16 +2279,6 @@ defmodule QuacksWeb.GameComponents do
           )}
         </p>
         <p
-          :if={tails = rat_tails(@game, block.seat)}
-          class="flex items-center gap-1 text-sm"
-          data-role="result-rats"
-          data-beat={block.own? && block.total}
-          style={block.own? && beat_style(block.total)}
-        >
-          <.piece_icon name={:rat} class="size-4 text-ink-soft" />
-          Rats next round: {tails} {plural(tails, "tail", "tails")}
-        </p>
-        <p
           :if={power = final_power(@game, block.seat)}
           class="text-sm font-semibold"
           data-role="result-buying-power"
@@ -2347,17 +2342,6 @@ defmodule QuacksWeb.GameComponents do
 
   defp die_key({:vp, n}), do: "vp#{n}"
   defp die_key(face) when is_atom(face), do: Atom.to_string(face)
-
-  # The rat tails `seat` gets at the start of the next round, as the VP stand now;
-  # nil when no rats come (solo, house rule off, round 9).
-  defp rat_tails(%{seats: [_]}, _seat), do: nil
-  defp rat_tails(%{rules: %{rats: false}}, _seat), do: nil
-  defp rat_tails(%{round: 9}, _seat), do: nil
-
-  defp rat_tails(game, seat) do
-    leader = game.players |> Map.values() |> Enum.map(& &1.vp) |> Enum.max()
-    ScoringTrack.rat_tails(game.players[seat].vp, leader)
-  end
 
   # Round 9: "Final buying power: ..." from the seat's conversion entry, or what its
   # coins and rubies will give now.

@@ -77,7 +77,7 @@ defmodule QuacksWeb.AuditFixesTest do
     assert has_element?(alice, "#{sheet} [data-role=player-card]")
     refute has_element?(alice, "#sheet-player-0 [data-role=player-card]")
 
-    render_click(alice, "close_player", %{})
+    render_click(alice, "close_player", %{"seat" => 1})
     refute has_element?(alice, "[data-role=player-card]")
   end
 end
