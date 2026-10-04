@@ -623,23 +623,27 @@ defmodule Quacks.GameTest do
     end
   end
 
-  describe "one-step shop" do
-    test "buy, rubies and Done in any order; the buy only once" do
+  describe "the shop" do
+    test "the buy first, once; then the rubies and Done" do
       g = put(new(), phase: :shop, coins: 8, rubies: 4, flask: false)
       actions = Game.legal_actions(g)
-      assert {:buy, [{:green, 1}, {:orange, 1}]} in actions
-      assert {:rubies, :droplet} in actions and {:rubies, :flask} in actions
-      assert List.last(actions) == :end_round
+      assert {:buy, [{:green, 1}, {:orange, 1}]} in actions and {:buy, []} in actions
+      refute Enum.any?(actions, &(match?({:rubies, _}, &1) or &1 == :end_round))
+      assert {:error, _} = Game.apply(g, {:rubies, :flask})
 
-      # rubies first, then the buy, then more rubies
-      g = g |> apply!({:rubies, :flask}) |> apply!({:buy, [{:orange, 1}]})
+      g = apply!(g, {:buy, [{:orange, 1}]})
       assert me(g).bought? and Game.phase(g, 0) == :shop
-      refute Enum.any?(Game.legal_actions(g), &match?({:buy, _}, &1))
-      g = apply!(g, {:rubies, :droplet})
+      assert Game.legal_actions(g) == [{:rubies, :droplet}, {:rubies, :flask}, :end_round]
+      g = g |> apply!({:rubies, :flask}) |> apply!({:rubies, :droplet})
       assert {me(g).rubies, me(g).droplet, me(g).flask} == {0, 1, true}
 
-      done = apply!(put(new(), phase: :shop, coins: 8), :end_round)
+      done = new() |> put(phase: :shop, coins: 8) |> run([{:buy, []}, :end_round])
       assert done.round == 2
+    end
+
+    test "coins that buy nothing go straight to the rubies" do
+      g = put(new(), phase: :shop, coins: 2, rubies: 2)
+      assert Game.legal_actions(g) == [{:buy, []}, {:rubies, :droplet}, :end_round]
     end
 
     test "round 9: 2 rubies buy 1 VP; no droplet, flask or buy" do

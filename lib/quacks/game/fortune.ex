@@ -323,9 +323,12 @@ defmodule Quacks.Game.Fortune do
   defp choices(:p1, g, _p, _seat),
     do: takes(g, &(&1 == {:black, 1} or elem(&1, 1) == 2)) ++ [:rubies]
 
-  # ⚠️ Locoweed has no printed value: not a "1-value chip".
+  # ⚠️ The card says "besides purple or black"; Nick's ruling takes orange out too.
+  # Locoweed has no printed value: not a "1-value chip".
   defp choices(:p3, g, %{rubies: r}, _seat) when r > 0,
-    do: takes(g, fn {c, v} -> v == 1 and c not in [:purple, :black, :locoweed] end) ++ [:skip]
+    do:
+      takes(g, fn {c, v} -> v == 1 and c not in [:orange, :purple, :black, :locoweed] end) ++
+        [:skip]
 
   defp choices(:p6, _g, p, _seat),
     do: [:vp | if({:white, 1} in p.bag, do: [:remove_white], else: [])]

@@ -268,9 +268,11 @@ defmodule Quacks.FortuneTest do
       assert logged?(g, 1, :p2, :droplet)
     end
 
-    test "P3 Wheeling and Dealing: a ruby for a 1-value chip" do
+    test "P3 Wheeling and Dealing: a ruby for a 1-value chip, not orange, purple or black" do
       g = purple(new(), :p3)
-      refute {:fortune, {:take, {:purple, 1}}} in Game.legal_actions(g)
+      takes = for {:fortune, {:take, chip}} <- Game.legal_actions(g), do: chip
+      assert {:red, 1} in takes and {:green, 1} in takes
+      refute Enum.any?([{:orange, 1}, {:purple, 1}, {:black, 1}], &(&1 in takes))
       g = apply!(g, {:fortune, {:take, {:red, 1}}})
       assert me(g).rubies == 0 and {:red, 1} in me(g).bag
 
