@@ -178,14 +178,10 @@ defmodule QuacksWeb.Polish3Test do
       end
     end
 
-    test "the shop opens on its focus target (Buy is disabled); the results on OK" do
+    test "the shop opens on its focus target (Buy is disabled)" do
       view = shop_view()
       assert has_element?(view, "#decision-shop [data-role=focus-start][autofocus]")
       refute has_element?(view, "#decision-shop button[autofocus]")
-
-      if has_element?(view, "#round-results") do
-        assert has_element?(view, "#round-results button[data-role=results-ok][autofocus]")
-      end
     end
 
     test "with a witch call but no ruby options, Done is primary and takes the focus" do

@@ -100,14 +100,15 @@ defmodule QuacksWeb.LobbyFlowTest do
       Enum.reduce([0, 1], g, &Quacks.GameHelpers.put(&2, &1, coins: 30))
     end)
 
-    # both shop dialogs are open at the same time, with the round results on top
+    # both shops wait for the update chips on the name cards
     for view <- [alice, bob] do
       assert has_element?(view, "dialog#decision-shop")
-      assert has_element?(view, "dialog#round-results")
+      assert has_element?(view, ~s(#players-row [data-seat="1"] [data-role=update-chip]))
     end
 
+    # everyone shops at once: no state while shopping, a tick when ready
     open_player(alice, 1)
-    assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "shopping")
+    refute has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]))
 
     # bob has 1 ruby: nothing to spend after the buy, so he is ready at once
     bob |> element("[data-role=shop-done]") |> render_click()

@@ -15,6 +15,10 @@ defmodule Quacks.Rules.Chips do
 
   @type colour ::
           :white | :orange | :green | :blue | :red | :yellow | :purple | :black | :locoweed
+
+  # The colours in the board's order (Nick, layout 1): white first, then the order
+  # of the books on the board. The one list for shop rows, books, bags and offers.
+  @order [:white, :orange, :blue, :red, :yellow, :green, :black, :purple, :locoweed]
   @typedoc "Locoweed has no printed value; the engine uses 1 (`herb-witches.md` §2.3)."
   @type chip :: {colour, 1 | 2 | 3 | 4 | 6}
   @typedoc """
@@ -145,6 +149,27 @@ defmodule Quacks.Rules.Chips do
   @spec set(expansion, sets, colour) :: 1..6 | nil
   def set(_expansion, sets, :locoweed), do: Map.get(sets, :locoweed)
   def set(_expansion, sets, colour), do: Map.get(sets, colour, 1)
+
+  @doc """
+  The colours in the board's order: white, then orange, blue, red, yellow, green,
+  black, purple and locoweed. Shop rows, ingredient books, bag counts and chip
+  offers all show chips in this order.
+
+      iex> Quacks.Rules.Chips.order()
+      [:white, :orange, :blue, :red, :yellow, :green, :black, :purple, :locoweed]
+  """
+  @spec order() :: [colour]
+  def order, do: @order
+
+  @doc """
+  A chip's place in `order/0`, then its value: sort chips with
+  `Enum.sort_by(chips, &Chips.sort_key/1)`.
+
+      iex> Enum.sort_by([{:purple, 1}, {:green, 2}, {:black, 1}, {:green, 1}], &Quacks.Rules.Chips.sort_key/1)
+      [{:green, 1}, {:green, 2}, {:black, 1}, {:purple, 1}]
+  """
+  @spec sort_key(chip) :: {non_neg_integer, integer}
+  def sort_key({colour, value}), do: {Enum.find_index(@order, &(&1 == colour)), value}
 
   @doc """
   Every buyable chip, sorted. The orange 6-chip only with orange Set 2, locoweed only

@@ -196,7 +196,7 @@ defmodule Quacks.Rules.Books do
       {"space 30+", "3 VP"}
     ],
     {:black, 1} => [
-      {"same count", "droplet +1", players: 2},
+      {"same count (1+)", "droplet +1", players: 2},
       {"more", "droplet +1 · 1 ruby", players: 2},
       {"more than 1 neighbour", "droplet +1", players: 3..8},
       {"more than both", "droplet +1 · 1 ruby", players: 3..8},
@@ -238,7 +238,7 @@ defmodule Quacks.Rules.Books do
   The `tiers` rows for a table of `players` (nil: every row), as `{label, text}`.
 
       iex> Quacks.Rules.Books.get({:black, 1}).tiers |> Quacks.Rules.Books.tiers_for(2)
-      [{"same count", "droplet +1"}, {"more", "droplet +1 · 1 ruby"}]
+      [{"same count (1+)", "droplet +1"}, {"more", "droplet +1 · 1 ruby"}]
   """
   @spec tiers_for([tier], pos_integer | nil) :: [{String.t(), String.t()}]
   def tiers_for(tiers, players) do
@@ -259,12 +259,12 @@ defmodule Quacks.Rules.Books do
   def sets(colour), do: for({^colour, set} <- keys(), do: set)
 
   @doc """
-  The books in play, as `{colour, set}` in table order: orange, green, blue, red,
-  yellow, purple, black, then locoweed when it is picked.
+  The books in play, as `{colour, set}` in the board's order (`Chips.order/0`):
+  orange, blue, red, yellow, green, black, purple, then locoweed when it is picked.
   """
   @spec in_play(Chips.expansion(), Chips.sets()) :: [{Chips.colour(), 1..6}]
   def in_play(expansion, sets) do
-    colours = [:orange, :green, :blue, :red, :yellow, :purple, :black]
+    colours = Chips.order() -- [:white, :locoweed]
     books = for colour <- colours, do: {colour, Chips.set(expansion, sets, colour)}
 
     case Chips.set(expansion, sets, :locoweed) do

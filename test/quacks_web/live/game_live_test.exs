@@ -184,8 +184,8 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, ~s([data-role=pot-area] button[popovertarget="sheet-bag"]), "9")
     assert has_element?(view, ~s(#sheet-menu button[popovertarget="sheet-log"]), "Log")
     assert has_element?(view, "#sheet-log[popover]")
-    # solo: no other players, so no players row
-    refute has_element?(view, "[data-role=players-row]")
+    # solo: one name card, for the update chips of the round
+    assert has_element?(view, "[data-role=players-row] [data-role=player-chip]")
   end
 
   test "the shop dialog is in the page only while shopping", %{conn: conn} do
@@ -265,7 +265,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert bag_size(view) == before + 2
   end
 
-  test "shop: one row per colour in step B order, chips as tiles", %{conn: conn} do
+  test "shop: one row per colour in the board's order, chips as tiles", %{conn: conn} do
     html = conn |> mount_shop() |> render() |> LazyHTML.from_fragment()
 
     first_per_row =
@@ -274,9 +274,9 @@ defmodule QuacksWeb.GameLiveTest do
       |> LazyHTML.attribute("aria-label")
 
     assert first_per_row ==
-             ["orange 1", "blue 1", "red 1", "yellow 1", "black 1", "green 1", "purple 1"]
+             ["orange 1", "blue 1", "red 1", "yellow 1", "green 1", "black 1", "purple 1"]
 
-    green_row = html |> LazyHTML.query("[data-role=shop-row]") |> Enum.at(5)
+    green_row = html |> LazyHTML.query("[data-role=shop-row]") |> Enum.at(4)
 
     assert LazyHTML.attribute(LazyHTML.query(green_row, "[aria-label]"), "aria-label") ==
              ["green 1", "green 2", "green 4"]

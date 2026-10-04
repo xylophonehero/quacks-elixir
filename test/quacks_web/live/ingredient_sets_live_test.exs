@@ -41,7 +41,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
     assert %Game{phase: :shopping} = to_shop(id)
     render(game_view)
 
-    assert has_element?(game_view, "[data-role=books]", "green 2 · blue 1")
+    assert has_element?(game_view, "[data-role=books]", "yellow 1 · green 2 · black 1")
     assert has_element?(game_view, "#shop label", ~r/green 1\s+6c/)
     assert has_element?(game_view, "#shop label", ~r/green 4\s+18c/)
   end

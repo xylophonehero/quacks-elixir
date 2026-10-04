@@ -14,9 +14,12 @@ defmodule QuacksWeb.UiRound5Test do
   defp count(html, selector),
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> Enum.count()
 
+  # Both seats' result lines, as their player sheets show them.
   defp results(game),
     do:
-      render_component(&GameComponents.round_results/1, game: game, names: %{0 => "A", 1 => "B"})
+      Enum.map_join(game.seats, fn seat ->
+        render_component(&GameComponents.result_lines/1, game: game, seat: seat)
+      end)
 
   test "the summary shows the Take a Chance die per seat, not the rats (round start)" do
     game =
@@ -58,7 +61,9 @@ defmodule QuacksWeb.UiRound5Test do
   end
 
   test "solo has no rats" do
-    html = render_component(&GameComponents.round_results/1, game: Game.new(seed: {1, 2, 3}))
+    html =
+      render_component(&GameComponents.result_lines/1, game: Game.new(seed: {1, 2, 3}), seat: 0)
+
     assert count(html, "[data-role=result-rats]") == 0
   end
 

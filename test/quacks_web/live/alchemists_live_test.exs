@@ -111,8 +111,9 @@ defmodule QuacksWeb.AlchemistsLiveTest do
     {:ok, %{game: game}} = GameServer.get(id)
     assert game.players[0].essence == 1
     refute has_element?(view, "[data-role=essence-choice]")
-    assert has_element?(view, "#round-results [data-role=result-line]", "Essence: space 2")
-    assert has_element?(view, "#round-results [data-role=result-line]", "Essence bonus: rat")
+    view |> element(~s([data-role=player-chip][data-seat="0"])) |> render_click()
+    assert has_element?(view, "#sheet-player-0 [data-role=result-line]", "Essence: space 2")
+    assert has_element?(view, "#sheet-player-0 [data-role=result-line]", "Essence bonus: rat")
   end
 
   defp with_essence_choice(g) do

@@ -52,7 +52,7 @@ defmodule Quacks.BooksTest do
   test "black 1 tier rows follow the table size; untagged rows always show" do
     tiers = Books.get({:black, 1}).tiers
     assert [{"1+ black", _}] = Books.tiers_for(tiers, 1)
-    assert [{"same count", _}, {"more", _}] = Books.tiers_for(tiers, 2)
+    assert [{"same count (1+)", _}, {"more", _}] = Books.tiers_for(tiers, 2)
     assert [{"more than 1 neighbour", _}, {"more than both", _}] = Books.tiers_for(tiers, 3)
     assert Books.tiers_for(tiers, 8) == Books.tiers_for(tiers, 3)
     assert length(Books.tiers_for(tiers, nil)) == 5
@@ -115,11 +115,11 @@ defmodule Quacks.BooksTest do
     assert me(g).pot_index == 1
   end
 
-  test "in_play lists the chosen books in table order" do
+  test "in_play lists the chosen books in the board's order" do
     assert Books.in_play(nil, %{green: 2}) ==
-             [orange: 1, green: 2, blue: 1, red: 1, yellow: 1, purple: 1, black: 1]
+             [orange: 1, blue: 1, red: 1, yellow: 1, green: 2, black: 1, purple: 1]
 
-    assert List.last(Books.in_play(:herb_witches, %{})) == {:black, 1}
+    assert List.last(Books.in_play(:herb_witches, %{})) == {:purple, 1}
     assert List.last(Books.in_play(nil, %{locoweed: 4})) == {:locoweed, 4}
   end
 end

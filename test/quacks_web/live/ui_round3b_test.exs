@@ -138,7 +138,7 @@ defmodule QuacksWeb.UiRound3bTest do
 
     replace_game(id, &(&1 |> H.put(round: 9) |> H.put(0, rubies: 3)))
     refute has_element?(alice, "dialog#decision-shop")
-    assert has_element?(alice, "dialog#round-results[data-then-open=decision-rubies]")
+    assert has_element?(alice, "#players-row[data-on-replay-end*=decision-rubies]")
     alice |> element("dialog#decision-rubies button", "2 rubies → 1 VP") |> render_click()
     assert has_element?(alice, "li", "Spent 2 rubies: +1 VP")
   end

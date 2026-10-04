@@ -174,15 +174,37 @@ window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // A decision <dialog> asks to be opened (see `dialog_sheet` in core_components.ex).
-window.addEventListener("quacks:modal", e => e.target.open || e.target.showModal())
+// From 80rem a `data-side` dialog is a non-modal panel in the right column
+// ("panel": show(), focus on its primary button) or does not open ("hidden": the
+// column shows it already, so it counts as closed at once).
+const wide = matchMedia("(min-width: 80rem)")
+const sideOpen = d => {
+  if (d.open) return
+  const side = wide.matches && d.dataset.side
+  if (side === "hidden") return closed(d)
+  side ? d.show() : d.showModal()
+}
 // A closed dialog may run its `on_close` JS and hand over to the next one
 // (`then_open` on `dialog_sheet`).
-document.addEventListener("close", e => {
-  const onClose = e.target.dataset?.onClose
-  onClose && liveSocket.execJS(e.target, onClose)
-  const next = e.target.dataset?.thenOpen && document.getElementById(e.target.dataset.thenOpen)
-  next && !next.open && next.showModal()
-}, true)
+const closed = d => {
+  const onClose = d.dataset?.onClose
+  onClose && liveSocket.execJS(d, onClose)
+  const next = d.dataset?.thenOpen && document.getElementById(d.dataset.thenOpen)
+  next && sideOpen(next)
+}
+const moving = new WeakSet()
+window.addEventListener("quacks:modal", e => sideOpen(e.target))
+document.addEventListener("close", e => moving.delete(e.target) || closed(e.target), true)
+// Crossing 80rem moves an open side dialog between panel and sheet.
+wide.addEventListener("change", () => document.querySelectorAll("dialog[data-side=panel][open]").forEach(d => {
+  moving.add(d); d.close(); sideOpen(d)
+}))
+// A tap on the dimmed backdrop (outside the sheet) closes a modal sheet.
+document.addEventListener("click", e => {
+  const d = e.target, r = d.getBoundingClientRect?.()
+  if (d.tagName !== "DIALOG" || !d.matches(":modal") || !r) return
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close()
+})
 // A popover sheet that closed (button, Esc or a tap outside) runs its `data-on-hide` JS.
 document.addEventListener("toggle", e => {
   const onHide = e.newState === "closed" && e.target.dataset?.onHide
@@ -191,6 +213,14 @@ document.addEventListener("toggle", e => {
 // A choice inside a dialog (or popover sheet) closes it once it is sent.
 window.addEventListener("quacks:close", e =>
   e.target.matches("[popover]") ? e.target.hidePopover() : e.target.close?.())
+// The round results play as update chips on the name cards; the chip that lands
+// last ends the replay: the players row runs its `data-on-replay-end` JS
+// (`replay_end/3` in game_live.ex: seen, and the shop opens).
+document.addEventListener("animationend", e => {
+  if (!e.target.matches?.("[data-replay-last]")) return
+  const row = e.target.closest("[data-on-replay-end]")
+  row && !row.classList.contains("replay-done") && liveSocket.execJS(row, row.dataset.onReplayEnd)
+})
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
 

@@ -34,22 +34,19 @@ defmodule QuacksWeb.UiRound6Test do
       &H.put(&1, 0, phase: :shop, exploded?: true, explosion_choice: :vp, rubies: 2)
     )
 
-    assert has_element?(view, "[data-role=results-ok]", "OK")
-    refute has_element?(view, "[data-role=results-ok]", "shop")
     refute has_element?(view, "dialog#decision-shop")
-    assert has_element?(view, "dialog#round-results[data-then-open=decision-rubies]")
+    assert has_element?(view, "#players-row[data-on-replay-end*=decision-rubies]")
     assert has_element?(view, "dialog#decision-rubies [data-role=shop-rubies]")
   end
 
   test "a seat with no coins to spend skips the shop too; with coins it shops" do
     {id, view} = solo()
     replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 2))
-    assert has_element?(view, "[data-role=results-ok]", "OK")
     refute has_element?(view, "dialog#decision-shop")
     assert has_element?(view, "dialog#decision-rubies")
 
     replace_game(id, &H.put(&1, 0, coins: 10))
-    assert has_element?(view, "[data-role=results-ok]", "To the shop")
+    assert has_element?(view, "#players-row[data-on-replay-end*=decision-shop]")
     assert has_element?(view, "dialog#decision-shop #shop")
   end
 
@@ -85,7 +82,7 @@ defmodule QuacksWeb.UiRound6Test do
       |> LazyHTML.query("button[data-role=chip-pick] [aria-label]")
       |> LazyHTML.attribute("aria-label")
 
-    assert chips == ["blue 2", "red 2", "black 1", "green 2"]
+    assert chips == ["blue 2", "red 2", "green 2", "black 1"]
     assert count(html, pick({:fortune, {:take, {:green, 2}}})) == 1
     # "Take 3 rubies" has no chip: a text button outside the picks
     assert count(html, "button[data-role=chip-pick]") == 4

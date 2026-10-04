@@ -132,28 +132,27 @@ defmodule QuacksWeb.UiRound4Test do
              "resolve now"
   end
 
-  test "the round results come first; the shop opens when they close" do
+  test "the update chips come first; the shop opens when they have played" do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
     view = open(browser("solo"), id)
     to_shop(id)
     render(view)
 
-    # results open themselves and hand over to the shop, which waits
-    assert has_element?(view, "dialog#round-results[data-then-open=decision-shop]")
-    assert has_element?(view, "dialog#round-results[phx-mounted*='quacks:modal']")
+    # the chips play and hand over to the shop, which waits
+    assert has_element?(view, "#players-row[data-on-replay-end*=decision-shop]")
     assert has_element?(view, "dialog#decision-shop #shop")
     refute has_element?(view, "dialog#decision-shop[phx-mounted*='quacks:modal']")
     # the footer still opens the shop at any time
-    assert has_element?(view, "footer button", "Open the shop")
+    assert has_element?(view, "footer [data-role=decision-button]")
 
     # a reload while shopping keeps the order
     view = open(browser("solo"), id)
-    assert has_element?(view, "dialog#round-results[data-then-open=decision-shop]")
+    assert has_element?(view, "#players-row[data-on-replay-end*=decision-shop]")
     refute has_element?(view, "dialog#decision-shop[phx-mounted*='quacks:modal']")
 
     # after Done there is no shop to hand over to
     view |> element("#decision-shop [data-role=shop-done]") |> render_click()
-    refute has_element?(view, "dialog#round-results[data-then-open]")
+    refute has_element?(view, "#players-row[data-on-replay-end]")
   end
 
   test "shop tiles: a tapped chip is outlined with a check, the others dim" do

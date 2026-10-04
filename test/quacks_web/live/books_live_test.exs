@@ -195,27 +195,37 @@ defmodule QuacksWeb.BooksLiveTest do
     refute Map.has_key?(sets, :orange) or Map.has_key?(sets, :locoweed)
   end
 
-  test "the shop has an info button per row; the menu lists the chosen books", %{conn: conn} do
+  test "the shop has an inline book info per row; the menu lists the chosen books", %{conn: conn} do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{orange: 2, locoweed: 2}, %{fortune: false})
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     to_shop(id)
     html = render(view)
 
     rows = html |> LazyHTML.from_fragment() |> LazyHTML.query("[data-role=shop-row]")
-    # orange (1, 6), blue, red, yellow, black, green, purple, locoweed
+    # orange (1, 6), blue, red, yellow, green, black, purple, locoweed
     assert Enum.count(rows) == 8
 
     for {_row, i} <- Enum.with_index(rows) do
-      assert has_element?(view, "[data-role=shop-row] button[popovertarget=shop-book-#{i}]")
-      assert has_element?(view, "#shop-book-#{i} [data-role=book-text]")
+      # the book opens in place under its row, not in another sheet
+      assert has_element?(
+               view,
+               "[data-role=shop-row-label] button[aria-controls=shop-book-#{i}][aria-expanded=false][phx-click*=toggle]"
+             )
+
+      assert has_element?(
+               view,
+               "#shop-book-#{i}.hidden[data-role=shop-book] [data-role=book-text]"
+             )
+
+      refute has_element?(view, "#shop-book-#{i}[popover]")
     end
 
     assert has_element?(view, "#shop-book-0 [data-book=orange-2]")
-    assert has_element?(view, "#shop-book-4", "Hawkmoth")
+    assert has_element?(view, "#shop-book-5", "Hawkmoth")
     assert has_element?(view, "#shop-book-7 [data-book=locoweed-2]", "Acts as the last coloured")
     # black 1 has tiers; a solo game shows only the solo row
-    assert has_element?(view, "#shop-book-4 [data-role=book-tiers]", "1+ black")
-    refute has_element?(view, "#shop-book-4 [data-role=book-tiers]", "same count")
+    assert has_element?(view, "#shop-book-5 [data-role=book-tiers]", "1+ black")
+    refute has_element?(view, "#shop-book-5 [data-role=book-tiers]", "same count")
     assert has_element?(view, "#shop label", ~r/orange 6\s+22c/)
 
     assert has_element?(view, "#sheet-menu button[popovertarget=sheet-books]", "Books")
