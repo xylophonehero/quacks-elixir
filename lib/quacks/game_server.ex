@@ -40,6 +40,26 @@ defmodule Quacks.GameServer do
   seat still brews, the cap is off. A capped bot gets no tick; the next human
   action schedules it again.
 
+  Decisions revealed together: in the phases where every seat decides at the same
+  time (`:fortune_choice`, `:chip_choice`, `:witch_choice`, `:shopping`), a bot
+  decides at once, from the state it sees when its part of the phase starts: its
+  whole part (e.g. buy, rubies, `:end_round`) is planned on a private copy of the
+  game (`plan/3`). While a human seat still has something to do in that phase, the
+  plan waits in `queued`; it is applied (`flush/1`) right after the last human
+  action of the phase, so no bot choice shows before the humans chose, and no human
+  choice changes a bot's. With no human in the phase the plan goes at once. Each
+  queued action is checked again when it is applied; at the first one that is no
+  longer legal (a limited supply ran out), the rest is dropped and the bot decides
+  again with normal ticks. The draws of the potions phase are not queued (lockstep).
+
+  Mandrake (yellow 1) for humans: when a human seat must answer "put the white chip
+  back?" (`:yellow_choice`), the server answers `:return_white` for it at once (the
+  happy path). It keeps the session from before that answer (`auto_keep`) so the
+  player can take it back: `keep_white/2` answers `:keep` on that session instead
+  (the same as `Session.undo/1` and then `:keep`). This works only while no other
+  action happened since; the next action of any seat drops `auto_keep`, and bots
+  wait while it is open. Bots answer the choice themselves.
+
   Games live under `Quacks.GameSupervisor` and are not persisted: a game that sees no
   message for 2 hours stops, and a node restart forgets every game.
   """
@@ -157,6 +177,15 @@ defmodule Quacks.GameServer do
   @spec apply(id, Game.seat(), Game.action()) ::
           {:ok, Game.t()} | {:error, :not_started | :not_found | term}
   def apply(id, seat, action), do: call(id, {:apply, seat, action})
+
+  @doc """
+  Mandrake: `seat` keeps the white chip that the server put back in its bag
+  (see the moduledoc). Only right after that automatic answer, before any other
+  action; else `{:error, :too_late}`.
+  """
+  @spec keep_white(id, Game.seat()) ::
+          {:ok, Game.t()} | {:error, :too_late | :not_started | :not_found}
+  def keep_white(id, seat), do: call(id, {:keep_white, seat})
 
   @doc "Take back the last action. Solo games only."
   @spec undo(id) :: {:ok, Game.t()} | {:error, :not_solo | :not_started | :not_found}
@@ -310,6 +339,9 @@ defmodule Quacks.GameServer do
   # bot's own rng; `pages` each watched page (pid -> its token, see `watch/3`);
   # `bot_ticks` the one pending tick per
   # bot seat (seat -> tick number, see `schedule_bots/1`), `tick` the last number.
+  # `queued` holds each bot's planned actions of a concurrent phase (seat -> actions,
+  # see `plan/3`); `auto_keep` is `{seat, session}` right after the server answered a
+  # human's Mandrake choice (the session from before it), else nil.
   @impl true
   def init({id, fields}) do
     state =
@@ -321,6 +353,8 @@ defmodule Quacks.GameServer do
           bots: %{},
           bot_rngs: %{},
           bot_ticks: %{},
+          queued: %{},
+          auto_keep: nil,
           seen: %{},
           pages: %{},
           tick: 0,
@@ -342,16 +376,28 @@ defmodule Quacks.GameServer do
 
   def handle_call({:apply, seat, action}, _from, state) do
     case Session.apply(state.session, seat, action) do
-      {:ok, session} -> reply_game(schedule_bots(%{state | session: session}))
+      {:ok, session} -> reply_game(acted(%{state | session: session}))
       error -> {:reply, error, state, @idle_timeout}
     end
   end
 
+  def handle_call({:keep_white, _seat}, _from, %{session: nil} = state),
+    do: {:reply, {:error, :not_started}, state, @idle_timeout}
+
+  def handle_call({:keep_white, seat}, _from, %{auto_keep: {seat, before}} = state) do
+    {:ok, session} = Session.apply(before, seat, :keep)
+    reply_game(acted(%{state | session: session}))
+  end
+
+  def handle_call({:keep_white, _seat}, _from, state),
+    do: {:reply, {:error, :too_late}, state, @idle_timeout}
+
   def handle_call(:undo, _from, %{session: nil} = state),
     do: {:reply, {:error, :not_started}, state, @idle_timeout}
 
+  # Undo after the server's Mandrake answer shows the question again.
   def handle_call(:undo, _from, %{session: %{players: 1}} = state),
-    do: reply_game(%{state | session: Session.undo(state.session)})
+    do: reply_game(%{state | session: Session.undo(state.session), auto_keep: nil})
 
   def handle_call(:undo, _from, state), do: {:reply, {:error, :not_solo}, state, @idle_timeout}
 
@@ -594,7 +640,8 @@ defmodule Quacks.GameServer do
   end
 
   # A bot's turn to act: one action, then the next ticks. A tick that is not the
-  # seat's pending one is stale; a capped bot (a human resumed) waits.
+  # seat's pending one is stale; a capped bot (a human resumed) waits; in a concurrent
+  # phase where a human decides, the bot plans instead (`schedule_bots/1`).
   def handle_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
       when :erlang.map_get(seat, ticks) == tick do
     state = %{state | bot_ticks: Map.delete(ticks, seat)}
@@ -602,17 +649,19 @@ defmodule Quacks.GameServer do
 
     state =
       with false <- capped?(state, state.session.game, seat),
+           false <- humans_deciding?(state, state.session.game),
+           nil <- state.auto_keep,
            {action, rng} <-
              AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
            {:ok, session} <- Session.apply(state.session, seat, action) do
-        game = session.game
-        Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:game, state.id, game})
-        %{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)}
+        state = acted(%{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)})
+        broadcast(state, {:game, state.id, state.session.game})
+        state
       else
-        _none_or_error -> state
+        _none_or_error -> schedule_bots(state)
       end
 
-    {:noreply, schedule_bots(state), @idle_timeout}
+    {:noreply, state, @idle_timeout}
   end
 
   def handle_info({:bot, _seat, _tick}, state), do: {:noreply, state, @idle_timeout}
@@ -642,22 +691,111 @@ defmodule Quacks.GameServer do
     for({token, seat} <- state.tokens, token not in present, do: seat) |> Enum.sort()
   end
 
-  # Every bot seat that can act, is not capped and has no tick pending gets one.
+  # After any applied action: the server's Mandrake answers, the queued bot plans,
+  # then the bot ticks.
+  defp acted(state), do: state |> auto_return() |> flush() |> schedule_bots()
+
+  # Every human seat in the Mandrake choice gets `:return_white` (see the moduledoc);
+  # `auto_keep` keeps the session from before it, for `keep_white/2`. Any other action
+  # drops it.
+  defp auto_return(state) do
+    humans = state.session.game.seats -- Map.keys(state.bots)
+
+    Enum.reduce(humans, %{state | auto_keep: nil}, fn seat, state ->
+      if Game.phase(state.session.game, seat) == :yellow_choice do
+        {:ok, session} = Session.apply(state.session, seat, :return_white)
+        %{state | session: session, auto_keep: {seat, state.session}}
+      else
+        state
+      end
+    end)
+  end
+
+  # The phases where every seat decides at the same time; bots queue their plans.
+  @concurrent [:fortune_choice, :chip_choice, :witch_choice, :shopping]
+
+  # Some human seat still has something to do in this concurrent phase.
+  defp humans_deciding?(state, %Game{phase: phase} = game) when phase in @concurrent,
+    do: Enum.any?(game.seats -- Map.keys(state.bots), &(Game.legal_actions(game, &1) != []))
+
+  defp humans_deciding?(_state, _game), do: false
+
+  # Once no human decides any more, every queued plan is applied, seat by seat. An
+  # action that is no longer legal drops the rest of that plan (the bot decides
+  # again with ticks).
+  defp flush(%{queued: queued} = state) when map_size(queued) == 0, do: state
+
+  defp flush(state) do
+    if humans_deciding?(state, state.session.game) do
+      state
+    else
+      state.queued
+      |> Enum.sort()
+      |> Enum.reduce(%{state | queued: %{}}, &apply_plan/2)
+      |> flush_again()
+    end
+  end
+
+  defp apply_plan({seat, actions}, state) do
+    Enum.reduce_while(actions, state, fn action, state ->
+      case Session.apply(state.session, seat, action) do
+        {:ok, session} -> {:cont, %{state | session: session}}
+        {:error, _} -> {:halt, state}
+      end
+    end)
+  end
+
+  # A flushed plan can end the phase and start the next concurrent one at once.
+  defp flush_again(state), do: if(state.queued == %{}, do: state, else: flush(state))
+
+  # A bot's whole part of a concurrent phase, decided now on a private copy of the
+  # game: one decision after the other while the bot still acts in the phase.
+  defp plan(state, seat) do
+    profile = Profile.get(state.bots[seat])
+    game = state.session.game
+
+    Enum.reduce_while(1..30, {game, [], state.bot_rngs[seat]}, fn _, {g, actions, rng} ->
+      with true <- g.phase == game.phase,
+           {action, rng} <- AI.decide(g, seat, profile, rng),
+           {:ok, g} <- Game.apply(g, seat, action) do
+        {:cont, {g, [action | actions], rng}}
+      else
+        _done -> {:halt, {g, actions, rng}}
+      end
+    end)
+    |> then(fn {_g, actions, rng} ->
+      %{
+        state
+        | queued: Map.put(state.queued, seat, Enum.reverse(actions)),
+          bot_rngs: Map.put(state.bot_rngs, seat, rng)
+      }
+    end)
+  end
+
+  # Every bot seat that can act, is not capped and has no tick pending gets one. In
+  # a concurrent phase where a human still decides, a bot plans instead (no tick).
+  # While a human's Mandrake answer can be taken back, bots wait.
   defp schedule_bots(%{session: nil} = state), do: state
+  defp schedule_bots(%{auto_keep: {_seat, _before}} = state), do: state
 
   defp schedule_bots(state) do
     game = state.session.game
     delay = Application.get_env(:quacks, :bot_delay, 700)
+    deciding? = humans_deciding?(state, game)
 
     state.bots
     |> Map.keys()
-    |> Enum.reject(&Map.has_key?(state.bot_ticks, &1))
+    |> Enum.reject(&(Map.has_key?(state.bot_ticks, &1) or Map.has_key?(state.queued, &1)))
     |> Enum.filter(&(Game.phase(game, &1) != :stopped and Game.legal_actions(game, &1) != []))
     |> Enum.reject(&capped?(state, game, &1))
-    |> Enum.reduce(state, fn seat, state ->
-      tick = state.tick + 1
-      Process.send_after(self(), {:bot, seat, tick}, delay)
-      %{state | tick: tick, bot_ticks: Map.put(state.bot_ticks, seat, tick)}
+    |> Enum.reduce(state, fn
+      seat, state when deciding? ->
+        plan(state, seat)
+
+      seat, state ->
+        tick = state.tick + 1
+        Process.send_after(self(), {:bot, seat, tick}, delay)
+        %{state | tick: tick, bot_ticks: Map.put(state.bot_ticks, seat, tick)}
     end)
   end
 
