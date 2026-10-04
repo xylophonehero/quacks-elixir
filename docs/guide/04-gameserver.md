@@ -340,7 +340,7 @@ A seat belongs to a token, and the token lives in a cookie. When the cookie is g
 spectator, and the seat waits for a token that never comes back. To give it back,
 the server must know which seats have **no open page**.
 
-So the server watches the pages. `claim_seat/3` and `rejoin/3` call `watch/3` with
+So the server watches the pages. `claim_seat/3` and `rejoin/4` call `watch/3` with
 the caller's pid (`lib/quacks/game_server.ex:789-799`):
 
 ```elixir
@@ -373,11 +373,15 @@ case GameServer.claim_seat(id, session["player_token"], watch: connected?(socket
 
 Only the LiveView process (the connected mount) is watched; it ends with the tab.
 
-**`rejoin/3`.** A spectator sees "Rejoin as <name>" for each absent seat. The click
-calls `rejoin/3` (`lib/quacks/game_server.ex:547-569`): the seat must exist, have a
-token, and be absent; then its old token is replaced by the caller's token (and the
-creator too, if it was the creator's seat), and the page is watched. A seat with a
-live page answers `{:error, :present}`, so nobody can take a seat from an open tab.
+**`rejoin/4`.** A spectator sees "Rejoin as <name>" for each seat that has been absent
+for 30 s (`rejoinable` in the table; `away` keeps when each seat lost its last page,
+and an `:away_tick` re-broadcasts the names when the 30 s are up). The button opens a
+small form; the spectator types the seat's name (any case) and `rejoin/4` checks it:
+the seat must exist, have a token, be rejoinable and the name must match; then its old
+token is replaced by the caller's token (and the creator too, if it was the creator's
+seat), the page is watched, and every page hears `{:rejoined, id, seat}` ("Someone
+rejoined as <name>"). A seat with a live page, or away less than 30 s, answers
+`{:error, :present}`. There is no identity check: this only stops a stray tap.
 
 ## Acknowledgements: `seen`
 
