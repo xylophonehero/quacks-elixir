@@ -130,9 +130,9 @@ defmodule QuacksWeb.Layout1Test do
       column = "[data-role=side-column]"
       assert has_element?(view, "#{column} > #fortune-panel-1[data-role=fortune-panel].xl\\:flex")
       assert has_element?(view, "#{column} > dialog#decision-shop[data-side=panel]")
-      # no choice on the card: from 80rem its dialog does not open (the panel shows it)
+      # no choice on the card: from 64rem its dialog does not open (the panel shows it)
       assert has_element?(view, "#{column} > dialog#card-round-1[data-side=hidden]")
-      assert has_element?(view, "[data-role=fortune-tile].xl\\:hidden")
+      assert has_element?(view, "[data-role=fortune-tile].lg\\:hidden")
     end
 
     test "a fortune choice opens the card's dialog as a panel when it arrives" do
@@ -151,10 +151,10 @@ defmodule QuacksWeb.Layout1Test do
     test "while a decision waits, one button takes the place of Stop and Draw on phones" do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
       {:ok, view, _html} = live(browser("back-#{id}"), ~p"/g/#{id}")
-      assert has_element?(view, "[data-role=action-bar]:not(.max-xl\\:hidden)")
+      assert has_element?(view, "[data-role=action-bar]:not(.max-lg\\:hidden)")
 
       replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
-      assert has_element?(view, "[data-role=action-bar].max-xl\\:hidden")
+      assert has_element?(view, "[data-role=action-bar].max-lg\\:hidden")
 
       assert has_element?(
                view,
@@ -180,7 +180,7 @@ defmodule QuacksWeb.Layout1Test do
       assert count(html, "dialog#d[data-side=panel]") == 1
 
       js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
-      assert js =~ ~s{matchMedia("(min-width: 80rem)")}
+      assert js =~ ~s{matchMedia("(min-width: 64rem)")}
       assert js =~ "d.show()"
       assert js =~ ~s(side === "hidden")
       # a tap on the dimmed backdrop closes a modal sheet

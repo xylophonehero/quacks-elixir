@@ -1895,6 +1895,93 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
+  The ingredient books in play as compact tiles in board order (`Books.in_play/2`):
+  the desktop books column and the tablet "Books" tab. Each tile: the icon, the
+  name, the book number, when it acts and its rule; tiered books show their tiers
+  inline, only the rows for this table size. `beats` (`%{colour => beat}`) lights a
+  book up on the replay beat of its line (app.css `.book-beat`).
+  """
+  attr :id, :string, required: true
+  attr :game, Game, required: true
+  attr :beats, :map, default: %{}
+  attr :class, :any, default: nil
+
+  def books_in_play(assigns) do
+    assigns =
+      assign(assigns,
+        books: Books.in_play(assigns.game.expansion, assigns.game.sets),
+        players: map_size(assigns.game.players)
+      )
+
+    ~H"""
+    <section id={@id} class={["min-h-0 flex-col gap-1.5", @class]} aria-label="Ingredient books">
+      <h2 class="flex items-baseline gap-2 px-1 font-hand text-lg font-bold text-parchment">
+        <QuacksWeb.CoreComponents.icon name="hero-book-open" class="size-4 self-center" />
+        Books in play
+        <span class="ml-auto font-sans text-xs font-normal text-parchment-dim">
+          {@players} {if @players == 1, do: "player", else: "players"}
+        </span>
+      </h2>
+      <ol class="min-h-0 space-y-1.5 overflow-y-auto pb-1" data-role="books-in-play">
+        <li :for={{colour, set} <- @books}>
+          <.book_line colour={colour} set={set} players={@players} beat={@beats[colour]} />
+        </li>
+      </ol>
+    </section>
+    """
+  end
+
+  attr :colour, :atom, required: true
+  attr :set, :any, required: true
+  attr :players, :integer, required: true
+  attr :beat, :integer, default: nil
+
+  defp book_line(assigns) do
+    assigns = assign(assigns, book: book_info(assigns.colour, assigns.set))
+
+    ~H"""
+    <article
+      class={[
+        "paper relative overflow-hidden rounded-xl py-1.5 pr-2 pl-3 text-left",
+        "before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-(--c)",
+        @beat && "book-beat"
+      ]}
+      style={"--c: var(--color-chip-#{@colour})#{@beat && "; --beat: #{@beat}"}"}
+      data-role="book-line"
+      data-colour={@colour}
+      data-book={"#{@colour}-#{@set || "off"}"}
+    >
+      <div class="flex min-w-0 items-center gap-1.5">
+        <.ingredient_icon colour={@colour} class={["size-6 shrink-0", book_ink(@colour)]} />
+        <p class="min-w-0 truncate font-hand text-base leading-tight font-bold">{@book.name}</p>
+        <.book_seal set={@set} />
+        <span
+          :if={@book.trigger != :none}
+          class="ml-auto shrink-0 text-[10px] font-bold tracking-wide text-ink-soft uppercase"
+        >
+          {trigger_tag(@book.trigger)}
+        </span>
+      </div>
+      <p :if={@book.text != ""} class="mt-0.5 text-xs leading-snug text-pretty text-ink-soft">
+        {@book.text}
+      </p>
+      <p
+        :if={(tiers = Books.tiers_for(@book.tiers, @players)) != []}
+        class="mt-0.5 flex flex-wrap gap-x-2 text-xs leading-snug text-ink-soft"
+        data-role="book-tiers"
+      >
+        <span :for={{label, text} <- tiers}>
+          <b class="font-semibold text-ink">{label}:</b> {text}
+        </span>
+      </p>
+    </article>
+    """
+  end
+
+  defp trigger_tag(:step_b), do: "Evaluation"
+  defp trigger_tag(trigger), do: trigger_label(trigger)
+
+  @doc """
   The text class for an ingredient icon on parchment: the chip colour, but ink for
   white and a darker yellow, which would not show on parchment.
   """
@@ -2213,7 +2300,7 @@ defmodule QuacksWeb.GameComponents do
 
   @doc """
   This round's Fortune Teller card as a block for the top of the right column
-  (screens ≥ 80rem): the colour band, the motif, the name and the text in one
+  (screens ≥ 80rem; under the pot from 64rem): the colour band, the motif, the name and the text in one
   row. Its `id` names the round, so a new card enters the page and plays its
   reveal (a fade and a gold sparkle sweep, app.css `.fortune-panel`).
   """
