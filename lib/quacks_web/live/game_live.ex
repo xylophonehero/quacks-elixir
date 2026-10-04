@@ -995,12 +995,13 @@ defmodule QuacksWeb.GameLive do
               </.witch_card>
             </section>
           </.sheet>
-          <.sheet id="sheet-log" label="Log" inline_lg>
-            <.action_log log={@game.log} names={if @players > 1, do: @names} />
-          </.sheet>
         </aside>
       </div>
 
+      <%!-- The log lives behind the menu on every screen (round 10). --%>
+      <.sheet id="sheet-log" label="Log">
+        <.action_log log={@game.log} names={if @players > 1, do: @names} />
+      </.sheet>
       <.sheet :if={@me && @me.patient} id="sheet-patient" label="Patient">
         <.patient_card id={@me.patient} reached={if @me.essence > 0, do: @me.essence} />
         <p class="mt-2 text-sm font-semibold" data-role="patient-essence">
@@ -1032,7 +1033,8 @@ defmodule QuacksWeb.GameLive do
         <.bag bag={@me.bag} />
       </.sheet>
       <.sheet :if={@game.fortune_card} id="sheet-fortune" label="Fortune teller card">
-        <.fortune_card id={@game.fortune_card} />
+        <%!-- A wrapper: the sheet flattens a `.paper` child, and the card keeps its edge. --%>
+        <div class="pt-8 pb-2"><.fortune_card id={@game.fortune_card} /></div>
       </.sheet>
       <.sheet
         :for={seat <- @game.seats}
@@ -1067,7 +1069,7 @@ defmodule QuacksWeb.GameLive do
             />
           </label>
           <div class="flex flex-wrap gap-2 *:min-h-11">
-            <.sheet_button for="sheet-log" variant={:secondary} class="lg:hidden">Log</.sheet_button>
+            <.sheet_button for="sheet-log" variant={:secondary}>Log</.sheet_button>
             <.copy_link :if={@players > 1} url={url(~p"/g/#{@id}")} copied={@copied} />
             <.button
               :if={@seat && @players == 1}

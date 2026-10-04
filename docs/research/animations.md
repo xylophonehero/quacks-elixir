@@ -351,6 +351,18 @@ round N+1, then N, then N+1 within ~20 ms (an older broadcast arrives after the
 LiveView's own reply; `handle_info({:game, …})` only skips an identical copy). Only
 round increases mark a transition, and the queue keeps it to one.
 
+**Round 10 (2026-10-04).** The flight is gone (Nick: "animate in the place they are
+going to instead of circling around"). A new chip (1–2 per patch) drops in on its own
+space: from `translate(0, -12px) scale(1.3)` and opacity 0, to size at 55 %
+(`--ease-out`), the 1.06 pop at 75 %, settle (`--ease-spring`), 350 ms. `beforeUpdate`
+no longer finishes running animations: a bot's broadcast is a patch too and cut every
+landing short; WAAPI writes no attributes and the chip keeps its node, so the
+animation runs on. The flask/bag ghost and the round fade stay. The rat hop is gone:
+the droplet is a full piece on its space and each rat tail is a full rat piece
+(`data-role="rat"`, ids `rat-SEAT-SIZE-N`, inside the `rat-stone` group) on its own
+space after it; a new rat pops in with the CSS `chip-land`, and all of them slide by
+`translate` when the droplet moves.
+
 Data attributes added overall: `id` on pot chips / droplet / rat stone, `data-order`,
 `data-x`/`data-y` on spaces, `data-beat` + `--beat`, `data-face`, `data-motion` (root),
 `view-transition-name` only on the essence marker and the round counter.
