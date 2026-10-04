@@ -196,7 +196,7 @@ defmodule Quacks.Rules.Books do
       {"space 30+", "3 VP"}
     ],
     {:black, 1} => [
-      {"same count", "droplet +1", players: 2},
+      {"same count (1+)", "droplet +1", players: 2},
       {"more", "droplet +1 · 1 ruby", players: 2},
       {"more than 1 neighbour", "droplet +1", players: 3..8},
       {"more than both", "droplet +1 · 1 ruby", players: 3..8},
@@ -238,7 +238,7 @@ defmodule Quacks.Rules.Books do
   The `tiers` rows for a table of `players` (nil: every row), as `{label, text}`.
 
       iex> Quacks.Rules.Books.get({:black, 1}).tiers |> Quacks.Rules.Books.tiers_for(2)
-      [{"same count", "droplet +1"}, {"more", "droplet +1 · 1 ruby"}]
+      [{"same count (1+)", "droplet +1"}, {"more", "droplet +1 · 1 ruby"}]
   """
   @spec tiers_for([tier], pos_integer | nil) :: [{String.t(), String.t()}]
   def tiers_for(tiers, players) do

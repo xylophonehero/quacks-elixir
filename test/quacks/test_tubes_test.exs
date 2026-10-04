@@ -148,13 +148,18 @@ defmodule Quacks.TestTubesTest do
   end
 
   describe "rubies with 2 players (Nick's round 4, 6, 7)" do
-    # Both seats stop with no black chip: the Hawkmoth tie (0 = 0) moves each droplet
-    # once, for free. Then: the droplet choice, the buy, the rubies (tube, then pot).
+    # Both seats stop with one black chip each: the Hawkmoth tie (1 = 1) moves each
+    # droplet once, for free. Then: the droplet choice, the buy, the rubies (tube, then pot).
     test "the free droplet move comes first, each ruby spend costs 2 once, the rubies come last" do
       g =
         new(:back, 2)
-        |> put(0, drawn: [{{:orange, 1}, 12}], pot_index: 12, rubies: 5, tube: 1)
-        |> put(1, drawn: [{{:orange, 1}, 1}], pot_index: 1)
+        |> put(0,
+          drawn: [{{:orange, 1}, 12}, {{:black, 1}, 11}],
+          pot_index: 12,
+          rubies: 5,
+          tube: 1
+        )
+        |> put(1, drawn: [{{:black, 1}, 1}], pot_index: 1)
         |> apply!(0, :stop)
         |> apply!(1, :stop)
 

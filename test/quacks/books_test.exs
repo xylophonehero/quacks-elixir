@@ -52,7 +52,7 @@ defmodule Quacks.BooksTest do
   test "black 1 tier rows follow the table size; untagged rows always show" do
     tiers = Books.get({:black, 1}).tiers
     assert [{"1+ black", _}] = Books.tiers_for(tiers, 1)
-    assert [{"same count", _}, {"more", _}] = Books.tiers_for(tiers, 2)
+    assert [{"same count (1+)", _}, {"more", _}] = Books.tiers_for(tiers, 2)
     assert [{"more than 1 neighbour", _}, {"more than both", _}] = Books.tiers_for(tiers, 3)
     assert Books.tiers_for(tiers, 8) == Books.tiers_for(tiers, 3)
     assert length(Books.tiers_for(tiers, nil)) == 5

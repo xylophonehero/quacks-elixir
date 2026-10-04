@@ -505,9 +505,10 @@ defmodule Quacks.Game.Evaluation do
   defp payoff(false, true), do: :ruby
 
   # My black chips against the neighbours' counts: one (2p) or two (3–4p).
-  # 2 players with 0–0 black chips: both move the droplet (book text "same number").
+  # 2 players: a tie needs at least one black chip each; 0 = 0 gives nothing (Nick's
+  # ruling 2026-10-04).
   defp black_payoff(mine, [opp]) when mine > opp, do: :droplet_ruby
-  defp black_payoff(mine, [opp]) when mine == opp, do: :droplet
+  defp black_payoff(mine, [opp]) when mine == opp and mine > 0, do: :droplet
   defp black_payoff(mine, [a, b]) when mine > a and mine > b, do: :droplet_ruby
   defp black_payoff(mine, [a, b]) when mine > a or mine > b, do: :droplet
   defp black_payoff(_mine, _others), do: nil
