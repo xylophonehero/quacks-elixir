@@ -188,8 +188,8 @@ defmodule QuacksWeb.Polish3Test do
       end
     end
 
-    test "without ruby options, Done is primary and takes the focus" do
-      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+    test "with a witch call but no ruby options, Done is primary and takes the focus" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false}, :herb_witches)
       {:ok, view, _html} = live(browser("rubies-#{id}"), ~p"/g/#{id}")
       to_shop(id)
       GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, rubies: 0))

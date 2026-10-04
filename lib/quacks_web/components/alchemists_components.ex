@@ -226,20 +226,6 @@ defmodule QuacksWeb.AlchemistsComponents do
   # One glass term as a glyph (with its number) or, without a glyph, short words.
   attr :term, :any, required: true
 
-  defp slot_term(%{term: {:vp, n}} = assigns) do
-    assigns = assign(assigns, n: n)
-
-    ~H"""
-    <span
-      class="grid size-5 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_30%,#fff1bf,var(--color-gold)_50%,#a97d17)] text-[10px] font-bold text-[#3a2508] ring-1 ring-[#7a5a10]"
-      aria-hidden="true"
-      data-glyph="vp"
-    >
-      {@n}
-    </span>
-    """
-  end
-
   defp slot_term(%{term: {:chip, chip}} = assigns) do
     assigns = assign(assigns, chip: chip)
 
@@ -265,6 +251,8 @@ defmodule QuacksWeb.AlchemistsComponents do
   end
 
   # term => {icon, the count beside it ("" for one), icon colour}; nil: words.
+  # VP: the laurel seal of the score track, not a coin disc.
+  defp glyph({:vp, n}), do: {:vp, "#{n}", "text-gold drop-shadow-[0_0_0.5px_#7a5a10]"}
   defp glyph(:rat), do: {:rat, "", "text-ink"}
   defp glyph({:rubies, n}), do: {:ruby, count(n), "text-ruby"}
   defp glyph(:flask), do: {:flask, "", "text-ink"}

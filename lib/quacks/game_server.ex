@@ -23,6 +23,11 @@ defmodule Quacks.GameServer do
   with nobody left the game idles out. After the game is over, `play_again/2` opens a
   new waiting game with the same settings and the same seated browsers.
 
+  Presence: the server watches each page (LiveView process) that claims a seat. A
+  human seat with no live page is absent; a spectator may take it back with
+  `rejoin/3` (a browser that lost its cookie). Pages hear `{:names, id, names}` when
+  a seat comes or goes.
+
   Bots: while `:waiting` the host may put a bot (`Quacks.AI`, always the `:balanced`
   profile, a name from `Quacks.AI.Names`) in a free seat (`add_bot/3`) and take it out again
   (`remove_bot/3`). A bot holds a seat like a browser does. Once the game is
@@ -57,7 +62,9 @@ defmodule Quacks.GameServer do
   (`max_players`) while `:waiting`. `creator` is the host's seat (see the moduledoc), `nil` with nobody seated.
   `sets`, `rules` and `expansion` are the options the game starts (or started) with;
   `expansions` is every expansion on (`expansion:` and `expansions:` together).
-  `colours` is each claimed seat's colour, `0..7` (the `--color-seat-N` palette),
+  `founder` is the seat of the browser that created the table (`nil` while it is not
+  seated); only its saved settings may load into a fresh table. `absent` lists the
+  human seats with no open page now (see `rejoin/3`). `colours` is each claimed seat's colour, `0..7` (the `--color-seat-N` palette),
   unique at the table. `bots` is the profile of each seat a bot holds. `seen` is,
   per seat, the round of the fortune card (`card`) and of the round results
   (`results`) that seat closed last (`ack/4`), so a reload does not show them again.
@@ -74,6 +81,8 @@ defmodule Quacks.GameServer do
           bots: %{Game.seat() => Profile.name()},
           seen: %{Game.seat() => %{optional(:card | :results) => 1..9}},
           creator: Game.seat() | nil,
+          founder: Game.seat() | nil,
+          absent: [Game.seat()],
           sets: Quacks.Rules.Chips.sets(),
           rules: map,
           expansion: nil | :herb_witches,
@@ -156,10 +165,24 @@ defmodule Quacks.GameServer do
   @doc """
   The seat of the browser with `token`. While `:waiting`, a new token gets the lowest
   free seat (so the creator is seat 0); when every seat is taken, or the game has
-  begun, it is a spectator.
+  begun, it is a spectator. The calling process is watched as the seat's page
+  (see `rejoin/3`), unless `watch: false` (a LiveView's disconnected render: its
+  HTTP process outlives the page).
   """
-  @spec claim_seat(id, String.t()) :: {:ok, Game.seat()} | {:error, :full | :not_found}
-  def claim_seat(id, token), do: call(id, {:claim_seat, token})
+  @spec claim_seat(id, String.t(), keyword) ::
+          {:ok, Game.seat()} | {:error, :full | :not_found}
+  def claim_seat(id, token, opts \\ []),
+    do: call(id, {:claim_seat, token, Keyword.get(opts, :watch, true)})
+
+  @doc """
+  Give the human `seat` to the browser with `token`, when no page holds that seat
+  now (its browser lost the cookie, or changed browser). The old token loses the
+  seat. Every `claim_seat/2` and `rejoin/3` watches the calling page (a LiveView);
+  a seat is present while one of its pages lives (`absent` in the table).
+  """
+  @spec rejoin(id, String.t(), Game.seat()) ::
+          {:ok, Game.seat()} | {:error, :seated | :present | :invalid | :not_found}
+  def rejoin(id, token, seat), do: call(id, {:rejoin, token, seat})
 
   @doc """
   Free the seat of `token` while the game is `:waiting` (its page closed). Does
@@ -284,7 +307,8 @@ defmodule Quacks.GameServer do
   # (a browser's player token -> its seat), `names`, `colours`, `bots` and `creator`
   # (a token). `session` is nil until begin; `next_id` is the game `play_again/2`
   # opened. `name_rng` picks bot names (`Quacks.AI.Names`). `bot_rngs` holds each
-  # bot's own rng; `bot_ticks` the one pending tick per
+  # bot's own rng; `pages` each watched page (pid -> its token, see `watch/3`);
+  # `bot_ticks` the one pending tick per
   # bot seat (seat -> tick number, see `schedule_bots/1`), `tick` the last number.
   @impl true
   def init({id, fields}) do
@@ -298,6 +322,7 @@ defmodule Quacks.GameServer do
           bot_rngs: %{},
           bot_ticks: %{},
           seen: %{},
+          pages: %{},
           tick: 0,
           name_rng: :rand.seed_s(:exsss, fields.seed)
         },
@@ -330,14 +355,18 @@ defmodule Quacks.GameServer do
 
   def handle_call(:undo, _from, state), do: {:reply, {:error, :not_solo}, state, @idle_timeout}
 
-  def handle_call({:claim_seat, token}, _from, state) do
+  def handle_call({:claim_seat, token, watch?}, {pid, _tag}, state) do
+    watch = fn state -> if watch?, do: watch(state, pid, token), else: state end
     free = Enum.find(0..(state.max_players - 1), &(not Map.has_key?(state.names, &1)))
 
     cond do
       Map.has_key?(state.tokens, token) ->
-        {:reply, {:ok, state.tokens[token]}, state, @idle_timeout}
+        {:reply, {:ok, state.tokens[token]}, watch.(state), @idle_timeout}
 
       state.session == nil and free != nil ->
+        # Watched before the seat is taken: the names broadcast below says it all.
+        state = watch.(state)
+
         state = %{
           state
           | tokens: Map.put(state.tokens, token, free),
@@ -354,6 +383,30 @@ defmodule Quacks.GameServer do
 
       true ->
         {:reply, {:error, :full}, state, @idle_timeout}
+    end
+  end
+
+  def handle_call({:rejoin, token, seat}, {pid, _tag}, state) do
+    old = Enum.find_value(state.tokens, fn {t, s} -> if s == seat, do: t end)
+
+    cond do
+      Map.has_key?(state.tokens, token) ->
+        {:reply, {:error, :seated}, state, @idle_timeout}
+
+      old == nil ->
+        {:reply, {:error, :invalid}, state, @idle_timeout}
+
+      seat not in absent(state) ->
+        {:reply, {:error, :present}, state, @idle_timeout}
+
+      true ->
+        state = %{
+          state
+          | tokens: state.tokens |> Map.delete(old) |> Map.put(token, seat),
+            creator: if(state.creator == old, do: token, else: state.creator)
+        }
+
+        {:reply, {:ok, seat}, watch(state, pid, token), @idle_timeout}
     end
   end
 
@@ -564,6 +617,31 @@ defmodule Quacks.GameServer do
 
   def handle_info({:bot, _seat, _tick}, state), do: {:noreply, state, @idle_timeout}
 
+  # A watched page closed: its seat may now be absent.
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    before = absent(state)
+    state = %{state | pages: Map.delete(state.pages, pid)}
+    if absent(state) != before, do: broadcast_names(state)
+    {:noreply, state, @idle_timeout}
+  end
+
+  # Watch the page `pid` of `token` (once per page); a seat that comes back is news.
+  defp watch(%{pages: pages} = state, pid, _token) when is_map_key(pages, pid), do: state
+
+  defp watch(state, pid, token) do
+    Process.monitor(pid)
+    before = absent(state)
+    state = %{state | pages: Map.put(state.pages, pid, token)}
+    if absent(state) != before, do: broadcast_names(state)
+    state
+  end
+
+  # The seats of browsers with no live page, in seat order. Bots have no page.
+  defp absent(state) do
+    present = state.pages |> Map.values() |> MapSet.new()
+    for({token, seat} <- state.tokens, token not in present, do: seat) |> Enum.sort()
+  end
+
   # Every bot seat that can act, is not capped and has no tick pending gets one.
   defp schedule_bots(%{session: nil} = state), do: state
 
@@ -704,6 +782,8 @@ defmodule Quacks.GameServer do
       bots: state.bots,
       seen: state.seen,
       creator: state.tokens[host(state)],
+      founder: state.tokens[state.creator],
+      absent: absent(state),
       sets: state.opts[:sets],
       rules: state.opts[:rules],
       expansion: state.opts[:expansion],
