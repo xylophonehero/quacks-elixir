@@ -548,16 +548,20 @@ defmodule Quacks.Game do
       else: []
   end
 
-  # One step: buy once (not in round 9), rubies, witches and "Done" in any order.
+  # Two steps: first the buy (once, not in round 9), then the rubies and "Done". The
+  # rubies come last, never before the buy (`{:buy, []}` buys nothing). A seat whose
+  # coins buy nothing starts at the rubies ("buy nothing" stays legal). Witches in both.
   defp phase_actions(%__MODULE__{phase: :shopping} = g, seat) do
     case player(g, seat) do
       %Player{phase: :shop} = p ->
-        # An exploded player who took the VP buys nothing (unless C4 gave them coins).
-        buy? = shop_open?(g, p) and (p.explosion_choice != :vp or p.coins > 0)
-        buys = if buy?, do: buys(g, p.coins), else: []
+        may_buy? = may_buy?(g, p)
+        buys = if may_buy?, do: buys(g, p.coins), else: []
 
-        Enum.map(buys, &{:buy, &1}) ++
-          ruby_actions(g, p) ++ Witches.legal_actions(g, seat) ++ [:end_round]
+        if buys in [[], [[]]],
+          do:
+            Enum.map(buys, &{:buy, &1}) ++
+              ruby_actions(g, p) ++ Witches.legal_actions(g, seat) ++ [:end_round],
+          else: Enum.map(buys, &{:buy, &1}) ++ Witches.legal_actions(g, seat)
 
       %Player{phase: :ready} ->
         []
@@ -583,6 +587,9 @@ defmodule Quacks.Game do
   # The seat may still buy chips (and use the copper witches C1, C3): before round 9,
   # once.
   def shop_open?(g, %Player{bought?: bought?}), do: g.round < @rounds and not bought?
+
+  # An exploded player who took the VP buys nothing (unless C4 gave them coins).
+  defp may_buy?(g, p), do: shop_open?(g, p) and (p.explosion_choice != :vp or p.coins > 0)
 
   @doc "`apply/3` for seat 0."
   @spec apply(t, action) :: {:ok, t} | {:error, {:illegal_action, action, phase | Player.phase()}}

@@ -295,7 +295,7 @@ defmodule Quacks.EssenceTest do
     defp next_round(patient, chips, space \\ nil) do
       g = game(patient) |> brew(chips) |> stop()
       g = if space, do: apply!(g, {:essence, {:space, space}}), else: g
-      apply!(g, :end_round)
+      g |> apply!({:buy, []}) |> apply!(:end_round)
     end
 
     test "a rat-tail glass: rat stone 1 next round, solo too" do

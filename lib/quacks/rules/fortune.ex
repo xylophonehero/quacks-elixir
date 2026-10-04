@@ -57,7 +57,7 @@ defmodule Quacks.Rules.Fortune do
     {:p1, "Choices, Choices", "Take a black token OR any 2-value token OR 3 rubies."},
     {:p2, "Drop It", "Move your droplet marker a space forward."},
     {:p3, "Wheeling and Dealing",
-     "You can trade in a ruby for any 1-value token besides purple or black."},
+     "You can trade in a ruby for any 1-value token besides orange, purple or black."},
     {:p4, "Charity", "The player(s) with the fewest rubies can take a ruby."},
     {:p5, "Beginner's Luck",
      "The player(s) with the fewest victory points receives a green 1 token."},

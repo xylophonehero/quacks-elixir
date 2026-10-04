@@ -85,7 +85,7 @@ defmodule QuacksWeb.SetupComponents do
             name="expansion"
             checked={@expansion}
             title="The Herb Witches"
-            text="Witch cards, overflow bowl"
+            text="Witch cards"
             icon={:witch}
           />
           <.toggle_card

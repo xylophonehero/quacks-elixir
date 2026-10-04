@@ -146,4 +146,34 @@ defmodule Quacks.TestTubesTest do
     g = new(:back) |> put(round: 9, phase: :rubies, rubies: 2)
     assert Enum.filter(Game.legal_actions(g), &match?({:rubies, _}, &1)) == [{:rubies, :vp}]
   end
+
+  describe "rubies with 2 players (Nick's round 4, 6, 7)" do
+    # Both seats stop with no black chip: the Hawkmoth tie (0 = 0) moves each droplet
+    # once, for free. Then: the droplet choice, the buy, the rubies (tube, then pot).
+    test "the free droplet move comes first, each ruby spend costs 2 once, the rubies come last" do
+      g =
+        new(:back, 2)
+        |> put(0, drawn: [{{:orange, 1}, 12}], pot_index: 12, rubies: 5, tube: 1)
+        |> put(1, drawn: [{{:orange, 1}, 1}], pot_index: 1)
+        |> apply!(0, :stop)
+        |> apply!(1, :stop)
+
+      assert {0, {:black, :droplet}} in g.log
+      assert Game.phase(g, 0) == :droplet_choice
+      assert Game.legal_actions(g, 0) == @choice
+
+      rubies = me(g).rubies
+      g = apply!(g, 0, {:droplet, :pot})
+      assert me(g).rubies == rubies
+      refute Enum.any?(Game.legal_actions(g, 0), &match?({:rubies, _}, &1))
+
+      g = apply!(g, 0, {:buy, []})
+      assert {:rubies, :tube} in Game.legal_actions(g, 0)
+      g = apply!(g, 0, {:rubies, :tube})
+      assert {me(g).rubies, me(g).tube} == {rubies - 2, 2}
+      g = apply!(g, 0, {:rubies, :droplet})
+      assert me(g).rubies == rubies - 4
+      assert Enum.count(g.log, &match?({0, {:rubies_spent, _}}, &1)) == 2
+    end
+  end
 end
