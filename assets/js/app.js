@@ -25,6 +25,19 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/quacks"
 import topbar from "../vendor/topbar"
 
+// "Report a problem" (bug_report_components.ex): keep the last 10 console errors,
+// and on submit put them with the browser details in the form's hidden field.
+const recentErrors = []
+const keepError = text => { recentErrors.push(String(text).slice(0, 300)); recentErrors.length > 10 && recentErrors.shift() }
+window.addEventListener("error", e => keepError(`${e.message} (${e.filename}:${e.lineno})`))
+window.addEventListener("unhandledrejection", e => keepError(`Unhandled rejection: ${e.reason}`))
+const consoleError = console.error
+console.error = (...args) => { keepError(args.map(String).join(" ")); consoleError.apply(console, args) }
+document.addEventListener("submit", e => {
+  const field = e.target.matches?.("[data-bug-report]") && e.target.querySelector("[data-role=browser-details]")
+  if (field) field.value = JSON.stringify({ua: navigator.userAgent, viewport: `${innerWidth}x${innerHeight}`, online: navigator.onLine, errors: recentErrors})
+}, true)
+
 // The configure screen remembers the host's last settings (see `ConfigMemory` in
 // game_live.ex): the server pushes each change; a fresh screen sends them back once.
 const ConfigMemory = {

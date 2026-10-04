@@ -162,6 +162,14 @@ defmodule Quacks.GameServer do
     end
   end
 
+  @doc """
+  The game as a bug report's bundle: `Quacks.Session.bundle/1` plus the seat
+  `names` (a list by seat) and the `bots` seats. `{:error, :not_started}` while
+  `:waiting`.
+  """
+  @spec bundle(id) :: {:ok, map} | {:error, :not_started | :not_found}
+  def bundle(id), do: call(id, :bundle)
+
   @doc false
   def start_link({id, _fields} = arg),
     do: GenServer.start_link(__MODULE__, arg, name: {:via, Registry, {Quacks.GameRegistry, id}})
@@ -365,11 +373,25 @@ defmodule Quacks.GameServer do
 
     # Solo has nobody to wait for (a solo play-again comes with its seat taken).
     state = if state.max_players == 1 and state.tokens != %{}, do: begin_game(state), else: state
+
     {:ok, state, @idle_timeout}
   end
 
   @impl true
   def handle_call(:get, _from, state), do: {:reply, {:ok, table(state)}, state, @idle_timeout}
+
+  def handle_call(:bundle, _from, %{session: nil} = state),
+    do: {:reply, {:error, :not_started}, state, @idle_timeout}
+
+  def handle_call(:bundle, _from, state) do
+    bundle =
+      Map.merge(Session.bundle(state.session), %{
+        names: Enum.map(0..(state.session.players - 1), &Map.get(state.names, &1)),
+        bots: state.bots |> Map.keys() |> Enum.sort()
+      })
+
+    {:reply, {:ok, bundle}, state, @idle_timeout}
+  end
 
   def handle_call({:apply, _, _}, _from, %{session: nil} = state),
     do: {:reply, {:error, :not_started}, state, @idle_timeout}
