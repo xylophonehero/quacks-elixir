@@ -11,8 +11,11 @@ defmodule QuacksWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  # `fullsweep_after: 0`: each diff leaves garbage in the WebSocket process, and its
+  # live data is only a few KB, so every GC is a full sweep. 20 was not enough: after
+  # 30 diffs a tab still held 4.7 MB (docs/CONTEXT.md, **live socket**).
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
+    websocket: [connect_info: [session: @session_options], fullsweep_after: 0],
     longpoll: [connect_info: [session: @session_options]]
 
   # Serve at "/" the static files from "priv/static" directory.

@@ -74,7 +74,7 @@ Read 1, 2 and 4 first. They hold the architecture. The rest you can read in any 
 | TS `interface` for a module | a behaviour: `@callback` in `Quacks.AI.Decider` (`lib/quacks/ai/decider.ex:11`) |
 | `key` on a list item | the element `id`, e.g. `pot_chip_id/4` (`lib/quacks_web/components/game_components.ex:822`) |
 | Framer Motion `layout` / FLIP | the `PotMotion` hook with the Web Animations API (`assets/js/app.js:56`) |
-| SVGR (`import Icon from "./x.svg"`) | `QuacksWeb.Icons`, SVG read at compile time (`lib/quacks_web/components/icons.ex:51`) |
+| SVGR (`import Icon from "./x.svg"`) | `QuacksWeb.Icons`, SVG read at compile time (`lib/quacks_web/components/icons.ex:55`) |
 | Jest + Testing Library | ExUnit + `Phoenix.LiveViewTest` (`test/quacks_web/live/game_live_test.exs`) |
 | fast-check | StreamData `property` / `check all` (`test/quacks/game_test.exs:656`) |
 

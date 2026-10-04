@@ -14,6 +14,10 @@ defmodule QuacksWeb.UiRound3Test do
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+  defp open_player(view, seat),
+    do: view |> element(~s([data-role=player-chip][data-seat="#{seat}"])) |> render_click()
+
   defp open(conn, id) do
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     view
@@ -118,6 +122,9 @@ defmodule QuacksWeb.UiRound3Test do
            )
 
     sheet = ~s(#sheet-player-1[popover] article[data-seat="1"])
+    # the sheet's body renders only while it is open
+    refute has_element?(alice, sheet)
+    open_player(alice, 1)
     assert has_element?(alice, "#{sheet} svg[aria-label='Pot track']")
     assert has_element?(alice, "#{sheet} [data-role=player-bag]", "In the bag: 9")
     assert has_element?(alice, "#{sheet} [data-role=player-bag] [aria-label='white 1']")

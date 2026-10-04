@@ -42,6 +42,7 @@
   --color-ink: #3a2e1a;
   --color-ink-soft: #5a4628;
   --color-ruby: #d8322b;
+  --color-ruby-light: #ff8a80; /* ruby as text on wood: 5.9:1 on wood-dark */
   --color-droplet: #3b82f6;
   --color-gold: #e0b23c;
 
@@ -407,7 +408,23 @@ html:has([data-layout="full"]) {
   }
 }
 
+/* A tap target of at least 44 × 44 px (WCAG 2.5.5) around a smaller control: an
+   invisible ::after, centred on it, takes the taps; the control keeps its size. */
+@utility hit-44 {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 2.75rem);
+    height: max(100%, 2.75rem);
+    transform: translate(-50%, -50%);
+  }
+}
+
 .sheet-close {
+  position: relative;
   float: right;
   display: inline-flex;
   align-items: center;
@@ -417,6 +434,15 @@ html:has([data-layout="full"]) {
   margin: -0.75rem -0.75rem 0 0.25rem;
   border-radius: 9999px;
   color: var(--color-ink-soft);
+}
+
+.sheet-close::after {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 2.75rem;
+  height: 2.75rem;
+  transform: translate(-50%, -50%);
 }
 
 /* The sheet is the parchment; a card inside it drops its own (not the sheets that

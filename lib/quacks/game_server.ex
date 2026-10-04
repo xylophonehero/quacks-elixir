@@ -266,14 +266,16 @@ defmodule Quacks.GameServer do
 
   defp open?(t), do: t.status == :waiting and map_size(t.names) < t.max_players
 
-  # A game that just stopped can still be in the Registry for a moment, hence the catch.
+  # A game that just stopped can still be in the Registry for a moment, or stop
+  # during the call, hence the catch.
   defp call(id, msg) do
     case Registry.lookup(Quacks.GameRegistry, id) do
       [{pid, _}] -> GenServer.call(pid, msg)
       [] -> {:error, :not_found}
     end
   catch
-    :exit, {:noproc, _} -> {:error, :not_found}
+    :exit, {reason, _} when reason in [:noproc, :normal, :shutdown, :killed] ->
+      {:error, :not_found}
   end
 
   # -- server ------------------------------------------------------------------------

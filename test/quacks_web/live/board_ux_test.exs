@@ -19,12 +19,17 @@ defmodule QuacksWeb.BoardUxTest do
 
   defp count(html, selector), do: html |> query(selector) |> Enum.count()
 
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+  defp open_player(view, seat),
+    do: view |> element(~s([data-role=player-chip][data-seat="#{seat}"])) |> render_click()
+
   test "each seat has its colour on the cards, the lines and the rings" do
     {:ok, id} = GameServer.start(2, {1, 2, 3})
     alice = open(browser("alice"), id)
     _bob = open(browser("bob"), id)
     {:ok, _} = GameServer.begin(id, "alice")
 
+    open_player(alice, 1)
     assert has_element?(alice, ~s(article.border-player-1[data-seat="1"]))
     assert has_element?(alice, ~s([data-role=player-chip][data-seat="1"] .bg-player-1))
     # Alice's big pot rings both scoring spaces, each in its seat's colour

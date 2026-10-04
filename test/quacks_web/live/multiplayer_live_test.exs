@@ -8,6 +8,10 @@ defmodule QuacksWeb.MultiplayerLiveTest do
   # One browser: a fresh conn with its own player token.
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+  defp open_player(view, seat),
+    do: view |> element(~s([data-role=player-chip][data-seat="#{seat}"])) |> render_click()
+
   defp open(conn, id) do
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     view
@@ -52,6 +56,8 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     refute has_element?(alice, "[data-role=waiting-for-players]")
     assert has_element?(alice, "[data-role=turn]", "Everyone brews at the same time.")
     # each sees the other one small, still brewing
+    open_player(alice, 1)
+    open_player(bob, 0)
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "brewing")
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=player-state]), "brewing")
 
@@ -106,6 +112,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     {:ok, _} = GameServer.begin(id, "alice")
 
     alice |> element("input[aria-label='Your name']") |> render_blur(%{"value" => "Alice"})
+    open_player(bob, 0)
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=player-name]), "Alice")
   end
 
@@ -118,7 +125,10 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     assert has_element?(eve, "[data-role=spectator]")
     refute has_element?(eve, "[data-role=my-seat]")
     refute has_element?(eve, "button[phx-click=action]")
+    open_player(eve, 0)
     assert has_element?(eve, ~s(article[data-seat="0"]))
+    open_player(eve, 1)
     assert has_element?(eve, ~s(article[data-seat="1"]))
+    refute has_element?(eve, ~s(article[data-seat="0"]))
   end
 end

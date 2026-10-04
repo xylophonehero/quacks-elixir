@@ -107,7 +107,7 @@ defmodule QuacksWeb.GameComponents do
   @light_chips [:white, :orange, :green, :yellow]
 
   # Chips whose icon is ink; the icon is white on every other chip.
-  @ink_icon_chips [:white, :yellow]
+  @ink_icon_chips [:white, :yellow, :orange, :green]
 
   # The spiral pot, laid out once at compile time. Space 0 sits in the centre;
   # spaces 1..53 sit `step` apart (arc length) on the Archimedean spiral
@@ -1213,7 +1213,7 @@ defmodule QuacksWeb.GameComponents do
       Next:
       <span class="font-semibold text-parchment">{@space.coins} {plural(@space.coins, "coin", "coins")}</span><span :if={
         @space.vp > 0
-      }> · <span class="font-semibold text-gold">{@space.vp} VP</span></span><span :if={@space.ruby?}> · <span class="font-semibold text-ruby">ruby</span></span>
+      }> · <span class="font-semibold text-gold">{@space.vp} VP</span></span><span :if={@space.ruby?}> · <span class="font-semibold text-ruby-light">ruby</span></span>
     </p>
     """
   end
@@ -1386,6 +1386,7 @@ defmodule QuacksWeb.GameComponents do
     <button
       type="button"
       popovertarget={"sheet-player-#{@seat}"}
+      phx-click={JS.push("open_player", value: %{seat: @seat})}
       class={[
         "flex min-h-11 w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-lg px-1.5 py-1 text-left text-xs touch-manipulation",
         "transition-[scale,background-color] duration-150 ease-out active:scale-[0.97]",
@@ -1717,7 +1718,7 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, changed: changed)
 
     ~H"""
-    <p :if={@changed != []} class="text-xs text-zinc-500" data-role="house-rules">
+    <p :if={@changed != []} class="text-xs text-ink-soft" data-role="house-rules">
       House rules: {Enum.map_join(@changed, " · ", &rule_label/1)}
     </p>
     """
@@ -1918,7 +1919,7 @@ defmodule QuacksWeb.GameComponents do
     <div id={"card-flip-#{@id}"} class="card-flip" data-role="card-flip">
       <div class="card-flip-inner">
         <div class="card-back" aria-hidden="true" data-role="card-back">
-          <span class="flex flex-col items-center gap-1 rounded-full bg-[#3b1d78]/80 px-4 py-2 font-hand font-bold text-gold">
+          <span class="flex flex-col items-center gap-1 rounded-full bg-[#3b1d78] px-4 py-2 font-hand font-bold text-gold">
             <QuacksWeb.CoreComponents.icon name="hero-sparkles" class="size-8" /> Fortune teller
           </span>
         </div>
@@ -2014,14 +2015,7 @@ defmodule QuacksWeb.GameComponents do
   attr :names, :map, default: nil, doc: "`%{seat => name}`; nil hides the seat"
 
   def action_log(assigns) do
-    entries =
-      assigns.log
-      |> drop_stop_before_stopped()
-      |> Enum.reject(&(&1 |> untag() |> narrated_by_event?()))
-      |> Enum.take(assigns.limit)
-      |> Enum.map(&log_line(&1, assigns.names))
-
-    assigns = assign(assigns, entries: entries)
+    assigns = assign(assigns, entries: log_lines(assigns.log, assigns.limit, assigns.names))
 
     ~H"""
     <div class="paper rounded-lg p-3">
@@ -2035,6 +2029,37 @@ defmodule QuacksWeb.GameComponents do
       </ol>
     </div>
     """
+  end
+
+  @doc """
+  A visually hidden `aria-live="polite"` line with the newest log line, in the words
+  of `action_log/1`: a screen reader hears each draw, explosion, stop and bot
+  action. It holds one line, so each patch announces at most one message.
+  """
+  attr :log, :list, required: true, doc: "`game.log`, newest first"
+  attr :names, :map, default: nil, doc: "`%{seat => name}`; nil leaves the seat out"
+
+  def announcer(assigns) do
+    # The newest few entries are enough: most actions log one narrated line.
+    line =
+      case log_lines(Enum.take(assigns.log, 10), 1, assigns.names) do
+        [{_seat, line}] -> line
+        [] -> nil
+      end
+
+    assigns = assign(assigns, line: line)
+
+    ~H"""
+    <p id="announcer" class="sr-only" aria-live="polite" data-role="announcer">{@line}</p>
+    """
+  end
+
+  defp log_lines(log, limit, names) do
+    log
+    |> drop_stop_before_stopped()
+    |> Enum.reject(&(&1 |> untag() |> narrated_by_event?()))
+    |> Enum.take(limit)
+    |> Enum.map(&log_line(&1, names))
   end
 
   # `{seat, text}`; seat is nil when no dot shows (solo, or an untagged entry).
@@ -2120,7 +2145,7 @@ defmodule QuacksWeb.GameComponents do
           stroke="rgb(0 0 0 / 0.4)"
           stroke-width="2"
         />
-        <.ingredient_icon colour={:orange} x="15" y="15" width="18" height="18" class="text-white" />
+        <.ingredient_icon colour={:orange} x="15" y="15" width="18" height="18" class="text-ink" />
     <% end %>
     """
   end
@@ -2155,7 +2180,7 @@ defmodule QuacksWeb.GameComponents do
           id={"#{@dialog}-skip"}
           data-role="replay-skip"
           phx-click={JS.add_class("replay-done", to: "##{@dialog}")}
-          class="min-h-9 rounded-full px-2 text-sm font-semibold text-ink-soft underline underline-offset-2 transition-colors duration-150 hover:text-ink"
+          class="hit-44 min-h-9 rounded-full px-2 text-sm font-semibold text-ink-soft underline underline-offset-2 transition-colors duration-150 hover:text-ink"
         >
           Skip
         </button>

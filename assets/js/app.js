@@ -202,6 +202,11 @@ document.addEventListener("close", e => {
   const next = e.target.dataset?.thenOpen && document.getElementById(e.target.dataset.thenOpen)
   next && !next.open && next.showModal()
 }, true)
+// A popover sheet that closed (button, Esc or a tap outside) runs its `data-on-hide` JS.
+document.addEventListener("toggle", e => {
+  const onHide = e.newState === "closed" && e.target.dataset?.onHide
+  onHide && liveSocket.execJS(e.target, onHide)
+}, true)
 // A choice inside a dialog (or popover sheet) closes it once it is sent.
 window.addEventListener("quacks:close", e =>
   e.target.matches("[popover]") ? e.target.hidePopover() : e.target.close?.())

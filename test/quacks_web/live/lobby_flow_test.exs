@@ -9,6 +9,10 @@ defmodule QuacksWeb.LobbyFlowTest do
   # One browser: a fresh conn with its own player token.
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+  defp open_player(view, seat),
+    do: view |> element(~s([data-role=player-chip][data-seat="#{seat}"])) |> render_click()
+
   defp open(conn, id) do
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
     view
@@ -49,6 +53,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     # one empty seat left: the game starts with the two seated players
     alice |> element("button", "Start game") |> render_click()
     assert {:ok, %{status: :playing, players: 2}} = GameServer.get(id)
+    open_player(alice, 1)
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-name]), "Bob")
     assert has_element?(bob, "button[data-slot=draw]", "Draw a chip")
   end
@@ -75,6 +80,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     assert has_element?(alice, "button[data-slot=stop]:not([disabled])", "Resume")
     assert has_element?(alice, "button[data-slot=draw][disabled]")
     assert has_element?(alice, "[data-role=turn]", "Waiting for 1 player: Player 2.")
+    open_player(bob, 0)
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=player-state]), "stopped")
     # Bob is brewing and drew already: no hint line for him
     refute has_element?(bob, "[data-role=turn]")
@@ -100,6 +106,7 @@ defmodule QuacksWeb.LobbyFlowTest do
       assert has_element?(view, "dialog#round-results")
     end
 
+    open_player(alice, 1)
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "shopping")
 
     # bob has 1 ruby: nothing to spend after the buy, so he is ready at once
