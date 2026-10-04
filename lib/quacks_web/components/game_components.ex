@@ -2212,6 +2212,60 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
+  @doc """
+  This round's Fortune Teller card as a block for the top of the right column
+  (screens ≥ 80rem): the colour band, the motif, the name and the text in one
+  row. Its `id` names the round, so a new card enters the page and plays its
+  reveal (a fade and a gold sparkle sweep, app.css `.fortune-panel`).
+  """
+  attr :id, :string, required: true
+  attr :card, :atom, required: true, doc: "`game.fortune_card`"
+  attr :class, :any, default: nil
+
+  def fortune_panel(assigns) do
+    assigns = assign(assigns, info: Fortune.card(assigns.card), motif: @card_motifs[assigns.card])
+
+    ~H"""
+    <section
+      id={@id}
+      class={[
+        "fortune-panel paper relative flex-col overflow-hidden rounded-xl shadow-md ring-1 shadow-black/25 ring-ink/20",
+        @class
+      ]}
+      aria-label="Fortune teller card"
+      data-role="fortune-panel"
+      data-card={@card}
+      data-colour={@info.colour}
+    >
+      <div class={[
+        "flex items-center gap-1 px-3 py-1 text-[10px] font-semibold tracking-wide text-white uppercase",
+        @info.colour == :blue && "bg-chip-blue",
+        @info.colour == :purple && "bg-chip-purple"
+      ]}>
+        <QuacksWeb.CoreComponents.icon name="hero-sparkles-mini" class="size-3.5 opacity-80" />
+        {band_text(@info.colour, false)}
+      </div>
+      <div class="flex items-start gap-3 p-3">
+        <div
+          class={[
+            "grid size-12 shrink-0 place-items-center rounded-full ring-2",
+            @info.colour == :blue && "bg-chip-blue/12 text-chip-blue ring-chip-blue/35",
+            @info.colour == :purple && "bg-chip-purple/12 text-chip-purple ring-chip-purple/35"
+          ]}
+          aria-hidden="true"
+        >
+          <.card_motif motif={@motif} class="size-7" />
+        </div>
+        <div class="min-w-0">
+          <h2 class="font-hand text-xl leading-tight font-bold">{@info.name}</h2>
+          <p class="text-sm leading-snug text-pretty text-ink-soft">{@info.text}</p>
+        </div>
+      </div>
+      <span class="fortune-sparkle" aria-hidden="true" />
+    </section>
+    """
+  end
+
   attr :motif, :any, required: true
   attr :class, :any, default: "size-10"
 

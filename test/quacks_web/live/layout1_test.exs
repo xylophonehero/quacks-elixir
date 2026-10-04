@@ -120,4 +120,75 @@ defmodule QuacksWeb.Layout1Test do
       assert js =~ "onReplayEnd"
     end
   end
+
+  describe "contextual side panel and phone sheets" do
+    test "the fortune teller tops the right column; decisions are side panels under it" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3})
+      {:ok, view, _html} = live(browser("side-#{id}"), ~p"/g/#{id}")
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
+
+      column = "[data-role=side-column]"
+      assert has_element?(view, "#{column} > #fortune-panel-1[data-role=fortune-panel].xl\\:flex")
+      assert has_element?(view, "#{column} > dialog#decision-shop[data-side=panel]")
+      # no choice on the card: from 80rem its dialog does not open (the panel shows it)
+      assert has_element?(view, "#{column} > dialog#card-round-1[data-side=hidden]")
+      assert has_element?(view, "[data-role=fortune-tile].xl\\:hidden")
+    end
+
+    test "a fortune choice opens the card's dialog as a panel when it arrives" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3})
+      {:ok, view, _html} = live(browser("choice-#{id}"), ~p"/g/#{id}")
+
+      replace_game(id, fn g ->
+        g |> H.put(fortune_card: :p1, phase: :fortune_choice) |> Map.put(:phase, :fortune_choice)
+      end)
+
+      assert has_element?(view, "dialog#card-round-1[data-side=panel]")
+      assert has_element?(view, "#card-choice-1[phx-mounted*='quacks:modal']")
+      assert has_element?(view, "[data-role=decision-button]", "Back to choice")
+    end
+
+    test "while a decision waits, one button takes the place of Stop and Draw on phones" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, view, _html} = live(browser("back-#{id}"), ~p"/g/#{id}")
+      assert has_element?(view, "[data-role=action-bar]:not(.max-xl\\:hidden)")
+
+      replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
+      assert has_element?(view, "[data-role=action-bar].max-xl\\:hidden")
+
+      assert has_element?(
+               view,
+               "[data-role=decision-button][phx-click*='decision-blue_choice']",
+               "Back to choice"
+             )
+
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
+      assert has_element?(view, "[data-role=decision-button]", "Back to shop")
+      # during the replay it also ends the replay
+      assert has_element?(view, "[data-role=decision-button][phx-click*=seen]")
+    end
+
+    test "dialog_sheet: side panel mode and the app.js that opens it" do
+      html =
+        render_component(&QuacksWeb.CoreComponents.dialog_sheet/1,
+          id: "d",
+          label: "D",
+          side: :panel,
+          inner_block: [%{inner_block: fn _, _ -> "x" end}]
+        )
+
+      assert count(html, "dialog#d[data-side=panel]") == 1
+
+      js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
+      assert js =~ ~s{matchMedia("(min-width: 80rem)")}
+      assert js =~ "d.show()"
+      assert js =~ ~s(side === "hidden")
+      # a tap on the dimmed backdrop closes a modal sheet
+      assert js =~ ~s{d.matches(":modal")}
+
+      css = File.read!(Path.expand("../../../assets/css/app.css", __DIR__))
+      assert css =~ ~s{.sheet[data-side="panel"][open]:not(:modal)}
+      assert css =~ "@keyframes fortune-sweep"
+    end
+  end
 end
