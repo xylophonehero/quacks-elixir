@@ -145,6 +145,25 @@ defmodule QuacksWeb.LobbyLive do
         </ul>
       </section>
 
+      <%!-- Shown by app.js only: the install button after `beforeinstallprompt`, the
+           hint on iOS Safari outside the installed app (see `.pwa-install` in app.css). --%>
+      <div id="install-app" class="flex flex-col items-center gap-1 pt-4 text-center">
+        <button
+          type="button"
+          data-role="install"
+          class={[
+            "pwa-install min-h-11 cursor-pointer items-center gap-2 rounded-full px-4",
+            "text-sm font-semibold text-parchment-dim ring-1 ring-parchment-dim/40",
+            "transition-colors duration-150 hover:bg-parchment/10 hover:text-parchment"
+          ]}
+        >
+          <.icon name="hero-arrow-down-tray" class="size-4" /> Install app
+        </button>
+        <p data-role="install-hint" class="pwa-ios-hint text-xs text-parchment-dim">
+          Add to Home Screen from the Share menu.
+        </p>
+      </div>
+
       <footer id="credits" class="pt-6 text-center text-xs text-parchment-dim">
         Credits: icons by Lorc, Delapouite, Skoll, Cathelineau and DarkZaitzev from <a
           href="https://game-icons.net"

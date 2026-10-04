@@ -1,0 +1,17 @@
+{
+  "name": "Quacks",
+  "short_name": "Quacks",
+  "description": "Brew, push your luck, don't explode.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#3e2a16",
+  "theme_color": "#3e2a16",
+  "icons": [
+    {"src": "/images/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/images/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/images/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

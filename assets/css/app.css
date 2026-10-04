@@ -1284,3 +1284,24 @@ html:has([data-layout="full"]) {
     transparent
   );
 }
+
+/* PWA (app.js sets the data attributes on <html>, which LiveView never patches). */
+.pwa-install,
+.pwa-ios-hint {
+  display: none;
+}
+html[data-install="ready"] .pwa-install {
+  display: inline-flex;
+}
+html[data-install="ios"] .pwa-ios-hint {
+  display: block;
+}
+
+/* The installed app: no browser bounce showing a white band past the table. */
+@media (display-mode: standalone) {
+  html,
+  body {
+    background-color: var(--color-wood-dark);
+    overscroll-behavior: none;
+  }
+}
