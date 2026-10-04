@@ -191,4 +191,30 @@ defmodule QuacksWeb.Layout1Test do
       assert css =~ "@keyframes fortune-sweep"
     end
   end
+
+  describe "the board's chip order" do
+    alias Quacks.Rules.{Books, Chips}
+    alias QuacksWeb.GameLive
+
+    test "one list: orange, blue, red, yellow, green, black, purple, locoweed" do
+      assert Chips.order() -- [:white] ==
+               [:orange, :blue, :red, :yellow, :green, :black, :purple, :locoweed]
+
+      rows = GameLive.shop_rows(nil, %{locoweed: 1})
+      assert Enum.map(rows, &elem(hd(&1), 0)) == Chips.order() -- [:white]
+
+      assert Enum.map(Books.in_play(nil, %{locoweed: 1}), &elem(&1, 0)) ==
+               Chips.order() -- [:white]
+
+      assert QuacksWeb.SetupComponents.book_colours() == Chips.order() -- [:white]
+    end
+
+    test "bag counts follow it too" do
+      bag = [{:purple, 1}, {:white, 2}, {:black, 1}, {:green, 1}, {:white, 1}, {:orange, 1}]
+      html = render_component(&GameComponents.chip_counts/1, chips: bag)
+
+      assert html |> query("[aria-label]") |> LazyHTML.attribute("aria-label") ==
+               ["white 1", "white 2", "orange 1", "green 1", "black 1", "purple 1"]
+    end
+  end
 end

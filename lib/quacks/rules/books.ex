@@ -259,12 +259,12 @@ defmodule Quacks.Rules.Books do
   def sets(colour), do: for({^colour, set} <- keys(), do: set)
 
   @doc """
-  The books in play, as `{colour, set}` in table order: orange, green, blue, red,
-  yellow, purple, black, then locoweed when it is picked.
+  The books in play, as `{colour, set}` in the board's order (`Chips.order/0`):
+  orange, blue, red, yellow, green, black, purple, then locoweed when it is picked.
   """
   @spec in_play(Chips.expansion(), Chips.sets()) :: [{Chips.colour(), 1..6}]
   def in_play(expansion, sets) do
-    colours = [:orange, :green, :blue, :red, :yellow, :purple, :black]
+    colours = Chips.order() -- [:white, :locoweed]
     books = for colour <- colours, do: {colour, Chips.set(expansion, sets, colour)}
 
     case Chips.set(expansion, sets, :locoweed) do

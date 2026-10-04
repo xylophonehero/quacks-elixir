@@ -82,7 +82,7 @@ defmodule QuacksWeb.UiRound6Test do
       |> LazyHTML.query("button[data-role=chip-pick] [aria-label]")
       |> LazyHTML.attribute("aria-label")
 
-    assert chips == ["blue 2", "red 2", "black 1", "green 2"]
+    assert chips == ["blue 2", "red 2", "green 2", "black 1"]
     assert count(html, pick({:fortune, {:take, {:green, 2}}})) == 1
     # "Take 3 rubies" has no chip: a text button outside the picks
     assert count(html, "button[data-role=chip-pick]") == 4

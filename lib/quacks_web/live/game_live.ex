@@ -103,21 +103,8 @@ defmodule QuacksWeb.GameLive do
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
   alias QuacksWeb.Replay
 
-  # The shop, one row per colour in the board's step B order; each row runs from
-  # the lowest value to the highest. Chips not in the game's shop drop out.
-  @shop_rows [
-    [{:orange, 1}, {:orange, 6}],
-    [{:blue, 1}, {:blue, 2}, {:blue, 4}],
-    [{:red, 1}, {:red, 2}, {:red, 4}],
-    [{:yellow, 1}, {:yellow, 2}, {:yellow, 4}],
-    [{:black, 1}],
-    [{:green, 1}, {:green, 2}, {:green, 4}],
-    [{:purple, 1}],
-    [{:locoweed, 1}]
-  ]
-
   # The colours with an ingredient book (white has none), for `offer_books/1`.
-  @book_colours [:orange, :blue, :red, :yellow, :black, :green, :purple, :locoweed]
+  @book_colours Chips.order() -- [:white]
 
   @doc "Join game `id`: take a free seat, or watch when the game is full."
   @impl true
@@ -1968,14 +1955,19 @@ defmodule QuacksWeb.GameLive do
   end
 
   @doc """
-  The shop's chips as rows, one per colour (orange, blue, red, yellow, black, green,
-  purple, locoweed); together they are `Chips.shop/2` for `expansion` and `sets`.
+  The shop's chips as rows, one per colour in the board's order (`Chips.order/0`:
+  orange, blue, red, yellow, green, black, purple, locoweed), each from the lowest
+  value up; together they are `Chips.shop/2` for `expansion` and `sets`.
   The orange 6 and the locoweed row show only when they are in play.
   """
   @spec shop_rows(Chips.expansion(), Chips.sets()) :: [[Chips.chip()]]
   def shop_rows(expansion \\ nil, sets \\ %{}) do
     shop = Chips.shop(expansion, sets)
-    for row <- @shop_rows, row = Enum.filter(row, &(&1 in shop)), row != [], do: row
+
+    for colour <- Chips.order(),
+        row = shop |> Enum.filter(&(elem(&1, 0) == colour)) |> Enum.sort(),
+        row != [],
+        do: row
   end
 
   # The books of the colours in a shop row (one colour per row).
@@ -2179,11 +2171,8 @@ defmodule QuacksWeb.GameLive do
   # The buttons of a choice that are not chips ("Return all", "Done", "3 rubies").
   defp text_actions(actions), do: Enum.filter(actions, &(pick_chips(&1) == []))
 
-  # Shop row order (white, which the shop has not, first), then value.
-  defp chip_order(action) do
-    for {colour, value} <- pick_chips(action),
-        do: {Enum.find_index(@book_colours, &(&1 == colour)) || -1, value}
-  end
+  # The board's colour order (`Chips.order/0`, white first), then value.
+  defp chip_order(action), do: Enum.map(pick_chips(action), &Chips.sort_key/1)
 
   defp pick_title({:chip, {:gain, _chip}}, _card), do: "Garden spider: take one"
 

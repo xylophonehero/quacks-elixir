@@ -29,8 +29,6 @@ defmodule QuacksWeb.SetupComponents do
   alias Quacks.Game
   alias Quacks.Rules.Chips
 
-  # The colours with four ingredient books, in the order the form shows them.
-  @book_colours [:green, :blue, :red, :yellow, :purple]
   # Orange (Set 2 = the orange 6-chip), black (II–III are The Herb Witches' books) and
   # locoweed (nil = not used; I–II are The Herb Witches' books, III–VI The Alchemists'
   # A–D) in every game.
@@ -398,11 +396,12 @@ defmodule QuacksWeb.SetupComponents do
   end
 
   @doc """
-  The colours the Ingredient books form offers: the five book colours, orange, black
-  and locoweed (in every game).
+  The colours the Ingredient books form offers, in the board's order
+  (`Chips.order/0`): every colour but white (orange, black and locoweed in every
+  game).
   """
   @spec book_colours() :: [atom]
-  def book_colours, do: @book_colours ++ [:orange, :black, :locoweed]
+  def book_colours, do: Chips.order() -- [:white]
 
   # The books a colour offers, in the order the picker shows them, with or without
   # the expansion.

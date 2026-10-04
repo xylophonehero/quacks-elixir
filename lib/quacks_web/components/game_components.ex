@@ -907,14 +907,16 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  Chips as a count per kind, e.g. white 1 ×4, sorted by colour and value. Shows no
+  Chips as a count per kind, e.g. white 1 ×4, in the board's colour order
+  (`Chips.order/0`), then by value. Shows no
   order, so it is safe for a bag.
   """
   attr :chips, :list, required: true, doc: "list of `{colour, value}` chips"
   attr :size, :atom, default: :sm, values: [:sm, :md]
 
   def chip_counts(assigns) do
-    assigns = assign(assigns, counts: assigns.chips |> Enum.frequencies() |> Enum.sort())
+    counts = assigns.chips |> Enum.frequencies() |> Enum.sort_by(&Chips.sort_key(elem(&1, 0)))
+    assigns = assign(assigns, counts: counts)
 
     ~H"""
     <ul class={["mt-1 flex flex-wrap", if(@size == :md, do: "gap-2", else: "gap-x-2 gap-y-1")]}>
@@ -1749,10 +1751,7 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <p class="text-xs text-ink-soft" data-role="books">
       Ingredient books: {Enum.map_join(
-        Enum.filter(
-          [:orange, :green, :blue, :red, :yellow, :purple, :black, :locoweed],
-          &Map.has_key?(@sets, &1)
-        ),
+        Enum.filter(Chips.order(), &Map.has_key?(@sets, &1)),
         " · ",
         &"#{&1} #{@sets[&1]}"
       )}
