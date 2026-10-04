@@ -184,6 +184,25 @@ window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.det
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 
+// PWA install (no service worker). Chrome fires `beforeinstallprompt` when the app
+// can be installed: keep the event and show the lobby's `data-role=install` button.
+// iOS Safari has no prompt: outside the installed app, show the Share-menu hint.
+// The state is a data attribute on <html>, so LiveView patches do not reset it.
+let installPrompt = null
+const installState = value => value ? document.documentElement.dataset.install = value : delete document.documentElement.dataset.install
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; installState("ready") })
+window.addEventListener("appinstalled", () => { installPrompt = null; installState(null) })
+document.addEventListener("click", async e => {
+  if (!installPrompt || !e.target.closest("[data-role=install]")) return
+  const prompt = installPrompt
+  installPrompt = null
+  installState(null)
+  await prompt.prompt()
+})
+const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true
+// `navigator.standalone` exists only on iOS/iPadOS WebKit (an iPad says "Macintosh").
+if (!standalone && "standalone" in navigator && navigator.maxTouchPoints > 1) installState("ios")
+
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
