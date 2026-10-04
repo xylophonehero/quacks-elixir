@@ -187,7 +187,7 @@ defmodule Quacks.BugReports do
       {"Expansions", table.expansions |> Enum.sort() |> Enum.join(", ")},
       {"Rules", "`#{inspect((game && game.rules) || table.rules)}`"},
       {"Sets", "`#{inspect((game && game.sets) || table.sets)}`"},
-      {"Actions", game && length(game.log)},
+      {"Log entries", game && length(game.log)},
       {"App", "#{Application.spec(:quacks, :vsn)} (#{@git_sha})"}
     ]
 

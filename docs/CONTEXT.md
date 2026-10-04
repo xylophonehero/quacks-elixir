@@ -283,6 +283,29 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 | G3 rubies | `{:witch, :gold}` | `:witch_choice`, ruby scoring space worth 2+ VP | `{:rubies, n}`: `n` = VP - 1, so with step C's ruby it is VP rubies (⚠️ with B11 both count). |
 | G4 cheap rubies | `{:witch, :gold}` | Shop, rounds 1–8 | `:ruby_price`: droplet and flask cost 1 ruby for the rest of the round (`Player.ruby_price`). |
 
+## Debugging a report
+
+A player taps the bug button ("Report a problem", game header and configure screen).
+`Quacks.BugReports.submit/1` opens a GitHub issue (label `bug-report`) with the text,
+a context table (room, seat, round, phases, rules, app version), the browser details,
+the last 20 log lines and the **replay bundle** (`Quacks.Session.bundle/1`: seed,
+players, options and every `[seat, action]`, oldest first) as JSON in
+`<details><summary>Replay bundle</summary>`. Without `BUG_REPORT_GITHUB_TOKEN` the
+report goes to `tmp/bug-reports/<timestamp>-<room>.md`.
+
+To play the report back:
+
+    mix quacks.replay 123 --at 212          # writes tmp/replay-123.json, prints the URL
+    mix quacks.replay 123 --serve --port 4020
+
+The URL is `/debug/replay?issue=123&at=212` (or `?bundle=<base64 JSON>`; `seat=`
+overrides the reporter's seat). It builds a **debug table**
+(`GameServer.start_from_bundle/2`): the game at action `at` of the bundle, this
+browser in the reporter's seat, the bots **frozen**. The menu shows the scrubber,
+"Action N of M" with back and forward (`GameServer.seek/2`), and "Unfreeze bots"
+(`GameServer.set_frozen/2`). The route is open in dev; in prod it needs
+`token=<DEBUG_TOKEN>`.
+
 ## Rule changes
 
 | Date | Change |

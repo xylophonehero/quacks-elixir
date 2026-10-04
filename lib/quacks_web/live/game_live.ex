@@ -275,6 +275,19 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
+  # The debug replay's scrubber (`GameServer.seek/2`, `GameServer.set_frozen/2`).
+  def handle_event("seek", %{"to" => to}, %{assigns: %{debug: %{}}} = socket) do
+    case GameServer.seek(socket.assigns.id, String.to_integer(to)) do
+      {:ok, game} -> {:noreply, socket |> put_game(game) |> refresh_debug()}
+      {:error, _} -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("freeze", %{"frozen" => frozen}, %{assigns: %{debug: %{}}} = socket) do
+    GameServer.set_frozen(socket.assigns.id, frozen == "true")
+    {:noreply, refresh_debug(socket)}
+  end
+
   # "Report a problem" (`Quacks.BugReports`): `browser` is app.js's JSON.
   def handle_event("report", %{"report" => %{"text" => text} = params}, socket) do
     report = %{
@@ -468,6 +481,59 @@ defmodule QuacksWeb.GameLive do
 
   def terminate(_reason, _socket), do: :ok
 
+  defp refresh_debug(socket) do
+    case GameServer.get(socket.assigns.id) do
+      {:ok, table} -> assign(socket, debug: table.debug)
+      {:error, :not_found} -> ended(socket)
+    end
+  end
+
+  # A debug replay (`/debug/replay`): step through the bundle's actions; the bots
+  # wait until unfrozen.
+  attr :debug, :map, required: true
+
+  defp scrubber(assigns) do
+    ~H"""
+    <section class="space-y-2 rounded-md bg-ink/10 p-2" aria-label="Debug replay" data-role="scrubber">
+      <h3 class="font-bold">Debug replay</h3>
+      <div class="flex items-center gap-2 *:min-h-11">
+        <.button
+          phx-click="seek"
+          phx-value-to={@debug.at - 1}
+          disabled={@debug.at == 0}
+          aria-label="One action back"
+          variant={:secondary}
+          data-role="seek-back"
+        >
+          <.icon name="hero-chevron-left" class="size-5" />
+        </.button>
+        <span class="flex-1 text-center tabular-nums" data-role="scrub-position">
+          Action {@debug.at} of {@debug.total}
+        </span>
+        <.button
+          phx-click="seek"
+          phx-value-to={@debug.at + 1}
+          disabled={@debug.at >= @debug.total}
+          aria-label="One action forward"
+          variant={:secondary}
+          data-role="seek-forward"
+        >
+          <.icon name="hero-chevron-right" class="size-5" />
+        </.button>
+      </div>
+      <.button
+        phx-click="freeze"
+        phx-value-frozen={to_string(!@debug.frozen)}
+        variant={:secondary}
+        class="w-full"
+        data-role="freeze-bots"
+      >
+        {if @debug.frozen, do: "Unfreeze bots", else: "Freeze bots"}
+      </.button>
+    </section>
+    """
+  end
+
   defp new_report(socket) do
     assign(socket,
       reports: socket.assigns[:reports] || 0,
@@ -550,6 +616,7 @@ defmodule QuacksWeb.GameLive do
       bots: table.bots,
       creator: table.creator,
       absent: table.absent,
+      debug: table.debug,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
       expansion: :herb_witches in table.expansions,
@@ -1231,6 +1298,7 @@ defmodule QuacksWeb.GameLive do
           </p>
           <.books sets={@game.sets} />
           <.house_rules rules={@game.rules} />
+          <.scrubber :if={@debug} debug={@debug} />
         </div>
       </.sheet>
 
