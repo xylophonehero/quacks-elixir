@@ -307,10 +307,26 @@
   background-color: #5c0f0b;
 }
 
+/* A new round: the fuse comes back empty (it hides while everyone shops). */
+@keyframes fuse-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+.fuse {
+  animation: fuse-in 240ms var(--ease-out) 200ms both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fuse-notch,
   .fuse-label {
     transition: none;
+  }
+
+  .fuse {
+    animation: fade-in 150ms ease both;
   }
 }
 
@@ -984,6 +1000,21 @@ html:has([data-layout="full"]) {
   }
 }
 
+/* The last chip holds the replay open until its line's pot motion (a ruby flight,
+   a VP tag) is over: the replay ends when its last animation ends (app.js). */
+@keyframes replay-hold {
+  to {
+    --replay-hold: 1;
+  }
+}
+
+.update-chip[data-replay-last] {
+  animation:
+    update-in 320ms var(--ease-spring) both,
+    replay-hold 1000ms linear both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
 #players-row.replay-done .update-chip {
   animation-delay: 0s !important;
   animation-duration: 1ms !important;
@@ -991,6 +1022,131 @@ html:has([data-layout="full"]) {
 
 :root:has(#players-row.replay-done) [data-role="beat-ring"] {
   display: none;
+}
+
+/* The scoring sequence on the pot (`Replay.pot_effects/1`, game_components `pot/1`).
+   Same beats as the update chips, so a piece moves when its card chip lands. After
+   two skips (app.js) the beats run faster. */
+:root {
+  --die-roll: 700ms;
+}
+
+:root[data-fast-beats] {
+  --beat-lead: 200ms;
+  --beat-step: 250ms;
+  --die-roll: 420ms;
+}
+
+/* The droplet (and the rats after it) slide on the beat of their line, not when
+   the patch comes; the VP and ruby counters tick on theirs (rubies when the last
+   gem lands, see `PotMotion`'s flight). */
+.pot-lg[data-slide-beat] :is([data-role="droplet"], [data-role="rat"]) {
+  transition-delay: calc(var(--beat-lead) + var(--slide-beat) * var(--beat-step));
+}
+
+.essence-marker[data-beat] {
+  transition-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+.stat-tick[data-beat] {
+  --tick-at: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+  transition-delay: var(--tick-at);
+}
+
+#stat-rubies[data-beat] {
+  --tick-at: calc(var(--beat-lead) + var(--beat) * var(--beat-step) + 700ms);
+}
+
+.stat-tick[data-beat] .stat-pop {
+  animation-delay: var(--tick-at);
+}
+
+/* A ruby waits on its space; `PotMotion` lifts it and flies it to the counter. */
+[data-role="ruby-flight"] .beat-fx {
+  opacity: 0;
+}
+
+/* "+N VP" rises from its chip (or the space's seal) and fades. */
+@keyframes vp-float {
+  0% {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  25% {
+    opacity: 1;
+    translate: 0 -12px;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -28px;
+  }
+}
+
+[data-role="vp-float"] .beat-fx {
+  opacity: 0;
+  animation: vp-float 900ms var(--ease-out) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+[data-role="ruby-flight"],
+[data-role="vp-float"] {
+  pointer-events: none;
+}
+
+/* The flights leave the square: the counters sit above it. */
+.pot-lg {
+  overflow: visible;
+}
+
+/* The bonus die beside the pot: in on its beat, rolls through its strip, lands with
+   a small overshoot; then its line fades in. */
+.replay-die {
+  animation: update-in 220ms var(--ease-spring) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+@keyframes die-roll {
+  from {
+    translate: 0 0;
+  }
+}
+
+@keyframes die-land {
+  50% {
+    scale: 1.12;
+  }
+}
+
+.replay-die .die-strip {
+  animation: die-roll var(--die-roll) steps(7, jump-none) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+.replay-die .die {
+  animation: die-land 220ms var(--ease-spring);
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step) + var(--die-roll));
+}
+
+.replay-die-text {
+  animation: fade-in 160ms var(--ease-out) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step) + var(--die-roll));
+}
+
+/* Skip (or the last chip landed): everything at its end state at once. */
+:root:has(#players-row.replay-done) :is([data-role="ruby-flight"], [data-role="vp-float"]) {
+  display: none;
+}
+
+:root:has(#players-row.replay-done) :is(.pot-lg[data-slide-beat] [data-role="droplet"], .pot-lg[data-slide-beat] [data-role="rat"], .essence-marker[data-beat], .stat-tick[data-beat]) {
+  transition: none;
+}
+
+:root:has(#players-row.replay-done) :is(.replay-die, .replay-die *) {
+  animation-delay: 0s !important;
+  animation-duration: 1ms !important;
 }
 
 /* Motion, batch 3 (animations.md §3 B3). The chip flight, the ghost of a returned
@@ -1099,8 +1255,23 @@ html:has([data-layout="full"]) {
   }
 
   [data-role="beat-ring"],
-  [data-role="replay-skip"] {
+  [data-role="replay-skip"],
+  [data-role="vp-float"],
+  [data-role="ruby-flight"] {
     display: none;
+  }
+
+  /* The scoring sequence: the die shows its face at once, nothing waits. */
+  .replay-die,
+  .replay-die *,
+  .stat-tick[data-beat] .stat-pop {
+    animation: none !important;
+  }
+
+  .pot-lg[data-slide-beat] :is([data-role="droplet"], [data-role="rat"]),
+  .essence-marker[data-beat],
+  .stat-tick[data-beat] {
+    transition: none !important;
   }
 
   .fortune-panel {

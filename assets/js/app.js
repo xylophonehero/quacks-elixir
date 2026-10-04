@@ -70,8 +70,9 @@ const NameMemory = {
 // already shows the final pot; this only plays WAAPI `transform`/`opacity` on top, so
 // it never holds up a tap. A new chip drops in on its own space (from 1.3× and a
 // little above, then the pop); a chip that leaves flies as a ghost to the flask (or
-// the bag); at a new round the old chips fade. New rats pop in place (CSS
-// `chip-land`). Reduced motion: fades only.
+// the bag); at a new round the old chips fade and the new rats slide in from the
+// droplet. The scoring sequence's rubies fly to the ruby counter on their beats.
+// Reduced motion: fades only, no flights.
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 const easing = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 const at = (p, o, s = 1) => `translate(${p.x - o.x}px, ${p.y - o.y}px) scale(${s})`
@@ -79,19 +80,76 @@ const at = (p, o, s = 1) => `translate(${p.x - o.x}px, ${p.y - o.y}px) scale(${s
 const PotMotion = {
   // Running animations go on through later patches (a bot's draw is a patch too):
   // WAAPI writes no attributes, and each chip keeps its node.
-  mounted() { this.snapshot() },
+  mounted() {
+    this.snapshot()
+    this.flown = new Set()
+    this.flights()
+    // A tap on the pot, Space or Esc does what Skip does while the replay plays.
+    this.el.addEventListener("click", () => this.skip())
+    this.onKey = e => {
+      if ((e.key === "Escape" || e.key === " ") && !e.target.closest?.("input, textarea, select, button, a, dialog") &&
+          !document.querySelector("dialog:modal") && this.skip()) e.preventDefault()
+    }
+    window.addEventListener("keydown", this.onKey)
+  },
+  destroyed() { window.removeEventListener("keydown", this.onKey) },
   beforeUpdate() { this.snapshot() },
   updated() {
     const chips = [...this.el.querySelectorAll("[data-role=pot-chip]")]
     const added = chips.filter(c => !this.chips.has(c.id))
     const gone = [...this.chips.values()].filter(c => !c.isConnected)
     const flask = this.full && !this.el.querySelector("[data-role=flask-brew]")
-    if (this.el.dataset.round !== this.round)
+    if (this.el.dataset.round !== this.round) {
       gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, null, i * 20))
+      this.ratsIn()
+    }
     else if (gone.length === 1 && added.length === 0)
       this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
     else if (added.length <= 2) added.forEach(c => this.land(c))
     this.snapshot()
+    this.flights()
+  },
+  skip() {
+    const button = document.getElementById("replay-skip")
+    button?.click()
+    return !!button
+  },
+  // The scoring sequence: each ruby the round paid waits on its piece (the droplet,
+  // a chip, the scoring space) until its line's beat, lifts 12 px, then flies on an
+  // arc to the ruby counter and fades there, 600 ms. The same beat formula as the
+  // CSS (`--beat-lead`, `--beat-step`). Each flight plays once (its id).
+  flights() {
+    const counter = document.getElementById("stat-rubies")
+    const root = getComputedStyle(document.documentElement)
+    const ms = name => parseFloat(root.getPropertyValue(name)) || 0
+    this.el.querySelectorAll("[data-role=ruby-flight]").forEach(f => {
+      if (this.flown.has(f.id) || reduced() || !counter) return
+      this.flown.add(f.id)
+      const p = {x: +f.dataset.x, y: +f.dataset.y}, t = this.centre(counter)
+      const dx = t.x - p.x, dy = t.y - p.y
+      const delay = ms("--beat-lead") + f.dataset.beat * ms("--beat-step") + +f.dataset.wait + f.dataset.n * 90
+      f.firstElementChild.animate([
+        {transform: "translate(0px, 0px) scale(1)", opacity: 0, easing: easing("--ease-out")},
+        {transform: "translate(0px, -12px) scale(1.3)", opacity: 1, offset: 0.23, easing: easing("--ease-in-out")},
+        {transform: `translate(${dx * 0.45}px, ${dy * 0.45 - 40}px) scale(1.05)`, opacity: 1, offset: 0.6},
+        {transform: `translate(${dx}px, ${dy}px) scale(0.7)`, opacity: 1, offset: 0.92},
+        {transform: `translate(${dx}px, ${dy}px) scale(0.7)`, opacity: 0},
+      ], {duration: 600, delay})
+    })
+  },
+  // A new round: the rats for it slide in from the droplet to their spaces, one
+  // after the other (240 ms, 60 ms stagger).
+  ratsIn() {
+    if (reduced()) return
+    const drop = this.el.querySelector("[data-role=droplet]")
+    if (!drop) return
+    const from = this.pos(drop.dataset.index)
+    this.el.querySelectorAll("[data-role=rat]").forEach((rat, i) => {
+      if (!this.el.querySelector(`[data-space="${rat.dataset.index}"]`)) return
+      const to = this.pos(rat.dataset.index)
+      rat.animate([{translate: `${from.x}px ${from.y}px`, opacity: 0}, {translate: `${to.x}px ${to.y}px`, opacity: 1}],
+        {duration: 240, delay: 200 + i * 60, fill: "backwards", easing: easing("--ease-out")})
+    })
   },
   snapshot() {
     this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
@@ -213,11 +271,25 @@ document.addEventListener("toggle", e => {
 // A choice inside a dialog (or popover sheet) closes it once it is sent.
 window.addEventListener("quacks:close", e =>
   e.target.matches("[popover]") ? e.target.hidePopover() : e.target.close?.())
+// Skip: after two skips (this browser) the replay beats run faster (app.css
+// `data-fast-beats`).
+const fastBeats = n => n >= 2 && (document.documentElement.dataset.fastBeats = "")
+try { fastBeats(+localStorage.getItem("quacks:skips")) } catch (_e) {}
+document.addEventListener("click", e => {
+  if (!e.target.closest?.("#replay-skip")) return
+  try {
+    const n = +localStorage.getItem("quacks:skips") + 1
+    localStorage.setItem("quacks:skips", n)
+    fastBeats(n)
+  } catch (_e) {}
+}, true)
 // The round results play as update chips on the name cards; the chip that lands
 // last ends the replay: the players row runs its `data-on-replay-end` JS
 // (`replay_end/3` in game_live.ex: seen, and the shop opens).
 document.addEventListener("animationend", e => {
-  if (!e.target.matches?.("[data-replay-last]")) return
+  // Only its last animation counts (a hold keeps the pot motion of that beat).
+  if (!e.target.matches?.("[data-replay-last]") ||
+      getComputedStyle(e.target).animationName.split(", ").pop() !== e.animationName) return
   const row = e.target.closest("[data-on-replay-end]")
   row && !row.classList.contains("replay-done") && liveSocket.execJS(row, row.dataset.onReplayEnd)
 })

@@ -64,6 +64,51 @@ defmodule QuacksWeb.Replay do
     end
   end
 
+  @typedoc """
+  What moves on the pot on a line's beat: a ruby that flies to the ruby counter, or
+  a "+N VP" tag that floats up. `at` is the mark it starts from; `n` numbers the
+  rubies of one line (they leave one after the other).
+  """
+  @type effect :: %{
+          kind: :ruby | :vp,
+          at: mark,
+          beat: non_neg_integer,
+          n: non_neg_integer,
+          text: String.t()
+        }
+
+  @doc """
+  The rubies and VP tags of `lines` on the pot (scoring sequence). Black, green,
+  purple and scoring-space lines only: a black ruby leaves the droplet, a green or
+  purple one its newest chip, the space's own ruby and VP the scoring space. The die
+  shows its face in its own strip; card and essence lines have no piece to start
+  from. At most 3 rubies per line.
+  """
+  @spec pot_effects([line]) :: [effect]
+  def pot_effects(lines) do
+    for %{kind: kind} = line <- lines,
+        kind in [:black, :green, :purple, :space],
+        effect <- rubies(line) ++ vp_tag(line),
+        do: effect
+  end
+
+  defp rubies(line) do
+    for n <- 0..(min(line.rubies, 3) - 1)//1,
+        do: %{kind: :ruby, at: source(line), beat: line.beat, n: n, text: "+1"}
+  end
+
+  defp vp_tag(%{vp: 0}), do: []
+
+  defp vp_tag(line),
+    do: [%{kind: :vp, at: source(line), beat: line.beat, n: 0, text: "+#{line.vp} VP"}]
+
+  defp source(%{kind: :space}), do: :ring
+
+  defp source(%{kind: :black, marks: marks}),
+    do: if(:droplet in marks, do: :droplet, else: hd(marks ++ [:ring]))
+
+  defp source(%{marks: marks}), do: Enum.find(marks, :ring, &is_integer/1)
+
   @typedoc "An update chip on a name card: what it shows, and on which beat it lands."
   @type update :: %{
           kind: :exploded | :stopped | :vp | :rubies | :droplet,
