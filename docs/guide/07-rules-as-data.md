@@ -10,7 +10,7 @@ The `Quacks.Game.*` modules hold the logic that reads them.
 |---|---|---|
 | `Quacks.Rules.PotTrack` | 54 spaces: coins, VP, ruby | scoring, ruby checks, the pot SVG |
 | `Quacks.Rules.ScoringTrack` | where the rat tails are | `place_rats/1` |
-| `Quacks.Rules.Chips` | prices per set, the supply, the starting bag | the shop, `Game.new/1` |
+| `Quacks.Rules.Chips` | prices per set, the supply, the starting bag, the board order | the shop, `Game.new/1`, every chip list in the UI |
 | `Quacks.Rules.Books` | the book texts, triggers, tiers | the UI only |
 | `Quacks.Rules.Fortune` | 24 card names and texts | `Game.Fortune`, the UI |
 | `Quacks.Rules.Witches` | 12 witch cards, the deal | `Game.Witches`, the UI |
@@ -128,6 +128,36 @@ def price({colour, _} = chip, sets),
 
 `Map.fetch!/2` raises on an unknown chip. That is right here: an unknown chip is a
 bug, not a user error.
+
+## One board order
+
+The board lists the ingredients in one order: white, orange, blue, red, yellow,
+green, black, purple, then locoweed. Before, each list in the UI had its own order
+(the shop, the books, the bag, the chip offers). Now one attribute holds it
+(`lib/quacks/rules/chips.ex:19-21`):
+
+```elixir
+@order [:white, :orange, :blue, :red, :yellow, :green, :black, :purple, :locoweed]
+```
+
+Two functions read it (`lib/quacks/rules/chips.ex:153-172`): `order/0` gives the
+list, and `sort_key/1` gives a chip's place in it, then its value:
+
+```elixir
+def sort_key({colour, value}), do: {Enum.find_index(@order, &(&1 == colour)), value}
+```
+
+A tuple is a good sort key, because Erlang compares tuples element by element. So
+`Enum.sort_by(chips, &Chips.sort_key/1)` sorts by colour first and by value second,
+like `sort((a, b) => a.colourIndex - b.colourIndex || a.value - b.value)` in JS.
+
+The readers: `Books.in_play/2` (`lib/quacks/rules/books.ex:261-274`), the shop rows
+and the chip picks in `GameLive` (`lib/quacks_web/live/game_live.ex:2199-2208` and
+`chip_order/1`, line 2416), the bag counts (`chip_counts/1`,
+`lib/quacks_web/components/game_components.ex:976-977`) and the configure screen's
+book picker (`SetupComponents.book_colours/0`,
+`lib/quacks_web/components/setup_components.ex:404`). To change the order, change one
+line; the doctests show the new order.
 
 ## Books: text, trigger and tiers
 

@@ -77,7 +77,8 @@ changes a number, not a function.
 
 `Profile.parse/1` reads a name with `+` modifiers, such as `"balanced+ev+scored"`
 (`lib/quacks/ai/profile.ex:105-136`), for the simulator. Bots at a real table use
-`@bot_profile :balanced` (`lib/quacks/game_server.ex:47`) with the threshold rule.
+`@bot_profile :balanced` (`lib/quacks/game_server.ex:79`) with the threshold rule
+(see "At the table" below).
 
 ## Exact odds: `Quacks.AI.Odds`
 
@@ -201,6 +202,50 @@ What this buys:
   move for move. A strange bot move in the simulator is a seed you can run again.
 - **Seats do not disturb each other.** Each seat has its own stream, so the bot in
   seat 1 makes the same random choices whatever seat 2 does.
+
+## At the table
+
+The decider is the same function in the simulator and at a real table. What
+differs is who calls it and when. Chapter 4 has the GameServer code; this is the
+bot's view of it.
+
+**The flags are for the simulator.** `stop_rule: :ev` and `choice_rule: :scored`
+are fields of the profile, and `+ev` and `+scored` turn them on
+(`@variants`, `lib/quacks/ai/profile.ex:105-114`). The GameServer stores the atom
+`:balanced` per bot seat and calls `Profile.get/1`
+(`lib/quacks/game_server.ex:760` and 866), so a table bot uses the defaults:
+`stop_rule: :threshold`, `choice_rule: :default` (`lib/quacks/ai/profile.ex:67-69`).
+The research measured the EV rule and the scored choices as a little stronger
+(above). To use them at a table, the server would keep a parsed profile, for
+example `Profile.parse("balanced+ev+scored")`, in place of the atom. No decider
+code changes.
+
+**Brewing in lockstep.** In the potions phase a bot gets one tick per action, 700 ms
+apart. It may `:draw` only while it has drawn fewer chips this round than the human
+who drew most (`capped?/3`, `lib/quacks/game_server.ex:915-926`). So a bot brews
+draw for draw beside the humans and never runs ahead. The decider does not know
+about the cap: the server just does not ask it. When every human has stopped, the
+cap is off and the bot finishes at tick speed. Round 9 has no cap, because the
+stir already makes all seats draw together.
+
+**Choices in concurrent phases: plans.** In the fortune, chip, witch and shop
+phases every seat decides at the same time. There the server calls `decide/4` in a
+loop on a private copy of the game (`plan/2`, `lib/quacks/game_server.ex:863-885`)
+and keeps the bot's actions until no human decides any more. The bot thus decides
+from the state at the start of its part, the same as a human who cannot see the
+other choices yet. Because the decider is pure and takes the rng as an argument,
+"decide five times on a copy" needs no new bot code.
+
+**The Mandrake.** The server answers the Mandrake question for humans (chapter 4).
+A bot answers it itself: `choose(:yellow_choice, _ctx, rng)` gives `:return_white`
+(`lib/quacks/ai.ex:57`).
+
+**Names.** A bot at a table gets a name from `Quacks.AI.Names`
+(`lib/quacks/ai/names.ex`): 20 alchemist names, and `pick/2` takes a free one with
+the table's own rng (`:rand.uniform_s/2`). When all 20 are taken, the bot is
+"Bot N". The profile also has a `bot_name` ("Steady Sam" for `:balanced`,
+`lib/quacks/ai/profile.ex:86`), but the table does not use it: two balanced bots
+must not have the same name.
 
 ## The simulator: `Quacks.AI.Sim` and `mix quacks.sim`
 

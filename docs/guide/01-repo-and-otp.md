@@ -10,8 +10,9 @@ lib/
     game.ex               the engine entry point (the reducer)
     game/                 engine parts: potions, evaluation, fortune, witches, essence
     player.ex             one seat's state
-    session.ex            seed + action list + game (undo, replay)
-    game_server.ex        one process per game
+    session.ex            seed + action list + game (undo, replay, bug report bundle)
+    game_server.ex        one process per game (also debug tables from a bundle)
+    bug_reports.ex        "Report a problem" as a GitHub issue (Req)
     rules/                data only: pot track, chips, books, cards, witches, patients
     ai.ex, ai/            bots and the headless simulator
     application.ex        the supervision tree
@@ -19,14 +20,16 @@ lib/
     router.ex, endpoint.ex
     plugs/player_token.ex browser identity
     live/                 LobbyLive (/) and GameLive (/g/:id)
-    components/           function components (core, game, setup, alchemists, icons, layouts)
-    replay.ex             beat numbers for the round-results replay
-  mix/tasks/quacks.sim.ex `mix quacks.sim`
+    controllers/          DebugReplayController (/debug/replay)
+    components/           function components (core, game, setup, alchemists, bug report, icons, layouts)
+    replay.ex             beat numbers for the round results (cards, pot, books)
+  mix/tasks/              `mix quacks.sim` (bot games), `mix quacks.replay` (load a bug report)
 test/
   quacks/                 engine and GameServer tests
   quacks_web/live/        LiveView tests
   support/game_helpers.ex helpers to hand-build game states
-assets/js/app.js          about 160 lines of our own JS (dialogs, PotMotion)
+assets/js/app.js          about 300 lines of our own JS (dialogs, PotMotion, replay end, PWA install)
+priv/static/              manifest.webmanifest, images/pwa/ icons, images/icons/ SVGs
 assets/css/app.css        Tailwind v4 theme, the sheet CSS and the motion
 config/                   config.exs, dev.exs, test.exs, runtime.exs
 docs/                     CONTEXT.md glossary, research/, this guide
@@ -35,7 +38,8 @@ docs/                     CONTEXT.md glossary, research/, this guide
 The split between `lib/quacks` and `lib/quacks_web` is the most important line in
 the repo. `lib/quacks` does not know that a browser exists. `lib/quacks_web` does
 not know a single game rule. Phoenix generated this split; the project keeps it
-strict.
+strict, with one known exception: `Quacks.BugReports` borrows the log wording from
+`QuacksWeb.GameComponents` (chapter 4).
 
 ## What "OTP app" means
 
@@ -50,7 +54,7 @@ mod: {Quacks.Application, []},
 
 When the app starts, the BEAM (the Erlang VM) calls `Quacks.Application.start/2`.
 That function starts a *supervisor* with a list of children
-(`lib/quacks/application.ex:10-19`):
+(`lib/quacks/application.ex:12-21`):
 
 ```elixir
 children = [
@@ -64,6 +68,11 @@ children = [
   QuacksWeb.Endpoint
 ]
 ```
+
+Just before the list, `Quacks.BugReports.create_table()` (line 10) makes the ETS
+table for the bug report rate limit. ETS tables belong to the process that made
+them; this one belongs to the application's start process, so it lives as long as
+the app.
 
 Think of each child as a long-lived "service" inside one OS process. Each child is
 an Erlang *process*: a very small green thread with its own memory and a mailbox.

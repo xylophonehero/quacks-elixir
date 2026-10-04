@@ -59,7 +59,7 @@ this way and handles both error shapes in one `else`
 (`lib/quacks_web/live/game_live.ex:136-145`, quoted in chapter 5).
 
 The bot tick uses `with` for a chain where the first step is a boolean
-(`lib/quacks/game_server.ex:527-536`): `with false <- capped?(...), {action, rng} <- AI.decide(...), ...`.
+(`lib/quacks/game_server.ex:763-768`): `with false <- capped?(...), {action, rng} <- AI.decide(...), ...`.
 Any value can be a pattern, not only `{:ok, _}`.
 
 ## Pipelines
@@ -110,7 +110,7 @@ fails at once instead of adding a new key.
 
 `Game.new(seed: {1, 2, 3}, players: 2)` is `Game.new([{:seed, {1, 2, 3}}, {:players, 2}])`:
 a list of 2-tuples. It is the options-object of JS. `Keyword.take/2` passes a subset
-on (`lib/quacks/session.ex:92`).
+on (`lib/quacks/session.ex:168`).
 
 ## Default arguments
 
@@ -135,7 +135,7 @@ def phase(%__MODULE__{phase: phase, players: players}, seat)
 
 (`lib/quacks/game.ex:456-457`)
 
-`is_map_key/2` and `:erlang.map_get/2` (`lib/quacks/game_server.ex:522`) are the map
+`is_map_key/2` and `:erlang.map_get/2` (`lib/quacks/game_server.ex:758`) are the map
 functions that guards allow.
 
 ## `for` comprehensions
@@ -206,7 +206,7 @@ its own: `import Kernel, except: [apply: 2, apply: 3]` (`lib/quacks/game.ex:65`)
 `:rand` is an Erlang module (Erlang modules are atoms: `:rand`, `:math`, `:crypto`).
 The `_s` versions take the state and return the new state: pure functions. Use them
 in the engine. `:rand.uniform/1` without `_s` reads hidden per-process state: fine
-for a new random seed in the GameServer (`lib/quacks/game_server.ex:682-683`), wrong
+for a new random seed in the GameServer (`lib/quacks/game_server.ex:1053-1054`), wrong
 inside a rule. Chapter 2 explains why.
 
 ## Where to read more

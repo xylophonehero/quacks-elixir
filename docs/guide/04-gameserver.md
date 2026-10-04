@@ -7,7 +7,7 @@ The engine is pure, so it needs a home. `Quacks.GameServer`
 
 ## Why a process per game
 
-The moduledoc answers this (`lib/quacks/game_server.ex:6-13`):
+The moduledoc answers this (`lib/quacks/game_server.ex:5-13`):
 
 > A LiveView process lives as long as one browser tab. When two or more browsers
 > play the same game, the game must live somewhere they can all reach, and every
@@ -36,25 +36,33 @@ caller's process and sends a message. The **callbacks** (`init/1`,
 ```elixir
 def handle_call({:apply, seat, action}, _from, state) do
   case Session.apply(state.session, seat, action) do
-    {:ok, session} -> reply_game(schedule_bots(%{state | session: session}))
+    {:ok, session} -> reply_game(acted(%{state | session: session}))
     error -> {:reply, error, state, @idle_timeout}
   end
 end
 ```
 
-(`lib/quacks/game_server.ex:343-348`)
+(`lib/quacks/game_server.ex:489-494`)
 
 The GameServer adds no rule. It calls `Session.apply/3`, keeps the new session,
-schedules the bots and broadcasts.
+runs `acted/1` and broadcasts. `acted/1` is one pipe
+(`lib/quacks/game_server.ex:808`):
+
+```elixir
+defp acted(state), do: state |> auto_return() |> flush() |> schedule_bots()
+```
+
+It answers a human's Mandrake question, applies the queued bot plans, then gives
+the bots their ticks. Each step is below.
 
 ## Finding a game by id
 
 `start_link/1` registers the process under its 6-letter id with
-`name: {:via, Registry, {Quacks.GameRegistry, id}}` (`lib/quacks/game_server.ex:146-147`).
+`name: {:via, Registry, {Quacks.GameRegistry, id}}` (`lib/quacks/game_server.ex:231-232`).
 `call/2` looks the id up and turns a missing or just-stopped game into
-`{:error, :not_found}` (`lib/quacks/game_server.ex:292-302`). If two new games draw
-the same id, the start fails with `:already_started` and the code tries again
-(`lib/quacks/game_server.ex:131-143`).
+`{:error, :not_found}` (`lib/quacks/game_server.ex:388-396`). If two new games draw
+the same id, the start fails with `:already_started` and `start_server/1` tries
+again (`lib/quacks/game_server.ex:157-171`).
 
 ## `call` versus `cast`
 
@@ -66,21 +74,23 @@ gives back-pressure, because a page waits for each reply. `AGENTS.md` says the s
 
 ## The state
 
-`init/1` builds a plain map (`lib/quacks/game_server.ex:313-335`): the `session`
+`init/1` builds a plain map (`lib/quacks/game_server.ex:410-439`): the `session`
 (`nil` while `:waiting`), `tokens` (`%{player_token => seat}`), `names`, `colours`,
-the `creator` token, the bot fields, `seen`, `pages` and the settings for
-`Session.new/3`. `table/1` turns it into the public view that pages read, without
-the tokens (`lib/quacks/game_server.ex:772-795`). Tokens never leave the process.
+the `creator` token, the bot fields (`bots`, `bot_rngs`, `bot_ticks`, `queued`),
+`auto_keep`, `seen`, `pages`, `debug` and the settings for `Session.new/3`.
+`table/1` turns it into the public view that pages read, without the tokens
+(`lib/quacks/game_server.ex:1023-1047`). Tokens never leave the process.
 
 The table fields that are not plain settings (type `table`,
-`lib/quacks/game_server.ex:59-89`):
+`lib/quacks/game_server.ex:84-116`):
 
 | Field | What it holds | Who reads it |
 |-------|---------------|--------------|
-| `creator` | the seat of the **host** now: `host/1` (`lib/quacks/game_server.ex:753-762`) | the configure screen (who may change settings, start, add bots) |
-| `founder` | the seat of the browser that **created** the table (`state.tokens[state.creator]`), `nil` while that browser is not seated | `assign_table/2`: only the founder's saved settings load into a fresh table (`lib/quacks_web/live/game_live.ex:454-459`) |
-| `absent` | the human seats with no live page now, from `absent/1` (`lib/quacks/game_server.ex:639-643`) | the spectator note: "Rejoin as ..." buttons |
-| `seen` | per seat, `%{card: round, results: round}`: the last fortune card and round results that seat closed | `GameLive` mounts them closed (see `ack/4` below) |
+| `creator` | the seat of the **host** now: `host/1` (`lib/quacks/game_server.ex:1004-1013`) | the configure screen (who may change settings, start, add bots) |
+| `founder` | the seat of the browser that **created** the table (`state.tokens[state.creator]`), `nil` while that browser is not seated | `assign_table/2`: only the founder's saved settings load into a fresh table (`lib/quacks_web/live/game_live.ex:631-635`) |
+| `absent` | the human seats with no live page now, from `absent/1` (`lib/quacks/game_server.ex:800-804`) | the spectator note: "Rejoin as ..." buttons |
+| `seen` | per seat, `%{card: round, results: round}`: the last fortune card and round results (update chips) that seat closed | `GameLive` mounts them closed (see `ack/4` below) |
+| `debug` | `nil`, or `%{at, total, frozen}` for a table built from a bug report | the menu's scrubber (chapter 5) |
 
 `creator` and `founder` differ only after a handover: when the creator leaves a
 waiting table, the browser with the lowest seat is host (`creator`), but `founder`
@@ -91,7 +101,7 @@ the creator set (QA2 N2).
 
 Every reply ends with `@idle_timeout`, for example `{:reply, error, state, @idle_timeout}`.
 The fourth element is a GenServer timeout: if no message arrives in that time, OTP
-sends the process `:timeout` (`lib/quacks/game_server.ex:589-594`):
+sends the process `:timeout` (`lib/quacks/game_server.ex:747-752`):
 
 ```elixir
 # No message for @idle_timeout: nobody plays this game any more.
@@ -102,16 +112,16 @@ def handle_info(:timeout, state) do
 end
 ```
 
-`@idle_timeout` is `:timer.hours(2)` (`lib/quacks/game_server.ex:52`). Any message
+`@idle_timeout` is `:timer.hours(2)` (`lib/quacks/game_server.ex:77`). Any message
 resets it. No cron job, no cleanup table.
 
 ## Broadcasts
 
-The topic per game is `"game:" <> id` (`lib/quacks/game_server.ex:284`). Four
+The topic per game is `"game:" <> id` (`lib/quacks/game_server.ex:378`). Four
 messages:
 
 - `{:game, id, game}`: the new struct after every applied action (`reply_game/1`,
-  `lib/quacks/game_server.ex:747-751`);
+  `lib/quacks/game_server.ex:998-1002`);
 - `{:names, id, names}`: a seat, name, colour or setting changed, or a seat came
   or went (presence, below);
 - `{:host, id, seat}`: the creator left a waiting table and `seat` is host now (the
@@ -125,7 +135,7 @@ protocol of our own: the struct goes to each LiveView process in memory, and
 LiveView sends only the changed HTML to each browser. The acting page gets the game
 twice (reply and broadcast) and skips the copy it already has. It also skips a
 broadcast with a shorter log than the game it shows: that copy is older and came in
-late (`lib/quacks_web/live/game_live.ex:371-380`).
+late (`lib/quacks_web/live/game_live.ex:445-455`).
 
 ## Seats and identity
 
@@ -143,17 +153,17 @@ end
 ```
 
 `GameLive.mount/3` reads it from `session` and calls `claim_seat/3`
-(`lib/quacks_web/live/game_live.ex:106-110`). The same token gets the same seat
-back, so a reload keeps your seat (`lib/quacks/game_server.ex:363-364`). Later
+(`lib/quacks_web/live/game_live.ex:121-125`). The same token gets the same seat
+back, so a reload keeps your seat (`lib/quacks/game_server.ex:521-522`). Later
 clicks send only `seat` and `action`; the seat is a server-side assign, so the
 browser cannot pick another seat.
 
 The first token to take a seat is the creator: `creator: state.creator || token`
-(`lib/quacks/game_server.ex:375`). The host is the creator while seated, else the
-seated browser with the lowest seat (`host/1`, `lib/quacks/game_server.ex:753-762`).
+(`lib/quacks/game_server.ex:533`). The host is the creator while seated, else the
+seated browser with the lowest seat (`host/1`, `lib/quacks/game_server.ex:1004-1013`).
 `configure/3`, `add_bot/3`, `remove_bot/3` and `begin/2` check it, for example
 `token != host(state) -> {:reply, {:error, :not_creator}, ...}`
-(`lib/quacks/game_server.ex:450-451`).
+(`lib/quacks/game_server.ex:608-609`).
 
 ## Bots: the same path as humans
 
@@ -161,7 +171,7 @@ A bot is a seat with a profile in `bots`. It acts through `Session.apply/3`, the
 same function a human click uses, so a bot cannot make a move a human could not.
 
 After every change, `schedule_bots/1` gives each bot seat that can act a *tick*, a
-message to itself for later (`lib/quacks/game_server.ex:645-662`):
+message to itself for later (`lib/quacks/game_server.ex:887-913`):
 
 ```elixir
 tick = state.tick + 1
@@ -170,15 +180,24 @@ Process.send_after(self(), {:bot, seat, tick}, delay)
 ```
 
 The delay is 700 ms (0 in tests, `config/test.exs:25`), so a human can see the bot
-draw. When the tick arrives (`lib/quacks/game_server.ex:596-616`):
+draw. When the tick arrives (`lib/quacks/game_server.ex:757-779`):
 
 ```elixir
 def handle_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
     when :erlang.map_get(seat, ticks) == tick do
+  ...
+  with false <- capped?(state, state.session.game, seat),
+       false <- humans_deciding?(state, state.session.game),
+       nil <- state.auto_keep,
+       {action, rng} <- AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
+       {:ok, session} <- Session.apply(state.session, seat, action) do
 ```
 
-The body is one `with` chain: not capped, `AI.decide/4` picks an action,
-`Session.apply/3` applies it, then the broadcast. Any other tick falls through to
+The body is one `with` chain: not capped, no human still decides in a concurrent
+phase, no Mandrake answer open, `AI.decide/4` picks an action, `Session.apply/3`
+applies it, then `acted/1` and the broadcast. `with` can match on any value, not
+only `{:ok, _}`: `false <-` and `nil <-` are plain checks. Any other tick falls
+through to
 `def handle_info({:bot, _seat, _tick}, state), do: {:noreply, state, @idle_timeout}`.
 
 **Versioned ticks.** A tick waits 700 ms in the mailbox. In that time a human can
@@ -188,30 +207,121 @@ tick. (`:erlang.map_get/2` is allowed in a guard; `Map.get/2` is not.)
 
 **Lockstep.** Bots draw faster than humans. `capped?/3` stops a bot from drawing
 more chips this round than the human who drew most
-(`lib/quacks/game_server.ex:664-675`). A capped bot gets no tick; the next human
-action schedules it again.
+(`lib/quacks/game_server.ex:915-926`). A capped bot gets no tick; the next human
+action schedules it again. The cap is on only while a human still brews
+(`brewing?/1`, lines 928-930): when every human has stopped, the bots draw on at
+tick speed.
 
 Lockstep makes a bot brew at human speed: draw for draw, never ahead of the
 fastest human. Round 9 has no cap, because the stir (chapter 2) already makes every
 seat pick together.
 
+## Decisions revealed together: bot plans
+
+Some phases have no turn order: every seat decides at the same time. They are
+`@concurrent [:fortune_choice, :chip_choice, :witch_choice, :shopping]`
+(`lib/quacks/game_server.ex:827`). With ticks, a bot would buy its chips 700 ms
+into the shop, and a human could see the bot's buy before they choose. That is
+not fair either way. So in these phases a bot does not tick. It *plans*.
+
+`plan/2` (`lib/quacks/game_server.ex:863-885`) runs the bot's whole part of the
+phase at once, on a private copy of the game:
+
+```elixir
+Enum.reduce_while(1..30, {game, [], state.bot_rngs[seat]}, fn _, {g, actions, rng} ->
+  with true <- g.phase == game.phase,
+       {action, rng} <- AI.decide(g, seat, profile, rng),
+       {:ok, g} <- Game.apply(g, seat, action) do
+    {:cont, {g, [action | actions], rng}}
+  else
+    _done -> {:halt, {g, actions, rng}}
+  end
+end)
+```
+
+The copy costs nothing to make: the engine is pure, so `g` is just a value that
+nobody else sees. The plan (for example a buy, a ruby spend and `:end_round`)
+waits in `queued`, `%{seat => [action]}`. `schedule_bots/1` plans instead of ticking
+while `humans_deciding?/2` says a human seat still has a legal action in the phase
+(lines 829-833).
+
+After each action, `flush/1` (lines 835-861) checks again. When no human decides
+any more, it applies every plan, seat by seat, through `Session.apply/3`:
+
+```elixir
+defp apply_plan({seat, actions}, state) do
+  Enum.reduce_while(actions, state, fn action, state ->
+    case Session.apply(state.session, seat, action) do
+      {:ok, session} -> {:cont, %{state | session: session}}
+      {:error, _} -> {:halt, state}
+    end
+  end)
+end
+```
+
+Each action is legal-checked again, because the humans acted after the plan was
+made. If a limited supply ran out, the rest of that plan drops, and the bot decides
+again with normal ticks. A flushed plan can end the phase and open the next
+concurrent one, so `flush_again/1` runs once more.
+
+React has a near idea: commit several state updates in one batch, so no render
+shows half of them. Here the batch is "every bot's choice of this phase", and it
+waits for the humans.
+
+## Mandrake: a server answer with undo
+
+The Mandrake (yellow 1, Set 1) asks "put the white chip back?" after a white chip.
+The answer is nearly always yes, and the question stopped humans on every draw. So
+the server answers `:return_white` for each human seat at once (`auto_return/1`,
+`lib/quacks/game_server.ex:813-824`) and keeps the session from before that
+answer in `auto_keep`:
+
+```elixir
+{:ok, session} = Session.apply(state.session, seat, :return_white)
+%{state | session: session, auto_keep: {seat, state.session}}
+```
+
+The player can still say no. The page shows "Keep the white chip instead" while
+the newest log entries are this seat's `:return_white` and `{:returned, chip}`
+(`keep_white?/3`, `lib/quacks_web/live/game_live.ex:2688-2693`). The click calls
+`keep_white/2` (`lib/quacks/game_server.ex:499-502`), which applies `:keep` on the
+old session:
+
+```elixir
+def handle_call({:keep_white, seat}, _from, %{auto_keep: {seat, before}} = state) do
+  {:ok, session} = Session.apply(before, seat, :keep)
+  reply_game(acted(%{state | session: session}))
+end
+```
+
+The match `%{auto_keep: {seat, before}}` uses `seat` twice, so it matches only the
+seat that the server answered for. Every action resets `auto_keep` to `nil` in
+`auto_return/1`, so after the next action of any seat the answer is final
+(`{:error, :too_late}`). While `auto_keep` is set, bots wait
+(`schedule_bots/1`, line 892), so a bot cannot make the undo too late. Bots answer
+the question themselves (`choose(:yellow_choice, ...)`, `lib/quacks/ai.ex:57`).
+
+In React terms this is optimistic UI with an "Undo" toast, but the optimistic part
+runs on the server and the old state is one saved value, not a diff.
+
 **Each bot has its own rng.** `AI.decide/4` takes an rng and gives back the next
 one: `{action, rng}`. The GameServer keeps one per bot seat in `bot_rngs`. At the
 start, `begin_game/1` seeds them from the game seed and the seat
-(`lib/quacks/game_server.ex:729`):
+(`lib/quacks/game_server.ex:980`):
 
 ```elixir
 bot_rngs: Map.new(bots, fn {seat, _} -> {seat, AI.new_rng(state.seed, seat)} end)
 ```
 
 After each bot move, the tick handler stores the new state:
-`bot_rngs: Map.put(state.bot_rngs, seat, rng)` (`lib/quacks/game_server.ex:610`).
+`bot_rngs: Map.put(state.bot_rngs, seat, rng)` (`lib/quacks/game_server.ex:769`). A
+plan threads the same rng and stores it the same way (line 882).
 This is a `useReducer` that threads its own seed instead of calling
 `Math.random()`. The bot never touches `game.rng`, so a bot's choice cannot change
 the chips anyone draws. Chapter 11 says more.
 
 **Bot names.** `add_bot/3` gives the bot a name that nobody at the table has
-(`seat_bot/2`, `lib/quacks/game_server.ex:691-706`):
+(`seat_bot/2`, `lib/quacks/game_server.ex:942-957`):
 
 ```elixir
 {name, name_rng} = Names.pick(Map.values(state.names), state.name_rng)
@@ -220,7 +330,7 @@ the chips anyone draws. Chapter 11 says more.
 `Quacks.AI.Names` (`lib/quacks/ai/names.ex`) is a list of 20 alchemist names and
 one pure function. `pick/2` takes a free name with `:rand.uniform_s/2` on the
 table's `name_rng`, seeded from the game seed in `init/1`
-(`lib/quacks/game_server.ex:327`). When the list runs out, the bot is "Bot N". So
+(`lib/quacks/game_server.ex:427`). When the list runs out, the bot is "Bot N". So
 the same seed gives the same names, and a test can name them in advance.
 
 ## Presence: watching the pages
@@ -231,7 +341,7 @@ spectator, and the seat waits for a token that never comes back. To give it back
 the server must know which seats have **no open page**.
 
 So the server watches the pages. `claim_seat/3` and `rejoin/3` call `watch/3` with
-the caller's pid (`lib/quacks/game_server.ex:628-637`):
+the caller's pid (`lib/quacks/game_server.ex:789-799`):
 
 ```elixir
 defp watch(state, pid, token) do
@@ -245,9 +355,9 @@ end
 
 `Process.monitor/1` asks the VM for a `{:DOWN, ref, :process, pid, reason}` message
 when that process ends, for any reason. The server keeps `pages` (`pid => token`)
-and drops the pid on `:DOWN` (`lib/quacks/game_server.ex:620-626`). A human seat
+and drops the pid on `:DOWN` (`lib/quacks/game_server.ex:781-787`). A human seat
 whose token has no pid in `pages` is absent (`absent/1`,
-`lib/quacks/game_server.ex:639-643`). A change in `absent` is a `{:names, ...}`
+`lib/quacks/game_server.ex:800-804`). A change in `absent` is a `{:names, ...}`
 broadcast, so the other pages update. In React terms: a heartbeat that the runtime
 sends for you, with no timer and no ping.
 
@@ -255,7 +365,7 @@ sends for you, with no timer and no ping.
 first run is the plain HTTP request, in a Bandit connection process. That process
 does not end with the page: it stays for HTTP keep-alive. If it were watched, the
 seat would count as present after the tab closed. So the disconnected render claims
-without a watch (`lib/quacks_web/live/game_live.ex:107`):
+without a watch (`lib/quacks_web/live/game_live.ex:122`):
 
 ```elixir
 case GameServer.claim_seat(id, session["player_token"], watch: connected?(socket)) do
@@ -264,17 +374,18 @@ case GameServer.claim_seat(id, session["player_token"], watch: connected?(socket
 Only the LiveView process (the connected mount) is watched; it ends with the tab.
 
 **`rejoin/3`.** A spectator sees "Rejoin as <name>" for each absent seat. The click
-calls `rejoin/3` (`lib/quacks/game_server.ex:389-411`): the seat must exist, have a
+calls `rejoin/3` (`lib/quacks/game_server.ex:547-569`): the seat must exist, have a
 token, and be absent; then its old token is replaced by the caller's token (and the
 creator too, if it was the creator's seat), and the page is watched. A seat with a
 live page answers `{:error, :present}`, so nobody can take a seat from an open tab.
 
 ## Acknowledgements: `seen`
 
-The fortune card and the round results open once per round. A reload must not open
-them again, and the browser has no state to remember it. So the table keeps it:
-when a seat closes one, its page calls `ack/4` (`lib/quacks/game_server.ex:252-258`),
-which stores the round in `seen` (`lib/quacks/game_server.ex:437-440`):
+The fortune card and the round results (the update chips) play once per round. A
+reload must not play them again, and the browser has no state to remember it. So
+the table keeps it: when a seat closes the card or the replay ends, its page calls
+`ack/4` (`lib/quacks/game_server.ex:346-352`), which stores the round in `seen`
+(`lib/quacks/game_server.ex:595-598`):
 
 ```elixir
 def handle_call({:ack, seat, kind, round}, _from, state) do
@@ -319,7 +430,7 @@ sequenceDiagram
   LV->>GS: GenServer.call {:apply, 0, :draw}
   GS->>E: Session.apply -> Game.apply(game, 0, :draw)
   E-->>GS: {:ok, game}
-  GS->>GS: schedule_bots: send_after {:bot, 1, 7}
+  GS->>GS: acted: auto_return, flush, schedule_bots (send_after {:bot, 1, 7})
   GS->>PS: broadcast {:game, id, game}
   GS-->>LV: {:ok, game}
   LV-->>B: HTML diff
@@ -340,5 +451,87 @@ sequenceDiagram
   during the call: `call/2` catches the exit) and go back to the lobby with "This
   game has ended." (chapter 5). Other games run on.
 - A deploy restarts the node and every game is gone
-  (`lib/quacks/game_server.ex:43-44`). To survive that, the state to save is small:
-  `{seed, players, opts, actions}` plus the table (chapter 3).
+  (`lib/quacks/game_server.ex:67-68`). To survive that, the state to save is small:
+  `{seed, players, opts, actions}` plus the table. `Session.bundle/1` (chapter 3)
+  already writes exactly that, for bug reports.
+
+## Bug reports: `Quacks.BugReports`
+
+A player taps the bug button, writes what went wrong and sends it. The report
+becomes a GitHub issue with the game in it, so a developer can load that game
+(chapter 5). `Quacks.BugReports` (`lib/quacks/bug_reports.ex`) does the work. It is
+plain functions, no process.
+
+`submit/1` is one `with` chain (`lib/quacks/bug_reports.ex:71-82`):
+
+```elixir
+with :ok <- check_text(text),
+     :ok <- check_seat(seat),
+     :ok <- check_rate(id, seat),
+     {:ok, table} <- GameServer.get(id),
+     {:ok, result} <- file(issue(table, seat, text, Map.get(report, :browser, %{}))) do
+  :ets.insert(@table, {{id, seat}, now()})
+  {:ok, result}
+end
+```
+
+Each check gives `:ok` or `{:error, reason}`, and the first error falls out of the
+`with` as it is. The LiveView turns each reason into one sentence
+(`report_error/1`, `lib/quacks_web/live/game_live.ex:587-591`).
+
+- **The issue.** `issue/4` (lines 110-122) writes a title ("[bug] round 4 · ..."),
+  the player's text, a context table (room, seat, phase, rules, sets, app version
+  and git sha), the browser details (app.js adds the user agent, viewport, online
+  state and the last 10 console errors) and the last 20 log lines. At the end, in a
+  `<details>` block, comes the bundle as JSON: `GameServer.bundle/1`, which is
+  `Session.bundle/1` plus the seat names and the bot seats
+  (`lib/quacks/game_server.ex:444-455`). The body stays under 60 000 characters:
+  `fit/2` drops the oldest log lines first, never the bundle (lines 152-157).
+- **GitHub through Req.** `post/2` (lines 227-241) is one `Req.post/2` to
+  `/repos/:repo/issues` with a bearer token from `BUG_REPORT_GITHUB_TOKEN`
+  (`config/runtime.exs:26-34`). `req/1` (lines 282-292) builds the client:
+  `base_url`, the GitHub headers, `retry: false`, and any options from config. In
+  tests that config is `plug: {Req.Test, Quacks.BugReports}` (`config/test.exs:29`),
+  so a test answers for GitHub with a plain function and no network. This is
+  `msw` for Elixir, built into Req.
+- **No token: a file.** Without a token, `write/1` (lines 243-250) puts the issue in
+  `tmp/bug-reports/<timestamp>-<room>.md` and the toast shows the path. So dev works
+  with no setup.
+- **Rate limit in ETS.** One report per seat per room per minute. The last time per
+  `{room, seat}` sits in a named ETS table, a key-value store in memory that any
+  process can read (`create_table/0`, lines 57-61, called from
+  `Quacks.Application.start/2`, `lib/quacks/application.ex:10`). `check_rate/2`
+  (lines 92-97) compares with `System.monotonic_time/1`, a clock that never jumps
+  back. A GenServer would also work, but a table with `:public` access needs no
+  process and no message.
+- **Reading back.** `fetch_bundle/2` (lines 258-266) reads an issue through the same
+  client, and `extract_bundle/1` (lines 270-280) takes the JSON out of the
+  `<details>` block with one regex.
+
+**A known smell.** `log_words/1` (lines 165-173) calls
+`QuacksWeb.GameComponents.log_text/3`, so `lib/quacks` (the core) depends on
+`lib/quacks_web` (the UI) for the wording of the log. The usual direction is the
+other way: the web layer calls the core, never back. It works, because both are in
+one Mix app, and the report must use the words the player saw. A cleaner split
+would move the log labels into a core module that both call.
+
+## Debug tables: a game from a bundle
+
+`GameServer.start_from_bundle/2` (`lib/quacks/game_server.ex:171-209`) builds a
+`:playing` table from a bundle. It calls `Session.from_bundle/2` with `at:` (how
+many actions to replay), gives the reporter's seat to the browser's token, names
+the seats and puts the bots back, then starts the server with
+`debug: %{bundle: bundle, at: at, total: total, frozen: true}`.
+
+- **Frozen bots.** A replay must stop where you put it. While `frozen` is true,
+  `schedule_bots/1` returns at once (line 891), so the bots get no ticks and no
+  plans. `set_frozen/2` (lines 476-484) unfreezes them; then `acted/1` runs and the
+  bots play on from that point.
+- **Seek.** `seek/2` (lines 457-474) rebuilds the session at another action from
+  the stored bundle, drops the pending ticks and plans, and broadcasts the game.
+  Because the session is a pure replay, "go to action 212" is one function call.
+- Every other table answers `{:error, :not_debug}`; the clause
+  `handle_call({:seek, _at}, _from, %{debug: nil} = state)` matches the normal
+  tables first.
+
+Chapter 5 shows the route that calls this and the scrubber that drives it.

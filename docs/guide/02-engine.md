@@ -383,7 +383,7 @@ rng (`:rand.jump/1`, `lib/quacks/game/fortune.ex:48` and
 `lib/quacks/rules/witches.ex:115`). A jump is a separate stream from the same seed.
 So a game with cards draws the same chips as the same seed without cards.
 
-(`GameServer` does call `:rand.uniform/1`, at `lib/quacks/game_server.ex:683`, to make
+(`GameServer` does call `:rand.uniform/1`, at `lib/quacks/game_server.ex:1053-1054`, to make
 a new random *seed*. That is outside the engine and is fine.)
 
 ## Small helpers you see everywhere

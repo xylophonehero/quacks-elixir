@@ -14,13 +14,15 @@ scope "/", QuacksWeb do
 
   live "/", LobbyLive
   live "/g/:id", GameLive
+  # Gated in the controller: dev, or DEBUG_TOKEN.
+  get "/debug/replay", DebugReplayController, :show
 end
 ```
 
-(`lib/quacks_web/router.ex:18-23`)
+(`lib/quacks_web/router.ex:18-25`)
 
-Two pages. The `scope` adds the `QuacksWeb.` prefix. `:id` becomes `params["id"]` in
-`mount/3`.
+Two pages and one plain controller route (see "Debug replay" below). The `scope`
+adds the `QuacksWeb.` prefix. `:id` becomes `params["id"]` in `mount/3`.
 
 **Not here: `live_session` and `handle_params`.** Apps with login group their
 LiveViews in a `live_session` with `on_mount` hooks that load the user. This app has
@@ -54,13 +56,13 @@ sequenceDiagram
 `mount/3` runs **twice**. The first run answers the HTTP request with plain HTML
 (fast first paint). Then `app.js` opens the websocket and a new LiveView process
 mounts again. That process lives as long as the tab. So `mount` subscribes only when
-connected (`lib/quacks_web/live/game_live.ex:104`):
+connected (`lib/quacks_web/live/game_live.ex:119`):
 
 ```elixir
 if connected?(socket), do: Phoenix.PubSub.subscribe(Quacks.PubSub, GameServer.topic(id))
 ```
 
-`GameLive.mount/3` (`lib/quacks_web/live/game_live.ex:101-134`) gets the table (not
+`GameLive.mount/3` (`lib/quacks_web/live/game_live.ex:116-150`) gets the table (not
 found: flash and `push_navigate` to `/`), subscribes, claims a seat (`nil` for a
 spectator; only the connected mount is watched, chapter 4), and assigns the id,
 token, seat, `seen`, table and game.
@@ -83,11 +85,11 @@ parts that read it, and sends only the diff.
 </.button>
 ```
 
-(`lib/quacks_web/live/game_live.ex:961-969`)
+(`lib/quacks_web/live/game_live.ex:1234-1242`)
 
 `phx-click="action"` sends the event `"action"`; `phx-value-action` adds
 `%{"action" => "..."}` to the params. One handler serves every game move
-(`lib/quacks_web/live/game_live.ex:136-155`):
+(`lib/quacks_web/live/game_live.ex:152-171`):
 
 ```elixir
 def handle_event("action", %{"action" => encoded}, %{assigns: %{seat: seat}} = socket)
@@ -118,17 +120,21 @@ def handle_event("action", _params, socket),
 - `{:error, :not_found}`: the GameServer is gone (idled out, crashed, or the node
   restarted). See "When the game is gone" below.
 - A new rule needs no new `handle_event`.
+- One move has its own event: `"keep_white"`
+  (`lib/quacks_web/live/game_live.ex:173-182`). It is not a legal action of the
+  engine but an undo of the server's Mandrake answer, so it calls
+  `GameServer.keep_white/2` (chapter 4).
 
 ## Encoding actions into `phx-value-*`
 
 Actions are terms like `{:buy, [{:green, 2}]}`; HTML attributes are strings. So
-(`lib/quacks_web/live/game_live.ex:2554`):
+(`lib/quacks_web/live/game_live.ex:2964`):
 
 ```elixir
 def encode(action), do: action |> :erlang.term_to_binary() |> Base.url_encode64(padding: false)
 ```
 
-`decode/1` (`lib/quacks_web/live/game_live.ex:2561-2570`) reverses it with
+`decode/1` (`lib/quacks_web/live/game_live.ex:2971-2980`) reverses it with
 `Plug.Crypto.non_executable_binary_to_term(binary, [:safe])`. The value comes from
 the browser, so it is untrusted. `[:safe]` refuses to create new atoms (atoms are
 never garbage-collected, so atoms from users are a memory leak), and
@@ -139,7 +145,7 @@ engine is the only validator.
 ## Broadcasts arrive as `handle_info`
 
 PubSub messages arrive in the mailbox like any message
-(`lib/quacks_web/live/game_live.ex:366-380`):
+(`lib/quacks_web/live/game_live.ex:440-455`):
 
 ```elixir
 # The game began: seats were renumbered, so ask for ours again.
@@ -161,12 +167,12 @@ end
 `game == current` compares by value, deeply. No custom `equals`. The log length is
 a cheap version number: the engine adds at least one entry per action.
 `{:play_again, _id, new_id}` calls `push_navigate/2`, so every tab moves to the next
-game (`lib/quacks_web/live/game_live.ex:404-406`).
+game (`lib/quacks_web/live/game_live.ex:478-480`).
 
 ## Derived assigns: `@me`, `@decision`, `@actions`
 
 The template never calls the engine in a loop. `put_game/2` computes what the page
-needs, once per new game (`lib/quacks_web/live/game_live.ex:2181-2201`):
+needs, once per new game (`lib/quacks_web/live/game_live.ex:2513-2533`):
 
 ```elixir
 seat = socket.assigns.seat
@@ -178,9 +184,11 @@ actions = if seat && not Game.over?(game), do: Game.legal_actions(game, seat), e
 - `@me`: this seat's `%Player{}`, or `nil` for a spectator.
 - `@all_actions`: every legal action of this seat.
 - `@decision`: which decision dialog must be open, from the seat's phase
-  (`lib/quacks_web/live/game_live.ex:2347-2359`); `nil` while brewing. `decide/3`
+  (`lib/quacks_web/live/game_live.ex:2756-2768`); `nil` while brewing. `decide/3`
   turns an empty rubies step (nothing to spend, no witch to call) into `nil` plus
-  `skip_rubies`, and the page ends the round for that seat.
+  `skip_rubies`. The page then shows one "Done" button that sends `:end_round`
+  (`lib/quacks_web/live/game_live.ex:1112-1123`). An automatic end ended solo
+  rounds while the update chips still played, so the player now taps once.
 - `@actions`: the actions for the bottom bar; empty while a decision is open, so the
   bar cannot bypass the dialog.
 
@@ -194,11 +202,11 @@ these assigns, the reply path and the broadcast path cannot disagree.
 - `push_navigate(socket, to: ~p"/g/#{id}")` starts a new LiveView. `~p` is a
   *verified route*: the compiler checks that the path exists in the router.
 - Before the game begins, `@game` is `nil`. `render/1` has two clauses
-  (`lib/quacks_web/live/game_live.ex:509` and `:681`): `def render(%{game: nil} =
+  (`lib/quacks_web/live/game_live.ex:686` and `:862`): `def render(%{game: nil} =
   assigns)` draws the configure screen, the other the board. The begin broadcast
   sets `@game`, and the next render picks the other clause.
 - `terminate/2` frees the seat when a tab closes before the start
-  (`lib/quacks_web/live/game_live.ex:410-415`).
+  (`lib/quacks_web/live/game_live.ex:484-488`).
 
 `LobbyLive` is the small version of the same pattern: subscribe to `"lobby"`, list
 `GameServer.open_games/0`, list again on `:games_changed`
@@ -206,17 +214,28 @@ these assigns, the reply path and the broadcast path cannot disagree.
 
 ## Acknowledgement events: `"seen"`
 
-A dialog that opens once per round (the new fortune card, the round results) must
-not open again on a reload. The page tells the server when the seat closes one.
-`dialog_sheet` takes an `on_close` JS command; app.js runs it on the dialog's
-`close` event. For the card (`lib/quacks_web/live/game_live.ex:1287`):
+Two things play once per round: the new fortune card and the round results (the
+update chips on the name cards, chapter 6). They must not play again on a reload.
+The page tells the server when the seat is done with one. `dialog_sheet` takes an
+`on_close` JS command; app.js runs it on the dialog's `close` event. For the card
+(`lib/quacks_web/live/game_live.ex:1440`):
 
 ```heex
 on_close={JS.push("seen", value: %{kind: "card", round: @game.round})}
 ```
 
+For the results, `replay_end/3` (`lib/quacks_web/live/game_live.ex:2586-2597`)
+builds the same push. The last update chip, "Skip" or a first tap on a name card
+runs it:
+
+```elixir
+js =
+  JS.add_class("replay-done", to: "#players-row")
+  |> JS.push("seen", value: %{kind: "results", round: game.round})
+```
+
 The handler checks the params and calls `GameServer.ack/4` (chapter 4), then keeps
-the same map in the `@seen` assign (`lib/quacks_web/live/game_live.ex:286-299`):
+the same map in the `@seen` assign (`lib/quacks_web/live/game_live.ex:355-368`):
 
 ```elixir
 def handle_event(
@@ -227,7 +246,7 @@ def handle_event(
     when is_integer(seat) and kind in ["card", "results"] and is_integer(round) do
   kind = String.to_existing_atom(kind)
   GameServer.ack(socket.assigns.id, seat, kind, round)
-  {:noreply, socket |> update(:seen, &Map.put(&1, kind, round)) |> skip_rubies()}
+  {:noreply, update(socket, :seen, &Map.put(&1, kind, round))}
 end
 
 def handle_event("seen", _params, socket), do: {:noreply, socket}
@@ -236,13 +255,16 @@ def handle_event("seen", _params, socket), do: {:noreply, socket}
 - The guard accepts only the two known kinds, so `String.to_existing_atom/1` never
   makes an atom from user input. Anything else falls to the no-op clause.
 - `mount/3` reads `seen` from the table. `seen?/3`
-  (`lib/quacks_web/live/game_live.ex:2257-2262`) then drives `auto_open` on the
-  dialogs: a closed card or closed results mount closed, and the results get
-  `replay-done`, so the replay does not run again.
-- A spectator's `seen` is `:all`: no card or results open on top of each other.
-- Order: the results open the shop or the rubies step when they close
-  (`then_open`). A droplet or patient choice at the start of a round waits for the
-  new card the same way: the card's `then_open` names the decision dialog.
+  (`lib/quacks_web/live/game_live.ex:2572-2578`) then drives `auto_open` on the
+  card, and `replaying?/2` (lines 2583-2584) on the players row: a seen round
+  mounts with `replay-done`, so the update chips show at once and do not play
+  again.
+- A spectator's `seen` is `:all`: no card opens and no replay plays.
+- Order: the shop, the rubies step and a droplet move wait for the replay
+  (`waits_for_results?/3`, lines 2786-2787). `replay_end/3` then opens the waiting
+  decision with `JS.dispatch("quacks:modal", to: "#decision-...")`. A droplet or
+  patient choice at the start of a round waits for the new card the same way: the
+  card's `then_open` names the decision dialog.
 
 ## When the game is gone: `:not_found`
 
@@ -250,7 +272,7 @@ A GameServer can stop under an open tab: it idles out after 2 hours, it crashes,
 the node restarts. Every `GameServer` call then returns `{:error, :not_found}`;
 `call/2` also catches a server that dies during the call (chapter 4). Every
 handler that calls the server has a `{:error, :not_found}` branch, and all of them
-end the same way (`lib/quacks_web/live/game_live.ex:435-438`):
+end the same way (`lib/quacks_web/live/game_live.ex:611-614`):
 
 ```elixir
 # The game process is gone (it stopped or crashed): back to the lobby.
@@ -263,4 +285,98 @@ Before this, a click after a crash raised a `WithClauseError` (the `with` in the
 `"action"` handler had no `else` branch for it), so the LiveView crashed and
 remounted into the lobby with no word. Now the flash says why. `mount/3` has its
 own branch: a game id that does not exist is "Game abcdef does not exist."
-(`lib/quacks_web/live/game_live.ex:130-133`).
+(`lib/quacks_web/live/game_live.ex:145-148`).
+
+## A form: "Report a problem"
+
+The bug button in the header opens `bug_report_sheet/1`
+(`lib/quacks_web/components/bug_report_components.ex:34-81`), a `dialog_sheet` with
+a real form:
+
+```heex
+<.form for={@form} id={"bug-report-form-#{@n}"} phx-submit="report" data-bug-report>
+  <.input field={@form[:text]} type="textarea" maxlength="2000" required />
+  <input type="hidden" name={@form[:browser].name} value="" data-role="browser-details" />
+```
+
+- The form is `to_form(%{"text" => ""}, as: :report)` (`new_report/1`,
+  `lib/quacks_web/live/game_live.ex:544-550`). There is no Ecto schema: `to_form/2`
+  takes a plain map, and `as: :report` nests the params as `%{"report" => ...}`.
+- The hidden field is filled in the browser. A capture-phase `submit` listener in
+  app.js (`assets/js/app.js:28-39`) writes the user agent, the viewport, the online
+  state and the last 10 console errors as JSON into it, just before LiveView
+  reads the form. The server keeps only the known keys (`browser_details/1`,
+  `lib/quacks_web/live/game_live.ex:552-568`).
+- `handle_event("report", ...)` (lines 298-325) calls `Quacks.BugReports.submit/1`
+  (chapter 4). On an error it assigns the form again with the player's text and one
+  sentence; on success it counts up `@reports`. The dialog id holds that count
+  (`"bug-report-#{@n}"`), so the next report gets a new, empty dialog: a new id is
+  a new element, the same trick as React's `key`.
+- The success toast holds a link to the issue. A flash is escaped text, so
+  `reported/2` (lines 569-585) escapes the URL itself with
+  `Phoenix.HTML.html_escape/1` and passes `{:safe, iodata}`.
+
+## Debug replay: a controller, a mix task and a scrubber
+
+To fix a reported bug, a developer loads the reported game in the browser.
+
+**The route.** `GET /debug/replay` is a plain controller, not a LiveView: it does
+its work and redirects (`lib/quacks_web/controllers/debug_replay_controller.ex:18-32`):
+
+```elixir
+def show(conn, params) do
+  with :ok <- allowed(params),
+       {:ok, bundle} <- bundle(params),
+       {:ok, id} <-
+         GameServer.start_from_bundle(bundle,
+           at: int(params["at"]),
+           seat: int(params["seat"]) || bundle["seat"],
+           token: get_session(conn, "player_token")
+         ) do
+    redirect(conn, to: ~p"/g/#{id}")
+  else
+    {:error, :forbidden} -> send_resp(conn, 404, "Not Found")
+    {:error, reason} -> send_resp(conn, 422, "Could not load the replay: #{inspect(reason)}")
+  end
+end
+```
+
+- The bundle comes from `issue=123` (`BugReports.fetch_bundle/1`) or from
+  `bundle=<base64 JSON>` (lines 50-66). `at=N` stops after N actions, `seat=S`
+  picks the seat (default: the reporter's).
+- The browser's player token gets the seat, so after the redirect `GameLive.mount/3`
+  claims it like any other seat.
+- **Gating** (`allowed/1`, lines 34-48): the route is open when `:dev_routes` is
+  set (dev only). Elsewhere it needs `token=` equal to the `DEBUG_TOKEN` env var,
+  compared with `Plug.Crypto.secure_compare/2` (a constant-time compare, so the
+  response time does not leak the token). Anything else is a 404, not a 403: the
+  route does not say that it exists. The route sits in the normal `:browser` scope,
+  not in the `dev_routes` block of the router, because prod needs it too (with the
+  token); the gate is in the controller.
+
+**The mix task.** `mix quacks.replay 123 [--at 212] [--seat 0] [--serve]`
+(`lib/mix/tasks/quacks.replay.ex`) fetches the issue with a token from
+`BUG_REPORT_GITHUB_TOKEN` or `gh auth token`, writes `tmp/replay-123.json` and
+prints the URL. Without `--serve` the URL carries the bundle as base64, so the
+running server needs no GitHub token. With `--serve` it starts the endpoint itself
+(`Mix.Task.run("run", ["--no-halt"])`) and the URL has `issue=123`.
+
+**The scrubber.** A debug table has `@debug` (from the table, chapter 4), and the
+menu shows `scrubber/1` (`lib/quacks_web/live/game_live.ex:498-542`): "Action 212
+of 340", one step back, one step forward and "Unfreeze bots". The events are
+small (lines 285-296):
+
+```elixir
+def handle_event("seek", %{"to" => to}, %{assigns: %{debug: %{}}} = socket) do
+  case GameServer.seek(socket.assigns.id, String.to_integer(to)) do
+    {:ok, game} -> {:noreply, socket |> put_game(game) |> refresh_debug()}
+    {:error, _} -> {:noreply, socket}
+  end
+end
+```
+
+The match `%{debug: %{}}` accepts any map and rejects `nil`. A normal table has
+no clause for the event, so a forged `"seek"` crashes that one LiveView, which
+remounts. That is acceptable for an event the page never sends there; the server
+also refuses with `{:error, :not_debug}`. Each step replays the whole bundle up to that
+action, which is fast because the engine is pure (chapter 3).
