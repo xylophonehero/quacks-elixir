@@ -348,12 +348,11 @@
   height: 100cqmin;
 }
 
-/* Phones: a tall box leaves free space under the pot (the pot cannot grow past the
-   width). A third of it goes above the pot, so the pot sits a little above the
-   middle and stays clear of the bottom sheets. */
+/* Phones: a tall box leaves free space beside the pot (the pot cannot grow past the
+   width). It splits evenly above and below, so the bands are equal. */
 @media (width < 64rem) {
   .pot-square {
-    margin-top: calc((100cqh - 100cqmin) / 3);
+    margin-top: calc((100cqh - 100cqmin) / 2);
   }
 }
 
@@ -1061,6 +1060,18 @@ html:has([data-layout="full"]) {
   animation-delay: var(--tick-at);
 }
 
+/* A counter drawn for the first time during the replay (the tab that ended the
+   round, a reload) starts from its old value (`data-from`) and ticks on its beat. */
+@keyframes stat-count {
+  from {
+    --n: var(--from);
+  }
+}
+
+.stat-tick[data-from] {
+  animation: stat-count 600ms var(--ease-out) var(--tick-at) backwards;
+}
+
 /* A ruby waits on its space; `PotMotion` lifts it and flies it to the counter. */
 [data-role="ruby-flight"] .beat-fx {
   opacity: 0;
@@ -1142,6 +1153,10 @@ html:has([data-layout="full"]) {
 
 :root:has(#players-row.replay-done) :is(.pot-lg[data-slide-beat] [data-role="droplet"], .pot-lg[data-slide-beat] [data-role="rat"], .essence-marker[data-beat], .stat-tick[data-beat]) {
   transition: none;
+}
+
+:root:has(#players-row.replay-done) .stat-tick[data-from] {
+  animation: none;
 }
 
 :root:has(#players-row.replay-done) :is(.replay-die, .replay-die *) {

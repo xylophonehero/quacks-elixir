@@ -88,7 +88,7 @@ defmodule QuacksWeb.QaFixes2Test do
   end
 
   describe "N4: the rubies step" do
-    test "with nothing to spend it is one Done button; the update chips stay until then" do
+    test "with nothing to spend the round ends by itself once the update chips played" do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
       view = open(browser(token("rubies")), id)
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 1))
@@ -96,12 +96,12 @@ defmodule QuacksWeb.QaFixes2Test do
       refute has_element?(view, "dialog#decision-rubies")
       refute has_element?(view, "#players-row[data-on-replay-end*=decision]")
       refute has_element?(view, "[data-role=decision-button]")
-
-      render_hook(view, "seen", %{"kind" => "results", "round" => 1})
+      # the beats still play: the round waits
       assert {:ok, %{game: %Game{round: 1}}} = GameServer.get(id)
       assert has_element?(view, "[data-role=update-chip]")
 
-      view |> element("[data-role=round-done]", "Done") |> render_click()
+      # QA 3, N4: no bare "Done" after the replay
+      render_hook(view, "seen", %{"kind" => "results", "round" => 1})
       assert {:ok, %{game: %Game{round: 2}}} = GameServer.get(id)
     end
 
@@ -138,13 +138,15 @@ defmodule QuacksWeb.QaFixes2Test do
       seat = claim_and_leave(id, alice)
       {:ok, _} = GameServer.add_bot(id, alice)
 
-      assert {:ok, %{absent: [^seat]}} = GameServer.get(id)
-      assert {:error, :invalid} = GameServer.rejoin(id, "stranger", 1)
-      assert {:ok, ^seat} = GameServer.rejoin(id, "alice-new", seat)
+      assert {:ok, %{absent: [^seat], rejoinable: []}} = GameServer.get(id)
+      H.age_away(id)
+      assert {:ok, %{absent: [^seat], rejoinable: [^seat]}} = GameServer.get(id)
+      assert {:error, :invalid} = GameServer.rejoin(id, "stranger", 1, "Bot")
+      assert {:ok, ^seat} = GameServer.rejoin(id, "alice-new", seat, "player 1")
       # the test process is the new page
       assert {:ok, %{absent: [], creator: ^seat}} = GameServer.get(id)
-      assert {:error, :present} = GameServer.rejoin(id, "someone-else", seat)
-      assert {:error, :seated} = GameServer.rejoin(id, "alice-new", seat)
+      assert {:error, :present} = GameServer.rejoin(id, "someone-else", seat, "Player 1")
+      assert {:error, :seated} = GameServer.rejoin(id, "alice-new", seat, "Player 1")
     end
 
     test "a disconnected render (its HTTP process lives on) does not hold the seat" do
@@ -163,11 +165,12 @@ defmodule QuacksWeb.QaFixes2Test do
       # Alice comes back without her cookie: all seats are taken.
       lost = open(browser(token("alice-again")), id)
       assert has_element?(lost, "[data-role=spectator]")
+      H.age_away(id)
       assert has_element?(lost, ~s([data-role=rejoin-seat][data-seat="0"]), "Rejoin as Player 1")
       refute has_element?(lost, ~s([data-role=rejoin-seat][data-seat="1"]))
       refute has_element?(bob, "[data-role=rejoin]")
 
-      lost |> element(~s([data-role=rejoin-seat][data-seat="0"])) |> render_click()
+      lost |> form("#rejoin-form-0", rejoin: %{name: "Player 1"}) |> render_submit()
       refute has_element?(lost, "[data-role=spectator]")
       assert has_element?(lost, "[data-role=my-seat]")
       assert has_element?(lost, "button[data-slot=draw]:not([disabled])")
