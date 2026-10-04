@@ -1752,18 +1752,36 @@ defmodule QuacksWeb.GameLive do
         <p class="text-sm">Tap up to two chips of different colours.</p>
         <form id="shop" phx-change="select" class="space-y-2">
           <div :for={{row, i} <- Enum.with_index(@rows)} class="space-y-0.5">
-            <p class="flex items-baseline gap-1.5 pl-0.5" data-role="shop-row-label">
+            <div class="flex items-center gap-1.5 pl-0.5" data-role="shop-row-label">
               <span class="font-hand text-[15px] leading-tight font-bold">
                 {Books.get({elem(hd(row), 0), 1}).name}
               </span>
               <span class="text-[11px] text-ink-soft">
                 {elem(hd(row), 0)} · book {roman(Chips.set(@game.expansion, @sets, elem(hd(row), 0)))}
               </span>
-            </p>
-            <ul
-              class="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5"
-              data-role="shop-row"
-            >
+              <%!-- The book's text opens in place, under the row (not another sheet). --%>
+              <button
+                type="button"
+                class="-my-2 ml-auto inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-soft transition-[color,scale] duration-150 ease-out hit-44 hover:text-ink active:scale-90 aria-expanded:text-ink"
+                aria-expanded="false"
+                aria-controls={"shop-book-#{i}"}
+                phx-click={
+                  JS.toggle(
+                    to: "#shop-book-#{i}",
+                    in:
+                      {"transition-[opacity,translate] duration-150 ease-out",
+                       "opacity-0 -translate-y-1", "opacity-100 translate-y-0"},
+                    out: {"transition-opacity duration-100 ease-out", "opacity-100", "opacity-0"}
+                  )
+                  |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+                }
+                data-role="book-info"
+              >
+                <.icon name="hero-information-circle" class="size-5" />
+                <span class="sr-only">Book</span>
+              </button>
+            </div>
+            <ul class="grid grid-cols-3 gap-1.5" data-role="shop-row">
               <li :for={chip <- row}>
                 <%!-- A tile, not a checkbox: the box is hidden, the tile shows its state. --%>
                 <label class={[
@@ -1810,27 +1828,16 @@ defmodule QuacksWeb.GameLive do
                   </span>
                 </label>
               </li>
-              <li class="col-start-4">
-                <button
-                  type="button"
-                  popovertarget={"shop-book-#{i}"}
-                  class="inline-flex size-11 items-center justify-center text-ink-soft"
-                  data-role="book-info"
-                >
-                  <.icon name="hero-information-circle" class="size-6" />
-                  <span class="sr-only">Book</span>
-                </button>
-              </li>
             </ul>
+            <div
+              id={"shop-book-#{i}"}
+              class="hidden rounded-lg bg-parchment-deep/60 px-2 py-1.5"
+              data-role="shop-book"
+            >
+              <.book_list books={row_books(row, @game)} players={map_size(@game.players)} />
+            </div>
           </div>
         </form>
-        <.sheet
-          :for={{row, i} <- Enum.with_index(@rows)}
-          id={"shop-book-#{i}"}
-          label="Ingredient book"
-        >
-          <.book_list books={row_books(row, @game)} players={map_size(@game.players)} />
-        </.sheet>
       </div>
       <.witch_card :if={@copper != []} id={@game.witches.copper}>
         <div class="flex flex-col gap-2 *:min-h-11">
