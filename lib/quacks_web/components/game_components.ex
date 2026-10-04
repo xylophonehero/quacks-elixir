@@ -219,9 +219,9 @@ defmodule QuacksWeb.GameComponents do
   `size={:lg}` (your own pot) shows each space's coins (a plain numeral), its
   victory points (a small gold seal, only where VP > 0) and a ruby gem. Spaces
   before the scoring space are dimmed; the scoring space glows gold. `size={:sm}`
-  (another player's pot) shows only the chips. In both, the droplet is a blue drop
-  with a dark outline on its space, placed chips sit on their spaces and the rat
-  stone, when the player has one, is a grey pebble on its space.
+  (another player's pot) shows only the chips. In both, the droplet is a full blue
+  piece on its space, each rat tail is a grey rat piece on its own space after it
+  (`data-role="rat"`, in the `rat-stone` group), and placed chips sit on their spaces.
 
   Scoring spaces (the space directly after the last chip) are rings in the seat
   colours. `rings` maps seat => scoring space; by default only this seat's ring
@@ -435,59 +435,61 @@ defmodule QuacksWeb.GameComponents do
         <.scoring_ring :if={@rings_by_index[index]} seats={@rings_by_index[index]} />
         <.beat_ring :if={index == @ring_index} beat={@beats[:ring]} r="32" />
       </g>
-      <%!-- The droplet and the rat stone sit above the spaces, each in one group with a
-           fixed id: when the space changes, only `translate` changes and CSS slides it. --%>
+      <%!-- The droplet and the rats are full pieces, like chips: the droplet on its
+           space, then one rat per rat tail on each space after it, so the first chip
+           lands after the last rat. Fixed ids: when the droplet moves, only `translate`
+           changes and CSS slides them. --%>
       <g
         id={"droplet-#{@seat}-#{@size}"}
         data-role="droplet"
         data-index={@me.droplet}
         style={translate_style(@me.droplet)}
+        aria-label="droplet"
       >
-        <g transform="translate(-20 -9) scale(0.62)" aria-label="droplet">
-          <path
-            d="M0 -22 L8.91 -4.55 A10 10 0 1 1 -8.91 -4.55 Z"
-            fill={"url(#drop-#{@seat}-#{@size})"}
-            stroke="#1f3f8a"
-            stroke-width="2.4"
-            stroke-linejoin="round"
-          />
-          <path
-            d="M-5.5 -5 Q-6 0 -3 3.5"
-            fill="none"
-            stroke="white"
-            stroke-opacity="0.6"
-            stroke-width="2.4"
-            stroke-linecap="round"
-          />
-        </g>
-        <.beat_ring beat={@beats[:droplet]} r="14" cx="-20" cy="-15" />
+        <circle
+          r="19"
+          fill={"url(#drop-#{@seat}-#{@size})"}
+          stroke="#1f3f8a"
+          stroke-width="2.5"
+        />
+        <path
+          d="M0 -13 L6.2 -2.6 A7 7 0 1 1 -6.2 -2.6 Z"
+          fill="var(--color-parchment-light)"
+          fill-opacity="0.92"
+          stroke="#1f3f8a"
+          stroke-width="1.5"
+          stroke-linejoin="round"
+          transform="translate(0 3)"
+        />
+        <.beat_ring beat={@beats[:droplet]} r="24" />
       </g>
       <g
         :if={@rat_index}
         id={"rat-#{@seat}-#{@size}"}
         data-role="rat-stone"
         data-index={@rat_index}
-        style={translate_style(@rat_index)}
+        data-tails={@me.rat_stone}
       >
-        <ellipse
-          class="rat-pebble"
-          cx="17"
-          cy="16"
-          rx="8"
-          ry="6"
-          fill="#8b9097"
-          stroke="var(--color-iron-dark)"
-          stroke-width="1.5"
-          aria-label="rat stone"
-        />
-        <.piece_icon
-          name={:rat}
-          x="10"
-          y="9"
-          width="14"
-          height="14"
-          class="text-parchment-light"
-        />
+        <g
+          :for={tail <- 1..@me.rat_stone//1}
+          id={"rat-#{@seat}-#{@size}-#{tail}"}
+          data-role="rat"
+          data-index={@me.droplet + tail}
+          style={translate_style(@me.droplet + tail)}
+          aria-label="rat"
+        >
+          <g class="rat-pebble">
+            <circle r="19" fill="#8b9097" stroke="var(--color-iron-dark)" stroke-width="2.5" />
+            <.piece_icon
+              name={:rat}
+              x="-12"
+              y="-12"
+              width="24"
+              height="24"
+              class="text-parchment-light"
+            />
+          </g>
+        </g>
       </g>
       <.flask
         :if={@flask}
@@ -1016,22 +1018,50 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
+  # A small picture per fortune card: a game piece, an ingredient, or nil (a sparkle).
+  @card_motifs %{
+    b1: :droplet,
+    b2: :cauldron,
+    b3: :bag,
+    b4: :die,
+    b5: :cauldron,
+    b6: {:ingredient, :orange},
+    b7: :bag,
+    b8: :ruby,
+    b9: :flask,
+    b10: :flask,
+    b11: :ruby,
+    p1: nil,
+    p2: :droplet,
+    p3: :ruby,
+    p4: :ruby,
+    p5: {:ingredient, :green},
+    p6: :vp,
+    p7: :rat,
+    p8: :bag,
+    p9: :rat,
+    p10: :rat,
+    p11: :droplet,
+    p12: :die,
+    p13: :bag
+  }
+
   @doc """
-  This round's Fortune Teller card as a small parchment card beside the pot: the
-  colour band and the name. It opens the `sheet-fortune` sheet with the full text.
+  This round's Fortune Teller card as a small portrait card beside the pot: the
+  colour band, the motif and the name. It opens the `sheet-fortune` sheet with the full text.
   """
   attr :id, :atom, required: true, doc: "`game.fortune_card`"
   attr :class, :any, default: nil
 
   def fortune_tile(assigns) do
-    assigns = assign(assigns, card: Fortune.card(assigns.id))
+    assigns = assign(assigns, card: Fortune.card(assigns.id), motif: @card_motifs[assigns.id])
 
     ~H"""
     <button
       type="button"
       popovertarget="sheet-fortune"
       class={[
-        "paper flex w-17 rotate-3 flex-col overflow-hidden rounded-md text-left touch-manipulation lg:w-22",
+        "paper card-portrait flex aspect-[5/7] w-12 rotate-3 flex-col items-center overflow-hidden rounded-md text-center touch-manipulation lg:w-20",
         "transition-transform duration-100 ease-out active:scale-95",
         @class
       ]}
@@ -1040,12 +1070,22 @@ defmodule QuacksWeb.GameComponents do
       data-colour={@card.colour}
     >
       <span class={[
-        "h-1.5 w-full lg:h-2",
+        "h-1.5 w-full shrink-0 lg:h-2",
         @card.colour == :blue && "bg-chip-blue",
         @card.colour == :purple && "bg-chip-purple"
       ]} />
+      <span
+        class={[
+          "mt-1 grid size-6 shrink-0 place-items-center lg:mt-2 lg:size-10",
+          @card.colour == :blue && "text-chip-blue",
+          @card.colour == :purple && "text-chip-purple"
+        ]}
+        aria-hidden="true"
+      >
+        <.card_motif motif={@motif} class="size-4 lg:size-7" />
+      </span>
       <%!-- Phones: small enough for the free corner outside the pot's rim. --%>
-      <span class="line-clamp-2 px-1 py-0.5 font-hand text-[10px] leading-tight font-bold lg:px-1.5 lg:py-1 lg:text-xs">
+      <span class="line-clamp-2 px-0.5 font-hand text-[8px] leading-tight font-bold lg:px-1 lg:text-xs">
         {@card.name}
       </span>
     </button>
@@ -1369,8 +1409,9 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  One player in the players row under the status strip: colour dot, name, VP and
-  what they do now. A tap opens that player's detail sheet (`sheet-player-N`).
+  One player in the players row under the status strip (their name card): colour
+  dot, name, VP and what they do now, then their rubies, flask, rat tails and, when
+  those rules are on, essence and test tube. A tap opens that player's detail sheet (`sheet-player-N`).
   Your own chip says "you" and wears your seat colour as a ring.
   """
   attr :game, Game, required: true
@@ -1389,7 +1430,7 @@ defmodule QuacksWeb.GameComponents do
       popovertarget={"sheet-player-#{@seat}"}
       phx-click={JS.push("open_player", value: %{seat: @seat})}
       class={[
-        "flex min-h-11 w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-lg px-1.5 py-1 text-left text-xs touch-manipulation",
+        "flex min-h-11 w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-lg px-1 py-1 text-left text-xs touch-manipulation sm:px-1.5",
         "transition-[scale,background-color] duration-150 ease-out active:scale-[0.97]",
         if(@you,
           do: ["ring-2", @you_class],
@@ -1411,7 +1452,67 @@ defmodule QuacksWeb.GameComponents do
         <span :if={@you} class="sr-only">you</span>
         <span class="ml-auto min-w-0 truncate"><.player_state game={@game} seat={@seat} /></span>
       </span>
+      <.chip_stats game={@game} p={@p} />
     </button>
+    """
+  end
+
+  attr :game, Game, required: true
+  attr :p, Player, required: true
+
+  # The name card's pieces, icons and numbers: rubies, the flask (full or empty),
+  # this round's rat tails (rats on), essence (The Alchemists), the test tube
+  # (reverse pot side).
+  defp chip_stats(assigns) do
+    ~H"""
+    <span
+      class="flex w-full min-w-0 flex-wrap items-center gap-x-1 text-[11px] max-sm:gap-x-0.5 leading-4 font-semibold tabular-nums"
+      data-role="player-stats"
+    >
+      <span class="flex items-center gap-px" title="Rubies" data-role="player-rubies">
+        <.piece_icon name={:ruby} class="size-3 text-ruby-light" />{@p.rubies}
+        <span class="sr-only">rubies</span>
+      </span>
+      <span
+        class="flex items-center"
+        title={"Flask #{flask_word(@p.flask)}"}
+        data-role="player-flask"
+        data-flask={flask_word(@p.flask)}
+      >
+        <.piece_icon
+          name={:flask}
+          class={["size-3", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
+        />
+        <span class="sr-only">flask {flask_word(@p.flask)}</span>
+      </span>
+      <span
+        :if={@game.rules.rats and @p.rat_stone > 0}
+        class="flex items-center gap-px"
+        title="Rat tails"
+        data-role="player-rats"
+      >
+        <.piece_icon name={:rat} class="size-3 text-parchment-dim" />{@p.rat_stone}
+        <span class="sr-only">rat tails</span>
+      </span>
+      <span
+        :if={Game.expansion?(@game, :alchemists)}
+        class="flex items-center gap-px"
+        title="Essence"
+        data-role="player-essence"
+      >
+        <span class="hero-beaker-micro size-3 text-gold" aria-hidden="true" />{@p.essence}
+        <span class="sr-only">essence</span>
+      </span>
+      <span
+        :if={@game.rules.pot_side == :back}
+        class="flex items-center gap-px"
+        title="Test tube"
+        data-role="player-tube"
+      >
+        <.piece_icon name={:tube} class="size-3 text-droplet" />{@p.tube}
+        <span class="sr-only">test tube</span>
+      </span>
+    </span>
     """
   end
 
@@ -1871,34 +1972,6 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  # A small picture per fortune card: a game piece, an ingredient, or nil (a sparkle).
-  @card_motifs %{
-    b1: :droplet,
-    b2: :cauldron,
-    b3: :bag,
-    b4: :die,
-    b5: :cauldron,
-    b6: {:ingredient, :orange},
-    b7: :bag,
-    b8: :ruby,
-    b9: :flask,
-    b10: :flask,
-    b11: :ruby,
-    p1: nil,
-    p2: :droplet,
-    p3: :ruby,
-    p4: :ruby,
-    p5: {:ingredient, :green},
-    p6: :vp,
-    p7: :rat,
-    p8: :bag,
-    p9: :rat,
-    p10: :rat,
-    p11: :droplet,
-    p12: :die,
-    p13: :bag
-  }
-
   @doc """
   The Fortune Teller card of this round: a colour band (blue = a rule for the whole
   round, purple = resolved once at the start), a motif (`@card_motifs`), its name in
@@ -1918,7 +1991,7 @@ defmodule QuacksWeb.GameComponents do
 
   def fortune_card(%{flip: true} = assigns) do
     ~H"""
-    <div id={"card-flip-#{@id}"} class="card-flip" data-role="card-flip">
+    <div id={"card-flip-#{@id}"} class="card-flip mx-auto w-full max-w-60" data-role="card-flip">
       <div class="card-flip-inner">
         <div class="card-back" aria-hidden="true" data-role="card-back">
           <span class="flex flex-col items-center gap-1 rounded-full bg-[#3b1d78] px-4 py-2 font-hand font-bold text-gold">
@@ -1938,23 +2011,26 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <section
-      class="paper fortune-face relative overflow-hidden rounded-lg text-sm shadow-md shadow-black/25"
+      class="paper fortune-face card-portrait relative mx-auto flex aspect-[5/7] w-full max-w-60 flex-col overflow-hidden rounded-lg text-sm shadow-md ring-1 shadow-black/25 ring-ink/20"
       aria-label="Fortune teller card"
       data-role="fortune-card"
       data-colour={@card.colour}
     >
       <div class={[
-        "flex items-center gap-1.5 px-3 py-1 text-xs font-semibold tracking-wide text-white uppercase",
+        "flex items-center gap-1 px-2 py-1 text-[10px] font-semibold tracking-wide whitespace-nowrap text-white uppercase",
         @card.colour == :blue && "bg-chip-blue",
         @card.colour == :purple && "bg-chip-purple"
       ]}>
-        <QuacksWeb.CoreComponents.icon name="hero-sparkles-mini" class="size-3.5 opacity-80" />
-        {band_text(@card.colour, @choice)}
+        <QuacksWeb.CoreComponents.icon
+          name="hero-sparkles-mini"
+          class="size-3.5 shrink-0 opacity-80"
+        />
+        <span class="truncate">{band_text(@card.colour, @choice)}</span>
       </div>
-      <div class="flex gap-3 px-3 py-2.5">
+      <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-3 text-center">
         <div
           class={[
-            "grid size-12 shrink-0 place-items-center rounded-full ring-2",
+            "grid size-16 shrink-0 place-items-center rounded-full ring-2",
             @card.colour == :blue && "bg-chip-blue/12 text-chip-blue ring-chip-blue/35",
             @card.colour == :purple && "bg-chip-purple/12 text-chip-purple ring-chip-purple/35"
           ]}
@@ -1964,34 +2040,33 @@ defmodule QuacksWeb.GameComponents do
         >
           <.card_motif motif={@motif} />
         </div>
-        <div class="min-w-0">
-          <h2 class="font-hand text-xl leading-tight font-bold">{@card.name}</h2>
-          <p class="mt-0.5 leading-snug text-pretty text-ink-soft">{@card.text}</p>
-        </div>
+        <h2 class="font-hand text-xl leading-tight font-bold text-balance">{@card.name}</h2>
+        <p class="min-h-0 overflow-y-auto leading-snug text-pretty text-ink-soft">{@card.text}</p>
       </div>
     </section>
     """
   end
 
   attr :motif, :any, required: true
+  attr :class, :any, default: "size-10"
 
   defp card_motif(%{motif: {:ingredient, colour}} = assigns) do
     assigns = assign(assigns, colour: colour)
 
     ~H"""
-    <.ingredient_icon colour={@colour} class="size-8" />
+    <.ingredient_icon colour={@colour} class={@class} />
     """
   end
 
   defp card_motif(%{motif: nil} = assigns) do
     ~H"""
-    <QuacksWeb.CoreComponents.icon name="hero-sparkles" class="size-7" />
+    <QuacksWeb.CoreComponents.icon name="hero-sparkles" class={@class} />
     """
   end
 
   defp card_motif(assigns) do
     ~H"""
-    <.piece_icon name={@motif} class="size-8" />
+    <.piece_icon name={@motif} class={@class} />
     """
   end
 

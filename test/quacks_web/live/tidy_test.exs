@@ -99,8 +99,8 @@ defmodule QuacksWeb.TidyTest do
 
   test "G6: the card tile is small on phones" do
     html = render_component(&GameComponents.fortune_tile/1, id: :b3)
-    assert html =~ "w-17"
-    assert html =~ "lg:w-22"
+    assert html =~ "w-12"
+    assert html =~ "lg:w-20"
   end
 
   test "G7: the toast sits above the bottom bar on phones" do
