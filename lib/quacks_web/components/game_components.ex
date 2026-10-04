@@ -1031,7 +1031,7 @@ defmodule QuacksWeb.GameComponents do
       type="button"
       popovertarget="sheet-fortune"
       class={[
-        "paper flex w-22 rotate-3 flex-col overflow-hidden rounded-md text-left touch-manipulation",
+        "paper flex w-17 rotate-3 flex-col overflow-hidden rounded-md text-left touch-manipulation lg:w-22",
         "transition-transform duration-100 ease-out active:scale-95",
         @class
       ]}
@@ -1040,11 +1040,12 @@ defmodule QuacksWeb.GameComponents do
       data-colour={@card.colour}
     >
       <span class={[
-        "h-2 w-full",
+        "h-1.5 w-full lg:h-2",
         @card.colour == :blue && "bg-chip-blue",
         @card.colour == :purple && "bg-chip-purple"
       ]} />
-      <span class="line-clamp-2 px-1.5 py-1 font-hand text-xs leading-tight font-bold">
+      <%!-- Phones: small enough for the free corner outside the pot's rim. --%>
+      <span class="line-clamp-2 px-1 py-0.5 font-hand text-[10px] leading-tight font-bold lg:px-1.5 lg:py-1 lg:text-xs">
         {@card.name}
       </span>
     </button>
@@ -2065,12 +2066,12 @@ defmodule QuacksWeb.GameComponents do
 
   # `{seat, text}`; seat is nil when no dot shows (solo, or an untagged entry).
   defp log_line({seat, entry}, names) when is_integer(seat) and is_map(names),
-    do: {seat, "#{Map.get(names, seat, GameServer.default_name(seat))}: #{label(entry)}"}
+    do: {seat, "#{Map.get(names, seat, GameServer.default_name(seat))}: #{log_label(entry)}"}
 
-  defp log_line(entry, _names), do: {nil, entry |> untag() |> label()}
+  defp log_line(entry, _names), do: {nil, entry |> untag() |> log_label()}
 
-  # "Stop" and "Stopped (may resume…)" are one event, and so are "Resume brewing"
-  # and "Resumed brewing": keep the second line only.
+  # The `:stop` action and the `:stopped` event are one stop, and `:resume` and
+  # `:resumed` are one resume: keep the event only.
   defp drop_stop_before_stopped(log) do
     [nil | log]
     |> Enum.zip(log)
@@ -2085,7 +2086,44 @@ defmodule QuacksWeb.GameComponents do
   defp untag({seat, entry}) when is_integer(seat), do: entry
   defp untag(entry), do: entry
 
+  # The log tells what happened, in the past tense: an action the player took reads
+  # "Bought nothing", not the button's "Buy nothing". Events already read so.
+  defp log_label(:stop), do: "Stopped"
+  defp log_label(:resume), do: "Resumed brewing"
+  defp log_label({:explosion_choice, :vp}), do: "Exploded: took the VP"
+  defp log_label({:explosion_choice, :buy}), do: "Exploded: took the coins"
+  defp log_label({:buy, []}), do: "Bought nothing"
+  defp log_label(:keep), do: "Mandrake: kept the white chip"
+  defp log_label({:place, chip}), do: "Crow skull: placed #{chip_name(chip)}"
+  defp log_label(:return_all), do: "Crow skull: returned all drawn chips to the bag"
+  defp log_label(:chip_done), do: "Finished the chip actions"
+
+  defp log_label({:red, {:place, chip}}),
+    do: "Toadstool: placed #{chip_name(chip)} after the last chip"
+
+  defp log_label({:red, {:keep, chip}}), do: "Toadstool: kept #{chip_name(chip)} beside the pot"
+  defp log_label({:red, {:return, chip}}), do: "Toadstool: returned #{chip_name(chip)} to the bag"
+  defp log_label({:essence, {:space, n}}), do: "Essence: took space #{n}"
+  defp log_label({:essence, {:swap, chip}}), do: "Chicken eyes: swapped #{chip_name(chip)}"
+  defp log_label({:essence, {:place, chip}}), do: "Nervousness: placed #{chip_name(chip)}"
+  defp log_label({:essence, :pass}), do: "Essence: passed"
+  defp log_label({:witch, colour}), do: "Called the #{colour} witch"
+
+  defp log_label({:witch, :silver, {:place, chip}}),
+    do: "Silver witch: placed #{chip_name(chip)}"
+
+  defp log_label({:witch, :silver, :return_all}), do: "Silver witch: returned the rest to the bag"
+  defp log_label(:witch_done), do: "Kept the gold penny"
+  defp log_label(entry), do: label(entry)
+
   defp narrated_by_event?(:draw), do: true
+  # The event right after says it: `{:returned, chip}`, `{:bought, chips}` or the
+  # witch's `{:witch, id, outcome}`.
+  defp narrated_by_event?(:use_flask), do: true
+  defp narrated_by_event?(:return_white), do: true
+  defp narrated_by_event?({:essence, {:buy, _chip}}), do: true
+  defp narrated_by_event?({:witch, :silver, n}) when is_integer(n), do: true
+  defp narrated_by_event?({:witch, :copper, _choice}), do: true
   defp narrated_by_event?({:buy, [_ | _]}), do: true
   defp narrated_by_event?({:rubies, _}), do: true
   defp narrated_by_event?({:droplet, :tube}), do: true
@@ -2472,7 +2510,7 @@ defmodule QuacksWeb.GameComponents do
   def label(:draw), do: "Draw a chip"
   def label(:stop), do: "Stop"
   def label(:resume), do: "Resume brewing"
-  def label(:stopped), do: "Stopped (may resume while others brew)"
+  def label(:stopped), do: "Stopped"
   def label(:resumed), do: "Resumed brewing"
   def label(:use_flask), do: "Use flask"
   def label(:end_round), do: "End round"
@@ -2626,7 +2664,7 @@ defmodule QuacksWeb.GameComponents do
     do: "Crow skull: the next #{n} #{plural(n, "chip is", "chips are")} protected"
 
   defp effect({:blue, 2}, :protected_explosion),
-    do: "Crow skull: protected, you keep VP and coins"
+    do: "Crow skull: protected, kept VP and coins"
 
   defp effect({:blue, 3}, :ruby), do: "Crow skull: on a ruby space, +1 ruby"
   defp effect({:blue, 4}, {:vp, n}), do: "Crow skull: on a ruby space, +#{n} VP"
@@ -2753,7 +2791,7 @@ defmodule QuacksWeb.GameComponents do
   defp fortune_outcome(:return_white, _id), do: "white chip back in the bag"
   defp fortune_outcome(:ruby, _id), do: "+1 ruby"
   defp fortune_outcome(:rubies, _id), do: "+3 rubies"
-  defp fortune_outcome(:skip, _id), do: "no thanks"
+  defp fortune_outcome(:skip, _id), do: "passed"
   defp fortune_outcome(:remove_white, _id), do: "removed a white 1 from the bag"
   defp fortune_outcome({:rats, n}, _id), do: "rat stone +#{n}"
 
@@ -2761,7 +2799,7 @@ defmodule QuacksWeb.GameComponents do
     do: "rat stone back #{n}, +#{n} #{plural(n, "ruby", "rubies")}"
 
   defp fortune_outcome({:upgrade, chip}, _id), do: "traded #{chip_name(chip)} up"
-  defp fortune_outcome(:orange, _id), do: "orange 1 chip"
+  defp fortune_outcome(:orange, _id), do: "took orange 1"
   defp fortune_outcome(other, _id), do: inspect(other)
 
   defp chip_list(chips), do: Enum.map_join(chips, ", ", &chip_name/1)

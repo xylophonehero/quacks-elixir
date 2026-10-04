@@ -2,7 +2,9 @@
 
 A guide to this codebase for a web developer who learns Elixir and Phoenix.
 Written 2026-10-04 against `master` at `ba36f22`; updated the same day to `23aced7`
-(icons, motion, EV bots; 454 tests, 13 doctests, 5 properties).
+(icons, motion, EV bots), then to `36d7bbd` plus the `tidy` branch (host handover,
+presence and rejoin, acknowledgements, `:not_found`, socket GC; 532 tests, 13
+doctests, 5 properties).
 
 You know React, TypeScript and browser APIs. This guide maps those ideas onto
 Elixir and Phoenix LiveView, and shows each idea in real code from this repo. Every
@@ -47,8 +49,8 @@ flowchart LR
 | 1 | [Map of the repo and the OTP app](guide/01-repo-and-otp.md) | folders, the supervision tree, how `mix phx.server` boots, dev / test / prod |
 | 2 | [The pure engine as a state machine](guide/02-engine.md) | structs, `apply/3`, `legal_actions/2`, phases, a draw step by step, expansions as a `MapSet`, `move_droplet/3`, RNG in the struct |
 | 3 | [Sessions, log and replay](guide/03-session-log-replay.md) | seed + actions = the game, undo, the log as UI data |
-| 4 | [GameServer and client syncing](guide/04-gameserver.md) | one GenServer per game, PubSub, seats, bot ticks and lockstep, a bot's own rng, bot names |
-| 5 | [Routes and the LiveView lifecycle](guide/05-liveview.md) | router, `mount`, events, broadcasts, encoded actions, derived assigns |
+| 4 | [GameServer and client syncing](guide/04-gameserver.md) | one GenServer per game, PubSub, seats, host and founder, presence (`absent`, `rejoin/3`), `seen`, bot ticks and lockstep, a bot's own rng, bot names, socket GC |
+| 5 | [Routes and the LiveView lifecycle](guide/05-liveview.md) | router, `mount`, events, broadcasts, encoded actions, derived assigns, `"seen"` acknowledgements, `:not_found` |
 | 6 | [Components](guide/06-components.md) | function components, HEEx, native dialogs, the SVG pot, compile-time icons, Tailwind tricks, motion (ids, `--beat` replay, the `PotMotion` hook, a view transition, reduced motion) |
 | 7 | [Rules as data](guide/07-rules-as-data.md) | `Quacks.Rules.*`, module attributes, why data is not logic, patients and test tubes |
 | 8 | [Tests](guide/08-tests.md) | ExUnit, helpers, StreamData properties, LiveViewTest, `mix precommit`, the simulator |

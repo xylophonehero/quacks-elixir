@@ -64,11 +64,13 @@ defmodule QuacksWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class="fixed top-4 right-4 z-50"
+      class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-4 sm:right-4 sm:bottom-auto"
       {@rest}
     >
+      <%!-- Phones: above the bottom bar, so the toast hides neither the title nor the
+           header buttons. --%>
       <div class={[
-        "flex items-start gap-3 rounded-lg border p-4 shadow-md w-80 sm:w-96 text-wrap",
+        "flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap",
         @kind == :info && "border-sky-300 bg-sky-50 text-sky-900",
         @kind == :error && "border-red-300 bg-red-50 text-red-900"
       ]}>

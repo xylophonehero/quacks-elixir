@@ -53,11 +53,14 @@ Terms used in code, tests and docs. Source: `docs/research/rulebook.md`.
 | **player token** | A random value in the browser's session cookie (`QuacksWeb.Plugs.PlayerToken`). It stands in for an account: a `GameServer` maps token → seat on the first `claim_seat`. Seats fill lowest-free first; the creator (first token seated) is seat 0. Shown to people as "Player N" with N = seat + 1 (`GameServer.default_name/1`), or a nickname. |
 | **seat colour** | One of 8 palette colours (`--color-seat-0..7` in `app.css`: gold, teal, violet, coral, lime, rose, sky, slate), unique at the table. `GameServer` keeps `colours: %{seat => 0..7}` (in `get/1`'s table); a new seat gets its own index, or the lowest free colour when that is taken; `set_colour(id, seat, colour)` gives `:ok` or `{:error, :taken | :invalid | :not_found}` and broadcasts `{:names, id, names}` (pages re-read the table). Colours follow the seats through `begin/2` and `play_again/2`. The web layer colours seat N with `--color-player-N`, which the game page sets on `<main>` from the table (`GameComponents.seat_style/1`); the configure screen's own seat row has the picker (8 swatches; taken ones struck through and disabled, yours ringed). |
 | **spectator** | A browser with no seat: the waiting game was full, or the game had begun. It sees every pot and no buttons, and no card or results dialog opens by itself. For an **absent seat** (a human seat with no open page; `GameServer` watches each connected page that claims a seat) it sees "Rejoin as <name>": `GameServer.rejoin/3` moves the seat to its token (a player who lost the cookie or changed browser). |
+| **host** | The browser that may configure, add bots and start a waiting game. `host/1` (private, in `Quacks.GameServer`): the creator (first token seated) while seated, else the seated browser with the lowest seat. The table calls its seat `creator`. See **waiting game**. |
+| **founder** | `table.founder`: the seat of the browser that created the table (`nil` while it is not seated). Only the founder's saved settings load into a fresh configure screen, so a handover keeps the table's settings (QA2 N2). |
+| **seen** | `table.seen`, per seat `%{card: round, results: round}`: the fortune card and round results that seat closed last. The page sends `"seen"` on close, `GameServer.ack/4` stores it, and a reload mounts them closed. A droplet or patient choice at the start of a round waits until the new card is seen. A spectator counts as having seen everything. |
 | **live socket** | The `/live` WebSocket (`QuacksWeb.Endpoint`). Every game diff is tens of KB of JSON, and its garbage stays in the socket process until a full GC. `websocket: [fullsweep_after: 0]` makes every GC of that process a full sweep (its live data is only about 6–9 KB, so this is cheap). Measured on one 4-seat tab (1 human, 3 bots) after about 30 diffs: 9.2 MB before; 4.7 MB with `fullsweep_after: 20` (only 7 minor GCs, so no full sweep yet); 0.37 MB with 0. |
 
 ## Log (`Quacks.Game.log`)
 
-Newest first. Every entry that concerns one player is tagged with the seat: `{seat, entry}`, e.g. `{0, {:drew, {:white, 2}, 5}}`. Applied actions are logged (tagged) and followed by the events they caused. The only untagged entry is `{:round_end, round}`.
+Newest first. Every entry that concerns one player is tagged with the seat: `{seat, entry}`, e.g. `{0, {:drew, {:white, 2}, 5}}`. Applied actions are logged (tagged) and followed by the events they caused. Untagged entries: `{:round_end, round}`, `{:fortune_drawn, id}`, `{:fortune_skipped, id}`, `{:expansion, x}` and `{:patients, ids}`. The game page's log (`GameComponents.action_log/1`) words every line in the past tense ("Bought nothing", "Stopped", "Exploded: took the VP"; buttons keep the imperative of `label/1`) and shows one line per event: an action that the next event narrates is left out (`:draw`, a buy, a ruby spend, `:use_flask`, the mandrake's `:return_white`, card and chip choices, the silver witch's whites, copper witch actions, and the action half of a stop or resume).
 
 | Entry | When |
 |---|---|
@@ -94,7 +97,8 @@ Newest first. Every entry that concerns one player is tagged with the seat: `{se
 | `{:fortune, id, outcome}` | What card `id` did for this player (see the table below). |
 | `{:effect, {colour, set}, detail}` | A Set 2-6 chip effect (see the table below). |
 | `{:round_end, round}` | The last event of every round. Untagged. |
-| `{:expansion, :herb_witches}` | Untagged. The first entry of an expansion game. |
+| `{:expansion, :herb_witches \| :alchemists}` | Untagged. The first entries of an expansion game, one per expansion. |
+| `{:patients, ids}` | Untagged. The Alchemists, before round 1: the 3 patients dealt (`Quacks.Game.Essence.setup/1`); each seat then picks one with `{:patient, id}`. |
 
 Card outcomes (`{seat, {:fortune, id, outcome}}`):
 
@@ -200,6 +204,7 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 | `:yellow_choice` | `:return_white`, `:keep` | A yellow chip was drawn directly after a white chip. |
 | `:blue_choice` | `{:place, chip}`, `:return_all` | A blue chip drew extra chips (the blue offer). |
 | `:explosion_choice` | `{:explosion_choice, :vp \| :buy}`; silver witch S1/S4 | White sum reached 8. |
+| `:witch_choice` | `{:witch, :gold}`, `:witch_done` | The Herb Witches, evaluation: this seat may call its gold witch (G1–G3) now (see **Witch actions**). |
 | `:red_choice` | `{:red, {:place \| :keep \| :return, chip}}` | Red Set 2: the player stopped (or made the explosion choice) with chips beside the pot (now in `pending`). One action per chip; then `:done`. |
 | `:essence_offer` | `{:essence, :carrot \| :double \| :return \| :hump}`, `{:essence, :pass}` | The Alchemists: a patient offer after a draw (`Player.essence_offers`, oldest first). |
 | `:essence_choice` | `{:essence, {:space, n}}`, `0 <= n <= essence_reach` | Essence phase: a lower space has another kind of bonus. |

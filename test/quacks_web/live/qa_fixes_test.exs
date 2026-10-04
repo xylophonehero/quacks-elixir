@@ -245,9 +245,8 @@ defmodule QuacksWeb.QaFixesTest do
         render_component(&GameComponents.action_log/1, log: log, names: %{0 => "A", 1 => "B"})
 
       assert html =~ "Second Chances: put back white 1, green 1"
-      assert html =~ "B: Stopped (may resume while others brew)"
-      refute html =~ "B: Stop<"
-      assert html =~ "A: Stop<"
+      assert length(String.split(html, "B: Stopped<")) == 2
+      assert html =~ "A: Stopped<"
     end
   end
 end
