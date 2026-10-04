@@ -96,9 +96,10 @@ defmodule QuacksWeb.AlchemistsComponents do
           <span
             id={"essence-marker-#{@seat}-#{@size}"}
             class="essence-marker pointer-events-none absolute top-0 bottom-1.5 left-0 flex w-[calc(100%/11)] items-end justify-center"
-            style={"translate: #{@p.essence * 100}% 0"}
+            style={"translate: #{@p.essence * 100}% 0" <> if(@beat, do: "; --beat: #{@beat}", else: "")}
             aria-hidden="true"
             data-role="essence-marker"
+            data-beat={@beat}
           >
             <span class={vial_class(@p.essence, @p.essence, @size, @spendable)}>
               {@p.essence}

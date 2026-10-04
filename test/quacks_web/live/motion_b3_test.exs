@@ -88,7 +88,8 @@ defmodule QuacksWeb.MotionB3Test do
     js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
     [_, hook] = String.split(js, "// The large pot's motion", parts: 2)
     [hook, _] = String.split(hook, "const csrfToken", parts: 2)
-    assert byte_size(hook) < 6_000
+    # the scoring sequence (ruby flights, skip keys, rats in) grew it from 6 000
+    assert byte_size(hook) < 8_000
     assert hook =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
     assert js =~ "!reduced()"
   end

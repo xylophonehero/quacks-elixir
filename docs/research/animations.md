@@ -363,6 +363,37 @@ the droplet is a full piece on its space and each rat tail is a full rat piece
 space after it; a new rat pops in with the CSS `chip-land`, and all of them slide by
 `translate` when the droplet moves.
 
+**Scoring sequence as built (2026-10-04, branch `scoring`).** Step B now plays on
+the pot, in log order (die → chip actions → scoring space), on the same `--beat`
+numbers as the update chips on the name cards. `Replay.pot_effects/1` (pure) turns
+black, green, purple and space lines into `%{kind: :ruby | :vp, at: mark, beat, n}`:
+a ruby leaves the droplet (black), the newest marked chip (green, purple) or the
+scoring space's gem; a "+N VP" tag rises from the chip or the space's seal. The pot
+renders them (only while replaying) as `g[data-role=ruby-flight|vp-float]` with
+`data-beat`, `data-x/y`, `data-wait` (300 ms after a droplet slide). CSS: `vp-float`
+(900 ms); the droplet and the rats get a `transition-delay` from
+`svg[data-slide-beat]`, so they slide on their beat; `#stat-vp`/`#stat-rubies` tick
+on their beat (`data-beat`; rubies +700 ms, when the gem lands), the essence marker
+too. `PotMotion.flights()` (WAAPI, once per id): lift 12 px ×1.3, arc to the ruby
+counter's centre (`getScreenCTM`), fade, 600 ms; `.pot-lg { overflow: visible }`.
+The bonus die (`replay_die/1`, the B2 strip) shows in the side column from `lg`,
+in the footer on phones: in on its beat, `steps(7, jump-none)` roll
+(`--die-roll` 700 ms), spring land, then its text. The last update chip has a
+second, inert `replay-hold` animation (1 s) and app.js ends the replay on the chip's
+*last* animation, so the last beat's flight or tag finishes before the shop opens
+(about 3.5 s for a 7-beat round). Skip: the button, a tap on the pot, Space or Esc
+(PotMotion `keydown`, not inside inputs/buttons or a modal); `replay-done` hides
+flights/tags, cancels the delayed transitions and runs the die to its end. Two
+skips (`localStorage` `quacks:skips`, try/catch) set `html[data-fast-beats]`:
+200 ms lead, 250 ms step, 420 ms die. Reduced motion: no flights, tags or die
+motion; counters and droplet change at once. Round start: `PotMotion.ratsIn()`
+slides each rat from the droplet to its space (240 ms, 60 ms stagger) when
+`data-round` changes; the fuse fades up 6 px on its return. **Fixed on the way:**
+`JS.add_class("replay-done")` is sticky across patches, so after the first replay
+of a session every later one started "done" (no motion, no seen, shop waited);
+`<i id="replay-start-N" phx-mounted={JS.remove_class(...)}>` now clears it when a
+new replay starts. Not seen live: the rat slide-in (my seat was never behind).
+
 Data attributes added overall: `id` on pot chips / droplet / rat stone, `data-order`,
 `data-x`/`data-y` on spaces, `data-beat` + `--beat`, `data-face`, `data-motion` (root),
 `view-transition-name` only on the essence marker and the round counter.

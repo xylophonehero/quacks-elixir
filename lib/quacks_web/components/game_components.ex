@@ -247,9 +247,14 @@ defmodule QuacksWeb.GameComponents do
     default: %{},
     doc: "`QuacksWeb.Replay.highlights/1`: the chips, droplet and scoring ring to light up"
 
+  attr :effects, :list,
+    default: [],
+    doc: "while the replay plays: `QuacksWeb.Replay.pot_effects/1` (flying rubies, VP tags)"
+
   def pot(assigns) do
     player = assigns.game.players[assigns.seat]
-    rings = assigns.rings || %{assigns.seat => Game.scoring_index(assigns.game, assigns.seat)}
+    scoring = Game.scoring_index(assigns.game, assigns.seat)
+    rings = assigns.rings || %{assigns.seat => scoring}
 
     assigns =
       assign(assigns,
@@ -259,8 +264,9 @@ defmodule QuacksWeb.GameComponents do
         positions: @positions,
         rings_by_index: rings |> Enum.sort() |> Enum.group_by(&elem(&1, 1), &elem(&1, 0)),
         rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
-        scoring: Game.scoring_index(assigns.game, assigns.seat),
-        ring_index: Game.scoring_index(assigns.game, assigns.seat),
+        scoring: scoring,
+        ring_index: scoring,
+        fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring))),
         spaces: 0..PotTrack.last(),
         groove: @groove
       )
@@ -276,6 +282,8 @@ defmodule QuacksWeb.GameComponents do
       data-exploded={to_string(@me.exploded?)}
       phx-hook={@size == :lg && "PotMotion"}
       data-round={@size == :lg && @game.round}
+      data-slide-beat={@effects != [] && @beats[:droplet]}
+      style={@effects != [] && @beats[:droplet] && "--slide-beat: #{@beats[:droplet]}"}
     >
       <defs>
         <%!-- The brew; an exploded pot's brew turns a dull, spoiled olive. --%>
@@ -498,6 +506,48 @@ defmodule QuacksWeb.GameComponents do
         click={@flask_click}
         uid={"#{@seat}-#{@size}"}
       />
+      <%!-- The scoring sequence: on its line's beat a ruby lifts and flies to the ruby
+           counter (app.js `PotMotion`), a VP tag floats up (app.css `vp-float`). --%>
+      <g
+        :for={fx <- @fx}
+        id={"beat-fx-#{@seat}-#{@game.round}-#{fx.kind}-#{fx.beat}-#{fx.n}"}
+        data-role={if fx.kind == :ruby, do: "ruby-flight", else: "vp-float"}
+        data-beat={fx.beat}
+        data-n={fx.n}
+        data-wait={if fx.at == :droplet, do: "300", else: "0"}
+        data-x={elem(fx.xy, 0)}
+        data-y={elem(fx.xy, 1)}
+        style={"--beat: #{fx.beat}"}
+        transform={"translate(#{elem(fx.xy, 0)} #{elem(fx.xy, 1)})"}
+        aria-hidden="true"
+      >
+        <g class="beat-fx">
+          <.piece_icon
+            :if={fx.kind == :ruby}
+            name={:ruby}
+            x="-10"
+            y="-10"
+            width="20"
+            height="20"
+            class="text-ruby"
+            style="filter: drop-shadow(0 0 3px var(--color-gold))"
+          />
+          <g :if={fx.kind == :vp} transform="translate(0 -26)">
+            <rect
+              x="-27"
+              y="-11"
+              width="54"
+              height="22"
+              rx="11"
+              fill="var(--color-gold)"
+              stroke="#7a5a10"
+            />
+            <text dy="0.35em" text-anchor="middle" font-size="14" font-weight="700" fill="#3a2508">
+              {fx.text}
+            </text>
+          </g>
+        </g>
+      </g>
       <%!-- The chip flight's ghosts (app.js `PotMotion`) live here, out of LiveView's way. --%>
       <g :if={@size == :lg} id={"pot-fx-#{@seat}"} phx-update="ignore" data-role="pot-fx" />
     </svg>
@@ -856,6 +906,15 @@ defmodule QuacksWeb.GameComponents do
     "translate(#{x} #{y})"
   end
 
+  # Where a scoring effect starts, in pot units: its chip's space, the droplet, or
+  # the scoring space's own ruby (for a ruby) or VP seal (for a VP tag).
+  defp fx_at(%{at: :droplet}, droplet, _ring), do: elem(@positions, droplet)
+  defp fx_at(%{at: :ring, kind: kind}, _droplet, ring), do: offset(elem(@positions, ring), kind)
+  defp fx_at(%{at: index}, _droplet, _ring), do: elem(@positions, index)
+
+  defp offset({x, y}, :ruby), do: {x + 15, y - 20}
+  defp offset({x, y}, :vp), do: {x + 14, y + 14}
+
   # The same place as a CSS `translate`, so a change can transition (SVG user units = px).
   defp translate_style(index) do
     {x, y} = elem(@positions, index)
@@ -1127,6 +1186,10 @@ defmodule QuacksWeb.GameComponents do
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
 
+  attr :beats, :map,
+    default: %{},
+    doc: "while the replay plays: `%{vp: beat, rubies: beat}`, when each counter ticks"
+
   def status(assigns) do
     assigns =
       assign(assigns,
@@ -1140,8 +1203,8 @@ defmodule QuacksWeb.GameComponents do
       class="paper flex min-h-10 flex-wrap items-center justify-around gap-x-3 gap-y-1 rounded-lg px-2 py-1"
       data-role="stats"
     >
-      <.stat label="VP" value={@me.vp} id="stat-vp" icon={:vp} />
-      <.stat label="Rubies" value={@me.rubies} id="stat-rubies" icon={:ruby} />
+      <.stat label="VP" value={@me.vp} id="stat-vp" icon={:vp} beat={@beats[:vp]} />
+      <.stat label="Rubies" value={@me.rubies} id="stat-rubies" icon={:ruby} beat={@beats[:rubies]} />
       <div class="flex items-center gap-1" title={"Flask #{flask_word(@me.flask)}"}>
         <dt class="flex">
           <.piece_icon
@@ -1304,6 +1367,7 @@ defmodule QuacksWeb.GameComponents do
   attr :value, :integer, required: true
   attr :id, :string, required: true
   attr :icon, :atom, required: true, doc: "a `QuacksWeb.Icons.piece_icon/1` name"
+  attr :beat, :integer, default: nil, doc: "the replay beat it ticks on (app.css)"
 
   # A number ticker: `--n` is a registered integer (app.css), so CSS counts it from
   # the old value to the new one and shows it with `counter(n)`. The inner span's id
@@ -1322,7 +1386,8 @@ defmodule QuacksWeb.GameComponents do
       <dd
         id={@id}
         class="stat-tick font-hand text-xl leading-none font-bold tabular-nums"
-        style={"--n: #{@value}"}
+        style={"--n: #{@value}" <> if(@beat, do: "; --beat: #{@beat}", else: "")}
+        data-beat={@beat}
       >
         <span class="sr-only">{@value}</span>
         <span id={"#{@id}-#{@value}"} class="stat-pop" aria-hidden="true"></span>
@@ -2549,6 +2614,30 @@ defmodule QuacksWeb.GameComponents do
   defp total(lines, key), do: lines |> Enum.map(&Map.fetch!(&1, key)) |> Enum.sum()
 
   @die_faces [{:vp, 1}, {:vp, 1}, {:vp, 2}, :ruby, :droplet, :orange]
+
+  @doc """
+  The bonus die while the replay plays (scoring sequence): it shows on its beat,
+  rolls through its strip, lands, and its line ("Bonus die: +1 VP") fades in after.
+  The page puts it beside the pot: in the side column on large screens, in the
+  footer on phones.
+  """
+  attr :lines, :list, required: true, doc: "the replay's `:die` lines (`Replay.beats/3`)"
+  attr :class, :any, default: nil
+
+  def replay_die(assigns) do
+    ~H"""
+    <div
+      :for={line <- @lines}
+      class={["replay-die items-center gap-2 rounded-lg bg-iron-dark/70 px-2 py-1", @class]}
+      data-role="replay-die"
+      data-beat={line.beat}
+      style={"--beat: #{line.beat}"}
+    >
+      <.die face={line.face} />
+      <span class="replay-die-text text-sm font-semibold text-parchment">{line.text}</span>
+    </div>
+    """
+  end
 
   @doc """
   The bonus die for a result line: a strip of seven frames (the six faces in a

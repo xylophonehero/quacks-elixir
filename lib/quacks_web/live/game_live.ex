@@ -919,7 +919,7 @@ defmodule QuacksWeb.GameLive do
           </header>
 
           <div class="space-y-1 px-2">
-            <.status :if={@seat} game={@game} seat={@seat} />
+            <.status :if={@seat} game={@game} seat={@seat} beats={stat_beats(@game, @seat, @seen)} />
             <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
                  brew each card plays its update chips (the round results); the last
                  one to land ends the replay (`replay_end/3`, app.js). --%>
@@ -947,6 +947,14 @@ defmodule QuacksWeb.GameLive do
                 }
               />
             </nav>
+            <%!-- A new replay clears the `replay-done` that JS added at the end of the
+                 last one (JS-added classes stick across patches). --%>
+            <i
+              :if={replaying?(@game, @seen)}
+              id={"replay-start-#{@game.round}"}
+              hidden
+              phx-mounted={JS.remove_class("replay-done", to: "#players-row")}
+            />
           </div>
 
           <div class="space-y-1 px-2 pt-1 text-sm">
@@ -1011,6 +1019,7 @@ defmodule QuacksWeb.GameLive do
                   flask={@me && if(@me.flask, do: :full, else: :empty)}
                   flask_click={if :use_flask in @actions, do: encode(:use_flask)}
                   beats={replay_marks(@game, @seat)}
+                  effects={replay_effects(@game, @seat, @seen)}
                 />
                 <%!-- Small enough for the free corner outside the round rim. --%>
                 <.sheet_button
@@ -1169,6 +1178,11 @@ defmodule QuacksWeb.GameLive do
                 <.icon name="hero-arrow-uturn-left" class="size-4" /> Forget a chip
               </.sheet_button>
             </section>
+            <.replay_die
+              :if={replaying?(@game, @seen)}
+              lines={replay_die_lines(@game, @seat)}
+              class="flex lg:hidden"
+            />
             <div
               :if={@seat && @game.phase == :potions}
               class="flex items-center gap-2"
@@ -1216,6 +1230,11 @@ defmodule QuacksWeb.GameLive do
           class="contents lg:flex lg:h-full lg:flex-col lg:gap-3 lg:overflow-hidden lg:py-3 lg:pr-3"
           data-role="side-column"
         >
+          <.replay_die
+            :if={replaying?(@game, @seen)}
+            lines={replay_die_lines(@game, @seat)}
+            class="hidden shrink-0 lg:flex"
+          />
           <.fortune_panel
             :if={@game.fortune_card}
             id={"fortune-panel-#{@game.round}"}
@@ -2515,6 +2534,30 @@ defmodule QuacksWeb.GameLive do
     if open? and after_results?(decision),
       do: JS.dispatch(js, "quacks:modal", to: "#decision-#{decision}"),
       else: js
+  end
+
+  # While the replay plays (scoring sequence): the rubies and VP tags on the pot, the
+  # bonus die beside it, and the beats the VP and ruby counters tick on (a ruby
+  # counter when its last ruby lands, see app.css).
+  defp replay_effects(game, seat, seen) do
+    if replaying?(game, seen),
+      do: game |> Replay.beats(seat || 0) |> Replay.pot_effects(),
+      else: []
+  end
+
+  defp replay_die_lines(game, seat),
+    do: game |> Replay.beats(seat || 0) |> Enum.filter(&(&1.kind == :die))
+
+  defp stat_beats(game, seat, seen) do
+    if replaying?(game, seen),
+      do:
+        for(
+          %{kind: kind, beat: beat} <- Replay.updates(game, seat),
+          kind in [:vp, :rubies],
+          into: %{},
+          do: {kind, beat}
+        ),
+      else: %{}
   end
 
   # While the round results show: what lights up on the pot on which replay beat
