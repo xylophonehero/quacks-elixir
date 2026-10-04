@@ -23,3 +23,10 @@ config :phoenix,
 
 # Bots act at once in tests (see Quacks.GameServer).
 config :quacks, bot_delay: 0
+
+# Bug reports: GitHub is a `Req.Test` stub, reports go to a temp dir, and the debug
+# replay route is closed (`Quacks.BugReports`, `QuacksWeb.DebugReplayController`).
+config :quacks, :github_req_options, plug: {Req.Test, Quacks.BugReports}
+config :quacks, :bug_reports, github_token: nil
+config :quacks, :bug_report_dir, Path.join(System.tmp_dir!(), "quacks-bug-reports-test")
+config :quacks, :debug_token, nil

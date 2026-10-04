@@ -23,6 +23,16 @@ end
 config :quacks, QuacksWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Bug reports (`Quacks.BugReports`) and the debug replay route. Tests stub GitHub and
+# set these themselves.
+if config_env() != :test do
+  config :quacks, :bug_reports,
+    github_token: System.get_env("BUG_REPORT_GITHUB_TOKEN"),
+    github_repo: System.get_env("BUG_REPORT_GITHUB_REPO", "xylophonehero/quacks-elixir")
+
+  config :quacks, :debug_token, System.get_env("DEBUG_TOKEN")
+end
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :quacks, QuacksWeb.Endpoint,

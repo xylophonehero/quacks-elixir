@@ -60,6 +60,11 @@ defmodule Quacks.GameServer do
   action happened since; the next action of any seat drops `auto_keep`, and bots
   wait while it is open. Bots answer the choice themselves.
 
+  Debug tables (`start_from_bundle/2`): a game rebuilt from a bug report's bundle
+  (`Quacks.Session.bundle/1`), at some action of its log. Its bots are frozen (no
+  ticks, no plans) until `set_frozen/2`; `seek/2` rebuilds it at another action.
+  The table says so in `debug`.
+
   Games live under `Quacks.GameSupervisor` and are not persisted: a game that sees no
   message for 2 hours stops, and a node restart forgets every game.
   """
@@ -106,7 +111,8 @@ defmodule Quacks.GameServer do
           sets: Quacks.Rules.Chips.sets(),
           rules: map,
           expansion: nil | :herb_witches,
-          expansions: MapSet.t(Game.expansion())
+          expansions: MapSet.t(Game.expansion()),
+          debug: nil | %{at: non_neg_integer, total: non_neg_integer, frozen: boolean}
         }
 
   @typedoc "A seat colour: an index into the 8-colour palette (`--color-seat-N`)."
@@ -161,6 +167,65 @@ defmodule Quacks.GameServer do
         start_server(fields)
     end
   end
+
+  @doc """
+  A `:playing` table rebuilt from a bug report's `bundle` (see
+  `Quacks.Session.bundle/1`; atom or string keys), for debugging. Options: `at:`
+  replays only the first `at` actions (default: all), `token:` and `seat:` give that
+  seat to the browser with `token` (the other human seats stay unclaimed). The
+  bundle's `names` and `bots` (when present) name the seats and seat the bots.
+  Bots start frozen (see the moduledoc).
+  """
+  @spec start_from_bundle(map, keyword) :: {:ok, id} | {:error, :invalid}
+  def start_from_bundle(bundle, opts \\ []) do
+    bundle = bundle |> Jason.encode!() |> Jason.decode!()
+    total = length(bundle["log"] || [])
+    at = opts |> Keyword.get(:at, total) |> max(0) |> min(total)
+
+    with {:ok, session} <- Session.from_bundle(bundle, at) do
+      seats = 0..(session.players - 1)
+      bots = Map.new(Enum.filter(bundle["bots"] || [], &(&1 in seats)), &{&1, @bot_profile})
+      names = bundle["names"] || []
+      token = opts[:token]
+
+      start_server(%{
+        max_players: session.players,
+        seed: session.seed,
+        opts: [
+          sets: session.sets,
+          rules: session.rules,
+          expansions: Enum.to_list(session.expansions)
+        ],
+        tokens: if(token && opts[:seat] in seats, do: %{token => opts[:seat]}, else: %{}),
+        names: Map.new(seats, &{&1, Enum.at(names, &1) || default_name(&1)}),
+        colours: Map.new(seats, &{&1, &1}),
+        bots: bots,
+        bot_rngs: Map.new(bots, fn {seat, _} -> {seat, AI.new_rng(session.seed, seat)} end),
+        creator: token,
+        session: session,
+        debug: %{bundle: bundle, at: at, total: total, frozen: true}
+      })
+    end
+  end
+
+  @doc """
+  Rebuild a debug table at action `at` of its bundle (clamped to the log). Bots
+  keep their frozen flag; queued plans and pending ticks are dropped.
+  """
+  @spec seek(id, integer) :: {:ok, Game.t()} | {:error, :not_debug | :not_found}
+  def seek(id, at), do: call(id, {:seek, at})
+
+  @doc "Freeze (`true`) or unfreeze the bots of a debug table."
+  @spec set_frozen(id, boolean) :: :ok | {:error, :not_debug | :not_found}
+  def set_frozen(id, frozen?), do: call(id, {:set_frozen, frozen?})
+
+  @doc """
+  The game as a bug report's bundle: `Quacks.Session.bundle/1` plus the seat
+  `names` (a list by seat) and the `bots` seats. `{:error, :not_started}` while
+  `:waiting`.
+  """
+  @spec bundle(id) :: {:ok, map} | {:error, :not_started | :not_found}
+  def bundle(id), do: call(id, :bundle)
 
   @doc false
   def start_link({id, _fields} = arg),
@@ -358,18 +423,65 @@ defmodule Quacks.GameServer do
           seen: %{},
           pages: %{},
           tick: 0,
+          debug: nil,
           name_rng: :rand.seed_s(:exsss, fields.seed)
         },
         fields
       )
 
     # Solo has nobody to wait for (a solo play-again comes with its seat taken).
-    state = if state.max_players == 1 and state.tokens != %{}, do: begin_game(state), else: state
+    state =
+      if state.max_players == 1 and state.tokens != %{} and state.session == nil,
+        do: begin_game(state),
+        else: state
+
     {:ok, state, @idle_timeout}
   end
 
   @impl true
   def handle_call(:get, _from, state), do: {:reply, {:ok, table(state)}, state, @idle_timeout}
+
+  def handle_call(:bundle, _from, %{session: nil} = state),
+    do: {:reply, {:error, :not_started}, state, @idle_timeout}
+
+  def handle_call(:bundle, _from, state) do
+    bundle =
+      Map.merge(Session.bundle(state.session), %{
+        names: Enum.map(0..(state.session.players - 1), &Map.get(state.names, &1)),
+        bots: state.bots |> Map.keys() |> Enum.sort()
+      })
+
+    {:reply, {:ok, bundle}, state, @idle_timeout}
+  end
+
+  def handle_call({:seek, _at}, _from, %{debug: nil} = state),
+    do: {:reply, {:error, :not_debug}, state, @idle_timeout}
+
+  def handle_call({:seek, at}, _from, %{debug: debug} = state) do
+    at = at |> max(0) |> min(debug.total)
+    {:ok, session} = Session.from_bundle(debug.bundle, at)
+
+    state = %{
+      state
+      | session: session,
+        debug: %{debug | at: at},
+        bot_ticks: %{},
+        queued: %{},
+        auto_keep: nil
+    }
+
+    reply_game(schedule_bots(state))
+  end
+
+  def handle_call({:set_frozen, _frozen?}, _from, %{debug: nil} = state),
+    do: {:reply, {:error, :not_debug}, state, @idle_timeout}
+
+  def handle_call({:set_frozen, frozen?}, _from, state) do
+    state = %{state | debug: %{state.debug | frozen: frozen?}}
+    state = if frozen?, do: %{state | bot_ticks: %{}, queued: %{}}, else: acted(state)
+    broadcast(state, {:game, state.id, state.session.game})
+    {:reply, :ok, state, @idle_timeout}
+  end
 
   def handle_call({:apply, _, _}, _from, %{session: nil} = state),
     do: {:reply, {:error, :not_started}, state, @idle_timeout}
@@ -776,6 +888,7 @@ defmodule Quacks.GameServer do
   # a concurrent phase where a human still decides, a bot plans instead (no tick).
   # While a human's Mandrake answer can be taken back, bots wait.
   defp schedule_bots(%{session: nil} = state), do: state
+  defp schedule_bots(%{debug: %{frozen: true}} = state), do: state
   defp schedule_bots(%{auto_keep: {_seat, _before}} = state), do: state
 
   defp schedule_bots(state) do
@@ -928,7 +1041,8 @@ defmodule Quacks.GameServer do
       expansions:
         MapSet.new(
           List.wrap(state.opts[:expansion]) ++ Enum.to_list(state.opts[:expansions] || [])
-        )
+        ),
+      debug: state.debug && Map.take(state.debug, [:at, :total, :frozen])
     }
   end
 

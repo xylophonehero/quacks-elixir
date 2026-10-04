@@ -20,6 +20,8 @@ defmodule QuacksWeb.Router do
 
     live "/", LobbyLive
     live "/g/:id", GameLive
+    # Gated in the controller: dev, or DEBUG_TOKEN.
+    get "/debug/replay", DebugReplayController, :show
   end
 
   # Other scopes may use custom stacks.

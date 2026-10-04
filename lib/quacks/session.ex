@@ -88,6 +88,82 @@ defmodule Quacks.Session do
     end)
   end
 
+  @doc """
+  The session as plain, JSON-ready data, for a bug report: `%{version: 1, seed,
+  players, opts: %{sets, rules, expansions}, log}`. `log` holds `[seat, action]`
+  pairs, oldest first. An action is encoded as JSON like this: an atom is a
+  string, a tuple is an array, a list is `{"l": [...]}`, a map is `{"m": [[k,
+  v], ...]}` and a string is `{"s": "..."}`. `from_bundle/2` reads it back.
+  """
+  @spec bundle(t) :: map
+  def bundle(%__MODULE__{} = s) do
+    %{
+      version: 1,
+      seed: Tuple.to_list(s.seed),
+      players: s.players,
+      opts: %{
+        sets: encode_map(s.sets),
+        rules: encode_map(s.rules),
+        expansions: s.expansions |> Enum.sort() |> Enum.map(&Atom.to_string/1)
+      },
+      log:
+        s.actions |> Enum.reverse() |> Enum.map(fn {seat, action} -> [seat, encode(action)] end)
+    }
+  end
+
+  @doc """
+  The session a `bundle/1` describes, with atom or string keys (decoded JSON).
+  `at` replays only the first `at` actions of its log (nil: all). An unknown
+  atom, an illegal action or a bad shape gives `{:error, :invalid}`.
+  """
+  @spec from_bundle(map, non_neg_integer | nil) :: {:ok, t} | {:error, :invalid}
+  def from_bundle(bundle, at \\ nil) do
+    %{"version" => 1, "seed" => [_, _, _] = seed, "players" => players, "opts" => opts} =
+      b = bundle |> Jason.encode!() |> Jason.decode!()
+
+    log = if at, do: Enum.take(b["log"], at), else: b["log"]
+    actions = Enum.reduce(log, [], fn [seat, action], acc -> [{seat, decode(action)} | acc] end)
+
+    game_opts = [
+      sets: decode_map(opts["sets"]),
+      rules: decode_map(opts["rules"]),
+      expansions: Enum.map(opts["expansions"], &String.to_existing_atom/1)
+    ]
+
+    s = new(List.to_tuple(seed), players, game_opts)
+    game = replay(s.seed, players, actions, game_opts)
+    {:ok, %{s | actions: actions, game: game}}
+  rescue
+    _error in [MatchError, ArgumentError, FunctionClauseError, CaseClauseError, KeyError] ->
+      {:error, :invalid}
+  end
+
+  defp encode(atom) when is_atom(atom) and atom not in [nil, true, false],
+    do: Atom.to_string(atom)
+
+  defp encode(tuple) when is_tuple(tuple), do: tuple |> Tuple.to_list() |> Enum.map(&encode/1)
+  defp encode(list) when is_list(list), do: %{l: Enum.map(list, &encode/1)}
+  defp encode(%MapSet{} = set), do: %{l: set |> Enum.sort() |> Enum.map(&encode/1)}
+
+  defp encode(map) when is_map(map),
+    do: %{m: map |> Enum.sort() |> Enum.map(fn {k, v} -> [encode(k), encode(v)] end)}
+
+  defp encode(string) when is_binary(string), do: %{s: string}
+  defp encode(term), do: term
+
+  defp decode(string) when is_binary(string), do: String.to_existing_atom(string)
+  defp decode(list) when is_list(list), do: list |> Enum.map(&decode/1) |> List.to_tuple()
+  defp decode(%{"l" => list}), do: Enum.map(list, &decode/1)
+  defp decode(%{"m" => pairs}), do: Map.new(pairs, fn [k, v] -> {decode(k), decode(v)} end)
+  defp decode(%{"s" => string}), do: string
+  defp decode(term), do: term
+
+  # Sets and rules: a JSON object with atom keys as strings.
+  defp encode_map(map), do: Map.new(map, fn {key, value} -> {key, encode(value)} end)
+
+  defp decode_map(map),
+    do: Map.new(map, fn {key, value} -> {String.to_existing_atom(key), decode(value)} end)
+
   defp new_game(seed, players, opts),
     do: Game.new([seed: seed, players: players] ++ Keyword.take(opts, @game_opts))
 end

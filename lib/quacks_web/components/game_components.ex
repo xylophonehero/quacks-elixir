@@ -2137,6 +2137,14 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
+  @doc """
+  The newest `limit` lines of `log` in the words of `action_log/1`, newest first
+  (a bug report's log). `names` as in `action_log/1`.
+  """
+  @spec log_text(list, pos_integer, map | nil) :: [String.t()]
+  def log_text(log, limit, names),
+    do: for({_seat, line} <- log_lines(log, limit, names), do: line)
+
   defp log_lines(log, limit, names) do
     log
     |> drop_stop_before_stopped()

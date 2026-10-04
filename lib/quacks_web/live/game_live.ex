@@ -81,6 +81,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.SetupComponents
 
   import QuacksWeb.AlchemistsComponents
+  import QuacksWeb.BugReportComponents
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Fortune
@@ -131,6 +132,7 @@ defmodule QuacksWeb.GameLive do
            open_sheet: nil,
            seen: seen(table, seat)
          )
+         |> new_report()
          |> assign_table(table)
          |> put_game(table.game)}
 
@@ -270,6 +272,48 @@ defmodule QuacksWeb.GameLive do
 
       _ ->
         {:noreply, socket}
+    end
+  end
+
+  # The debug replay's scrubber (`GameServer.seek/2`, `GameServer.set_frozen/2`).
+  def handle_event("seek", %{"to" => to}, %{assigns: %{debug: %{}}} = socket) do
+    case GameServer.seek(socket.assigns.id, String.to_integer(to)) do
+      {:ok, game} -> {:noreply, socket |> put_game(game) |> refresh_debug()}
+      {:error, _} -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("freeze", %{"frozen" => frozen}, %{assigns: %{debug: %{}}} = socket) do
+    GameServer.set_frozen(socket.assigns.id, frozen == "true")
+    {:noreply, refresh_debug(socket)}
+  end
+
+  # "Report a problem" (`Quacks.BugReports`): `browser` is app.js's JSON.
+  def handle_event("report", %{"report" => %{"text" => text} = params}, socket) do
+    report = %{
+      game_id: socket.assigns.id,
+      seat: socket.assigns.seat,
+      text: text,
+      browser: browser_details(params["browser"])
+    }
+
+    case Quacks.BugReports.submit(report) do
+      {:ok, %{url: url, number: number}} ->
+        {:noreply,
+         socket
+         |> update(:reports, &(&1 + 1))
+         |> new_report()
+         |> put_flash(:info, reported(url, number))}
+
+      {:error, :not_found} ->
+        {:noreply, ended(socket)}
+
+      {:error, reason} ->
+        {:noreply,
+         assign(socket,
+           report_form: to_form(params, as: :report),
+           report_error: report_error(reason)
+         )}
     end
   end
 
@@ -437,6 +481,108 @@ defmodule QuacksWeb.GameLive do
 
   def terminate(_reason, _socket), do: :ok
 
+  defp refresh_debug(socket) do
+    case GameServer.get(socket.assigns.id) do
+      {:ok, table} -> assign(socket, debug: table.debug)
+      {:error, :not_found} -> ended(socket)
+    end
+  end
+
+  # A debug replay (`/debug/replay`): step through the bundle's actions; the bots
+  # wait until unfrozen.
+  attr :debug, :map, required: true
+
+  defp scrubber(assigns) do
+    ~H"""
+    <section class="space-y-2 rounded-md bg-ink/10 p-2" aria-label="Debug replay" data-role="scrubber">
+      <h3 class="font-bold">Debug replay</h3>
+      <div class="flex items-center gap-2 *:min-h-11">
+        <.button
+          phx-click="seek"
+          phx-value-to={@debug.at - 1}
+          disabled={@debug.at == 0}
+          aria-label="One action back"
+          variant={:secondary}
+          data-role="seek-back"
+        >
+          <.icon name="hero-chevron-left" class="size-5" />
+        </.button>
+        <span class="flex-1 text-center tabular-nums" data-role="scrub-position">
+          Action {@debug.at} of {@debug.total}
+        </span>
+        <.button
+          phx-click="seek"
+          phx-value-to={@debug.at + 1}
+          disabled={@debug.at >= @debug.total}
+          aria-label="One action forward"
+          variant={:secondary}
+          data-role="seek-forward"
+        >
+          <.icon name="hero-chevron-right" class="size-5" />
+        </.button>
+      </div>
+      <.button
+        phx-click="freeze"
+        phx-value-frozen={to_string(!@debug.frozen)}
+        variant={:secondary}
+        class="w-full"
+        data-role="freeze-bots"
+      >
+        {if @debug.frozen, do: "Unfreeze bots", else: "Freeze bots"}
+      </.button>
+    </section>
+    """
+  end
+
+  defp new_report(socket) do
+    assign(socket,
+      reports: socket.assigns[:reports] || 0,
+      report_form: to_form(%{"text" => ""}, as: :report),
+      report_error: nil
+    )
+  end
+
+  # Only the fields `Quacks.BugReports` knows, from the browser's JSON.
+  defp browser_details(json) when is_binary(json) do
+    case Jason.decode(json) do
+      {:ok, %{} = details} ->
+        %{
+          ua: details["ua"],
+          viewport: details["viewport"],
+          online: details["online"],
+          errors: Enum.filter(List.wrap(details["errors"]), &is_binary/1)
+        }
+
+      _bad ->
+        %{}
+    end
+  end
+
+  defp browser_details(_json), do: %{}
+
+  # The toast after a report: a link to the issue; without a GitHub token, the file.
+  defp reported("file://" <> path, nil), do: "Thanks. Report saved to #{path}"
+
+  defp reported(url, number) do
+    {:safe, href} = Phoenix.HTML.html_escape(url)
+
+    {:safe,
+     [
+       "Thanks. ",
+       ~s(<a href="),
+       href,
+       ~s(" target="_blank" rel="noopener" class="font-semibold underline">),
+       "Issue ##{number} opened",
+       "</a>"
+     ]}
+  end
+
+  defp report_error(:empty), do: "Please write what went wrong."
+  defp report_error(:too_long), do: "Please keep it under 2000 characters."
+  defp report_error(:not_seated), do: "Only players at the table can send a report."
+  defp report_error(:rate_limited), do: "One report a minute, please. Try again soon."
+  defp report_error(_other), do: "The report could not be sent. Please try again."
+
   defp reseat(socket) do
     %{id: id, token: token} = socket.assigns
 
@@ -470,6 +616,7 @@ defmodule QuacksWeb.GameLive do
       bots: table.bots,
       creator: table.creator,
       absent: table.absent,
+      debug: table.debug,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
       expansion: :herb_witches in table.expansions,
@@ -534,10 +681,14 @@ defmodule QuacksWeb.GameLive do
 
     ~H"""
     <Layouts.app flash={@flash} style={seat_style(@colours)}>
-      <h1 class="font-hand text-2xl font-bold">
-        <.link navigate={~p"/"}>Quacks</.link>
-        <span class="font-mono text-xs font-normal text-parchment-dim">{@id}</span>
-      </h1>
+      <div class="flex items-center justify-between gap-2">
+        <h1 class="font-hand text-2xl font-bold">
+          <.link navigate={~p"/"}>Quacks</.link>
+          <span class="font-mono text-xs font-normal text-parchment-dim">{@id}</span>
+        </h1>
+        <.bug_report_button :if={@seat} n={@reports} class="-mr-2" />
+      </div>
+      <.bug_report_sheet :if={@seat} n={@reports} form={@report_form} error={@report_error} />
       <div :if={@host} id="config-memory" phx-hook="ConfigMemory" data-fresh={@fresh} hidden />
       <section class="paper space-y-3 rounded-lg p-3" aria-label="New game">
         <h2 class="text-lg font-bold">New game</h2>
@@ -753,6 +904,7 @@ defmodule QuacksWeb.GameLive do
             >
               <.icon name="hero-book-open" class="size-6" />
             </button>
+            <.bug_report_button :if={@seat} n={@reports} class="-mx-1" />
             <button
               :if={results?(@game)}
               type="button"
@@ -1098,6 +1250,8 @@ defmodule QuacksWeb.GameLive do
         />
       </.sheet>
 
+      <.bug_report_sheet :if={@seat} n={@reports} form={@report_form} error={@report_error} />
+
       <.sheet id="sheet-menu" label="Menu">
         <div class="space-y-3 text-sm">
           <h2 class="text-lg font-bold">Game {@id}</h2>
@@ -1144,6 +1298,7 @@ defmodule QuacksWeb.GameLive do
           </p>
           <.books sets={@game.sets} />
           <.house_rules rules={@game.rules} />
+          <.scrubber :if={@debug} debug={@debug} />
         </div>
       </.sheet>
 
