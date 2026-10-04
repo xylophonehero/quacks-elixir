@@ -53,8 +53,9 @@ defmodule QuacksWeb.GameLive do
   seen (`"seen"`, `GameServer.ack/4`) and the shop opens (`replay_end/3`); a tap
   opens the card's sheet with the result lines instead. A seat that can buy nothing
   (it exploded and took the VP, or has too few coins) skips the buy and gets the
-  rubies step; with nothing to spend there either, one "Done" button ends its round.
-  A buy that leaves nothing else to do ends the round for this seat at once.
+  rubies step; with nothing to spend there either, its round ends by itself once the
+  replay played (`auto_done/2`). A buy or ruby spend that leaves nothing else to do
+  ends the round for this seat at once.
 
   In every choice between chips (crow skull, toadstool, silver witch, fortune cards,
   chip actions) the chips themselves are the buttons (`chip_picks/1`); only options
@@ -154,7 +155,7 @@ defmodule QuacksWeb.GameLive do
       when is_integer(seat) do
     with {:ok, action} <- decode(encoded),
          {:ok, game} <- GameServer.apply(socket.assigns.id, seat, action) do
-      {:noreply, put_game(socket, finish_shop(game, socket.assigns.id, seat, action))}
+      {:noreply, socket |> put_game(game) |> auto_done(shop_move?(action))}
     else
       {:error, {:illegal_action, action, _phase}} ->
         {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
@@ -310,7 +311,7 @@ defmodule QuacksWeb.GameLive do
          socket
          |> update(:reports, &(&1 + 1))
          |> new_report()
-         |> put_flash(:info, reported(url, number))}
+         |> info(reported(url, number), 8000)}
 
       {:error, :not_found} ->
         {:noreply, ended(socket)}
@@ -362,27 +363,32 @@ defmodule QuacksWeb.GameLive do
       when is_integer(seat) and kind in ["card", "results"] and is_integer(round) do
     kind = String.to_existing_atom(kind)
     GameServer.ack(socket.assigns.id, seat, kind, round)
-    {:noreply, update(socket, :seen, &Map.put(&1, kind, round))}
+    {:noreply, socket |> update(:seen, &Map.put(&1, kind, round)) |> auto_done()}
   end
 
   def handle_event("seen", _params, socket), do: {:noreply, socket}
 
   # A spectator takes back a seat that no page holds ("Rejoin as …"): the seat moves
-  # to this browser's token (`GameServer.rejoin/3`).
-  def handle_event("rejoin", %{"seat" => seat}, %{assigns: %{seat: nil}} = socket) do
+  # to this browser's token (`GameServer.rejoin/4`) when the typed name matches.
+  def handle_event(
+        "rejoin",
+        %{"rejoin" => %{"seat" => seat, "name" => typed}},
+        %{assigns: %{seat: nil}} = socket
+      ) do
     %{id: id, token: token} = socket.assigns
 
     with {seat, ""} <- Integer.parse(to_string(seat)),
-         {:ok, seat} <- GameServer.rejoin(id, token, seat),
+         {:ok, seat} <- GameServer.rejoin(id, token, seat, typed),
          {:ok, table} <- GameServer.get(id) do
       {:noreply,
        socket
        |> assign(seat: seat, seen: seen(table, seat))
        |> assign_table(table)
        |> put_game(table.game)
-       |> put_flash(:info, "Welcome back, #{name(table.names, seat)}.")}
+       |> info("Welcome back, #{name(table.names, seat)}.")}
     else
       {:error, :not_found} -> {:noreply, ended(socket)}
+      {:error, :name} -> {:noreply, put_flash(socket, :error, "That is not the seat's name.")}
       _error -> {:noreply, put_flash(socket, :error, "That seat is taken.")}
     end
   end
@@ -461,17 +467,29 @@ defmodule QuacksWeb.GameLive do
     case GameServer.get(id) do
       {:ok, table} ->
         {:noreply,
-         assign(socket, names: table.names, colours: table.colours, absent: table.absent)}
+         assign(socket,
+           names: table.names,
+           colours: table.colours,
+           rejoinable: table.rejoinable
+         )}
 
       {:error, :not_found} ->
         {:noreply, ended(socket)}
     end
   end
 
+  # A spectator took back an away seat: the table hears it (the rejoiner itself
+  # already got its welcome).
+  def handle_info({:rejoined, _id, seat}, %{assigns: %{seat: seat}} = socket),
+    do: {:noreply, socket}
+
+  def handle_info({:rejoined, _id, seat}, socket),
+    do: {:noreply, info(socket, "Someone rejoined as #{name(socket.assigns.names, seat)}.")}
+
   # The host left the waiting table and this seat took over.
   def handle_info({:host, _id, seat}, %{assigns: %{game: nil, seat: seat}} = socket)
       when is_integer(seat),
-      do: {:noreply, socket |> reseat() |> put_flash(:info, "You are now the host.")}
+      do: {:noreply, socket |> reseat() |> info("You are now the host.")}
 
   def handle_info({:host, _id, _seat}, socket), do: {:noreply, socket}
 
@@ -480,6 +498,13 @@ defmodule QuacksWeb.GameLive do
     do: {:noreply, push_navigate(socket, to: ~p"/g/#{new_id}")}
 
   def handle_info(:uncopied, socket), do: {:noreply, assign(socket, copied: false)}
+
+  # An info toast closes by itself (`info/3`), unless a newer one took its place.
+  def handle_info({:clear_info, msg}, socket) do
+    if Phoenix.Flash.get(socket.assigns.flash, :info) == msg,
+      do: {:noreply, clear_flash(socket, :info)},
+      else: {:noreply, socket}
+  end
 
   # A page closed before the game began gives its seat back.
   @impl true
@@ -568,7 +593,14 @@ defmodule QuacksWeb.GameLive do
   defp browser_details(_json), do: %{}
 
   # The toast after a report: a link to the issue; without a GitHub token, the file.
-  defp reported("file://" <> path, nil), do: "Thanks. Report saved to #{path}"
+  # An info toast that closes after `ms` (4 s by default).
+  defp info(socket, msg, ms \\ 4000) do
+    Process.send_after(self(), {:clear_info, msg}, ms)
+    put_flash(socket, :info, msg)
+  end
+
+  # No GitHub token: the report is a file on the server; its path is not for players.
+  defp reported("file://" <> _path, nil), do: "Thanks. Saved locally."
 
   defp reported(url, number) do
     {:safe, href} = Phoenix.HTML.html_escape(url)
@@ -622,7 +654,7 @@ defmodule QuacksWeb.GameLive do
       colours: table.colours,
       bots: table.bots,
       creator: table.creator,
-      absent: table.absent,
+      rejoinable: table.rejoinable,
       debug: table.debug,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
@@ -828,7 +860,7 @@ defmodule QuacksWeb.GameLive do
           <div class="mt-2"><.options_form rules={@rules} disabled={!@host} /></div>
         </details>
       </section>
-      <.spectator_note :if={is_nil(@seat)} absent={@absent} names={@names} />
+      <.spectator_note :if={is_nil(@seat)} rejoinable={@rejoinable} names={@names} />
       <%!-- Start stays in reach at the bottom while the settings scroll. --%>
       <div
         :if={@seat}
@@ -886,7 +918,7 @@ defmodule QuacksWeb.GameLive do
             </h1>
             <p
               :if={@seat && @players > 1}
-              class="flex min-w-0 flex-col items-start gap-0.5"
+              class="flex max-w-[7rem] shrink-0 flex-col items-start gap-0.5 sm:max-w-[10rem]"
               data-role="you-are"
             >
               <span class="pl-1 text-[10px] leading-none font-bold tracking-wide text-parchment-dim uppercase">
@@ -902,7 +934,9 @@ defmodule QuacksWeb.GameLive do
                 {name(@names, @seat)}
               </span>
             </p>
-            <div class="ml-auto shrink-0"><.round_phase game={@game} seat={@seat || 0} /></div>
+            <div class="ml-auto min-w-0"><.round_phase game={@game} seat={@seat || 0} /></div>
+            <%!-- Phones: the round's card waits here, not on the pot's rim. --%>
+            <.fortune_tile :if={@game.fortune_card} id={@game.fortune_card} compact class="lg:hidden" />
             <button
               type="button"
               popovertarget="sheet-books"
@@ -931,7 +965,7 @@ defmodule QuacksWeb.GameLive do
             <nav
               id="players-row"
               class={[
-                "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)]",
+                "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_auto_auto] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)]",
                 not replaying?(@game, @seen) && "replay-done"
               ]}
               aria-label="Players"
@@ -963,7 +997,7 @@ defmodule QuacksWeb.GameLive do
           </div>
 
           <div class="space-y-1 px-2 pt-1 text-sm xl:col-span-2">
-            <.spectator_note :if={is_nil(@seat)} absent={@absent} names={@names} />
+            <.spectator_note :if={is_nil(@seat)} rejoinable={@rejoinable} names={@names} />
             <p
               :if={stir?(@game)}
               class="rounded-md bg-gold px-2 py-0.5 font-bold text-ink"
@@ -1048,14 +1082,27 @@ defmodule QuacksWeb.GameLive do
                   </span>
                   Witches
                 </.sheet_button>
-                <.fortune_tile
-                  :if={@game.fortune_card}
-                  id={@game.fortune_card}
-                  class="absolute -top-1 -right-1 lg:hidden"
-                />
+                <%!-- From 64rem the bonus die lies on the pot's free top right corner
+                     (the card tile is a phone thing), so nothing beside it moves. --%>
+                <div
+                  :if={replaying?(@game, @seen)}
+                  class="absolute -top-1 -right-1 hidden flex-col items-end gap-1 lg:flex"
+                  data-role="replay-die-corner"
+                >
+                  <.replay_die
+                    lines={replay_die_lines(@game, @seat)}
+                    class="flex w-24 flex-col gap-0.5 px-1 text-center [&_.replay-die-text]:text-xs [&_.replay-die-text]:leading-tight"
+                  />
+                </div>
                 <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
               </div>
             </div>
+            <.ring_legend
+              :if={length(@game.seats) > 1 and not Game.over?(@game)}
+              seats={@game.seats}
+              names={@names}
+              class="mx-auto shrink-0 justify-center pt-1"
+            />
             <%!-- Tablet (64–80rem): the fortune teller in full under the pot. --%>
             <.fortune_panel
               :if={@game.fortune_card}
@@ -1137,7 +1184,7 @@ defmodule QuacksWeb.GameLive do
                   else: JS.dispatch("quacks:modal", to: decision_dialog(@decision, @game))
               }
             >
-              {if shop_step?(@decision), do: "Back to shop", else: "Back to choice"}
+              {back_label(@decision, @game)}
             </.button>
             <.button
               :if={Game.over?(@game)}
@@ -1284,11 +1331,6 @@ defmodule QuacksWeb.GameLive do
           <p class="side-tab-empty hidden px-2 text-sm text-parchment-dim" data-role="no-decision">
             Decisions open here.
           </p>
-          <.replay_die
-            :if={replaying?(@game, @seen)}
-            lines={replay_die_lines(@game, @seat)}
-            class="hidden shrink-0 lg:flex"
-          />
           <.fortune_panel
             :if={@game.fortune_card}
             id={"fortune-panel-#{@game.round}"}
@@ -1662,28 +1704,54 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
-  # A browser without a seat watches. A seat that no page holds now (its player lost
-  # the cookie or changed browser) can be taken back: "Rejoin as <name>".
-  attr :absent, :list, required: true
+  # A browser without a seat watches. A seat that no page has held for 30 s (its
+  # player lost the cookie or changed browser) can be taken back: "Rejoin as <name>"
+  # opens a small form, and the seat's name must be typed to confirm.
+  attr :rejoinable, :list, required: true
   attr :names, :map, required: true
 
   defp spectator_note(assigns) do
     ~H"""
     <div class="space-y-1.5 rounded-md bg-iron-dark px-2 py-1" data-role="spectator">
       <p>All seats are taken. You are watching.</p>
-      <div :if={@absent != []} class="flex flex-wrap items-center gap-2" data-role="rejoin">
+      <div :if={@rejoinable != []} class="space-y-2" data-role="rejoin">
         <span class="text-sm text-parchment-dim">Is one of these seats yours?</span>
-        <.button
-          :for={seat <- @absent}
-          phx-click="rejoin"
-          phx-value-seat={seat}
-          variant={:secondary}
-          class="min-h-11"
-          data-role="rejoin-seat"
-          data-seat={seat}
-        >
-          Rejoin as {name(@names, seat)}
-        </.button>
+        <div :for={seat <- @rejoinable} class="space-y-1.5">
+          <.button
+            type="button"
+            phx-click={
+              JS.toggle(to: "#rejoin-form-#{seat}", display: "flex")
+              |> JS.focus(to: "#rejoin-name-#{seat}")
+            }
+            variant={:secondary}
+            class="min-h-11"
+            data-role="rejoin-seat"
+            data-seat={seat}
+          >
+            Rejoin as {name(@names, seat)}
+          </.button>
+          <.form
+            for={to_form(%{"seat" => seat, "name" => ""}, as: :rejoin)}
+            id={"rejoin-form-#{seat}"}
+            class="hidden flex-wrap items-end gap-2"
+            phx-submit="rejoin"
+            data-role="rejoin-form"
+          >
+            <input type="hidden" name="rejoin[seat]" value={seat} />
+            <label class="min-w-0 flex-1 text-sm">
+              Type <b>{name(@names, seat)}</b>
+              to confirm
+              <input
+                id={"rejoin-name-#{seat}"}
+                type="text"
+                name="rejoin[name]"
+                autocomplete="off"
+                class="mt-1 block min-h-11 w-full rounded-md bg-parchment px-2 text-ink"
+              />
+            </label>
+            <.button variant={:primary} class="min-h-11">Rejoin</.button>
+          </.form>
+        </div>
       </div>
     </div>
     """
@@ -2016,10 +2084,10 @@ defmodule QuacksWeb.GameLive do
               </button>
             </div>
             <ul class="grid grid-cols-3 gap-1.5" data-role="shop-row">
-              <li :for={chip <- row}>
+              <li :for={chip <- row} class="min-w-0">
                 <%!-- A tile, not a checkbox: the box is hidden, the tile shows its state. --%>
                 <label class={[
-                  "relative flex min-h-12 items-center gap-1.5 rounded-lg bg-parchment-light px-2 text-sm",
+                  "relative flex min-h-12 min-w-0 items-center gap-1.5 rounded-lg bg-parchment-light px-2 text-sm",
                   "ring-1 ring-ink/20 select-none touch-manipulation",
                   "transition-[scale,box-shadow,background-color] duration-150 ease-out",
                   "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink",
@@ -2053,9 +2121,12 @@ defmodule QuacksWeb.GameLive do
                     <span class="sr-only">Not in the shop yet</span>
                   </span>
                   <.chip chip={chip} size={:md} />
-                  <span class="sr-only sm:not-sr-only xl:sr-only">{chip_name(chip)}</span>
+                  <%!-- In a side panel (64rem up) the tile is the phone one: chip, value, price. --%>
+                  <span class="sr-only sm:not-sr-only lg:sr-only" data-role="tile-name">
+                    {chip_name(chip)}
+                  </span>
                   <span
-                    class="ml-auto inline-flex items-center gap-1 font-semibold tabular-nums text-ink-soft"
+                    class="ml-auto inline-flex shrink-0 items-center gap-1 font-semibold tabular-nums text-ink-soft"
                     data-role="price"
                   >
                     {Chips.price(chip, @sets)}<span class="book-coin" /><span class="sr-only">coins</span>
@@ -2621,13 +2692,15 @@ defmodule QuacksWeb.GameLive do
   defp replay_die_lines(game, seat),
     do: game |> Replay.beats(seat || 0) |> Enum.filter(&(&1.kind == :die))
 
+  # With `:from`, the values the counters start from (`Replay.before/2`): on the tab
+  # that ends the round the strip was never drawn with the old values.
   defp stat_beats(game, seat, seen) do
     if replaying?(game, seen),
       do:
         for(
           %{kind: kind, beat: beat} <- Replay.updates(game, seat),
           kind in [:vp, :rubies],
-          into: %{},
+          into: %{from: Replay.before(game, seat)},
           do: {kind, beat}
         ),
       else: %{}
@@ -2639,18 +2712,30 @@ defmodule QuacksWeb.GameLive do
     if results?(game), do: game |> Replay.beats(seat || 0) |> Replay.highlights(), else: %{}
   end
 
-  # A buy that leaves "Done" as the only legal move (no rubies to spend, no witch to
-  # call) ends the shop at once, so the player is not asked twice.
-  defp finish_shop(game, id, seat, {:buy, _chips}) do
-    with [:end_round] <- Game.legal_actions(game, seat),
-         {:ok, game} <- GameServer.apply(id, seat, :end_round) do
-      game
+  # A shop with "Done" as the only move left (nothing to buy, no rubies to spend, no
+  # witch to call: `skip_rubies`) ends this seat's round by itself, so the player is
+  # not asked for a bare "Done". Right after its own buy or ruby spend (`acted?`),
+  # else not while the round's beats still play: the update chips stay until they
+  # are read (the "seen" event comes back here).
+  defp auto_done(socket, acted? \\ false)
+
+  defp auto_done(
+         %{assigns: %{skip_rubies: true, seat: seat, game: game} = assigns} = socket,
+         acted?
+       )
+       when is_integer(seat) do
+    with false <- not acted? and replaying?(game, assigns.seen),
+         {:ok, game} <- GameServer.apply(assigns.id, seat, :end_round) do
+      put_game(socket, game)
     else
-      _ -> game
+      _ -> socket
     end
   end
 
-  defp finish_shop(game, _id, _seat, _action), do: game
+  defp auto_done(socket, _acted?), do: socket
+
+  defp shop_move?({kind, _what}), do: kind in [:buy, :rubies]
+  defp shop_move?(_action), do: false
 
   # The host starts the game (with nobody hosting, any seated player may).
   defp starter?(nil, _creator), do: false
@@ -2769,6 +2854,10 @@ defmodule QuacksWeb.GameLive do
 
   defp shop_step?(decision), do: decision in [:shop, :rubies]
 
+  defp back_label(:rubies, %Game{round: 9}), do: "Back to final scoring"
+  defp back_label(decision, _game) when decision in [:shop, :rubies], do: "Back to shop"
+  defp back_label(_decision, _game), do: "Back to choice"
+
   # Whether a decision dialog opens with one enabled primary button (it takes the
   # focus); otherwise the dialog itself does. The shop's Buy is disabled until a
   # chip is ticked; ruby options make "Keep rubies" a ghost.
@@ -2860,6 +2949,10 @@ defmodule QuacksWeb.GameLive do
   defp action_label({:explosion_choice, :vp}, _game, me),
     do: "Take VP (+#{PotTrack.at(Player.scoring_index(me)).vp})"
 
+  # Round 9 has no shop: the coins stay and convert to VP at the end (5 for 1).
+  defp action_label({:explosion_choice, :buy}, %Game{round: 9}, me),
+    do: "Take coins (#{PotTrack.at(Player.scoring_index(me)).coins}, converted to VP at the end)"
+
   defp action_label({:explosion_choice, :buy}, _game, me),
     do: "Take coins (#{PotTrack.at(Player.scoring_index(me)).coins} to spend)"
 
@@ -2904,6 +2997,9 @@ defmodule QuacksWeb.GameLive do
       true -> "Everyone brews at the same time."
     end
   end
+
+  defp everyone_text(%{phase: :shopping, round: 9}, _seat),
+    do: "Final scoring: spend your rubies, then Done."
 
   defp everyone_text(%{phase: :shopping} = game, seat) do
     if waits_to_shop?(game, seat),

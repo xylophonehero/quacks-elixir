@@ -63,12 +63,14 @@ defmodule QuacksWeb.CoreComponents do
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
+      phx-remove={hide("##{@id}")}
       role="alert"
-      class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-4 sm:right-4 sm:bottom-auto"
+      class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-20 sm:left-4 sm:bottom-auto"
       {@rest}
     >
-      <%!-- Phones: above the bottom bar, so the toast hides neither the title nor the
-           header buttons. --%>
+      <%!-- Phones: above the bottom bar. Larger screens: under the header on the left,
+           clear of the Menu button, the bug icon and the tablet tabs. Info toasts
+           close by themselves (GameLive `info/3`). --%>
       <div class={[
         "flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap",
         @kind == :info && "border-sky-300 bg-sky-50 text-sky-900",

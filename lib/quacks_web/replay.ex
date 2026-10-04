@@ -151,6 +151,21 @@ defmodule QuacksWeb.Replay do
     end
   end
 
+  @doc """
+  `seat`'s VP and rubies before this round's result lines: the values its counters
+  show until their beat while the replay plays (they tick to the real values then).
+  """
+  @spec before(Game.t(), Game.seat()) :: %{vp: non_neg_integer, rubies: non_neg_integer}
+  def before(game, seat) do
+    lines = beats(game, seat)
+    p = Game.player(game, seat)
+
+    %{
+      vp: max(p.vp - (lines |> Enum.map(& &1.vp) |> Enum.sum()), 0),
+      rubies: max(p.rubies - (lines |> Enum.map(& &1.rubies) |> Enum.sum()), 0)
+    }
+  end
+
   @doc "The beat the last update chip of any seat lands on (the end of the replay)."
   @spec last_beat(Game.t()) :: non_neg_integer
   def last_beat(game) do

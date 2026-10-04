@@ -107,6 +107,8 @@ defmodule QuacksWeb.AlchemistsLiveTest do
     assert has_element?(view, "[data-role=essence-pick]", "Space 1")
     assert has_element?(view, "[data-role=essence-choice] [data-space='1'][data-reached]")
 
+    # a ruby to spend keeps the shop open (with nothing to do it would end the round)
+    replace_game(id, &put(&1, rubies: 2))
     view |> element("[data-role=essence-take]", "Take space 1") |> render_click()
     {:ok, %{game: game}} = GameServer.get(id)
     assert game.players[0].essence == 1

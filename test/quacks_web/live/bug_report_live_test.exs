@@ -27,7 +27,8 @@ defmodule QuacksWeb.BugReportLiveTest do
     assert has_element?(view, "[data-role=report-error]", "write what went wrong")
 
     send_report(view, "Chips vanished")
-    assert has_element?(view, "#flash-info", "Report saved to")
+    assert has_element?(view, "#flash-info", "Thanks. Saved locally.")
+    refute render(view) =~ "bug-reports/"
     assert has_element?(view, "dialog#bug-report-1")
     refute has_element?(view, "dialog#bug-report-0")
 

@@ -98,6 +98,23 @@ defmodule Quacks.GameHelpers do
   end
 
   @doc """
+  Make every absent seat of game `id` look away for longer than
+  `GameServer.rejoin_after_ms/0`, and tell the pages (as the server's own tick does).
+  """
+  def age_away(id) do
+    [{pid, _}] = Registry.lookup(Quacks.GameRegistry, id)
+    ago = Quacks.GameServer.rejoin_after_ms() + 1_000
+
+    :sys.replace_state(pid, fn st ->
+      %{st | away: Map.new(st.away, fn {seat, since} -> {seat, since - ago} end)}
+    end)
+
+    send(pid, :away_tick)
+    _ = :sys.get_state(pid)
+    :ok
+  end
+
+  @doc """
   Play `steps` random legal actions (a random seat with actions, then a random action
   of it) on the `:rand` state `rng`. Stops early when the game is over. Returns
   `{game, rng}`.

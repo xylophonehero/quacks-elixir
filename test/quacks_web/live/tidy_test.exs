@@ -111,6 +111,6 @@ defmodule QuacksWeb.TidyTest do
       )
 
     assert html =~ "bottom-28"
-    assert html =~ "sm:top-4"
+    assert html =~ "sm:top-20"
   end
 end
