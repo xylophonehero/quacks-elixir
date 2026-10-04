@@ -332,6 +332,15 @@
   height: 100cqmin;
 }
 
+/* Phones: a tall box leaves free space under the pot (the pot cannot grow past the
+   width). A third of it goes above the pot, so the pot sits a little above the
+   middle and stays clear of the bottom sheets. */
+@media (width < 64rem) {
+  .pot-square {
+    margin-top: calc((100cqh - 100cqmin) / 3);
+  }
+}
+
 /* The game page owns the whole screen: no rubber-band scroll of the page itself. */
 html:has([data-layout="full"]) {
   overscroll-behavior: none;

@@ -46,7 +46,7 @@ defmodule QuacksWeb.UiRound3Test do
     view = open(browser("solo"), id)
 
     assert has_element?(view, "[data-role=pot-area] [data-role=bag-button].right-0.bottom-0")
-    assert has_element?(view, "[data-role=pot-area] [data-role=fortune-tile].top-0.right-0")
+    assert has_element?(view, "[data-role=pot-area] [data-role=fortune-tile].-top-1.-right-1")
     assert has_element?(view, "[data-role=pot-area] [data-role=witches-button].top-0.left-0")
 
     assert has_element?(

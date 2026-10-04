@@ -825,7 +825,7 @@ defmodule QuacksWeb.GameLive do
                 <.fortune_tile
                   :if={@game.fortune_card}
                   id={@game.fortune_card}
-                  class="absolute top-0 right-0"
+                  class="absolute -top-1 -right-1 lg:top-0 lg:right-0"
                 />
                 <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
               </div>
@@ -1128,14 +1128,15 @@ defmodule QuacksWeb.GameLive do
         </div>
       </div>
 
-      <%!-- The shop waits for the round results (they hand over on close). The
-           fortune choice lives in the card's dialog. --%>
+      <%!-- The shop waits for the round results, and a decision waits for a new card
+           (they hand over on close). The fortune choice lives in the card's dialog. --%>
       <.dialog_sheet
         :if={@decision && @decision != :fortune_choice}
         id={"decision-#{@decision}"}
         label={phase_name(@decision)}
         auto_open={
-          not (after_results?(@decision) and results?(@game) and not seen?(@seen, :results, @game))
+          not waits_for_results?(@decision, @game, @seen) and
+            not waits_for_card?(@decision, @game, @seen)
         }
         focus_self={not primary_on_open?(@decision, @all_actions)}
       >
@@ -1278,6 +1279,11 @@ defmodule QuacksWeb.GameLive do
         id={"card-round-#{@game.round}"}
         label="New fortune teller card"
         auto_open={@decision == :fortune_choice or not seen?(@seen, :card, @game)}
+        then_open={
+          if @decision not in [nil, :fortune_choice] and
+               not waits_for_results?(@decision, @game, @seen),
+             do: "decision-#{@decision}"
+        }
         on_close={JS.push("seen", value: %{kind: "card", round: @game.round})}
         focus_self={
           @decision == :fortune_choice and choice_variant(text_actions(@all_actions)) != :primary
@@ -2367,6 +2373,17 @@ defmodule QuacksWeb.GameLive do
 
   # The decisions that wait while the round results show (they open on "OK").
   defp after_results?(decision), do: decision in [:shop, :rubies, :droplet_choice]
+
+  defp waits_for_results?(decision, game, seen),
+    do: after_results?(decision) and results?(game) and not seen?(seen, :results, game)
+
+  # A decision at the start of a round waits for the round's new card: two sheets
+  # would stack. (Later decisions come after a draw, so the card was seen.)
+  defp waits_for_card?(decision, game, seen),
+    do:
+      decision in [:droplet_choice, :patient_choice] and game.fortune_card != nil and
+        not seen?(seen, :card, game)
+
   defp shop_action?({:buy, [_ | _]}), do: true
   defp shop_action?({:witch, :copper, _}), do: true
   defp shop_action?(_action), do: false
@@ -2479,10 +2496,26 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  defp everyone_text(%{phase: :shopping}, _seat), do: "Everyone shops at the same time."
+  defp everyone_text(%{phase: :shopping} = game, seat) do
+    if waits_to_shop?(game, seat),
+      do: "Waiting for the others to shop.",
+      else: "Everyone shops at the same time."
+  end
 
   defp everyone_text(%{phase: phase}, _seat),
     do: "Everyone may #{phase_verb(phase)} at the same time."
+
+  # A seat in the shop with no buy (it took the VP after an explosion, or it bought
+  # already) while another seat still buys: it only waits (its rubies and "Done" are
+  # in its dialog).
+  defp waits_to_shop?(_game, nil), do: false
+
+  defp waits_to_shop?(game, seat) do
+    others = Enum.filter(game.seats -- [seat], &busy?(game, game.players[&1]))
+    not buys?(game, seat) and Enum.any?(others, &buys?(game, &1))
+  end
+
+  defp buys?(game, seat), do: Enum.any?(Game.legal_actions(game, seat), &match?({:buy, _}, &1))
 
   defp chose_text(game, seat, busy, names),
     do: "You chose #{game.players[seat].pending_choice}. " <> waiting_text(busy, names)

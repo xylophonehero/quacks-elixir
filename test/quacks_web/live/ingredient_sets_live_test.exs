@@ -59,7 +59,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
     assert render_component(&GameComponents.status/1, game: g) =~ "Exploded (protected)"
 
     assert render_component(&GameComponents.action_log/1, log: g.log) =~
-             "Crow skull: protected, you keep VP and coins"
+             "Crow skull: protected, kept VP and coins"
   end
 
   test "every chip effect, chip choice and red action has a label" do
@@ -101,7 +101,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
     for action <- actions, do: refute(GameComponents.label(action) =~ ~r/^[:{]/)
 
     assert GameComponents.label({:effect, {:blue, 2}, :protected_explosion}) ==
-             "Crow skull: protected, you keep VP and coins"
+             "Crow skull: protected, kept VP and coins"
   end
 
   test "red set 2: the chips beside the pot are shown" do
