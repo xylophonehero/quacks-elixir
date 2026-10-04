@@ -121,6 +121,7 @@ defmodule QuacksWeb.GameLive do
            seat: seat,
            seed: table.seed,
            copied: false,
+           open_sheet: nil,
            seen: Map.get(table.seen, seat, %{})
          )
          |> assign_table(table)
@@ -144,6 +145,9 @@ defmodule QuacksWeb.GameLive do
 
       {:error, :bad_action} ->
         {:noreply, put_flash(socket, :error, "That move could not be read.")}
+
+      {:error, :not_found} ->
+        {:noreply, ended(socket)}
     end
   end
 
@@ -210,6 +214,7 @@ defmodule QuacksWeb.GameLive do
 
     case GameServer.configure(socket.assigns.id, socket.assigns.token, config) do
       {:ok, table} -> {:noreply, assign_table(socket, table)}
+      {:error, :not_found} -> {:noreply, ended(socket)}
       {:error, _} -> {:noreply, socket}
     end
   end
@@ -221,6 +226,7 @@ defmodule QuacksWeb.GameLive do
   def handle_event("add_bot", %{"seat" => seat}, socket) do
     case GameServer.add_bot(socket.assigns.id, socket.assigns.token, String.to_integer(seat)) do
       {:ok, _seat} -> {:noreply, socket}
+      {:error, :not_found} -> {:noreply, ended(socket)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "That seat is not free now.")}
     end
   end
@@ -233,6 +239,7 @@ defmodule QuacksWeb.GameLive do
   def handle_event("begin", _params, socket) do
     case GameServer.begin(socket.assigns.id, socket.assigns.token) do
       {:ok, game} -> {:noreply, socket |> reseat() |> put_game(game)}
+      {:error, :not_found} -> {:noreply, ended(socket)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Only the creator can start.")}
     end
   end
@@ -251,6 +258,7 @@ defmodule QuacksWeb.GameLive do
   def handle_event("undo", _params, socket) do
     case GameServer.undo(socket.assigns.id) do
       {:ok, game} -> {:noreply, put_game(socket, game)}
+      {:error, :not_found} -> {:noreply, ended(socket)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Undo is for solo games only.")}
     end
   end
@@ -268,6 +276,7 @@ defmodule QuacksWeb.GameLive do
   def handle_event("play_again", _params, socket) do
     case GameServer.play_again(socket.assigns.id, socket.assigns.token) do
       {:ok, new_id} -> {:noreply, push_navigate(socket, to: ~p"/g/#{new_id}")}
+      {:error, :not_found} -> {:noreply, ended(socket)}
       _error -> {:noreply, put_flash(socket, :error, "Play again is not possible.")}
     end
   end
@@ -302,8 +311,10 @@ defmodule QuacksWeb.GameLive do
 
   def handle_event("rename", %{"value" => name}, %{assigns: %{seat: seat}} = socket)
       when is_integer(seat) and is_binary(name) do
-    :ok = GameServer.rename(socket.assigns.id, seat, name)
-    {:noreply, socket}
+    case GameServer.rename(socket.assigns.id, seat, name) do
+      :ok -> {:noreply, socket}
+      {:error, :not_found} -> {:noreply, ended(socket)}
+    end
   end
 
   def handle_event("rename", _params, socket), do: {:noreply, socket}
@@ -313,10 +324,20 @@ defmodule QuacksWeb.GameLive do
   def handle_event("colour", %{"colour" => colour}, %{assigns: %{seat: seat}} = socket)
       when is_integer(seat) do
     with {colour, ""} <- Integer.parse(to_string(colour)),
-         do: GameServer.set_colour(socket.assigns.id, seat, colour)
-
-    {:noreply, socket}
+         {:error, :not_found} <- GameServer.set_colour(socket.assigns.id, seat, colour) do
+      {:noreply, ended(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
   end
+
+  # A player detail sheet renders its body only while open: the players row's chip
+  # sends "open_player", the sheet's closing (app.js, `data-on-hide`) "close_player".
+  def handle_event("open_player", %{"seat" => seat}, socket) when is_integer(seat),
+    do: {:noreply, assign(socket, open_sheet: seat)}
+
+  def handle_event("close_player", _params, socket),
+    do: {:noreply, assign(socket, open_sheet: nil)}
 
   def handle_event("colour", _params, socket), do: {:noreply, socket}
 
@@ -341,8 +362,10 @@ defmodule QuacksWeb.GameLive do
     do: {:noreply, reseat(socket)}
 
   def handle_info({:names, id, _names}, socket) do
-    {:ok, table} = GameServer.get(id)
-    {:noreply, assign(socket, names: table.names, colours: table.colours)}
+    case GameServer.get(id) do
+      {:ok, table} -> {:noreply, assign(socket, names: table.names, colours: table.colours)}
+      {:error, :not_found} -> {:noreply, ended(socket)}
+    end
   end
 
   # The host left the waiting table and this seat took over.
@@ -367,15 +390,25 @@ defmodule QuacksWeb.GameLive do
 
   defp reseat(socket) do
     %{id: id, token: token} = socket.assigns
-    {:ok, table} = GameServer.get(id)
 
-    seat =
-      case GameServer.claim_seat(id, token) do
-        {:ok, seat} -> seat
-        {:error, _full} -> nil
-      end
+    case GameServer.get(id) do
+      {:ok, table} ->
+        seat =
+          case GameServer.claim_seat(id, token) do
+            {:ok, seat} -> seat
+            {:error, _full} -> nil
+          end
 
-    socket |> assign(seat: seat) |> assign_table(table)
+        socket |> assign(seat: seat) |> assign_table(table)
+
+      {:error, :not_found} ->
+        ended(socket)
+    end
+  end
+
+  # The game process is gone (it stopped or crashed): back to the lobby.
+  defp ended(socket) do
+    socket |> put_flash(:error, "This game has ended.") |> push_navigate(to: ~p"/")
   end
 
   # The table's seats and settings. `@players` is the seat count (while waiting: the
@@ -415,6 +448,9 @@ defmodule QuacksWeb.GameLive do
 
       {:error, :not_creator} ->
         put_flash(socket, :error, "Only the host can change the game.")
+
+      {:error, :not_found} ->
+        ended(socket)
 
       {:error, _} ->
         put_flash(socket, :error, "That setting is not possible now.")
@@ -538,7 +574,7 @@ defmodule QuacksWeb.GameLive do
               phx-click="add_bot"
               phx-value-seat={seat}
               data-role="add-bot"
-              class="-mr-1 ml-auto min-h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-ink-soft transition-[color,background-color,transform] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-95"
+              class="hit-44 -mr-1 ml-auto min-h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-ink-soft transition-[color,background-color,transform] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-95"
             >
               + Add bot
             </button>
@@ -612,6 +648,7 @@ defmodule QuacksWeb.GameLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} full style={seat_style(@colours)}>
+      <.announcer log={@game.log} names={if @players > 1, do: @names} />
       <%!-- Your seat colour runs along the top edge, over both columns on large screens. --%>
       <div class={[
         "lg:grid lg:h-dvh lg:grid-cols-[minmax(0,1fr)_22rem]",
@@ -969,8 +1006,15 @@ defmodule QuacksWeb.GameLive do
         :if={@players > 1}
         id={"sheet-player-#{seat}"}
         label={name(@names, seat)}
+        data-on-hide={JS.push("close_player")}
       >
-        <.player_card game={@game} seat={seat} name={name(@names, seat)} you={seat == @seat} />
+        <.player_card
+          :if={@open_sheet == seat}
+          game={@game}
+          seat={seat}
+          name={name(@names, seat)}
+          you={seat == @seat}
+        />
       </.sheet>
 
       <.sheet id="sheet-menu" label="Menu">
@@ -1290,7 +1334,7 @@ defmodule QuacksWeb.GameLive do
         aria-pressed={to_string(colour == @mine)}
         data-colour={colour}
         class={[
-          "relative size-8 shrink-0 cursor-pointer overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
+          "hit-44 size-8 shrink-0 cursor-pointer rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
           palette_bg(colour),
           colour == @mine && "ring-2 ring-ink ring-offset-2 ring-offset-parchment-light"
         ]}
@@ -1317,6 +1361,7 @@ defmodule QuacksWeb.GameLive do
     <.button
       phx-click={JS.dispatch("quacks:copy", detail: %{text: @url}) |> JS.push("copied")}
       variant={:secondary}
+      class="hit-44"
       data-role="copy-link"
     >
       <.icon name={if @copied, do: "hero-check", else: "hero-link"} class="size-4" />

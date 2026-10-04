@@ -1,11 +1,15 @@
 defmodule QuacksWeb.Icons do
   @moduledoc """
-  Game icons as inline SVG: one per ingredient colour, game piece and patient.
+  Game icons as SVG: one per ingredient colour, game piece and patient.
 
   The files are in `priv/static/images/icons/` (game-icons.net, CC BY 3.0, and our
-  own crow skull, mandrake and hawkmoth; see `docs/CREDITS.md`). They are read at compile time, so the page gets the paths
-  inline and the browser fetches nothing. Each icon is one filled silhouette on a
-  512 viewBox with `fill="currentColor"`: set its colour with a `text-*` class.
+  own crow skull, mandrake and hawkmoth; see `docs/CREDITS.md`). They are read at
+  compile time into one hidden sprite, `sprite/1`, which the root layout puts on
+  every page once: a `<symbol id="icon-NAME">` per icon. An icon is then only
+  `<svg><use href="#icon-NAME"/></svg>`, so a page or a LiveView diff does not
+  carry the paths again on each use. `inline` puts the paths in place instead.
+  Each icon is one filled silhouette on a 512 viewBox with `fill="currentColor"`:
+  set its colour with a `text-*` class.
 
   To swap an icon, copy the new file into `priv/static/images/icons/` and change its
   file name in `@files` below.
@@ -55,6 +59,12 @@ defmodule QuacksWeb.Icons do
            {name, String.trim(inner)}
          end)
 
+  @sprite @icons
+          |> Enum.sort()
+          |> Enum.map_join(fn {name, inner} ->
+            ~s(<symbol id="icon-#{name}" viewBox="0 0 512 512">#{inner}</symbol>)
+          end)
+
   @ingredients ~w(white orange green blue red yellow purple black locoweed)a
   @pieces ~w(flask droplet ruby rat die vp book tube bag cauldron penny witch)a
   @patients ~w(nervousness ear_worm carrot_nose wing_ears chicken_eyes witch_hump forgetfulness vampirism)a
@@ -75,6 +85,7 @@ defmodule QuacksWeb.Icons do
   """
   attr :colour, :atom, required: true, values: @ingredients
   attr :class, :any, default: "size-5"
+  attr :inline, :boolean, default: false, doc: "the paths in place, not a `<use>` of the sprite"
   attr :rest, :global, include: ~w(x y width height)
 
   def ingredient_icon(assigns), do: svg(assign(assigns, :name, assigns.colour))
@@ -86,6 +97,7 @@ defmodule QuacksWeb.Icons do
   """
   attr :name, :atom, required: true, values: @pieces
   attr :class, :any, default: "size-5"
+  attr :inline, :boolean, default: false, doc: "the paths in place, not a `<use>` of the sprite"
   attr :rest, :global, include: ~w(x y width height)
 
   def piece_icon(assigns), do: svg(assigns)
@@ -97,11 +109,26 @@ defmodule QuacksWeb.Icons do
   """
   attr :id, :atom, required: true, values: @patients
   attr :class, :any, default: "size-5"
+  attr :inline, :boolean, default: false, doc: "the paths in place, not a `<use>` of the sprite"
   attr :rest, :global, include: ~w(x y width height)
 
   def patient_icon(assigns), do: svg(assign(assigns, :name, assigns.id))
 
-  defp svg(assigns) do
+  @doc """
+  Every icon as a `<symbol>`, in one hidden `<svg>`; the root layout renders it once
+  per page, and `<use href="#icon-NAME">` draws from it.
+  """
+  def sprite(assigns) do
+    assigns = assign(assigns, :symbols, Phoenix.HTML.raw(@sprite))
+
+    ~H"""
+    <svg id="icon-sprite" width="0" height="0" class="absolute" aria-hidden="true">
+      {@symbols}
+    </svg>
+    """
+  end
+
+  defp svg(%{inline: true} = assigns) do
     assigns = assign(assigns, :inner, Phoenix.HTML.raw(Map.fetch!(@icons, assigns.name)))
 
     ~H"""
@@ -115,6 +142,19 @@ defmodule QuacksWeb.Icons do
     >
       {@inner}
     </svg>
+    """
+  end
+
+  defp svg(assigns) do
+    ~H"""
+    <svg
+      viewBox="0 0 512 512"
+      fill="currentColor"
+      class={@class}
+      aria-hidden="true"
+      data-icon={@name}
+      {@rest}
+    ><use href={"#icon-#{@name}"} /></svg>
     """
   end
 end

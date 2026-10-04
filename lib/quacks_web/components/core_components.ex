@@ -102,6 +102,7 @@ defmodule QuacksWeb.CoreComponents do
   attr :id, :string, required: true
   attr :label, :string, required: true
   attr :inline_lg, :boolean, default: false
+  attr :rest, :global
   slot :inner_block, required: true
 
   def sheet(assigns) do
@@ -112,6 +113,7 @@ defmodule QuacksWeb.CoreComponents do
       class={["sheet paper", @inline_lg && "sheet-inline-lg"]}
       role="dialog"
       aria-label={@label}
+      {@rest}
     >
       <button
         type="button"
@@ -482,7 +484,7 @@ defmodule QuacksWeb.CoreComponents do
         <h1 class="text-lg font-semibold leading-8">
           {render_slot(@inner_block)}
         </h1>
-        <p :if={@subtitle != []} class="text-sm text-zinc-500">
+        <p :if={@subtitle != []} class="text-sm text-ink-soft">
           {render_slot(@subtitle)}
         </p>
       </div>

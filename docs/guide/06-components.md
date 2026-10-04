@@ -149,7 +149,7 @@ component and LiveView.
 
 The SVG files are in `priv/static/images/icons/`, but the page never loads them
 with `<img src>`. The module reads them when it compiles
-(`lib/quacks_web/components/icons.ex:51-56`):
+(`lib/quacks_web/components/icons.ex:55-60`):
 
 ```elixir
 @icons Map.new(@files, fn {name, file} ->
@@ -166,10 +166,17 @@ with `<img src>`. The module reads them when it compiles
 - `@external_resource path` tells Mix that the module depends on that file. When
   the SVG changes, the next compile (or live reload) compiles `Icons` again.
   Without it, Mix keeps the old markup.
-- `svg/1` (`lib/quacks_web/components/icons.ex:104-119`) wraps the markup in
-  `<svg viewBox="0 0 512 512" fill="currentColor">` and inserts it with
-  `Phoenix.HTML.raw/1`. `raw` turns off HTML escaping. That is safe here because the
-  markup comes from our own files, never from a user.
+- `sprite/1` (`lib/quacks_web/components/icons.ex:121`) puts every icon once in a
+  hidden `<svg>`, as `<symbol id="icon-NAME">`. The root layout
+  (`layouts/root.html.heex`) renders it once per page, outside the LiveView, so no
+  diff ever carries it. It inserts the markup with `Phoenix.HTML.raw/1`. `raw` turns
+  off HTML escaping. That is safe here because the markup comes from our own files,
+  never from a user.
+- `svg/1` (`lib/quacks_web/components/icons.ex:148`) is then only
+  `<svg viewBox="0 0 512 512" fill="currentColor"><use href="#icon-NAME"/></svg>`:
+  about 150 bytes instead of 1–6 KB of paths. Before the sprite, about 40 % of each
+  game diff was icon paths. `inline` (`<.piece_icon name={:ruby} inline />`) puts
+  the paths in place instead, for markup that must stand alone.
 - `fill="currentColor"`: the icon takes the text colour, so
   `class="size-4 text-ruby"` sizes and colours it, as with an icon font.
 
@@ -178,13 +185,13 @@ inlines the file as a component. Here the compiler does it, with no bundler plug
 
 `attr :colour, :atom, values: @ingredients` makes the compiler warn on a literal
 like `colour={:pink}`, and `Map.fetch!/2` raises on an unknown name at render time.
-`test/quacks_web/components/icons_test.exs:21-42` checks that every chip colour,
+`test/quacks_web/components/icons_test.exs` checks that every chip colour,
 piece and patient has an icon.
 
 **To swap an icon:** copy the new file into `priv/static/images/icons/`, change its
-file name in `@files` (`lib/quacks_web/components/icons.ex:18-48`) and credit the
+file name in `@files` (`lib/quacks_web/components/icons.ex:22-52`) and credit the
 author in `docs/CREDITS.md`. The file must be one filled silhouette on a 512
-viewBox, because `svg/1` sets the viewBox and the fill.
+viewBox, because `sprite/1` and `svg/1` set the viewBox and the fill.
 
 ## Tailwind: full class names in maps
 
