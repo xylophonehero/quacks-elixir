@@ -43,7 +43,7 @@ defmodule QuacksWeb.UiRound6Test do
 
   test "a seat with no coins to spend skips the shop too; with coins it shops" do
     {id, view} = solo()
-    replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0))
+    replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 2))
     assert has_element?(view, "[data-role=results-ok]", "OK")
     refute has_element?(view, "dialog#decision-shop")
     assert has_element?(view, "dialog#decision-rubies")

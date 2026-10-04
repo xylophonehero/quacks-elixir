@@ -104,7 +104,7 @@ defmodule QuacksWeb.GameLive do
         if connected?(socket), do: Phoenix.PubSub.subscribe(Quacks.PubSub, GameServer.topic(id))
 
         seat =
-          case GameServer.claim_seat(id, session["player_token"]) do
+          case GameServer.claim_seat(id, session["player_token"], watch: connected?(socket)) do
             {:ok, seat} -> seat
             {:error, _full} -> nil
           end
@@ -122,7 +122,7 @@ defmodule QuacksWeb.GameLive do
            seed: table.seed,
            copied: false,
            open_sheet: nil,
-           seen: Map.get(table.seen, seat, %{})
+           seen: seen(table, seat)
          )
          |> assign_table(table)
          |> put_game(table.game)}
@@ -293,10 +293,32 @@ defmodule QuacksWeb.GameLive do
       when is_integer(seat) and kind in ["card", "results"] and is_integer(round) do
     kind = String.to_existing_atom(kind)
     GameServer.ack(socket.assigns.id, seat, kind, round)
-    {:noreply, update(socket, :seen, &Map.put(&1, kind, round))}
+    {:noreply, socket |> update(:seen, &Map.put(&1, kind, round)) |> skip_rubies()}
   end
 
   def handle_event("seen", _params, socket), do: {:noreply, socket}
+
+  # A spectator takes back a seat that no page holds ("Rejoin as …"): the seat moves
+  # to this browser's token (`GameServer.rejoin/3`).
+  def handle_event("rejoin", %{"seat" => seat}, %{assigns: %{seat: nil}} = socket) do
+    %{id: id, token: token} = socket.assigns
+
+    with {seat, ""} <- Integer.parse(to_string(seat)),
+         {:ok, seat} <- GameServer.rejoin(id, token, seat),
+         {:ok, table} <- GameServer.get(id) do
+      {:noreply,
+       socket
+       |> assign(seat: seat, seen: seen(table, seat))
+       |> assign_table(table)
+       |> put_game(table.game)
+       |> put_flash(:info, "Welcome back, #{name(table.names, seat)}.")}
+    else
+      {:error, :not_found} -> {:noreply, ended(socket)}
+      _error -> {:noreply, put_flash(socket, :error, "That seat is taken.")}
+    end
+  end
+
+  def handle_event("rejoin", _params, socket), do: {:noreply, socket}
 
   # The browser copied the link (see `copy_link/1`); say so for 2 seconds.
   def handle_event("copied", _params, socket) do
@@ -363,8 +385,12 @@ defmodule QuacksWeb.GameLive do
 
   def handle_info({:names, id, _names}, socket) do
     case GameServer.get(id) do
-      {:ok, table} -> {:noreply, assign(socket, names: table.names, colours: table.colours)}
-      {:error, :not_found} -> {:noreply, ended(socket)}
+      {:ok, table} ->
+        {:noreply,
+         assign(socket, names: table.names, colours: table.colours, absent: table.absent)}
+
+      {:error, :not_found} ->
+        {:noreply, ended(socket)}
     end
   end
 
@@ -420,13 +446,16 @@ defmodule QuacksWeb.GameLive do
       colours: table.colours,
       bots: table.bots,
       creator: table.creator,
+      absent: table.absent,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
       expansion: :herb_witches in table.expansions,
       alchemists: :alchemists in table.expansions,
-      # Nobody changed the books or options yet (see "load_config").
+      # Nobody changed the books or options yet (see "load_config"). Only the
+      # creator's saved settings may load: a handed-over table keeps its settings.
       fresh:
-        table.sets in [nil, %{}] and table.rules in [nil, %{}] and
+        is_integer(socket.assigns.seat) and socket.assigns.seat == table.founder and
+          table.sets in [nil, %{}] and table.rules in [nil, %{}] and
           MapSet.size(table.expansions) == 0
     )
   end
@@ -607,14 +636,18 @@ defmodule QuacksWeb.GameLive do
           players={@players}
           disabled={!@host}
         />
-        <details class="mt-3" open={!@host}>
+        <%!-- The browser owns `open`: a patch must not close it while the host steps. --%>
+        <details
+          id="options-section"
+          class="mt-3"
+          open={!@host}
+          phx-mounted={JS.ignore_attributes("open")}
+        >
           <summary class="cursor-pointer font-bold">Options</summary>
           <div class="mt-2"><.options_form rules={@rules} disabled={!@host} /></div>
         </details>
       </section>
-      <p :if={is_nil(@seat)} class="rounded-md bg-iron-dark px-2 py-1" data-role="spectator">
-        All seats are taken. You are watching.
-      </p>
+      <.spectator_note :if={is_nil(@seat)} absent={@absent} names={@names} />
       <%!-- Start stays in reach at the bottom while the settings scroll. --%>
       <div
         :if={@seat}
@@ -737,9 +770,7 @@ defmodule QuacksWeb.GameLive do
           </div>
 
           <div class="space-y-1 px-2 pt-1 text-sm">
-            <p :if={is_nil(@seat)} class="rounded-md bg-iron-dark px-2 py-1" data-role="spectator">
-              All seats are taken. You are watching.
-            </p>
+            <.spectator_note :if={is_nil(@seat)} absent={@absent} names={@names} />
             <p
               :if={stir?(@game)}
               class="rounded-md bg-gold px-2 py-0.5 font-bold text-ink"
@@ -829,10 +860,12 @@ defmodule QuacksWeb.GameLive do
                 {action_label(action, @game, @me)}
               </.button>
             </section>
+            <%!-- Hidden while a dialog is open: it would show above the sheet's edge. --%>
             <.button
               :if={@decision}
               variant={:primary}
-              class="min-h-12 w-full text-base"
+              class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible"
+              data-role="decision-button"
               phx-click={JS.dispatch("quacks:modal", to: decision_dialog(@decision, @game))}
             >
               {case @decision do
@@ -1297,6 +1330,33 @@ defmodule QuacksWeb.GameLive do
         </div>
       </.dialog_sheet>
     </Layouts.app>
+    """
+  end
+
+  # A browser without a seat watches. A seat that no page holds now (its player lost
+  # the cookie or changed browser) can be taken back: "Rejoin as <name>".
+  attr :absent, :list, required: true
+  attr :names, :map, required: true
+
+  defp spectator_note(assigns) do
+    ~H"""
+    <div class="space-y-1.5 rounded-md bg-iron-dark px-2 py-1" data-role="spectator">
+      <p>All seats are taken. You are watching.</p>
+      <div :if={@absent != []} class="flex flex-wrap items-center gap-2" data-role="rejoin">
+        <span class="text-sm text-parchment-dim">Is one of these seats yours?</span>
+        <.button
+          :for={seat <- @absent}
+          phx-click="rejoin"
+          phx-value-seat={seat}
+          variant={:secondary}
+          class="min-h-11"
+          data-role="rejoin-seat"
+          data-seat={seat}
+        >
+          Rejoin as {name(@names, seat)}
+        </.button>
+      </div>
+    </div>
     """
   end
 
@@ -1918,6 +1978,15 @@ defmodule QuacksWeb.GameLive do
           >
             {pick_verb(action)}
           </span>
+          <%!-- Without a pool (a card's or a chip action's "take one"), the colour
+               word under the chip, so a pick does not read as only its value. --%>
+          <span
+            :if={action && !@pool && !over}
+            class="mt-0.5 text-[11px] leading-4 font-semibold text-ink-soft"
+            data-role="pick-colour"
+          >
+            {chips |> List.last() |> elem(0)}
+          </span>
           <div :if={sides != []} class="flex">
             <button
               :for={side <- sides}
@@ -2097,6 +2166,7 @@ defmodule QuacksWeb.GameLive do
       decision: nil,
       all_actions: [],
       actions: [],
+      skip_rubies: false,
       stop_slot: :stop,
       essence_pick: nil
     )
@@ -2107,20 +2177,55 @@ defmodule QuacksWeb.GameLive do
     seat = socket.assigns.seat
     me = if seat, do: game.players[seat]
     actions = if seat && not Game.over?(game), do: Game.legal_actions(game, seat), else: []
-    decision = decision(actions, seat && Game.phase(game, seat), me)
+    {decision, skip_rubies} = decide(actions, seat && Game.phase(game, seat), me)
 
-    assign(socket,
+    socket
+    |> assign(
       game: game,
       me: me,
       selected: [],
       decision: decision,
       all_actions: actions,
-      actions: if(decision, do: [], else: Enum.reject(actions, &witch?/1)),
-      stop_slot:
-        if(me != nil and me.phase == :stopped and not stir?(game), do: :resume, else: :stop),
+      actions: if(decision || skip_rubies, do: [], else: Enum.reject(actions, &witch?/1)),
+      skip_rubies: skip_rubies,
+      stop_slot: stop_slot(game, me),
       essence_pick: essence_pick(me, socket.assigns[:essence_pick])
     )
+    |> skip_rubies()
   end
+
+  # This seat's decision, and whether it is a rubies step to skip (nothing to spend,
+  # no witch to call).
+  defp decide(actions, phase, me) do
+    case decision(actions, phase, me) do
+      :rubies ->
+        if Enum.any?(actions, &ruby_step_action?/1), do: {:rubies, false}, else: {nil, true}
+
+      decision ->
+        {decision, false}
+    end
+  end
+
+  defp stop_slot(game, %Player{phase: :stopped}), do: if(stir?(game), do: :stop, else: :resume)
+  defp stop_slot(_game, _me), do: :stop
+
+  # The empty rubies step ends the round for this seat once it closed the round
+  # results (before that, the results would vanish with the round).
+  defp skip_rubies(%{assigns: %{skip_rubies: true, seen: seen, game: game}} = socket) do
+    if seen?(seen, :results, game) do
+      case GameServer.apply(socket.assigns.id, socket.assigns.seat, :end_round) do
+        {:ok, game} -> put_game(socket, game)
+        _error -> socket
+      end
+    else
+      socket
+    end
+  end
+
+  defp skip_rubies(socket), do: socket
+
+  defp ruby_step_action?({:rubies, _}), do: true
+  defp ruby_step_action?(action), do: witch?(action)
 
   # The patch that moves on to a new round runs as a view transition (app.js,
   # `quacks:vt`; app.css moves only the round counter). The event goes out before
@@ -2143,7 +2248,12 @@ defmodule QuacksWeb.GameLive do
   defp decision_dialog(decision, _game), do: "#decision-#{decision}"
 
   # This seat closed the card (`:card`) or the round results (`:results`) of this round.
+  # A spectator has seen them all: no card or results open on top of each other.
+  defp seen?(:all, _kind, _game), do: true
   defp seen?(seen, kind, game), do: seen[kind] == game.round
+
+  defp seen(_table, nil), do: :all
+  defp seen(table, seat), do: Map.get(table.seen, seat, %{})
 
   # The round results show from the shop until the round ends (round 9 has no shop).
   defp results?(game), do: game.phase == :shopping
@@ -2346,6 +2456,9 @@ defmodule QuacksWeb.GameLive do
     busy = Enum.filter(game.seats, &busy?(game, game.players[&1]))
 
     cond do
+      seat && Game.phase(game, seat) == :droplet_choice ->
+        "Choose where your droplet moves."
+
       seat in busy or busy == [] or seat == nil ->
         everyone_text(game, seat)
 

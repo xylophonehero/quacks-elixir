@@ -1436,7 +1436,7 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   What `seat` does now, in one word: "brewing", "stopped" or "exploded" while
   everyone brews (round 9 with 2+ players: "deciding" until the seat picks Draw or
-  Stop, then "chosen"); "shopping" or "ready" in the shop; "choosing" or "ready"
+  Stop, then "chosen"; "droplet" while it moves a droplet); "shopping" or "ready" in the shop; "choosing" or "ready"
   while seats answer a card, chip or witch choice; with The Alchemists "choosing
   patient" before round 1 and "essence" in the essence phase. `nil` once the game
   is over.
@@ -1444,6 +1444,7 @@ defmodule QuacksWeb.GameComponents do
   @spec seat_state(Game.t(), Game.seat()) :: String.t() | nil
   def seat_state(%Game{phase: :potions, players: players} = game, seat) do
     case players[seat] do
+      %Player{droplet_moves: n} when n > 0 -> "droplet"
       %Player{exploded?: true} -> "exploded"
       %Player{phase: phase} when phase in [:stopped, :done] -> "stopped"
       %Player{phase: :waiting_stir} -> "chosen"
@@ -2068,13 +2069,18 @@ defmodule QuacksWeb.GameComponents do
 
   defp log_line(entry, _names), do: {nil, entry |> untag() |> label()}
 
-  # "Stop" and "Stopped (may resume…)" are one event: keep the second line only.
+  # "Stop" and "Stopped (may resume…)" are one event, and so are "Resume brewing"
+  # and "Resumed brewing": keep the second line only.
   defp drop_stop_before_stopped(log) do
     [nil | log]
     |> Enum.zip(log)
-    |> Enum.reject(fn {newer, entry} -> match?({{s, :stopped}, {s, :stop}}, {newer, entry}) end)
+    |> Enum.reject(fn {newer, entry} -> echo?(newer, entry) end)
     |> Enum.map(&elem(&1, 1))
   end
+
+  defp echo?({seat, :stopped}, {seat, :stop}), do: true
+  defp echo?({seat, :resumed}, {seat, :resume}), do: true
+  defp echo?(_newer, _entry), do: false
 
   defp untag({seat, entry}) when is_integer(seat), do: entry
   defp untag(entry), do: entry

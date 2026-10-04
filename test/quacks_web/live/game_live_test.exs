@@ -33,7 +33,28 @@ defmodule QuacksWeb.GameLiveTest do
     |> LazyHTML.from_fragment()
     |> LazyHTML.query("[phx-value-action]:not([disabled])")
     |> LazyHTML.attribute("phx-value-action")
-    |> hd()
+    |> List.first()
+  end
+
+  # One step: the first legal action, or (an empty rubies step waits for it) close
+  # the round results as the browser does.
+  defp step(view, html) do
+    case first_action(html) do
+      nil ->
+        round =
+          html
+          |> LazyHTML.from_fragment()
+          |> LazyHTML.query("[data-role=round-counter]")
+          |> LazyHTML.text()
+          |> String.trim()
+          |> Integer.parse()
+          |> elem(0)
+
+        render_hook(view, "seen", %{"kind" => "results", "round" => round})
+
+      action ->
+        render_click(view, "action", %{"action" => action})
+    end
   end
 
   test "mounts round 1 with a Draw button and the seed", %{conn: conn} do
@@ -87,7 +108,7 @@ defmodule QuacksWeb.GameLiveTest do
       Enum.reduce_while(1..500, html, fn _, html ->
         if html =~ "Game over",
           do: {:halt, html},
-          else: {:cont, render_click(view, "action", %{"action" => first_action(html)})}
+          else: {:cont, step(view, html)}
       end)
 
     assert html =~ "Game over"

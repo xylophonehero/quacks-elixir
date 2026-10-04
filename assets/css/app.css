@@ -1059,8 +1059,22 @@ html:has([data-layout="full"]) {
   );
 }
 
+/* A locked tile reads as less buyable than one you cannot afford (`opacity-40`):
+   grey, dimmer and the price struck through; only the lock badge stays clear. */
+.shop-locked {
+  background-color: var(--color-parchment-deep);
+}
+
+.shop-locked > :not([data-role="tile-lock"]) {
+  opacity: 0.3;
+}
+
 .shop-locked > .chip-token {
-  opacity: 0.75;
+  filter: grayscale(1);
+}
+
+.shop-locked > [data-role="price"] {
+  text-decoration: line-through;
 }
 
 /* Game over: the podium rises place by place (`--beat`: last place 0, the winner
