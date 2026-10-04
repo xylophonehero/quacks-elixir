@@ -174,10 +174,10 @@ window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // A decision <dialog> asks to be opened (see `dialog_sheet` in core_components.ex).
-// From 80rem a `data-side` dialog is a non-modal panel in the right column
+// From 64rem a `data-side` dialog is a non-modal panel in the right column
 // ("panel": show(), focus on its primary button) or does not open ("hidden": the
 // column shows it already, so it counts as closed at once).
-const wide = matchMedia("(min-width: 80rem)")
+const wide = matchMedia("(min-width: 64rem)")
 const sideOpen = d => {
   if (d.open) return
   const side = wide.matches && d.dataset.side
@@ -195,7 +195,7 @@ const closed = d => {
 const moving = new WeakSet()
 window.addEventListener("quacks:modal", e => sideOpen(e.target))
 document.addEventListener("close", e => moving.delete(e.target) || closed(e.target), true)
-// Crossing 80rem moves an open side dialog between panel and sheet.
+// Crossing 64rem moves an open side dialog between panel and sheet.
 wide.addEventListener("change", () => document.querySelectorAll("dialog[data-side=panel][open]").forEach(d => {
   moving.add(d); d.close(); sideOpen(d)
 }))

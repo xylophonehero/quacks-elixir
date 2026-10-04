@@ -181,7 +181,7 @@ defmodule QuacksWeb.CoreComponents do
   primary button sets `focus_self` instead (an empty focus target at its top), so
   the close × never takes the focus.
 
-  `side={:panel}`: on screens ≥ 80rem the dialog opens non-modal (`show()`: no
+  `side={:panel}`: on screens ≥ 64rem the dialog opens non-modal (`show()`: no
   backdrop, the page stays live) where it sits in the page, as a panel in the right
   column; below that it is the usual bottom sheet. `side={:hidden}`: on those
   screens it does not open at all (the side column already shows its content); it
@@ -199,7 +199,7 @@ defmodule QuacksWeb.CoreComponents do
   attr :side, :atom,
     default: nil,
     values: [nil, :panel, :hidden],
-    doc: "on screens ≥ 80rem: a non-modal panel in place (`:panel`) or not opened (`:hidden`)"
+    doc: "on screens ≥ 64rem: a non-modal panel in place (`:panel`) or not opened (`:hidden`)"
 
   attr :focus_self, :boolean,
     default: false,

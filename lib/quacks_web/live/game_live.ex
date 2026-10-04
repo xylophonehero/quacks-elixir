@@ -24,11 +24,15 @@ defmodule QuacksWeb.GameLive do
   link and the books are in the menu. A new fortune card shows in a small dialog
   once per round.
 
-  From 80rem the right column is the context space (layout 1): the fortune teller
-  on top (`fortune_panel/1`, it plays a reveal when a new card comes), then the
+  From 64rem the right column is the context space (layouts 1 and 2): the
   decision, only while one waits, as a non-modal panel (`dialog_sheet` with
   `side`), then the witches. The card's dialog does not open there unless it holds
-  a choice. Below 80rem the same dialogs are bottom sheets; a tap on the dimmed
+  a choice. From 80rem (desktop) the fortune teller tops that column
+  (`fortune_panel/1`, it plays a reveal when a new card comes) and the books in
+  play are a column left of the pot (`books_in_play/1`; a book lights up on its
+  replay beat). From 64 to 80rem (tablet) the fortune teller sits in full under the
+  pot and the right column has two CSS-only tabs, "Decision" and "Books"; a new
+  decision checks "Decision". Below 64rem the same dialogs are bottom sheets; a tap on the dimmed
   backdrop or × closes one to look at the pot, and while a decision waits, one
   button ("Back to shop", "Back to choice") takes the place of Stop and Draw and
   opens it again.
@@ -867,11 +871,12 @@ defmodule QuacksWeb.GameLive do
         <div
           class={[
             "grid h-dvh grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] overflow-hidden lg:h-full lg:px-4",
+            "xl:grid-cols-[17rem_minmax(0,1fr)] xl:gap-x-4",
             @seat && @players > 1 && ["border-t-4 lg:border-t-0", seat_border(@seat)]
           ]}
           data-role={@seat && "my-seat"}
         >
-          <header class="flex min-w-0 items-center gap-2 px-3 pt-[max(0.25rem,env(safe-area-inset-top))]">
+          <header class="flex min-w-0 items-center gap-2 px-3 pt-[max(0.25rem,env(safe-area-inset-top))] xl:col-span-2">
             <%!-- Phones need the room for "You are": the menu has the lobby link. --%>
             <h1 class="sr-only font-hand text-2xl leading-none font-bold sm:not-sr-only">
               <.link navigate={~p"/"}>Quacks</.link>
@@ -902,7 +907,7 @@ defmodule QuacksWeb.GameLive do
               type="button"
               popovertarget="sheet-books"
               aria-label="Ingredient books"
-              class="-mx-1 inline-flex size-11 shrink-0 items-center justify-center"
+              class="-mx-1 inline-flex size-11 shrink-0 items-center justify-center lg:hidden"
               data-role="open-books"
             >
               <.icon name="hero-book-open" class="size-6" />
@@ -918,7 +923,7 @@ defmodule QuacksWeb.GameLive do
             </button>
           </header>
 
-          <div class="space-y-1 px-2">
+          <div class="space-y-1 px-2 xl:col-span-2">
             <.status :if={@seat} game={@game} seat={@seat} />
             <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
                  brew each card plays its update chips (the round results); the last
@@ -949,7 +954,7 @@ defmodule QuacksWeb.GameLive do
             </nav>
           </div>
 
-          <div class="space-y-1 px-2 pt-1 text-sm">
+          <div class="space-y-1 px-2 pt-1 text-sm xl:col-span-2">
             <.spectator_note :if={is_nil(@seat)} absent={@absent} names={@names} />
             <p
               :if={stir?(@game)}
@@ -991,7 +996,15 @@ defmodule QuacksWeb.GameLive do
             </p>
           </div>
 
-          <div class="flex min-h-0 flex-col p-2">
+          <%!-- Desktop (80rem): the books in play, a column left of the pot. --%>
+          <.books_in_play
+            id="books-column"
+            game={@game}
+            beats={book_beats(@game, @seat, @seen)}
+            class="hidden pt-2 pb-3 xl:col-start-1 xl:row-span-2 xl:row-start-4 xl:flex"
+          />
+
+          <div class="flex min-h-0 flex-col p-2 xl:col-start-2 xl:row-start-4">
             <.flask_strip
               :if={@me && @me.patient}
               game={@game}
@@ -1029,11 +1042,18 @@ defmodule QuacksWeb.GameLive do
                 <.fortune_tile
                   :if={@game.fortune_card}
                   id={@game.fortune_card}
-                  class="absolute -top-1 -right-1 lg:top-0 lg:right-0 xl:hidden"
+                  class="absolute -top-1 -right-1 lg:hidden"
                 />
                 <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
               </div>
             </div>
+            <%!-- Tablet (64–80rem): the fortune teller in full under the pot. --%>
+            <.fortune_panel
+              :if={@game.fortune_card}
+              id={"fortune-under-#{@game.round}"}
+              card={@game.fortune_card}
+              class="mx-auto mt-2 hidden w-full max-w-lg shrink-0 lg:flex xl:hidden"
+            />
             <.test_tubes
               :if={@game.rules.pot_side == :back}
               tube={@game.players[@seat || 0].tube}
@@ -1050,7 +1070,7 @@ defmodule QuacksWeb.GameLive do
             </div>
           </div>
 
-          <footer class="space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <footer class="space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] xl:col-start-2 xl:row-start-5">
             <section
               :if={keep_white?(@game, @seat, @bots)}
               class="flex items-center gap-2 rounded-lg bg-iron-dark/60 px-2 py-1 text-sm text-parchment"
@@ -1094,13 +1114,13 @@ defmodule QuacksWeb.GameLive do
             </.button>
             <%!-- While a decision waits it takes the place of Stop and Draw on phones
                  and reopens its sheet (closed to look at the pot). Hidden while a
-                 sheet is open: it would show above the sheet's edge. From 80rem the
+                 sheet is open: it would show above the sheet's edge. From 64rem the
                  decision is a panel in the right column, and this shows only when
                  that panel was closed. --%>
             <.button
               :if={@decision}
               variant={:primary}
-              class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible xl:[body:has(dialog[open])_&]:hidden"
+              class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible lg:[body:has(dialog[open])_&]:hidden"
               data-role="decision-button"
               phx-click={
                 if replaying?(@game, @seen),
@@ -1184,7 +1204,7 @@ defmodule QuacksWeb.GameLive do
               :if={@seat && not Game.over?(@game) && not results?(@game)}
               class={[
                 "grid grid-cols-2 gap-2 *:min-h-12 *:touch-manipulation",
-                @decision && "max-xl:hidden"
+                @decision && "max-lg:hidden"
               ]}
               aria-label="Actions"
               data-role="action-bar"
@@ -1216,13 +1236,47 @@ defmodule QuacksWeb.GameLive do
           class="contents lg:flex lg:h-full lg:flex-col lg:gap-3 lg:overflow-hidden lg:py-3 lg:pr-3"
           data-role="side-column"
         >
+          <%!-- Tablet (64–80rem): two CSS-only tabs (app.css `side-tabs`). Their ids
+               name the decision, so a new decision renders them again with
+               "Decision" checked; with none, "Books" is. --%>
+          <div
+            class="hidden shrink-0 grid-cols-2 gap-1 rounded-xl bg-iron-dark/60 p-1 lg:grid xl:hidden"
+            role="radiogroup"
+            aria-label="Side panel"
+            data-role="side-tabs"
+          >
+            <label
+              :for={{tab, label} <- [decision: "Decision", books: "Books"]}
+              class="side-tab"
+              data-role={"tab-#{tab}"}
+            >
+              <input
+                type="radio"
+                name="side-tab"
+                id={"side-tab-#{tab}-#{@decision || "none"}"}
+                class="sr-only"
+                data-tab={tab}
+                checked={tab == :decision == (@decision != nil)}
+              />
+              {label}
+              <span
+                :if={tab == :books}
+                class="rounded-full bg-ink/15 px-1.5 text-xs tabular-nums"
+              >
+                {length(Books.in_play(@game.expansion, @game.sets))}
+              </span>
+            </label>
+          </div>
+          <p class="side-tab-empty hidden px-2 text-sm text-parchment-dim" data-role="no-decision">
+            Decisions open here.
+          </p>
           <.fortune_panel
             :if={@game.fortune_card}
             id={"fortune-panel-#{@game.round}"}
             card={@game.fortune_card}
             class="hidden shrink-0 xl:flex"
           />
-          <%!-- The decision: a panel here from 80rem, a bottom sheet below. The shop
+          <%!-- The decision: a panel here from 64rem, a bottom sheet below. The shop
                    waits for the update chips, a decision for a new card (they hand
                    over). The fortune choice lives in the card's dialog. --%>
           <.dialog_sheet
@@ -1422,6 +1476,12 @@ defmodule QuacksWeb.GameLive do
               <% end %>
             </div>
           </.dialog_sheet>
+          <.books_in_play
+            id="books-tab"
+            game={@game}
+            beats={book_beats(@game, @seat, @seen)}
+            class="hidden lg:flex xl:hidden"
+          />
           <.sheet :if={@game.witches} id="sheet-witches" label="Herb witches" inline_lg>
             <section class="space-y-2" aria-label="Herb witches">
               <.witch_card
@@ -2515,6 +2575,19 @@ defmodule QuacksWeb.GameLive do
     if open? and after_results?(decision),
       do: JS.dispatch(js, "quacks:modal", to: "#decision-#{decision}"),
       else: js
+  end
+
+  # While the replay plays: on which beat each book lights up, `%{colour => beat}`
+  # (the first line of a green, black or purple book).
+  defp book_beats(game, seat, seen) do
+    if replaying?(game, seen) do
+      for line <- Replay.beats(game, seat || 0),
+          line.kind in [:green, :black, :purple],
+          reduce: %{},
+          do: (acc -> Map.put_new(acc, line.kind, line.beat))
+    else
+      %{}
+    end
   end
 
   # While the round results show: what lights up on the pot on which replay beat
