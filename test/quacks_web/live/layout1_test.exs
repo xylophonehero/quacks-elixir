@@ -128,7 +128,7 @@ defmodule QuacksWeb.Layout1Test do
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
 
       column = "[data-role=side-column]"
-      assert has_element?(view, "#{column} > #fortune-panel-1[data-role=fortune-panel].xl\\:flex")
+      assert has_element?(view, "#{column} > #fortune-panel-1[data-role=fortune-panel].lg\\:flex")
       assert has_element?(view, "#{column} > dialog#decision-shop[data-side=panel]")
       # no choice on the card: from 64rem its dialog does not open (the panel shows it)
       assert has_element?(view, "#{column} > dialog#card-round-1[data-side=hidden]")

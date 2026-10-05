@@ -205,6 +205,16 @@ const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
   hooks: {...colocatedHooks, ConfigMemory, NameMemory, PotMotion},
+  // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
+  // is in a field, on a control that Space/Enter already press, or whether a modal
+  // dialog is open. The server decides from that; no key logic here.
+  metadata: {
+    keydown: e => ({
+      typing: !!e.target.closest?.("input, textarea, select, [contenteditable]"),
+      control: !!e.target.closest?.("button, a, summary, label"),
+      modal: !!document.querySelector("dialog:modal"),
+    }),
+  },
   // Opt-in view transitions (animations.md §1.4): the server marks the one patch
   // that changes the round (`quacks:vt`, dispatched before it); every other patch,
   // bots' included, goes straight in, except while a transition's patch waits for
@@ -238,6 +248,9 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 const wide = matchMedia("(min-width: 64rem)")
 const sideOpen = d => {
   if (d.open) return
+  // The books drawer stays open when a decision comes; the decision opens after it.
+  const books = document.querySelector("#sheet-books:popover-open")
+  if (books) return books.addEventListener("toggle", () => sideOpen(d), {once: true})
   const side = wide.matches && d.dataset.side
   if (side === "hidden") return closed(d)
   side ? d.show() : d.showModal()

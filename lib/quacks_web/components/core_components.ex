@@ -106,6 +106,7 @@ defmodule QuacksWeb.CoreComponents do
   attr :id, :string, required: true
   attr :label, :string, required: true
   attr :inline_lg, :boolean, default: false
+  attr :class, :any, default: nil, doc: "extra classes, e.g. `sheet-drawer`"
   attr :rest, :global
   slot :inner_block, required: true
 
@@ -114,7 +115,7 @@ defmodule QuacksWeb.CoreComponents do
     <div
       id={@id}
       popover
-      class={["sheet paper", @inline_lg && "sheet-inline-lg"]}
+      class={["sheet paper", @inline_lg && "sheet-inline-lg", @class]}
       role="dialog"
       aria-label={@label}
       {@rest}
@@ -237,6 +238,21 @@ defmodule QuacksWeb.CoreComponents do
       </form>
       {render_slot(@inner_block)}
     </dialog>
+    """
+  end
+
+  @doc """
+  A key hint on a button, e.g. `<.kbd>D</.kbd>`. Only from 64rem, where a keyboard
+  is likely (round 11 hotkeys); hidden from screen readers, the button says it.
+  """
+  slot :inner_block, required: true
+
+  def kbd(assigns) do
+    ~H"""
+    <kbd
+      class="ml-1.5 hidden min-w-5 rounded border border-current/40 px-1 font-sans text-[11px] leading-4 font-semibold opacity-70 lg:inline-block"
+      aria-hidden="true"
+    >{render_slot(@inner_block)}</kbd>
     """
   end
 

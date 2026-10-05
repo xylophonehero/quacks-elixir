@@ -135,7 +135,7 @@ state: `ConfigMemory` (`assets/js/app.js:43-53`) keeps the host's last settings 
 `localStorage`, `NameMemory` (lines 57-67) keeps your name, and `PotMotion`
 animates the pot (see "Motion" below).
 
-## Layout: one dialog, three screen sizes
+## Layout: one dialog, every screen size
 
 The same decision dialog is a bottom sheet on a phone and a panel in the right
 column on a tablet or desktop. There is one element and no second template.
@@ -165,45 +165,152 @@ crosses 64rem, app.js closes an open panel and opens it again in the other mode
 from a `useMediaQuery` hook. Here the server sends one element, and the browser
 picks the mode when it opens it.
 
-**CSS-only tabs (64-80rem).** On a tablet the right column has two tabs,
-"Decision" and "Books". They are radio inputs inside labels
-(`lib/quacks_web/live/game_live.ex:1253-1283`):
+## One grid with named areas (round 11)
 
-```heex
-<input
-  type="radio"
-  name="side-tab"
-  id={"side-tab-#{tab}-#{@decision || "none"}"}
-  class="sr-only"
-  data-tab={tab}
-  checked={tab == :decision == (@decision != nil)}
-/>
-```
-
-The CSS reads the checked radio with `:has()` and hides the other content
-(`assets/css/app.css:618-672`):
+The game page is one CSS grid. Each block in the template names its area with a
+`data-area` attribute, and `app.css` places the areas per layout
+(`assets/css/app.css:624-830`). The markup stays the same on every screen; only
+the template changes. The DOM order is the reading order for a screen reader:
+header, players, notices, books, pot, context, bar.
 
 ```css
-[data-role="side-column"]:has([data-tab="books"]:checked)
-  > :not([data-role="side-tabs"], #books-tab) {
-  display: none !important;
+.game-grid {
+  display: grid;
+  height: 100dvh;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "header" "players" "notices" "pot" "bar";
+}
+
+@media (width >= 64rem) {
+  .game-grid {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    grid-template-areas:
+      "header context" "players context" "notices context" "pot context" "pot bar";
+  }
 }
 ```
 
-A tap on a tab changes no assign and sends no event. But a *new* decision must
-switch back to "Decision". The id names the decision, so a new decision is a new
-input, rendered with `checked` again. That is the `key` trick once more: change the
-id, get a fresh element with fresh state. A Headless UI `<Tab.Group>` would keep the
-selected index in React state; here the browser keeps it in the radio group.
+| Layout | Areas |
+|---|---|
+| Portrait, phone or tablet (< 64rem) | header, players, notices, pot, bar (one column) |
+| Landscape phone (`orientation: landscape` and `max-height: 30rem`) | the pot on the left, full height; header, players, notices, context, bar and the test tubes on the right |
+| 64rem | the pot column on the left; the context column on the right, the bar at its foot |
+| 80rem | the books column, then the pot, then the context column |
+
+**Why the pot never moves.** The pot sits in the flexible row
+(`minmax(0, 1fr)`). That row gets what the other rows leave, so the pot changes size
+only when a row above or below it changes height. Round 11 makes every such row
+fixed:
+
+- No line comes and goes above the pot: the status line ("Everyone brews at the
+  same time."), the rats line, the ring legend and the flask hint are gone. Stir,
+  Skip, the Red Set 2 chips and the overflow bowl are `absolute` inside the pot
+  square.
+- The name cards reserve their update-chip row (`grid-rows-[auto_2.125rem_2.25rem]`
+  on `#players-row`), so the round results do not make the row taller. A hidden
+  element at the end of a `space-y-*` block still gets a margin on its neighbour, so
+  the replay marker `<i id="replay-start-N">` is the first child of its block.
+- Phones: the bar has a fixed height (`.game-bar`, `--bar-h`). Its rare extras
+  (Mandrake, Ear worm, the patient's chips, the bonus die) are in `.game-tray`, which
+  is `position: absolute; bottom: 100%`: it floats over the pot's lower band.
+- From 64rem the pot spans the bar's row too ("pot context" / "pot bar"). A taller
+  bar takes room from the context column, never from the pot. Grid sizes an `auto`
+  row only from the items that do not span a flexible row, so the pot does not
+  size it.
+
+A landscape phone moves the test tubes out of the pot column: `.pot-column` becomes
+`display: contents`, so its children are grid items and the tubes can take the
+`tubes` area. All sheets slide in from the right there, over the right column only.
+Tailwind gets a matching variant for small fixes:
+`@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem));`
+(`assets/css/app.css:21`), used as `phone-landscape:sr-only`.
+
+One trap: CSS written in `app.css` outside a layer beats every Tailwind utility.
+`.action-bar { display: grid }` made `lg:hidden` on the bar do nothing, so that
+rule is inside `@layer components` (`assets/css/app.css:679`).
+
+**The context column (64rem).** `<aside class="context-column" data-area="context">`
+(`lib/quacks_web/live/game_live.ex:1181`) holds what happens now, top to bottom:
+the fortune teller card, the Take a Chance rolls (`chance_panel/1`, line 2770), the
+round results while they play (`results_panel/1`, line 2806), the decision panel and
+the witches. Below 64rem it is `display: contents` and holds only the sheets. The
+bar (`<footer class="game-bar" data-area="bar">`, line 1428) is its foot from 64rem:
+Draw is the large button, Stop and a flask button sit under it. An exploded pot
+shows "Your pot exploded" and the next step there.
+
+The results panel reuses the replay beats: `result_rows/3` (line 2733) takes every
+seat's bonus die lines and this seat's other lines from `QuacksWeb.Replay.beats/3`,
+and each row gets `style="--beat: N"`, the same formula as the update chips. Round
+11 changed the replay order: the bonus dice of the whole table roll first, one
+after the other in seat order, two beats each (`dice_slots/2`,
+`lib/quacks_web/replay.ex:59`); then every seat's other lines start together. The
+Take a Chance card is not part of the replay (its rolls come at the round's start),
+so its rows use their own `--chance-step` (`.chance-row`, `assets/css/app.css:896`)
+and are not cut short by `.replay-done`.
+
+**The books drawer (48–80rem).** Below 80rem there is no books column. The header's
+Books button (with a count badge) opens `#sheet-books`, a popover with the class
+`sheet-drawer` (line 1722). From 48rem, and on a landscape phone, CSS makes it a
+drawer from the right (`assets/css/app.css:830`): it slides over the context
+column, never over the pot. A popover closes with Esc and a tap outside, with no
+JS. A decision that arrives while the drawer is open does not close it: `sideOpen`
+waits for the drawer's `toggle` event (`assets/js/app.js:252`):
+
+```js
+const books = document.querySelector("#sheet-books:popover-open")
+if (books) return books.addEventListener("toggle", () => sideOpen(d), {once: true})
+```
+
+The drawer replaced the tablet's CSS-only tabs (radio inputs and `:has()`, layout
+2). Tabs hid the decision behind a second tap; the drawer leaves the decision in
+place.
 
 **The books column (≥ 80rem).** `books_in_play/1`
-(`lib/quacks_web/components/game_components.ex:1962-1996`) lists the books in play
-in board order (`Chips.order/0`, chapter 7). The page renders it twice: as a column
-left of the pot on a desktop (`id="books-column"`,
-`lib/quacks_web/live/game_live.ex:1007-1013`) and as the "Books" tab on a tablet
-(`id="books-tab"`, lines 1498-1503). Tailwind classes show one or the other
-(`xl:flex` and `lg:flex xl:hidden`). Two copies of a small list cost less than JS
-that moves one copy.
+(`lib/quacks_web/components/game_components.ex`) lists the books in play in board
+order (`Chips.order/0`, chapter 7), left of the pot (`id="books-column"`,
+`data-area="books"`).
+
+## Hotkeys
+
+One attribute on the grid, `phx-window-keydown="hotkey"`
+(`lib/quacks_web/live/game_live.ex:977`), sends every keydown to the server. The
+server knows the legal actions; the browser knows where the focus is. So app.js adds
+three facts to each keydown with the LiveSocket's `metadata` option
+(`assets/js/app.js:211`):
+
+```js
+metadata: {
+  keydown: e => ({
+    typing: !!e.target.closest?.("input, textarea, select, [contenteditable]"),
+    control: !!e.target.closest?.("button, a, summary, label"),
+    modal: !!document.querySelector("dialog:modal"),
+  }),
+},
+```
+
+`handle_event("hotkey", ...)` (line 175) maps the key with `hotkey_action/3`
+(line 675) and plays it with `play/3` (line 660), the same function the
+`"action"` event uses, so a key and a tap cannot differ:
+
+| Key | Action | Only when |
+|---|---|---|
+| D, Space | `:draw` | `:draw in @actions` |
+| S | `:stop` (or `:resume`) | it is in `@actions` |
+| F | `:use_flask` | it is in `@actions` |
+| Enter | the open decision's one primary button: the empty rubies step's Done, the shop's Done (Buy with chips ticked), a decision with one button and no chips | `enter_action/1` (line 695) finds exactly one |
+| Esc | nothing on the server: the browser closes the modal dialog or the drawer | |
+
+Letters and Space do nothing while typing or with a modal dialog open; Space and
+Enter on a focused button leave it to the browser, which presses it already.
+`@actions` is empty while a decision is open, so a key cannot skip a dialog. From
+64rem the buttons show their key in a `<.kbd>` (`core_components.ex`), hidden
+from screen readers. The tests send the metadata as params:
+`render_keydown(element(view, "#game"), %{"key" => "d"})`
+(`test/quacks_web/live/round11_test.exs`).
+
+In dev, `phoenix_live_reload` remembers the last key that went down and, while it is
+"c" or "d", turns a click into "open in editor". A synthetic keydown with no keyup
+(a test script) therefore swallows every later click. Real keyboards send keyup.
 
 ## The SVG pot is computed at compile time
 
@@ -586,6 +693,7 @@ template (for example Workbox); here leaving it out is the simpler choice.
 | Who decides what the user can do? | client code, often duplicated on the server | the engine only (`legal_actions/2`) |
 | How does the UI update? | set state, diff the virtual DOM in the browser | assign, diff on the server, send the HTML diff |
 | UI-only toggles | `useState` | the browser (popover, `<dialog>`), or an assign when the server must know |
-| Tabs | a `<Tabs>` component with state | radio inputs and CSS `:has()` |
+| Layout per screen | a `useMediaQuery` hook and two trees | one grid, named areas, CSS media queries |
+| Keyboard shortcuts | a `useHotkeys` hook that calls the handlers | `phx-window-keydown`, the server picks the legal action |
 | Timed sequences | `setTimeout`, `staggerChildren` | `--beat` from the server, CSS delays |
 | Custom JS | most of the app | about 300 lines in `assets/js/app.js`: `PotMotion`, the dialog modes, the replay end, the bug report details, the install button |

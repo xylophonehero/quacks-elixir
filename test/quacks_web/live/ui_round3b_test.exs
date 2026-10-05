@@ -95,11 +95,7 @@ defmodule QuacksWeb.UiRound3bTest do
     assert has_element?(alice, "button[data-slot=draw][disabled]")
     assert has_element?(alice, "button[data-slot=stop][disabled]")
 
-    assert has_element?(
-             alice,
-             "[data-role=turn]",
-             "You chose draw. Waiting for 1 player: Player 2."
-           )
+    refute has_element?(alice, "[data-role=turn]")
 
     assert state(bob, 0) =~ "chosen"
     assert state(bob, 1) =~ "deciding"
@@ -121,7 +117,7 @@ defmodule QuacksWeb.UiRound3bTest do
 
     alice |> element("#card-round-1 button", "No thanks") |> render_click()
     refute has_element?(alice, "#card-round-1 button", "No thanks")
-    assert has_element?(alice, "[data-role=turn]", "Waiting for 1 player: Player 2.")
+    refute has_element?(alice, "[data-role=turn]")
     assert has_element?(bob, "#card-round-1 button", "No thanks")
     assert state(alice, 1) =~ "choosing"
   end

@@ -54,7 +54,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     {:ok, _} = GameServer.begin(id, "alice")
 
     refute has_element?(alice, "[data-role=waiting-for-players]")
-    assert has_element?(alice, "[data-role=turn]", "Everyone brews at the same time.")
+    refute has_element?(alice, "[data-role=turn]")
     # each sees the other one small, still brewing
     open_player(alice, 1)
     open_player(bob, 0)
@@ -82,7 +82,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
       assert has_element?(view, "dd", "Shop")
       assert has_element?(view, "li", ~r/^Player \d: Bonus die/)
       # everyone shops at once, each in their own shop dialog
-      assert has_element?(view, "[data-role=turn]", "Everyone shops at the same time.")
+      refute has_element?(view, "[data-role=turn]")
       assert has_element?(view, "dialog#decision-shop")
       assert has_element?(view, "[data-role=shop-done]")
     end
@@ -103,7 +103,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
 
     # bob is done shopping first (1 ruby: nothing to spend, so he is ready at once)
     bob |> element("[data-role=shop-done]") |> render_click()
-    assert has_element?(bob, "[data-role=turn]", "Waiting for 1 player: Player 1.")
+    refute has_element?(bob, "[data-role=turn]")
     assert has_element?(alice, "dialog#decision-shop")
   end
 

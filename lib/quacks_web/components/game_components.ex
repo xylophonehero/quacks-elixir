@@ -787,28 +787,6 @@ defmodule QuacksWeb.GameComponents do
   @spec palette_bg(0..7) :: String.t()
   def palette_bg(colour), do: @palette_bg[colour]
 
-  @doc """
-  What the coloured rings on the pot are: every player's scoring space, in the seat
-  colours. One line under the pot when more than one player plays.
-  """
-  attr :seats, :list, required: true
-  attr :names, :map, required: true
-  attr :class, :any, default: nil
-
-  def ring_legend(assigns) do
-    ~H"""
-    <p
-      class={["flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-parchment-dim", @class]}
-      data-role="ring-legend"
-    >
-      <span>Scoring rings:</span>
-      <span :for={seat <- @seats} class="inline-flex items-center gap-1">
-        <.seat_dot seat={seat} />{Map.get(@names, seat, GameServer.default_name(seat))}
-      </span>
-    </p>
-    """
-  end
-
   @doc "A small dot in the seat's colour, before a player's name."
   attr :seat, :integer, required: true
 
@@ -1659,9 +1637,15 @@ defmodule QuacksWeb.GameComponents do
         class="flex w-full min-w-0 flex-wrap content-start items-start gap-0.5"
         data-role="update-chips"
       >
+        <%!-- Phones: "stopped"/"exploded" is sr-only (the state badge says it, and an
+             sr-only chip still animates, so the replay can still end on it). --%>
         <span
           :for={update <- @updates}
-          class={["update-chip", update_class(update.kind)]}
+          class={[
+            "update-chip",
+            update_class(update.kind),
+            update.kind in [:stopped, :exploded] && "max-sm:sr-only"
+          ]}
           data-role="update-chip"
           data-kind={update.kind}
           data-beat={update.beat}
@@ -2099,7 +2083,7 @@ defmodule QuacksWeb.GameComponents do
 
   @doc """
   The ingredient books in play as compact tiles in board order (`Books.in_play/2`):
-  the desktop books column and the tablet "Books" tab. Each tile: the icon, the
+  the desktop books column (80rem). Each tile: the icon, the
   name, the book number, when it acts and its rule; tiered books show their tiers
   inline, only the rows for this table size. `beats` (`%{colour => beat}`) lights a
   book up on the replay beat of its line (app.css `.book-beat`).
@@ -2108,6 +2092,7 @@ defmodule QuacksWeb.GameComponents do
   attr :game, Game, required: true
   attr :beats, :map, default: %{}
   attr :class, :any, default: nil
+  attr :rest, :global
 
   def books_in_play(assigns) do
     assigns =
@@ -2117,7 +2102,12 @@ defmodule QuacksWeb.GameComponents do
       )
 
     ~H"""
-    <section id={@id} class={["min-h-0 flex-col gap-1.5", @class]} aria-label="Ingredient books">
+    <section
+      id={@id}
+      class={["min-h-0 flex-col gap-1.5", @class]}
+      aria-label="Ingredient books"
+      {@rest}
+    >
       <h2 class="flex items-baseline gap-2 px-1 font-hand text-lg font-bold text-parchment">
         <QuacksWeb.CoreComponents.icon name="hero-book-open" class="size-4 self-center" />
         Books in play
@@ -2843,8 +2833,8 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   The bonus die while the replay plays (scoring sequence): it shows on its beat,
   rolls through its strip, lands, and its line ("Bonus die: +1 VP") fades in after.
-  The page puts it beside the pot: in the side column on large screens, in the
-  footer on phones.
+  Phones show it in the bar's tray; from 64rem the results panel in the context
+  column rolls it (`results_panel/1` in game_live.ex).
   """
   attr :lines, :list, required: true, doc: "the replay's `:die` lines (`Replay.beats/3`)"
   attr :class, :any, default: nil
@@ -3341,11 +3331,12 @@ defmodule QuacksWeb.GameComponents do
   defp essence_use(:hump), do: "Witch's hump"
   defp essence_use({:forget, chip}), do: "#{chip_name(chip)} back to the bag"
 
-  defp die_text({:vp, n}), do: "#{n} VP"
-  defp die_text(:ruby), do: "ruby"
-  defp die_text(:droplet), do: "droplet +1"
-  defp die_text(:orange), do: "orange 1 chip"
-  defp die_text(other), do: inspect(other)
+  @doc ~s(A bonus die face in words: "2 VP", "ruby", "droplet +1", "orange 1 chip".)
+  def die_text({:vp, n}), do: "#{n} VP"
+  def die_text(:ruby), do: "ruby"
+  def die_text(:droplet), do: "droplet +1"
+  def die_text(:orange), do: "orange 1 chip"
+  def die_text(other), do: inspect(other)
 
   @doc ~s(A test-tube glass bonus in words: "1 ruby", "2 VP", "blue 1 chip".)
   @spec tube_bonus(Quacks.Rules.TestTubes.bonus()) :: String.t()

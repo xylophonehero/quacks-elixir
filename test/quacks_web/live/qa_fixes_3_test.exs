@@ -129,7 +129,7 @@ defmodule QuacksWeb.QaFixes3Test do
       html = render(alice)
       assert html =~ "Final scoring"
       refute html =~ "Everyone shops"
-      assert has_element?(alice, "[data-role=turn]", "Final scoring")
+      refute has_element?(alice, "[data-role=turn]")
       assert has_element?(alice, "[data-role=decision-button]", "Back to final scoring")
       assert has_element?(alice, "dialog#decision-rubies button", "2 rubies → 1 VP")
     end
@@ -168,21 +168,26 @@ defmodule QuacksWeb.QaFixes3Test do
     refute has_element?(view, ".stat-tick[data-from]")
   end
 
-  test "Q6: from 64rem the bonus die lies on the pot corner, not in the side column" do
+  # Round 11: from 64rem the die rolls in the results panel of the context column;
+  # phones keep it in the bar's tray. Nothing sits on the pot's corner any more.
+  test "Q6: from 64rem the bonus die rolls in the results panel, not on the pot" do
     {id, view} = solo()
     replace_game(id, &scored/1)
 
     assert has_element?(
              view,
-             "[data-role=pot-area] [data-role=replay-die-corner].absolute.lg\\:flex [data-role=replay-die]"
+             "[data-role=side-column] > [data-role=results-panel].lg\\:block [data-role=result-row][data-kind=die] [data-role=die]"
            )
+
+    assert has_element?(view, ".game-tray [data-role=replay-die].lg\\:hidden")
+    refute has_element?(view, "[data-role=replay-die-corner]")
 
     assert view
            |> render()
            |> LazyHTML.from_fragment()
            |> LazyHTML.query("[data-role=replay-die]")
            |> Enum.count() ==
-             2
+             1
   end
 
   describe "Q7: rejoin" do
@@ -283,13 +288,10 @@ defmodule QuacksWeb.QaFixes3Test do
              )
     end
 
-    test "V5: the rings on the pot have a legend with every player" do
+    # Round 11: the legend went; the name cards carry the colours.
+    test "V5: no ring legend under the pot" do
       {_id, alice, _bob} = duo()
-      assert has_element?(alice, "[data-role=ring-legend]", "Scoring rings:")
-      assert has_element?(alice, ~s([data-role=ring-legend] [data-role=seat-dot][data-seat="1"]))
-
-      {_id, view} = solo()
-      refute has_element?(view, "[data-role=ring-legend]")
+      refute has_element?(alice, "[data-role=ring-legend]")
     end
   end
 end

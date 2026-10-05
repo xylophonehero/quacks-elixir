@@ -5,7 +5,8 @@ defmodule QuacksWeb.Replay do
 
   Each result line of a seat gets a *beat*, a number the CSS turns into an
   `animation-delay` (`--beat`). The lines come in engine order (bonus die → chip
-  actions → scoring space). A die line takes two beats: the die rolls first, its
+  actions → scoring space). The bonus dice of the whole table come first, one
+  after the other in seat order; then every seat's other lines start together. A die line takes two beats: the die rolls first, its
   text shows when it lands. Each line also names what it concerns on the pot
   (`marks`): the chips by their space index, `:droplet`, `:ring` (the scoring
   space) or `:essence` (the Alchemists' flask marker). The pot lights those up on
@@ -35,13 +36,32 @@ defmodule QuacksWeb.Replay do
   """
   @spec beats(Game.t(), Game.seat(), non_neg_integer) :: [line]
   def beats(game, seat, from \\ 0) do
-    game
-    |> round_entries(seat)
+    # Step A first, for the whole table: the bonus dice roll one after the other in
+    # seat order (two beats each), then every seat's other lines start together.
+    {dice, rest} = game |> round_entries(seat) |> Enum.split_with(&bonus_die?/1)
+    {before, all} = dice_slots(game, seat)
+
+    number(game, seat, dice, from + 2 * before) ++ number(game, seat, rest, from + 2 * all)
+  end
+
+  defp number(game, seat, entries, from) do
+    entries
     |> Enum.map_reduce(from, fn entry, beat ->
       line = line(game, seat, entry, beat)
       {line, beat + span(line)}
     end)
     |> elem(0)
+  end
+
+  defp bonus_die?(entry), do: match?({:bonus_die, _face}, entry)
+
+  # `{dice of the seats before seat, dice of the whole table}` this round.
+  defp dice_slots(game, seat) do
+    counts =
+      Enum.map(game.seats, fn s -> {s, game |> round_entries(s) |> Enum.count(&bonus_die?/1)} end)
+
+    before = counts |> Enum.take_while(fn {s, _n} -> s != seat end) |> Enum.map(&elem(&1, 1))
+    {Enum.sum(before), counts |> Enum.map(&elem(&1, 1)) |> Enum.sum()}
   end
 
   defp span(%{kind: :die}), do: 2

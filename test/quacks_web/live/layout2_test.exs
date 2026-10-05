@@ -10,7 +10,7 @@ defmodule QuacksWeb.Layout2Test do
 
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias Quacks.Rules.Fortune
+  alias Quacks.Rules.{Books, Fortune}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -78,38 +78,45 @@ defmodule QuacksWeb.Layout2Test do
     end
   end
 
-  describe "tablet tabs" do
-    test "Decision and Books tabs; Books while nothing waits, Decision when a decision opens" do
-      {id, view} = start("tabs", %{fortune: false})
+  # Round 11 replaced the tablet tabs with a Books button and a drawer.
+  describe "tablet books drawer" do
+    test "a Books button with the count opens the books in a drawer; no tabs" do
+      {id, view} = start("drawer", %{fortune: false})
+      {:ok, %{game: game}} = GameServer.get(id)
+      count = length(Books.in_play(game.expansion, game.sets))
 
-      tabs = "[data-role=side-column] > [data-role=side-tabs].lg\\:grid.xl\\:hidden"
-      assert has_element?(view, "#{tabs} [data-role=tab-decision]", "Decision")
-      assert has_element?(view, "#{tabs} [data-role=tab-books]", "Books")
-      assert has_element?(view, "#{tabs} input[data-tab=books][checked]")
-      refute has_element?(view, "#{tabs} input[data-tab=decision][checked]")
-      assert has_element?(view, "[data-role=side-column] > #books-tab.lg\\:flex.xl\\:hidden")
+      refute has_element?(view, "[data-role=side-tabs]")
+      refute has_element?(view, "#books-tab")
 
+      button = "header button[data-role=open-books][popovertarget=sheet-books].xl\\:hidden"
+      assert has_element?(view, "#{button} [data-role=books-count]", "#{count}")
+      assert has_element?(view, "#sheet-books.sheet-drawer[popover]")
+      assert has_element?(view, "#sheet-books [data-role=books-in-play]")
+
+      # A decision coming does not close the drawer: the dialog waits for it.
       replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
-      assert has_element?(view, "#side-tab-decision-blue_choice[checked]")
-      refute has_element?(view, "#side-tab-books-blue_choice[checked]")
+      assert has_element?(view, "#sheet-books.sheet-drawer")
+      assert has_element?(view, "dialog#decision-blue_choice")
 
-      # the tabs are CSS only: app.css hides the other tab's content
       css = File.read!(Path.expand("../../../assets/css/app.css", __DIR__))
-      assert css =~ ~s{[data-role="side-column"]:has([data-tab="books"]:checked)}
-      assert css =~ "@media (64rem <= width < 80rem)"
+      assert css =~ "@media (width >= 48rem), (orientation: landscape) and (max-height: 30rem)"
+      assert css =~ ".sheet.sheet-drawer:not(:popover-open, [open])"
+      js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
+      assert js =~ ~s{#sheet-books:popover-open}
     end
   end
 
   describe "the fortune teller card in full" do
-    test "the right column (desktop) and under the pot (tablet) show the whole text" do
+    test "the context column (from 64rem) shows the whole text; nothing under the pot" do
       {id, view} = start("card")
       {:ok, %{game: game}} = GameServer.get(id)
       card = Fortune.card(game.fortune_card)
       round = game.round
 
+      refute has_element?(view, "#fortune-under-#{round}")
+
       for {selector, class} <- [
-            {"[data-role=side-column] > #fortune-panel-#{round}", "xl\\:flex"},
-            {"[data-role=my-seat] #fortune-under-#{round}", "lg\\:flex.xl\\:hidden"}
+            {"[data-role=side-column] > #fortune-panel-#{round}", "lg\\:flex"}
           ] do
         assert has_element?(view, "#{selector}.#{class}", card.name)
         assert has_element?(view, "#{selector} p", card.text)

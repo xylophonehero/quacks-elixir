@@ -186,8 +186,8 @@ defmodule QuacksWeb.QaFixesTest do
       alice = open(browser("edge-a"), id)
       _bob = open(browser("edge-b"), id)
       {:ok, _} = GameServer.begin(id, "edge-a")
-      assert has_element?(alice, "div.lg\\:border-t-4.border-player-0")
-      assert has_element?(alice, "[data-role=my-seat].lg\\:border-t-0")
+      # Round 11: one grid for the page, so one edge spans every column.
+      assert has_element?(alice, "#game[data-role=my-seat].border-t-4.border-player-0")
     end
 
     test "the menu's sheet buttons are parchment like their neighbours" do
@@ -208,12 +208,13 @@ defmodule QuacksWeb.QaFixesTest do
       assert has_element?(view, "[data-role=witches-button].flex-col.top-0.left-0", "Witches")
     end
 
-    test "a usable flask says so" do
+    # Round 11: no hint line (it moved the pot); the flask's SVG <title> says it.
+    test "a usable flask glows, with no hint line" do
       {:ok, id} = GameServer.start(1, {10, 11, 12})
       view = open(browser("flask-#{System.unique_integer()}"), id)
+      view |> element("button[data-slot=draw]") |> render_click()
       refute has_element?(view, "[data-role=flask-hint]")
-      view |> element("button", "Draw a chip") |> render_click()
-      assert has_element?(view, "[data-role=flask-hint]", "Tap the flask")
+      assert has_element?(view, "[data-role=pot-area] [data-role=flask] title")
     end
   end
 
