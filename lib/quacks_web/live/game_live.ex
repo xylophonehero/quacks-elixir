@@ -1054,12 +1054,12 @@ defmodule QuacksWeb.GameLive do
           <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
                brew each card plays its update chips (the round results); the last
                one to land ends the replay (`replay_end/3`, app.js). The third row
-               (the update chips) and the counts row have fixed heights, so the row keeps its height
+               (the update chips) has a fixed height, and on phones the counts row two lines, so the row keeps its height
                when the chips come. --%>
           <nav
             id="players-row"
             class={[
-              "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_1rem_2.25rem] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)] sm:grid-rows-[auto_1rem_1.25rem] phone-landscape:auto-cols-[minmax(5.5rem,1fr)]",
+              "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_2.125rem_2.25rem] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)] sm:grid-rows-[auto_auto_1.25rem] phone-landscape:auto-cols-[minmax(5.5rem,1fr)]",
               not replaying?(@game, @seen) && "replay-done"
             ]}
             aria-label="Players"

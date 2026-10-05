@@ -75,7 +75,7 @@ defmodule QuacksWeb.Round11Test do
 
     test "the name cards reserve the update chips' row" do
       {_id, view} = solo()
-      assert has_element?(view, "#players-row.grid-rows-\\[auto_1rem_2\\.25rem\\]")
+      assert has_element?(view, "#players-row.grid-rows-\\[auto_2\\.125rem_2\\.25rem\\]")
     end
   end
 

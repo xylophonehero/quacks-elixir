@@ -1169,6 +1169,14 @@ html:has([data-layout="full"]) {
   transition: --n 600ms var(--ease-out);
 }
 
+/* On a name card the ticker keeps the line's height (round 11: the row must not
+   grow while the replay plays). */
+#players-row .stat-tick {
+  display: inline-flex;
+  height: 1rem;
+  align-items: center;
+}
+
 .stat-tick .stat-pop::after {
   content: counter(n);
 }
@@ -1258,6 +1266,20 @@ html:has([data-layout="full"]) {
   font-variant-numeric: tabular-nums;
   animation: update-in 320ms var(--ease-spring) both;
   animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+/* Phones: narrow cards, so two gains share a line in the reserved two lines. */
+@media (width < 40rem) {
+  .update-chip {
+    gap: 1px;
+    padding: 0 3px;
+    font-size: 10px;
+  }
+
+  .update-chip svg {
+    width: 9px;
+    height: 9px;
+  }
 }
 
 @keyframes update-in {

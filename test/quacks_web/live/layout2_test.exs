@@ -10,7 +10,7 @@ defmodule QuacksWeb.Layout2Test do
 
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias Quacks.Rules.Fortune
+  alias Quacks.Rules.{Books, Fortune}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -83,7 +83,7 @@ defmodule QuacksWeb.Layout2Test do
     test "a Books button with the count opens the books in a drawer; no tabs" do
       {id, view} = start("drawer", %{fortune: false})
       {:ok, %{game: game}} = GameServer.get(id)
-      count = length(Quacks.Rules.Books.in_play(game.expansion, game.sets))
+      count = length(Books.in_play(game.expansion, game.sets))
 
       refute has_element?(view, "[data-role=side-tabs]")
       refute has_element?(view, "#books-tab")

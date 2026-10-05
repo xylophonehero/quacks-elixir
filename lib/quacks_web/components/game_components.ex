@@ -1637,9 +1637,15 @@ defmodule QuacksWeb.GameComponents do
         class="flex w-full min-w-0 flex-wrap content-start items-start gap-0.5"
         data-role="update-chips"
       >
+        <%!-- Phones: "stopped"/"exploded" is sr-only (the state badge says it, and an
+             sr-only chip still animates, so the replay can still end on it). --%>
         <span
           :for={update <- @updates}
-          class={["update-chip", update_class(update.kind)]}
+          class={[
+            "update-chip",
+            update_class(update.kind),
+            update.kind in [:stopped, :exploded] && "max-sm:sr-only"
+          ]}
           data-role="update-chip"
           data-kind={update.kind}
           data-beat={update.beat}
