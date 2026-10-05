@@ -153,23 +153,34 @@ defmodule QuacksWeb.GameLive do
   @impl true
   def handle_event("action", %{"action" => encoded}, %{assigns: %{seat: seat}} = socket)
       when is_integer(seat) do
-    with {:ok, action} <- decode(encoded),
-         {:ok, game} <- GameServer.apply(socket.assigns.id, seat, action) do
-      {:noreply, socket |> put_game(game) |> auto_done(shop_move?(action))}
-    else
-      {:error, {:illegal_action, action, _phase}} ->
-        {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
+    case decode(encoded) do
+      {:ok, action} ->
+        play(socket, seat, action)
 
       {:error, :bad_action} ->
         {:noreply, put_flash(socket, :error, "That move could not be read.")}
-
-      {:error, :not_found} ->
-        {:noreply, ended(socket)}
     end
   end
 
   def handle_event("action", _params, socket),
     do: {:noreply, put_flash(socket, :error, "You are watching this game.")}
+
+  # Keys (`phx-window-keydown` on the grid): D or Space draws, S stops, F uses the
+  # flask, Enter takes the open decision's one primary button. app.js adds to each
+  # keydown whether the focus is in a field (`typing`), on a button or link
+  # (`control`: Space and Enter already press it) and whether a modal dialog is
+  # open (`modal`). A key does something only when its action is legal for this
+  # seat now; it goes through `play/3`, the same path as a tap on the button.
+  # Esc needs no code: the browser closes the dialog or the books.
+  def handle_event("hotkey", %{"key" => key} = params, %{assigns: %{seat: seat}} = socket)
+      when is_integer(seat) do
+    case hotkey_action(key, params, socket.assigns) do
+      nil -> {:noreply, socket}
+      action -> play(socket, seat, action)
+    end
+  end
+
+  def handle_event("hotkey", _params, socket), do: {:noreply, socket}
 
   # Mandrake: the server put the white chip back for us; keep it instead (only right
   # after, see `GameServer.keep_white/2`).
@@ -645,6 +656,68 @@ defmodule QuacksWeb.GameLive do
     socket |> put_flash(:error, "This game has ended.") |> push_navigate(to: ~p"/")
   end
 
+  # One move of this seat, from a tap or a key.
+  defp play(socket, seat, action) do
+    case GameServer.apply(socket.assigns.id, seat, action) do
+      {:ok, game} ->
+        {:noreply, socket |> put_game(game) |> auto_done(shop_move?(action))}
+
+      {:error, {:illegal_action, action, _phase}} ->
+        {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
+
+      {:error, :not_found} ->
+        {:noreply, ended(socket)}
+    end
+  end
+
+  # The action of a key, or nil. Letters and Space are ignored while typing or with a
+  # modal dialog open; Space and Enter on a focused control leave it to the browser.
+  defp hotkey_action(key, params, assigns) do
+    cond do
+      params["typing"] == true -> nil
+      key in [" ", "Enter"] and params["control"] == true -> nil
+      key != "Enter" and params["modal"] == true -> nil
+      true -> key |> String.downcase() |> key_action(assigns)
+    end
+  end
+
+  defp key_action(key, assigns) when key in ["d", " "], do: bar_action(:draw, assigns)
+  defp key_action("s", assigns), do: bar_action(assigns.stop_slot, assigns)
+  defp key_action("f", assigns), do: bar_action(:use_flask, assigns)
+  defp key_action("enter", assigns), do: enter_action(assigns)
+  defp key_action(_key, _assigns), do: nil
+
+  # `@actions` is empty while a decision is open, so a key cannot skip a dialog.
+  defp bar_action(action, assigns), do: if(action in assigns.actions, do: action)
+
+  # Enter: the one primary button. The empty rubies step's Done; in the shop Buy
+  # with chips ticked, else Done; in a decision its only button.
+  defp enter_action(%{skip_rubies: true}), do: :end_round
+
+  defp enter_action(%{decision: :shop, selected: selected, all_actions: actions}) do
+    buy = {:buy, selected}
+    if buy in actions, do: buy
+  end
+
+  defp enter_action(%{decision: :rubies, all_actions: actions}),
+    do: if(not ruby_options?(actions) and :end_round in actions, do: :end_round)
+
+  defp enter_action(%{decision: decision, all_actions: actions})
+       when decision not in [nil, :patient_choice, :essence_choice] do
+    case {dialog_buttons(actions, decision), Enum.filter(actions, &(pick_chips(&1) != []))} do
+      {[one], []} -> one
+      _other -> nil
+    end
+  end
+
+  defp enter_action(_assigns), do: nil
+
+  # What an exploded seat waits for, under "Your pot exploded" (64rem).
+  defp exploded_next(%Player{phase: :explosion_choice}),
+    do: "Next: take the VP or buy (the choice above)."
+
+  defp exploded_next(_me), do: "Next: the evaluation, when everyone has stopped."
+
   # The table's seats and settings. `@players` is the seat count (while waiting: the
   # count the host picked); `@sets`, `@rules` and `@expansion` feed the configure forms.
   defp assign_table(socket, table) do
@@ -895,128 +968,177 @@ defmodule QuacksWeb.GameLive do
     ~H"""
     <Layouts.app flash={@flash} full style={seat_style(@colours)}>
       <.announcer log={@game.log} names={if @players > 1, do: @names} />
-      <%!-- Your seat colour runs along the top edge, over both columns on large screens. --%>
-      <div class={[
-        "lg:grid lg:h-dvh lg:grid-cols-[minmax(0,1fr)_22rem]",
-        @seat && @players > 1 && ["lg:border-t-4", seat_border(@seat)]
-      ]}>
-        <div
-          class={[
-            "grid h-dvh grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] overflow-hidden lg:h-full lg:px-4",
-            "xl:grid-cols-[17rem_minmax(0,1fr)] xl:gap-x-4",
-            @seat && @players > 1 && ["border-t-4 lg:border-t-0", seat_border(@seat)]
-          ]}
-          data-role={@seat && "my-seat"}
+      <%!-- One grid for every screen: each block names its area (`data-area`) and
+           app.css places the areas per layout (portrait, landscape phone, 64rem,
+           80rem). The DOM order is the reading order. The pot's area never depends
+           on the other areas' content, so the pot never moves (round 11).
+           Your seat colour runs along the top edge. Keys: `hotkey` below. --%>
+      <div
+        id="game"
+        class={["game-grid", @seat && @players > 1 && ["border-t-4", seat_border(@seat)]]}
+        data-role={@seat && "my-seat"}
+        phx-window-keydown="hotkey"
+      >
+        <header
+          class="flex min-w-0 items-center gap-2 px-3 pt-[max(0.25rem,env(safe-area-inset-top))] lg:px-6"
+          data-area="header"
         >
-          <header class="flex min-w-0 items-center gap-2 px-3 pt-[max(0.25rem,env(safe-area-inset-top))] xl:col-span-2">
-            <%!-- Phones need the room for "You are": the menu has the lobby link. --%>
-            <h1 class="sr-only font-hand text-2xl leading-none font-bold sm:not-sr-only">
-              <.link navigate={~p"/"}>Quacks</.link>
-              <span class="font-mono text-xs font-normal text-parchment-dim">
-                {@id}
-              </span>
-            </h1>
-            <p
-              :if={@seat && @players > 1}
-              class="flex max-w-[7rem] shrink-0 flex-col items-start gap-0.5 sm:max-w-[10rem]"
-              data-role="you-are"
-            >
-              <span class="pl-1 text-[10px] leading-none font-bold tracking-wide text-parchment-dim uppercase">
-                You
-              </span>
-              <span
-                class={[
-                  "max-w-full truncate rounded-full bg-parchment px-2 py-0.5 text-xs font-semibold text-ink ring-2 sm:text-sm",
-                  seat_ring(@seat)
-                ]}
-                title={name(@names, @seat)}
-              >
-                {name(@names, @seat)}
-              </span>
-            </p>
-            <div class="ml-auto min-w-0"><.round_phase game={@game} seat={@seat || 0} /></div>
-            <%!-- Phones: the round's card waits here, not on the pot's rim. --%>
-            <.fortune_tile :if={@game.fortune_card} id={@game.fortune_card} compact class="lg:hidden" />
-            <button
-              type="button"
-              popovertarget="sheet-books"
-              aria-label="Ingredient books"
-              class="-mx-1 inline-flex size-11 shrink-0 items-center justify-center lg:hidden"
-              data-role="open-books"
-            >
-              <.icon name="hero-book-open" class="size-6" />
-            </button>
-            <.bug_report_button :if={@seat} n={@reports} class="-mx-1" />
-            <button
-              type="button"
-              popovertarget="sheet-menu"
-              aria-label="Menu"
-              class="-mr-2 inline-flex size-11 shrink-0 items-center justify-center"
-            >
-              <.icon name="hero-bars-3" class="size-6" />
-            </button>
-          </header>
-
-          <div class="space-y-1 px-2 xl:col-span-2">
-            <.status :if={@seat} game={@game} seat={@seat} beats={stat_beats(@game, @seat, @seen)} />
-            <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
-                 brew each card plays its update chips (the round results); the last
-                 one to land ends the replay (`replay_end/3`, app.js). --%>
-            <nav
-              id="players-row"
+          <%!-- Phones need the room for "You are": the menu has the lobby link. --%>
+          <h1 class="sr-only font-hand text-2xl leading-none font-bold sm:not-sr-only phone-landscape:sr-only">
+            <.link navigate={~p"/"}>Quacks</.link>
+            <span class="font-mono text-xs font-normal text-parchment-dim">
+              {@id}
+            </span>
+          </h1>
+          <p
+            :if={@seat && @players > 1}
+            class="flex max-w-[7rem] shrink-0 flex-col items-start gap-0.5 sm:max-w-[10rem]"
+            data-role="you-are"
+          >
+            <span class="pl-1 text-[10px] leading-none font-bold tracking-wide text-parchment-dim uppercase">
+              You
+            </span>
+            <span
               class={[
-                "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_auto_auto] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)]",
-                not replaying?(@game, @seen) && "replay-done"
+                "max-w-full truncate rounded-full bg-parchment px-2 py-0.5 text-xs font-semibold text-ink ring-2 sm:text-sm",
+                seat_ring(@seat)
               ]}
-              aria-label="Players"
-              data-role="players-row"
-              data-on-replay-end={replaying?(@game, @seen) && replay_end(@game, @decision, true)}
+              title={name(@names, @seat)}
             >
-              <.player_chip
-                :for={seat <- @game.seats}
-                game={@game}
-                seat={seat}
-                name={name(@names, seat)}
-                you={seat == @seat}
-                bot={Map.has_key?(@bots, seat)}
-                updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
-                last={replaying?(@game, @seen) && Replay.last_beat(@game)}
-                on_tap={
-                  if replaying?(@game, @seen), do: replay_end(@game, @decision, false), else: %JS{}
-                }
-              />
-            </nav>
-            <%!-- A new replay clears the `replay-done` that JS added at the end of the
-                 last one (JS-added classes stick across patches). --%>
-            <i
-              :if={replaying?(@game, @seen)}
-              id={"replay-start-#{@game.round}"}
-              hidden
-              phx-mounted={JS.remove_class("replay-done", to: "#players-row")}
-            />
-          </div>
+              {name(@names, @seat)}
+            </span>
+          </p>
+          <div class="ml-auto min-w-0"><.round_phase game={@game} seat={@seat || 0} /></div>
+          <%!-- Phones: the round's card waits here, not on the pot's rim. --%>
+          <.fortune_tile :if={@game.fortune_card} id={@game.fortune_card} compact class="lg:hidden" />
+          <%!-- Below 80rem (no books column) the books open in a sheet: a drawer on
+               the right from 48rem, so it never covers the pot. --%>
+          <button
+            type="button"
+            popovertarget="sheet-books"
+            aria-label={"Ingredient books (#{length(Books.in_play(@game.expansion, @game.sets))})"}
+            class="relative -mx-1 inline-flex size-11 shrink-0 items-center justify-center xl:hidden"
+            data-role="open-books"
+          >
+            <.icon name="hero-book-open" class="size-6" />
+            <span
+              class="absolute top-0.5 right-0 min-w-4 rounded-full bg-parchment px-1 text-[10px] leading-4 font-bold text-ink tabular-nums"
+              aria-hidden="true"
+              data-role="books-count"
+            >
+              {length(Books.in_play(@game.expansion, @game.sets))}
+            </span>
+          </button>
+          <.bug_report_button :if={@seat} n={@reports} class="-mx-1" />
+          <button
+            type="button"
+            popovertarget="sheet-menu"
+            aria-label="Menu"
+            class="-mr-2 inline-flex size-11 shrink-0 items-center justify-center"
+          >
+            <.icon name="hero-bars-3" class="size-6" />
+          </button>
+        </header>
 
-          <div class="space-y-1 px-2 pt-1 text-sm xl:col-span-2">
-            <.spectator_note :if={is_nil(@seat)} rejoinable={@rejoinable} names={@names} />
-            <p
-              :if={stir?(@game)}
-              class="rounded-md bg-gold px-2 py-0.5 font-bold text-ink"
-              data-role="stir"
-            >
-              Stir! Everyone draws together.
-            </p>
-            <div
-              :if={replaying?(@game, @seen) or (@players > 1 and not Game.over?(@game))}
-              class="flex items-center gap-2"
-            >
-              <p
-                :if={
-                  text = @players > 1 and not Game.over?(@game) and turn_text(@game, @seat, @names)
-                }
-                class="min-w-0 flex-1 px-1 font-semibold"
-                data-role="turn"
+        <div class="space-y-1 px-2 lg:px-6" data-area="players">
+          <%!-- A new replay clears the `replay-done` that JS added at the end of the
+               last one (JS-added classes stick across patches). First in the block:
+               as the last child it would add `space-y` margin to the row. --%>
+          <i
+            :if={replaying?(@game, @seen)}
+            id={"replay-start-#{@game.round}"}
+            hidden
+            phx-mounted={JS.remove_class("replay-done", to: "#players-row")}
+          />
+          <.status :if={@seat} game={@game} seat={@seat} beats={stat_beats(@game, @seat, @seen)} />
+          <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
+               brew each card plays its update chips (the round results); the last
+               one to land ends the replay (`replay_end/3`, app.js). The third row
+               (the update chips) and the counts row have fixed heights, so the row keeps its height
+               when the chips come. --%>
+          <nav
+            id="players-row"
+            class={[
+              "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_1rem_2.25rem] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)] sm:grid-rows-[auto_1rem_1.25rem] phone-landscape:auto-cols-[minmax(5.5rem,1fr)]",
+              not replaying?(@game, @seen) && "replay-done"
+            ]}
+            aria-label="Players"
+            data-role="players-row"
+            data-on-replay-end={replaying?(@game, @seen) && replay_end(@game, @decision, true)}
+          >
+            <.player_chip
+              :for={seat <- @game.seats}
+              game={@game}
+              seat={seat}
+              name={name(@names, seat)}
+              you={seat == @seat}
+              bot={Map.has_key?(@bots, seat)}
+              updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
+              last={replaying?(@game, @seen) && Replay.last_beat(@game)}
+              on_tap={
+                if replaying?(@game, @seen), do: replay_end(@game, @decision, false), else: %JS{}
+              }
+            />
+          </nav>
+        </div>
+
+        <%!-- Only a spectator has a notice here; it does not change while watching. --%>
+        <div :if={is_nil(@seat)} class="px-2 pt-1 text-sm lg:px-6" data-area="notices">
+          <.spectator_note rejoinable={@rejoinable} names={@names} />
+        </div>
+
+        <%!-- Desktop (80rem): the books in play, a column left of the pot. --%>
+        <.books_in_play
+          id="books-column"
+          game={@game}
+          beats={book_beats(@game, @seat, @seen)}
+          class="hidden pt-2 pb-3 pl-4 xl:flex"
+          data-area="books"
+        />
+
+        <div class="pot-column flex min-h-0 flex-col px-4 py-1 lg:px-6 lg:py-2" data-area="pot">
+          <.flask_strip
+            :if={@me && @me.patient}
+            game={@game}
+            seat={@seat}
+            beat={replay_marks(@game, @seat)[:essence]}
+          />
+          <%!-- The pot is the largest square that fits (see `.pot-box` in app.css);
+               its controls sit in the square's corners: witches top left, Skip top
+               right, the flask (inside the SVG) bottom left, the bag bottom right.
+               What comes and goes here is absolute, so the square never changes. --%>
+          <div class="pot-box flex min-h-0 flex-1 items-start justify-center lg:items-center">
+            <div class="pot-square pot-hearth relative" data-role="pot-area">
+              <.pot
+                game={@game}
+                seat={@seat || 0}
+                class="block size-full"
+                rings={rings(@game)}
+                flask={@me && if(@me.flask, do: :full, else: :empty)}
+                flask_click={if :use_flask in @actions, do: encode(:use_flask)}
+                beats={replay_marks(@game, @seat)}
+                effects={replay_effects(@game, @seat, @seen)}
+              />
+              <%!-- Small enough for the free corner outside the round rim. --%>
+              <.sheet_button
+                :if={@game.witches}
+                for="sheet-witches"
+                class="absolute top-0 left-0 flex-col gap-0! rounded-2xl px-1.5! py-1 text-[10px] leading-tight lg:hidden"
+                data-role="witches-button"
               >
-                {text}
+                <span class="flex -space-x-1.5">
+                  <.piece_icon name={:penny} class="size-4 text-penny-silver" />
+                  <.piece_icon name={:penny} class="size-4 text-penny-copper" />
+                  <.piece_icon name={:penny} class="size-4 text-penny-gold" />
+                </span>
+                Witches
+              </.sheet_button>
+              <p
+                :if={stir?(@game)}
+                class="absolute top-0 left-1/2 -translate-x-1/2 rounded-full bg-gold px-3 py-0.5 text-sm font-bold whitespace-nowrap text-ink shadow-md"
+                data-role="stir"
+              >
+                Stir! Everyone draws together.
               </p>
               <button
                 :if={replaying?(@game, @seen)}
@@ -1024,318 +1146,55 @@ defmodule QuacksWeb.GameLive do
                 id="replay-skip"
                 data-role="replay-skip"
                 phx-click={replay_end(@game, @decision, true)}
-                class="hit-44 ml-auto min-h-8 shrink-0 rounded-full px-2 text-sm font-semibold text-parchment-dim underline underline-offset-2 transition-colors duration-150 hover:text-parchment"
+                class="hit-44 absolute top-0 right-0 min-h-8 rounded-full bg-iron-dark/70 px-3 text-sm font-semibold text-parchment-dim underline underline-offset-2 transition-colors duration-150 hover:text-parchment"
               >
                 Skip
               </button>
-            </div>
-            <p
-              :if={rats = round_rats(@game, @names)}
-              class="flex items-center gap-1 px-1"
-              data-role="round-rats"
-            >
-              <.piece_icon name={:rat} class="size-4 shrink-0" /> {rats}
-            </p>
-          </div>
-
-          <%!-- Desktop (80rem): the books in play, a column left of the pot. --%>
-          <.books_in_play
-            id="books-column"
-            game={@game}
-            beats={book_beats(@game, @seat, @seen)}
-            class="hidden pt-2 pb-3 xl:col-start-1 xl:row-span-2 xl:row-start-4 xl:flex"
-          />
-
-          <div class="flex min-h-0 flex-col p-2 xl:col-start-2 xl:row-start-4">
-            <.flask_strip
-              :if={@me && @me.patient}
-              game={@game}
-              seat={@seat}
-              beat={replay_marks(@game, @seat)[:essence]}
-            />
-            <%!-- The pot is the largest square that fits (see `.pot-box` in app.css);
-                 its controls sit in the square's corners: witches top left, the card
-                 top right, the flask (inside the SVG) bottom left, the bag bottom right. --%>
-            <div class="pot-box flex min-h-0 flex-1 items-start justify-center lg:items-center">
-              <div class="pot-square pot-hearth relative" data-role="pot-area">
-                <.pot
-                  game={@game}
-                  seat={@seat || 0}
-                  class="block size-full"
-                  rings={rings(@game)}
-                  flask={@me && if(@me.flask, do: :full, else: :empty)}
-                  flask_click={if :use_flask in @actions, do: encode(:use_flask)}
-                  beats={replay_marks(@game, @seat)}
-                  effects={replay_effects(@game, @seat, @seen)}
-                />
-                <%!-- Small enough for the free corner outside the round rim. --%>
-                <.sheet_button
-                  :if={@game.witches}
-                  for="sheet-witches"
-                  class="absolute top-0 left-0 flex-col gap-0! rounded-2xl px-1.5! py-1 text-[10px] leading-tight lg:hidden"
-                  data-role="witches-button"
-                >
-                  <span class="flex -space-x-1.5">
-                    <.piece_icon name={:penny} class="size-4 text-penny-silver" />
-                    <.piece_icon name={:penny} class="size-4 text-penny-copper" />
-                    <.piece_icon name={:penny} class="size-4 text-penny-gold" />
-                  </span>
-                  Witches
-                </.sheet_button>
-                <%!-- From 64rem the bonus die lies on the pot's free top right corner
-                     (the card tile is a phone thing), so nothing beside it moves. --%>
-                <div
-                  :if={replaying?(@game, @seen)}
-                  class="absolute -top-1 -right-1 hidden flex-col items-end gap-1 lg:flex"
-                  data-role="replay-die-corner"
-                >
-                  <.replay_die
-                    lines={replay_die_lines(@game, @seat)}
-                    class="flex w-24 flex-col gap-0.5 px-1 text-center [&_.replay-die-text]:text-xs [&_.replay-die-text]:leading-tight"
-                  />
-                </div>
-                <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
-              </div>
-            </div>
-            <.ring_legend
-              :if={length(@game.seats) > 1 and not Game.over?(@game)}
-              seats={@game.seats}
-              names={@names}
-              class="mx-auto shrink-0 justify-center pt-1"
-            />
-            <%!-- Tablet (64–80rem): the fortune teller in full under the pot. --%>
-            <.fortune_panel
-              :if={@game.fortune_card}
-              id={"fortune-under-#{@game.round}"}
-              card={@game.fortune_card}
-              class="mx-auto mt-2 hidden w-full max-w-lg shrink-0 lg:flex xl:hidden"
-            />
-            <.test_tubes
-              :if={@game.rules.pot_side == :back}
-              tube={@game.players[@seat || 0].tube}
-              class="mx-auto block h-auto w-full max-w-sm shrink-0 pt-1"
-            />
-            <div
-              :if={(@me && @me.aside != []) || @game.players[@seat || 0].bowl != []}
-              class="flex items-start gap-2 pt-1"
-            >
-              <.aside :if={@me && @me.aside != []} chips={@me.aside} />
-              <div :if={@game.players[@seat || 0].bowl != []} class="ml-auto max-w-[60%]">
-                <.bowl chips={@game.players[@seat || 0].bowl} />
-              </div>
-            </div>
-          </div>
-
-          <footer class="space-y-2 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] xl:col-start-2 xl:row-start-5">
-            <section
-              :if={keep_white?(@game, @seat, @bots)}
-              class="flex items-center gap-2 rounded-lg bg-iron-dark/60 px-2 py-1 text-sm text-parchment"
-              aria-label="Mandrake"
-              data-role="mandrake-undo"
-            >
-              <span class="min-w-0 flex-1">Mandrake: the white chip went back in your bag.</span>
-              <.button
-                id="keep-white"
-                phx-click="keep_white"
-                variant={:secondary}
-                class="min-h-11 shrink-0"
-              >
-                Keep the white chip instead
-              </.button>
-            </section>
-            <section
-              :if={extra_actions(@actions) != []}
-              class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation"
-              aria-label="More actions"
-            >
-              <.button
-                :for={action <- extra_actions(@actions)}
-                phx-click="action"
-                phx-value-action={encode(action)}
-              >
-                {action_label(action, @game, @me)}
-              </.button>
-            </section>
-            <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
-                 the update chips stay on the cards until then. --%>
-            <.button
-              :if={@skip_rubies}
-              variant={:primary}
-              class="min-h-12 w-full text-base"
-              phx-click="action"
-              phx-value-action={encode(:end_round)}
-              data-role="round-done"
-            >
-              Done
-            </.button>
-            <%!-- While a decision waits it takes the place of Stop and Draw on phones
-                 and reopens its sheet (closed to look at the pot). Hidden while a
-                 sheet is open: it would show above the sheet's edge. From 64rem the
-                 decision is a panel in the right column, and this shows only when
-                 that panel was closed. --%>
-            <.button
-              :if={@decision}
-              variant={:primary}
-              class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible lg:[body:has(dialog[open])_&]:hidden"
-              data-role="decision-button"
-              phx-click={
-                if replaying?(@game, @seen),
-                  do: replay_end(@game, @decision, true),
-                  else: JS.dispatch("quacks:modal", to: decision_dialog(@decision, @game))
-              }
-            >
-              {back_label(@decision, @game)}
-            </.button>
-            <.button
-              :if={Game.over?(@game)}
-              variant={:primary}
-              class="min-h-12 w-full text-base"
-              phx-click={JS.dispatch("quacks:modal", to: "#game-over")}
-            >
-              Show the result
-            </.button>
-            <%!-- Phones: the flask glows, and this line says why (large screens: its title). --%>
-            <p
-              :if={:use_flask in @actions}
-              class="flex items-center gap-1.5 px-1 text-sm font-semibold text-parchment lg:hidden"
-              data-role="flask-hint"
-            >
-              <.icon name="hero-arrow-uturn-left" class="size-4 shrink-0 text-gold" />
-              Tap the flask to put the white chip back in the bag.
-            </p>
-            <p
-              :if={left = @me && ear_worm_left(@me)}
-              class="rounded-md bg-gold px-2 py-1 text-sm font-bold text-ink"
-              data-role="ear-worm"
-            >
-              Ear worm: draw {left} more, no explosion
-            </p>
-            <section
-              :if={places(@actions) != [] or forgets(@actions) != []}
-              class="flex min-h-11 items-center gap-2"
-              aria-label="Patient actions"
-              data-role="patient-actions"
-            >
+              <%!-- Red Set 2 chips and the overflow bowl hang over the pot's lower rim. --%>
               <div
-                :if={places(@actions) != []}
-                class="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto"
-                data-role="display"
+                :if={(@me && @me.aside != []) || @game.players[@seat || 0].bowl != []}
+                class="absolute inset-x-12 bottom-0 flex items-end justify-center gap-2"
+                data-role="beside-pot"
               >
-                <span class="shrink-0 text-xs leading-tight font-semibold text-parchment-dim">
-                  Laid out:<br />tap to place
-                </span>
-                <button
-                  :for={chip <- @me.display}
-                  type="button"
-                  phx-click="action"
-                  phx-value-action={encode({:essence, {:place, chip}})}
-                  aria-label={"Place #{chip_name(chip)}"}
-                  data-role="display-chip"
-                  class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full transition-transform duration-100 ease-out touch-manipulation active:scale-90"
-                >
-                  <.chip chip={chip} />
-                </button>
+                <.aside :if={@me && @me.aside != []} chips={@me.aside} />
+                <.bowl
+                  :if={@game.players[@seat || 0].bowl != []}
+                  chips={@game.players[@seat || 0].bowl}
+                />
               </div>
-              <.sheet_button
-                :if={forgets(@actions) != []}
-                for="sheet-forget"
-                class="ml-auto shrink-0"
-                data-role="forget-button"
-              >
-                <.icon name="hero-arrow-uturn-left" class="size-4" /> Forget a chip
-              </.sheet_button>
-            </section>
-            <.replay_die
-              :if={replaying?(@game, @seen)}
-              lines={replay_die_lines(@game, @seat)}
-              class="flex lg:hidden"
-            />
-            <div
-              :if={@seat && @game.phase == :potions}
-              class="flex items-center gap-2"
-              data-role="fuse-row"
-            >
-              <.fuse_meter game={@game} seat={@seat} />
-              <.next_reward game={@game} seat={@seat} />
+              <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
             </div>
-            <%!-- Two fixed slots: Stop (Resume while stopped) left, Draw right.
-                 Never moved while the game runs, only disabled; gone at game over
-                 and while everyone shops (the shop has its own buttons). --%>
-            <section
-              :if={@seat && not Game.over?(@game) && not results?(@game)}
-              class={[
-                "grid grid-cols-2 gap-2 *:min-h-12 *:touch-manipulation",
-                @decision && "max-lg:hidden"
-              ]}
-              aria-label="Actions"
-              data-role="action-bar"
-            >
-              <.button
-                phx-click="action"
-                phx-value-action={encode(@stop_slot)}
-                disabled={@stop_slot not in @actions}
-                data-slot="stop"
-              >
-                {if @stop_slot == :resume, do: "Resume", else: "Stop"}
-              </.button>
-              <.button
-                phx-click="action"
-                phx-value-action={encode(:draw)}
-                disabled={:draw not in @actions}
-                variant={:primary}
-                data-slot="draw"
-              >
-                Draw a chip
-              </.button>
-            </section>
-          </footer>
+          </div>
+          <%!-- A landscape phone moves the tubes to the right column (app.css). --%>
+          <div :if={@game.rules.pot_side == :back} class="shrink-0 pt-1" data-area="tubes">
+            <.test_tubes
+              tube={@game.players[@seat || 0].tube}
+              class="mx-auto block h-auto w-full max-w-sm"
+            />
+          </div>
         </div>
 
-        <%!-- The right column (large screens): the fortune teller on top, the
-             decision under it only while one waits, then the witches. --%>
-        <aside
-          class="contents lg:flex lg:h-full lg:flex-col lg:gap-3 lg:overflow-hidden lg:py-3 lg:pr-3"
-          data-role="side-column"
-        >
-          <%!-- Tablet (64–80rem): two CSS-only tabs (app.css `side-tabs`). Their ids
-               name the decision, so a new decision renders them again with
-               "Decision" checked; with none, "Books" is. --%>
-          <div
-            class="hidden shrink-0 grid-cols-2 gap-1 rounded-xl bg-iron-dark/60 p-1 lg:grid xl:hidden"
-            role="radiogroup"
-            aria-label="Side panel"
-            data-role="side-tabs"
-          >
-            <label
-              :for={{tab, label} <- [decision: "Decision", books: "Books"]}
-              class="side-tab"
-              data-role={"tab-#{tab}"}
-            >
-              <input
-                type="radio"
-                name="side-tab"
-                id={"side-tab-#{tab}-#{@decision || "none"}"}
-                class="sr-only"
-                data-tab={tab}
-                checked={tab == :decision == (@decision != nil)}
-              />
-              {label}
-              <span
-                :if={tab == :books}
-                class="rounded-full bg-ink/15 px-1.5 text-xs tabular-nums"
-              >
-                {length(Books.in_play(@game.expansion, @game.sets))}
-              </span>
-            </label>
-          </div>
-          <p class="side-tab-empty hidden px-2 text-sm text-parchment-dim" data-role="no-decision">
-            Decisions open here.
-          </p>
+        <%!-- The context area (64rem): what happens now. The fortune teller on top,
+             the round's results while they play, the decision while one waits,
+             then the witches. Below 64rem it is `display: contents` and holds only
+             the sheets. --%>
+        <aside class="context-column" data-area="context" data-role="side-column">
           <.fortune_panel
             :if={@game.fortune_card}
             id={"fortune-panel-#{@game.round}"}
             card={@game.fortune_card}
-            class="hidden shrink-0 xl:flex"
+            class="hidden shrink-0 lg:flex"
+          />
+          <.chance_panel
+            :if={@game.fortune_card == :p12 and @game.phase in [:potions, :fortune_choice]}
+            id={"chance-#{@game.round}"}
+            rolls={chance_rolls(@game, @seat, @names)}
+          />
+          <.results_panel
+            :if={replaying?(@game, @seen)}
+            id={"results-#{@game.round}"}
+            rows={result_rows(@game, @seat, @names)}
+            round={@game.round}
           />
           <%!-- The decision: a panel here from 64rem, a bottom sheet below. The shop
                    waits for the update chips, a decision for a new card (they hand
@@ -1380,19 +1239,22 @@ defmodule QuacksWeb.GameLive do
                 />
               </div>
               <div :if={@decision == :droplet_choice} class="space-y-2" data-role="droplet-choice">
+                <%!-- First what caused the move (a black chip for the hawkmoth). --%>
+                <ul
+                  :if={(sources = droplet_sources(@game.log, @seat)) != []}
+                  class="space-y-1 text-sm text-ink-soft"
+                  data-role="droplet-sources"
+                >
+                  <li :for={{cause, text} <- sources} class="flex items-center gap-2">
+                    <.droplet_cause cause={cause} />{text}
+                  </li>
+                </ul>
                 <p class="text-sm">
                   A free move (no rubies): move your pot droplet or your test-tube droplet.
                   <span :if={@me.droplet_moves > 1} class="font-semibold">
                     {@me.droplet_moves} moves to place.
                   </span>
                 </p>
-                <ul
-                  :if={(sources = droplet_sources(@game.log, @seat)) != []}
-                  class="text-xs text-ink-soft"
-                  data-role="droplet-sources"
-                >
-                  <li :for={source <- sources}>{source}</li>
-                </ul>
                 <.test_tubes tube={@me.tube} />
               </div>
               <p
@@ -1537,12 +1399,6 @@ defmodule QuacksWeb.GameLive do
               <% end %>
             </div>
           </.dialog_sheet>
-          <.books_in_play
-            id="books-tab"
-            game={@game}
-            beats={book_beats(@game, @seat, @seen)}
-            class="hidden lg:flex xl:hidden"
-          />
           <.sheet :if={@game.witches} id="sheet-witches" label="Herb witches" inline_lg>
             <section class="space-y-2" aria-label="Herb witches">
               <.witch_card
@@ -1564,6 +1420,198 @@ defmodule QuacksWeb.GameLive do
             </section>
           </.sheet>
         </aside>
+
+        <%!-- The bar: Stop and Draw, and what the brew asks for now. Phones and
+             tablets: a fixed-height bar under the pot (app.css `.game-bar`), and
+             the rare extras (`.game-tray`) float over the pot's lower band. From
+             64rem it is the foot of the context column. --%>
+        <footer class="game-bar" data-area="bar">
+          <div class="game-tray">
+            <section
+              :if={keep_white?(@game, @seat, @bots)}
+              class="paper flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm shadow-lg"
+              aria-label="Mandrake"
+              data-role="mandrake-undo"
+            >
+              <span class="min-w-0 flex-1">Mandrake: the white chip went back in your bag.</span>
+              <.button
+                id="keep-white"
+                phx-click="keep_white"
+                variant={:secondary}
+                class="min-h-11 shrink-0"
+              >
+                Keep the white chip instead
+              </.button>
+            </section>
+            <section
+              :if={extra_actions(@actions) != []}
+              class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation"
+              aria-label="More actions"
+            >
+              <.button
+                :for={action <- extra_actions(@actions)}
+                phx-click="action"
+                phx-value-action={encode(action)}
+              >
+                {action_label(action, @game, @me)}
+              </.button>
+            </section>
+            <p
+              :if={left = @me && ear_worm_left(@me)}
+              class="rounded-md bg-gold px-2 py-1 text-sm font-bold text-ink shadow-lg"
+              data-role="ear-worm"
+            >
+              Ear worm: draw {left} more, no explosion
+            </p>
+            <section
+              :if={places(@actions) != [] or forgets(@actions) != []}
+              class="flex min-h-11 items-center gap-2 rounded-lg bg-iron-dark/90 px-2 shadow-lg"
+              aria-label="Patient actions"
+              data-role="patient-actions"
+            >
+              <div
+                :if={places(@actions) != []}
+                class="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto"
+                data-role="display"
+              >
+                <span class="shrink-0 text-xs leading-tight font-semibold text-parchment-dim">
+                  Laid out:<br />tap to place
+                </span>
+                <button
+                  :for={chip <- @me.display}
+                  type="button"
+                  phx-click="action"
+                  phx-value-action={encode({:essence, {:place, chip}})}
+                  aria-label={"Place #{chip_name(chip)}"}
+                  data-role="display-chip"
+                  class="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full transition-transform duration-100 ease-out touch-manipulation active:scale-90"
+                >
+                  <.chip chip={chip} />
+                </button>
+              </div>
+              <.sheet_button
+                :if={forgets(@actions) != []}
+                for="sheet-forget"
+                class="ml-auto shrink-0"
+                data-role="forget-button"
+              >
+                <.icon name="hero-arrow-uturn-left" class="size-4" /> Forget a chip
+              </.sheet_button>
+            </section>
+            <%!-- Phones: the bonus die (from 64rem it rolls in the results panel). --%>
+            <.replay_die
+              :if={replaying?(@game, @seen)}
+              lines={replay_die_lines(@game, @seat)}
+              class="flex shadow-lg lg:hidden"
+            />
+          </div>
+          <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
+               the update chips stay on the cards until then. --%>
+          <.button
+            :if={@skip_rubies}
+            variant={:primary}
+            class="min-h-12 w-full text-base"
+            phx-click="action"
+            phx-value-action={encode(:end_round)}
+            data-role="round-done"
+          >
+            Done
+            <.kbd>Enter</.kbd>
+          </.button>
+          <%!-- While a decision waits it takes the place of Stop and Draw on phones
+               and reopens its sheet (closed to look at the pot). Hidden while a
+               sheet is open: it would show above the sheet's edge. From 64rem the
+               decision is a panel in the context column, and this shows only when
+               that panel was closed. --%>
+          <.button
+            :if={@decision}
+            variant={:primary}
+            class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible lg:[body:has(dialog[open])_&]:hidden"
+            data-role="decision-button"
+            phx-click={
+              if replaying?(@game, @seen),
+                do: replay_end(@game, @decision, true),
+                else: JS.dispatch("quacks:modal", to: decision_dialog(@decision, @game))
+            }
+          >
+            {back_label(@decision, @game)}
+          </.button>
+          <.button
+            :if={Game.over?(@game)}
+            variant={:primary}
+            class="min-h-12 w-full text-base"
+            phx-click={JS.dispatch("quacks:modal", to: "#game-over")}
+          >
+            Show the result
+          </.button>
+          <div
+            :if={@seat && @game.phase == :potions}
+            class="flex items-center gap-2"
+            data-role="fuse-row"
+          >
+            <.fuse_meter game={@game} seat={@seat} />
+            <.next_reward game={@game} seat={@seat} />
+          </div>
+          <%!-- From 64rem an exploded pot puts its result here, where Stop and Draw
+               were, and says what comes next. --%>
+          <section
+            :if={@me && @me.exploded? && @game.phase == :potions}
+            class="hidden rounded-lg bg-ruby/20 px-3 py-2 text-parchment ring-1 ring-ruby-light/50 lg:block"
+            aria-label="Exploded"
+            data-role="exploded-panel"
+          >
+            <p class="font-hand text-2xl leading-tight font-bold">Your pot exploded</p>
+            <p class="text-sm">{exploded_next(@me)}</p>
+          </section>
+          <%!-- Two fixed slots: Stop (Resume while stopped) and Draw. Never moved
+               while the game runs, only disabled; gone at game over and while
+               everyone shops (the shop has its own buttons). From 64rem Draw is the
+               large button on top, Stop and the flask under it. --%>
+          <section
+            :if={@seat && not Game.over?(@game) && not results?(@game)}
+            class={[
+              "action-bar *:min-h-12 *:touch-manipulation",
+              @decision && "max-lg:hidden",
+              @me && @me.exploded? && "lg:hidden"
+            ]}
+            aria-label="Actions"
+            data-role="action-bar"
+          >
+            <.button
+              phx-click="action"
+              phx-value-action={encode(@stop_slot)}
+              disabled={@stop_slot not in @actions}
+              data-slot="stop"
+            >
+              {if @stop_slot == :resume, do: "Resume", else: "Stop"}
+              <.kbd>S</.kbd>
+            </.button>
+            <%!-- From 64rem: the flask as a button too (on the pot it is on every screen). --%>
+            <.button
+              :if={@me}
+              phx-click="action"
+              phx-value-action={encode(:use_flask)}
+              disabled={:use_flask not in @actions}
+              class="flex-col gap-0! px-1! max-lg:hidden!"
+              aria-label="Use the flask"
+              title="Put the white chip back in the bag"
+              data-slot="flask"
+            >
+              <.piece_icon name={:flask} class="size-5" />
+              <.kbd>F</.kbd>
+            </.button>
+            <.button
+              phx-click="action"
+              phx-value-action={encode(:draw)}
+              disabled={:draw not in @actions}
+              variant={:primary}
+              data-slot="draw"
+            >
+              Draw a chip
+              <.kbd>D</.kbd>
+            </.button>
+          </section>
+        </footer>
       </div>
 
       <%!-- The log lives behind the menu on every screen (round 10). --%>
@@ -1668,9 +1716,15 @@ defmodule QuacksWeb.GameLive do
         </div>
       </.sheet>
 
-      <.sheet id="sheet-books" label="Ingredient books">
+      <%!-- From 48rem a drawer from the right (app.css `.sheet-drawer`): it slides
+           over the context column, never over the pot, and stays open when a
+           decision comes (app.js waits until it closes). --%>
+      <.sheet id="sheet-books" label="Ingredient books" class="sheet-drawer">
         <h2 class="mb-2 text-lg font-bold">Ingredient books</h2>
-        <div class="grid gap-2.5 sm:grid-cols-2" data-role="books-in-play">
+        <div
+          class="grid gap-2.5 sm:grid-cols-2 md:grid-cols-1 phone-landscape:grid-cols-1"
+          data-role="books-in-play"
+        >
           <.book_tile
             :for={{colour, set} <- Books.in_play(@game.expansion, @game.sets)}
             colour={colour}
@@ -2122,7 +2176,10 @@ defmodule QuacksWeb.GameLive do
                   </span>
                   <.chip chip={chip} size={:md} />
                   <%!-- In a side panel (64rem up) the tile is the phone one: chip, value, price. --%>
-                  <span class="sr-only sm:not-sr-only lg:sr-only" data-role="tile-name">
+                  <span
+                    class="sr-only sm:not-sr-only lg:sr-only phone-landscape:sr-only"
+                    data-role="tile-name"
+                  >
                     {chip_name(chip)}
                   </span>
                   <span
@@ -2158,7 +2215,7 @@ defmodule QuacksWeb.GameLive do
       </.witch_card>
       <%!-- The purse and the buttons stay at the bottom of the sheet while it scrolls. --%>
       <div
-        class="sticky -bottom-4 z-10 -mx-4 mt-3 flex items-center gap-2 bg-parchment px-4 pt-2 pb-4 shadow-[0_-8px_12px_-10px_rgb(0_0_0/0.35)] *:min-h-12"
+        class="sticky bottom-0 z-10 -mx-4 mt-3 flex items-center gap-2 bg-parchment px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_12px_-10px_rgb(0_0_0/0.35)] *:min-h-12"
         data-role="shop-footer"
       >
         <p
@@ -2181,6 +2238,7 @@ defmodule QuacksWeb.GameLive do
           data-role="shop-done"
         >
           Done
+          <.kbd :if={!@buying?}>Enter</.kbd>
         </.button>
         <.button
           :if={@buying?}
@@ -2192,6 +2250,7 @@ defmodule QuacksWeb.GameLive do
           data-role="shop-buy"
         >
           {buy_label(@selected, @total)}
+          <.kbd :if={@selected != []}>Enter</.kbd>
         </.button>
       </div>
     </section>
@@ -2667,6 +2726,134 @@ defmodule QuacksWeb.GameLive do
       else: js
   end
 
+  # The results panel's rows (64rem, while the replay plays): every seat's bonus
+  # die, one after the other (Take a Chance), then this seat's own lines: the books
+  # of step B, the scoring space, the card. Each row keeps its replay beat
+  # (`Replay.beats/3`), so the panel, the pot and the name cards play in step.
+  defp result_rows(game, seat, names) do
+    dice =
+      for s <- game.seats, line <- Replay.beats(game, s), line.kind == :die do
+        Map.merge(line, %{seat: s, who: if(s == seat, do: "You", else: name(names, s))})
+      end
+
+    mine =
+      for line <- (seat && Replay.beats(game, seat)) || [], line.kind != :die do
+        Map.merge(line, %{seat: seat, who: nil})
+      end
+
+    Enum.sort_by(dice ++ mine, & &1.beat)
+  end
+
+  # Take a Chance (card p12): every seat rolled the bonus die at the round's start.
+  # `[{seat, who, face}]` in seat order, from the log (the engine logs one roll each).
+  defp chance_rolls(game, seat, names) do
+    rolls =
+      game.log
+      |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+      |> Enum.flat_map(fn
+        {s, {:fortune, :p12, face}} -> [{s, face}]
+        _entry -> []
+      end)
+      |> Map.new()
+
+    for s <- game.seats,
+        face = rolls[s],
+        do: {s, if(s == seat, do: "You", else: name(names, s)), face}
+  end
+
+  # The rolls of Take a Chance in the context column (64rem), one die after the
+  # other: each lands, then its reward shows (`.chance-row` in app.css, two steps
+  # of 300 ms each). The id names the round, so it plays once when it enters.
+  attr :id, :string, required: true
+  attr :rolls, :list, required: true
+
+  defp chance_panel(assigns) do
+    ~H"""
+    <section
+      :if={@rolls != []}
+      id={@id}
+      class="paper hidden shrink-0 rounded-xl px-3 py-2 shadow-md lg:block"
+      aria-label="Take a Chance"
+      data-role="chance-panel"
+    >
+      <h2 class="font-hand text-xl leading-tight font-bold">Take a Chance</h2>
+      <ol class="mt-1.5 space-y-1.5">
+        <li
+          :for={{{seat, who, face}, i} <- Enum.with_index(@rolls)}
+          class="chance-row flex items-center gap-2 text-sm"
+          style={"--beat: #{2 * i}"}
+          data-beat={2 * i}
+          data-role="chance-roll"
+          data-seat={seat}
+        >
+          <.die face={face} />
+          <span class="chance-text inline-flex min-w-0 items-center gap-1 font-semibold">
+            <.seat_dot seat={seat} />{who}: {die_text(face)}
+          </span>
+        </li>
+      </ol>
+    </section>
+    """
+  end
+
+  # Round results in the context column (64rem): the dice land, then each book's
+  # result shows on its beat (`.result-row` in app.css; at once with reduced motion
+  # or after Skip). Phones keep the die in the bar and the chips on the name cards.
+  attr :id, :string, required: true
+  attr :rows, :list, required: true
+  attr :round, :integer, required: true
+
+  defp results_panel(assigns) do
+    ~H"""
+    <section
+      :if={@rows != []}
+      id={@id}
+      class="results-panel paper hidden shrink-0 rounded-xl px-3 py-2 shadow-md lg:block"
+      aria-label="Round results"
+      data-role="results-panel"
+    >
+      <h2 class="font-hand text-xl leading-tight font-bold">Round {@round}: evaluation</h2>
+      <ol class="mt-1.5 space-y-1.5">
+        <li
+          :for={row <- @rows}
+          class={[
+            "flex items-center gap-2 text-sm",
+            if(row.kind == :die, do: "replay-die", else: "result-row")
+          ]}
+          style={"--beat: #{row.beat}"}
+          data-role="result-row"
+          data-kind={row.kind}
+          data-seat={row.seat}
+          data-beat={row.beat}
+        >
+          <%= if row.kind == :die do %>
+            <.die face={row.face} />
+            <span class="replay-die-text min-w-0 font-semibold">
+              <span :if={row.who} class="mr-1 inline-flex items-center gap-1">
+                <.seat_dot seat={row.seat} />{row.who}:
+              </span>{row.text}
+            </span>
+          <% else %>
+            <span class="grid size-9 shrink-0 place-items-center rounded-full bg-parchment-deep/70">
+              <.ingredient_icon
+                :if={row.kind in [:green, :black, :purple]}
+                colour={row.kind}
+                class={["size-6", book_ink(row.kind)]}
+              />
+              <.icon
+                :if={row.kind not in [:green, :black, :purple]}
+                name="hero-sparkles"
+                class="size-5 text-ink-soft"
+              />
+            </span>
+            <span class="min-w-0 font-semibold">{row.text}</span>
+          <% end %>
+        </li>
+      </ol>
+    </section>
+    """
+  end
+
   # While the replay plays: on which beat each book lights up, `%{colour => beat}`
   # (the first line of a green, black or purple book).
   defp book_beats(game, seat, seen) do
@@ -2777,20 +2964,6 @@ defmodule QuacksWeb.GameLive do
 
   defp keep_white?(_game, _seat, _bots), do: false
 
-  # The rat tails of this round (rulebook §3 step 2), at its start: "Rats this round:
-  # Sam (2 tails), Clara (1 tail)". Shown while the round brews; nil without rats.
-  defp round_rats(%Game{phase: phase} = game, names) when phase in [:potions, :fortune_choice] do
-    case for(seat <- game.seats, (tails = game.players[seat].rat_stone) > 0, do: {seat, tails}) do
-      [] -> nil
-      rats -> "Rats this round: " <> Enum.map_join(rats, ", ", &rat_text(&1, names))
-    end
-  end
-
-  defp round_rats(_game, _names), do: nil
-
-  defp rat_text({seat, 1}, names), do: "#{name(names, seat)} (1 tail)"
-  defp rat_text({seat, n}, names), do: "#{name(names, seat)} (#{n} tails)"
-
   # Why the waiting droplet moves came (reverse pot side): this seat's log events that
   # moved its droplet since its last droplet choice (or the round's start).
   defp droplet_sources(log, seat) do
@@ -2807,8 +2980,38 @@ defmodule QuacksWeb.GameLive do
       _entry -> false
     end)
     |> Enum.reverse()
-    |> Enum.map(fn {_seat, event} -> label(event) end)
+    |> Enum.map(fn {_seat, event} -> {cause(event), label(event)} end)
   end
+
+  # What moved the droplet, as a picture: the chip of the book (a black chip for the
+  # hawkmoth), the die, the card or the flask.
+  defp cause({:black, _}), do: {:chip, {:black, 1}}
+  defp cause({:purple, 3, _}), do: {:chip, {:purple, 1}}
+  defp cause({:bonus_die, face}), do: {:die, face}
+  defp cause({:fortune, _id, _outcome}), do: :card
+  defp cause(_event), do: :essence
+
+  attr :cause, :any, required: true
+
+  defp droplet_cause(%{cause: {:chip, _chip}} = assigns),
+    do: ~H"""
+    <.chip chip={elem(@cause, 1)} data-role="droplet-cause" />
+    """
+
+  defp droplet_cause(%{cause: {:die, _face}} = assigns),
+    do: ~H"""
+    <span data-role="droplet-cause"><.die face={elem(@cause, 1)} /></span>
+    """
+
+  defp droplet_cause(assigns),
+    do: ~H"""
+    <span
+      class="grid size-9 shrink-0 place-items-center rounded-full bg-parchment-deep"
+      data-role="droplet-cause"
+    >
+      <.icon name="hero-sparkles" class="size-5" />
+    </span>
+    """
 
   # The Ear worm line: draws left, no explosion.
   defp ear_worm_left(%{phase: :ear_worm, essence_pending: {:ear_worm, n}}), do: n
@@ -2967,88 +3170,6 @@ defmodule QuacksWeb.GameLive do
   defp next_glass(me), do: "bonus: #{tube_bonus(TestTubes.bonus(me.tube + 1))}"
 
   defp name(names, seat), do: Map.get(names, seat, GameServer.default_name(seat))
-
-  # What happens now, for the line under the players row. A seat that still has to
-  # act is told what everyone does (nil once it is brewing); a seat that is finished
-  # sees who it waits for.
-  defp turn_text(game, seat, names) do
-    busy = Enum.filter(game.seats, &busy?(game, game.players[&1]))
-
-    cond do
-      seat && Game.phase(game, seat) == :droplet_choice ->
-        "Choose where your droplet moves."
-
-      seat in busy or busy == [] or seat == nil ->
-        everyone_text(game, seat)
-
-      game.phase == :potions and game.players[seat].pending_choice ->
-        chose_text(game, seat, busy, names)
-
-      true ->
-        waiting_text(busy, names)
-    end
-  end
-
-  # The brewing hint goes once this seat drew its first chip of the round.
-  defp everyone_text(%{phase: :potions} = game, seat) do
-    cond do
-      stir?(game) -> "Pick Draw or Stop."
-      seat && game.players[seat].drawn != [] -> nil
-      true -> "Everyone brews at the same time."
-    end
-  end
-
-  defp everyone_text(%{phase: :shopping, round: 9}, _seat),
-    do: "Final scoring: spend your rubies, then Done."
-
-  defp everyone_text(%{phase: :shopping} = game, seat) do
-    if waits_to_shop?(game, seat),
-      do: "Waiting for the others to shop.",
-      else: "Everyone shops at the same time."
-  end
-
-  defp everyone_text(%{phase: phase}, _seat),
-    do: "Everyone may #{phase_verb(phase)} at the same time."
-
-  # A seat in the shop with no buy (it took the VP after an explosion, or it bought
-  # already) while another seat still buys: it only waits (its rubies and "Done" are
-  # in its dialog).
-  defp waits_to_shop?(_game, nil), do: false
-
-  defp waits_to_shop?(game, seat) do
-    others = Enum.filter(game.seats -- [seat], &busy?(game, game.players[&1]))
-    not buys?(game, seat) and Enum.any?(others, &buys?(game, &1))
-  end
-
-  defp buys?(game, seat),
-    do: Enum.any?(Game.legal_actions(game, seat), &match?({:buy, [_ | _]}, &1))
-
-  defp chose_text(game, seat, busy, names),
-    do: "You chose #{game.players[seat].pending_choice}. " <> waiting_text(busy, names)
-
-  defp waiting_text(seats, names) do
-    "Waiting for #{length(seats)} #{if length(seats) == 1, do: "player", else: "players"}: " <>
-      Enum.map_join(seats, ", ", &name(names, &1)) <> "."
-  end
-
-  # A seat that still has to act in this step: brewing (not stopped, done or waiting
-  # for the stir), shopping, or answering the concurrent choice of the game phase.
-  defp busy?(%{phase: :potions}, player), do: player.phase not in [:stopped, :done, :waiting_stir]
-  defp busy?(%{phase: :shopping}, player), do: player.phase != :ready
-  defp busy?(%{phase: :patient_choice}, player), do: player.patient == nil
-
-  defp busy?(%{phase: :essence}, player),
-    do:
-      player.phase in [:essence_choice, :essence_bonus, :ear_worm] or
-        player.phase in [:blue_choice, :yellow_choice, :chip_choice]
-
-  defp busy?(%{phase: phase}, player), do: player.phase == phase
-
-  defp phase_verb(:fortune_choice), do: "resolve the fortune teller card"
-  defp phase_verb(:chip_choice), do: "choose chip actions"
-  defp phase_verb(:witch_choice), do: "decide on the gold witch"
-  defp phase_verb(:patient_choice), do: "choose a patient"
-  defp phase_verb(:essence), do: "distil their essence"
 
   # Seats by VP, highest first.
   defp ranking(game), do: game |> Game.score() |> Enum.sort_by(fn {_seat, vp} -> -vp end)

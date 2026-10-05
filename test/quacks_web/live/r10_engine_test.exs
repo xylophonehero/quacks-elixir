@@ -139,7 +139,8 @@ defmodule QuacksWeb.R10EngineTest do
     test "a line under the players row names this round's rat tails; the results do not" do
       {id, alice, _bob} = duo()
       replace_game(id, &(&1 |> H.put(0, rat_stone: 2) |> H.put(1, rat_stone: 0)))
-      assert has_element?(alice, "[data-role=round-rats]", "Rats this round: Player 1 (2 tails)")
+      # Round 11: the rat tails show on the name cards only, no line.
+      refute has_element?(alice, "[data-role=round-rats]")
 
       replace_game(id, &H.put(&1, 0, phase: :buy, vp: 0))
       refute has_element?(alice, "[data-role=round-rats]")

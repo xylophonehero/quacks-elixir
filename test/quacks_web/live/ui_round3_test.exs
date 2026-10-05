@@ -57,7 +57,8 @@ defmodule QuacksWeb.UiRound3Test do
            )
 
     html = render(view)
-    assert count(html, "footer button") == 2
+    # Stop, Draw, and the flask button (shown from 64rem only).
+    assert count(html, "footer button") == 3
     assert count(html, "footer [popovertarget]") == 0
   end
 

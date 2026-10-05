@@ -79,7 +79,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     alice |> element("button[data-slot=stop]", "Stop") |> render_click()
     assert has_element?(alice, "button[data-slot=stop]:not([disabled])", "Resume")
     assert has_element?(alice, "button[data-slot=draw][disabled]")
-    assert has_element?(alice, "[data-role=turn]", "Waiting for 1 player: Player 2.")
+    refute has_element?(alice, "[data-role=turn]")
     open_player(bob, 0)
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=player-state]), "stopped")
     # Bob is brewing and drew already: no hint line for him
@@ -114,7 +114,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     bob |> element("[data-role=shop-done]") |> render_click()
     assert has_element?(alice, "dialog#decision-shop")
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "ready")
-    assert has_element?(bob, "[data-role=turn]", "Waiting for 1 player: Player 1.")
+    refute has_element?(bob, "[data-role=turn]")
   end
 
   test "the host's chip supply option" do

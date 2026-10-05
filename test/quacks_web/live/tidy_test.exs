@@ -80,8 +80,8 @@ defmodule QuacksWeb.TidyTest do
     end
 
     test "a seat with no buy waits for the others", %{alice: alice, bob: bob} do
-      assert has_element?(alice, "[data-role=turn]", "Waiting for the others to shop.")
-      assert has_element?(bob, "[data-role=turn]", "Everyone shops at the same time.")
+      refute has_element?(alice, "[data-role=turn]")
+      refute has_element?(bob, "[data-role=turn]")
     end
   end
 

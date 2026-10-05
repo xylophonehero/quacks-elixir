@@ -122,8 +122,7 @@ defmodule QuacksWeb.QaFixes2Test do
 
     replace_game(id, &H.put(&1, 0, droplet_moves: 1))
 
-    assert has_element?(alice, "[data-role=turn]", "Choose where your droplet moves.")
-    refute has_element?(alice, "[data-role=turn]", "Everyone brews")
+    refute has_element?(alice, "[data-role=turn]")
 
     assert has_element?(
              bob,

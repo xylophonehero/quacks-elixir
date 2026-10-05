@@ -17,6 +17,8 @@
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+/* A phone on its side (round 11): a short, wide screen. */
+@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem));
 
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
@@ -614,59 +616,325 @@ html:has([data-layout="full"]) {
   }
 }
 
-/* Layout 2, tablet (64–80rem): the right column has two tabs, radio inputs in
-   `[data-role=side-tabs]`. "Books" shows the books in play and nothing else;
-   "Decision" shows the rest, and a short note while no decision panel is open. */
-.side-tab {
+/* Round 11: the game page is one grid with named areas. Each block in game_live.ex
+   names its area (`data-area`); these templates place them per layout. The pot's
+   area spans only tracks whose size never depends on what comes and goes, so the
+   pot never moves: the flexible row takes what the fixed rows leave.
+   Phones and tablets (portrait): header, players, notices, pot, bar. */
+.game-grid {
+  display: grid;
+  height: 100dvh;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "header" "players" "notices" "pot" "bar";
+}
+
+[data-area="header"] { grid-area: header; }
+[data-area="players"] { grid-area: players; }
+[data-area="notices"] { grid-area: notices; }
+[data-area="books"] { grid-area: books; }
+[data-area="pot"] { grid-area: pot; }
+[data-area="context"] { grid-area: context; }
+[data-area="bar"] { grid-area: bar; }
+
+/* Below 64rem the context area holds only sheets (they sit in the top layer). */
+.context-column {
+  display: contents;
+}
+
+/* The bar has a fixed height under the pot: Stop and Draw with the fuse row, or
+   the one button that takes their place. The rare extras (Mandrake, Ear worm, the
+   patient's chips, the bonus die) float above it in `.game-tray`, over the pot's
+   lower band, instead of pushing the pot up. */
+:root {
+  --bar-h: 5.75rem;
+}
+
+.game-bar {
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  min-height: 2.75rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-parchment-dim);
-  cursor: pointer;
-  transition:
-    background-color 150ms var(--ease-out),
-    color 150ms var(--ease-out),
-    scale 150ms var(--ease-out);
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  height: calc(var(--bar-h) + max(0.5rem, env(safe-area-inset-bottom)));
+  padding: 0.25rem 0.5rem max(0.5rem, env(safe-area-inset-bottom));
 }
 
-.side-tab:active {
-  scale: 0.98;
+.game-tray {
+  position: absolute;
+  inset: auto 0.5rem 100% 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  pointer-events: none;
 }
 
-.side-tab:has(:checked) {
-  background-color: var(--color-parchment-light);
-  color: var(--color-ink);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+.game-tray > * {
+  pointer-events: auto;
 }
 
-.side-tab:has(:focus-visible) {
-  outline: 3px solid var(--color-droplet);
-  outline-offset: 2px;
-}
+/* In the components layer, so `max-lg:hidden` and `lg:hidden` on the bar win. */
+@layer components {
+  .action-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
 
-@media (hover: hover) and (pointer: fine) {
-  .side-tab:not(:has(:checked)):hover {
-    color: var(--color-parchment);
+  @media (width >= 64rem) {
+    .action-bar {
+      grid-template-columns: minmax(0, 1fr) 3.5rem;
+      grid-template-areas: "draw draw" "stop flask";
+    }
+
+    .action-bar > [data-slot="draw"] {
+      grid-area: draw;
+      min-height: 3.75rem;
+      font-size: 1.125rem;
+    }
+
+    .action-bar > [data-slot="stop"] {
+      grid-area: stop;
+    }
+
+    .action-bar > [data-slot="flask"] {
+      grid-area: flask;
+    }
   }
 }
 
-@media (64rem <= width < 80rem) {
-  [data-role="side-column"]:has([data-tab="books"]:checked)
-    > :not([data-role="side-tabs"], #books-tab) {
-    display: none !important;
+/* Landscape phones: the pot takes the full height on the left; header, name cards,
+   the bar and the test tubes stack on the right. Sheets slide in over the right
+   column only, so the pot stays in view. */
+@media (orientation: landscape) and (max-height: 30rem) {
+  .game-grid {
+    grid-template-columns: min(100dvh, 50vw) minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "pot header"
+      "pot players"
+      "pot notices"
+      "pot context"
+      "pot bar"
+      "pot tubes";
   }
 
-  [data-role="side-column"]:not(:has([data-tab="books"]:checked)) > #books-tab {
-    display: none;
+  /* The pot column's children join the grid: the pot left, the tubes right. */
+  .pot-column {
+    display: contents;
   }
 
-  [data-role="side-column"]:not(:has(dialog[data-side="panel"][open])) > .side-tab-empty {
-    display: block;
+  .pot-column > .pot-box {
+    grid-area: pot;
+    padding: 0.5rem;
+  }
+
+  .pot-column > [data-role="flask-strip"] {
+    grid-area: notices;
+  }
+
+  .pot-column > [data-area="tubes"] {
+    grid-area: tubes;
+    padding: 0 0.5rem 0.25rem;
+  }
+
+  .game-bar {
+    height: auto;
+    justify-content: flex-start;
+  }
+
+  .game-tray {
+    position: static;
+    padding: 0;
+  }
+
+  .sheet {
+    inset: 0 0 0 auto;
+    margin: 0;
+    width: calc(100vw - min(100dvh, 50vw));
+    max-width: none;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-top: 0;
+    border-left: 4px solid var(--color-iron);
+    border-radius: 1rem 0 0 1rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  .sheet:not(:popover-open, [open]) {
+    translate: 100% 0;
+  }
+
+  @starting-style {
+    .sheet:popover-open,
+    .sheet[open] {
+      translate: 100% 0;
+    }
+  }
+}
+
+/* 64rem: two columns. The context column runs the full height on the right, the
+   bar is its foot. The pot spans the bar's row too, so a taller bar takes room
+   from the context column, never from the pot. Draw is the large button, Stop and
+   the flask sit under it. */
+@media (width >= 64rem) {
+  .game-grid {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    grid-template-areas:
+      "header context"
+      "players context"
+      "notices context"
+      "pot context"
+      "pot bar";
+  }
+
+  .context-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0.75rem 0.75rem 0 0;
+  }
+
+  .game-bar {
+    height: auto;
+    justify-content: flex-start;
+    padding: 0.75rem 0.75rem 0.75rem 0;
+  }
+
+  .game-tray {
+    position: static;
+    padding: 0;
+  }
+}
+
+/* 80rem: the books in play get their own column left of the pot. */
+@media (width >= 80rem) {
+  .game-grid {
+    grid-template-columns: 17rem minmax(0, 1fr) 22rem;
+    grid-template-areas:
+      "header header context"
+      "players players context"
+      "notices notices context"
+      "books pot context"
+      "books pot bar";
+  }
+}
+
+/* The books drawer (48–80rem, and landscape phones): it slides in from the right
+   over the context column, never over the pot. A popover, so Esc and a tap
+   outside close it. */
+@media (width >= 48rem), (orientation: landscape) and (max-height: 30rem) {
+  .sheet.sheet-drawer {
+    inset: 0 0 0 auto;
+    margin: 0;
+    width: min(24rem, 100vw);
+    max-width: none;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-left: 4px solid var(--color-iron);
+    border-radius: 1rem 0 0 1rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
+    opacity: 1;
+    scale: none;
+    translate: 0 0;
+    transition:
+      translate 300ms var(--ease-drawer),
+      overlay 300ms allow-discrete,
+      display 300ms allow-discrete;
+  }
+
+  .sheet.sheet-drawer:not(:popover-open, [open]) {
+    translate: 100% 0;
+    opacity: 1;
+    scale: none;
+    transition-duration: 200ms;
+  }
+
+  @starting-style {
+    .sheet.sheet-drawer:popover-open {
+      translate: 100% 0;
+      opacity: 1;
+      scale: none;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet.sheet-drawer,
+  .sheet.sheet-drawer:not(:popover-open, [open]) {
+    translate: 0 0;
+    transition:
+      opacity 200ms ease,
+      overlay 200ms allow-discrete,
+      display 200ms allow-discrete;
+  }
+
+  .sheet.sheet-drawer:not(:popover-open, [open]) {
+    opacity: 0;
+  }
+}
+
+/* The shop's purse and buttons sit flush at the sheet's foot: the sheet drops its
+   bottom padding, the bar keeps only the safe area (round 11, E). */
+.sheet:has([data-role="shop-footer"]) {
+  padding-bottom: 0;
+}
+
+/* Take a Chance in the context column (64rem): the dice land one after the other
+   (two 300 ms steps each), after the "Round N" title. Not tied to the replay, so
+   `.replay-done` does not cut it short. */
+:root {
+  --chance-lead: 900ms;
+  --chance-step: 300ms;
+}
+
+.chance-row {
+  --chance-at: calc(var(--chance-lead) + var(--beat) * var(--chance-step));
+  animation: update-in 220ms var(--ease-spring) both;
+  animation-delay: var(--chance-at);
+}
+
+.chance-row .die-strip {
+  animation: die-roll var(--die-roll) steps(7, jump-none) both;
+  animation-delay: var(--chance-at);
+}
+
+.chance-row .die {
+  animation: die-land 220ms var(--ease-spring);
+  animation-delay: calc(var(--chance-at) + var(--die-roll));
+}
+
+.chance-row .chance-text {
+  animation: fade-in 160ms var(--ease-out) both;
+  animation-delay: calc(var(--chance-at) + var(--die-roll));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chance-row,
+  .chance-row * {
+    animation: none !important;
+  }
+}
+
+/* The round results in the context column (64rem): each book line shows on its
+   beat, the same formula as the update chips; the dice use `.replay-die`. */
+.result-row {
+  animation: update-in 320ms var(--ease-spring) both;
+  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
+}
+
+:root:has(#players-row.replay-done) .results-panel {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-row {
+    animation: none;
   }
 }
 
