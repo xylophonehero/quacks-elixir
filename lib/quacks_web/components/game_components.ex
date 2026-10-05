@@ -2833,8 +2833,8 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   The bonus die while the replay plays (scoring sequence): it shows on its beat,
   rolls through its strip, lands, and its line ("Bonus die: +1 VP") fades in after.
-  The page puts it beside the pot: in the side column on large screens, in the
-  footer on phones.
+  Phones show it in the bar's tray; from 64rem the results panel in the context
+  column rolls it (`results_panel/1` in game_live.ex).
   """
   attr :lines, :list, required: true, doc: "the replay's `:die` lines (`Replay.beats/3`)"
   attr :class, :any, default: nil
