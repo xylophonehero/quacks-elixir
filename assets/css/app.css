@@ -2165,6 +2165,12 @@ html[data-install="ios"] .pwa-ios-hint {
     border-radius: 0;
     padding-top: max(1rem, env(safe-area-inset-top));
   }
+
+  /* The close button is a flex item above it: the slide takes what is left, so the
+     bar with Next stays on screen. */
+  .reveal-sheet > [data-role="reveal"] {
+    min-height: 0;
+  }
 }
 
 @keyframes reveal-in {

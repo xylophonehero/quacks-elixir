@@ -175,7 +175,8 @@ defmodule QuacksWeb.RevealComponents do
         Bonus die
       </.step_title>
       <.step_rows :let={row} rows={@slide.rows} names={@names} seat={@seat} scored={&(&1.rolls != [])}>
-        <span class="reveal-dice flex flex-wrap gap-2" data-role="reveal-dice">
+        <span :if={row.rolls == []} class="text-ink-soft">–</span>
+        <span :if={row.rolls != []} class="reveal-dice flex flex-wrap gap-2" data-role="reveal-dice">
           <span
             :for={{roll, n} <- Enum.with_index(row.rolls)}
             class="flex flex-col items-center gap-0.5"
@@ -675,7 +676,7 @@ defmodule QuacksWeb.RevealComponents do
     assigns = assign(assigns, n: n)
 
     ~H"""
-    <span class={[tag(true), "bg-gold/60"]} data-reward="vp">+{@n}</span>
+    <span class={[tag(true), "bg-gold/60"]} data-reward="vp">+{@n} VP</span>
     """
   end
 
