@@ -294,19 +294,39 @@ metadata: {
 
 | Key | Action | Only when |
 |---|---|---|
-| D, Space | `:draw` | `:draw in @actions` |
-| S | `:stop` (or `:resume`) | it is in `@actions` |
-| F | `:use_flask` | it is in `@actions` |
-| Enter | the open decision's one primary button: the empty rubies step's Done, the shop's Done (Buy with chips ticked), a decision with one button and no chips | `enter_action/1` (line 695) finds exactly one |
+| d, Space | `:draw` | `:draw in @actions` |
+| s | `:stop` (or `:resume`) | it is in `@actions` |
+| f | `:use_flask` | it is in `@actions` |
+| b | open or close the bag sheet | this seat plays (`@me`) |
+| Enter | the open decision's one primary button: the empty rubies step's Done, the shop's Done (Buy with chips ticked), a decision with one button and no chips | `enter_action/1` finds exactly one |
 | Esc | nothing on the server: the browser closes the modal dialog or the drawer | |
+
+The server downcases the key, so Shift+D works too. The bag sheet is a popover,
+which only the browser can open: for b, `handle_event` answers with
+`push_event(socket, "quacks:toggle", %{id: "sheet-bag"})` and app.js calls
+`togglePopover()` on that element. This is the one key with JS, and it holds no
+key logic either.
 
 Letters and Space do nothing while typing or with a modal dialog open; Space and
 Enter on a focused button leave it to the browser, which presses it already.
 `@actions` is empty while a decision is open, so a key cannot skip a dialog. From
-64rem the buttons show their key in a `<.kbd>` (`core_components.ex`), hidden
-from screen readers. The tests send the metadata as params:
+64rem the buttons show their key in a `<.kbd>` (`core_components.ex`), lowercase,
+hidden from screen readers; `show` sets when it shows (the shop's Buy hint uses a
+container query, `lg:@min-[24rem]/shop-bar:inline-block`, because the shop sheet
+is a narrow column). The bag button has `aria-keyshortcuts="b"` and the title
+"Bag (b)". The tests send the metadata as params:
 `render_keydown(element(view, "#game"), %{"key" => "d"})`
-(`test/quacks_web/live/round11_test.exs`).
+(`test/quacks_web/live/round11_test.exs`, `round12_test.exs`).
+
+**"Only Shift+D works" (round 12).** The cause was not in the app: Chrome with real
+key events (CDP `Input.dispatchKeyEvent`) draws, stops and toggles the bag with
+plain d, s and b. Nick's browser runs the Vimium extension, which binds d (scroll
+half a page), f (link hints), b (bookmarks) and, with his mappings, Space as a
+prefix; it takes these keydowns in the capture phase before the page sees them,
+and lets Shift+D through because it binds no D. Vimium binds no s by default, so
+a plain s should work; that part of the report was not reproduced. The fix is
+outside the code: a Vimium exclusion rule for the game's address (or pass keys
+`dsfb `). A page cannot switch off an extension's key handler.
 
 In dev, `phoenix_live_reload` remembers the last key that went down and, while it is
 "c" or "d", turns a click into "open in editor". A synthetic keydown with no keyup
@@ -482,8 +502,9 @@ keyframe plays. In React you write `<span key={value}>` to restart an animation.
 After the evaluation (step B of the rules) the page replays what each seat gained.
 There is no results dialog any more. The replay plays in four places at once:
 
-- **the name cards:** each card gets its *update chips* ("stopped", "+7 VP", "+2"
-  rubies, "+1" droplet), one after the other;
+- **the name cards:** the VP and ruby counters tick on their beats (round 12
+  removed the *update chips*, "stopped", "+7 VP" and so on: the state badge and the
+  counters already said it);
 - **your pot:** the chips that a line is about light up, rubies fly to the ruby
   counter, "+N VP" tags float up, the droplet slides;
 - **the books:** a book glows when its line comes;
@@ -517,23 +538,22 @@ turn the lines into what each place needs:
 
 - `highlights/1` (`lib/quacks_web/replay.ex:60-65`): `%{mark => beat}`, the beat of
   each mark's first line. The pot draws a gold `beat_ring` there.
-- `updates/2` (`lib/quacks_web/replay.ex:125-138`): the update chips of one name
-  card. Each chip is a sum (all the VP of the round) that lands on the beat of its
-  *last* line, so it is complete when it shows.
+- `updates/2` (`lib/quacks_web/replay.ex:125-138`): the results of one name card.
+  Each is a sum (all the VP of the round) on the beat of its *last* line, so it is
+  complete when it shows. The card counters tick on these beats.
 - `pot_effects/1` (`lib/quacks_web/replay.ex:87-110`): the scoring sequence on the
   pot. One `%{kind: :ruby | :vp, at: mark, beat: beat, n: n}` per flying ruby (at
   most 3 per line) and per VP tag. `source/1` picks where it starts: a black ruby
   leaves the droplet, a green or purple one its chip, the space's own ruby the
   scoring space.
 
-The templates write the beat into a CSS variable: `style={"--beat: #{update.beat}"}`
-on each update chip (`player_chip/1`, `lib/quacks_web/components/game_components.ex:1556-1575`),
-on each pot ring (`beat_ring/1`, lines 877-898), each pot effect (lines 509-549)
+The templates write the beat into a CSS variable: `--beat` on each card counter
+(`card_count/1` in `lib/quacks_web/components/game_components.ex`), on each pot ring (`beat_ring/1`, lines 877-898), each pot effect (lines 509-549)
 and each book (`book_line/1`, lines 2004-2016). One CSS formula turns every beat
 into a delay (`assets/css/app.css:981-994`):
 
 ```css
-.update-chip {
+.result-row {
   animation: update-in 320ms var(--ease-spring) both;
   animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
 }
@@ -546,16 +566,18 @@ begins), so they stay in step with no code that links them. After two skips this
 browser plays faster: app.js sets `data-fast-beats` on `<html>` and CSS changes the
 two variables (`assets/css/app.css:1034-1038`).
 
-**The end of the replay.** The last chip carries `data-replay-last` and a second,
-1-second animation that only holds the replay open while its ruby flies. app.js
-listens for `animationend` on it (`assets/js/app.js:289-295`) and runs the players
+**The end of the replay.** The card with the last beat holds an invisible
+`<span class="replay-timer" data-replay-last>` (round 12; before, the last update
+chip did this). Its only animation, `replay-hold`, starts on the last beat and runs
+1 second, so the replay stays open while that line's ruby flies. app.js listens for
+`animationend` on it (`assets/js/app.js:289-295`) and runs the players
 row's `data-on-replay-end` JS: `replay_end/3` (chapter 5) adds `replay-done` to
 `#players-row`, pushes `"seen"` and opens the shop. "Skip", a tap on a name card, a
 tap on the pot, Space or Esc do the same. One CSS rule per place then shows the end
 state at once, for example (`assets/css/app.css:1018-1021`):
 
 ```css
-#players-row.replay-done .update-chip {
+#players-row.replay-done .replay-timer {
   animation-delay: 0s !important;
   animation-duration: 1ms !important;
 }
@@ -650,7 +672,7 @@ through (`pointer-events: none`).
 One block, `@media (prefers-reduced-motion: reduce)` at
 `assets/css/app.css:1203-1284`, follows one rule: keep opacity and colour, drop
 translate, scale, rotation and shake. Chips fade in, the card crossfades instead of
-a flip, the update chips and counters show at once, and there are no pot rings, no
+a flip, the counters show at once (the replay timer runs 1 ms), and there are no pot rings, no
 VP tags and no rolling die. In JS, `reduced()` (`assets/js/app.js:76`) makes
 `land`, `ratsIn` and the ruby flights return at once and `ghost` fade, and no view
 transition starts. `test/quacks_web/live/motion_test.exs:92`,

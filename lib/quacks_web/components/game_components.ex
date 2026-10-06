@@ -7,6 +7,7 @@ defmodule QuacksWeb.GameComponents do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
+  alias Quacks.AI.Odds
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Potions
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
@@ -419,11 +420,13 @@ defmodule QuacksWeb.GameComponents do
               {PotTrack.at(index).vp}
             </text>
           </g>
+          <%!-- Lower left, mirroring the VP tag: inside a scoring ring it stays in
+               view (round 12; it sat on the top edge, under the ring). --%>
           <.piece_icon
             :if={PotTrack.at(index).ruby?}
             name={:ruby}
-            x="8"
-            y="-27"
+            x="-21.5"
+            y="6.5"
             width="15"
             height="15"
             class="text-ruby"
@@ -1006,6 +1009,8 @@ defmodule QuacksWeb.GameComponents do
         @class
       ]}
       aria-label={"Bag: #{@count} chips. Show what is in it"}
+      aria-keyshortcuts="b"
+      title="Bag (b)"
       data-role="bag-button"
     >
       <svg viewBox="0 0 48 48" class="size-full" aria-hidden="true">
@@ -1360,30 +1365,51 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
-  @doc ~s{What the scoring space pays, for the bar: "Next: 8 coins · 2 VP · ruby".}
+  @doc ~s"""
+  The line above the draw strip: what the scoring space pays ("Reward: 8 coins ·
+  0 VP · ruby") and, on the right, the chance that the next draw explodes
+  (`Quacks.AI.Odds.next_draw/2`, whole percent; 0% for a seat that stopped or
+  exploded). One fixed-height line, so a draw never moves the layout.
+  """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
 
-  def next_reward(assigns) do
+  def reward_line(assigns) do
     assigns =
       assign(assigns,
         space: PotTrack.at(Game.scoring_index(assigns.game, assigns.seat)),
-        final?: assigns.game.round == 9
+        final?: assigns.game.round == 9,
+        explode: explode_percent(assigns.game, assigns.seat)
       )
 
     # Round 9 has no shop: the line names the VP, not coins to spend.
     ~H"""
-    <p class="shrink-0 text-right text-xs leading-tight text-parchment-dim" data-role="next-reward">
-      Next:
-      <span :if={!@final?} class="font-semibold text-parchment">{@space.coins} {plural(
-        @space.coins,
-        "coin",
-        "coins"
-      )}</span><span :if={@space.vp > 0 or @final?}><span :if={!@final?}> · </span><span class="font-semibold text-gold">{@space.vp} VP</span></span><span :if={
-        @space.ruby?
-      }> · <span class="font-semibold text-ruby-light">ruby</span></span>
+    <p
+      class="flex h-4 min-w-0 items-center justify-between gap-2 overflow-hidden text-xs leading-4 whitespace-nowrap text-parchment-dim"
+      data-role="reward-line"
+    >
+      <span class="min-w-0 truncate" data-role="next-reward">
+        Reward:
+        <span :if={!@final?} class="font-semibold text-parchment">{@space.coins} {plural(
+          @space.coins,
+          "coin",
+          "coins"
+        )} ·</span>
+        <span class="font-semibold text-gold">{@space.vp} VP</span><span :if={@space.ruby?}> · <span class="font-semibold text-ruby-light">ruby</span></span>
+      </span>
+      <span class="shrink-0" data-role="explode-chance" data-percent={@explode}>
+        Explode: <span class="font-semibold text-parchment tabular-nums">{@explode}%</span>
+      </span>
     </p>
     """
+  end
+
+  defp explode_percent(game, seat) do
+    p = Game.player(game, seat)
+
+    if p.exploded? or p.phase in [:stopped, :done],
+      do: 0,
+      else: round(Odds.next_draw(game, seat) * 100)
   end
 
   # B2: the crow skull protected the explosion. No explosion choice is made then.
@@ -1558,17 +1584,17 @@ defmodule QuacksWeb.GameComponents do
   the name (two lines on phones, never cut short to "Pla…"), the BOT badge and the
   status graphic (`player_state/1`). Row 2: VP, rubies, the flask, the rat tails
   (one icon and a number), essence or test tube, and the patient or the witch
-  pennies. Row 3: the update chips of the round (`updates`, see
-  `QuacksWeb.Replay.updates/2`). Your own card wears your seat colour as a ring.
-  The three rows sit on the players row's grid (`grid-rows-subgrid`), so they line
-  up across the cards when a name takes two lines.
+  pennies. Your own card wears your seat colour as a ring. The two rows sit on the
+  players row's grid (`grid-rows-subgrid`), so they line up across the cards when
+  a name takes two lines. The round's results show on the state badge and as
+  counter ticks on the replay beats (`updates`, `QuacksWeb.Replay.updates/2`).
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :name, :string, required: true
   attr :you, :boolean, default: false
   attr :bot, :boolean, default: false
-  attr :updates, :list, default: [], doc: "the update chips, `Replay.updates/2`"
+  attr :updates, :list, default: [], doc: "the round's results, `Replay.updates/2`"
 
   attr :last, :integer,
     default: nil,
@@ -1590,7 +1616,7 @@ defmodule QuacksWeb.GameComponents do
       popovertarget={"sheet-player-#{@seat}"}
       phx-click={JS.push(@on_tap, "open_player", value: %{seat: @seat})}
       class={[
-        "row-span-3 grid min-h-11 w-full min-w-0 cursor-pointer grid-rows-subgrid rounded-lg px-1 py-1 text-left text-xs touch-manipulation sm:px-2",
+        "row-span-2 grid min-h-11 w-full min-w-0 cursor-pointer grid-rows-subgrid rounded-lg px-1 py-1 text-left text-xs touch-manipulation sm:px-2",
         "transition-[scale,background-color] duration-150 ease-out active:scale-[0.97]",
         if(@you,
           do: ["ring-2", @you_class],
@@ -1632,32 +1658,17 @@ defmodule QuacksWeb.GameComponents do
         </span>
       </span>
       <.chip_stats game={@game} p={@p} ticks={@last && card_ticks(@game, @seat, @updates)} />
+      <%!-- No update chips (round 12): the state badge and the counters say it. The
+           card with the replay's last beat keeps an invisible timer whose
+           animation ends the replay (app.js, `.replay-timer` in app.css). --%>
       <span
-        :if={@updates != []}
-        class="flex w-full min-w-0 flex-wrap content-start items-start gap-0.5"
-        data-role="update-chips"
-      >
-        <%!-- Phones: "stopped"/"exploded" is sr-only (the state badge says it, and an
-             sr-only chip still animates, so the replay can still end on it). --%>
-        <span
-          :for={update <- @updates}
-          class={[
-            "update-chip",
-            update_class(update.kind),
-            update.kind in [:stopped, :exploded] && "max-sm:sr-only"
-          ]}
-          data-role="update-chip"
-          data-kind={update.kind}
-          data-beat={update.beat}
-          data-replay-last={@last == update.beat}
-          style={"--beat: #{update.beat}"}
-        >
-          <.update_icon kind={update.kind} />{update.text}<span
-            :if={update.kind in [:rubies, :droplet]}
-            class="sr-only"
-          >{if update.kind == :rubies, do: " rubies", else: " droplet"}</span>
-        </span>
-      </span>
+        :if={@last && Enum.any?(@updates, &(&1.beat == @last))}
+        class="replay-timer"
+        aria-hidden="true"
+        data-role="replay-timer"
+        data-replay-last
+        style={"--beat: #{@last}"}
+      />
     </button>
     """
   end
@@ -1674,24 +1685,6 @@ defmodule QuacksWeb.GameComponents do
 
   defp initial(name),
     do: name |> String.trim() |> String.first() |> Kernel.||("?") |> String.upcase()
-
-  defp update_class(:vp), do: "bg-gold text-ink"
-  defp update_class(:rubies), do: "bg-ruby text-white"
-  defp update_class(:droplet), do: "bg-droplet text-white"
-  defp update_class(:exploded), do: "bg-ruby-light/25 text-ruby-light ring-1 ring-ruby-light/50"
-  defp update_class(_kind), do: "bg-parchment/15 text-parchment"
-
-  attr :kind, :atom, required: true
-
-  defp update_icon(%{kind: kind} = assigns) when kind in [:vp, :rubies, :droplet] do
-    assigns = assign(assigns, name: %{vp: :vp, rubies: :ruby, droplet: :droplet}[kind])
-
-    ~H"""
-    <.piece_icon name={@name} class="size-3 shrink-0" />
-    """
-  end
-
-  defp update_icon(assigns), do: ~H""
 
   attr :value, :integer, required: true
   attr :tick, :any, default: nil, doc: "`{beat, from}` while the replay runs"

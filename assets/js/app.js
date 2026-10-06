@@ -296,9 +296,9 @@ document.addEventListener("click", e => {
     fastBeats(n)
   } catch (_e) {}
 }, true)
-// The round results play as update chips on the name cards; the chip that lands
-// last ends the replay: the players row runs its `data-on-replay-end` JS
-// (`replay_end/3` in game_live.ex: seen, and the shop opens).
+// The round results play on the name cards' counters; the card with the last beat
+// holds an invisible `.replay-timer` whose end ends the replay: the players row runs
+// its `data-on-replay-end` JS (`replay_end/3` in game_live.ex: seen, and the shop opens).
 document.addEventListener("animationend", e => {
   // Only its last animation counts (a hold keeps the pot motion of that beat).
   if (!e.target.matches?.("[data-replay-last]") ||
@@ -306,6 +306,8 @@ document.addEventListener("animationend", e => {
   const row = e.target.closest("[data-on-replay-end]")
   row && !row.classList.contains("replay-done") && liveSocket.execJS(row, row.dataset.onReplayEnd)
 })
+// The b hotkey (`hotkey` in game_live.ex): the server asks to toggle a popover sheet.
+window.addEventListener("phx:quacks:toggle", e => document.getElementById(e.detail.id)?.togglePopover())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
 

@@ -648,7 +648,7 @@ html:has([data-layout="full"]) {
    patient's chips, the bonus die) float above it in `.game-tray`, over the pot's
    lower band, instead of pushing the pot up. */
 :root {
-  --bar-h: 5.75rem;
+  --bar-h: 7rem;
 }
 
 .game-bar {
@@ -922,7 +922,7 @@ html:has([data-layout="full"]) {
 }
 
 /* The round results in the context column (64rem): each book line shows on its
-   beat, the same formula as the update chips; the dice use `.replay-die`. */
+   beat, the same formula as the card counters; the dice use `.replay-die`. */
 .result-row {
   animation: update-in 320ms var(--ease-spring) both;
   animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
@@ -939,7 +939,7 @@ html:has([data-layout="full"]) {
 }
 
 /* Layout 2: a book lights up on the replay beat of its line, in step with the
-   update chips and the pot marks (the same delay formula). */
+   card counters and the pot marks (the same delay formula). */
 .book-beat::after {
   content: "";
   position: absolute;
@@ -1198,8 +1198,8 @@ html:has([data-layout="full"]) {
 }
 
 /* Motion, batch 2: the step-B replay (animations.md §3 B2; since layout 1 on the
-   name cards). The server numbers each update chip (`--beat`, `QuacksWeb.Replay`)
-   and the pot marks of your own lines (`beat-ring`); both start on the same patch
+   name cards). The server numbers each result line (`--beat`, `QuacksWeb.Replay`):
+   the card counters and the pot marks of your own lines (`beat-ring`); both start on the same patch
    (the shop phase begins), so one delay formula keeps them in step. */
 :root {
   --beat-lead: 300ms;
@@ -1249,39 +1249,11 @@ html:has([data-layout="full"]) {
   animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
 }
 
-/* The round results as update chips on the name cards (layout 1): each chip pops
-   in on its beat, together with the pot marks. When the replay ends (the last chip
-   landed, Skip, or a tap on a card) `#players-row` gets `.replay-done`: everything
-   shows at once and the pot marks stop. */
-.update-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  border-radius: 9999px;
-  padding: 0 5px;
-  font-size: 10.5px;
-  line-height: 15px;
-  font-weight: 700;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  animation: update-in 320ms var(--ease-spring) both;
-  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
-}
-
-/* Phones: narrow cards, so two gains share a line in the reserved two lines. */
-@media (width < 40rem) {
-  .update-chip {
-    gap: 1px;
-    padding: 0 3px;
-    font-size: 10px;
-  }
-
-  .update-chip svg {
-    width: 9px;
-    height: 9px;
-  }
-}
-
+/* The replay's clock (round 12: the name cards have no update chips). The card
+   with the last beat holds an invisible timer; when its animation ends, a second
+   after the last beat, the replay ends (app.js), so the last line's pot motion (a
+   ruby flight, a VP tag) plays out first. `.replay-done` (Skip, a tap on a card)
+   ends it at once. */
 @keyframes update-in {
   from {
     opacity: 0;
@@ -1289,22 +1261,21 @@ html:has([data-layout="full"]) {
   }
 }
 
-/* The last chip holds the replay open until its line's pot motion (a ruby flight,
-   a VP tag) is over: the replay ends when its last animation ends (app.js). */
 @keyframes replay-hold {
   to {
     --replay-hold: 1;
   }
 }
 
-.update-chip[data-replay-last] {
-  animation:
-    update-in 320ms var(--ease-spring) both,
-    replay-hold 1000ms linear both;
+.replay-timer {
+  position: absolute;
+  width: 0;
+  height: 0;
+  animation: replay-hold 1000ms linear both;
   animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
 }
 
-#players-row.replay-done .update-chip {
+#players-row.replay-done .replay-timer {
   animation-delay: 0s !important;
   animation-duration: 1ms !important;
 }
@@ -1314,7 +1285,7 @@ html:has([data-layout="full"]) {
 }
 
 /* The scoring sequence on the pot (`Replay.pot_effects/1`, game_components `pot/1`).
-   Same beats as the update chips, so a piece moves when its card chip lands. After
+   Same beats as the card counters, so a piece moves when its counter ticks. After
    two skips (app.js) the beats run faster. */
 :root {
   --die-roll: 700ms;
@@ -1553,10 +1524,10 @@ html:has([data-layout="full"]) {
     animation: fade-in 200ms ease 250ms both;
   }
 
-  /* The replay: every update chip at once (a 1 ms animation, so its end still
-     ends the replay and opens the shop), no pot flashes. */
-  .update-chip {
-    animation: update-in 1ms both !important;
+  /* The replay: over at once (a 1 ms timer, so its end still ends the replay
+     and opens the shop), no pot flashes. */
+  .replay-timer {
+    animation: replay-hold 1ms both !important;
   }
 
   [data-role="beat-ring"],

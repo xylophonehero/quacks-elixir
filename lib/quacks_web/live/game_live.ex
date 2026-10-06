@@ -46,10 +46,11 @@ defmodule QuacksWeb.GameLive do
   your chips, the buy (one row of chip tiles per colour) and "Done"; then "Spend
   rubies" (the ruby options and witch calls) and "Keep rubies".
 
-  Round results (layout 1): no dialog. When the shop phase begins, each name card
-  plays its update chips ("stopped", "+7 VP", rubies, droplet) on their replay beats
-  (`QuacksWeb.Replay.updates/2`), in step with the marks on your pot. The chip that
-  lands last, "Skip" or a first tap on a card ends the replay: the round counts as
+  Round results (layout 1): no dialog. When the shop phase begins, each name card's
+  VP and ruby counters tick on their replay beats (`QuacksWeb.Replay.updates/2`), in
+  step with the marks on your pot (round 12: no update chips; the state badge says
+  stopped or exploded). The last beat's timer, "Skip" or a first tap on a card ends
+  the replay: the round counts as
   seen (`"seen"`, `GameServer.ack/4`) and the shop opens (`replay_end/3`); a tap
   opens the card's sheet with the result lines instead. A seat that can buy nothing
   (it exploded and took the VP, or has too few coins) skips the buy and gets the
@@ -165,8 +166,9 @@ defmodule QuacksWeb.GameLive do
   def handle_event("action", _params, socket),
     do: {:noreply, put_flash(socket, :error, "You are watching this game.")}
 
-  # Keys (`phx-window-keydown` on the grid): D or Space draws, S stops, F uses the
-  # flask, Enter takes the open decision's one primary button. app.js adds to each
+  # Keys (`phx-window-keydown` on the grid): d or Space draws, s stops, f uses the
+  # flask, b opens or closes the bag, Enter takes the open decision's one primary
+  # button. app.js adds to each
   # keydown whether the focus is in a field (`typing`), on a button or link
   # (`control`: Space and Enter already press it) and whether a modal dialog is
   # open (`modal`). A key does something only when its action is legal for this
@@ -176,6 +178,8 @@ defmodule QuacksWeb.GameLive do
       when is_integer(seat) do
     case hotkey_action(key, params, socket.assigns) do
       nil -> {:noreply, socket}
+      # The bag sheet is a popover: only the browser can toggle it (app.js).
+      :toggle_bag -> {:noreply, push_event(socket, "quacks:toggle", %{id: "sheet-bag"})}
       action -> play(socket, seat, action)
     end
   end
@@ -684,6 +688,7 @@ defmodule QuacksWeb.GameLive do
   defp key_action(key, assigns) when key in ["d", " "], do: bar_action(:draw, assigns)
   defp key_action("s", assigns), do: bar_action(assigns.stop_slot, assigns)
   defp key_action("f", assigns), do: bar_action(:use_flask, assigns)
+  defp key_action("b", %{me: %Player{}}), do: :toggle_bag
   defp key_action("enter", assigns), do: enter_action(assigns)
   defp key_action(_key, _assigns), do: nil
 
@@ -1052,14 +1057,13 @@ defmodule QuacksWeb.GameLive do
           />
           <.status :if={@seat} game={@game} seat={@seat} beats={stat_beats(@game, @seat, @seen)} />
           <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
-               brew each card plays its update chips (the round results); the last
-               one to land ends the replay (`replay_end/3`, app.js). The third row
-               (the update chips) has a fixed height, and on phones the counts row two lines, so the row keeps its height
-               when the chips come. --%>
+               brew each card's counters tick on the replay beats; the card with the
+               last beat ends the replay (`replay_end/3`, app.js). On phones the
+               counts row has two lines, so the row keeps its height. --%>
           <nav
             id="players-row"
             class={[
-              "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_2.125rem_2.25rem] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)] sm:grid-rows-[auto_auto_1.25rem] phone-landscape:auto-cols-[minmax(5.5rem,1fr)]",
+              "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_2.125rem] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)] sm:grid-rows-[auto_auto] phone-landscape:auto-cols-[minmax(5.5rem,1fr)]",
               not replaying?(@game, @seen) && "replay-done"
             ]}
             aria-label="Players"
@@ -1544,13 +1548,9 @@ defmodule QuacksWeb.GameLive do
           >
             Show the result
           </.button>
-          <div
-            :if={@seat && @game.phase == :potions}
-            class="flex items-center gap-2"
-            data-role="fuse-row"
-          >
-            <.fuse_meter game={@game} seat={@seat} />
-            <.next_reward game={@game} seat={@seat} />
+          <div :if={@seat && @game.phase == :potions} class="flex flex-col gap-1" data-role="fuse-row">
+            <.reward_line game={@game} seat={@seat} />
+            <div class="flex"><.fuse_meter game={@game} seat={@seat} /></div>
           </div>
           <%!-- From 64rem an exploded pot puts its result here, where Stop and Draw
                were, and says what comes next. --%>
@@ -1584,7 +1584,7 @@ defmodule QuacksWeb.GameLive do
               data-slot="stop"
             >
               {if @stop_slot == :resume, do: "Resume", else: "Stop"}
-              <.kbd>S</.kbd>
+              <.kbd>s</.kbd>
             </.button>
             <%!-- From 64rem: the flask as a button too (on the pot it is on every screen). --%>
             <.button
@@ -1598,7 +1598,7 @@ defmodule QuacksWeb.GameLive do
               data-slot="flask"
             >
               <.piece_icon name={:flask} class="size-5" />
-              <.kbd>F</.kbd>
+              <.kbd>f</.kbd>
             </.button>
             <.button
               phx-click="action"
@@ -1608,7 +1608,7 @@ defmodule QuacksWeb.GameLive do
               data-slot="draw"
             >
               Draw a chip
-              <.kbd>D</.kbd>
+              <.kbd>d</.kbd>
             </.button>
           </section>
         </footer>
@@ -2213,15 +2213,17 @@ defmodule QuacksWeb.GameLive do
           </.button>
         </div>
       </.witch_card>
-      <%!-- The purse and the buttons stay at the bottom of the sheet while it scrolls. --%>
+      <%!-- The purse and the buttons stay at the bottom of the sheet while it scrolls.
+           A size container: the Enter hints show only where the bar has the room
+           (round 12: at 64rem the sheet is a narrow column and the bar overflowed). --%>
       <div
-        class="sticky bottom-0 z-10 -mx-4 mt-3 flex items-center gap-2 bg-parchment px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_12px_-10px_rgb(0_0_0/0.35)] *:min-h-12"
+        class="@container/shop-bar sticky bottom-0 z-10 -mx-4 mt-3 flex min-w-0 items-center gap-2 bg-parchment px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_12px_-10px_rgb(0_0_0/0.35)] *:min-h-12"
         data-role="shop-footer"
       >
         <p
           :if={@buying?}
           class={[
-            "flex shrink-0 items-center gap-1 font-hand text-xl leading-none font-bold tabular-nums",
+            "flex min-w-0 shrink items-center gap-1 font-hand text-xl leading-none font-bold whitespace-nowrap tabular-nums",
             @remaining < 0 && "text-ruby"
           ]}
           data-role="shop-total"
@@ -2234,7 +2236,7 @@ defmodule QuacksWeb.GameLive do
           phx-value-action={encode({:buy, []})}
           variant={if @buying?, do: :secondary, else: :primary}
           autofocus={!@buying?}
-          class={["flex-1", @buying? && "px-3"]}
+          class={["min-w-0", if(@buying?, do: "flex-none px-3", else: "flex-1")]}
           data-role="shop-done"
         >
           Done
@@ -2245,12 +2247,12 @@ defmodule QuacksWeb.GameLive do
           phx-click="action"
           phx-value-action={encode({:buy, @selected})}
           variant={:primary}
-          class="flex-[2] px-3 whitespace-nowrap"
+          class="min-w-0 flex-1 px-3 whitespace-nowrap"
           disabled={@selected == [] or {:buy, @selected} not in @actions}
           data-role="shop-buy"
         >
-          {buy_label(@selected, @total)}
-          <.kbd :if={@selected != []}>Enter</.kbd>
+          <span class="truncate">{buy_label(@selected, @total)}</span>
+          <.kbd :if={@selected != []} show={shop_kbd()}>Enter</.kbd>
         </.button>
       </div>
     </section>
@@ -2299,6 +2301,10 @@ defmodule QuacksWeb.GameLive do
     |> Enum.filter(& &1)
     |> Enum.join(" · ")
   end
+
+  # The Buy button's Enter hint: from 64rem, and only when the shop bar is 24rem
+  # wide (Done alone always has the room).
+  defp shop_kbd, do: "hidden lg:@min-[24rem]/shop-bar:inline-block"
 
   defp buy_label([], _total), do: "Buy"
   defp buy_label(selected, total), do: "Buy #{length(selected)} · #{total} coins"
