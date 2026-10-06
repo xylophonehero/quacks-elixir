@@ -75,4 +75,63 @@ defmodule QuacksWeb.Round22Test do
       refute has_element?(view, "header [data-role=fortune-tile]")
     end
   end
+
+  describe "the rat track" do
+    defp trio(vps) do
+      {:ok, id} = GameServer.start(3, {1, 2, 3}, %{}, %{fortune: false})
+      token = "r22-#{System.unique_integer()}"
+      {:ok, view, _html} = live(browser(token), ~p"/g/#{id}")
+      {:ok, _} = GameServer.add_bot(id, token)
+      {:ok, _} = GameServer.add_bot(id, token)
+      {:ok, _} = GameServer.begin(id, token)
+
+      replace_game(id, fn g ->
+        vps |> Enum.with_index() |> Enum.reduce(g, fn {vp, s}, g -> H.put(g, s, vp: vp) end)
+      end)
+
+      view
+    end
+
+    # The `left` of each dot or rat, in DOM order, as its 0..1 factor.
+    defp lefts(view, role) do
+      view
+      |> element("#rat-track")
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("[data-role=#{role}]")
+      |> Enum.map(fn node ->
+        [style] = LazyHTML.attribute(node, "style")
+        [_, x] = Regex.run(~r/\* ([\d.]+)\)/, style)
+        String.to_float(x)
+      end)
+    end
+
+    test "equal steps, not to scale: the leader left, the tails between" do
+      # 30 / 11 / 2: tails 28..12 (9), 10, 7, 4 between them: 12 rats, 13 steps.
+      view = trio([2, 30, 11])
+      assert has_element?(view, "#rat-track[data-steps='13']")
+      assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='1'][data-step='0']")
+      assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='2'][data-step='9']")
+      assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='0'][data-step='12']")
+
+      rats = lefts(view, "track-rat")
+
+      gaps =
+        rats
+        |> Enum.chunk_every(2, 1, :discard)
+        |> Enum.map(fn [a, b] -> Float.round(b - a, 3) end)
+
+      assert gaps |> Enum.uniq() |> length() == 1
+      assert rats == Enum.sort(rats)
+    end
+
+    test "seats on the same step stack" do
+      view = trio([8, 13, 9])
+      assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='0'][data-step='2']")
+      assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='2'][data-step='2']")
+
+      html = view |> element("#rat-track") |> render()
+      assert html =~ "+ 3.5px" and html =~ "+ -3.5px"
+    end
+  end
 end

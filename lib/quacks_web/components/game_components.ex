@@ -792,11 +792,13 @@ defmodule QuacksWeb.GameComponents do
   def palette_bg(colour), do: @palette_bg[colour]
 
   @doc """
-  The rat track (round 16): a slim VP track between the name cards and the pot.
-  Every seat's dot sits at its VP, from the last player (left) to the leader
-  (right); the rat tails between them (`ScoringTrack.tails/0`) are small rats. A
-  seat gets the rats right of its dot (`ScoringTrack.rat_tails/2`). Numbers only at
-  the leader and at this browser's seat. A fixed height; nothing to tap.
+  The rat track (round 16; equal steps since round 22): a slim strip between the
+  name cards and the pot. Not to scale: one step per rat tail
+  (`ScoringTrack.tails/0`) between the last player and the leader, the leader on
+  the left. Every seat's dot sits in the step of its rats
+  (`ScoringTrack.rat_tails/2`: the leader's step has none, each tail to the right
+  adds one); seats in one step stack. Under each rat tail its VP. A fixed height;
+  nothing to tap.
   """
   attr :game, :map, required: true
   attr :seat, :any, default: nil, doc: "this browser's seat, nil for a spectator"
@@ -807,69 +809,83 @@ defmodule QuacksWeb.GameComponents do
     game = assigns.game
     vps = for s <- game.seats, do: {s, Game.player(game, s).vp}
     {low, leader} = vps |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
-    at = fn v -> if leader == low, do: 1.0, else: (v - low) / (leader - low) end
+
+    # The tails from the leader's side: a seat behind tail `t` (VP <= t) gets its rat.
+    tails = for t <- Enum.reverse(ScoringTrack.tails()), low <= t and t < leader, do: t
+    steps = length(tails) + 1
 
     dots =
       vps
-      |> Enum.sort_by(fn {s, vp} -> {vp, s} end)
-      |> Enum.chunk_by(&elem(&1, 1))
+      |> Enum.map(fn {s, vp} -> {s, vp, ScoringTrack.rat_tails(vp, leader)} end)
+      |> Enum.sort_by(fn {s, vp, step} -> {step, -vp, s} end)
+      |> Enum.chunk_by(&elem(&1, 2))
       |> Enum.flat_map(fn same ->
-        for {{s, vp}, i} <- Enum.with_index(same),
+        for {{s, vp, step}, i} <- Enum.with_index(same),
             do: %{
               seat: s,
               vp: vp,
+              step: step,
               bg: @seat_bg[s],
-              x: at.(vp),
+              x: (step + 0.5) / steps,
               shift: i - (length(same) - 1) / 2
             }
       end)
 
-    rats = for t <- ScoringTrack.tails(), low <= t and t < leader, do: at.(t + 0.5)
+    rats = for {t, j} <- Enum.with_index(tails), do: %{vp: t, x: (j + 1) / steps}
 
     label =
       Enum.map_join(vps, "; ", fn {s, vp} ->
-        tails = ScoringTrack.rat_tails(vp, leader)
+        n = ScoringTrack.rat_tails(vp, leader)
 
-        "#{Map.get(assigns.names, s, "Player #{s + 1}")} #{vp} VP, #{tails} #{if tails == 1, do: "rat", else: "rats"}"
+        "#{Map.get(assigns.names, s, "Player #{s + 1}")} #{vp} VP, #{n} #{if n == 1, do: "rat", else: "rats"}"
       end)
 
-    assigns = assign(assigns, dots: dots, rats: rats, leader: leader, label: label)
+    assigns =
+      assign(assigns, dots: dots, rats: rats, steps: steps, leader: leader, label: label)
 
     ~H"""
     <div
       id="rat-track"
       class={["relative h-7 select-none", @class]}
       role="img"
-      aria-label={"VP track: " <> @label}
+      aria-label={"Rat track, leader first: " <> @label}
       data-role="rat-track"
+      data-steps={@steps}
     >
-      <span class="absolute inset-x-2 top-2.5 h-px rounded-full bg-parchment/35" />
-      <.piece_icon
-        :for={x <- @rats}
-        name={:rat}
-        class="absolute top-2.5 size-3 -translate-x-1/2 -translate-y-1/2 text-parchment-dim"
-        style={"left: #{pos(x)}"}
-        data-role="track-rat"
+      <span
+        class="absolute top-2.5 h-px rounded-full bg-parchment/35"
+        style={"left: #{pos(0.5 / @steps)}; right: #{pos(0.5 / @steps)}"}
       />
       <span
+        :for={rat <- @rats}
+        class="absolute top-2.5 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-parchment-dim"
+        style={"left: #{pos(rat.x)}"}
+        data-role="track-rat"
+        data-vp={rat.vp}
+      >
+        <.piece_icon name={:rat} class="size-3" />
+        <span class="absolute top-full text-[9px] leading-none font-semibold tabular-nums">
+          {rat.vp}
+        </span>
+      </span>
+      <span
         :for={dot <- @dots}
-        class="absolute top-2.5 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center transition-[left] duration-500 ease-out motion-reduce:transition-none"
+        class="absolute top-2.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none"
         style={"left: calc(#{pos(dot.x)} + #{dot.shift * 7}px)"}
+        title={"#{Map.get(@names, dot.seat, "Player #{dot.seat + 1}")}: #{dot.vp} VP"}
         data-role="track-dot"
         data-seat={dot.seat}
         data-vp={dot.vp}
+        data-step={dot.step}
       >
         <span class={[
-          "block rounded-full ring-1 ring-black/40",
+          "block rounded-full",
           dot.bg,
-          if(dot.seat == @seat or dot.vp == @leader, do: "size-3", else: "size-2.5")
+          if(dot.seat == @seat,
+            do: "size-3 ring-2 ring-parchment/80",
+            else: "size-2.5 ring-1 ring-black/40"
+          )
         ]} />
-        <span
-          :if={dot.seat == @seat or dot.vp == @leader}
-          class="absolute top-full mt-px text-[10px] leading-none font-bold text-parchment tabular-nums"
-        >
-          {dot.vp}
-        </span>
       </span>
     </div>
     """
