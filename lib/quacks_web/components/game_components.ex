@@ -1620,7 +1620,12 @@ defmodule QuacksWeb.GameComponents do
           value={"#{Game.white_sum(@game, @seat)} / #{Potions.explode_above(@game, @seat)}"}
         />
       </dl>
-      <AlchemistsComponents.patient_panel :if={@p.patient} game={@game} seat={@seat} />
+      <AlchemistsComponents.patient_panel
+        :if={@p.patient}
+        game={@game}
+        seat={@seat}
+        preview={@you}
+      />
       <.pot game={@game} seat={@seat} size={:sm} class="mx-auto block h-auto w-full max-w-64" />
       <.test_tubes
         :if={@game.rules.pot_side == :back}

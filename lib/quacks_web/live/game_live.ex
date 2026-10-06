@@ -1179,6 +1179,7 @@ defmodule QuacksWeb.GameLive do
             game={@game}
             seat={@seat}
             beat={replay_marks(@game, @seat)[:essence]}
+            preview
           />
           <%!-- The pot is the largest square that fits (see `.pot-box` in app.css);
                its controls sit in the square's corners: witches top left, Skip top
