@@ -35,8 +35,10 @@ defmodule QuacksWeb.UiRound6Test do
     )
 
     refute has_element?(view, "dialog#decision-shop")
-    assert has_element?(view, "#players-row[data-on-replay-end*=decision-rubies]")
     assert has_element?(view, "dialog#decision-rubies [data-role=shop-rubies]")
+    # round 14: the reveal overlay's end opens it
+    render_hook(view, "reveal_close", %{})
+    assert_push_event(view, "quacks:open", %{to: "#decision-rubies"})
   end
 
   test "a seat with no coins to spend skips the shop too; with coins it shops" do
@@ -46,8 +48,9 @@ defmodule QuacksWeb.UiRound6Test do
     assert has_element?(view, "dialog#decision-rubies")
 
     replace_game(id, &H.put(&1, 0, coins: 10))
-    assert has_element?(view, "#players-row[data-on-replay-end*=decision-shop]")
     assert has_element?(view, "dialog#decision-shop #shop")
+    render_hook(view, "reveal_close", %{})
+    assert_push_event(view, "quacks:open", %{to: "#decision-shop"})
   end
 
   test "the crow skull offer: the chips are the buttons; Return all stays text" do

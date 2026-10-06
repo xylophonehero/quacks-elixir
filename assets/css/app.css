@@ -1201,9 +1201,13 @@ html:has([data-layout="full"]) {
    name cards). The server numbers each result line (`--beat`, `QuacksWeb.Replay`):
    the card counters and the pot marks of your own lines (`beat-ring`); both start on the same patch
    (the shop phase begins), so one delay formula keeps them in step. */
+/* `--beat-ms` is the beat step in ms, a plain number: the menu's Speed sets it on
+   <html> (app.js `RevealSettings`: 450, 720 or 1125), and the lead and the die roll
+   follow it. */
 :root {
-  --beat-lead: 300ms;
-  --beat-step: 450ms;
+  --beat-ms: 450;
+  --beat-lead: calc(var(--beat-ms) * 0.6667ms);
+  --beat-step: calc(var(--beat-ms) * 1ms);
 }
 
 /* The bonus die in the result lines: a strip of 7 frames that shows its last
@@ -1249,11 +1253,8 @@ html:has([data-layout="full"]) {
   animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
 }
 
-/* The replay's clock (round 12: the name cards have no update chips). The card
-   with the last beat holds an invisible timer; when its animation ends, a second
-   after the last beat, the replay ends (app.js), so the last line's pot motion (a
-   ruby flight, a VP tag) plays out first. `.replay-done` (Skip, a tap on a card)
-   ends it at once. */
+/* The replay ends when the reveal overlay closes (round 14); `.replay-done` then
+   shows every piece at its end state at once. */
 @keyframes update-in {
   from {
     opacity: 0;
@@ -1261,40 +1262,15 @@ html:has([data-layout="full"]) {
   }
 }
 
-@keyframes replay-hold {
-  to {
-    --replay-hold: 1;
-  }
-}
-
-.replay-timer {
-  position: absolute;
-  width: 0;
-  height: 0;
-  animation: replay-hold 1000ms linear both;
-  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
-}
-
-#players-row.replay-done .replay-timer {
-  animation-delay: 0s !important;
-  animation-duration: 1ms !important;
-}
-
 :root:has(#players-row.replay-done) [data-role="beat-ring"] {
   display: none;
 }
 
 /* The scoring sequence on the pot (`Replay.pot_effects/1`, game_components `pot/1`).
-   Same beats as the card counters, so a piece moves when its counter ticks. After
-   two skips (app.js) the beats run faster. */
+   Same beats as the card counters, so a piece moves when its counter ticks. The die
+   rolls for about 1.5 beats. */
 :root {
-  --die-roll: 700ms;
-}
-
-:root[data-fast-beats] {
-  --beat-lead: 200ms;
-  --beat-step: 250ms;
-  --die-roll: 420ms;
+  --die-roll: calc(var(--beat-ms) * 1.5556ms);
 }
 
 /* The droplet (and the rats after it) slide on the beat of their line, not when
@@ -1524,14 +1500,8 @@ html:has([data-layout="full"]) {
     animation: fade-in 200ms ease 250ms both;
   }
 
-  /* The replay: over at once (a 1 ms timer, so its end still ends the replay
-     and opens the shop), no pot flashes. */
-  .replay-timer {
-    animation: replay-hold 1ms both !important;
-  }
-
+  /* The replay: no pot flashes. */
   [data-role="beat-ring"],
-  [data-role="replay-skip"],
   [data-role="vp-float"],
   [data-role="ruby-flight"] {
     display: none;
@@ -1875,5 +1845,113 @@ html[data-install="ios"] .pwa-ios-hint {
   body {
     background-color: var(--color-wood-dark);
     overscroll-behavior: none;
+  }
+}
+
+/* The reveal overlay (round 14, `RevealComponents.reveal_overlay/1`): a modal
+   sheet with one slide at a time. Its height stays put from slide to slide, so the
+   bar with Next does not jump under the thumb. Each slide is a new node: it slides
+   in once; its chips and rows follow one after the other, on the speed's beat. */
+.sheet.reveal-sheet {
+  min-height: min(34rem, 88dvh);
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet.reveal-sheet:not([open]) {
+  display: none;
+}
+
+.reveal-sheet > [data-role="reveal"] {
+  flex: 1;
+}
+
+@media (width >= 64rem) {
+  .sheet.reveal-sheet {
+    max-width: 34rem;
+    min-height: 32rem;
+  }
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    translate: 1.25rem 0;
+  }
+}
+
+@keyframes reveal-pop {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
+}
+
+@keyframes reveal-rise {
+  from {
+    opacity: 0;
+    translate: 0 0.5rem;
+  }
+}
+
+@keyframes reveal-timer {
+  from {
+    scale: 0 1;
+  }
+}
+
+.reveal-slide {
+  animation: reveal-in 280ms var(--ease-out) both;
+}
+
+.reveal-chip {
+  animation: reveal-pop 320ms var(--ease-spring) both;
+  animation-delay: calc(150ms + var(--i) * var(--beat-ms) * 0.2ms);
+}
+
+.reveal-row {
+  animation: reveal-rise 260ms var(--ease-out) both;
+  animation-delay: calc(100ms + var(--i) * var(--beat-ms) * 0.2ms);
+}
+
+.reveal-after {
+  animation: fade-in 220ms var(--ease-out) both;
+  animation-delay: calc(var(--beat-ms) * 0.8ms);
+}
+
+/* The bonus die, large: it rolls through its strip and lands, then its reward shows. */
+.reveal-die .die {
+  width: 5.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.25);
+  animation: die-land 260ms var(--ease-spring) both;
+  animation-delay: var(--die-roll);
+}
+
+.reveal-die .die-strip {
+  animation: die-roll var(--die-roll) steps(7, jump-none) both;
+}
+
+[data-kind="die"] .reveal-after {
+  animation-delay: calc(var(--die-roll) + 150ms);
+}
+
+.reveal-timer {
+  animation: reveal-timer var(--slide-ms) linear both;
+}
+
+/* Reduced motion: no slide, no pop, no roll; the die shows its face at once. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-slide {
+    animation: fade-in 150ms ease both;
+  }
+
+  .reveal-chip,
+  .reveal-row,
+  .reveal-after,
+  .reveal-die .die,
+  .reveal-die .die-strip,
+  .reveal-timer {
+    animation: none;
   }
 }

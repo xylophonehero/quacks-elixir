@@ -113,22 +113,19 @@ defmodule QuacksWeb.BoardUxTest do
     refute has_element?(view, "[data-role=action-bar]")
   end
 
-  test "the round results: a replay timer on the card and lines in its sheet, from the shop to the round end" do
+  test "the round results: the reveal overlay, then lines in the card's sheet, from the shop to the round end" do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     view = open(browser("solo"), id)
-    refute has_element?(view, "[data-role=replay-timer]")
+    refute has_element?(view, "#reveal-results-1")
     refute has_element?(view, "#round-results")
 
     for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
-    # Round 12: no update chips on the card; the last beat's timer ends the replay.
+    # Round 12: no update chips on the card; round 14: the reveal overlay ends the replay.
     refute has_element?(view, "[data-role=update-chip]")
-
-    assert has_element?(
-             view,
-             "[data-role=player-chip] [data-role=replay-timer][data-replay-last]"
-           )
+    assert has_element?(view, "dialog#reveal-results-1")
+    render_hook(view, "reveal_close", %{})
 
     view |> element(~s([data-role=player-chip][data-seat="0"])) |> render_click()
     assert has_element?(view, "#sheet-player-0 [data-role=round-results]", "Round 1 results")
@@ -137,6 +134,7 @@ defmodule QuacksWeb.BoardUxTest do
 
     # with one ruby there is nothing left to do after the buy: the round ends at once
     view |> element("[data-role=shop-done]") |> render_click()
-    refute has_element?(view, "[data-role=replay-timer]")
+    refute has_element?(view, "#reveal-results-1")
+    refute has_element?(view, "#sheet-player-0 [data-role=round-results]")
   end
 end

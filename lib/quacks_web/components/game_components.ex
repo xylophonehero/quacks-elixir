@@ -1581,12 +1581,12 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   One player in the players row (their name card), a button that opens the
   player's detail sheet (`sheet-player-N`). Row 1: the seat disc with the initial,
-  the name (two lines on phones, never cut short to "Pla…"), the BOT badge and the
+  the name (one line, a long one ends in an ellipsis), the BOT badge and the
   status graphic (`player_state/1`). Row 2: VP, rubies, the flask, the rat tails
   (one icon and a number), essence or test tube, and the patient or the witch
   pennies. Your own card wears your seat colour as a ring. The two rows sit on the
   players row's grid (`grid-rows-subgrid`), so they line up across the cards when
-  a name takes two lines. The round's results show on the state badge and as
+  the counts differ. The round's results show on the state badge and as
   counter ticks on the replay beats (`updates`, `QuacksWeb.Replay.updates/2`).
   """
   attr :game, Game, required: true
@@ -1596,11 +1596,9 @@ defmodule QuacksWeb.GameComponents do
   attr :bot, :boolean, default: false
   attr :updates, :list, default: [], doc: "the round's results, `Replay.updates/2`"
 
-  attr :last, :integer,
-    default: nil,
-    doc: "while the replay runs: its last beat (that chip ends the replay, see app.js)"
-
-  attr :on_tap, JS, default: %JS{}, doc: "JS to run on a tap, before the sheet opens"
+  attr :ticks, :boolean,
+    default: false,
+    doc: "while the replay runs: the counters tick on their beats"
 
   def player_chip(assigns) do
     assigns =
@@ -1614,7 +1612,7 @@ defmodule QuacksWeb.GameComponents do
     <button
       type="button"
       popovertarget={"sheet-player-#{@seat}"}
-      phx-click={JS.push(@on_tap, "open_player", value: %{seat: @seat})}
+      phx-click={JS.push("open_player", value: %{seat: @seat})}
       class={[
         "row-span-2 grid min-h-11 w-full min-w-0 cursor-pointer grid-rows-subgrid rounded-lg px-1 py-1 text-left text-xs touch-manipulation sm:px-2",
         "transition-[scale,background-color] duration-150 ease-out active:scale-[0.97]",
@@ -1644,31 +1642,26 @@ defmodule QuacksWeb.GameComponents do
           <%!-- Beside the disc's lower right, clear of the initial. --%>
           <.player_state game={@game} seat={@seat} class="absolute -right-2.5 -bottom-1.5" />
         </span>
+        <%!-- One line: a long name ends in an ellipsis, the BOT badge stays whole
+             beside it (round 14: "Wilhelmina" wrapped as "Wilhelmin / a"). --%>
         <span
-          class="line-clamp-2 min-w-0 text-xs leading-tight font-semibold wrap-anywhere sm:line-clamp-1 sm:text-[13px]"
+          class="flex min-w-0 items-center gap-1 text-xs leading-tight font-semibold sm:text-[13px]"
           data-role="player-name"
         >
-          {@name}<span :if={@you} class="sr-only"> (you)</span>
+          <span class="min-w-0 truncate" data-role="player-name-text">
+            {@name}<span :if={@you} class="sr-only"> (you)</span>
+          </span>
           <%!-- Phones: the chip icon, so "Septimus BOT" does not wrap. --%>
           <.bot_badge
             :if={@bot}
             compact={:phone}
-            class="bg-parchment/15 align-[1px] text-parchment-dim"
+            class="shrink-0 bg-parchment/15 text-parchment-dim"
           />
         </span>
       </span>
-      <.chip_stats game={@game} p={@p} ticks={@last && card_ticks(@game, @seat, @updates)} />
+      <.chip_stats game={@game} p={@p} ticks={@ticks && card_ticks(@game, @seat, @updates)} />
       <%!-- No update chips (round 12): the state badge and the counters say it. The
-           card with the replay's last beat keeps an invisible timer whose
-           animation ends the replay (app.js, `.replay-timer` in app.css). --%>
-      <span
-        :if={@last && Enum.any?(@updates, &(&1.beat == @last))}
-        class="replay-timer"
-        aria-hidden="true"
-        data-role="replay-timer"
-        data-replay-last
-        style={"--beat: #{@last}"}
-      />
+           reveal overlay ends the replay (round 14). --%>
     </button>
     """
   end
@@ -1792,12 +1785,12 @@ defmodule QuacksWeb.GameComponents do
         data-role="player-pennies"
       >
         <.piece_icon
-          :for={colour <- [:silver, :copper, :gold]}
+          :for={colour <- [:copper, :silver, :gold]}
           name={:penny}
           class={["size-3", penny_text(colour), !@p.pennies[colour] && "opacity-30"]}
         />
         <span class="sr-only">
-          witch pennies left: {Enum.count([:silver, :copper, :gold], &@p.pennies[&1])}
+          witch pennies left: {Enum.count([:copper, :silver, :gold], &@p.pennies[&1])}
         </span>
       </span>
     </span>

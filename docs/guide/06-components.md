@@ -147,10 +147,28 @@ that `then_open` names. A tap on the dimmed backdrop closes a modal sheet
 to the clipboard (line 297). A chip in the fortune card dialog sends its action and
 closes the dialog in one chain:
 `JS.push("action") |> JS.dispatch("quacks:close", to: "#card-round-#{game.round}")`
-(`card_click/1`, `lib/quacks_web/live/game_live.ex:2432-2434`). Three hooks have
+(`card_click/1`, `lib/quacks_web/live/game_live.ex:2432-2434`). Five hooks have
 state: `ConfigMemory` (`assets/js/app.js:43-53`) keeps the host's last settings in
-`localStorage`, `NameMemory` (lines 57-67) keeps your name, and `PotMotion`
-animates the pot (see "Motion" below).
+`localStorage` (round 14: also the herb witch picks), `NameMemory` keeps your name,
+`RevealSettings` keeps the reveal settings, `AppStatus` writes the menu's "App"
+line, and `PotMotion` animates the pot (see "Motion" below).
+
+**The witch pickers (round 14).** With The Herb Witches on, the configure screen's
+books form shows a tile per penny colour (copper, silver, gold). A tap opens a
+popover sheet with "Random" and the colour's four cards as radio cards
+(`witches[colour]`), the same pattern as the book pickers. `parse_witches/1`
+(`lib/quacks_web/components/setup_components.ex:273`) turns the form into
+`%{copper: :c3, silver: nil, gold: nil}`, which goes to `GameServer.configure/3`
+and on to `Game.new(witches: ...)`. The engine deals first and then replaces the
+picked colours (`pick_witches/2`, `lib/quacks/game.ex:399`), so the random stream
+stays the same. The witches sheet in the game has a title row now, so its × no
+longer squeezes the first card.
+
+**The App line (round 14).** The menu ends with
+`App: worker: active · display: browser · install prompt: fired`. `AppStatus`
+reads `navigator.serviceWorker.getRegistration()`, `matchMedia("(display-mode:
+standalone)")` and whether `beforeinstallprompt` fired. On a phone with no Install
+button it shows which of Chrome's rules fails.
 
 ## Layout: one dialog, every screen size
 
@@ -174,9 +192,9 @@ column flow (`assets/css/app.css:565-607`):
 }
 ```
 
-`side={:hidden}` is for the new fortune card: on wide screens the card is already
-on the page (`fortune_panel/1`), so the dialog counts as closed at once and hands
-over to the next one (`lib/quacks_web/live/game_live.ex:1443`). When the window
+`side={:hidden}` counts as closed at once on wide screens and hands over to the next
+dialog. The new fortune card used it until round 14; now a card without a choice
+shows in the reveal overlay, and the card dialog only holds a choice (as a panel). When the window
 crosses 64rem, app.js closes an open panel and opens it again in the other mode
 (`assets/js/app.js:256-259`). In React you would render a `<Sheet>` or a `<Panel>`
 from a `useMediaQuery` hook. Here the server sends one element, and the browser
@@ -576,35 +594,35 @@ into a delay (`assets/css/app.css:981-994`):
 }
 ```
 
-The server decides the *order*; CSS decides the *speed* (`--beat-lead: 300ms` and
-`--beat-step: 450ms`, `assets/css/app.css:929-932`). The cards, the pot, the books
-and the counters use the same formula and arrive in the same patch (the shop phase
-begins), so they stay in step with no code that links them. After two skips this
-browser plays faster: app.js sets `data-fast-beats` on `<html>` and CSS changes the
-two variables (`assets/css/app.css:1034-1038`).
-
-**The end of the replay.** The card with the last beat holds an invisible
-`<span class="replay-timer" data-replay-last>` (round 12; before, the last update
-chip did this). Its only animation, `replay-hold`, starts on the last beat and runs
-1 second, so the replay stays open while that line's ruby flies. app.js listens for
-`animationend` on it (`assets/js/app.js:289-295`) and runs the players
-row's `data-on-replay-end` JS: `replay_end/3` (chapter 5) adds `replay-done` to
-`#players-row`, pushes `"seen"` and opens the shop. "Skip", a tap on a name card, a
-tap on the pot, Space or Esc do the same. One CSS rule per place then shows the end
-state at once, for example (`assets/css/app.css:1018-1021`):
+The server decides the *order*; CSS decides the *speed*. Since round 14 one plain
+number sets it: `--beat-ms` (450 at Normal speed). The lead, the step and the die
+roll follow it (`assets/css/app.css:1208`):
 
 ```css
-#players-row.replay-done .replay-timer {
-  animation-delay: 0s !important;
-  animation-duration: 1ms !important;
+:root {
+  --beat-ms: 450;
+  --beat-lead: calc(var(--beat-ms) * 0.6667ms);
+  --beat-step: calc(var(--beat-ms) * 1ms);
 }
 ```
 
-`replay-done` is a class that JS adds, and JS-added classes stick across patches.
-So a new round must clear it: a hidden `<i id={"replay-start-#{round}"}>` mounts
-once per round with `phx-mounted={JS.remove_class("replay-done", to: "#players-row")}`
-(`lib/quacks_web/live/game_live.ex:955-962`). Before this, every replay after the
-first started as done.
+The menu's Speed setting puts `--beat-ms` (450, 720 or 1125) on `<html>`
+(`RevealSettings` in app.js). The cards, the pot, the books and the counters use
+the same formula and arrive in the same patch (the shop phase begins), so they stay
+in step with no code that links them. `PotMotion` cannot read a `calc()` from a
+custom property (an unregistered property computes to its text), so it reads
+`--beat-ms` and does the sum itself.
+
+**The end of the replay.** Round 14 replaced the invisible `.replay-timer` (and the
+pot's Skip) with the **reveal overlay** (next section): the replay ends when the
+overlay ends. The server then marks the round seen, and its next render adds
+`replay-done` to `#players-row`. One CSS rule per place shows the end state at once,
+for example `:root:has(#players-row.replay-done) [data-role="beat-ring"]`.
+
+`replay-done` must start fresh each round. A hidden `<i id={"replay-start-#{round}"}>`
+mounts once per round with
+`phx-mounted={JS.remove_class("replay-done", to: "#players-row")}`, in case JS added
+the class.
 
 **Optimistic UI versus server beats.** In React you often show the result at once
 and let the server catch up (optimistic UI). Here it is the other way round. The
@@ -615,6 +633,77 @@ Framer Motion you would write `transition={{delay: i * 0.45}}` or
 `staggerChildren`; here `i` comes from the server as `--beat`. Because `Replay` is
 pure, `test/quacks_web/live/replay_test.exs:43-122` and
 `test/quacks_web/live/scoring_test.exs:45-60` test the order without a browser.
+
+### The reveal overlay: one slide at a time (round 14)
+
+The beats above are fast, and on a phone there was nothing to hold on to. The
+overlay shows the round's reveals as *slides*, one at a time, in a modal
+`<dialog>`: a bottom sheet on a phone, centred from 64rem. The beats still play
+under it; they are secondary now.
+
+**Pure slides.** `QuacksWeb.Reveal` (`lib/quacks_web/reveal.ex`) has no state, like
+`Replay`. `moment/1` names what there is to reveal: `{:card, round}` at the round's
+start, `{:results, round}` in the shop phase, `{:final, 9}` at the game's end.
+`slides(game, seat)` (line 76) builds the list from the `Replay` lines and the log,
+with no new engine data: one `:die` slide per seat that rolled, one `:book` slide per
+book and seat with a result (the chips that count, the reward, and for black the
+neighbours' black chips), `:scoring`, `:more` (cards, essence, witches),
+`:summary`; at the end `:final` and `:podium`. `test/quacks_web/reveal_test.exs`
+tests it without a browser.
+
+**Per browser, on the server.** The LiveView keeps
+`reveal: %{key, slides, index, tick}` (`open_reveal/1`,
+`lib/quacks_web/live/game_live.ex:2739`). `put_game/2` calls it after every game
+update: a seat that has not seen the moment (`seen`, see **seen** in
+`docs/CONTEXT.md`) gets the slides from index 0. The list is taken once, so a bot's
+move does not change what the overlay shows; the game itself does not wait. A
+reload mid-reveal starts at the first slide. A spectator gets no overlay.
+
+**Controls.** `reveal_overlay/1`
+(`lib/quacks_web/components/reveal_components.ex:35`) renders the slide and a bar:
+
+| Input | Event | Effect |
+|---|---|---|
+| Next, a tap on the slide | `reveal_next` | next slide; on the last one, the end |
+| Enter, Space (focus not on a button) | `hotkey` | as Next |
+| Skip | `reveal_skip` | the last slide |
+| Esc, × | the dialog's `close` → `reveal_close` | the end |
+
+The end (`close_reveal/1`, line 2796) acks the moment (`GameServer.ack/4`, now
+also `:final`), runs `auto_done/2` and pushes `quacks:open` with the dialog that
+waited: the shop, a decision or `#game-over`. app.js opens it with the usual
+`sideOpen` (`assets/js/app.js:336`). Decision dialogs mount with
+`auto_open={is_nil(@reveal)}`, so nothing opens under the overlay. The overlay is
+the last element of the page, so `remodal` keeps it on top.
+
+A fortune card that asks this seat a choice keeps its own dialog (the card and the
+choice in one); the overlay skips that card and counts it as seen.
+
+**Step and Auto.** In Auto mode `show_slide/2` starts a server timer:
+
+```elixir
+tick = if assigns.reveal_mode == :auto and connected?(socket), do: make_ref()
+
+if tick do
+  ms = reveal.slides |> Enum.at(index) |> Reveal.duration(Reveal.factor(assigns.reveal_speed))
+  Process.send_after(self(), {:reveal_tick, tick}, ms)
+end
+```
+
+`handle_info({:reveal_tick, ref}, ...)` (line 580) only matches the current `tick`,
+so a tick from a slide that Next already left does nothing. This is the LiveView
+form of `clearTimeout`: you cannot cancel the message cheaply, so you make old
+messages harmless. In React you would keep the timer id in a `useRef` and clear it
+in the effect's cleanup.
+
+**The settings.** The menu has two segmented controls (`reveal_settings/1`):
+Reveal (Step or Auto) and Speed (Normal, Slow, Slower = 1×, 1.6×, 2.5×). They
+belong to the browser, not the game, so they live in `localStorage`
+(`quacks:reveal`), like the host's `quacks:config`. The `RevealSettings` hook
+(`assets/js/app.js:79`) sends them on mount with `reduced` (prefers-reduced-motion),
+and saves each change; the form's own `phx-change` tells the server. With reduced
+motion the server forces Step and runs no timer. app.js also sets `--beat-ms` before
+LiveView connects, so a reload plays the beats at the saved speed.
 
 ### `PotMotion`: animate on top of the patch
 

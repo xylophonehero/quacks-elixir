@@ -98,26 +98,27 @@ defmodule QuacksWeb.Layout1Test do
   end
 
   describe "update chips" do
-    test "a tap on a card during the replay marks the round as seen and opens its lines" do
+    test "the reveal overlay's end marks the round as seen; a card tap then opens its lines" do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
       {:ok, view, _html} = live(browser("tap-#{id}"), ~p"/g/#{id}")
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
 
       refute has_element?(view, "dialog#round-results")
-      assert has_element?(view, ~s([data-role=player-chip][phx-click*="seen"]))
+      refute has_element?(view, ~s([data-role=player-chip][phx-click*="seen"]))
 
-      view |> element(~s([data-role=player-chip][data-seat="0"])) |> render_click()
+      render_hook(view, "reveal_close", %{})
       assert {:ok, %{seen: %{0 => %{results: 1}}}} = GameServer.get(id)
       assert has_element?(view, "#players-row.replay-done")
+
+      view |> element(~s([data-role=player-chip][data-seat="0"])) |> render_click()
       assert has_element?(view, "#sheet-player-0 [data-role=round-results]")
-      refute has_element?(view, ~s([data-role=player-chip][phx-click*="seen"]))
     end
 
-    test "app.js ends the replay when the last chip lands" do
+    test "round 14: no timer ends the replay in app.js; the server opens what waited" do
       js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
-      assert js =~ ~s(addEventListener("animationend")
-      assert js =~ "[data-replay-last]"
-      assert js =~ "onReplayEnd"
+      refute js =~ "[data-replay-last]"
+      refute js =~ "onReplayEnd"
+      assert js =~ ~s{window.addEventListener("phx:quacks:open"}
     end
   end
 
@@ -130,8 +131,8 @@ defmodule QuacksWeb.Layout1Test do
       column = "[data-role=side-column]"
       assert has_element?(view, "#{column} > #fortune-panel-1[data-role=fortune-panel].lg\\:flex")
       assert has_element?(view, "#{column} > dialog#decision-shop[data-side=panel]")
-      # no choice on the card: from 64rem its dialog does not open (the panel shows it)
-      assert has_element?(view, "#{column} > dialog#card-round-1[data-side=hidden]")
+      # no choice on the card: no card dialog (round 14: the reveal overlay shows it)
+      refute has_element?(view, "dialog#card-round-1")
       assert has_element?(view, "[data-role=fortune-tile].lg\\:hidden")
     end
 
@@ -143,8 +144,11 @@ defmodule QuacksWeb.Layout1Test do
         g |> H.put(fortune_card: :p1, phase: :fortune_choice) |> Map.put(:phase, :fortune_choice)
       end)
 
-      assert has_element?(view, "dialog#card-round-1[data-side=panel]")
-      assert has_element?(view, "#card-choice-1[phx-mounted*='quacks:modal']")
+      assert has_element?(
+               view,
+               "dialog#card-round-1[data-side=panel][phx-mounted*='quacks:modal']"
+             )
+
       assert has_element?(view, "[data-role=decision-button]", "Back to choice")
     end
 
@@ -164,8 +168,8 @@ defmodule QuacksWeb.Layout1Test do
 
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
       assert has_element?(view, "[data-role=decision-button]", "Back to shop")
-      # during the replay it also ends the replay
-      assert has_element?(view, "[data-role=decision-button][phx-click*=seen]")
+      # round 14: the reveal overlay ends the replay, not this button
+      refute has_element?(view, "[data-role=decision-button][phx-click*=seen]")
     end
 
     test "dialog_sheet: side panel mode and the app.js that opens it" do

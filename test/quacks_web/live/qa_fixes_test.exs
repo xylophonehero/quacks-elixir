@@ -30,15 +30,15 @@ defmodule QuacksWeb.QaFixesTest do
       token = "card-#{System.unique_integer()}"
       view = open(browser(token), id)
 
-      assert auto_open?(view, "#card-round-1")
-      assert has_element?(view, "dialog#card-round-1[data-on-close*='seen']")
+      # round 14: the card shows in the reveal overlay
+      assert auto_open?(view, "#reveal-card-1")
+      assert has_element?(view, "dialog#reveal-card-1[data-on-close*='reveal_close']")
 
-      render_hook(view, "seen", %{"kind" => "card", "round" => 1})
+      view |> element("#reveal-next") |> render_click()
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
 
       reloaded = open(browser(token), id)
-      assert has_element?(reloaded, "dialog#card-round-1")
-      refute auto_open?(reloaded, "#card-round-1")
+      refute has_element?(reloaded, "dialog#reveal-card-1")
     end
 
     test "the replay plays once; after that, a reload opens the shop" do
@@ -48,14 +48,14 @@ defmodule QuacksWeb.QaFixesTest do
       for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
       view |> element("button", "Stop") |> render_click()
 
-      assert has_element?(view, "#players-row[data-on-replay-end]")
+      assert has_element?(view, "dialog#reveal-results-1")
       refute has_element?(view, "#players-row.replay-done")
       refute auto_open?(view, "#decision-shop")
 
       render_hook(view, "seen", %{"kind" => "results", "round" => 1})
 
       reloaded = open(browser(token), id)
-      refute has_element?(reloaded, "#players-row[data-on-replay-end]")
+      refute has_element?(reloaded, "dialog#reveal-results-1")
       assert has_element?(reloaded, "#players-row.replay-done")
       refute has_element?(reloaded, "[data-role=replay-timer]")
       assert auto_open?(reloaded, "#decision-shop")
@@ -80,7 +80,7 @@ defmodule QuacksWeb.QaFixesTest do
       &H.put(&1, 0, phase: :shop, exploded?: true, explosion_choice: :vp, rubies: 2)
     )
 
-    assert has_element?(view, "#players-row[data-on-replay-end*=decision-rubies]")
+    assert has_element?(view, "dialog#reveal-results-1")
     assert has_element?(view, "dialog#decision-rubies")
     refute auto_open?(view, "#decision-rubies")
   end

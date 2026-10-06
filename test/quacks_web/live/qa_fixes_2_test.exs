@@ -24,9 +24,6 @@ defmodule QuacksWeb.QaFixes2Test do
 
   defp token(name), do: "#{name}-#{System.unique_integer()}"
 
-  defp auto_open?(view, dialog),
-    do: has_element?(view, "dialog#{dialog}[phx-mounted*='quacks:modal']")
-
   # Take a seat from a page that closes at once (a browser that lost its cookie
   # afterwards): the seat stays, but no page holds it.
   defp claim_and_leave(id, token) do
@@ -94,11 +91,10 @@ defmodule QuacksWeb.QaFixes2Test do
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 1))
 
       refute has_element?(view, "dialog#decision-rubies")
-      refute has_element?(view, "#players-row[data-on-replay-end*=decision]")
       refute has_element?(view, "[data-role=decision-button]")
-      # the beats still play: the round waits
+      # the reveal overlay shows: the round waits
       assert {:ok, %{game: %Game{round: 1}}} = GameServer.get(id)
-      assert has_element?(view, "[data-role=replay-timer]")
+      assert has_element?(view, "dialog#reveal-results-1")
 
       # QA 3, N4: no bare "Done" after the replay
       render_hook(view, "seen", %{"kind" => "results", "round" => 1})
@@ -180,13 +176,13 @@ defmodule QuacksWeb.QaFixes2Test do
       _player = open(browser(token("solo")), id)
       watcher = open(browser(token("watcher")), id)
 
-      assert has_element?(watcher, "dialog#card-round-1")
-      refute auto_open?(watcher, "#card-round-1")
+      # round 14: no reveal overlay for a spectator
+      refute has_element?(watcher, "[data-role=reveal]")
+      refute has_element?(watcher, "dialog#card-round-1")
 
       replace_game(id, &H.put(&1, 0, phase: :shop))
       assert has_element?(watcher, "#players-row.replay-done")
-      refute has_element?(watcher, "[data-role=replay-timer]")
-      refute has_element?(watcher, "#players-row[data-on-replay-end]")
+      refute has_element?(watcher, "[data-role=reveal]")
     end
   end
 

@@ -93,8 +93,8 @@ defmodule Quacks.GameServer do
   human seats with no open page now; `rejoinable` those away for
   `rejoin_after_ms/0` (see `rejoin/4`). `colours` is each claimed seat's colour, `0..7` (the `--color-seat-N` palette),
   unique at the table. `bots` is the profile of each seat a bot holds. `seen` is,
-  per seat, the round of the fortune card (`card`) and of the round results
-  (`results`) that seat closed last (`ack/4`), so a reload does not show them again.
+  per seat, the round of the fortune card (`card`), of the round results
+  (`results`) and of the final scoring (`final`) that seat closed last (`ack/4`), so a reload does not show them again.
   """
   @type table :: %{
           id: id,
@@ -106,13 +106,14 @@ defmodule Quacks.GameServer do
           names: %{Game.seat() => String.t()},
           colours: %{Game.seat() => colour},
           bots: %{Game.seat() => Profile.name()},
-          seen: %{Game.seat() => %{optional(:card | :results) => 1..9}},
+          seen: %{Game.seat() => %{optional(:card | :results | :final) => 1..9}},
           creator: Game.seat() | nil,
           founder: Game.seat() | nil,
           absent: [Game.seat()],
           rejoinable: [Game.seat()],
           sets: Quacks.Rules.Chips.sets(),
           rules: map,
+          witches: %{optional(atom) => atom | nil},
           expansion: nil | :herb_witches,
           expansions: MapSet.t(Game.expansion()),
           debug: nil | %{at: non_neg_integer, total: non_neg_integer, frozen: boolean}
@@ -197,7 +198,8 @@ defmodule Quacks.GameServer do
         opts: [
           sets: session.sets,
           rules: session.rules,
-          expansions: Enum.to_list(session.expansions)
+          expansions: Enum.to_list(session.expansions),
+          witches: session.witches
         ],
         tokens: if(token && opts[:seat] in seats, do: %{token => opts[:seat]}, else: %{}),
         names: Map.new(seats, &{&1, Enum.at(names, &1) || default_name(&1)}),
@@ -305,7 +307,8 @@ defmodule Quacks.GameServer do
 
   @doc """
   The host (creator) sets the game up while it is `:waiting`: any of `players:`
-  (1..8; not fewer than the seats taken), `sets:`, `rules:`
+  (1..8; not fewer than the seats taken), `sets:`, `rules:`, `witches:` (the herb
+  witch picks, `%{copper: :c3, silver: nil, gold: nil}`; nil: dealt),
   `expansion:` and `expansions:` (a list of `:herb_witches`, `:alchemists`; keys left
   out keep their value). Bad values are refused as
   `Quacks.Game.new/1` would refuse them. Waiting pages hear `{:names, id, names}` and
@@ -354,12 +357,14 @@ defmodule Quacks.GameServer do
   def set_colour(id, seat, colour), do: call(id, {:set_colour, seat, colour})
 
   @doc """
-  `seat` closed the fortune card (`:card`) or the round results (`:results`) of
-  `round`. The table keeps it (`seen`), so a reload does not open them again.
+  `seat` closed the fortune card (`:card`), the round results (`:results`) or the
+  final scoring (`:final`, round 9) of `round` (the reveal overlay). The table
+  keeps it (`seen`), so a reload does not open them again.
   """
-  @spec ack(id, Game.seat(), :card | :results, 1..9) :: :ok | {:error, :not_found}
-  def ack(id, seat, kind, round) when kind in [:card, :results] and is_integer(round),
-    do: call(id, {:ack, seat, kind, round})
+  @spec ack(id, Game.seat(), :card | :results | :final, 1..9) :: :ok | {:error, :not_found}
+  def ack(id, seat, kind, round)
+      when kind in [:card, :results, :final] and is_integer(round),
+      do: call(id, {:ack, seat, kind, round})
 
   @doc "Games on this node that are still `:waiting` with a free seat, sorted by id."
   @spec open_games() :: [table]
@@ -642,7 +647,7 @@ defmodule Quacks.GameServer do
     opts =
       Keyword.merge(
         state.opts,
-        Keyword.new(Map.take(config, [:sets, :rules, :expansion, :expansions]))
+        Keyword.new(Map.take(config, [:sets, :rules, :expansion, :expansions, :witches]))
       )
 
     cond do
@@ -1093,6 +1098,7 @@ defmodule Quacks.GameServer do
       rejoinable: rejoinable(state) |> Enum.sort(),
       sets: state.opts[:sets],
       rules: state.opts[:rules],
+      witches: state.opts[:witches] || %{},
       expansion: state.opts[:expansion],
       expansions:
         MapSet.new(

@@ -324,7 +324,8 @@ defmodule Quacks.Game do
   `rules: %{fortune: false}`. `expansions:` is a list (or `MapSet`) of
   `:herb_witches` and `:alchemists`; `expansion: :herb_witches` is the old alias (both
   may be given). The Herb Witches: the expansion chips in the supply (the books stay
-  as `sets:` says), 3 witches (`witches`, dealt from the seed) and 3 witch pennies per
+  as `sets:` says), 3 witches (`witches`, dealt from the seed; `witches:` picks one per colour,
+  e.g. `%{copper: :c3, silver: nil}`, nil or left out: dealt) and 3 witch pennies per
   player. The Alchemists: locoweed book III may be picked, 3 patients are dealt
   (`patients`) and the game starts in `:patient_choice` (round 1's card comes after).
   An unknown colour, set, rule or expansion raises `ArgumentError`.
@@ -336,7 +337,8 @@ defmodule Quacks.Game do
           rules: map,
           fortune: boolean,
           expansion: nil | :herb_witches,
-          expansions: Enumerable.t(expansion)
+          expansions: Enumerable.t(expansion),
+          witches: %{optional(WitchCards.colour()) => WitchCards.id() | nil} | nil
         ) :: t
   def new(opts) do
     seed = Keyword.fetch!(opts, :seed)
@@ -381,7 +383,7 @@ defmodule Quacks.Game do
       rules: rules,
       expansion: if(herb?, do: :herb_witches),
       expansions: expansions,
-      witches: if(herb?, do: WitchCards.deal(rng))
+      witches: if(herb?, do: rng |> WitchCards.deal() |> pick_witches(opts[:witches]))
     }
 
     game =
@@ -391,6 +393,28 @@ defmodule Quacks.Game do
 
     if MapSet.member?(expansions, :alchemists), do: Essence.setup(game), else: start_round(game)
   end
+
+  # The host's picks replace the dealt witch of their colour (nil: dealt). The deal
+  # itself runs first either way, so the game's random stream does not change.
+  defp pick_witches(dealt, nil), do: dealt
+
+  defp pick_witches(dealt, picks) when is_map(picks) do
+    Enum.reduce(picks, dealt, fn
+      {_colour, nil}, witches ->
+        witches
+
+      {colour, id}, witches when is_map_key(witches, colour) ->
+        if id in WitchCards.ids(colour),
+          do: Map.put(witches, colour, id),
+          else: raise(ArgumentError, "no #{colour} witch #{inspect(id)}")
+
+      {colour, _id}, _witches ->
+        raise ArgumentError, "unknown witch colour #{inspect(colour)}"
+    end)
+  end
+
+  defp pick_witches(_dealt, picks),
+    do: raise(ArgumentError, "witches must be a map, got #{inspect(picks)}")
 
   defp expansions!(opts) do
     list =

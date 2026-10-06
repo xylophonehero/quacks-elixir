@@ -28,6 +28,11 @@ defmodule QuacksWeb.SetupComponents do
   alias Phoenix.LiveView.JS
   alias Quacks.Game
   alias Quacks.Rules.Chips
+  alias Quacks.Rules.Witches
+
+  # The herb witch pickers, in the rulebook's penny order, and each colour's band.
+  @witch_colours [:copper, :silver, :gold]
+  @penny_bg %{copper: "bg-penny-copper", silver: "bg-penny-silver", gold: "bg-penny-gold"}
 
   # Orange (Set 2 = the orange 6-chip), black (II–III are The Herb Witches' books) and
   # locoweed (nil = not used; I–II are The Herb Witches' books, III–VI The Alchemists'
@@ -70,6 +75,11 @@ defmodule QuacksWeb.SetupComponents do
     doc: "the house rule; its checkbox belongs to `#options`"
 
   attr :players, :integer, default: nil, doc: "the table size, see `book_tiers/1`"
+
+  attr :witches, :map,
+    default: %{},
+    doc: "the herb witch picks, `%{copper: :c3}`; a colour left out or nil is dealt"
+
   attr :disabled, :boolean, default: false
 
   def books_form(assigns) do
@@ -106,6 +116,25 @@ defmodule QuacksWeb.SetupComponents do
             small
           />
         </div>
+        <%!-- The Herb Witches: one picker per penny colour, "Random" or a card. --%>
+        <div :if={@expansion} class="space-y-2" data-role="witch-pickers">
+          <h3 class="pt-1 font-bold">Herb witches</h3>
+          <div class="grid grid-cols-3 gap-2">
+            <%= for colour <- witch_colours() do %>
+              <.witch_tile :if={@disabled} colour={colour} id={@witches[colour]} />
+              <button
+                :if={!@disabled}
+                type="button"
+                popovertarget={"witch-picker-#{colour}"}
+                aria-label={"#{colour} witch: change"}
+                class="block cursor-pointer rounded-lg text-left transition-[translate,scale] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
+              >
+                <.witch_tile colour={colour} id={@witches[colour]} />
+              </button>
+              <.witch_picker :if={!@disabled} colour={colour} chosen={@witches[colour]} />
+            <% end %>
+          </div>
+        </div>
         <h3 class="pt-1 font-bold">Ingredient books</h3>
         <p :if={!@disabled} class="text-sm text-ink-soft">Tap a book to pick another.</p>
         <div class={[
@@ -141,6 +170,113 @@ defmodule QuacksWeb.SetupComponents do
       </fieldset>
     </form>
     """
+  end
+
+  # A small witch tile: the penny colour band, then the picked card's title or
+  # "Random".
+  attr :colour, :atom, required: true
+  attr :id, :atom, default: nil
+
+  defp witch_tile(assigns) do
+    ~H"""
+    <span
+      class="paper block h-full overflow-hidden rounded-lg text-ink"
+      data-role="witch-tile"
+      data-colour={@colour}
+      data-witch={@id || "random"}
+    >
+      <span class={[
+        "flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase",
+        penny_bg(@colour)
+      ]}>
+        <.piece_icon name={:penny} class="size-3.5 shrink-0" /> {@colour}
+      </span>
+      <span class="block px-2 py-1.5 text-sm leading-tight font-bold">
+        {if @id, do: Witches.card(@id).title, else: "Random"}
+      </span>
+    </span>
+    """
+  end
+
+  # The picker sheet of one penny colour: "Random" (dealt from the seed) or one of
+  # its 4 witch cards, as radio cards `witches[colour]`; a tap picks and closes.
+  attr :colour, :atom, required: true
+  attr :chosen, :atom, default: nil
+
+  defp witch_picker(assigns) do
+    assigns =
+      assign(assigns,
+        options: [nil | Witches.ids(assigns.colour)]
+      )
+
+    ~H"""
+    <.sheet id={"witch-picker-#{@colour}"} label={"#{@colour} witch"}>
+      <h2 class="flex items-center gap-2 font-hand text-2xl font-bold text-ink capitalize">
+        <.piece_icon name={:witch} class="size-7 shrink-0" /> {@colour} witch
+      </h2>
+      <p class="text-sm text-ink-soft">Tap a witch to use her, or Random.</p>
+      <div class="mt-3 grid gap-2" role="radiogroup" aria-label={"#{@colour} witch"}>
+        <label
+          :for={id <- @options}
+          class="book-card group grid cursor-pointer gap-1 rounded-[14px] bg-parchment-light p-3 text-ink has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet"
+          data-role="witch-option"
+          data-witch={id || "random"}
+        >
+          <input
+            type="radio"
+            name={"witches[#{@colour}]"}
+            value={id || ""}
+            checked={id == @chosen}
+            class="sr-only"
+            phx-click={JS.dispatch("quacks:close", to: "#witch-picker-#{@colour}")}
+          />
+          <span class="flex min-w-0 items-center gap-2">
+            <span class="min-w-0 flex-1 font-hand text-lg font-bold">
+              {if id, do: Witches.card(id).title, else: "Random"}
+            </span>
+            <span class="book-check" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#3a2508"
+                stroke-width="3.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M5 12.5l4.5 4.5L19 7.5" />
+              </svg>
+            </span>
+          </span>
+          <span class="text-sm leading-snug text-pretty text-ink-soft">
+            {if id, do: Witches.card(id).text, else: "One of the four, dealt when the game starts."}
+          </span>
+        </label>
+      </div>
+    </.sheet>
+    """
+  end
+
+  defp penny_bg(colour), do: @penny_bg[colour]
+
+  @doc "The herb witch colours of the pickers, in the rulebook's penny order."
+  @spec witch_colours() :: [Witches.colour()]
+  def witch_colours, do: @witch_colours
+
+  @doc """
+  The herb witch picks of the books form (`witches[colour]`, a witch id or "" for
+  Random) as `Quacks.Game.new/1`'s `witches:` option. An unknown id is Random.
+
+      iex> QuacksWeb.SetupComponents.parse_witches(%{"copper" => "c3", "silver" => "", "gold" => "x"})
+      %{copper: :c3, silver: nil, gold: nil}
+  """
+  @spec parse_witches(map | nil) :: %{Witches.colour() => Witches.id() | nil}
+  def parse_witches(params) do
+    params = if is_map(params), do: params, else: %{}
+
+    Map.new(@witch_colours, fn colour ->
+      ids = Witches.ids(colour)
+      {colour, Enum.find(ids, &(Atom.to_string(&1) == params[Atom.to_string(colour)]))}
+    end)
   end
 
   # An on/off card: a switch (a real checkbox, `.switch` in app.css) with an icon, a
