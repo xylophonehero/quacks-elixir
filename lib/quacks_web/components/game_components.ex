@@ -879,13 +879,14 @@ defmodule QuacksWeb.GameComponents do
 
   @doc "A small dot in the seat's colour, before a player's name."
   attr :seat, :integer, required: true
+  attr :class, :any, default: nil
 
   def seat_dot(assigns) do
     assigns = assign(assigns, bg: @seat_bg[assigns.seat])
 
     ~H"""
     <span
-      class={["inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30", @bg]}
+      class={["inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30", @bg, @class]}
       data-role="seat-dot"
       data-seat={@seat}
     />
@@ -2969,6 +2970,18 @@ defmodule QuacksWeb.GameComponents do
         </g>
       </svg>
     </span>
+    """
+  end
+
+  @doc "One bonus die face, still (round 18: the results table's die column)."
+  attr :face, :any, required: true
+  attr :class, :any, default: "size-5"
+
+  def die_face(assigns) do
+    ~H"""
+    <svg class={@class} viewBox="0 0 48 48" data-role="die-face" data-face={die_key(@face)}>
+      <.die_art face={@face} />
+    </svg>
     """
   end
 

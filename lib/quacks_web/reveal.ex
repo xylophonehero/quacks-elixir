@@ -9,8 +9,9 @@ defmodule QuacksWeb.Reveal do
   - `{:card, round}`: a new fortune teller card (the round's start): one slide;
   - `{:results, round}`: the evaluation (the shop phase began): every seat's bonus
     die, one slide per book and seat with a result, then one results slide (round
-    16: the scoring space, the update chips and the other results of every seat, in
-    VP order);
+    18: a compact table, one row per seat in VP order: the space, coins, VP, ruby,
+    die and pot chips; the other results in a closed "Details") and one standings
+    slide (the totals; the rows glide from the old order to the new one);
   - `{:final, 9}`: the game is over: the final coins, rubies and pennies, then the
     podium.
 
@@ -38,6 +39,7 @@ defmodule QuacksWeb.Reveal do
     die: 2600,
     book: 2600,
     results: 5000,
+    standings: 3500,
     final: 3500,
     podium: 5000
   }
@@ -120,7 +122,7 @@ defmodule QuacksWeb.Reveal do
         book_slide(game, s, book, mine)
       end
 
-    dice ++ books ++ [results_slide(game, lines, round)]
+    dice ++ books ++ [results_slide(game, lines, round), standings_slide(game, round)]
   end
 
   defp book_slide(game, seat, book, lines) do
@@ -144,9 +146,19 @@ defmodule QuacksWeb.Reveal do
   end
 
   # The black, green and purple chips in `seat`'s pot this round.
-  defp pot_counts(game, seat) do
+  defp pot_counts(game, seat), do: pot_counts(game, seat, @books)
+
+  defp pot_counts(game, seat, colours) do
     chips = Game.pot_chips(game, seat)
-    for colour <- @books, do: {colour, Enum.count(chips, &match?({^colour, _}, &1))}
+    for colour <- colours, do: {colour, Enum.count(chips, &match?({^colour, _}, &1))}
+  end
+
+  # The results table's chip columns: green, black, purple, and locoweed when it can
+  # be in a bag (The Alchemists, or a locoweed book).
+  defp table_colours(game) do
+    if Game.expansion?(game, :alchemists) or game.sets[:locoweed] != nil,
+      do: [:green, :black, :purple, :locoweed],
+      else: [:green, :black, :purple]
   end
 
   # Black book I compares the black chips with `Evaluation.targets/2` (both
@@ -170,12 +182,15 @@ defmodule QuacksWeb.Reveal do
   defp blacks(game, seat),
     do: Enum.count(Game.player(game, seat).drawn, &match?({{:black, _}, _}, &1))
 
-  # The round's results in one slide (round 16), one row per seat in VP order: where
-  # its pot ended, the coins, the VP and ruby of the space (an exploded seat took the
-  # VP or the coins), the update chips, the chips in its pot, and the other results
-  # (cards, essence, witches, ...) as small lines. `gains` is what this slide adds
-  # to the running results: the space and the other results.
+  # The round's results in one slide (round 16, a table since round 18), one row per
+  # seat in VP order: where its pot ended, the coins, the VP and ruby of the space
+  # (an exploded seat took the VP or the coins), the bonus die faces, the update
+  # chips, the chips in its pot, and the other results (cards, essence, witches,
+  # ...) as lines for the "Details". `gains` is what this slide adds to the running
+  # results: the space and the other results.
   defp results_slide(game, lines, round) do
+    colours = table_colours(game)
+
     rows =
       for s <- standings_of(now(game)) do
         p = Game.player(game, s)
@@ -192,7 +207,8 @@ defmodule QuacksWeb.Reveal do
           exploded: p.exploded?,
           choice: p.explosion_choice,
           updates: Replay.updates(game, s),
-          pot: pot_counts(game, s),
+          die: for(line <- lines[s], line.kind == :die, do: line.face),
+          pot: pot_counts(game, s, colours),
           total: p.vp,
           extra: for(line <- extra, do: Map.take(line, [:kind, :text, :vp, :rubies])),
           gain: {sum(space ++ extra, :vp), sum(space ++ extra, :rubies)}
@@ -202,11 +218,41 @@ defmodule QuacksWeb.Reveal do
     %{
       kind: :results,
       round: round,
-      last: round == 9,
       rows: rows,
       gains: Map.new(rows, &{&1.seat, &1.gain})
     }
   end
+
+  # The standings after the round (round 18): every seat's total VP and rubies, before
+  # and after the round's results, with its rank before (`from_rank`) and after
+  # (`rank`, 0 is first). The rows stay in seat order: the overlay moves each row to
+  # its rank with CSS, from the old rank to the new one.
+  defp standings_slide(game, round) do
+    before = before_results(game)
+    totals = now(game)
+    from_ranks = ranks(before)
+    to_ranks = ranks(totals)
+
+    rows =
+      for s <- game.seats do
+        {from_vp, from_rubies} = before[s]
+        {vp, rubies} = totals[s]
+
+        %{
+          seat: s,
+          from_rank: from_ranks[s],
+          rank: to_ranks[s],
+          from_vp: from_vp,
+          vp: vp,
+          from_rubies: from_rubies,
+          rubies: rubies
+        }
+      end
+
+    %{kind: :standings, round: round, last: round == 9, rows: rows}
+  end
+
+  defp ranks(totals), do: totals |> standings_of() |> Enum.with_index() |> Map.new()
 
   defp sum(lines, key), do: lines |> Enum.map(&Map.fetch!(&1, key)) |> Enum.sum()
 
