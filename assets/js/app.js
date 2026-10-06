@@ -233,6 +233,7 @@ const liveSocket = new LiveSocket("/live", Socket, {
       vt.finished.catch(() => {})
       queue(vt.updateCallbackDone.catch(once))
     },
+    onPatchEnd: () => remodal(),
   },
 })
 
@@ -264,6 +265,16 @@ const closed = d => {
   next && sideOpen(next)
 }
 const moving = new WeakSet()
+// A patch that adds or removes an element before an open <dialog> moves the dialog
+// (morphdom's insertBefore). The move takes a modal dialog out of the top layer but
+// keeps `open`: it is then a plain fixed box under the action bar, which takes the
+// taps on its lower part (round 13). Open the modals again, in page order, so the
+// last one (the new card) stays on top.
+function remodal() {
+  const modals = [...document.querySelectorAll("dialog[open]")].filter(d => !(wide.matches && d.dataset.side))
+  if (modals.every(d => d.matches(":modal"))) return
+  modals.forEach(d => { moving.add(d); d.close(); d.showModal() })
+}
 window.addEventListener("quacks:modal", e => sideOpen(e.target))
 document.addEventListener("close", e => moving.delete(e.target) || closed(e.target), true)
 // Crossing 64rem moves an open side dialog between panel and sheet.
