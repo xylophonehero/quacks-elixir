@@ -2378,16 +2378,26 @@ defmodule QuacksWeb.GameComponents do
   defp rule_label({:supply, :limited}), do: "limited chip supply"
   defp rule_label({:pot_side, :back}), do: "reverse pot side (test tubes)"
 
-  @doc "Red Set 2 chips waiting beside the pot (not in the bag)."
+  @doc """
+  Red Set 2 chips waiting beside the pot (not in the bag): a small pill of chips
+  for the pot's top right corner (round 22). The chips overlap a little, so four
+  still fit the corner; the label is for screen readers only.
+  """
   attr :chips, :list, required: true, doc: "the player's `aside` chips"
+  attr :class, :any, default: nil
 
   def aside(assigns) do
     ~H"""
     <div
-      class="paper flex flex-wrap items-center gap-2 rounded-md border-l-4 border-ruby p-2 text-sm"
-      aria-label="Beside the pot"
+      class={[
+        "paper flex items-center -space-x-1.5 rounded-full p-1 shadow-md ring-2 ring-ruby/70",
+        @class
+      ]}
+      role="group"
+      aria-label={"Beside the pot: #{Enum.map_join(@chips, ", ", fn {c, v} -> "#{c} #{v}" end)}"}
+      title="Toadstool chips beside the pot"
+      data-role="beside-pot"
     >
-      <span class="font-semibold">Beside the pot:</span>
       <.chip :for={chip <- @chips} chip={chip} size={:sm} data-role="aside-chip" />
     </div>
     """

@@ -1235,17 +1235,20 @@ defmodule QuacksWeb.GameLive do
               >
                 Stir! Everyone draws together.
               </p>
-              <%!-- Red Set 2 chips and the overflow bowl hang over the pot's lower rim. --%>
+              <%!-- Round 22: the kept Toadstool chips (red Set 2) wait in the top
+                   right corner, a small pill outside the round rim. --%>
+              <.aside
+                :if={@me && @me.aside != []}
+                chips={@me.aside}
+                class="absolute top-0 right-0"
+              />
+              <%!-- The overflow bowl hangs over the pot's lower rim. --%>
               <div
-                :if={(@me && @me.aside != []) || @game.players[@seat || 0].bowl != []}
+                :if={@game.players[@seat || 0].bowl != []}
                 class="absolute inset-x-12 bottom-0 flex items-end justify-center gap-2"
-                data-role="beside-pot"
+                data-role="bowl-strip"
               >
-                <.aside :if={@me && @me.aside != []} chips={@me.aside} />
-                <.bowl
-                  :if={@game.players[@seat || 0].bowl != []}
-                  chips={@game.players[@seat || 0].bowl}
-                />
+                <.bowl chips={@game.players[@seat || 0].bowl} />
               </div>
               <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
             </div>
