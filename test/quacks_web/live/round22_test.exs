@@ -11,6 +11,7 @@ defmodule QuacksWeb.Round22Test do
 
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
+  alias Quacks.Rules.Fortune
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -67,7 +68,7 @@ defmodule QuacksWeb.Round22Test do
     test "the round's card sits in the pot's top left corner with its icon and name" do
       {id, view} = solo(%{})
       {:ok, %{game: game}} = GameServer.get(id)
-      card = Quacks.Rules.Fortune.card(game.fortune_card)
+      card = Fortune.card(game.fortune_card)
 
       tile = "[data-role=pot-area] > [data-role=pot-corner] > #corner-card"
       assert has_element?(view, ~s(#{tile}[popovertarget="sheet-fortune"]), card.name)
@@ -139,7 +140,7 @@ defmodule QuacksWeb.Round22Test do
     test "the card hovers over the pot; the overlay is a bottom sheet with Continue" do
       {id, view} = solo(%{})
       {:ok, %{game: game}} = GameServer.get(id)
-      name = Quacks.Rules.Fortune.card(game.fortune_card).name
+      name = Fortune.card(game.fortune_card).name
 
       assert has_element?(view, "dialog#reveal-card-1.reveal-card-sheet")
 
