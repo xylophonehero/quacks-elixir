@@ -35,7 +35,9 @@ defmodule Quacks.Game do
   choice: `{:droplet, :pot}` (the pot droplet) or `{:droplet, :tube}` (one glass on the
   test-tube track, its bonus at once, `Quacks.Rules.TestTubes`), one action per move.
   While a seat has moves waiting, those two are its only actions (`phase/2` is
-  `:droplet_choice`), in any game phase. The shop adds `{:rubies, :tube}`.
+  `:droplet_choice`), in any game phase but the evaluation's choices (`:chip_choice`,
+  `:witch_choice`): there the moves wait for the shop, so the evaluation ends and is
+  logged first (round 18). The shop adds `{:rubies, :tube}`.
 
   The Alchemists (`expansions: [:alchemists]`, `docs/research/alchemists-essences.md`,
   `Quacks.Game.Essence`): 3 patients are dealt at `new/1` (`patients`) and every seat
@@ -69,6 +71,10 @@ defmodule Quacks.Game do
   alias Quacks.Rules.Witches, as: WitchCards
 
   @rounds 9
+
+  # Reverse pot side (round 18): in the evaluation's choice phases a seat's droplet
+  # moves wait; they come in the shop, after the round's results are logged.
+  @droplets_wait [:chip_choice, :witch_choice]
   # Rulebook §4: yellow enters the shop in round 2, purple in round 3.
   @from_round %{yellow: 2, purple: 3}
   # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
@@ -485,7 +491,7 @@ defmodule Quacks.Game do
   def phase(%__MODULE__{phase: phase, players: players}, seat)
       when phase != :over and is_map_key(players, seat) do
     case players[seat] do
-      %Player{droplet_moves: n} when n > 0 -> :droplet_choice
+      %Player{droplet_moves: n} when n > 0 and phase not in @droplets_wait -> :droplet_choice
       p when phase in [:potions, :essence, :shopping] -> p.phase
       _p -> phase
     end
@@ -526,11 +532,15 @@ defmodule Quacks.Game do
   def legal_actions(%__MODULE__{players: players}, seat) when not is_map_key(players, seat),
     do: []
 
-  # Reverse pot side: a waiting droplet move comes first, in any phase.
+  # Reverse pot side: a waiting droplet move comes first, in any phase but the
+  # evaluation's choices (round 18: they wait for the shop, after the reveal).
   def legal_actions(%__MODULE__{phase: phase, players: players} = g, seat) when phase != :over do
     case players[seat] do
-      %Player{droplet_moves: n} when n > 0 -> [{:droplet, :pot}, {:droplet, :tube}]
-      _p -> phase_actions(g, seat)
+      %Player{droplet_moves: n} when n > 0 and phase not in @droplets_wait ->
+        [{:droplet, :pot}, {:droplet, :tube}]
+
+      _p ->
+        phase_actions(g, seat)
     end
   end
 
