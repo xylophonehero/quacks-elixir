@@ -2232,18 +2232,18 @@ defmodule QuacksWeb.GameLive do
           phx-value-action={encode({:buy, []})}
           variant={if @buying?, do: :secondary, else: :primary}
           autofocus={!@buying?}
-          class={["min-w-0 flex-1", @buying? && "px-3"]}
+          class={["min-w-0", if(@buying?, do: "flex-none px-3", else: "flex-1")]}
           data-role="shop-done"
         >
           Done
-          <.kbd :if={!@buying?} show={shop_kbd()}>Enter</.kbd>
+          <.kbd :if={!@buying?}>Enter</.kbd>
         </.button>
         <.button
           :if={@buying?}
           phx-click="action"
           phx-value-action={encode({:buy, @selected})}
           variant={:primary}
-          class="min-w-0 flex-[2] px-3 whitespace-nowrap"
+          class="min-w-0 flex-1 px-3 whitespace-nowrap"
           disabled={@selected == [] or {:buy, @selected} not in @actions}
           data-role="shop-buy"
         >
@@ -2298,7 +2298,8 @@ defmodule QuacksWeb.GameLive do
     |> Enum.join(" · ")
   end
 
-  # The shop bar's Enter hint: from 64rem, and only when the bar is 24rem wide.
+  # The Buy button's Enter hint: from 64rem, and only when the shop bar is 24rem
+  # wide (Done alone always has the room).
   defp shop_kbd, do: "hidden lg:@min-[24rem]/shop-bar:inline-block"
 
   defp buy_label([], _total), do: "Buy"
