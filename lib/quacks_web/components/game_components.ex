@@ -1581,12 +1581,12 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   One player in the players row (their name card), a button that opens the
   player's detail sheet (`sheet-player-N`). Row 1: the seat disc with the initial,
-  the name (two lines on phones, never cut short to "Pla…"), the BOT badge and the
+  the name (one line, a long one ends in an ellipsis), the BOT badge and the
   status graphic (`player_state/1`). Row 2: VP, rubies, the flask, the rat tails
   (one icon and a number), essence or test tube, and the patient or the witch
   pennies. Your own card wears your seat colour as a ring. The two rows sit on the
   players row's grid (`grid-rows-subgrid`), so they line up across the cards when
-  a name takes two lines. The round's results show on the state badge and as
+  the counts differ. The round's results show on the state badge and as
   counter ticks on the replay beats (`updates`, `QuacksWeb.Replay.updates/2`).
   """
   attr :game, Game, required: true
@@ -1644,16 +1644,20 @@ defmodule QuacksWeb.GameComponents do
           <%!-- Beside the disc's lower right, clear of the initial. --%>
           <.player_state game={@game} seat={@seat} class="absolute -right-2.5 -bottom-1.5" />
         </span>
+        <%!-- One line: a long name ends in an ellipsis, the BOT badge stays whole
+             beside it (round 14: "Wilhelmina" wrapped as "Wilhelmin / a"). --%>
         <span
-          class="line-clamp-2 min-w-0 text-xs leading-tight font-semibold wrap-anywhere sm:line-clamp-1 sm:text-[13px]"
+          class="flex min-w-0 items-center gap-1 text-xs leading-tight font-semibold sm:text-[13px]"
           data-role="player-name"
         >
-          {@name}<span :if={@you} class="sr-only"> (you)</span>
+          <span class="min-w-0 truncate" data-role="player-name-text">
+            {@name}<span :if={@you} class="sr-only"> (you)</span>
+          </span>
           <%!-- Phones: the chip icon, so "Septimus BOT" does not wrap. --%>
           <.bot_badge
             :if={@bot}
             compact={:phone}
-            class="bg-parchment/15 align-[1px] text-parchment-dim"
+            class="shrink-0 bg-parchment/15 text-parchment-dim"
           />
         </span>
       </span>

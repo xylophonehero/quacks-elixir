@@ -66,6 +66,28 @@ const NameMemory = {
   }
 }
 
+// The menu's "App" line (round 14): which install rule fails on a phone that shows
+// no Install button. The worker, the display mode and whether Chrome fired
+// `beforeinstallprompt` on this page (`installFired`, set below).
+let installFired = false
+const AppStatus = {
+  mounted() {
+    this.show = () => this.render()
+    this.show()
+    window.addEventListener("quacks:install", this.show)
+    navigator.serviceWorker?.addEventListener("controllerchange", this.show)
+    document.getElementById("sheet-menu")?.addEventListener("toggle", this.show)
+  },
+  destroyed() { window.removeEventListener("quacks:install", this.show) },
+  async render() {
+    const reg = await navigator.serviceWorker?.getRegistration().catch(() => null)
+    const worker = reg?.active ? "active" : (reg?.installing || reg?.waiting) ? "installing" : "none"
+    const display = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true ? "standalone" : "browser"
+    const prompt = installFired || document.documentElement.dataset.install === "ready" ? "fired" : "not fired"
+    this.el.textContent = `App: worker: ${worker} · display: ${display} · install prompt: ${prompt}`
+  },
+}
+
 // The large pot's motion (docs/research/animations.md §3 B3, round 10). Every patch
 // already shows the final pot; this only plays WAAPI `transform`/`opacity` on top, so
 // it never holds up a tap. A new chip drops in on its own space (from 1.3× and a
@@ -204,7 +226,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ConfigMemory, NameMemory, PotMotion},
+  hooks: {...colocatedHooks, AppStatus, ConfigMemory, NameMemory, PotMotion},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
   // is in a field, on a control that Space/Enter already press, or whether a modal
   // dialog is open. The server decides from that; no key logic here.
@@ -330,10 +352,14 @@ liveSocket.connect()
 // can be installed: keep the event and show the lobby's `data-role=install` button.
 // iOS Safari has no prompt: outside the installed app, show the Share-menu hint.
 // The state is a data attribute on <html>, so LiveView patches do not reset it.
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {})
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js")
+  .then(() => window.dispatchEvent(new Event("quacks:install"))).catch(() => {})
 let installPrompt = null
 const installState = value => value ? document.documentElement.dataset.install = value : delete document.documentElement.dataset.install
-window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; installState("ready") })
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault(); installPrompt = e; installFired = true; installState("ready")
+  window.dispatchEvent(new Event("quacks:install"))
+})
 window.addEventListener("appinstalled", () => { installPrompt = null; installState(null) })
 document.addEventListener("click", async e => {
   if (!installPrompt || !e.target.closest("[data-role=install]")) return
