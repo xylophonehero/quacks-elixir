@@ -1493,7 +1493,7 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   One player at the table, read-only, for the player detail sheet: name and VP up
   front (with a band in the seat colour), what they do now, rubies, flask, white
-  sum, their essence strip (The Alchemists), their pot drawn small, their test-tube
+  sum, their patient with its glasses and essence (The Alchemists), their pot drawn small, their test-tube
   rack (reverse pot side), the bowl and what is in their bag (counts only).
   """
   attr :game, Game, required: true
@@ -1533,7 +1533,7 @@ defmodule QuacksWeb.GameComponents do
           value={"#{Game.white_sum(@game, @seat)} / #{Potions.explode_above(@game, @seat)}"}
         />
       </dl>
-      <AlchemistsComponents.flask_strip :if={@p.patient} game={@game} seat={@seat} size={:sm} />
+      <AlchemistsComponents.patient_panel :if={@p.patient} game={@game} seat={@seat} />
       <.pot game={@game} seat={@seat} size={:sm} class="mx-auto block h-auto w-full max-w-64" />
       <.test_tubes
         :if={@game.rules.pot_side == :back}

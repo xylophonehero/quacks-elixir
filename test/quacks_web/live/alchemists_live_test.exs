@@ -176,4 +176,69 @@ defmodule QuacksWeb.AlchemistsLiveTest do
     assert has_element?(view, "[data-role=ear-worm]", "Ear worm: draw 2 more, no explosion")
     refute has_element?(view, "[data-slot=draw][disabled]")
   end
+
+  describe "round 15: glass rewards and opponents' patients" do
+    test "the flask strip draws what every glass pays", %{conn: conn} do
+      {id, view} = live_solo(conn)
+      with_patient(id, :chicken_eyes, essence: 3)
+
+      rewards = "[data-role=flask-strip] [data-role=glass-rewards]"
+
+      for space <- 1..10 do
+        assert has_element?(view, "#{rewards} li[data-space='#{space}'] [data-glyph]")
+      end
+
+      refute has_element?(view, "#{rewards} li[data-space='0'] [data-glyph]")
+      assert has_element?(view, "#{rewards} li[data-space='1'] [data-glyph=ruby]")
+      assert has_element?(view, "#{rewards} li[data-space='2'] [data-glyph=chip]")
+      assert has_element?(view, "#{rewards} li[data-space='8'] [data-glyph=droplet]", "+2")
+      assert has_element?(view, "#{rewards} li[data-space='3'][data-reached]")
+    end
+
+    test "VP glasses show the seal with the number; empty glasses show nothing", %{conn: conn} do
+      {id, view} = live_solo(conn)
+      with_patient(id, :carrot_nose, essence: 0)
+
+      rewards = "[data-role=flask-strip] [data-role=glass-rewards]"
+      assert has_element?(view, "#{rewards} li[data-space='10'] [data-glyph=vp]", "2")
+      assert has_element?(view, "#{rewards} li[data-space='1'] [data-glyph=rat]")
+      refute has_element?(view, "#{rewards} li[data-space='2'] [data-glyph]")
+    end
+
+    test "the player sheet shows an opponent's patient, glasses and fill" do
+      {:ok, id} =
+        GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false}, MapSet.new([:alchemists]))
+
+      browser = fn name -> init_test_session(build_conn(), player_token: name) end
+      {:ok, alice, _} = live(browser.("alice-#{id}"), ~p"/g/#{id}")
+      {:ok, _bob, _} = live(browser.("bob-#{id}"), ~p"/g/#{id}")
+      alice |> element("button", "Start game") |> render_click()
+
+      replace_game(id, fn g ->
+        g =
+          Quacks.GameHelpers.put(%{g | phase: :potions}, 0,
+            patient: :carrot_nose,
+            phase: :potions
+          )
+
+        Quacks.GameHelpers.put(g, 1, patient: :vampirism, essence: 5, phase: :potions)
+      end)
+
+      chip = ~s([data-role=player-chip][data-seat="1"])
+      assert has_element?(alice, "#{chip} [data-role=player-patient]")
+      alice |> element(chip) |> render_click()
+
+      card = "#sheet-player-1 [data-role=player-patient-card][data-patient=vampirism]"
+      assert has_element?(alice, card, "Vampirism")
+      assert has_element?(alice, card, "buy 1 chip")
+      assert has_element?(alice, "#{card} [data-role=flask-strip][data-essence='5']")
+
+      assert has_element?(
+               alice,
+               "#{card} [data-role=glass-rewards] li[data-space='5'][data-reached]"
+             )
+
+      assert has_element?(alice, "#{card} li[data-space='6'] [data-glyph=coin]", "6")
+    end
+  end
 end
