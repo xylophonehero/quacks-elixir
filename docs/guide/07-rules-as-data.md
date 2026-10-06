@@ -237,6 +237,11 @@ The engine keeps the allowed values of each house rule in a map
 asks the `Enumerable` protocol. A new house rule is two map entries and the code
 that reads `g.rules.new_rule`.
 
+A rule can also change a book's *text*. `Books.get/2` takes the house rules and
+swaps in the text of `@standings` for black book I when `black_rule: :standings`
+(round 16). The components pass `@game.rules` down (`book_info/3`, `book_list`), so
+the same data drives the menu's Books sheet and the books beside the pot.
+
 ## Shuffles with a jump
 
 The deal functions in the data modules take the game's `rng` and shuffle with a

@@ -10,6 +10,10 @@ defmodule Quacks.Rules.ScoringTrack do
   # A tail after VP `t` sits between the spaces `t` and `t + 1`.
   @tails [1, 4, 7, 10] ++ Enum.to_list(12..48//2)
 
+  @doc "The VP a rat tail follows: a tail after `t` sits between spaces `t` and `t + 1`."
+  @spec tails() :: [non_neg_integer]
+  def tails, do: @tails
+
   @doc """
   Rats for a player on `my_vp` behind a leader on `leader_vp`: the tails strictly
   between the two markers. 0 when level with or ahead of the leader.

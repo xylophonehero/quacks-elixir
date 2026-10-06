@@ -83,6 +83,7 @@ defmodule Quacks.Game do
     fortune: [true, false],
     rats: [true, false],
     black_solo: [:droplet, :droplet_ruby],
+    black_rule: [:neighbours, :standings],
     die: [:standard, :no_orange],
     starting_rubies: 0..3,
     supply: [:infinite, :limited],
@@ -95,6 +96,7 @@ defmodule Quacks.Game do
     fortune: true,
     rats: true,
     black_solo: :droplet,
+    black_rule: :neighbours,
     die: :standard,
     starting_rubies: 1,
     supply: :infinite,
@@ -291,7 +293,9 @@ defmodule Quacks.Game do
   @typedoc """
   House rules; the defaults (`default_rules/0`) are the rulebook game.
   `explode_above` is the white limit before chips and cards raise it, `black_solo`
-  the solo black payout (rulebook §6.2 suggests `:droplet_ruby`), `die: :no_orange`
+  the solo black payout (rulebook §6.2 suggests `:droplet_ruby`), `black_rule`
+  whom black book I compares with (`:neighbours`, the rulebook; `:standings`, ⚠️
+  unofficial: the players ranked above, see `Quacks.Game.Evaluation.targets/2`), `die: :no_orange`
   turns the orange face into a second ruby face (⚠️ unofficial). `supply: :infinite`
   (default) means the shop never runs out and `supply` is never counted down;
   `:limited` plays with the box's counts. `overflow: true` (default) puts chips past
@@ -304,6 +308,7 @@ defmodule Quacks.Game do
           fortune: boolean,
           rats: boolean,
           black_solo: :droplet | :droplet_ruby,
+          black_rule: :neighbours | :standings,
           die: :standard | :no_orange,
           starting_rubies: 0..3,
           supply: :infinite | :limited,

@@ -50,6 +50,7 @@ defmodule QuacksWeb.SetupComponents do
     fortune: [true, false],
     rats: [true, false],
     black_solo: [:droplet, :droplet_ruby],
+    black_rule: [:neighbours, :standings],
     overflow: [true, false],
     die: [:standard, :no_orange],
     supply: [:infinite, :limited],
@@ -483,6 +484,12 @@ defmodule QuacksWeb.SetupComponents do
           legend="Solo black chips"
           value={@rules.black_solo}
           options={[droplet: "droplet +1", droplet_ruby: "droplet +1 and 1 ruby (§6.2)"]}
+        />
+        <.radios
+          name="black_rule"
+          legend="Black chips compare with"
+          value={@rules.black_rule}
+          options={[neighbours: "neighbours", standings: "players ranked above"]}
         />
         <.radios
           name="die"

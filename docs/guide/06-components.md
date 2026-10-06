@@ -327,6 +327,22 @@ place.
 order (`Chips.order/0`, chapter 7), left of the pot (`id="books-column"`,
 `data-area="books"`).
 
+### The rat track (round 16)
+
+`rat_track/1` (`lib/quacks_web/components/game_components.ex`) is a slim VP track
+under the name cards, inside the `players` area. It has a fixed height (`h-7`) and
+shows only while the rats rule is on with 2+ players, so it never comes and goes
+during a game and the pot below it does not move.
+
+The positions are plain arithmetic on the server: the lowest VP is 0, the leader's
+VP is 1, and each dot and each rat gets `left: calc(0.5rem + (100% - 1rem) * x)`.
+The rats are the printed tails (`ScoringTrack.tails/0`) between the last player
+and the leader; a seat gets the rats right of its dot, the same count as
+`ScoringTrack.rat_tails/2`. Dots on the same VP shift 7px apart. When VP change, the
+dot's `left` changes, and a CSS `transition` on `left` slides it: no hook needed.
+Only the leader's and your own dot have a number. The whole track is one
+`role="img"` with an `aria-label` that names every seat's VP and rats.
+
 ## Hotkeys
 
 One attribute on the grid, `phx-window-keydown="hotkey"`
@@ -668,10 +684,27 @@ under it; they are secondary now.
 start, `{:results, round}` in the shop phase, `{:final, 9}` at the game's end.
 `slides(game, seat)` (line 76) builds the list from the `Replay` lines and the log,
 with no new engine data: one `:die` slide per seat that rolled, one `:book` slide per
-book and seat with a result (the chips that count, the reward, and for black the
-neighbours' black chips), `:scoring`, `:more` (cards, essence, witches),
-`:summary`; at the end `:final` and `:podium`. `test/quacks_web/reveal_test.exs`
-tests it without a browser.
+book and seat with a result (the chips that count, the reward, the pot's black,
+green and purple chips, and for black the targets' black chips, see
+`Evaluation.targets/2`), then one `:results` slide; at the end `:final` and
+`:podium`. `test/quacks_web/reveal_test.exs` tests it without a browser.
+
+**Round 16: one results slide and a running strip.** The three closing slides
+(scoring space, "also this round", summary) were one slide too many on a phone.
+`results_slide/3` makes one row per seat in VP order (a tie to fewer rubies, then
+the lower seat): space, coins, the space's VP and ruby, the update chips of
+`Replay.updates/2`, the pot's chip counts, and the card, essence and witch lines in
+small text under the row. Five players or more scroll inside the list
+(`max-h-[min(58dvh,30rem)]`), so Next stays under the thumb.
+
+Each slide also carries `gains` (`%{seat => {vp, rubies}}`) and `standings`, the
+running results after it. `running/2` is one `Enum.map_reduce/3` over the slides
+from a base (the VP before the round's results, `Replay.before/2`; for the final
+scoring the VP before the conversion). The component `strip/1` renders them as a
+row of chips with a fixed height (`h-7`), so the slide under it does not move; the
+slide's gain pops in on the same beat as the reward (`.reveal-gain`). The sum of
+the gains is the round's VP, so the strip on the results slide shows the real
+totals. No state in the LiveView: the strip is part of each slide.
 
 **Per browser, on the server.** The LiveView keeps
 `reveal: %{key, slides, index, tick}` (`open_reveal/1`,

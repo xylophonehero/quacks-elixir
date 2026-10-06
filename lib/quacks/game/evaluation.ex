@@ -45,10 +45,12 @@ defmodule Quacks.Game.Evaluation do
   @spec run(Game.t()) :: Game.t()
   def run(g) do
     order = Game.turn_order(g)
+    g0 = g
     g = bonus_die(g, order)
     # Black compares pots across seats: it reads the pots as they were before step B
-    # (G3 moves a chip).
-    g = Enum.reduce(order, g, &chip_actions(&2, &1, g))
+    # (G3 moves a chip), and the standings as they were before step A (the die pays
+    # VP). The die does not touch the pots, so `g0` serves both.
+    g = Enum.reduce(order, g, &chip_actions(&2, &1, g0))
 
     g.seats
     |> Enum.filter(&(choices(g, &1) != []))
@@ -141,7 +143,8 @@ defmodule Quacks.Game.Evaluation do
 
   # Step B (§4): black, then green and purple by their Ingredient Set. Set 1 and 3
   # are automatic (Set 1 purple: always the highest tier); Set 2 and 4 open choices.
-  # Green first: G3 moves the last chip. `g0` is the game before step B.
+  # Green first: G3 moves the last chip. `g0` is the game before step A (same pots
+  # as before step B).
   defp chip_actions(g, seat, g0) do
     g = black(g, seat, Map.get(g.sets, :black, 1), g0)
     g = chip_action(g, seat, {:green, g.sets.green})
@@ -471,12 +474,12 @@ defmodule Quacks.Game.Evaluation do
     end
   end
 
-  # Black (§4): compared with the opponent (2 players) or both neighbours (3–5).
+  # Black (§4): compared with the `targets/2` (the neighbours by default).
   # ⚠️ Solo: no opponent; 1+ black chip pays `rules.black_solo` (default droplet +1).
   # ⚠️ 5 players use the 3–4 player side (both neighbours).
   defp black(g, seat, 1, g0) do
     mine = count(:black, Game.pot_chips(g0, seat))
-    others = Enum.map(neighbours(g, seat), &count(:black, Game.pot_chips(g0, &1)))
+    others = Enum.map(targets(g0, seat), &count(:black, Game.pot_chips(g0, &1)))
 
     payoff =
       if others == [] and mine > 0,
@@ -504,8 +507,8 @@ defmodule Quacks.Game.Evaluation do
   defp payoff(true, false), do: :droplet
   defp payoff(false, true), do: :ruby
 
-  # My black chips against the neighbours' counts: one (2p) or two (3–4p).
-  # 2 players: a tie needs at least one black chip each; 0 = 0 gives nothing (Nick's
+  # My black chips against the targets' counts: one (2p, or the last place under
+  # `:standings`) or two. One target: a tie needs at least one black chip each; 0 = 0 gives nothing (Nick's
   # ruling 2026-10-04).
   defp black_payoff(mine, [opp]) when mine > opp, do: :droplet_ruby
   defp black_payoff(mine, [opp]) when mine == opp and mine > 0, do: :droplet
@@ -513,14 +516,59 @@ defmodule Quacks.Game.Evaluation do
   defp black_payoff(mine, [a, b]) when mine > a or mine > b, do: :droplet
   defp black_payoff(_mine, _others), do: nil
 
-  # The seats a black chip is compared with: none solo, the other seat with 2, the
-  # two adjacent seats with 3 or 4.
-  defp neighbours(%{seats: [_]}, _seat), do: []
+  @doc """
+  The seats whose black chips `seat` compares with in black book I, by the house
+  rule `black_rule`. None solo.
+
+  - `:neighbours` (the rulebook): the other seat with 2 players, the two adjacent
+    seats with 3+.
+  - `:standings` (⚠️ unofficial): the players ranked directly above `seat`
+    (`standings/1`). The leader compares with ranks 2 and 3, rank 2 with ranks 1
+    and 3, the last player only with the player directly above. With 2 players
+    that is the other seat.
+
+  One target pays as the 2-player game does (more: droplet + ruby; the same count,
+  1+: droplet); two targets as the 3–4 player game.
+  """
+  @spec targets(Game.t(), Game.seat()) :: [Game.seat()]
+  def targets(%{seats: [_]}, _seat), do: []
+  def targets(%{rules: %{black_rule: :standings}} = g, seat), do: ranked_targets(g, seat)
+  def targets(g, seat), do: neighbours(g, seat)
+
+  @doc """
+  The seats from the leader down: most VP first; a tie goes to fewer rubies, then
+  to the lower seat number.
+  """
+  @spec standings(Game.t()) :: [Game.seat()]
+  def standings(g) do
+    Enum.sort_by(g.seats, fn seat ->
+      p = Game.player(g, seat)
+      {-p.vp, p.rubies, seat}
+    end)
+  end
+
   defp neighbours(%{seats: seats}, seat) when length(seats) == 2, do: List.delete(seats, seat)
 
   defp neighbours(%{seats: seats}, seat) do
     n = length(seats)
     [rem(seat + n - 1, n), rem(seat + 1, n)]
+  end
+
+  defp ranked_targets(g, seat) do
+    ranked = standings(g)
+    n = length(ranked)
+    # Ranks from 1 (the leader).
+    rank = Enum.find_index(ranked, &(&1 == seat)) + 1
+
+    ranks =
+      cond do
+        rank == n -> [n - 1]
+        rank == 1 -> [2, 3]
+        rank == 2 -> [1, 3]
+        true -> [rank - 2, rank - 1]
+      end
+
+    for r <- ranks, r <= n, r != rank, do: Enum.at(ranked, r - 1)
   end
 
   # Steps C and D. An exploded player who chose to buy takes no VP; one who chose VP

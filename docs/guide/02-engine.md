@@ -268,8 +268,15 @@ When the last seat is done, `Evaluation.run/1` runs for all seats in turn order
 - Step A, `bonus_die/2`: the highest scoring space rolls (`:rand.uniform_s` on the
   game's `rng`, `lib/quacks/game/evaluation.ex:121-136`).
 - Step B, `chip_actions/3`: black, green, purple, each by its book. Note the third
-  argument `g`: the black book compares pots *before* step B changed them. Passing
-  the old struct is free, because data is immutable.
+  argument `g0`, the game before step A: the black book compares pots *before* step
+  B changed them, and the standings *before* the die paid VP. Passing the old
+  struct is free, because data is immutable.
+- Whom black book I compares with is one function, `Evaluation.targets/2`. It
+  dispatches on the house rule `black_rule`: `:neighbours` (the rulebook) or
+  `:standings` (round 16, unofficial: the players ranked directly above, from
+  `Evaluation.standings/1`; the leader takes ranks 2 and 3, the last player only the
+  one above). The payoff (`black_payoff/2`) only sees a list of one or two counts,
+  so it did not change. The reveal's black slide calls the same `targets/2`.
 - Books with a choice (G2, G4, P2, P4, G5, P5) put choices on the player. If any
   seat has one, the game waits in `:chip_choice`. If not, `close_choices/1` goes on
   at once.

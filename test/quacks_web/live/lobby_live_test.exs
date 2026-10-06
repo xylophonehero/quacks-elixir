@@ -4,6 +4,7 @@ defmodule QuacksWeb.LobbyLiveTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.GameServer
+  alias Quacks.Rules.Books
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "lobby-#{System.unique_integer()}")}
@@ -76,5 +77,30 @@ defmodule QuacksWeb.LobbyLiveTest do
              "fortune" => "false"
            }) ==
              %{Quacks.Game.default_rules() | starting_rubies: 0, fortune: false}
+  end
+
+  test "the black chips by standings rule: an Options radio, the house-rules line and the book",
+       %{conn: conn} do
+    {:ok, id} = GameServer.start(3, {1, 2, 3})
+    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+    assert has_element?(view, "#rules-black_rule-neighbours[checked]")
+
+    view
+    |> element("#options")
+    |> render_change(%{"rules" => %{"black_rule" => "standings", "fortune" => "false"}})
+
+    assert has_element?(view, "#rules-black_rule-standings[checked]")
+    assert {:ok, %{rules: %{black_rule: :standings}}} = GameServer.get(id)
+
+    assert QuacksWeb.SetupComponents.parse_rules(%{"black_rule" => "standings"}).black_rule ==
+             :standings
+
+    book = Books.get({:black, 1}, %{black_rule: :standings})
+    assert book.text =~ "ranked above you"
+    assert Books.get({:black, 1}, %{black_rule: :neighbours}).text =~ "other players"
+
+    render_click(view, "players", %{"count" => "1"})
+    view |> element("button", "Start game") |> render_click()
+    assert has_element?(view, "[data-role=house-rules]", "black chips by standings")
   end
 end
