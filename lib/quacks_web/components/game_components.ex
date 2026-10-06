@@ -7,8 +7,8 @@ defmodule QuacksWeb.GameComponents do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
-  alias Quacks.{Game, GameServer, Player}
   alias Quacks.AI.Odds
+  alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Potions
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
   alias Quacks.Rules.Fortune
@@ -1009,6 +1009,8 @@ defmodule QuacksWeb.GameComponents do
         @class
       ]}
       aria-label={"Bag: #{@count} chips. Show what is in it"}
+      aria-keyshortcuts="b"
+      title="Bag (b)"
       data-role="bag-button"
     >
       <svg viewBox="0 0 48 48" class="size-full" aria-hidden="true">

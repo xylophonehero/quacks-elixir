@@ -166,8 +166,9 @@ defmodule QuacksWeb.GameLive do
   def handle_event("action", _params, socket),
     do: {:noreply, put_flash(socket, :error, "You are watching this game.")}
 
-  # Keys (`phx-window-keydown` on the grid): D or Space draws, S stops, F uses the
-  # flask, Enter takes the open decision's one primary button. app.js adds to each
+  # Keys (`phx-window-keydown` on the grid): d or Space draws, s stops, f uses the
+  # flask, b opens or closes the bag, Enter takes the open decision's one primary
+  # button. app.js adds to each
   # keydown whether the focus is in a field (`typing`), on a button or link
   # (`control`: Space and Enter already press it) and whether a modal dialog is
   # open (`modal`). A key does something only when its action is legal for this
@@ -177,6 +178,8 @@ defmodule QuacksWeb.GameLive do
       when is_integer(seat) do
     case hotkey_action(key, params, socket.assigns) do
       nil -> {:noreply, socket}
+      # The bag sheet is a popover: only the browser can toggle it (app.js).
+      :toggle_bag -> {:noreply, push_event(socket, "quacks:toggle", %{id: "sheet-bag"})}
       action -> play(socket, seat, action)
     end
   end
@@ -685,6 +688,7 @@ defmodule QuacksWeb.GameLive do
   defp key_action(key, assigns) when key in ["d", " "], do: bar_action(:draw, assigns)
   defp key_action("s", assigns), do: bar_action(assigns.stop_slot, assigns)
   defp key_action("f", assigns), do: bar_action(:use_flask, assigns)
+  defp key_action("b", %{me: %Player{}}), do: :toggle_bag
   defp key_action("enter", assigns), do: enter_action(assigns)
   defp key_action(_key, _assigns), do: nil
 
@@ -1580,7 +1584,7 @@ defmodule QuacksWeb.GameLive do
               data-slot="stop"
             >
               {if @stop_slot == :resume, do: "Resume", else: "Stop"}
-              <.kbd>S</.kbd>
+              <.kbd>s</.kbd>
             </.button>
             <%!-- From 64rem: the flask as a button too (on the pot it is on every screen). --%>
             <.button
@@ -1594,7 +1598,7 @@ defmodule QuacksWeb.GameLive do
               data-slot="flask"
             >
               <.piece_icon name={:flask} class="size-5" />
-              <.kbd>F</.kbd>
+              <.kbd>f</.kbd>
             </.button>
             <.button
               phx-click="action"
@@ -1604,7 +1608,7 @@ defmodule QuacksWeb.GameLive do
               data-slot="draw"
             >
               Draw a chip
-              <.kbd>D</.kbd>
+              <.kbd>d</.kbd>
             </.button>
           </section>
         </footer>

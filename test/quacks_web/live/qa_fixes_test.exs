@@ -41,7 +41,7 @@ defmodule QuacksWeb.QaFixesTest do
       refute auto_open?(reloaded, "#card-round-1")
     end
 
-    test "the update chips replay once; after that, a reload opens the shop" do
+    test "the replay plays once; after that, a reload opens the shop" do
       {:ok, id} = GameServer.start(1, {10, 11, 12})
       token = "results-#{System.unique_integer()}"
       view = open(browser(token), id)
@@ -56,7 +56,8 @@ defmodule QuacksWeb.QaFixesTest do
 
       reloaded = open(browser(token), id)
       refute has_element?(reloaded, "#players-row[data-on-replay-end]")
-      assert has_element?(reloaded, "#players-row.replay-done [data-role=update-chip]")
+      assert has_element?(reloaded, "#players-row.replay-done")
+      refute has_element?(reloaded, "[data-role=replay-timer]")
       assert auto_open?(reloaded, "#decision-shop")
     end
 

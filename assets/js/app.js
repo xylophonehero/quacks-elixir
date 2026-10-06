@@ -306,6 +306,8 @@ document.addEventListener("animationend", e => {
   const row = e.target.closest("[data-on-replay-end]")
   row && !row.classList.contains("replay-done") && liveSocket.execJS(row, row.dataset.onReplayEnd)
 })
+// The b hotkey (`hotkey` in game_live.ex): the server asks to toggle a popover sheet.
+window.addEventListener("phx:quacks:toggle", e => document.getElementById(e.detail.id)?.togglePopover())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
 

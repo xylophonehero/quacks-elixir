@@ -100,10 +100,10 @@ defmodule QuacksWeb.LobbyFlowTest do
       Enum.reduce([0, 1], g, &Quacks.GameHelpers.put(&2, &1, coins: 30))
     end)
 
-    # both shops wait for the update chips on the name cards
+    # both shops wait for the replay on the name cards
     for view <- [alice, bob] do
       assert has_element?(view, "dialog#decision-shop")
-      assert has_element?(view, ~s(#players-row [data-seat="1"] [data-role=update-chip]))
+      assert has_element?(view, "#players-row[data-on-replay-end] [data-role=replay-timer]")
     end
 
     # everyone shops at once: no state while shopping, a tick when ready

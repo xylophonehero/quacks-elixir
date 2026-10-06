@@ -73,22 +73,23 @@ defmodule QuacksWeb.Round11Test do
       assert css =~ ~s{"books pot bar";}
     end
 
-    test "the name cards reserve the update chips' row" do
+    test "the name cards have two rows: no update chips (round 12)" do
       {_id, view} = solo()
-      assert has_element?(view, "#players-row.grid-rows-\\[auto_2\\.125rem_2\\.25rem\\]")
+      assert has_element?(view, "#players-row.grid-rows-\\[auto_2\\.125rem\\]")
+      assert has_element?(view, "[data-role=player-chip].row-span-2")
     end
   end
 
   describe "B: Stop and Draw" do
     test "the bar has Draw, Stop and (from 64rem) the flask, with key hints" do
       {_id, view} = solo()
-      assert has_element?(view, "[data-role=action-bar] [data-slot=draw] kbd", "D")
-      assert has_element?(view, "[data-role=action-bar] [data-slot=stop] kbd", "S")
+      assert has_element?(view, "[data-role=action-bar] [data-slot=draw] kbd", "d")
+      assert has_element?(view, "[data-role=action-bar] [data-slot=stop] kbd", "s")
 
       assert has_element?(
                view,
                "[data-role=action-bar] [data-slot=flask].max-lg\\:hidden\\! kbd",
-               "F"
+               "f"
              )
     end
 
