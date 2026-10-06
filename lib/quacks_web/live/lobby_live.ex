@@ -528,6 +528,9 @@ defmodule QuacksWeb.LobbyLive do
                   side={:right}
                   title={"#{String.capitalize(to_string(colour))} witch"}
                 >
+                  <:title_icon>
+                    <.piece_icon name={:witch} class="size-8 shrink-0" />
+                  </:title_icon>
                   <p class="text-sm text-ink-soft">Tap a witch to use her, or Random.</p>
                   <.witch_options
                     colour={colour}

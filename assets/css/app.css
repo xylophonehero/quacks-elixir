@@ -1833,24 +1833,10 @@ html:has([data-layout="full"]) {
   );
 }
 
-/* The lobby's spell book (round 17, `QuacksWeb.LobbyLive`): a leather cover, ruled
-   parchment pages and ribbon bookmarks. The book's `data-page` ("new", "books",
-   "join", set by the bookmarks) says which page shows: one at a time below 64rem;
-   from 64rem two side by side, New game on the left and Ingredient books (or Join a
-   game) on the right. */
-.spell-book [data-book-page] {
-  display: none;
-}
-.spell-book[data-page="new"] [data-book-page="new"],
-.spell-book[data-page="join"] [data-book-page="join"] {
-  display: block;
-}
-/* A column, so the Start seal sits at the page's foot. */
-.spell-book[data-page="books"] [data-book-page="books"] {
-  display: flex;
-  flex-direction: column;
-}
-
+/* The lobby's spell book (rounds 17 and 19, `QuacksWeb.LobbyLive`): a leather cover
+   and ruled parchment pages, no bookmarks. The server shows one page at a time
+   below 64rem (`hidden` / `flex`), two side by side from 64rem (`lg:` classes);
+   `data-step` on the book says which page the URL names. */
 .book-cover {
   position: relative;
   border-radius: 18px;
@@ -1874,7 +1860,7 @@ html:has([data-layout="full"]) {
   position: relative;
   min-width: 0;
   border-radius: 10px;
-  padding: 1.25rem 1rem 1rem;
+  padding: 0.75rem 1rem 1rem;
   color: var(--color-ink);
   background-color: var(--color-parchment-light);
   background-image:
@@ -1885,9 +1871,19 @@ html:has([data-layout="full"]) {
   transform-origin: left center;
 }
 
-/* Only a turn by a bookmark animates (`data-turned`), not the first paint. */
+/* Phones: a page fills the screen, so its foot (New game, Next, Start) sits low. */
+@media (width < 64rem) {
+  .book-page {
+    min-height: calc(100dvh - 2rem - 20px);
+  }
+  .spell-book[data-step="home"] .book-page {
+    min-height: calc(100dvh - 9.5rem);
+  }
+}
+
+/* A page that comes into view after a step (not the first paint) turns in. */
 .spell-book[data-turned] .book-page {
-  animation: page-turn 280ms var(--ease-out);
+  animation: page-turn 260ms var(--ease-out);
 }
 
 @keyframes page-turn {
@@ -1931,89 +1927,122 @@ html:has([data-layout="full"]) {
   color: #4f1a14;
 }
 
-/* Ribbon bookmarks: a tab row on phones, ribbons over the cover's top edge. The
-   page that shows has the long ribbon. */
-.bookmark {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-height: 2.75rem;
-  padding: 0.4rem 0.8rem 1.1rem;
-  color: var(--color-parchment-light);
-  font-weight: 700;
-  font-size: 0.875rem;
-  cursor: pointer;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 0.6rem), 0 100%);
-  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.15);
-  filter: saturate(0.75) brightness(0.85);
-  translate: 0 -0.35rem;
-  transition:
-    translate 200ms var(--ease-out),
-    filter 150ms ease;
-}
-.bookmark:hover {
-  filter: none;
-}
-.bookmark:active {
-  translate: 0 -0.2rem;
-}
-.spell-book[data-page="new"] [data-bookmark="new"],
-.spell-book[data-page="books"] [data-bookmark="books"],
-.spell-book[data-page="join"] [data-bookmark="join"] {
-  filter: none;
-  translate: 0 0.15rem;
-}
-
-/* The Start seal: red wax pressed at the foot of the books page; the bar under it
-   stays in reach while the page scrolls. */
-.seal-bar {
+/* A page's foot: the main button, pinned to the screen's bottom while the page
+   scrolls, with a ruled line above. */
+.page-foot,
+.start-bar {
   position: sticky;
   bottom: 0;
   z-index: 5;
+  margin: auto -1rem -1rem;
+  padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+  border-top: 1px solid rgb(79 26 20 / 0.45);
+  box-shadow: 0 -3px 0 -2px rgb(79 26 20 / 0.25);
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(rgb(239 224 180 / 0.94), var(--color-parchment));
+  backdrop-filter: blur(4px);
+}
+.page-foot {
+  margin-top: auto;
+}
+.start-bar {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: auto;
+}
+
+/* Start, New game, Next: ink on parchment, in the display font, a gold hairline
+   inside like a printed frame. */
+.start-button,
+.flow-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: var(--font-hand);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--color-parchment-light);
+  background: linear-gradient(#4a3a22, var(--color-ink) 60%, #2a2010);
+  box-shadow:
+    inset 0 0 0 3px var(--color-ink),
+    inset 0 0 0 4px rgb(224 178 60 / 0.55),
+    0 3px 8px rgb(58 46 26 / 0.35);
+  transition:
+    scale 150ms var(--ease-out),
+    filter 150ms ease;
+}
+.start-button {
+  min-height: 3.6rem;
+  font-size: 1.6rem;
+}
+.start-button:hover,
+.flow-button:hover {
+  filter: brightness(1.18);
+}
+.start-button:active,
+.flow-button:active {
+  scale: 0.98;
+}
+.start-button.phx-click-loading {
+  filter: brightness(0.9);
+}
+
+/* A row that opens another page (House rules, Ingredient books). */
+.page-link {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: auto -1rem -1rem;
-  padding: 0.6rem 1rem max(0.75rem, env(safe-area-inset-bottom));
-  border-top: 1px solid rgb(58 46 26 / 0.2);
-  border-radius: 0 0 10px 10px;
-  background: linear-gradient(rgb(239 224 180 / 0.92), var(--color-parchment));
-  backdrop-filter: blur(4px);
+  min-height: 3.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: var(--color-parchment-light);
+  box-shadow: inset 0 0 0 1px rgb(58 46 26 / 0.18);
+  transition:
+    scale 150ms var(--ease-out),
+    background-color 150ms ease;
+}
+.page-link:hover {
+  background: #fff8e2;
+}
+.page-link:active {
+  scale: 0.98;
 }
 
-.wax-seal {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 5.25rem;
-  height: 5.25rem;
-  border-radius: 46% 54% 50% 50% / 52% 48% 52% 48%;
+/* A preset in the Ingredient books page's row. */
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 9rem;
+  height: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 12px;
+  text-align: left;
   cursor: pointer;
-  font-family: var(--font-hand);
-  font-size: 1.45rem;
-  font-weight: 700;
-  color: #ffe9df;
-  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.45);
-  background: radial-gradient(circle at 38% 32%, #f0675e, var(--color-ruby) 42%, #8c1612 78%);
-  box-shadow:
-    inset 0 0 0 5px rgb(120 14 10 / 0.55),
-    inset 0 0 0 7px rgb(255 160 150 / 0.25),
-    inset 0 -6px 10px rgb(0 0 0 / 0.3),
-    0 4px 10px rgb(0 0 0 / 0.4);
+  background: var(--color-parchment-light);
+  box-shadow: inset 0 0 0 1px rgb(58 46 26 / 0.18);
   transition:
-    scale 160ms var(--ease-out),
-    filter 160ms ease;
+    scale 150ms var(--ease-out),
+    box-shadow 150ms ease,
+    background-color 150ms ease;
 }
-.wax-seal:hover {
-  scale: 1.05;
-  filter: brightness(1.08);
+.preset-card:hover {
+  background: #fff8e2;
 }
-.wax-seal:active {
-  scale: 0.94;
+.preset-card:active {
+  scale: 0.97;
 }
-.wax-seal.phx-click-loading {
-  filter: brightness(0.9);
+.preset-card[aria-pressed="true"] {
+  background: rgb(63 155 110 / 0.15);
+  box-shadow: inset 0 0 0 2px rgb(45 107 78 / 0.7);
 }
 
 @media (width >= 64rem) {
@@ -2024,20 +2053,8 @@ html:has([data-layout="full"]) {
     grid-template-columns: 1fr 1fr;
     align-items: stretch;
   }
-  .spell-book [data-book-page="new"] {
-    display: block;
-  }
-  .spell-book:not([data-page="join"]) [data-book-page="books"] {
-    display: flex;
-    flex-direction: column;
-  }
-  .spell-book:not([data-page="join"]) [data-bookmark="new"],
-  .spell-book:not([data-page="join"]) [data-bookmark="books"] {
-    filter: none;
-    translate: 0 0.15rem;
-  }
   .book-page {
-    padding: 1.75rem 2rem 1.5rem;
+    padding: 1.5rem 2rem 1.5rem;
   }
   .book-page-left {
     grid-column: 1;
@@ -2046,9 +2063,6 @@ html:has([data-layout="full"]) {
     box-shadow:
       inset -26px 0 30px -24px rgb(60 30 10 / 0.55),
       0 2px 6px rgb(0 0 0 / 0.35);
-  }
-  .spell-book[data-turned] .book-page-left {
-    animation: none;
   }
   .book-page-right {
     grid-column: 2;
@@ -2070,9 +2084,12 @@ html:has([data-layout="full"]) {
     background: linear-gradient(90deg, #2a0d0a, #5a2018, #2a0d0a);
     pointer-events: none;
   }
-  .seal-bar {
+  .page-foot,
+  .start-bar {
+    position: static;
     margin: auto 0 0;
     padding: 1rem 0 0;
+    border-radius: 0;
     background: none;
     backdrop-filter: none;
   }
@@ -2082,8 +2099,10 @@ html:has([data-layout="full"]) {
   .spell-book[data-turned] .book-page {
     animation: none;
   }
-  .bookmark,
-  .wax-seal {
+  .start-button,
+  .flow-button,
+  .page-link,
+  .preset-card {
     transition: none;
   }
 }
