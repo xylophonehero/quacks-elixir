@@ -42,7 +42,11 @@ defmodule QuacksWeb.LobbyLiveTest do
     view |> element("#rename-form") |> render_change(%{"name" => "Ann"})
     render_click(view, "colour", %{"colour" => "3"})
     render_click(view, "players", %{"count" => "3"})
-    view |> element("[data-role=seat-slot][data-seat=\"2\"] [data-role=add-bot]") |> render_click()
+
+    view
+    |> element("[data-role=seat-slot][data-seat=\"2\"] [data-role=add-bot]")
+    |> render_click()
+
     view |> element("#table-form") |> render_change(%{"public" => "false"})
     view |> element("#options") |> render_change(%{"rules" => %{"explode_above" => "9"}})
 
@@ -65,7 +69,11 @@ defmodule QuacksWeb.LobbyLiveTest do
 
   test "Start with every seat taken begins the game at once", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/?seed=1,2,3")
-    view |> element("[data-role=seat-slot][data-seat=\"1\"] [data-role=add-bot]") |> render_click()
+
+    view
+    |> element("[data-role=seat-slot][data-seat=\"1\"] [data-role=add-bot]")
+    |> render_click()
+
     assert has_element?(view, "[data-role=setup-summary]", "begins at once")
 
     {:error, {:live_redirect, %{to: "/g/" <> id}}} =
