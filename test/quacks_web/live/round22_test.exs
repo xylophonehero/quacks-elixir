@@ -219,6 +219,17 @@ defmodule QuacksWeb.Round22Test do
       assert has_element?(view, "#{last} [data-role=play-again]")
     end
 
+    test "a reload in the middle of the final slides shows the last one" do
+      token = "r22-mid-#{System.unique_integer()}"
+      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, view, _html} = live(browser(token), ~p"/g/#{id}")
+      replace_game(id, &over/1)
+      assert has_element?(view, "#reveal-final-9 #reveal-slide-0")
+
+      {:ok, again, _html} = live(browser(token), ~p"/g/#{id}")
+      assert has_element?(again, "#reveal-final-9 #reveal-slide-2 [data-role=play-again]")
+    end
+
     test "a reload after the end shows the last slide" do
       token = "r22-reload-#{System.unique_integer()}"
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
@@ -228,6 +239,11 @@ defmodule QuacksWeb.Round22Test do
       assert {:ok, %{seen: %{0 => %{final: 9}}}} = GameServer.get(id)
 
       {:ok, again, _html} = live(browser(token), ~p"/g/#{id}")
+
+      assert has_element?(
+               again,
+               "#reveal-final-9 #reveal-slide-2[data-kind=podium] [data-role=play-again]"
+             )
 
       assert has_element?(
                again,

@@ -2312,6 +2312,17 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.45));
 }
 
+/* While the big card shows, its corner is empty: the card lands there. */
+.pot-square:has(.pot-card-reveal) #corner-card {
+  visibility: hidden;
+}
+
+@media (width < 64rem) {
+  .pot-square:has(.pot-card) #corner-card {
+    visibility: hidden;
+  }
+}
+
 .pot-card .card-flip {
   max-width: none;
 }

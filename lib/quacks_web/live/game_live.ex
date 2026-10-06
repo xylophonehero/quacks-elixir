@@ -153,7 +153,8 @@ defmodule QuacksWeb.GameLive do
          )
          |> new_report()
          |> assign_table(table)
-         |> put_game(table.game)}
+         |> put_game(table.game)
+         |> result_on_mount()}
 
       {:error, :not_found} ->
         {:ok,
@@ -1268,7 +1269,7 @@ defmodule QuacksWeb.GameLive do
               <div
                 :if={pot_card?(assigns)}
                 id={"pot-card-#{@game.round}"}
-                class={["pot-card", is_nil(@reveal) && "lg:hidden"]}
+                class={["pot-card", if(@reveal, do: "pot-card-reveal", else: "lg:hidden")]}
                 aria-hidden="true"
                 data-role="pot-card"
               >
@@ -2095,8 +2096,22 @@ defmodule QuacksWeb.GameLive do
           </ul>
         </div>
       </div>
-      <div class="flex flex-wrap gap-2 *:min-h-12 *:flex-1" data-role="game-over-actions">
-        <.button phx-click="lobby" variant={:secondary} data-role="return-to-lobby">
+      <div class="grid grid-cols-2 gap-2 *:min-h-12" data-role="game-over-actions">
+        <.button
+          phx-click="play_again"
+          variant={:primary}
+          class="col-span-2 text-base"
+          data-role="play-again"
+          autofocus
+        >
+          Play again
+        </.button>
+        <.button
+          phx-click="lobby"
+          variant={:secondary}
+          class={[!@share_url && "col-span-2"]}
+          data-role="return-to-lobby"
+        >
           Back to lobby
         </.button>
         <.button
@@ -2110,15 +2125,6 @@ defmodule QuacksWeb.GameLive do
           data-role="share-result"
         >
           <.icon name="hero-share" class="size-4" /> Share
-        </.button>
-        <.button
-          phx-click="play_again"
-          variant={:primary}
-          class="basis-full"
-          data-role="play-again"
-          autofocus
-        >
-          Play again
         </.button>
       </div>
     </section>
@@ -2846,6 +2852,11 @@ defmodule QuacksWeb.GameLive do
   end
 
   defp open_reveal(socket), do: socket
+
+  # Round 22: a page that opens on a finished game (a reload, a rejoin) shows the
+  # game's last slide, also when the final scoring was not seen to its end.
+  defp result_on_mount(%{assigns: %{game: %Game{phase: :over}}} = socket), do: open_result(socket)
+  defp result_on_mount(socket), do: socket
 
   # Round 22: the game's last slide (the podium and its actions), straight away: after
   # a reload or rejoin of a finished game, and from "Show the result".
