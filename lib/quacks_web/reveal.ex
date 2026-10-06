@@ -18,6 +18,7 @@ defmodule QuacksWeb.Reveal do
   """
 
   alias Quacks.Game
+  alias Quacks.Game.Evaluation
   alias Quacks.Rules.PotTrack
   alias QuacksWeb.Replay
 
@@ -133,14 +134,23 @@ defmodule QuacksWeb.Reveal do
     }
   end
 
-  # Black book I compares the black chips with both neighbours: `[{seat, count}]`,
-  # this seat first. Solo has nobody to compare with.
+  # Black book I compares the black chips with `Evaluation.targets/2` (both
+  # neighbours, or the players ranked above): `[{seat, count}]`, this seat first. The
+  # standings are the ones before this round's results (`Replay.before/2`). Solo
+  # has nobody to compare with.
   defp black_counts(%Game{seats: [_]}, _seat), do: []
 
   defp black_counts(game, seat) do
-    n = length(game.seats)
-    neighbours = Enum.uniq([rem(seat + n - 1, n), rem(seat + 1, n)]) -- [seat]
-    for s <- [seat | neighbours], do: {s, blacks(game, s)}
+    targets = game |> before_results() |> Evaluation.targets(seat)
+    for s <- [seat | targets], do: {s, blacks(game, s)}
+  end
+
+  # The game with every seat's VP and rubies as they were before the round's results.
+  defp before_results(game) do
+    Enum.reduce(game.seats, game, fn s, g ->
+      %{vp: vp, rubies: rubies} = Replay.before(game, s)
+      Game.update_player(g, s, &%{&1 | vp: vp, rubies: rubies})
+    end)
   end
 
   defp blacks(game, seat),

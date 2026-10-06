@@ -1979,6 +1979,7 @@ defmodule QuacksWeb.GameComponents do
   """
   attr :books, :list, required: true
   attr :players, :integer, default: nil, doc: "the table size, see `book_tiers/1`"
+  attr :rules, :map, default: %{}, doc: "the house rules (`Books.get/2`)"
 
   def book_list(assigns) do
     assigns = assign(assigns, :colours, @colours)
@@ -1990,7 +1991,7 @@ defmodule QuacksWeb.GameComponents do
           <.ingredient_icon colour={colour} class={["size-4", book_ink(colour)]} />
           {String.capitalize(to_string(colour))} {book_set_name(colour, set)}
         </dt>
-        <dd><.book_text book={Books.get({colour, set})} players={@players} /></dd>
+        <dd><.book_text book={Books.get({colour, set}, @rules)} players={@players} /></dd>
       </div>
     </dl>
     """
@@ -2103,7 +2104,13 @@ defmodule QuacksWeb.GameComponents do
       </h2>
       <ol class="min-h-0 space-y-1.5 overflow-y-auto pb-1" data-role="books-in-play">
         <li :for={{colour, set} <- @books}>
-          <.book_line colour={colour} set={set} players={@players} beat={@beats[colour]} />
+          <.book_line
+            colour={colour}
+            set={set}
+            players={@players}
+            beat={@beats[colour]}
+            rules={@game.rules}
+          />
         </li>
       </ol>
     </section>
@@ -2114,9 +2121,10 @@ defmodule QuacksWeb.GameComponents do
   attr :set, :any, required: true
   attr :players, :integer, required: true
   attr :beat, :integer, default: nil
+  attr :rules, :map, default: %{}
 
   defp book_line(assigns) do
-    assigns = assign(assigns, book: book_info(assigns.colour, assigns.set))
+    assigns = assign(assigns, book: book_info(assigns.colour, assigns.set, assigns.rules))
 
     ~H"""
     <article
@@ -2184,12 +2192,14 @@ defmodule QuacksWeb.GameComponents do
   def roman(set), do: Enum.at(~w(I II III IV V VI), set - 1)
 
   @doc """
-  The book `{colour, set}` for display: `Books.get/1` plus `chips`, each buyable
+  The book `{colour, set}` for display: `Books.get/2` (with the house `rules`) plus `chips`, each buyable
   chip of the colour with its price. Locoweed nil is "not in play"; locoweed III
   (The Alchemists' A) acts in the essence phase.
   """
-  @spec book_info(Chips.colour(), 1..6 | nil) :: map
-  def book_info(:locoweed, nil) do
+  @spec book_info(Chips.colour(), 1..6 | nil, map) :: map
+  def book_info(colour, set, rules \\ %{})
+
+  def book_info(:locoweed, nil, _rules) do
     %{
       Books.get({:locoweed, 1})
       | text: "No locoweed chips in the shop this game.",
@@ -2198,7 +2208,7 @@ defmodule QuacksWeb.GameComponents do
     |> Map.put(:chips, [])
   end
 
-  def book_info(:locoweed, 3) do
+  def book_info(:locoweed, 3, _rules) do
     %{
       Books.get({:locoweed, 1})
       | text:
@@ -2208,10 +2218,15 @@ defmodule QuacksWeb.GameComponents do
     |> Map.put(:chips, [{{:locoweed, 1}, Chips.price({:locoweed, 1}, %{locoweed: 3})}])
   end
 
-  def book_info(colour, set) do
+  def book_info(colour, set, rules) do
     sets = %{colour => set}
     chips = for {^colour, _} = chip <- Chips.shop(:herb_witches, sets), do: chip
-    Map.put(Books.get({colour, set}), :chips, Enum.map(chips, &{&1, Chips.price(&1, sets)}))
+
+    Map.put(
+      Books.get({colour, set}, rules),
+      :chips,
+      Enum.map(chips, &{&1, Chips.price(&1, sets)})
+    )
   end
 
   defp book_set_name(:white, _set), do: ""
@@ -2242,6 +2257,7 @@ defmodule QuacksWeb.GameComponents do
       :fortune,
       :rats,
       :black_solo,
+      :black_rule,
       :die,
       :supply,
       :pot_side
@@ -2263,6 +2279,7 @@ defmodule QuacksWeb.GameComponents do
   defp rule_label({:fortune, false}), do: "no Fortune Teller cards"
   defp rule_label({:rats, false}), do: "no rats"
   defp rule_label({:black_solo, :droplet_ruby}), do: "solo black pays a ruby"
+  defp rule_label({:black_rule, :standings}), do: "black chips by standings"
   defp rule_label({:die, :no_orange}), do: "die: ruby instead of orange"
   defp rule_label({:supply, :limited}), do: "limited chip supply"
   defp rule_label({:pot_side, :back}), do: "reverse pot side (test tubes)"

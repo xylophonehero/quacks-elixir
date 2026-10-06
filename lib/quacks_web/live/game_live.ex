@@ -2256,7 +2256,11 @@ defmodule QuacksWeb.GameLive do
               class="hidden rounded-lg bg-parchment-deep/60 px-2 py-1.5"
               data-role="shop-book"
             >
-              <.book_list books={row_books(row, @game)} players={map_size(@game.players)} />
+              <.book_list
+                books={row_books(row, @game)}
+                players={map_size(@game.players)}
+                rules={@game.rules}
+              />
             </div>
           </div>
         </form>
@@ -2665,7 +2669,7 @@ defmodule QuacksWeb.GameLive do
       </button>
       <.sheet id={@id} label="Ingredient books">
         <h2 class="mb-2 text-lg font-bold">Ingredient books</h2>
-        <.book_list books={@books} players={map_size(@game.players)} />
+        <.book_list books={@books} players={map_size(@game.players)} rules={@game.rules} />
       </.sheet>
     </span>
     """
