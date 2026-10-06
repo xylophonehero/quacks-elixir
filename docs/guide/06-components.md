@@ -680,7 +680,7 @@ transition starts. `test/quacks_web/live/motion_test.exs:92`,
 `test/quacks_web/live/scoring_test.exs:150` check that the fallback is there.
 Framer Motion has `useReducedMotion()`; here it is mostly CSS.
 
-## An installable app with no service worker
+## An installable app with a pass-through service worker
 
 The game installs as an app with no browser bar (a PWA in standalone mode):
 
@@ -700,12 +700,16 @@ The game installs as an app with no browser bar (a PWA in standalone mode):
   installed app it gets `data-install="ios"` and a Share-menu hint. The state is on
   `<html>` because LiveView never patches that element, so no patch resets it.
 
-**Why no service worker.** A service worker caches files so that an app works
-offline. This app cannot work offline: every click goes to the GameServer over the
-websocket, and the page is rendered on the server. A cache would only add a risk:
-old JS and CSS after a deploy. Current Chrome installs an app without a service
-worker, so the manifest is enough. In a React SPA the service worker comes with the
-template (for example Workbox); here leaving it out is the simpler choice.
+**Why the service worker caches nothing.** A service worker usually caches files so
+that an app works offline. This app cannot work offline: every click goes to the
+GameServer over the websocket, and the page is rendered on the server. A cache would
+only add a risk: old JS and CSS after a deploy. Desktop Chrome installs an app from
+the manifest alone, but Android Chrome fires `beforeinstallprompt` only when a worker
+with a `fetch` listener is registered. So `priv/static/sw.js` registers an empty
+fetch handler and nothing else, app.js registers it on load, and `sw.js` is in
+`QuacksWeb.static_paths/0` so `Plug.Static` serves it from `/`. In a React SPA the
+service worker comes with the template (for example Workbox); here the empty one is
+the whole story.
 
 ## State ownership, compared to React
 

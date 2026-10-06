@@ -314,10 +314,12 @@ window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.det
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 
-// PWA install (no service worker). Chrome fires `beforeinstallprompt` when the app
+// PWA install. Android Chrome fires `beforeinstallprompt` only with a registered
+// service worker that has a fetch handler (`/sw.js`, pass-through, no cache); then it
 // can be installed: keep the event and show the lobby's `data-role=install` button.
 // iOS Safari has no prompt: outside the installed app, show the Share-menu hint.
 // The state is a data attribute on <html>, so LiveView patches do not reset it.
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {})
 let installPrompt = null
 const installState = value => value ? document.documentElement.dataset.install = value : delete document.documentElement.dataset.install
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; installState("ready") })
