@@ -2,6 +2,8 @@ defmodule QuacksWeb.RevealTest do
   @moduledoc "Round 14 A: the reveal overlay's slides (`QuacksWeb.Reveal`), pure."
   use ExUnit.Case, async: true
 
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+
   alias Quacks.Game
   alias QuacksWeb.Reveal
 
@@ -91,6 +93,28 @@ defmodule QuacksWeb.RevealTest do
 
     assert [%{kind: :card, vp: 1}] = row0.extra
     assert %{seat: 1, vp: 2, ruby: false, extra: []} = row1
+  end
+
+  test "a results row's card line says its reward once (the log line's text)" do
+    game = results_game()
+    slides = Reveal.slides(game, 0)
+
+    html =
+      render_component(&QuacksWeb.RevealComponents.reveal_overlay/1,
+        reveal: %{key: {:results, 1}, slides: slides, index: length(slides) - 1},
+        names: %{0 => "Ann", 1 => "Bo"},
+        seat: 0
+      )
+
+    [extra] =
+      html
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("[data-role=reveal-extra]")
+      |> Enum.to_list()
+
+    text = extra |> LazyHTML.text() |> String.trim()
+    assert text == QuacksWeb.GameComponents.label({:fortune, :b1, {:vp, 1}})
+    refute text =~ "("
   end
 
   test "the running results: every slide's standings, the gains highlighted" do

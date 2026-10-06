@@ -290,7 +290,7 @@ defmodule QuacksWeb.RevealComponents do
               class="mt-0.5 pl-5 text-xs leading-snug text-ink-soft"
               data-role="reveal-extra"
             >
-              {line.text}{gain_suffix(line)}
+              {line.text}
             </p>
           </li>
         </ol>
@@ -499,14 +499,6 @@ defmodule QuacksWeb.RevealComponents do
 
   defp choice(:vp), do: "VP"
   defp choice(:buy), do: "coins"
-
-  defp gain_suffix(%{vp: 0, rubies: 0}), do: ""
-  defp gain_suffix(%{vp: vp, rubies: 0}), do: " (+#{vp} VP)"
-  defp gain_suffix(%{vp: 0, rubies: 1}), do: " (+1 ruby)"
-  defp gain_suffix(%{vp: 0, rubies: n}), do: " (+#{n} rubies)"
-
-  defp gain_suffix(%{vp: vp, rubies: n}),
-    do: " (+#{vp} VP, +#{n} #{if n == 1, do: "ruby", else: "rubies"})"
 
   defp short_name(_names, seat, seat), do: "You"
   defp short_name(names, seat, _me), do: Map.get(names, seat, "Player #{seat + 1}")
