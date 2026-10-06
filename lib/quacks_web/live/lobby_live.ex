@@ -404,6 +404,7 @@ defmodule QuacksWeb.LobbyLive do
   attr :back_class, :any, default: nil
   attr :class, :any, default: nil
   slot :title_icon
+  slot :heading_end, doc: "at the heading's right end (the Games page's Full screen)"
   slot :inner_block, required: true
 
   defp book_page(assigns) do
@@ -443,6 +444,7 @@ defmodule QuacksWeb.LobbyLive do
         <h2 id={"#{@id}-title"} class="min-w-0 flex-1 truncate outline-none" tabindex="-1">
           {@title}
         </h2>
+        {render_slot(@heading_end)}
       </header>
       {render_slot(@inner_block)}
     </section>
@@ -592,6 +594,9 @@ defmodule QuacksWeb.LobbyLive do
   defp home_page(assigns) do
     ~H"""
     <.book_page a={assigns} id="page-home" page={{"home", nil}} side={:left} title="Games">
+      <:heading_end>
+        <.fullscreen_button id="fullscreen-lobby" variant={:icon} class="-mr-2" />
+      </:heading_end>
       <form
         id="room-code-form"
         phx-submit="join_code"

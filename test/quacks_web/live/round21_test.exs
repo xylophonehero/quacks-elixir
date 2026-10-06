@@ -61,4 +61,30 @@ defmodule QuacksWeb.Round21Test do
     {:ok, view, _html} = live(conn, ~p"/?step=players")
     assert has_element?(view, ".lobby-screen[data-step=players]")
   end
+
+  test "Full screen: an icon on the Games page, a button in the game menu", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    # app.js handles `data-role=fullscreen`; app.css shows the toggle only with
+    # `html[data-fullscreen]` and swaps the icon on `:fullscreen`.
+    assert has_element?(
+             view,
+             "#page-home .book-heading button#fullscreen-lobby.fullscreen-toggle[data-role=fullscreen]"
+           )
+
+    assert has_element?(view, "#fullscreen-lobby .when-windowed.hero-arrows-pointing-out")
+    assert has_element?(view, "#fullscreen-lobby .when-fullscreen.hero-arrows-pointing-in")
+    assert has_element?(view, "#fullscreen-lobby .sr-only", "Full screen")
+
+    {:ok, id} = Quacks.GameServer.start(1, {1, 2, 3})
+    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+
+    assert has_element?(
+             view,
+             "#sheet-menu button#fullscreen-menu.fullscreen-toggle[data-role=fullscreen][type=button]",
+             "Full screen"
+           )
+
+    assert has_element?(view, "#fullscreen-menu .when-fullscreen", "Exit full screen")
+  end
 end

@@ -2201,6 +2201,15 @@ html[data-install="ios"] .pwa-ios-hint {
   display: block;
 }
 
+/* Full screen toggle (round 21, `fullscreen_button/1`): app.js sets
+   `data-fullscreen` where the browser allows it. The icon and label follow the
+   `:fullscreen` state of <html>. */
+html:not([data-fullscreen]) .fullscreen-toggle,
+:root:fullscreen .when-windowed,
+:root:not(:fullscreen) .when-fullscreen {
+  display: none;
+}
+
 /* The installed app: no browser bounce showing a white band past the table. */
 @media (display-mode: standalone) {
   html,
