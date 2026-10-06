@@ -26,20 +26,17 @@ defmodule QuacksWeb.Round16Test do
     view
   end
 
-  test "every seat's dot at its VP, the rats between, numbers at the leader and at me" do
-    # Seat 0 (me) on 3, seat 1 on 12, seat 2 on 8: tails after 4, 7, 10 → 3 rats.
+  test "every seat's dot in its step, the rats between with their VP (round 22)" do
+    # Seat 0 (me) on 3, seat 1 on 12, seat 2 on 8: tails after 10, 7, 4 → 3 rats.
     view = trio(%{}, [3, 12, 8])
-    assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='0'][data-vp='3']", "3")
-    assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='1']", "12")
-    refute has_element?(view, "#rat-track [data-role=track-dot][data-seat='2']", "8")
+    assert has_element?(view, "#rat-track[data-steps='4']")
+    assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='1'][data-step='0']")
+    assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='2'][data-step='1']")
+    assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='0'][data-step='3']")
 
     html = view |> element("#rat-track") |> render()
-
-    assert html
-           |> LazyHTML.from_fragment()
-           |> LazyHTML.query("[data-role=track-rat]")
-           |> Enum.count() == 3
-
+    rats = html |> LazyHTML.from_fragment() |> LazyHTML.query("[data-role=track-rat]")
+    assert Enum.map(rats, &(&1 |> LazyHTML.text() |> String.trim())) == ~w(10 7 4)
     assert html =~ "Player 1 3 VP, 3 rats"
   end
 

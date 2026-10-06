@@ -22,12 +22,12 @@ defmodule QuacksWeb.RevealComponents do
       chip: 1,
       die: 1,
       die_face: 1,
-      fortune_card: 1,
       seat_bg: 1,
       seat_dot: 1
     ]
 
   alias Phoenix.LiveView.JS
+  alias Quacks.Rules.Fortune
   alias QuacksWeb.Reveal
 
   @doc """
@@ -41,6 +41,9 @@ defmodule QuacksWeb.RevealComponents do
   attr :auto_ms, :integer, default: nil, doc: "the slide's time in Auto mode, nil in Step mode"
   attr :close_label, :string, default: "Close"
 
+  slot :podium,
+    doc: "round 22: the game-over screen (podium, results, Play again) on the final podium slide"
+
   def reveal_overlay(assigns) do
     %{key: {kind, round}, slides: slides, index: index} = assigns.reveal
 
@@ -49,7 +52,10 @@ defmodule QuacksWeb.RevealComponents do
         id: "reveal-#{kind}-#{round}",
         slide: Enum.at(slides, index),
         count: length(slides),
-        last?: index == length(slides) - 1
+        last?: index == length(slides) - 1,
+        card?: kind == :card,
+        # Round 22: the game's last slide holds the game-over actions: no Next.
+        actions?: kind == :final and index == length(slides) - 1 and assigns.podium != []
       )
 
     ~H"""
@@ -57,7 +63,7 @@ defmodule QuacksWeb.RevealComponents do
       id={@id}
       label={title(@reveal.key)}
       on_close={JS.push("reveal_close")}
-      class="reveal-sheet"
+      class={["reveal-sheet", @card? && "reveal-card-sheet"]}
     >
       <div class="flex min-h-full flex-col" data-role="reveal" data-kind={elem(@reveal.key, 0)}>
         <header class="flex items-center gap-2 pr-10">
@@ -82,7 +88,9 @@ defmodule QuacksWeb.RevealComponents do
           />
         </ol>
         <.strip
-          :if={@slide[:standings] not in [nil, []] and @slide.kind not in [:podium, :standings]}
+          :if={
+            @slide[:standings] not in [nil, []] and @slide.kind not in [:card, :podium, :standings]
+          }
           rows={@slide.standings}
           names={@names}
           seat={@seat}
@@ -96,11 +104,14 @@ defmodule QuacksWeb.RevealComponents do
           data-role="reveal-timer"
           aria-hidden="true"
         />
-        <%!-- A tap anywhere on the slide is Next. --%>
+        <%!-- A tap anywhere on the slide is Next (not on the game's last slide). --%>
         <div
           id="reveal-stage"
-          class="reveal-stage flex flex-1 cursor-pointer flex-col justify-center py-3"
-          phx-click="reveal_next"
+          class={[
+            "reveal-stage flex flex-1 flex-col justify-center py-3",
+            not @actions? && "cursor-pointer"
+          ]}
+          phx-click={not @actions? && "reveal_next"}
           data-role="reveal-stage"
           aria-live="polite"
         >
@@ -110,7 +121,9 @@ defmodule QuacksWeb.RevealComponents do
             data-role="reveal-slide"
             data-kind={@slide.kind}
           >
+            {if @actions?, do: render_slot(@podium)}
             <.slide
+              :if={not @actions?}
               slide={@slide}
               names={@names}
               seat={@seat}
@@ -118,7 +131,7 @@ defmodule QuacksWeb.RevealComponents do
             />
           </div>
         </div>
-        <footer class="flex gap-2 *:min-h-12" data-role="reveal-bar">
+        <footer :if={not @actions?} class="flex gap-2 *:min-h-12" data-role="reveal-bar">
           <.button
             :if={not @last?}
             id="reveal-skip"
@@ -153,13 +166,19 @@ defmodule QuacksWeb.RevealComponents do
   attr :seat, :integer, required: true
   attr :settled, :boolean, default: true, doc: "the standings show the new ranks"
 
+  # Round 22: the card itself hovers over the pot (`GameLive`, `.pot-card`); the
+  # sheet names it, and holds its text for screen readers (the page behind the
+  # modal sheet is inert).
   defp slide(%{slide: %{kind: :card}} = assigns) do
+    assigns = assign(assigns, info: Fortune.card(assigns.slide.card))
+
     ~H"""
-    <div class="space-y-3 text-center">
-      <h2 class="font-hand text-3xl leading-tight font-bold">A new card</h2>
-      <div class="reveal-card mx-auto w-full max-w-72">
-        <.fortune_card id={@slide.card} flip />
-      </div>
+    <div class="text-center" data-role="reveal-card-name">
+      <h2 class="font-hand text-2xl leading-tight font-bold">{@info.name}</h2>
+      <p class="sr-only">{@info.text}</p>
+      <p class="text-sm text-ink-soft" aria-hidden="true">
+        It stays in the pot's corner: tap it to read it again.
+      </p>
     </div>
     """
   end
