@@ -1,0 +1,49 @@
+defmodule QuacksWeb.Round21Test do
+  @moduledoc """
+  Round 21: the expansions are a list on phones, the Games page fills a phone's
+  screen (the list scrolls, New game stays at the foot), and a Full screen toggle
+  sits in the game menu and on the lobby's Games page.
+  """
+  use QuacksWeb.ConnCase, async: true
+
+  import Phoenix.LiveViewTest
+
+  setup %{conn: conn} do
+    %{conn: init_test_session(conn, player_token: "r21-#{System.unique_integer()}")}
+  end
+
+  test "the expansions are a list below 64rem and three cards from 64rem", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/?step=expansions")
+
+    # One column (a list) on phones; three columns only from `lg`.
+    assert has_element?(
+             view,
+             "#page-expansions [data-role=expansion-cards][class~='lg:grid-cols-3']"
+           )
+
+    refute has_element?(
+             view,
+             "#page-expansions [data-role=expansion-cards][class~='grid-cols-3']"
+           )
+
+    # A row: icon, title and blurb, the switch on the right.
+    assert has_element?(
+             view,
+             "#page-expansions [data-role=toggle-card][class~='max-lg:grid-cols-[auto_1fr_auto]']"
+           )
+
+    ids =
+      view
+      |> element("#page-expansions [data-role=expansion-cards]")
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("input[type=checkbox]")
+      |> LazyHTML.attribute("id")
+
+    assert ids == ~w(expansion alchemists rules-pot_side)
+
+    # House rules and Ingredient books stay as rows below.
+    assert has_element?(view, "#page-expansions #to-rules.page-link")
+    assert has_element?(view, "#page-expansions #to-books.page-link")
+  end
+end
