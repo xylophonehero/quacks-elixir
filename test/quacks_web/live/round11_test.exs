@@ -134,13 +134,12 @@ defmodule QuacksWeb.Round11Test do
       {id, view} = solo()
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0))
       # round 14: Enter steps through the reveal overlay first
-      assert has_element?(view, "#reveal-slide-0")
-      key(view, "Enter")
-      assert has_element?(view, "#reveal-slide-1")
+      # (solo, no book result: one slide, the round's results)
+      assert has_element?(view, "#reveal-slide-0[data-kind=results]")
       key(view, "d")
-      assert has_element?(view, "#reveal-slide-1")
+      assert has_element?(view, "#reveal-slide-0")
 
-      for _ <- 2..10, has_element?(view, "[data-role=reveal]"), do: key(view, "Enter")
+      for _ <- 1..10, has_element?(view, "[data-role=reveal]"), do: key(view, "Enter")
       refute has_element?(view, "[data-role=reveal]")
 
       # nothing to spend: the round ended by itself when the overlay closed

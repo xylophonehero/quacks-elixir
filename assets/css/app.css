@@ -1940,6 +1940,12 @@ html[data-install="ios"] .pwa-ios-hint {
   animation: reveal-timer var(--slide-ms) linear both;
 }
 
+/* The running results strip (round 16): this slide's gain pops in with the reward. */
+.reveal-gain {
+  animation: reveal-pop 320ms var(--ease-spring) both;
+  animation-delay: calc(var(--beat-ms) * 0.8ms);
+}
+
 /* Reduced motion: no slide, no pop, no roll; the die shows its face at once. */
 @media (prefers-reduced-motion: reduce) {
   .reveal-slide {
@@ -1951,6 +1957,7 @@ html[data-install="ios"] .pwa-ios-hint {
   .reveal-after,
   .reveal-die .die,
   .reveal-die .die-strip,
+  .reveal-gain,
   .reveal-timer {
     animation: none;
   }

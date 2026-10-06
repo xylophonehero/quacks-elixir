@@ -41,16 +41,17 @@ defmodule QuacksWeb.Round14Test do
       {id, view, _token} = solo_results()
       assert has_element?(view, "dialog#reveal-results-1[phx-mounted*='quacks:modal']")
       assert has_element?(view, "#reveal-slide-0[data-kind=book]")
-      assert has_element?(view, "[data-role=reveal-count]", "1 / 4")
+      assert has_element?(view, "[data-role=reveal-count]", "1 / 3")
       assert has_element?(view, "#reveal-slide-0 [data-role=reveal-chips]")
 
       view |> element("#reveal-next") |> render_click()
       assert has_element?(view, "#reveal-slide-1[data-kind=book]")
       # a tap on the slide is Next too
       view |> element("#reveal-stage") |> render_click()
-      assert has_element?(view, "#reveal-slide-2[data-kind=scoring]")
-      view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-slide-3[data-kind=summary]", "Round 1 summary")
+      # round 16: one results slide, and the running results on every slide
+      assert has_element?(view, "#reveal-slide-2[data-kind=results]", "Round 1 results")
+      assert has_element?(view, "[data-role=reveal-strip] [data-seat='0']")
+      assert has_element?(view, "#reveal-slide-2 [data-role=reveal-result][data-seat='0']")
       refute has_element?(view, "#reveal-skip")
       assert has_element?(view, "#reveal-next", "To the shop")
 
@@ -63,7 +64,7 @@ defmodule QuacksWeb.Round14Test do
     test "Skip jumps to the last slide; Esc (the dialog's close) ends it" do
       {_id, view, _token} = solo_results()
       view |> element("#reveal-skip") |> render_click()
-      assert has_element?(view, "#reveal-slide-3[data-kind=summary]")
+      assert has_element?(view, "#reveal-slide-2[data-kind=results]")
 
       assert has_element?(view, "dialog#reveal-results-1[data-on-close*=reveal_close]")
       render_hook(view, "reveal_close", %{})

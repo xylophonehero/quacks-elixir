@@ -52,7 +52,7 @@ defmodule QuacksWeb.RevealTest do
     assert card == game.fortune_card
   end
 
-  test "the results: dice, books by colour and seat, scoring, more, summary" do
+  test "the results: dice, books by colour and seat, one results slide" do
     slides = Reveal.slides(results_game(), 0)
 
     assert Enum.map(slides, &{&1.kind, &1[:book], &1[:seat]}) == [
@@ -61,12 +61,10 @@ defmodule QuacksWeb.RevealTest do
              {:book, :black, 0},
              {:book, :black, 1},
              {:book, :purple, 0},
-             {:scoring, nil, nil},
-             {:more, nil, nil},
-             {:summary, nil, nil}
+             {:results, nil, nil}
            ]
 
-    [die, green, black0, black1, purple, scoring, more, summary] = slides
+    [die, green, black0, black1, purple, results] = slides
     assert %{face: {:vp, 2}, vp: 2} = die
 
     # the chips that count (green: of the last two), oldest first, and the reward
@@ -81,9 +79,42 @@ defmodule QuacksWeb.RevealTest do
     assert black1.compare == [{1, 2}, {0, 1}]
     assert black0.droplet == 1
 
-    assert [%{seat: 0, vp: 3, ruby: true}, %{seat: 1, vp: 2, ruby: false}] = scoring.rows
-    assert [%{seat: 0, kind: :card, vp: 1}] = more.rows
-    assert %{round: 1, last: false, rows: [%{seat: 0, updates: [_ | _]}, %{seat: 1}]} = summary
+    # the pot's black, green and purple chips
+    assert black0.pot == [green: 2, black: 1, purple: 2]
+    assert black1.pot == [green: 0, black: 2, purple: 0]
+
+    # one row per seat, in VP order: the space, the updates, the other results
+    assert %{round: 1, last: false, rows: [row0, row1]} = results
+
+    assert %{seat: 0, vp: 3, ruby: true, updates: [_ | _], pot: [green: 2, black: 1, purple: 2]} =
+             row0
+
+    assert [%{kind: :card, vp: 1}] = row0.extra
+    assert %{seat: 1, vp: 2, ruby: false, extra: []} = row1
+  end
+
+  test "the running results: every slide's standings, the gains highlighted" do
+    game = results_game()
+    game = put_in(game.players[0].vp, 9)
+    game = put_in(game.players[1].vp, 2)
+    slides = Reveal.slides(game, 0)
+
+    # Before: seat 0 had 9 - (2 + 1 + 3 + 1) = 2 VP, seat 1 had 0.
+    [die | _] = slides
+    assert die.standings == [%{seat: 0, vp: 4, gain: 2}, %{seat: 1, vp: 0, gain: 0}]
+
+    results = List.last(slides)
+    assert results.standings == [%{seat: 0, vp: 9, gain: 4}, %{seat: 1, vp: 2, gain: 2}]
+    assert Enum.map(results.rows, & &1.seat) == [0, 1]
+  end
+
+  test "the results slide ranks by VP, a tie to fewer rubies" do
+    game = results_game()
+    game = put_in(game.players[0].vp, 20)
+    game = put_in(game.players[1].vp, 20)
+    game = put_in(game.players[0].rubies, 3)
+    game = put_in(game.players[1].rubies, 1)
+    assert %{rows: [%{seat: 1}, %{seat: 0}]} = game |> Reveal.slides(0) |> List.last()
   end
 
   test "seat 1 sees its own book slides first among equals" do
