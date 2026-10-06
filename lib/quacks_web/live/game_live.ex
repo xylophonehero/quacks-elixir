@@ -1546,7 +1546,7 @@ defmodule QuacksWeb.GameLive do
           </.button>
           <div :if={@seat && @game.phase == :potions} class="flex flex-col gap-1" data-role="fuse-row">
             <.reward_line game={@game} seat={@seat} />
-            <.fuse_meter game={@game} seat={@seat} />
+            <div class="flex"><.fuse_meter game={@game} seat={@seat} /></div>
           </div>
           <%!-- From 64rem an exploded pot puts its result here, where Stop and Draw
                were, and says what comes next. --%>
@@ -2209,15 +2209,17 @@ defmodule QuacksWeb.GameLive do
           </.button>
         </div>
       </.witch_card>
-      <%!-- The purse and the buttons stay at the bottom of the sheet while it scrolls. --%>
+      <%!-- The purse and the buttons stay at the bottom of the sheet while it scrolls.
+           A size container: the Enter hints show only where the bar has the room
+           (round 12: at 64rem the sheet is a narrow column and the bar overflowed). --%>
       <div
-        class="sticky bottom-0 z-10 -mx-4 mt-3 flex items-center gap-2 bg-parchment px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_12px_-10px_rgb(0_0_0/0.35)] *:min-h-12"
+        class="@container/shop-bar sticky bottom-0 z-10 -mx-4 mt-3 flex min-w-0 items-center gap-2 bg-parchment px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_12px_-10px_rgb(0_0_0/0.35)] *:min-h-12"
         data-role="shop-footer"
       >
         <p
           :if={@buying?}
           class={[
-            "flex shrink-0 items-center gap-1 font-hand text-xl leading-none font-bold tabular-nums",
+            "flex min-w-0 shrink items-center gap-1 font-hand text-xl leading-none font-bold whitespace-nowrap tabular-nums",
             @remaining < 0 && "text-ruby"
           ]}
           data-role="shop-total"
@@ -2230,23 +2232,23 @@ defmodule QuacksWeb.GameLive do
           phx-value-action={encode({:buy, []})}
           variant={if @buying?, do: :secondary, else: :primary}
           autofocus={!@buying?}
-          class={["flex-1", @buying? && "px-3"]}
+          class={["min-w-0 flex-1", @buying? && "px-3"]}
           data-role="shop-done"
         >
           Done
-          <.kbd :if={!@buying?}>Enter</.kbd>
+          <.kbd :if={!@buying?} show={shop_kbd()}>Enter</.kbd>
         </.button>
         <.button
           :if={@buying?}
           phx-click="action"
           phx-value-action={encode({:buy, @selected})}
           variant={:primary}
-          class="flex-[2] px-3 whitespace-nowrap"
+          class="min-w-0 flex-[2] px-3 whitespace-nowrap"
           disabled={@selected == [] or {:buy, @selected} not in @actions}
           data-role="shop-buy"
         >
-          {buy_label(@selected, @total)}
-          <.kbd :if={@selected != []}>Enter</.kbd>
+          <span class="truncate">{buy_label(@selected, @total)}</span>
+          <.kbd :if={@selected != []} show={shop_kbd()}>Enter</.kbd>
         </.button>
       </div>
     </section>
@@ -2295,6 +2297,9 @@ defmodule QuacksWeb.GameLive do
     |> Enum.filter(& &1)
     |> Enum.join(" · ")
   end
+
+  # The shop bar's Enter hint: from 64rem, and only when the bar is 24rem wide.
+  defp shop_kbd, do: "hidden lg:@min-[24rem]/shop-bar:inline-block"
 
   defp buy_label([], _total), do: "Buy"
   defp buy_label(selected, total), do: "Buy #{length(selected)} · #{total} coins"

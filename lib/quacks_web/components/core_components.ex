@@ -245,12 +245,19 @@ defmodule QuacksWeb.CoreComponents do
   A key hint on a button, e.g. `<.kbd>D</.kbd>`. Only from 64rem, where a keyboard
   is likely (round 11 hotkeys); hidden from screen readers, the button says it.
   """
+  attr :show, :string,
+    default: "hidden lg:inline-block",
+    doc: "the display classes: when the hint shows (the shop bar uses a container query)"
+
   slot :inner_block, required: true
 
   def kbd(assigns) do
     ~H"""
     <kbd
-      class="ml-1.5 hidden min-w-5 rounded border border-current/40 px-1 font-sans text-[11px] leading-4 font-semibold opacity-70 lg:inline-block"
+      class={[
+        "ml-1.5 min-w-5 shrink-0 rounded border border-current/40 px-1 font-sans text-[11px] leading-4 font-semibold opacity-70",
+        @show
+      ]}
       aria-hidden="true"
     >{render_slot(@inner_block)}</kbd>
     """
