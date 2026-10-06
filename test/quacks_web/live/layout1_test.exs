@@ -190,6 +190,19 @@ defmodule QuacksWeb.Layout1Test do
       assert css =~ ~s{.sheet[data-side="panel"][open]:not(:modal)}
       assert css =~ "@keyframes fortune-sweep"
     end
+
+    # Round 13 (issue #1): a patch that removes `#results-N` before the open shop
+    # moves the shop <dialog> (morphdom insertBefore). The move takes it out of the
+    # top layer but keeps `open`, so the action bar took the taps on its lower part.
+    # A LiveView test cannot see the top layer: check that app.js opens such a
+    # dialog as a modal again after each patch.
+    test "app.js opens a moved modal dialog as a modal again after a patch" do
+      js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
+      assert js =~ "onPatchEnd: () => remodal()"
+      assert js =~ ~s{document.querySelectorAll("dialog[open]")}
+      assert js =~ ~s{d.matches(":modal")}
+      assert js =~ "moving.add(d); d.close(); d.showModal()"
+    end
   end
 
   describe "the board's chip order" do
