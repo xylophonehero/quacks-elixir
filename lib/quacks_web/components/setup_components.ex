@@ -60,13 +60,14 @@ defmodule QuacksWeb.SetupComponents do
 
   @doc """
   The Ingredient books form (`#books`, event `"sets"`): the two expansion toggles
-  as cards on top (both may be on), with the reverse pot side as a third, smaller
-  card (that switch belongs to `#options`), then one `book_tile` per colour. The
-  host sees compact tiles (icon, name, book seal) in a grid; the picker has the full
-  text. Locoweed III is greyed out
-  without The Alchemists. The host taps a tile to open its picker sheet, a list
-  of book cards (radio buttons `sets[colour]`); a tap on a card picks that book and
-  closes the sheet. Other players see the tiles only.
+  as cards on top (both may be on), with the reverse pot side as a third card of
+  the same size (that switch belongs to `#options`), then one `book_tile` per
+  colour. The host sees compact tiles (icon, name, book seal) in a grid; the picker
+  has the full text (`book_options/1`). Locoweed III is greyed out without The
+  Alchemists. The host taps a tile to open its picker sheet, a list of book cards
+  (radio buttons `sets[colour]`); a tap on a card picks that book and closes the
+  sheet. With `patch` (the spell book) a tile is a link to its colour's page
+  instead. Other players see the tiles only.
   """
   attr :sets, :map, required: true, doc: "the chosen books; colours left out use their default"
   attr :expansion, :boolean, default: false, doc: "The Herb Witches"
@@ -90,6 +91,14 @@ defmodule QuacksWeb.SetupComponents do
 
   attr :heading, :boolean, default: true, doc: "false: the page has its own heading"
 
+  attr :patch, :any,
+    default: nil,
+    doc: """
+    nil: a tile opens its picker sheet. A function `({:book | :witch, colour} -> path)`:
+    a tile is a link to that path (the spell book's colour pages), and the form draws
+    no pickers; the page draws them with `book_options/1` and `witch_options/1`.
+    """
+
   def books_form(assigns) do
     ~H"""
     <form id="books" phx-change="sets" aria-label="Ingredient books">
@@ -106,8 +115,17 @@ defmodule QuacksWeb.SetupComponents do
           <div class="grid grid-cols-3 gap-2">
             <%= for colour <- witch_colours() do %>
               <.witch_tile :if={@disabled} colour={colour} id={@witches[colour]} />
+              <.link
+                :if={!@disabled and @patch}
+                patch={@patch.({:witch, colour})}
+                id={"witch-link-#{colour}"}
+                aria-label={"#{colour} witch: change"}
+                class="block rounded-lg text-left transition-[translate,scale] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
+              >
+                <.witch_tile colour={colour} id={@witches[colour]} />
+              </.link>
               <button
-                :if={!@disabled}
+                :if={!@disabled and !@patch}
                 type="button"
                 popovertarget={"witch-picker-#{colour}"}
                 aria-label={"#{colour} witch: change"}
@@ -115,7 +133,11 @@ defmodule QuacksWeb.SetupComponents do
               >
                 <.witch_tile colour={colour} id={@witches[colour]} />
               </button>
-              <.witch_picker :if={!@disabled} colour={colour} chosen={@witches[colour]} />
+              <.witch_picker
+                :if={!@disabled and !@patch}
+                colour={colour}
+                chosen={@witches[colour]}
+              />
             <% end %>
           </div>
         </div>
@@ -132,8 +154,17 @@ defmodule QuacksWeb.SetupComponents do
               set={book(@sets, colour)}
               players={@players}
             />
+            <.link
+              :if={!@disabled and @patch}
+              patch={@patch.({:book, colour})}
+              id={"book-link-#{colour}"}
+              aria-label={"#{colour} book: change"}
+              class="block rounded-[14px] text-left transition-[translate,scale,box-shadow] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
+            >
+              <.book_tile colour={colour} set={book(@sets, colour)} players={@players} compact />
+            </.link>
             <button
-              :if={!@disabled}
+              :if={!@disabled and !@patch}
               type="button"
               popovertarget={"book-picker-#{colour}"}
               aria-label={"#{colour} book: change"}
@@ -142,7 +173,7 @@ defmodule QuacksWeb.SetupComponents do
               <.book_tile colour={colour} set={book(@sets, colour)} players={@players} compact />
             </button>
             <.book_picker
-              :if={!@disabled}
+              :if={!@disabled and !@patch}
               colour={colour}
               chosen={book(@sets, colour)}
               sets={book_sets(colour)}
@@ -157,8 +188,8 @@ defmodule QuacksWeb.SetupComponents do
   end
 
   @doc """
-  The expansion toggles as cards: The Herb Witches and The Alchemists (fields of
-  `#books`) and the reverse pot side (a field of `#options`). Each input names its
+  The expansion toggles as three cards of the same size: The Herb Witches and The
+  Alchemists (fields of `#books`) and the reverse pot side (a field of `#options`). Each input names its
   form with `form=`, so the cards may stand outside both forms (the spell book's
   left page); `books_form/1` shows them on top by default.
   """
@@ -166,12 +197,13 @@ defmodule QuacksWeb.SetupComponents do
   attr :alchemists, :boolean, default: false
   attr :pot_side, :atom, default: :front
   attr :class, :any, default: nil
+  attr :heading, :boolean, default: true, doc: "false: the page has its own heading"
 
   def expansion_cards(assigns) do
     ~H"""
     <div class={["space-y-2", @class]}>
-      <h3 class="font-bold">Expansions</h3>
-      <div class="grid grid-cols-2 gap-2" data-role="expansion-cards">
+      <h3 :if={@heading} class="font-bold">Expansions</h3>
+      <div class="grid grid-cols-3 gap-2" data-role="expansion-cards">
         <.toggle_card
           id="expansion"
           name="expansion"
@@ -198,7 +230,6 @@ defmodule QuacksWeb.SetupComponents do
           title="Pot: reverse side"
           text="Test tubes"
           icon={:tube}
-          small
         />
       </div>
     </div>
@@ -252,55 +283,76 @@ defmodule QuacksWeb.SetupComponents do
   attr :chosen, :atom, default: nil
 
   defp witch_picker(assigns) do
-    assigns =
-      assign(assigns,
-        options: [nil | Witches.ids(assigns.colour)]
-      )
-
     ~H"""
     <.sheet id={"witch-picker-#{@colour}"} label={"#{@colour} witch"}>
       <h2 class="flex items-center gap-2 font-hand text-2xl font-bold text-ink capitalize">
         <.piece_icon name={:witch} class="size-7 shrink-0" /> {@colour} witch
       </h2>
       <p class="text-sm text-ink-soft">Tap a witch to use her, or Random.</p>
-      <div class="mt-3 grid gap-2" role="radiogroup" aria-label={"#{@colour} witch"}>
-        <label
-          :for={id <- @options}
-          class="book-card group grid cursor-pointer gap-1 rounded-[14px] bg-parchment-light p-3 text-ink has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet"
-          data-role="witch-option"
-          data-witch={id || "random"}
-        >
-          <input
-            type="radio"
-            name={"witches[#{@colour}]"}
-            value={id || ""}
-            checked={id == @chosen}
-            class="sr-only"
-            phx-click={JS.dispatch("quacks:close", to: "#witch-picker-#{@colour}")}
-          />
-          <span class="flex min-w-0 items-center gap-2">
-            <span class="min-w-0 flex-1 font-hand text-lg font-bold">
-              {if id, do: Witches.card(id).title, else: "Random"}
-            </span>
-            <span class="book-check" aria-hidden="true">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#3a2508"
-                stroke-width="3.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M5 12.5l4.5 4.5L19 7.5" />
-              </svg>
-            </span>
-          </span>
-          <span class="text-sm leading-snug text-pretty text-ink-soft">
-            {if id, do: Witches.card(id).text, else: "One of the four, dealt when the game starts."}
-          </span>
-        </label>
-      </div>
+      <.witch_options
+        colour={@colour}
+        chosen={@chosen}
+        on_pick={JS.dispatch("quacks:close", to: "#witch-picker-#{@colour}")}
+        class="mt-3"
+      />
     </.sheet>
+    """
+  end
+
+  @doc """
+  The witch cards of one penny colour: "Random" (dealt from the seed) or one of its
+  4 cards, as radio cards `witches[colour]`. `on_pick` runs on a tap (close the
+  sheet, or leave the spell book's witch page); `form` names the form when the
+  cards stand outside `#books`.
+  """
+  attr :colour, :atom, required: true
+  attr :chosen, :atom, default: nil
+  attr :on_pick, :any, default: nil
+  attr :form, :string, default: nil
+  attr :class, :any, default: nil
+
+  def witch_options(assigns) do
+    assigns = assign(assigns, options: [nil | Witches.ids(assigns.colour)])
+
+    ~H"""
+    <div class={["grid gap-2", @class]} role="radiogroup" aria-label={"#{@colour} witch"}>
+      <label
+        :for={id <- @options}
+        class="book-card group grid cursor-pointer gap-1 rounded-[14px] bg-parchment-light p-3 text-ink has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet"
+        data-role="witch-option"
+        data-witch={id || "random"}
+      >
+        <input
+          type="radio"
+          name={"witches[#{@colour}]"}
+          value={id || ""}
+          checked={id == @chosen}
+          form={@form}
+          class="sr-only"
+          phx-click={@on_pick}
+        />
+        <span class="flex min-w-0 items-center gap-2">
+          <span class="min-w-0 flex-1 font-hand text-lg font-bold">
+            {if id, do: Witches.card(id).title, else: "Random"}
+          </span>
+          <span class="book-check" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#3a2508"
+              stroke-width="3.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+          </span>
+        </span>
+        <span class="text-sm leading-snug text-pretty text-ink-soft">
+          {if id, do: Witches.card(id).text, else: "One of the four, dealt when the game starts."}
+        </span>
+      </label>
+    </div>
     """
   end
 
@@ -351,7 +403,7 @@ defmodule QuacksWeb.SetupComponents do
         "has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet",
         if(@small,
           do: "col-span-2 grid-cols-[auto_1fr_auto] py-2",
-          else: "grid-cols-[1fr_auto] content-start gap-y-1"
+          else: "grid-cols-[1fr_auto] content-start gap-y-1 max-sm:p-2"
         )
       ]}
       data-role="toggle-card"
@@ -359,17 +411,17 @@ defmodule QuacksWeb.SetupComponents do
       <.icon
         :if={is_binary(@icon)}
         name={@icon}
-        class={["shrink-0 text-ink-soft", if(@small, do: "size-6", else: "size-9")]}
+        class={["shrink-0 text-ink-soft", if(@small, do: "size-6", else: "size-8")]}
       />
       <.piece_icon
         :if={is_atom(@icon)}
         name={@icon}
-        class={["shrink-0 text-ink-soft", if(@small, do: "size-6", else: "size-9")]}
+        class={["shrink-0 text-ink-soft", if(@small, do: "size-6", else: "size-8")]}
       />
       <span class={["min-w-0", !@small && "col-span-2 row-start-2"]}>
         <span class={[
           "block leading-tight font-bold",
-          if(@small, do: "text-sm", else: "font-hand text-lg")
+          if(@small, do: "text-sm", else: "font-hand text-base sm:text-lg")
         ]}>
           {@title}
         </span>
@@ -397,13 +449,7 @@ defmodule QuacksWeb.SetupComponents do
   attr :alchemists, :boolean, default: false
 
   defp book_picker(assigns) do
-    books =
-      Enum.map(assigns.sets, fn set ->
-        {set, book_info(assigns.colour, set),
-         unavailable(assigns.colour, set, assigns.alchemists)}
-      end)
-
-    assigns = assign(assigns, books: books, name: books |> hd() |> elem(1) |> Map.get(:name))
+    assigns = assign(assigns, name: book_info(assigns.colour, hd(assigns.sets)).name)
 
     ~H"""
     <.sheet id={"book-picker-#{@colour}"} label={"#{@name} books"}>
@@ -414,67 +460,105 @@ defmodule QuacksWeb.SetupComponents do
       <p class="text-sm text-ink-soft">
         <span class="capitalize">{@colour}</span>. Tap a book to use it.
       </p>
-      <div class="mt-3 grid gap-2.5" role="radiogroup" aria-label={"#{@colour} book"}>
-        <label
-          :for={{set, book, unavailable} <- @books}
-          class={[
-            "book-card group grid gap-2 rounded-[14px] bg-parchment-light p-3 pb-3.5 text-ink",
-            "has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet",
-            if(unavailable, do: "cursor-not-allowed opacity-50 grayscale", else: "cursor-pointer")
-          ]}
-          data-role="book-card"
-          data-set={set || "off"}
-          aria-disabled={unavailable && "true"}
-        >
-          <input
-            type="radio"
-            name={"sets[#{@colour}]"}
-            value={set || ""}
-            checked={set == @chosen}
-            disabled={unavailable != nil}
-            class="sr-only"
-            phx-click={JS.dispatch("quacks:close", to: "#book-picker-#{@colour}")}
-          />
-          <span class="flex min-w-0 items-center gap-2">
-            <.book_seal set={set} />
-            <span class="min-w-0 flex-1 font-hand text-lg font-bold">
-              {if set, do: "Book #{roman(set)}", else: "Not in play"}
-            </span>
-            <span
-              :if={unavailable}
-              class="shrink-0 rounded-full bg-ink/10 px-2 py-0.5 text-[11px] font-bold text-ink-soft"
-            >
-              {unavailable}
-            </span>
-            <span class="book-check" aria-hidden="true">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#3a2508"
-                stroke-width="3.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M5 12.5l4.5 4.5L19 7.5" />
-              </svg>
-            </span>
-          </span>
-          <span :if={book.text != ""} class="text-sm leading-normal text-pretty">{book.text}</span>
-          <.book_tiers tiers={book.tiers} players={@players} />
-          <span :if={book.chips != []} class="flex flex-wrap gap-1.5">
-            <span
-              :for={{chip, price} <- book.chips}
-              class="inline-flex items-center gap-1.5 rounded-full bg-ink/8 py-0.5 pr-2.5 pl-0.5 text-[13px] font-bold tabular-nums ring-1 ring-ink/12 ring-inset"
-            >
-              <.chip chip={chip} size={:sm} />{price} <span class="book-coin" />
-            </span>
-          </span>
-          <span :if={book.chips == []} class="text-[13px] text-ink-soft">
-            No chips to buy
-          </span>
-        </label>
-      </div>
+      <.book_options
+        colour={@colour}
+        chosen={@chosen}
+        sets={@sets}
+        players={@players}
+        alchemists={@alchemists}
+        on_pick={JS.dispatch("quacks:close", to: "#book-picker-#{@colour}")}
+        class="mt-3"
+      />
     </.sheet>
+    """
+  end
+
+  @doc """
+  The book cards of one colour (title, text, table, chips with prices), as radio
+  cards `sets[colour]`. `on_pick` runs on a tap; `form` names the form when the
+  cards stand outside `#books` (the spell book's colour pages). `sets: nil` offers
+  every book the colour has.
+  """
+  attr :colour, :atom, required: true
+  attr :chosen, :any, required: true
+  attr :sets, :list, default: nil
+  attr :players, :integer, default: nil
+  attr :alchemists, :boolean, default: false
+  attr :on_pick, :any, default: nil
+  attr :form, :string, default: nil
+  attr :class, :any, default: nil
+
+  def book_options(assigns) do
+    books =
+      Enum.map(assigns.sets || book_sets(assigns.colour), fn set ->
+        {set, book_info(assigns.colour, set),
+         unavailable(assigns.colour, set, assigns.alchemists)}
+      end)
+
+    assigns = assign(assigns, books: books)
+
+    ~H"""
+    <div class={["grid gap-2.5", @class]} role="radiogroup" aria-label={"#{@colour} book"}>
+      <label
+        :for={{set, book, unavailable} <- @books}
+        class={[
+          "book-card group grid gap-2 rounded-[14px] bg-parchment-light p-3 pb-3.5 text-ink",
+          "has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet",
+          if(unavailable, do: "cursor-not-allowed opacity-50 grayscale", else: "cursor-pointer")
+        ]}
+        data-role="book-card"
+        data-set={set || "off"}
+        aria-disabled={unavailable && "true"}
+      >
+        <input
+          type="radio"
+          name={"sets[#{@colour}]"}
+          value={set || ""}
+          checked={set == @chosen}
+          disabled={unavailable != nil}
+          form={@form}
+          class="sr-only"
+          phx-click={@on_pick}
+        />
+        <span class="flex min-w-0 items-center gap-2">
+          <.book_seal set={set} />
+          <span class="min-w-0 flex-1 font-hand text-lg font-bold">
+            {if set, do: "Book #{roman(set)}", else: "Not in play"}
+          </span>
+          <span
+            :if={unavailable}
+            class="shrink-0 rounded-full bg-ink/10 px-2 py-0.5 text-[11px] font-bold text-ink-soft"
+          >
+            {unavailable}
+          </span>
+          <span class="book-check" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#3a2508"
+              stroke-width="3.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+          </span>
+        </span>
+        <span :if={book.text != ""} class="text-sm leading-normal text-pretty">{book.text}</span>
+        <.book_tiers tiers={book.tiers} players={@players} />
+        <span :if={book.chips != []} class="flex flex-wrap gap-1.5">
+          <span
+            :for={{chip, price} <- book.chips}
+            class="inline-flex items-center gap-1.5 rounded-full bg-ink/8 py-0.5 pr-2.5 pl-0.5 text-[13px] font-bold tabular-nums ring-1 ring-ink/12 ring-inset"
+          >
+            <.chip chip={chip} size={:sm} />{price} <span class="book-coin" />
+          </span>
+        </span>
+        <span :if={book.chips == []} class="text-[13px] text-ink-soft">
+          No chips to buy
+        </span>
+      </label>
+    </div>
     """
   end
 
@@ -642,6 +726,10 @@ defmodule QuacksWeb.SetupComponents do
     </div>
     """
   end
+
+  @doc "The ingredient's name of `colour`'s books, e.g. \"Garden spider\" for green."
+  @spec book_name(atom) :: String.t()
+  def book_name(colour), do: book_info(colour, colour |> book_sets() |> Enum.find(& &1)).name
 
   @doc """
   The colours the Ingredient books form offers, in the board's order

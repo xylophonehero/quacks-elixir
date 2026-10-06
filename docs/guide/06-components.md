@@ -485,26 +485,30 @@ file name in `@files` (`lib/quacks_web/components/icons.ex:22-52`) and credit th
 author in `docs/CREDITS.md`. The file must be one filled silhouette on a 512
 viewBox, because `sprite/1` and `svg/1` set the viewBox and the fill.
 
-## The spell book: CSS pages, form-attribute fields (round 17)
+## The spell book: pages by URL, form-attribute fields (rounds 17 and 19)
 
 The lobby's book (`lib/quacks_web/live/lobby_live.ex`, `.spell-book` in app.css)
-is three `<section data-book-page>` elements in one grid. The book's `data-page`
-picks the one that shows; from 64rem the grid has two columns and CSS shows New
-game on the left and Books (or Join) on the right. The ribbons are buttons with a
-`clip-path` notch; the active one hangs lower. A page turn is a short keyframe
-(`page-turn`) that runs only after a bookmark set `data-turned`, so the first paint
-never animates.
+is one `<section>` per page (`book_page/1` in the LiveView: a Back arrow, the
+title with the ruled underline, the content). The server shows one page on a
+phone and two from 64rem with Tailwind's `hidden`/`flex` and `lg:` classes; the
+sections carry `.book-page-left` or `.book-page-right` for the open book's grid.
+A page that appears after a step turns in once (`page-turn`, only with
+`data-turned`, so the first paint never animates). There are no bookmarks.
 
-The pages split one form across the spread: the expansion toggles sit on the left
-page but belong to `#books` on the right, and the pot-side toggle to `#options`.
-Each input names its form (`form="books"`), so the browser sends it with that
-form's change and LiveView's `phx-change` sees it; `SetupComponents.expansion_cards/1`
-is that block, and `books_form/1` takes `expansion_cards={false}` when the page
-shows it elsewhere. `colour_picker/1` and `switch_card/1` moved to
-`SetupComponents` too, for the book and the configure screen.
+The pages split the forms: the expansion cards (Expansions page) belong to
+`#books`, the pot-side card to `#options`, and each colour page's radio cards
+(`SetupComponents.book_options/1`, `witch_options/1`) to `#books`. Each input
+names its form (`form="books"`), so the browser sends it with that form's change
+and LiveView's `phx-change` sees it. `books_form/1` takes `patch` (a function from
+`{:book | :witch, colour}` to a path): its tiles become links and it draws no
+picker sheets; the configure screen still uses the sheets.
 
-The Start seal is a `.wax-seal` button in a sticky `.seal-bar`, so on a phone it
-stays at the foot of the books page while the tiles scroll.
+A page's foot (`.page-foot` for New game and Next, `.start-bar` for Start) is
+sticky on a phone, so the main button stays at the bottom while the page scrolls.
+`.start-button` and `.flow-button` are ink buttons in the display font with a gold
+hairline inside. The presets row is a horizontal scroll of `.preset-card` buttons;
+`aria-pressed` marks the preset that matches the books
+(`Quacks.Rules.BookPresets.match/1`) or Random's last roll.
 
 ## Tailwind: full class names in maps
 

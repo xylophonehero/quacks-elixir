@@ -212,22 +212,33 @@ these assigns, the reply path and the broadcast path cannot disagree.
 pattern: subscribe to `"lobby"`, list `GameServer.games/1` (public games and your
 own, waiting or playing), list again on `:games_changed`. The server broadcasts it
 when seats or games change and when a game's round changes (`stage/1` in
-`changed/2`), so the Join page's "Round 3 of 9" stays fresh.
+`changed/2`), so the Games page's "Round 3 of 9" stays fresh.
 
 Unlike the configure screen, the book holds its settings in the page's own assigns:
-no game exists until the Start seal. Each event (`"players"`, `"sets"`, `"rules"`,
-`"public"`, `"add_bot"`, `"random_books"`, ...) changes an assign and pushes
+no game exists until Start. Each event (`"players"`, `"sets"`, `"rules"`,
+`"public"`, `"add_bot"`, `"preset"`, `"random_books"`, ...) changes an assign and pushes
 `"save_config"` to the `ConfigMemory` hook (localStorage, the same key the
 configure screen uses); on mount the hook sends `"load_config"` back. `"start"`
 builds one config map and calls `GameServer.create/3`, which seats you, your name
 and colour and the bots in one call, so a solo or all-bot game begins at once
 without a waiting room.
 
-Which page shows is not an assign. A bookmark runs a JS command,
-`JS.set_attribute({"data-page", page}, to: "#spell-book")`, and CSS shows the
-matching `[data-book-page]`. LiveView keeps attributes set by JS commands across
-patches, so a change from the server never turns the page back, and the turn needs
-no round trip. `?page=join` sets the first `data-page` from the server.
+Which page shows is the URL (round 19). Each page of the book is a step:
+`/` (Games), `?step=players`, `expansions`, `rules`, `books`, and
+`?step=book&colour=green` or `?step=witch&colour=copper` for one colour's cards.
+The links use `patch`, so `handle_params/3` sets `@step` and the browser keeps a
+history entry per page: its Back button turns back. Every page is always in the
+DOM; `visible/2` gives each section `hidden`/`flex` for a phone and
+`lg:hidden`/`lg:flex` for the open book (Games or Players on the left, Expansions
+or the deeper page on the right). So the forms keep all their fields when a page
+is hidden: the colour pages' radio cards stand outside `#books` and name it with
+`form="books"`.
+
+The Back arrow must not add a history entry when the page before is its parent.
+`handle_params/3` keeps `entry_depth`, the depth of the page the visit began on;
+on a deeper page `back/2` returns `JS.dispatch("quacks:back")` (app.js calls
+`history.back()`), else `JS.patch` to the parent. A pick on a colour page runs the
+same command, so it returns to the list with the pick applied.
 
 ## Acknowledgement events: `"seen"`
 
