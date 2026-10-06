@@ -134,8 +134,8 @@ defmodule QuacksWeb.Round11Test do
       {id, view} = solo()
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0))
       # round 14: Enter steps through the reveal overlay first
-      # (solo, no book result: one slide, the round's results)
-      assert has_element?(view, "#reveal-slide-0[data-kind=results]")
+      # (solo, no book result: the scoring space, then the round's results; round 20)
+      assert has_element?(view, "#reveal-slide-0[data-kind=space]")
       key(view, "d")
       assert has_element?(view, "#reveal-slide-0")
 

@@ -2244,6 +2244,26 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   }
 }
 
+/* Round 20: on a phone the overlay is the whole screen, edge to edge (no gap above
+   the sheet, no rounded corners), so a row per seat fits on each step slide. */
+@media (width < 40rem) {
+  .sheet.reveal-sheet {
+    inset: 0;
+    height: 100dvh;
+    max-height: none;
+    min-height: 0;
+    border-top: 0;
+    border-radius: 0;
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  /* The close button is a flex item above it: the slide takes what is left, so the
+     bar with Next stays on screen. */
+  .reveal-sheet > [data-role="reveal"] {
+    min-height: 0;
+  }
+}
+
 @keyframes reveal-in {
   from {
     opacity: 0;
@@ -2290,21 +2310,26 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   animation-delay: calc(var(--beat-ms) * 0.8ms);
 }
 
-/* The bonus die, large: it rolls through its strip and lands, then its reward shows. */
-.reveal-die .die {
-  width: 5.5rem;
-  border-radius: 1rem;
-  box-shadow: 0 6px 16px rgb(0 0 0 / 0.25);
+/* Round 20: the bonus die slide, a small die per roll in each seat's row. Each die
+   rolls through its strip and lands on its row's beat, then its reward shows. */
+.reveal-dice .die {
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.25);
   animation: die-land 260ms var(--ease-spring) both;
-  animation-delay: var(--die-roll);
+  animation-delay: calc(100ms + var(--i) * var(--beat-ms) * 0.2ms + var(--die-roll));
 }
 
-.reveal-die .die-strip {
+.reveal-dice .die-strip {
   animation: die-roll var(--die-roll) steps(7, jump-none) both;
+  animation-delay: calc(100ms + var(--i) * var(--beat-ms) * 0.2ms);
 }
 
-[data-kind="die"] .reveal-after {
-  animation-delay: calc(var(--die-roll) + 150ms);
+/* A step row's reward shows after its row, one row after the other. */
+.reveal-row .reveal-after {
+  animation-delay: calc(var(--beat-ms) * 0.8ms + var(--i) * var(--beat-ms) * 0.2ms);
+}
+
+[data-kind="die"] .reveal-row .reveal-after {
+  animation-delay: calc(250ms + var(--i) * var(--beat-ms) * 0.2ms + var(--die-roll));
 }
 
 .reveal-timer {
@@ -2363,8 +2388,8 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   .reveal-chip,
   .reveal-row,
   .reveal-after,
-  .reveal-die .die,
-  .reveal-die .die-strip,
+  .reveal-dice .die,
+  .reveal-dice .die-strip,
   .reveal-gain,
   .reveal-timer {
     animation: none;

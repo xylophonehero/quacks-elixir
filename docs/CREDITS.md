@@ -35,7 +35,7 @@ The files are in `priv/static/images/icons/`. The app shows this credit in the l
 | `patient-forgetfulness-1.svg` | Forgetfulness | brain-leak | Delapouite |
 | `patient-vampirism-2.svg` | Vampirism | fangs | Skoll |
 
-Our own icons, drawn for this project (same licence as the project; no attribution needed): `crow-skull.svg` (blue chip), `mandrake.svg` (yellow chip), `hawkmoth.svg` (black chip). The paths are hand-written; reference pictures were used only to study the shapes (see `docs/research/art-assets.md`).
+Our own icons, drawn for this project (same licence as the project; no attribution needed): `crow-skull.svg` (blue chip), `mandrake.svg` (yellow chip), `hawkmoth.svg` (black chip), `coin.svg` (coins, round 20). The paths are hand-written; reference pictures were used only to study the shapes (see `docs/research/art-assets.md`).
 
 Our own SVG in the templates (no licence needed): the pot flask, the droplet on the pot, the bag beside the pot, the bonus die faces, the cauldron board and the test tubes.
 

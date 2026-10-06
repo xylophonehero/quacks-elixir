@@ -718,18 +718,17 @@ pure, `test/quacks_web/live/replay_test.exs:43-122` and
 
 The beats above are fast, and on a phone there was nothing to hold on to. The
 overlay shows the round's reveals as *slides*, one at a time, in a modal
-`<dialog>`: a bottom sheet on a phone, centred from 64rem. The beats still play
+`<dialog>`: full screen on a phone (round 20), a bottom sheet on a tablet, centred from 64rem. The beats still play
 under it; they are secondary now.
 
 **Pure slides.** `QuacksWeb.Reveal` (`lib/quacks_web/reveal.ex`) has no state, like
 `Replay`. `moment/1` names what there is to reveal: `{:card, round}` at the round's
 start, `{:results, round}` in the shop phase, `{:final, 9}` at the game's end.
-`slides(game, seat)` (line 76) builds the list from the `Replay` lines and the log,
-with no new engine data: one `:die` slide per seat that rolled, one `:book` slide per
-book and seat with a result (the chips that count, the reward, the pot's black,
-green and purple chips, and for black the targets' black chips, see
-`Evaluation.targets/2`), then one `:results` slide and (round 18) one `:standings` slide; at the end
-`:final` and `:podium`. `test/quacks_web/reveal_test.exs` tests it without a browser.
+`slides(game, seat)` builds the list from the `Replay` lines and the log, with no
+new engine data. Since round 20 the evaluation has one slide per scoring step (see
+**Round 20** below), then one `:results` slide and (round 18) one `:standings`
+slide; at the end `:final` and `:podium`. `test/quacks_web/reveal_test.exs` tests
+it without a browser.
 
 **Round 16: one results slide and a running strip.** The three closing slides
 (scoring space, "also this round", summary) were one slide too many on a phone.
@@ -763,7 +762,7 @@ stylesheet. A `grid` with no `grid-template-columns` is one column. Two fixes:
   A table keeps its columns from the browser's own styles, so a missing utility
   class costs a width, not the layout.
 
-The table has eight columns: rank, player (the name may wrap; the update chips sit
+The table had eight columns (seven since round 20, no space): rank, player (the name may wrap; the update chips sit
 small under it), space, coins, VP, ruby, the bonus die face (`die_face/1`, still) and
 the pot's green, black and purple chips (locoweed too with The Alchemists or a
 locoweed book). The card, essence and witch lines wait in a `<details>` under the
@@ -801,6 +800,37 @@ itself `{:reveal_settle, ref}` after 300 ms, and that render has the new ranks. 
 totals use the card counters' ticker (`.stat-tick`: `--n` is a registered integer,
 so a new `--n` counts up). A stale settle message is ignored, like the Auto tick.
 With reduced motion there is no transition: the rows jump.
+
+**Round 20: one slide per scoring step, everyone at once.** A slide per (book,
+seat) made a 4-player round 10 slides long, and you never saw the table side by
+side. Now `results/2` in `reveal.ex` builds one slide per step, in this order:
+
+| Step | Slide | Rows show |
+|---|---|---|
+| Bonus die | `:die` (`die_slide/2`) | every roll (base die and book G6), faces side by side, a reward tag under each |
+| Black, green, purple | `:book` (`book_slide/5`) | the chips that count (small chips), black's targets ("vs" their dots and counts), the reward or "–" |
+| Any other book that paid | `:book` | the same; e.g. blue III–VI pay VP or rubies while brewing |
+| Scoring space | `:space` (`space_slide/3`) | coins (coin icon), VP, a ruby tag on each row that landed on a ruby |
+
+Each slide has a row for every seat, in the final VP order of the round, so a row
+does not jump between slides; a seat that did not score in the step is dimmed. A
+step where nobody scores has no slide (`nil`, then `Enum.reject/2`). To find the
+"other books", each `Replay` line now carries `book: {colour, set}` (from
+`{:effect, book, _}` log entries, nil otherwise). The results table then adds only
+the card, essence and witch lines (`gains`), so the strip ticks up step by step
+and its last value is the table's total. The rows are one function component,
+`step_rows/1`, with an inner block for the step's content and `:reward` and
+`:lines` slots (both take `:let={row}`).
+
+On a phone (`width < 40rem`) the overlay is the whole screen: `inset: 0`,
+`height: 100dvh`, no rounded top. The sheet's × is a flex item above the slide, so
+the slide container drops its `min-height: 100%` there; otherwise the bar with
+Next would sit 32px below the screen.
+
+The results table lost the Space column; the Coins header is the coin icon
+(`piece_icon name={:coin}`, our own `coin.svg`), and the die column stacks up to
+three faces, smaller as there are more (`die_size/1`: 20, 16, 12px), so a row
+stays two lines high.
 
 **Droplets last.** With the reverse pot side a droplet won in the evaluation waits in
 `droplet_moves`. In the shop `Game.phase/2` is `:droplet_choice`, and its dialog
