@@ -59,6 +59,28 @@ Components do not change state: "Rendering only: nothing in here changes game st
 (`lib/quacks_web/components/game_components.ex:3-5`). A button in a component sends a
 `phx-click` to the LiveView that renders it.
 
+### One slot table, three views: the patient's glasses (round 15)
+
+`Quacks.Rules.Alchemists` keeps one list of terms per glass (chapter 7). Three
+components in `lib/quacks_web/components/alchemists_components.ex` draw that same
+data. No component keeps its own copy of a reward.
+
+- `slot_grid/1`: the patient card, 5 glasses per row, large glyphs.
+- `glass_rewards/1`: one column per flask space under the vials of `flask_strip/1`,
+  one icon wide. `mini/1` turns a term into `{glyph, number}`: `{:vp, 2}` is the VP
+  seal over "2", `{:buy, 6}` is a gold coin disc over "6", `{:swap, 1, 4}` is "⇄"
+  over "4". Passed glasses fade, the glass under the marker has a gold underline.
+- `patient_panel/1`: the patient block in the player sheet (`player_card/1`). It
+  shows the picture, name, essence, card text and the `:sm` flask strip, so you can
+  see the patient of each opponent. The name card has no second button: the whole
+  card already opens the sheet, and HTML does not allow a button in a button.
+
+The `:lg` strip sits on the dark iron bar and the `:sm` strip on parchment, so
+`mini_colour/2` takes the size and gives a light or a dark icon colour. Each
+`<li>` has a `title` and a `sr-only` text with the words of `slot_text/1`; the
+glyphs are `aria-hidden`. Tests find a glyph by `data-glyph` and a column by
+`data-space` (`test/quacks_web/live/alchemists_live_test.exs`).
+
 ## HEEx in five rules
 
 1. `{expr}` interpolates in attributes and text: `{face(@chip)}`.

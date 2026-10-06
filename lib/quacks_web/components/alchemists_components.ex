@@ -19,10 +19,11 @@ defmodule QuacksWeb.AlchemistsComponents do
   @doc """
   The alchemist's flask of `seat`: a rack of 11 glass vials (spaces 0–10) on a
   wooden shelf, filled in the seat colour up to the essence marker, a big filled
-  vial with its number. `:lg` (above your pot) starts with the
-  patient badge, a button for `#sheet-patient`; `:sm` (a player card) names the
-  patient above the beads. While the essence pays for actions this round, the
-  marker wears a gold ring.
+  vial with its number. Under the shelf each space shows what its glass pays
+  (`glass_rewards/1`). `:lg` (above your pot) starts with the patient badge, a
+  button for `#sheet-patient`; `:sm` sits in the player sheet's patient block
+  (`patient_panel/1`). While the essence pays for actions this round, the marker
+  wears a gold ring.
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
@@ -41,7 +42,7 @@ defmodule QuacksWeb.AlchemistsComponents do
 
     ~H"""
     <div
-      class={["flex min-w-0 items-center gap-2", @size == :lg && "h-10"]}
+      class="flex min-w-0 items-center gap-2"
       style={"--bead: #{seat_colour(@seat)}"}
       data-role="flask-strip"
       data-essence={@p.essence}
@@ -65,9 +66,6 @@ defmodule QuacksWeb.AlchemistsComponents do
         <span class="truncate">{@patient.name}</span>
       </button>
       <div class="min-w-0 flex-1">
-        <p :if={@size == :sm} class="text-xs font-semibold text-ink-soft">
-          {@patient.name} · essence {@p.essence}
-        </p>
         <%!-- A rack of 11 vials on a wooden shelf, like the test tubes. --%>
         <div class="relative pb-1.5" data-role="essence-rack">
           <ol
@@ -113,8 +111,162 @@ defmodule QuacksWeb.AlchemistsComponents do
             />
           </span>
         </div>
+        <.glass_rewards id={@p.patient} essence={@p.essence} size={@size} />
       </div>
     </div>
+    """
+  end
+
+  @doc """
+  What each glass of patient `id` pays, one column per flask space under the vials
+  (space 0, the bulb, pays nothing): small glyphs with their numbers, the same as
+  the patient card's glasses but one icon wide. Passed glasses fade; the glass under
+  the marker is full strength with a gold underline. `:lg` sits on the dark iron
+  bar, `:sm` on parchment.
+  """
+  attr :id, :atom, required: true
+  attr :essence, :integer, required: true
+  attr :size, :atom, default: :lg, values: [:lg, :sm]
+
+  def glass_rewards(assigns) do
+    assigns = assign(assigns, slots: Alchemists.get(assigns.id).slots)
+
+    ~H"""
+    <ol
+      class={[
+        "grid grid-cols-11 items-start pt-0.5",
+        if(@size == :lg, do: "text-parchment", else: "text-ink")
+      ]}
+      aria-label="Glass rewards"
+      data-role="glass-rewards"
+    >
+      <li
+        :for={space <- 0..10}
+        class={[
+          "flex min-w-0 justify-center rounded-b-sm border-b-2 pb-px transition-opacity duration-200",
+          reward_tone(compare(space, @essence))
+        ]}
+        title={space > 0 && "#{space}: #{slot_text(@slots[space])}"}
+        data-space={space}
+        data-reached={space == @essence && "true"}
+      >
+        <span :if={space > 0} class="flex items-start justify-center -space-x-px">
+          <.mini_reward :for={term <- @slots[space]} term={term} size={@size} />
+        </span>
+        <span :if={space > 0} class="sr-only">{space}: {slot_text(@slots[space])}</span>
+      </li>
+    </ol>
+    """
+  end
+
+  defp reward_tone(:passed), do: "border-transparent opacity-45"
+  defp reward_tone(:marker), do: "border-gold"
+  defp reward_tone(:ahead), do: "border-transparent"
+
+  # One glass term, one icon wide: the glyph over its number (a coin disc for
+  # Vampirism's coins, "⇄" over the new value for the Chicken eyes swap).
+  attr :term, :any, required: true
+  attr :size, :atom, required: true
+
+  defp mini_reward(%{term: {:chip, chip}} = assigns) do
+    assigns = assign(assigns, chip: chip)
+
+    ~H"""
+    <span class="flex" aria-hidden="true" data-glyph="chip">
+      <.chip chip={@chip} size={:xs} />
+    </span>
+    """
+  end
+
+  defp mini_reward(%{term: term} = assigns) do
+    assigns = assign(assigns, mini: mini(term))
+
+    ~H"""
+    <span
+      class={[
+        "flex flex-col items-center text-[9px] leading-[10px] font-bold tabular-nums",
+        @size == :lg && "sm:text-[11px] sm:leading-3"
+      ]}
+      aria-hidden="true"
+      data-glyph={elem(@mini, 0)}
+    >
+      <%= case elem(@mini, 0) do %>
+        <% :coin -> %>
+          <span class={[
+            "size-3 rounded-full bg-gold ring-1 ring-[#7a5a10]/60",
+            @size == :lg && "sm:size-4"
+          ]} />
+        <% :swap -> %>
+          <span class={["h-3 text-[11px] leading-3", @size == :lg && "sm:h-4 sm:text-sm"]}>⇄</span>
+        <% name -> %>
+          <.piece_icon
+            name={name}
+            class={["size-3", @size == :lg && "sm:size-4", mini_colour(name, @size)]}
+          />
+      <% end %>
+      <span :if={elem(@mini, 1) != ""}>{elem(@mini, 1)}</span>
+    </span>
+    """
+  end
+
+  # term => {glyph, the number under it ("" for none)}.
+  defp mini({:vp, n}), do: {:vp, "#{n}"}
+  defp mini(:rat), do: {:rat, ""}
+  defp mini({:draw, n}), do: {:bag, "#{n}"}
+  defp mini({:ear_worm, n}), do: {:bag, "#{n}"}
+  defp mini({:buy, n}), do: {:coin, "#{n}"}
+  defp mini({:rubies, n}), do: {:ruby, if(n == 1, do: "", else: "#{n}")}
+  defp mini({:swap, 1, to}), do: {:swap, "#{to}"}
+  defp mini(:flask), do: {:flask, ""}
+  defp mini({:dice, n}), do: {:die, "#{n}"}
+  defp mini({:droplet, n}), do: {:droplet, "+#{n}"}
+
+  defp mini_colour(:vp, _size), do: "text-gold"
+  defp mini_colour(:ruby, :lg), do: "text-ruby-light"
+  defp mini_colour(:ruby, _sm), do: "text-ruby"
+  defp mini_colour(:droplet, _size), do: "text-droplet"
+  defp mini_colour(:flask, :lg), do: "text-potion-light"
+  defp mini_colour(_name, :lg), do: "text-parchment"
+  defp mini_colour(_name, _sm), do: "text-ink"
+
+  @doc """
+  The patient block of the player sheet (any seat, also an opponent's): the
+  patient's picture, name and essence, the card text, and the flask strip with
+  what each glass pays and how far the essence marker is.
+  """
+  attr :game, Game, required: true
+  attr :seat, :integer, required: true
+
+  def patient_panel(assigns) do
+    p = assigns.game.players[assigns.seat]
+    assigns = assign(assigns, p: p, patient: Alchemists.get(p.patient))
+
+    ~H"""
+    <section
+      class="space-y-1.5 rounded-md bg-ink/5 p-2 ring-1 ring-ink/10"
+      aria-label={"Patient: #{@patient.name}"}
+      data-role="player-patient-card"
+      data-patient={@p.patient}
+    >
+      <header class="flex items-center gap-2">
+        <span
+          class="grid size-9 shrink-0 place-items-center rounded-full text-ink ring-1 ring-black/25"
+          style={"background: #{seat_colour(@seat)}"}
+          aria-hidden="true"
+        >
+          <.patient_icon id={@p.patient} class="size-7" />
+        </span>
+        <span class="min-w-0">
+          <span class="block font-hand text-lg leading-tight font-bold">{@patient.name}</span>
+          <span class="block text-[11px] text-ink-soft italic">{@patient.de}</span>
+        </span>
+        <span class="ml-auto text-xs font-semibold" data-role="player-essence-count">
+          essence {@p.essence}
+        </span>
+      </header>
+      <p class="text-xs leading-snug text-pretty">{@patient.text}</p>
+      <.flask_strip game={@game} seat={@seat} size={:sm} />
+    </section>
     """
   end
 
