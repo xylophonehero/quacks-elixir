@@ -3,7 +3,7 @@ defmodule QuacksWeb.Icons do
   Game icons as SVG: one per ingredient colour, game piece and patient.
 
   The files are in `priv/static/images/icons/` (game-icons.net, CC BY 3.0, and our
-  own crow skull, mandrake and hawkmoth; see `docs/CREDITS.md`). They are read at
+  own crow skull, mandrake, hawkmoth and coin; see `docs/CREDITS.md`). They are read at
   compile time into one hidden sprite, `sprite/1`, which the root layout puts on
   every page once: a `<symbol id="icon-NAME">` per icon. An icon is then only
   `<svg><use href="#icon-NAME"/></svg>`, so a page or a LiveView diff does not
@@ -40,6 +40,7 @@ defmodule QuacksWeb.Icons do
     bag: "bag-1.svg",
     cauldron: "cauldron-2.svg",
     penny: "penny-1.svg",
+    coin: "coin.svg",
     witch: "witch-1.svg",
     nervousness: "patient-nervousness-2.svg",
     ear_worm: "patient-ear-worm-1.svg",
@@ -66,7 +67,7 @@ defmodule QuacksWeb.Icons do
           end)
 
   @ingredients ~w(white orange green blue red yellow purple black locoweed)a
-  @pieces ~w(flask droplet ruby rat die vp book tube bag cauldron penny witch)a
+  @pieces ~w(flask droplet ruby rat die vp book tube bag cauldron penny coin witch)a
   @patients ~w(nervousness ear_worm carrot_nose wing_ears chicken_eyes witch_hump forgetfulness vampirism)a
 
   @doc "The ingredient colours that have an icon."
