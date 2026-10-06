@@ -146,6 +146,7 @@ defmodule QuacksWeb.GameLive do
            open_sheet: nil,
            seen: seen(table, seat),
            reveal: nil,
+           result_closed: false,
            reveal_mode: :step,
            reveal_speed: :normal,
            reduced: false
@@ -415,8 +416,20 @@ defmodule QuacksWeb.GameLive do
   # Enter, Space) shows the next slide, the last one closes it; Skip jumps to the
   # last slide; Esc or × close it. Closing marks the moment seen and opens what
   # waited for it (the shop, a decision, the game-over sheet).
+  # Round 22: the game's last slide (the podium with Play again) stays; × or Esc
+  # close it, and "Show the result" opens it again.
+  def handle_event(
+        "reveal_next",
+        _params,
+        %{assigns: %{reveal: %{key: {:final, _}} = r}} = socket
+      )
+      when r.index == length(r.slides) - 1,
+      do: {:noreply, socket}
+
   def handle_event("reveal_next", _params, %{assigns: %{reveal: %{}}} = socket),
     do: {:noreply, next_slide(socket)}
+
+  def handle_event("show_result", _params, socket), do: {:noreply, open_result(socket)}
 
   def handle_event("reveal_skip", _params, %{assigns: %{reveal: %{} = reveal}} = socket) do
     last = length(reveal.slides) - 1
@@ -1632,7 +1645,8 @@ defmodule QuacksWeb.GameLive do
             :if={Game.over?(@game)}
             variant={:primary}
             class="min-h-12 w-full text-base"
-            phx-click={JS.dispatch("quacks:modal", to: "#game-over")}
+            phx-click="show_result"
+            data-role="show-result"
           >
             Show the result
           </.button>
@@ -1851,15 +1865,6 @@ defmodule QuacksWeb.GameLive do
         </div>
       </div>
 
-      <.dialog_sheet
-        :if={Game.over?(@game)}
-        id="game-over"
-        label="Game over"
-        auto_open={is_nil(@reveal)}
-      >
-        <.game_over game={@game} names={@names} players={@players} bots={@bots} seat={@seat} />
-      </.dialog_sheet>
-
       <%!-- The round's reveals, one slide at a time (round 14). Last in the page, so
            it stays on top when app.js opens the modals again (`remodal`). --%>
       <.reveal_overlay
@@ -1869,7 +1874,18 @@ defmodule QuacksWeb.GameLive do
         seat={@seat}
         auto_ms={reveal_ms(@reveal, @reveal_mode, @reveal_speed)}
         close_label={close_label(@reveal, @decision, @skip_rubies)}
-      />
+      >
+        <:podium :if={Game.over?(@game)}>
+          <.game_over
+            game={@game}
+            names={@names}
+            players={@players}
+            bots={@bots}
+            seat={@seat}
+            share_url={url(~p"/g/#{@id}")}
+          />
+        </:podium>
+      </.reveal_overlay>
     </Layouts.app>
     """
   end
@@ -1963,6 +1979,7 @@ defmodule QuacksWeb.GameLive do
   attr :players, :integer, required: true
   attr :bots, :map, default: %{}
   attr :seat, :integer, default: nil, doc: "this browser's seat, for \"You win!\""
+  attr :share_url, :string, default: nil, doc: "the game's link, for Share (round 22)"
 
   def game_over(assigns) do
     ranked = placed_ranking(assigns.game)
@@ -2078,16 +2095,45 @@ defmodule QuacksWeb.GameLive do
           </ul>
         </div>
       </div>
-      <div class="flex gap-2 *:min-h-12 *:flex-1">
+      <div class="flex flex-wrap gap-2 *:min-h-12 *:flex-1" data-role="game-over-actions">
         <.button phx-click="lobby" variant={:secondary} data-role="return-to-lobby">
-          Return to lobby
+          Back to lobby
         </.button>
-        <.button phx-click="play_again" variant={:primary} data-role="play-again" autofocus>
+        <.button
+          :if={@share_url}
+          phx-click={
+            JS.dispatch("quacks:share",
+              detail: %{text: share_text(@ranked, @names, @players), url: @share_url}
+            )
+          }
+          variant={:secondary}
+          data-role="share-result"
+        >
+          <.icon name="hero-share" class="size-4" /> Share
+        </.button>
+        <.button
+          phx-click="play_again"
+          variant={:primary}
+          class="basis-full"
+          data-role="play-again"
+          autofocus
+        >
           Play again
         </.button>
       </div>
     </section>
     """
+  end
+
+  # Round 22: what Share sends: the places and their VP, one line.
+  defp share_text([{seat, vp, _place}], names, 1),
+    do: "#{name(names, seat)} brewed #{vp} VP in Quacks."
+
+  defp share_text(ranked, names, _players) do
+    places =
+      Enum.map_join(ranked, ", ", fn {s, vp, place} -> "#{place}. #{name(names, s)} #{vp} VP" end)
+
+    "Quacks of Quedlinburg: #{places}."
   end
 
   # The ranking as `{seat, vp, place}`, best first; equal VP share a place.
@@ -2790,10 +2836,30 @@ defmodule QuacksWeb.GameLive do
       :drop -> assign(socket, reveal: nil)
       :drop_seen -> socket |> assign(reveal: nil) |> mark_seen(key)
       :open -> start_reveal(socket, key, Reveal.slides(game, seat))
+      :result -> open_result(socket)
     end
   end
 
+  # A spectator gets only the game's last slide.
+  defp open_reveal(%{assigns: %{game: game, reveal: nil, result_closed: false}} = socket) do
+    if Game.over?(game), do: open_result(socket), else: socket
+  end
+
   defp open_reveal(socket), do: socket
+
+  # Round 22: the game's last slide (the podium and its actions), straight away: after
+  # a reload or rejoin of a finished game, and from "Show the result".
+  defp open_result(%{assigns: %{game: game}} = socket) do
+    case Reveal.slides(game, socket.assigns.seat) do
+      [] ->
+        socket
+
+      slides ->
+        socket
+        |> start_reveal(Reveal.moment(game), slides)
+        |> show_slide(length(slides) - 1)
+    end
+  end
 
   # What the overlay does with the game's moment `key`.
   defp reveal_step(_assigns, nil), do: :keep
@@ -2804,6 +2870,10 @@ defmodule QuacksWeb.GameLive do
     do: if(seen_key?(assigns.seen, key), do: :drop, else: :drop_seen)
 
   defp reveal_step(%{reveal: %{key: key}}, key), do: :keep
+
+  # The final scoring seen: its last slide, once per page (until × closes it).
+  defp reveal_step(%{reveal: nil, result_closed: false} = assigns, {:final, _} = key),
+    do: if(seen_key?(assigns.seen, key), do: :result, else: :open)
 
   defp reveal_step(assigns, key), do: if(seen_key?(assigns.seen, key), do: :drop, else: :open)
 
@@ -2830,7 +2900,13 @@ defmodule QuacksWeb.GameLive do
   # shows the old ranks; 300 ms later the settle tick sets the new ones (round 18).
   defp show_slide(%{assigns: %{reveal: reveal} = assigns} = socket, index) do
     slide = Enum.at(reveal.slides, index)
-    tick = if assigns.reveal_mode == :auto and connected?(socket), do: make_ref()
+    # The game's last slide waits for Play again: no Auto timer there.
+    final_last? = match?({:final, _}, reveal.key) and index == length(reveal.slides) - 1
+
+    tick =
+      if assigns.reveal_mode == :auto and connected?(socket) and not final_last?,
+        do: make_ref()
+
     settle = if slide.kind == :standings and connected?(socket), do: make_ref()
 
     if tick do
@@ -2872,7 +2948,7 @@ defmodule QuacksWeb.GameLive do
     was = pot_card?(socket.assigns)
 
     socket
-    |> assign(reveal: nil)
+    |> assign(reveal: nil, result_closed: match?({:final, _}, key))
     |> card_vt(was)
     |> mark_seen(key)
     |> auto_done()
@@ -2887,11 +2963,9 @@ defmodule QuacksWeb.GameLive do
   defp mark_seen(socket, _key), do: socket
 
   defp open_waiting(%{assigns: %{game: game, decision: decision}} = socket) do
-    cond do
-      Game.over?(game) -> push_event(socket, "quacks:open", %{to: "#game-over"})
-      decision -> push_event(socket, "quacks:open", %{to: decision_dialog(decision, game)})
-      true -> socket
-    end
+    if decision && not Game.over?(game),
+      do: push_event(socket, "quacks:open", %{to: decision_dialog(decision, game)}),
+      else: socket
   end
 
   # This seat's decision, and whether it is a rubies step to skip (nothing to spend,
@@ -2954,7 +3028,6 @@ defmodule QuacksWeb.GameLive do
 
   # The last slide's button names what comes next.
   defp close_label(%{key: {:card, _}}, _decision, _skip), do: "Continue"
-  defp close_label(%{key: {:final, _}}, _decision, _skip), do: "See the results"
   defp close_label(_reveal, :shop, _skip), do: "To the shop"
   defp close_label(_reveal, :rubies, _skip), do: "Spend rubies"
   defp close_label(_reveal, :droplet_choice, _skip), do: "Move the droplet"

@@ -41,6 +41,9 @@ defmodule QuacksWeb.RevealComponents do
   attr :auto_ms, :integer, default: nil, doc: "the slide's time in Auto mode, nil in Step mode"
   attr :close_label, :string, default: "Close"
 
+  slot :podium,
+    doc: "round 22: the game-over screen (podium, results, Play again) on the final podium slide"
+
   def reveal_overlay(assigns) do
     %{key: {kind, round}, slides: slides, index: index} = assigns.reveal
 
@@ -50,7 +53,9 @@ defmodule QuacksWeb.RevealComponents do
         slide: Enum.at(slides, index),
         count: length(slides),
         last?: index == length(slides) - 1,
-        card?: kind == :card
+        card?: kind == :card,
+        # Round 22: the game's last slide holds the game-over actions: no Next.
+        actions?: kind == :final and index == length(slides) - 1 and assigns.podium != []
       )
 
     ~H"""
@@ -99,11 +104,14 @@ defmodule QuacksWeb.RevealComponents do
           data-role="reveal-timer"
           aria-hidden="true"
         />
-        <%!-- A tap anywhere on the slide is Next. --%>
+        <%!-- A tap anywhere on the slide is Next (not on the game's last slide). --%>
         <div
           id="reveal-stage"
-          class="reveal-stage flex flex-1 cursor-pointer flex-col justify-center py-3"
-          phx-click="reveal_next"
+          class={[
+            "reveal-stage flex flex-1 flex-col justify-center py-3",
+            not @actions? && "cursor-pointer"
+          ]}
+          phx-click={not @actions? && "reveal_next"}
           data-role="reveal-stage"
           aria-live="polite"
         >
@@ -113,7 +121,9 @@ defmodule QuacksWeb.RevealComponents do
             data-role="reveal-slide"
             data-kind={@slide.kind}
           >
+            {if @actions?, do: render_slot(@podium)}
             <.slide
+              :if={not @actions?}
               slide={@slide}
               names={@names}
               seat={@seat}
@@ -121,7 +131,7 @@ defmodule QuacksWeb.RevealComponents do
             />
           </div>
         </div>
-        <footer class="flex gap-2 *:min-h-12" data-role="reveal-bar">
+        <footer :if={not @actions?} class="flex gap-2 *:min-h-12" data-role="reveal-bar">
           <.button
             :if={not @last?}
             id="reveal-skip"

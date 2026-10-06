@@ -181,4 +181,62 @@ defmodule QuacksWeb.Round22Test do
       assert js =~ "!reduced()" and js =~ "types"
     end
   end
+
+  describe "the final scoring in one overlay flow" do
+    defp over(g),
+      do: %{
+        g
+        | phase: :over,
+          round: 9,
+          log: [{:round_end, 9}, {0, {:final_conversion, 7, 1, 2, 1}} | g.log]
+      }
+
+    test "final scoring, standings, podium; the last slide holds the actions and stays" do
+      {id, view} = solo()
+      replace_game(id, &over/1)
+
+      assert has_element?(view, "#reveal-final-9 #reveal-slide-0[data-kind=final]")
+      view |> element("#reveal-next") |> render_click()
+      assert has_element?(view, "#reveal-final-9 #reveal-slide-1[data-kind=standings]")
+      view |> element("#reveal-next") |> render_click()
+
+      last = "#reveal-final-9 #reveal-slide-2[data-kind=podium]"
+      assert has_element?(view, "#{last} [data-role=game-over]")
+
+      for role <- ~w(play-again return-to-lobby share-result),
+          do: assert(has_element?(view, "#{last} [data-role=#{role}]"))
+
+      refute has_element?(view, "#reveal-final-9 [data-role=reveal-bar]")
+      refute has_element?(view, "#reveal-stage[phx-click]")
+      refute has_element?(view, "dialog#game-over")
+
+      # Enter (Next) does not close it; × does; "Show the result" opens it again.
+      render_hook(view, "reveal_next", %{})
+      assert has_element?(view, last)
+      render_hook(view, "reveal_close", %{})
+      refute has_element?(view, "#reveal-final-9")
+      view |> element("[data-role=show-result]") |> render_click()
+      assert has_element?(view, "#{last} [data-role=play-again]")
+    end
+
+    test "a reload after the end shows the last slide" do
+      token = "r22-reload-#{System.unique_integer()}"
+      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, view, _html} = live(browser(token), ~p"/g/#{id}")
+      replace_game(id, &over/1)
+      render_hook(view, "reveal_close", %{})
+      assert {:ok, %{seen: %{0 => %{final: 9}}}} = GameServer.get(id)
+
+      {:ok, again, _html} = live(browser(token), ~p"/g/#{id}")
+
+      assert has_element?(
+               again,
+               "#reveal-final-9 #reveal-slide-2[data-kind=podium] [data-role=play-again]"
+             )
+
+      # A spectator gets the last slide too.
+      {:ok, watcher, _html} = live(browser("r22-watch-#{System.unique_integer()}"), ~p"/g/#{id}")
+      assert has_element?(watcher, "#reveal-final-9 [data-role=game-over]")
+    end
+  end
 end

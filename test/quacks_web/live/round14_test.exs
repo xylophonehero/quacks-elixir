@@ -101,7 +101,7 @@ defmodule QuacksWeb.Round14Test do
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
     end
 
-    test "the end of the game: the final scoring and the podium, then the game-over sheet" do
+    test "the end of the game (round 22): final scoring, standings, podium with the actions" do
       {id, view, _token} = solo_results()
       render_hook(view, "reveal_close", %{})
 
@@ -115,14 +115,14 @@ defmodule QuacksWeb.Round14Test do
       end)
 
       assert has_element?(view, "dialog#reveal-final-9 #reveal-slide-0[data-kind=final]")
-      assert has_element?(view, "dialog#game-over")
-      refute has_element?(view, "dialog#game-over[phx-mounted*='quacks:modal']")
+      refute has_element?(view, "dialog#game-over")
 
       view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-slide-1[data-kind=podium]", "You win!")
-      assert has_element?(view, "#reveal-next", "See the results")
+      assert has_element?(view, "#reveal-slide-1[data-kind=standings]")
       view |> element("#reveal-next") |> render_click()
-      assert_push_event(view, "quacks:open", %{to: "#game-over"})
+      assert has_element?(view, "#reveal-slide-2[data-kind=podium] [data-role=game-over]")
+      assert has_element?(view, "#reveal-slide-2 [data-role=play-again]")
+      refute has_element?(view, "#reveal-next")
     end
 
     test "Enter and Space are Next; a focused button keeps its own key" do
