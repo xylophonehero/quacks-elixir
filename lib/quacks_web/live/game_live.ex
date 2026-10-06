@@ -113,6 +113,9 @@ defmodule QuacksWeb.GameLive do
   # The colours with an ingredient book (white has none), for `offer_books/1`.
   @book_colours Chips.order() -- [:white]
 
+  # The standings slide's first render shows the old ranks this long (round 18).
+  @settle_ms 300
+
   @doc "Join game `id`: take a free seat, or watch when the game is full."
   @impl true
   def mount(%{"id" => id}, session, socket) do
@@ -580,6 +583,13 @@ defmodule QuacksWeb.GameLive do
     do: {:noreply, next_slide(socket)}
 
   def handle_info({:reveal_tick, _ref}, socket), do: {:noreply, socket}
+
+  # The standings slide (round 18): its first render shows the old ranks; this tick
+  # sets the new ones, and CSS glides the rows (a stale tick is ignored).
+  def handle_info({:reveal_settle, ref}, %{assigns: %{reveal: %{settle: ref} = reveal}} = socket),
+    do: {:noreply, assign(socket, reveal: %{reveal | settled: true, settle: nil})}
+
+  def handle_info({:reveal_settle, _ref}, socket), do: {:noreply, socket}
 
   # An info toast closes by itself (`info/3`), unless a newer one took its place.
   def handle_info({:clear_info, msg}, socket) do
@@ -2777,7 +2787,9 @@ defmodule QuacksWeb.GameLive do
 
   defp start_reveal(socket, key, slides) do
     socket
-    |> assign(reveal: %{key: key, slides: slides, index: 0, tick: nil})
+    |> assign(
+      reveal: %{key: key, slides: slides, index: 0, tick: nil, settled: true, settle: nil}
+    )
     |> show_slide(0)
   end
 
@@ -2790,16 +2802,23 @@ defmodule QuacksWeb.GameLive do
   end
 
   # Show slide `index`; in Auto mode its timer starts (`Process.send_after/3`, only
-  # on a live page). A new tick ref drops the pending one.
+  # on a live page). A new tick ref drops the pending one. The standings slide first
+  # shows the old ranks; 300 ms later the settle tick sets the new ones (round 18).
   defp show_slide(%{assigns: %{reveal: reveal} = assigns} = socket, index) do
+    slide = Enum.at(reveal.slides, index)
     tick = if assigns.reveal_mode == :auto and connected?(socket), do: make_ref()
+    settle = if slide.kind == :standings and connected?(socket), do: make_ref()
 
     if tick do
-      ms = reveal.slides |> Enum.at(index) |> Reveal.duration(Reveal.factor(assigns.reveal_speed))
+      ms = Reveal.duration(slide, Reveal.factor(assigns.reveal_speed))
       Process.send_after(self(), {:reveal_tick, tick}, ms)
     end
 
-    assign(socket, reveal: %{reveal | index: index, tick: tick})
+    if settle, do: Process.send_after(self(), {:reveal_settle, settle}, @settle_ms)
+
+    assign(socket,
+      reveal: %{reveal | index: index, tick: tick, settled: is_nil(settle), settle: settle}
+    )
   end
 
   # The end of the reveal: the moment counts as seen (`GameServer.ack/4`), the
