@@ -11,6 +11,7 @@ defmodule QuacksWeb.AlchemistsComponents do
   import QuacksWeb.GameComponents, only: [chip: 1, chip_name: 1, seat_colour: 1]
 
   alias Quacks.Game
+  alias Quacks.Game.Essence
   alias Quacks.Rules.Alchemists
 
   # Patients whose essence pays for actions in the next preparation phase.
@@ -24,11 +25,16 @@ defmodule QuacksWeb.AlchemistsComponents do
   button for `#sheet-patient`; `:sm` sits in the player sheet's patient block
   (`patient_panel/1`). While the essence pays for actions this round, the marker
   wears a gold ring.
+
+  With `preview` (your own seat) while brewing, a ghost marker labelled "now" stands
+  at the space the pot reaches as it is now (`preview_space/2`); the real marker
+  moves only in the essence phase.
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :size, :atom, default: :lg, values: [:lg, :sm]
   attr :beat, :integer, default: nil, doc: "the replay beat the marker lights up on"
+  attr :preview, :boolean, default: false, doc: "this browser's own seat: show the ghost"
 
   def flask_strip(assigns) do
     p = assigns.game.players[assigns.seat]
@@ -37,7 +43,8 @@ defmodule QuacksWeb.AlchemistsComponents do
       assign(assigns,
         p: p,
         patient: Alchemists.get(p.patient),
-        spendable: spendable?(assigns.game, p)
+        spendable: spendable?(assigns.game, p),
+        ghost: assigns.preview && preview_space(assigns.game, assigns.seat)
       )
 
     ~H"""
@@ -89,6 +96,22 @@ defmodule QuacksWeb.AlchemistsComponents do
             class="absolute inset-x-0 bottom-0 h-1.5 rounded-sm bg-wood shadow-[inset_0_2px_0_rgb(0_0_0/0.3)]"
             aria-hidden="true"
           />
+          <%!-- The ghost: where the pot reaches now. Under the real marker, so a
+               ghost on the same space shows as a dashed ring around it. --%>
+          <span
+            :if={@ghost}
+            id={"essence-ghost-#{@seat}-#{@size}"}
+            class="essence-ghost pointer-events-none absolute top-0 bottom-1.5 left-0 flex w-[calc(100%/11)] items-end justify-center"
+            style={"translate: #{@ghost * 100}% 0"}
+            aria-hidden="true"
+            data-role="essence-ghost"
+            data-space={@ghost}
+          >
+            <span class={ghost_class(@size)}>
+              <span class={["leading-none font-semibold", ghost_caption(@size)]}>now</span>
+              <span class="leading-none">{@ghost}</span>
+            </span>
+          </span>
           <%!-- The visible marker: one node with a fixed id, one column wide, moved by
                `translate` in whole columns, so a new essence slides it (app.css). --%>
           <span
@@ -236,6 +259,7 @@ defmodule QuacksWeb.AlchemistsComponents do
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
+  attr :preview, :boolean, default: false, doc: "this browser's own seat (`flask_strip/1`)"
 
   def patient_panel(assigns) do
     p = assigns.game.players[assigns.seat]
@@ -265,7 +289,7 @@ defmodule QuacksWeb.AlchemistsComponents do
         </span>
       </header>
       <p class="text-xs leading-snug text-pretty">{@patient.text}</p>
-      <.flask_strip game={@game} seat={@seat} size={:sm} />
+      <.flask_strip game={@game} seat={@seat} size={:sm} preview={@preview} />
     </section>
     """
   end
@@ -296,6 +320,36 @@ defmodule QuacksWeb.AlchemistsComponents do
   defp vial_fill(:passed, _sm), do: "h-3 w-1.5 bg-(--bead)/70"
   defp vial_fill(:ahead, :lg), do: "h-5 w-2.5 bg-parchment/12 ring-1 ring-parchment/35"
   defp vial_fill(:ahead, _sm), do: "h-3 w-1.5 bg-ink/12 ring-1 ring-ink/20"
+
+  @doc """
+  The space the essence would reach from the pot of `seat` as it is now, while the
+  game brews (`:potions`); else `nil`. The essence phase count
+  (`Quacks.Game.Essence.count/2`) without the exploded neighbours, which are not
+  known until they stop.
+  """
+  @spec preview_space(Game.t(), Game.seat()) :: 0..10 | nil
+  def preview_space(%{phase: :potions} = game, seat) do
+    {_reach, parts} = Essence.count(game, seat)
+    min(parts.colours + parts.locoweed + parts.white7, Alchemists.max_space())
+  end
+
+  def preview_space(_game, _seat), do: nil
+
+  # The ghost vial: the marker's size, empty glass with a dashed seat-colour rim,
+  # half opacity; "now" over the number.
+  defp ghost_class(size) do
+    [
+      "flex shrink-0 flex-col items-center justify-end gap-px rounded-t-[3px] rounded-b-full",
+      "border border-dashed border-(--bead) font-bold tabular-nums opacity-50",
+      ghost_size(size)
+    ]
+  end
+
+  defp ghost_size(:lg), do: "h-8 w-6 pb-1 text-xs text-parchment"
+  defp ghost_size(_sm), do: "h-5 w-5 pb-0.5 text-[9px] text-ink"
+
+  defp ghost_caption(:lg), do: "text-[7px]"
+  defp ghost_caption(_sm), do: "text-[6px]"
 
   # The essence pays for actions now: a spending patient, essence left, brewing.
   defp spendable?(%{phase: :potions}, %{patient: patient, essence: essence}),

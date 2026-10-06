@@ -88,6 +88,53 @@ defmodule QuacksWeb.AlchemistsLiveTest do
     assert has_element?(view, "[data-role=patient-badge]", "Carrot nose")
   end
 
+  describe "the essence preview while brewing" do
+    # 3 colours (orange, green, red) + white 3 + 4 = 7: reach 4; essence still 2.
+    @pot [{{:white, 3}, 0}, {{:orange, 1}, 1}, {{:white, 4}, 2}, {{:green, 1}, 3}, {{:red, 1}, 4}]
+
+    test "a ghost stands at colours + 1 for white 7; the marker stays", %{conn: conn} do
+      {id, view} = live_solo(conn)
+      with_patient(id, :carrot_nose, essence: 2, drawn: @pot)
+
+      assert has_element?(view, "#essence-ghost-0-lg[data-space='4']", "now")
+      view |> element(~s([data-role=player-chip][data-seat="0"])) |> render_click()
+      assert has_element?(view, "#sheet-player-0 #essence-ghost-0-sm[data-space='4']")
+      assert has_element?(view, "[data-role=flask-strip][data-essence='2']")
+    end
+
+    test "no ghost outside the brewing phase", %{conn: conn} do
+      {id, view} = live_solo(conn)
+      with_patient(id, :carrot_nose, [essence: 2, drawn: @pot], :essence)
+
+      refute has_element?(view, "[data-role=essence-ghost]")
+    end
+
+    test "no ghost on an opponent's flask strip" do
+      {:ok, id} =
+        GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false}, MapSet.new([:alchemists]))
+
+      browser = fn name -> init_test_session(build_conn(), player_token: name) end
+      {:ok, alice, _} = live(browser.("alice-#{id}"), ~p"/g/#{id}")
+      {:ok, _bob, _} = live(browser.("bob-#{id}"), ~p"/g/#{id}")
+      alice |> element("button", "Start game") |> render_click()
+
+      replace_game(id, fn g ->
+        g =
+          Quacks.GameHelpers.put(%{g | phase: :potions}, 0,
+            patient: :carrot_nose,
+            phase: :potions
+          )
+
+        Quacks.GameHelpers.put(g, 1, patient: :vampirism, drawn: @pot, phase: :potions)
+      end)
+
+      assert has_element?(alice, "#essence-ghost-0-lg[data-space='0']")
+      alice |> element(~s([data-role=player-chip][data-seat="1"])) |> render_click()
+      assert has_element?(alice, "#sheet-player-1 [data-role=flask-strip]")
+      refute has_element?(alice, "#sheet-player-1 [data-role=essence-ghost]")
+    end
+  end
+
   test "the essence choice sheet steps down and takes a space", %{conn: conn} do
     {id, view} = live_solo(conn)
     parts = %{colours: 2, locoweed: 0, white7: 0, neighbours: 0}
