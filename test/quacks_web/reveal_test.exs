@@ -54,7 +54,7 @@ defmodule QuacksWeb.RevealTest do
     assert card == game.fortune_card
   end
 
-  test "the results: dice, books by colour and seat, one results slide" do
+  test "the results: dice, books by colour and seat, the results and the standings" do
     slides = Reveal.slides(results_game(), 0)
 
     assert Enum.map(slides, &{&1.kind, &1[:book], &1[:seat]}) == [
@@ -63,10 +63,11 @@ defmodule QuacksWeb.RevealTest do
              {:book, :black, 0},
              {:book, :black, 1},
              {:book, :purple, 0},
-             {:results, nil, nil}
+             {:results, nil, nil},
+             {:standings, nil, nil}
            ]
 
-    [die, green, black0, black1, purple, results] = slides
+    [die, green, black0, black1, purple, results, _standings] = slides
     assert %{face: {:vp, 2}, vp: 2} = die
 
     # the chips that count (green: of the last two), oldest first, and the reward
@@ -86,10 +87,18 @@ defmodule QuacksWeb.RevealTest do
     assert black1.pot == [green: 0, black: 2, purple: 0]
 
     # one row per seat, in VP order: the space, the updates, the other results
-    assert %{round: 1, last: false, rows: [row0, row1]} = results
+    assert %{round: 1, rows: [row0, row1]} = results
 
-    assert %{seat: 0, vp: 3, ruby: true, updates: [_ | _], pot: [green: 2, black: 1, purple: 2]} =
-             row0
+    assert %{
+             seat: 0,
+             vp: 3,
+             ruby: true,
+             die: [{:vp, 2}],
+             updates: [_ | _],
+             pot: [green: 2, black: 1, purple: 2]
+           } = row0
+
+    assert row1.die == []
 
     assert [%{kind: :card, vp: 1}] = row0.extra
     assert %{seat: 1, vp: 2, ruby: false, extra: []} = row1
@@ -101,7 +110,7 @@ defmodule QuacksWeb.RevealTest do
 
     html =
       render_component(&QuacksWeb.RevealComponents.reveal_overlay/1,
-        reveal: %{key: {:results, 1}, slides: slides, index: length(slides) - 1},
+        reveal: %{key: {:results, 1}, slides: slides, index: length(slides) - 2},
         names: %{0 => "Ann", 1 => "Bo"},
         seat: 0
       )
@@ -127,7 +136,7 @@ defmodule QuacksWeb.RevealTest do
     [die | _] = slides
     assert die.standings == [%{seat: 0, vp: 4, gain: 2}, %{seat: 1, vp: 0, gain: 0}]
 
-    results = List.last(slides)
+    results = Enum.at(slides, -2)
     assert results.standings == [%{seat: 0, vp: 9, gain: 4}, %{seat: 1, vp: 2, gain: 2}]
     assert Enum.map(results.rows, & &1.seat) == [0, 1]
   end
@@ -138,7 +147,7 @@ defmodule QuacksWeb.RevealTest do
     game = put_in(game.players[1].vp, 20)
     game = put_in(game.players[0].rubies, 3)
     game = put_in(game.players[1].rubies, 1)
-    assert %{rows: [%{seat: 1}, %{seat: 0}]} = game |> Reveal.slides(0) |> List.last()
+    assert %{rows: [%{seat: 1}, %{seat: 0}]} = game |> Reveal.slides(0) |> Enum.at(-2)
   end
 
   test "seat 1 sees its own book slides first among equals" do

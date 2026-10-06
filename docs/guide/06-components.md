@@ -717,15 +717,15 @@ start, `{:results, round}` in the shop phase, `{:final, 9}` at the game's end.
 with no new engine data: one `:die` slide per seat that rolled, one `:book` slide per
 book and seat with a result (the chips that count, the reward, the pot's black,
 green and purple chips, and for black the targets' black chips, see
-`Evaluation.targets/2`), then one `:results` slide; at the end `:final` and
-`:podium`. `test/quacks_web/reveal_test.exs` tests it without a browser.
+`Evaluation.targets/2`), then one `:results` slide and (round 18) one `:standings` slide; at the end
+`:final` and `:podium`. `test/quacks_web/reveal_test.exs` tests it without a browser.
 
 **Round 16: one results slide and a running strip.** The three closing slides
 (scoring space, "also this round", summary) were one slide too many on a phone.
 `results_slide/3` makes one row per seat in VP order (a tie to fewer rubies, then
 the lower seat): space, coins, the space's VP and ruby, the update chips of
-`Replay.updates/2`, the pot's chip counts, and the card, essence and witch lines in
-small text under the row. Five players or more scroll inside the list
+`Replay.updates/2`, the pot's chip counts, and the card, essence and witch lines
+(round 18 moved them to a closed "Details", below). Five players or more scroll inside the list
 (`max-h-[min(58dvh,30rem)]`), so Next stays under the thumb.
 
 Each slide also carries `gains` (`%{seat => {vp, rubies}}`) and `standings`, the
@@ -736,6 +736,69 @@ row of chips with a fixed height (`h-7`), so the slide under it does not move; t
 slide's gain pops in on the same beat as the reward (`.reveal-gain`). The sum of
 the gains is the round's VP, so the strip on the results slide shows the real
 totals. No state in the LiveView: the strip is part of each slide.
+
+**Round 18: a table, then the standings.** On a phone the round-16 results grid
+fell to one column. The cause was not the layout: the tab had loaded the old
+`app.css` before a deploy, LiveView reconnected it to the new server, and the new
+markup used `grid-cols-[minmax(0,1fr)_2.5rem_...]`, a class with no rule in the old
+stylesheet. A `grid` with no `grid-template-columns` is one column. Two fixes:
+
+- `QuacksWeb.StaticCheck` (`lib/quacks_web/live/static_check.ex`), an `on_mount` in
+  every LiveView: when `static_changed?/1` says the tab's `phx-track-static` assets
+  are not the server's, it pushes `quacks:reload`, and app.js reloads the page (at
+  most once a minute). In React the same problem is a stale chunk after a deploy;
+  there you catch the failed `import()` and reload.
+- The results are a real `<table>` (`table-fixed`, a `<colgroup>` for the widths).
+  A table keeps its columns from the browser's own styles, so a missing utility
+  class costs a width, not the layout.
+
+The table has eight columns: rank, player (the name may wrap; the update chips sit
+small under it), space, coins, VP, ruby, the bonus die face (`die_face/1`, still) and
+the pot's green, black and purple chips (locoweed too with The Alchemists or a
+locoweed book). The card, essence and witch lines wait in a `<details>` under the
+table, closed.
+
+Then a **Standings** slide (`standings_slide/2` in `reveal.ex`): every seat's total
+VP and rubies, with `from_rank`/`rank` and the totals before and after the round.
+The rows glide from the old order to the new one, with no JS. This is FLIP (First,
+Last, Invert, Play) done by the server and CSS:
+
+```heex
+<div
+  :for={row <- @slide.rows}
+  id={"standings-row-#{row.seat}"}
+  class="standings-row"
+  style={"--rank: #{if @settled, do: row.rank, else: row.from_rank}"}
+>
+```
+
+```css
+.standings-row {
+  position: absolute;
+  top: 0;
+  transform: translateY(calc(var(--rank) * var(--row-h)));
+  transition: transform 700ms var(--ease-in-out);
+}
+```
+
+The rows stay in **seat order in the DOM**: LiveView never moves a node, it only
+patches one `style` attribute, and a changed `transform` is a CSS transition. If
+the server sorted the rows instead, the patch would move the nodes and nothing would
+animate (a JS FLIP would have to measure before and after the patch). The first
+render has the old ranks (`settled: false`); `show_slide/2` in `GameLive` sends
+itself `{:reveal_settle, ref}` after 300 ms, and that render has the new ranks. The
+totals use the card counters' ticker (`.stat-tick`: `--n` is a registered integer,
+so a new `--n` counts up). A stale settle message is ignored, like the Auto tick.
+With reduced motion there is no transition: the rows jump.
+
+**Droplets last.** With the reverse pot side a droplet won in the evaluation waits in
+`droplet_moves`. In the shop `Game.phase/2` is `:droplet_choice`, and its dialog
+mounts with `auto_open={is_nil(@reveal)}`, so it already waited for the overlay;
+`close_reveal/1` opens it ("Move the droplet" on the last slide). Only the
+evaluation's own choices (`:chip_choice`, `:witch_choice`, books G2/G4/P2/P4 and the
+gold witches) asked for the droplet first. The engine now lets the moves wait in
+those two phases (`@droplets_wait` in `lib/quacks/game.ex`), so they come in the
+shop, after the reveal.
 
 **Per browser, on the server.** The LiveView keeps
 `reveal: %{key, slides, index, tick}` (`open_reveal/1`,

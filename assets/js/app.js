@@ -337,6 +337,16 @@ window.addEventListener("phx:quacks:open", e => {
   const d = document.querySelector(e.detail.to)
   d && sideOpen(d)
 })
+// A tab that outlived a deploy (`QuacksWeb.StaticCheck`): reload, so the new
+// stylesheet comes with the new markup. At most once a minute, so a stale cache
+// cannot loop.
+window.addEventListener("phx:quacks:reload", () => {
+  let last = 0
+  try { last = Number(sessionStorage.getItem("quacks:reloaded") || 0) } catch (_e) {}
+  if (Date.now() - last < 60000) return
+  try { sessionStorage.setItem("quacks:reloaded", String(Date.now())) } catch (_e) {}
+  window.location.reload()
+})
 // The b hotkey (`hotkey` in game_live.ex): the server asks to toggle a popover sheet.
 window.addEventListener("phx:quacks:toggle", e => document.getElementById(e.detail.id)?.togglePopover())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).

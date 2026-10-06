@@ -2207,6 +2207,43 @@ html[data-install="ios"] .pwa-ios-hint {
   animation-delay: calc(var(--beat-ms) * 0.8ms);
 }
 
+/* The standings slide (round 18): FLIP without JS. The rows stay in seat order in
+   the DOM, absolutely placed; `--rank` (from the server) puts each in its slot. The
+   first render has the old ranks and totals, the server's settle tick the new ones:
+   `transform` glides each row to its new slot and `--n` (a registered integer,
+   `.stat-tick`) counts the totals up in the same 700 ms. */
+.standings {
+  --row-h: 2.5rem;
+  height: calc(var(--rows) * var(--row-h));
+}
+
+.standings-slot {
+  height: var(--row-h);
+  display: flex;
+  align-items: center;
+}
+
+.standings-row {
+  position: absolute;
+  top: 0;
+  left: 1.5rem;
+  right: 0;
+  height: var(--row-h);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  border-radius: 0.375rem;
+  background: color-mix(in oklab, var(--color-parchment-deep) 55%, var(--color-parchment-light));
+  border-bottom: 2px solid var(--color-parchment-light);
+  transform: translateY(calc(var(--rank) * var(--row-h)));
+  transition: transform 700ms var(--ease-in-out);
+}
+
+.standings .stat-tick {
+  transition-duration: 700ms;
+}
+
 /* Reduced motion: no slide, no pop, no roll; the die shows its face at once. */
 @media (prefers-reduced-motion: reduce) {
   .reveal-slide {
@@ -2221,5 +2258,10 @@ html[data-install="ios"] .pwa-ios-hint {
   .reveal-gain,
   .reveal-timer {
     animation: none;
+  }
+
+  .standings-row,
+  .standings .stat-tick {
+    transition: none;
   }
 }
