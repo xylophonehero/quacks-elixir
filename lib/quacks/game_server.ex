@@ -17,7 +17,11 @@ defmodule Quacks.GameServer do
   configured number of players (1 to 8). `begin/2` starts the game with the seats taken
   (renumbered `0..n-1` in seat order) and makes it `:playing`; from then on no new
   seats are given out. The creator (the host) is the first browser to take a seat;
-  only the host may `configure/3` the game and begin it. The host is the creator
+  only the host may `configure/3` the game and begin it. `create/3` opens a table
+  already set up (the lobby's spell book): the host in seat 0 and bots seated, and
+  when no seat is left for a human it begins at once. A table is **public** (the
+  default) or private: only public games show on the lobby's Join page
+  (`games/1`); a private one needs its room code (the game id). The host is the creator
   while seated; when the creator leaves a waiting game, the seated browser with the
   lowest seat is host (pages hear `{:host, id, seat}`) until the creator comes back;
   with nobody left the game idles out. After the game is over, `play_again/2` opens a
@@ -98,7 +102,8 @@ defmodule Quacks.GameServer do
   seated); only its saved settings may load into a fresh table. `absent` lists the
   human seats with no open page now; `rejoinable` those away for
   `rejoin_after_ms/0` (see `rejoin/4`). `colours` is each claimed seat's colour, `0..7` (the `--color-seat-N` palette),
-  unique at the table. `bots` is the profile of each seat a bot holds. `seen` is,
+  unique at the table. `bots` is the profile of each seat a bot holds. `public`:
+  the game shows on the lobby's Join page. `seen` is,
   per seat, the round of the fortune card (`card`), of the round results
   (`results`) and of the final scoring (`final`) that seat closed last (`ack/4`), so a reload does not show them again.
   """
@@ -114,6 +119,7 @@ defmodule Quacks.GameServer do
           bots: %{Game.seat() => Profile.name()},
           seen: %{Game.seat() => %{optional(:card | :results | :final) => 1..9}},
           creator: Game.seat() | nil,
+          public: boolean,
           founder: Game.seat() | nil,
           absent: [Game.seat()],
           rejoinable: [Game.seat()],
@@ -157,6 +163,46 @@ defmodule Quacks.GameServer do
       bots: %{},
       creator: nil
     })
+  end
+
+  @doc """
+  Open a table set up in the lobby's spell book. `config` holds `players` (1 to 8),
+  the settings `configure/3` takes (`sets`, `rules`, `expansion`, `expansions`,
+  `witches`, `public`), the `name` and `colour` (0..7) of the browser with `token`,
+  which takes seat 0 and is the host, and `bots`: the seats (1 and up) that get a
+  bot. With no seat left for a human the game begins at once (solo, or every other
+  seat a bot). `{:error, :invalid}` when the settings make no game.
+  """
+  @spec create(map, String.t(), {integer, integer, integer} | nil) ::
+          {:ok, id} | {:error, :invalid}
+  def create(config, token, seed \\ nil) do
+    players = Map.get(config, :players, 2)
+    opts = Keyword.new(Map.take(config, [:sets, :rules, :expansion, :expansions, :witches]))
+
+    bots =
+      config
+      |> Map.get(:bots, [])
+      |> Enum.filter(&(is_integer(&1) and &1 in 1..(players - 1)//1))
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.take(@max_bots)
+
+    if valid?(players, opts) do
+      start_server(%{
+        max_players: players,
+        seed: seed || random_seed(),
+        opts: opts,
+        tokens: %{token => 0},
+        names: %{0 => clean_name(config[:name], 0)},
+        colours: %{0 => if(config[:colour] in 0..7, do: config[:colour], else: 0)},
+        bots: %{},
+        creator: token,
+        public: Map.get(config, :public, true) != false,
+        seat_bots: bots
+      })
+    else
+      {:error, :invalid}
+    end
   end
 
   # A game's `expansions` (a MapSet) or the old single `expansion`.
@@ -229,6 +275,7 @@ defmodule Quacks.GameServer do
         bots: bots,
         bot_rngs: Map.new(bots, fn {seat, _} -> {seat, AI.new_rng(session.seed, seat)} end),
         creator: token,
+        public: false,
         session: session,
         store: nil,
         debug: %{bundle: bundle, at: at, total: total, frozen: Keyword.get(opts, :frozen, true)}
@@ -260,6 +307,7 @@ defmodule Quacks.GameServer do
       bot_rngs: Map.new(bots, fn {seat, _} -> {seat, rngs[seat] || AI.new_rng(seed, seat)} end),
       seen: pairs.("seen", &decode_seen/1),
       creator: t["creator"],
+      public: Map.get(t, "public", true) != false,
       next_id: t["next_id"],
       session: session,
       store: Keyword.get_lazy(opts, :dir, &GameStore.dir/0)
@@ -443,20 +491,46 @@ defmodule Quacks.GameServer do
       when kind in [:card, :results, :final] and is_integer(round),
       do: call(id, {:ack, seat, kind, round})
 
-  @doc "Games on this node that are still `:waiting` with a free seat, sorted by id."
+  @doc "Public games on this node that are still `:waiting` with a free seat, sorted by id."
   @spec open_games() :: [table]
   def open_games do
-    Quacks.GameRegistry
-    |> Registry.select([{{:"$1", :_, :_}, [], [:"$1"]}])
+    game_ids()
     |> Enum.flat_map(fn id ->
       case get(id) do
         {:ok, table} -> [table]
         {:error, :not_found} -> []
       end
     end)
-    |> Enum.filter(&open?/1)
+    |> Enum.filter(&(&1.public and open?(&1)))
     |> Enum.sort_by(& &1.id)
   end
+
+  @doc """
+  The games of the lobby's Join page: every game on this node, waiting or playing,
+  that is public or has a seat for `token`; not over, not a debug table. Each table
+  has `mine` added: the seat of `token`, or nil. Yours come first, then by id.
+  """
+  @spec games(String.t() | nil) :: [map]
+  def games(token) do
+    game_ids()
+    |> Enum.flat_map(fn id ->
+      case call(id, {:listing, token}) do
+        {:ok, table} -> [table]
+        {:error, :not_found} -> []
+      end
+    end)
+    |> Enum.filter(&listed?/1)
+    |> Enum.sort_by(&{&1.mine == nil, &1.id})
+  end
+
+  defp listed?(%{debug: %{}}), do: false
+
+  defp listed?(%{game: %Game{} = game} = t),
+    do: (t.public or t.mine != nil) and not Game.over?(game)
+
+  defp listed?(t), do: t.public or t.mine != nil
+
+  defp game_ids, do: Registry.select(Quacks.GameRegistry, [{{:"$1", :_, :_}, [], [:"$1"]}])
 
   @doc "\"Player 1\" for seat 0: the name a seat has before anyone renames it."
   @spec default_name(Game.seat()) :: String.t()
@@ -523,6 +597,7 @@ defmodule Quacks.GameServer do
           away: %{},
           tick: 0,
           debug: nil,
+          public: true,
           store: GameStore.dir(),
           write_timer: nil,
           expire_timer: nil,
@@ -531,9 +606,16 @@ defmodule Quacks.GameServer do
         fields
       )
 
-    # Solo has nobody to wait for (a solo play-again comes with its seat taken).
+    # A spell book table seats its bots now (`create/3`).
+    {seat_bots, state} = Map.pop(state, :seat_bots)
+    state = Enum.reduce(seat_bots || [], state, &seat_bot(&2, &1))
+
+    # Solo has nobody to wait for (a solo play-again comes with its seat taken), nor
+    # has a spell book table with every seat taken.
+    full? = seat_bots != nil and map_size(state.names) == state.max_players
+
     state =
-      if state.max_players == 1 and state.tokens != %{} and state.session == nil,
+      if (state.max_players == 1 or full?) and state.tokens != %{} and state.session == nil,
         do: begin_game(state),
         else: state
 
@@ -569,6 +651,9 @@ defmodule Quacks.GameServer do
   def terminate(_reason, _state), do: :ok
 
   defp server_call(:get, _from, state), do: {:reply, {:ok, table(state)}, state, @idle_timeout}
+
+  defp server_call({:listing, token}, _from, state),
+    do: {:reply, {:ok, Map.put(table(state), :mine, state.tokens[token])}, state, @idle_timeout}
 
   defp server_call(:bundle, _from, %{session: nil} = state),
     do: {:reply, {:error, :not_started}, state, @idle_timeout}
@@ -764,7 +849,8 @@ defmodule Quacks.GameServer do
         {:reply, {:error, :invalid}, state, @idle_timeout}
 
       true ->
-        state = %{state | max_players: max, opts: opts}
+        public = if is_boolean(config[:public]), do: config[:public], else: state.public
+        state = %{state | max_players: max, opts: opts, public: public}
         broadcast_names(state)
         broadcast_lobby()
         {:reply, {:ok, table(state)}, state, @idle_timeout}
@@ -795,6 +881,7 @@ defmodule Quacks.GameServer do
             colours: state.colours,
             bots: state.bots,
             creator: creator,
+            public: state.public,
             store: state.store
           })
 
@@ -851,8 +938,7 @@ defmodule Quacks.GameServer do
   end
 
   defp server_call({:rename, seat, name}, _from, state) do
-    name = name |> String.trim() |> String.slice(0, 20)
-    name = if name == "", do: default_name(seat), else: name
+    name = clean_name(name, seat)
     state = %{state | names: Map.put(state.names, seat, name)}
     broadcast_names(state)
     {:reply, :ok, state, @idle_timeout}
@@ -1148,6 +1234,16 @@ defmodule Quacks.GameServer do
     })
   end
 
+  # A typed name: trimmed, at most 20 letters; empty is the seat's default name.
+  defp clean_name(name, seat) when is_binary(name) do
+    case name |> String.trim() |> String.slice(0, 20) do
+      "" -> default_name(seat)
+      name -> name
+    end
+  end
+
+  defp clean_name(_name, seat), do: default_name(seat)
+
   # A new seat gets its own index as colour, or else the lowest free one.
   defp free_colour(colours, seat) do
     taken = Map.values(colours)
@@ -1196,14 +1292,20 @@ defmodule Quacks.GameServer do
   defp stored(stop, _old), do: stop
 
   defp changed(state, old) do
+    # The Join page shows each game's round.
+    if stage(state) != stage(old), do: broadcast_lobby()
+
     if file_view(state) == file_view(old),
       do: state,
       else: state |> schedule_write() |> schedule_expiry()
   end
 
+  defp stage(%{session: %Session{game: game}}), do: {game.round, Game.over?(game)}
+  defp stage(_state), do: nil
+
   # What the game file holds; a change to it is worth a write.
   @file_fields [:max_players, :seed, :opts, :tokens, :names, :colours, :bots, :seen] ++
-                 [:creator, :next_id]
+                 [:creator, :next_id, :public]
   defp file_view(state),
     do: {state.session && state.session.actions, Map.take(state, @file_fields)}
 
@@ -1257,7 +1359,8 @@ defmodule Quacks.GameServer do
         state.bot_rngs |> Map.new(fn {seat, rng} -> {seat, export_rng(rng)} end) |> pairs(),
       seen: pairs(state.seen),
       creator: state.creator,
-      next_id: state.next_id
+      next_id: state.next_id,
+      public: state.public
     })
   end
 
@@ -1285,6 +1388,7 @@ defmodule Quacks.GameServer do
       seen: state.seen,
       creator: state.tokens[host(state)],
       founder: state.tokens[state.creator],
+      public: state.public,
       absent: absent(state),
       rejoinable: rejoinable(state) |> Enum.sort(),
       sets: state.opts[:sets],

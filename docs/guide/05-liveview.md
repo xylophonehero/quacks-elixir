@@ -208,9 +208,26 @@ these assigns, the reply path and the broadcast path cannot disagree.
 - `terminate/2` frees the seat when a tab closes before the start
   (`lib/quacks_web/live/game_live.ex:484-488`).
 
-`LobbyLive` is the small version of the same pattern: subscribe to `"lobby"`, list
-`GameServer.open_games/0`, list again on `:games_changed`
-(`lib/quacks_web/live/lobby_live.ex:23-45`).
+`LobbyLive` (the **spell book**, round 17) is the small version of the same
+pattern: subscribe to `"lobby"`, list `GameServer.games/1` (public games and your
+own, waiting or playing), list again on `:games_changed`. The server broadcasts it
+when seats or games change and when a game's round changes (`stage/1` in
+`changed/2`), so the Join page's "Round 3 of 9" stays fresh.
+
+Unlike the configure screen, the book holds its settings in the page's own assigns:
+no game exists until the Start seal. Each event (`"players"`, `"sets"`, `"rules"`,
+`"public"`, `"add_bot"`, `"random_books"`, ...) changes an assign and pushes
+`"save_config"` to the `ConfigMemory` hook (localStorage, the same key the
+configure screen uses); on mount the hook sends `"load_config"` back. `"start"`
+builds one config map and calls `GameServer.create/3`, which seats you, your name
+and colour and the bots in one call, so a solo or all-bot game begins at once
+without a waiting room.
+
+Which page shows is not an assign. A bookmark runs a JS command,
+`JS.set_attribute({"data-page", page}, to: "#spell-book")`, and CSS shows the
+matching `[data-book-page]`. LiveView keeps attributes set by JS commands across
+patches, so a change from the server never turns the page back, and the turn needs
+no round trip. `?page=join` sets the first `data-page` from the server.
 
 ## Acknowledgement events: `"seen"`
 
