@@ -122,6 +122,23 @@ So the server renders a decision dialog with `:if={@decision && ...}`
 (`lib/quacks_web/live/game_live.ex:1301-1311`). It opens itself when it appears and
 goes away when a render drops it. The server has no "is the dialog open" state.
 
+**A trap: a patch can move an open dialog.** When a patch adds or removes an
+element before an open dialog in the same parent, morphdom moves the dialog with
+`insertBefore`. A move takes the dialog out of the document for a moment, so the
+browser removes it from the top layer: it is no longer modal. But `open` stays
+(`ignore_attributes`), so the dialog is now a plain `position: fixed` box. The
+action bar (`footer.game-bar`) comes later in the page, so it is above the box and
+takes every tap on the lower part of the sheet. This happened in each shop on a
+phone (round 13, issue #1): the end of the results replay opens the shop, and the
+server's next patch removes `#results-N`, which is before the shop in the side
+column. Close and open again fixed it, because that calls `showModal()` again. Now
+`onPatchEnd` (the `dom` option of the `LiveSocket`) calls `remodal()`: if an open
+dialog that must be modal is not `:modal`, it opens every such dialog again with
+`showModal()`, in page order, so the new card stays on top. `moving` keeps their
+`close` events from running `on_close`. To check a dead tap in the browser,
+`document.elementFromPoint(x, y)` names the element that gets it, and
+`document.querySelectorAll("dialog[open]:not(:modal)")` must be empty on a phone.
+
 The other listeners are small too. `closed/1` (`assets/js/app.js:247-252`) runs on
 every dialog `close` event: it runs the dialog's `on_close` JS and opens the dialog
 that `then_open` names. A tap on the dimmed backdrop closes a modal sheet
