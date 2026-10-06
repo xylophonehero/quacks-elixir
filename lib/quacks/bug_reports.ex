@@ -29,13 +29,20 @@ defmodule Quacks.BugReports do
   @table __MODULE__
   @default_repo "xylophonehero/quacks-elixir"
 
-  @git_sha (try do
-              case System.cmd("git", ["rev-parse", "--short", "HEAD"], stderr_to_stdout: true) do
-                {sha, 0} -> String.trim(sha)
-                _other -> "unknown"
-              end
-            rescue
-              _error -> "unknown"
+  # In Docker there is no .git, so CI passes the SHA as a build arg (GIT_SHA).
+  @git_sha (case System.get_env("GIT_SHA") do
+              sha when is_binary(sha) and sha != "" and sha != "unknown" ->
+                String.slice(sha, 0, 7)
+
+              _unset ->
+                try do
+                  case System.cmd("git", ["rev-parse", "--short", "HEAD"], stderr_to_stdout: true) do
+                    {sha, 0} -> String.trim(sha)
+                    _other -> "unknown"
+                  end
+                rescue
+                  _error -> "unknown"
+                end
             end)
 
   @typedoc "What the browser adds: user agent, viewport, `navigator.onLine`, console errors."
@@ -227,7 +234,7 @@ defmodule Quacks.BugReports do
   defp post(issue, token) do
     case Req.post(req(token),
            url: "/repos/#{repo()}/issues",
-           json: %{title: issue.title, body: issue.body, labels: ["bug-report"]}
+           json: %{title: issue.title, body: issue.body, labels: ["bug-report" | env_labels()]}
          ) do
       {:ok, %{status: 201, body: %{"html_url" => url, "number" => number}}} ->
         {:ok, %{url: url, number: number}}
@@ -294,4 +301,12 @@ defmodule Quacks.BugReports do
   defp repo, do: config(:github_repo) || @default_repo
 
   defp config(key), do: Application.get_env(:quacks, :bug_reports, []) |> Keyword.get(key)
+
+  # `APP_ENV=staging` (fly.staging.toml) labels the issue, so staging reports stand out.
+  defp env_labels do
+    case System.get_env("APP_ENV") do
+      env when is_binary(env) and env != "" -> [env]
+      _unset -> []
+    end
+  end
 end

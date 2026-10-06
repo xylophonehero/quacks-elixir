@@ -58,6 +58,10 @@ COPY priv priv
 
 COPY lib lib
 
+# The short git SHA, shown in bug reports (CI passes --build-arg GIT_SHA=...).
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 # Compile the release
 RUN mix compile
 

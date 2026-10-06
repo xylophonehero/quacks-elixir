@@ -1,17 +1,23 @@
-# Deploys master to Fly.io. Needs the FLY_API_TOKEN repository secret
-# (create with `fly tokens create deploy -x 999999h`).
+# Deploys master to Fly.io (quacks) and the staging branch to quacks-staging.
+# Secrets: FLY_API_TOKEN (app quacks) and FLY_API_TOKEN_STAGING (app quacks-staging),
+# each from `fly tokens create deploy -a <app> -x 999999h`.
 name: Fly Deploy
 on:
   push:
-    branches: [master]
+    branches: [master, staging]
   workflow_dispatch:
-concurrency: deploy-group
+concurrency: deploy-${{ github.ref_name }}
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
+      - if: github.ref_name == 'master'
+        run: flyctl deploy --remote-only --build-arg GIT_SHA=${{ github.sha }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - if: github.ref_name == 'staging'
+        run: flyctl deploy --remote-only --config fly.staging.toml --build-arg GIT_SHA=${{ github.sha }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
