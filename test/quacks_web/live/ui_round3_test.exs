@@ -73,13 +73,20 @@ defmodule QuacksWeb.UiRound3Test do
     # round 14: the card shows in the reveal overlay, one slide
     assert has_element?(view, "dialog#reveal-card-1[phx-mounted] [data-kind=card]")
 
+    # round 22: the card hovers over the pot; the sheet names it
     assert has_element?(
              view,
-             "#reveal-card-1 [data-role=fortune-card]",
+             "[data-role=pot-area] #pot-card-1 [data-role=fortune-card]",
              Fortune.card(card).name
            )
 
-    assert has_element?(view, "#reveal-card-1 #reveal-next", "Close")
+    assert has_element?(
+             view,
+             "#reveal-card-1 [data-role=reveal-card-name]",
+             Fortune.card(card).name
+           )
+
+    assert has_element?(view, "#reveal-card-1 #reveal-next", "Continue")
     refute has_element?(view, "#reveal-card-1 #reveal-skip")
 
     # later renders keep the same overlay: it does not open again

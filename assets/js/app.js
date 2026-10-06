@@ -233,7 +233,9 @@ const PotMotion = {
 }
 
 let vtNext = false, vtQueue = null
-window.addEventListener("phx:quacks:vt", () => { vtNext = true })
+// The event may name a transition type (round 22: `card`, the new card shrinks into
+// the pot's corner), for app.css `:active-view-transition-type()`.
+window.addEventListener("phx:quacks:vt", e => { vtNext = e.detail?.type || true })
 const queue = p => { vtQueue = p; p.then(() => { if (vtQueue === p) vtQueue = null }) }
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
@@ -260,12 +262,16 @@ const liveSocket = new LiveSocket("/live", Socket, {
     // still applies its patch, so a sheet never waits on the animation.
     onDocumentPatch(start) {
       const go = vtNext && document.startViewTransition && !reduced() && !document.hidden
+      const types = typeof vtNext === "string" ? [vtNext] : []
       vtNext = false
       if (vtQueue) return queue(vtQueue.then(start).catch(console.error))
       if (!go) return start()
       let done = false
       const once = () => { if (!done) { done = true; start() } }
-      const vt = document.startViewTransition(once)
+      // A browser without transition types (before Chrome 125) takes only a callback.
+      let vt
+      try { vt = document.startViewTransition(types.length ? {update: once, types} : once) }
+      catch { vt = document.startViewTransition(once) }
       vt.finished.catch(() => {})
       queue(vt.updateCallbackDone.catch(once))
     },

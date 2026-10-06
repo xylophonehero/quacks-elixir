@@ -94,7 +94,7 @@ defmodule QuacksWeb.Round14Test do
 
       assert has_element?(
                view,
-               "#reveal-card-1 #reveal-slide-0[data-kind=card] [data-role=fortune-card]"
+               "#reveal-card-1 #reveal-slide-0[data-kind=card] [data-role=reveal-card-name]"
              )
 
       view |> element("#reveal-next") |> render_click()

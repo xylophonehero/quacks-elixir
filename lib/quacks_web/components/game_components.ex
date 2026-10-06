@@ -2523,9 +2523,15 @@ defmodule QuacksWeb.GameComponents do
     doc:
       "turn the card over (back, then front) when it enters the page: the new card of the round"
 
+  attr :flip_id, :string, default: nil, doc: "the flip's DOM id (default `card-flip-<card>`)"
+
   def fortune_card(%{flip: true} = assigns) do
     ~H"""
-    <div id={"card-flip-#{@id}"} class="card-flip mx-auto w-full max-w-60" data-role="card-flip">
+    <div
+      id={@flip_id || "card-flip-#{@id}"}
+      class="card-flip mx-auto w-full max-w-60"
+      data-role="card-flip"
+    >
       <div class="card-flip-inner">
         <div class="card-back" aria-hidden="true" data-role="card-back">
           <span class="flex flex-col items-center gap-1 rounded-full bg-[#3b1d78] px-4 py-2 font-hand font-bold text-gold">

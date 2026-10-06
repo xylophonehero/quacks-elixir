@@ -134,4 +134,51 @@ defmodule QuacksWeb.Round22Test do
       assert html =~ "+ 3.5px" and html =~ "+ -3.5px"
     end
   end
+
+  describe "a new card over the pot" do
+    test "the card hovers over the pot; the overlay is a bottom sheet with Continue" do
+      {id, view} = solo(%{})
+      {:ok, %{game: game}} = GameServer.get(id)
+      name = Quacks.Rules.Fortune.card(game.fortune_card).name
+
+      assert has_element?(view, "dialog#reveal-card-1.reveal-card-sheet")
+
+      assert has_element?(
+               view,
+               "[data-role=pot-area] > #pot-card-1.pot-card [data-role=card-flip]",
+               name
+             )
+
+      refute has_element?(view, "#reveal-card-1 [data-role=fortune-card]")
+      refute has_element?(view, "#reveal-card-1 [data-role=reveal-strip]")
+      assert has_element?(view, "#reveal-card-1 #reveal-next", "Continue")
+
+      # Continue: the card shrinks into the corner (a view transition of type card).
+      view |> element("#reveal-next") |> render_click()
+      assert_push_event(view, "quacks:vt", %{type: "card"})
+      refute has_element?(view, "#pot-card-1")
+      assert has_element?(view, "[data-role=pot-area] #corner-card", name)
+    end
+
+    test "a card's choice: on phones the card hovers over the pot, not in the sheet" do
+      {id, view} = solo(%{})
+
+      replace_game(id, fn g ->
+        g |> H.put(fortune_card: :p1, phase: :fortune_choice) |> Map.put(:phase, :fortune_choice)
+      end)
+
+      assert has_element?(view, "dialog#card-round-1")
+      # From 64rem the choice is a panel with the card; the pot card is for phones.
+      assert has_element?(view, "#pot-card-1.lg\\:hidden")
+      assert has_element?(view, "#card-round-1 .max-lg\\:hidden [data-role=fortune-card]")
+    end
+
+    test "the CSS: a clear backdrop, the pot card absolute, reduced motion skips the shrink" do
+      css = File.read!("assets/css/app.css")
+      assert css =~ ".sheet.reveal-card-sheet[open]::backdrop {\n  background-color: transparent;"
+      assert css =~ ".pot-card {\n  position: absolute;"
+      js = File.read!("assets/js/app.js")
+      assert js =~ "!reduced()" and js =~ "types"
+    end
+  end
 end

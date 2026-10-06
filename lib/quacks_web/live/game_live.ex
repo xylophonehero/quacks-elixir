@@ -1247,6 +1247,20 @@ defmodule QuacksWeb.GameLive do
               >
                 Stir! Everyone draws together.
               </p>
+              <%!-- Round 22: a new card hovers over the pot, large, while the
+                   reveal's bottom sheet (or, on phones, the card's choice) shows;
+                   when that closes it shrinks into the corner card (a view
+                   transition, `card_vt/2`). Absolute and not tappable: the pot
+                   stays where it is. --%>
+              <div
+                :if={pot_card?(assigns)}
+                id={"pot-card-#{@game.round}"}
+                class={["pot-card", is_nil(@reveal) && "lg:hidden"]}
+                aria-hidden="true"
+                data-role="pot-card"
+              >
+                <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip />
+              </div>
               <%!-- Round 22: the kept Toadstool chips (red Set 2) wait in the top
                    right corner, a small pill outside the round rim. --%>
               <.aside
@@ -1443,7 +1457,10 @@ defmodule QuacksWeb.GameLive do
                   offer={[@me.pending, @all_actions]}
                 />
               </div>
-              <.fortune_card id={@game.fortune_card} choice flip />
+              <%!-- Phones: the card hovers over the pot instead (`pot_card?/1`). --%>
+              <div class={pot_card?(assigns) && "max-lg:hidden"}>
+                <.fortune_card id={@game.fortune_card} choice flip />
+              </div>
               <.fortune_offer :if={@me.pending != []} card={@game.fortune_card}>
                 <.chip_picks
                   actions={@all_actions}
@@ -2735,6 +2752,7 @@ defmodule QuacksWeb.GameLive do
   end
 
   defp put_game(socket, game) do
+    was = pot_card?(socket.assigns)
     socket = mark_round_change(socket, game)
     seat = socket.assigns.seat
     me = if seat, do: game.players[seat]
@@ -2754,6 +2772,7 @@ defmodule QuacksWeb.GameLive do
       essence_pick: essence_pick(me, socket.assigns[:essence_pick])
     )
     |> open_reveal()
+    |> card_vt(was)
   end
 
   # -- the reveal overlay (round 14) ----------------------------------------------------
@@ -2826,11 +2845,35 @@ defmodule QuacksWeb.GameLive do
     )
   end
 
+  # Round 22: the new card hovers over the pot while its reveal shows, or while the
+  # card's choice waits with no chips drawn (Safety Procedure and Flea Market draw
+  # chips: there the pot matters, so the card stays in the dialog).
+  defp pot_card?(%{reveal: %{key: {:card, _}}, game: %Game{fortune_card: card}}) when card != nil,
+    do: true
+
+  defp pot_card?(%{decision: :fortune_choice, me: %Player{pending: []}, game: game}),
+    do: game.fortune_card != nil
+
+  defp pot_card?(_assigns), do: false
+
+  # The patch that takes the pot card away runs as a view transition of type `card`
+  # (app.js `quacks:vt`): the big card shrinks into the corner card (app.css).
+  defp card_vt(socket, true = _was) do
+    if pot_card?(socket.assigns),
+      do: socket,
+      else: push_event(socket, "quacks:vt", %{type: "card"}, dispatch: :before)
+  end
+
+  defp card_vt(socket, _was), do: socket
+
   # The end of the reveal: the moment counts as seen (`GameServer.ack/4`), the
   # pot's replay shows its end state, and what waited opens (app.js `quacks:open`).
   defp close_reveal(%{assigns: %{reveal: %{key: key}}} = socket) do
+    was = pot_card?(socket.assigns)
+
     socket
     |> assign(reveal: nil)
+    |> card_vt(was)
     |> mark_seen(key)
     |> auto_done()
     |> open_waiting()
@@ -2910,6 +2953,7 @@ defmodule QuacksWeb.GameLive do
   defp reveal_ms(_reveal, _mode, _speed), do: nil
 
   # The last slide's button names what comes next.
+  defp close_label(%{key: {:card, _}}, _decision, _skip), do: "Continue"
   defp close_label(%{key: {:final, _}}, _decision, _skip), do: "See the results"
   defp close_label(_reveal, :shop, _skip), do: "To the shop"
   defp close_label(_reveal, :rubies, _skip), do: "Spend rubies"
