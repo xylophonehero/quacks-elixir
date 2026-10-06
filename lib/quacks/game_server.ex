@@ -65,13 +65,17 @@ defmodule Quacks.GameServer do
   ticks, no plans) until `set_frozen/2`; `seek/2` rebuilds it at another action.
   The table says so in `debug`.
 
-  Games live under `Quacks.GameSupervisor` and are not persisted: a game that sees no
-  message for 2 hours stops, and a node restart forgets every game.
+  Games live under `Quacks.GameSupervisor`. A game that sees no message for 2 hours
+  stops. Games on disk: after each change the server writes its game file
+  (`Quacks.GameStore`), at most once per 500 ms (`@write_delay`), and the app
+  restores every file at boot (`start_from_bundle/2` with `restore: true`), bots and
+  all. The file goes when the game idles out, or 1 hour after every human seat
+  closed the final scoring. Debug tables are not stored.
   """
 
   use GenServer, restart: :temporary
 
-  alias Quacks.{AI, Game, Session}
+  alias Quacks.{AI, Game, GameStore, Session}
   alias Quacks.AI.{Names, Profile}
 
   @idle_timeout :timer.hours(2)
@@ -79,6 +83,8 @@ defmodule Quacks.GameServer do
   @max_bots 7
   @bot_profile :balanced
   @lobby_topic "lobby"
+  @write_delay 500
+  @finished_ttl :timer.hours(1)
 
   @typedoc "A short game id, 6 lowercase letters."
   @type id :: String.t()
@@ -159,16 +165,21 @@ defmodule Quacks.GameServer do
 
   # Start a game process with `fields` (see `init/1`) under a new id.
   defp start_server(fields) do
-    id = new_id()
+    case start_server(new_id(), fields) do
+      {:ok, id} -> {:ok, id}
+      # Two games drew the same id; try again with a new one.
+      {:error, :already_started} -> start_server(fields)
+    end
+  end
 
+  defp start_server(id, fields) do
     case DynamicSupervisor.start_child(Quacks.GameSupervisor, {__MODULE__, {id, fields}}) do
       {:ok, _pid} ->
         broadcast_lobby()
         {:ok, id}
 
-      # Two games drew the same id; try again with a new one.
       {:error, {:already_started, _pid}} ->
-        start_server(fields)
+        {:error, :already_started}
     end
   end
 
@@ -178,11 +189,22 @@ defmodule Quacks.GameServer do
   replays only the first `at` actions (default: all), `token:` and `seat:` give that
   seat to the browser with `token` (the other human seats stay unclaimed). The
   bundle's `names` and `bots` (when present) name the seats and seat the bots.
-  Bots start frozen (see the moduledoc).
+  Bots start frozen (see the moduledoc), unless `frozen: false`.
+
+  `restore: true` instead brings back a stored game from its game file (the
+  bundle plus `"table"`, see `Quacks.GameStore`): the same id, seats, tokens,
+  names, settings and `seen`, waiting or playing, not a debug table; its bots play
+  on. `dir:` is where it keeps its file (default: `Quacks.GameStore.dir/0`).
+  `{:error, :already_started}` when a game with that id runs.
   """
-  @spec start_from_bundle(map, keyword) :: {:ok, id} | {:error, :invalid}
+  @spec start_from_bundle(map, keyword) ::
+          {:ok, id} | {:error, :invalid | :already_started}
   def start_from_bundle(bundle, opts \\ []) do
     bundle = bundle |> Jason.encode!() |> Jason.decode!()
+    if opts[:restore], do: restore(bundle, opts), else: start_debug(bundle, opts)
+  end
+
+  defp start_debug(bundle, opts) do
     total = length(bundle["log"] || [])
     at = opts |> Keyword.get(:at, total) |> max(0) |> min(total)
 
@@ -208,9 +230,64 @@ defmodule Quacks.GameServer do
         bot_rngs: Map.new(bots, fn {seat, _} -> {seat, AI.new_rng(session.seed, seat)} end),
         creator: token,
         session: session,
-        debug: %{bundle: bundle, at: at, total: total, frozen: true}
+        store: nil,
+        debug: %{bundle: bundle, at: at, total: total, frozen: Keyword.get(opts, :frozen, true)}
       })
     end
+  end
+
+  # A game file back as a running game (see `start_from_bundle/2`).
+  defp restore(%{"table" => t} = bundle, opts) do
+    session =
+      case t["status"] do
+        "playing" -> with {:ok, session} <- Session.from_bundle(bundle), do: session
+        "waiting" -> nil
+      end
+
+    pairs = fn key, decode -> Map.new(t[key] || [], fn [seat, v] -> {seat, decode.(v)} end) end
+    bots = pairs.("bots", &String.to_existing_atom/1)
+    rngs = pairs.("bot_rngs", &restore_rng/1)
+    seed = List.to_tuple(t["seed"])
+
+    fields = %{
+      max_players: t["max_players"],
+      seed: seed,
+      opts: Session.decode_opts(t["opts"]),
+      tokens: t["tokens"],
+      names: pairs.("names", & &1),
+      colours: pairs.("colours", & &1),
+      bots: bots,
+      bot_rngs: Map.new(bots, fn {seat, _} -> {seat, rngs[seat] || AI.new_rng(seed, seat)} end),
+      seen: pairs.("seen", &decode_seen/1),
+      creator: t["creator"],
+      next_id: t["next_id"],
+      session: session,
+      store: Keyword.get_lazy(opts, :dir, &GameStore.dir/0)
+    }
+
+    case session do
+      {:error, _} = error -> error
+      _ -> start_server(t["id"], fields)
+    end
+  rescue
+    _error in [MatchError, ArgumentError, FunctionClauseError, CaseClauseError, KeyError] ->
+      {:error, :invalid}
+  end
+
+  defp restore(_bundle, _opts), do: {:error, :invalid}
+
+  defp decode_seen(kinds) do
+    for {kind, round} <- kinds, kind in ~w(card results final), into: %{} do
+      {String.to_existing_atom(kind), round}
+    end
+  end
+
+  # A bot's rng as `[s0, s1]`, the state `:rand.export_seed_s/1` gives.
+  defp restore_rng([s0, s1]), do: :rand.seed_s({:exsss, [s0 | s1]})
+
+  defp export_rng(rng) do
+    {:exsss, [s0 | s1]} = :rand.export_seed_s(rng)
+    [s0, s1]
   end
 
   @doc """
@@ -422,8 +499,14 @@ defmodule Quacks.GameServer do
   # `queued` holds each bot's planned actions of a concurrent phase (seat -> actions,
   # see `plan/3`); `auto_keep` is `{seat, session}` right after the server answered a
   # human's Mandrake choice (the session from before it), else nil.
+  # `store` is the directory of the game file (nil: not stored, see `stored/2`);
+  # `write_timer` the pending debounced write, `expire_timer` the pending delete of
+  # a finished game's file.
   @impl true
   def init({id, fields}) do
+    # So a deploy's shutdown runs `terminate/2`, which writes a pending change.
+    Process.flag(:trap_exit, true)
+
     state =
       Map.merge(
         %{
@@ -440,6 +523,9 @@ defmodule Quacks.GameServer do
           away: %{},
           tick: 0,
           debug: nil,
+          store: GameStore.dir(),
+          write_timer: nil,
+          expire_timer: nil,
           name_rng: :rand.seed_s(:exsss, fields.seed)
         },
         fields
@@ -451,29 +537,49 @@ defmodule Quacks.GameServer do
         do: begin_game(state),
         else: state
 
-    {:ok, state, @idle_timeout}
+    # A restored game's bots play on (a frozen debug table's do not).
+    state = if state.session, do: schedule_bots(state), else: state
+    {:ok, state |> schedule_write() |> schedule_expiry(), @idle_timeout}
   end
+
+  # Every message goes through `stored/2`: a change to what the game file holds
+  # schedules one write.
+  @impl true
+  def handle_call(msg, from, state), do: msg |> server_call(from, state) |> stored(state)
 
   @impl true
-  def handle_call(:get, _from, state), do: {:reply, {:ok, table(state)}, state, @idle_timeout}
+  def handle_info({:write, ref}, %{write_timer: ref} = state) when is_reference(ref),
+    do: {:noreply, write_file(state), @idle_timeout}
 
-  def handle_call(:bundle, _from, %{session: nil} = state),
-    do: {:reply, {:error, :not_started}, state, @idle_timeout}
+  def handle_info({:write, _stale}, state), do: {:noreply, state, @idle_timeout}
 
-  def handle_call(:bundle, _from, state) do
-    bundle =
-      Map.merge(Session.bundle(state.session), %{
-        names: Enum.map(0..(state.session.players - 1), &Map.get(state.names, &1)),
-        bots: state.bots |> Map.keys() |> Enum.sort()
-      })
-
-    {:reply, {:ok, bundle}, state, @idle_timeout}
+  # A finished game everyone has seen: its file goes (the game stays until it idles).
+  def handle_info(:expire, state) do
+    GameStore.delete(state.store, state.id)
+    {:noreply, %{state | store: nil, write_timer: nil}, @idle_timeout}
   end
 
-  def handle_call({:seek, _at}, _from, %{debug: nil} = state),
+  def handle_info(msg, state), do: msg |> server_info(state) |> stored(state)
+
+  # A shutdown (a deploy) with a write pending: write it now.
+  @impl true
+  def terminate(_reason, %{write_timer: ref} = state) when is_reference(ref),
+    do: write_file(state)
+
+  def terminate(_reason, _state), do: :ok
+
+  defp server_call(:get, _from, state), do: {:reply, {:ok, table(state)}, state, @idle_timeout}
+
+  defp server_call(:bundle, _from, %{session: nil} = state),
+    do: {:reply, {:error, :not_started}, state, @idle_timeout}
+
+  defp server_call(:bundle, _from, state),
+    do: {:reply, {:ok, bundle_of(state)}, state, @idle_timeout}
+
+  defp server_call({:seek, _at}, _from, %{debug: nil} = state),
     do: {:reply, {:error, :not_debug}, state, @idle_timeout}
 
-  def handle_call({:seek, at}, _from, %{debug: debug} = state) do
+  defp server_call({:seek, at}, _from, %{debug: debug} = state) do
     at = at |> max(0) |> min(debug.total)
     {:ok, session} = Session.from_bundle(debug.bundle, at)
 
@@ -489,47 +595,47 @@ defmodule Quacks.GameServer do
     reply_game(schedule_bots(state))
   end
 
-  def handle_call({:set_frozen, _frozen?}, _from, %{debug: nil} = state),
+  defp server_call({:set_frozen, _frozen?}, _from, %{debug: nil} = state),
     do: {:reply, {:error, :not_debug}, state, @idle_timeout}
 
-  def handle_call({:set_frozen, frozen?}, _from, state) do
+  defp server_call({:set_frozen, frozen?}, _from, state) do
     state = %{state | debug: %{state.debug | frozen: frozen?}}
     state = if frozen?, do: %{state | bot_ticks: %{}, queued: %{}}, else: acted(state)
     broadcast(state, {:game, state.id, state.session.game})
     {:reply, :ok, state, @idle_timeout}
   end
 
-  def handle_call({:apply, _, _}, _from, %{session: nil} = state),
+  defp server_call({:apply, _, _}, _from, %{session: nil} = state),
     do: {:reply, {:error, :not_started}, state, @idle_timeout}
 
-  def handle_call({:apply, seat, action}, _from, state) do
+  defp server_call({:apply, seat, action}, _from, state) do
     case Session.apply(state.session, seat, action) do
       {:ok, session} -> reply_game(acted(%{state | session: session}))
       error -> {:reply, error, state, @idle_timeout}
     end
   end
 
-  def handle_call({:keep_white, _seat}, _from, %{session: nil} = state),
+  defp server_call({:keep_white, _seat}, _from, %{session: nil} = state),
     do: {:reply, {:error, :not_started}, state, @idle_timeout}
 
-  def handle_call({:keep_white, seat}, _from, %{auto_keep: {seat, before}} = state) do
+  defp server_call({:keep_white, seat}, _from, %{auto_keep: {seat, before}} = state) do
     {:ok, session} = Session.apply(before, seat, :keep)
     reply_game(acted(%{state | session: session}))
   end
 
-  def handle_call({:keep_white, _seat}, _from, state),
+  defp server_call({:keep_white, _seat}, _from, state),
     do: {:reply, {:error, :too_late}, state, @idle_timeout}
 
-  def handle_call(:undo, _from, %{session: nil} = state),
+  defp server_call(:undo, _from, %{session: nil} = state),
     do: {:reply, {:error, :not_started}, state, @idle_timeout}
 
   # Undo after the server's Mandrake answer shows the question again.
-  def handle_call(:undo, _from, %{session: %{players: 1}} = state),
+  defp server_call(:undo, _from, %{session: %{players: 1}} = state),
     do: reply_game(%{state | session: Session.undo(state.session), auto_keep: nil})
 
-  def handle_call(:undo, _from, state), do: {:reply, {:error, :not_solo}, state, @idle_timeout}
+  defp server_call(:undo, _from, state), do: {:reply, {:error, :not_solo}, state, @idle_timeout}
 
-  def handle_call({:claim_seat, token, watch?}, {pid, _tag}, state) do
+  defp server_call({:claim_seat, token, watch?}, {pid, _tag}, state) do
     watch = fn state -> if watch?, do: watch(state, pid, token), else: state end
     free = Enum.find(0..(state.max_players - 1), &(not Map.has_key?(state.names, &1)))
 
@@ -561,7 +667,7 @@ defmodule Quacks.GameServer do
     end
   end
 
-  def handle_call({:rejoin, token, seat, name}, {pid, _tag}, state) do
+  defp server_call({:rejoin, token, seat, name}, {pid, _tag}, state) do
     old = Enum.find_value(state.tokens, fn {t, s} -> if s == seat, do: t end)
 
     cond do
@@ -590,7 +696,7 @@ defmodule Quacks.GameServer do
     end
   end
 
-  def handle_call({:leave_seat, token}, _from, %{session: nil} = state) do
+  defp server_call({:leave_seat, token}, _from, %{session: nil} = state) do
     case Map.pop(state.tokens, token) do
       {nil, _} ->
         {:reply, :ok, state, @idle_timeout}
@@ -612,17 +718,17 @@ defmodule Quacks.GameServer do
     end
   end
 
-  def handle_call({:leave_seat, _token}, _from, state), do: {:reply, :ok, state, @idle_timeout}
+  defp server_call({:leave_seat, _token}, _from, state), do: {:reply, :ok, state, @idle_timeout}
 
-  def handle_call({:ack, seat, kind, round}, _from, state) do
+  defp server_call({:ack, seat, kind, round}, _from, state) do
     seen = Map.update(state.seen, seat, %{kind => round}, &Map.put(&1, kind, round))
     {:reply, :ok, %{state | seen: seen}, @idle_timeout}
   end
 
-  def handle_call({:begin, _token}, _from, %{session: %Session{}} = state),
+  defp server_call({:begin, _token}, _from, %{session: %Session{}} = state),
     do: {:reply, {:error, :already_started}, state, @idle_timeout}
 
-  def handle_call({:begin, token}, _from, state) do
+  defp server_call({:begin, token}, _from, state) do
     cond do
       not Map.has_key?(state.tokens, token) ->
         {:reply, {:error, :not_seated}, state, @idle_timeout}
@@ -638,10 +744,10 @@ defmodule Quacks.GameServer do
     end
   end
 
-  def handle_call({:configure, _token, _config}, _from, %{session: %Session{}} = state),
+  defp server_call({:configure, _token, _config}, _from, %{session: %Session{}} = state),
     do: {:reply, {:error, :already_started}, state, @idle_timeout}
 
-  def handle_call({:configure, token, config}, _from, state) do
+  defp server_call({:configure, token, config}, _from, state) do
     max = Map.get(config, :players, state.max_players)
 
     opts =
@@ -665,7 +771,7 @@ defmodule Quacks.GameServer do
     end
   end
 
-  def handle_call({:play_again, token}, _from, state) do
+  defp server_call({:play_again, token}, _from, state) do
     cond do
       state.session == nil or not Game.over?(state.session.game) ->
         {:reply, {:error, :not_over}, state, @idle_timeout}
@@ -688,7 +794,8 @@ defmodule Quacks.GameServer do
             names: state.names,
             colours: state.colours,
             bots: state.bots,
-            creator: creator
+            creator: creator,
+            store: state.store
           })
 
         Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:play_again, state.id, new_id})
@@ -696,7 +803,7 @@ defmodule Quacks.GameServer do
     end
   end
 
-  def handle_call({:add_bot, token, seat}, _from, state) do
+  defp server_call({:add_bot, token, seat}, _from, state) do
     free_seats = Enum.reject(0..(state.max_players - 1), &Map.has_key?(state.names, &1))
     free = if seat, do: Enum.find(free_seats, &(&1 == seat)), else: List.first(free_seats)
 
@@ -718,7 +825,7 @@ defmodule Quacks.GameServer do
     end
   end
 
-  def handle_call({:remove_bot, token, seat}, _from, state) do
+  defp server_call({:remove_bot, token, seat}, _from, state) do
     cond do
       state.session != nil ->
         {:reply, {:error, :already_started}, state, @idle_timeout}
@@ -743,7 +850,7 @@ defmodule Quacks.GameServer do
     end
   end
 
-  def handle_call({:rename, seat, name}, _from, state) do
+  defp server_call({:rename, seat, name}, _from, state) do
     name = name |> String.trim() |> String.slice(0, 20)
     name = if name == "", do: default_name(seat), else: name
     state = %{state | names: Map.put(state.names, seat, name)}
@@ -751,7 +858,7 @@ defmodule Quacks.GameServer do
     {:reply, :ok, state, @idle_timeout}
   end
 
-  def handle_call({:set_colour, seat, colour}, _from, state) do
+  defp server_call({:set_colour, seat, colour}, _from, state) do
     cond do
       colour not in 0..7 or not Map.has_key?(state.colours, seat) ->
         {:reply, {:error, :invalid}, state, @idle_timeout}
@@ -767,8 +874,8 @@ defmodule Quacks.GameServer do
   end
 
   # No message for @idle_timeout: nobody plays this game any more.
-  @impl true
-  def handle_info(:timeout, state) do
+  defp server_info(:timeout, state) do
+    GameStore.delete(state.store, state.id)
     broadcast_lobby()
     {:stop, :normal, state}
   end
@@ -776,8 +883,8 @@ defmodule Quacks.GameServer do
   # A bot's turn to act: one action, then the next ticks. A tick that is not the
   # seat's pending one is stale; a capped bot (a human resumed) waits; in a concurrent
   # phase where a human decides, the bot plans instead (`schedule_bots/1`).
-  def handle_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
-      when :erlang.map_get(seat, ticks) == tick do
+  defp server_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
+       when :erlang.map_get(seat, ticks) == tick do
     state = %{state | bot_ticks: Map.delete(ticks, seat)}
     profile = Profile.get(state.bots[seat])
 
@@ -798,10 +905,10 @@ defmodule Quacks.GameServer do
     {:noreply, state, @idle_timeout}
   end
 
-  def handle_info({:bot, _seat, _tick}, state), do: {:noreply, state, @idle_timeout}
+  defp server_info({:bot, _seat, _tick}, state), do: {:noreply, state, @idle_timeout}
 
   # A watched page closed: its seat may now be absent.
-  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+  defp server_info({:DOWN, _ref, :process, pid, _reason}, state) do
     before = absent(state)
     state = mark_away(%{state | pages: Map.delete(state.pages, pid)})
     if absent(state) != before, do: broadcast_names(state)
@@ -809,7 +916,7 @@ defmodule Quacks.GameServer do
   end
 
   # A seat has been away long enough to be taken back: the pages offer it now.
-  def handle_info(:away_tick, state) do
+  defp server_info(:away_tick, state) do
     broadcast_names(state)
     {:noreply, state, @idle_timeout}
   end
@@ -1079,6 +1186,90 @@ defmodule Quacks.GameServer do
     do: Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:names, state.id, state.names})
 
   defp broadcast_lobby, do: Phoenix.PubSub.broadcast(Quacks.PubSub, @lobby_topic, :games_changed)
+
+  # -- the game file ------------------------------------------------------------------
+
+  defp stored({:reply, reply, state, timeout}, old),
+    do: {:reply, reply, changed(state, old), timeout}
+
+  defp stored({:noreply, state, timeout}, old), do: {:noreply, changed(state, old), timeout}
+  defp stored(stop, _old), do: stop
+
+  defp changed(state, old) do
+    if file_view(state) == file_view(old),
+      do: state,
+      else: state |> schedule_write() |> schedule_expiry()
+  end
+
+  # What the game file holds; a change to it is worth a write.
+  @file_fields [:max_players, :seed, :opts, :tokens, :names, :colours, :bots, :seen] ++
+                 [:creator, :next_id]
+  defp file_view(state),
+    do: {state.session && state.session.actions, Map.take(state, @file_fields)}
+
+  # One pending write at a time (the debounce): changes within `@write_delay` of
+  # the first one go out together.
+  defp schedule_write(%{store: nil} = state), do: state
+  defp schedule_write(%{debug: %{}} = state), do: state
+  defp schedule_write(%{write_timer: ref} = state) when is_reference(ref), do: state
+
+  defp schedule_write(state) do
+    ref = make_ref()
+    Process.send_after(self(), {:write, ref}, @write_delay)
+    %{state | write_timer: ref}
+  end
+
+  defp write_file(state) do
+    GameStore.write(state.store, state.id, file_body(state))
+    %{state | write_timer: nil}
+  end
+
+  # A finished game whose human seats have all closed the final scoring: its file
+  # goes after `@finished_ttl`. Until then a reload (or a restart) shows the podium.
+  defp schedule_expiry(%{store: dir, expire_timer: nil, session: %Session{} = s} = state)
+       when dir != nil do
+    humans = s.game.seats -- Map.keys(state.bots)
+
+    if Game.over?(s.game) and Enum.all?(humans, &get_in(state.seen, [&1, :final])) do
+      %{state | expire_timer: Process.send_after(self(), :expire, @finished_ttl)}
+    else
+      state
+    end
+  end
+
+  defp schedule_expiry(state), do: state
+
+  # The bundle (absent while waiting) plus the table; `restore/2` reads it back.
+  defp file_body(state) do
+    base = if state.session, do: bundle_of(state), else: %{}
+
+    Map.put(base, :table, %{
+      id: state.id,
+      status: if(state.session, do: "playing", else: "waiting"),
+      max_players: state.max_players,
+      seed: Tuple.to_list(state.seed),
+      opts: Session.encode_opts(state.opts),
+      tokens: state.tokens,
+      names: pairs(state.names),
+      colours: pairs(state.colours),
+      bots: pairs(state.bots),
+      bot_rngs:
+        state.bot_rngs |> Map.new(fn {seat, rng} -> {seat, export_rng(rng)} end) |> pairs(),
+      seen: pairs(state.seen),
+      creator: state.creator,
+      next_id: state.next_id
+    })
+  end
+
+  # A map with integer keys as `[[key, value], ...]` (JSON keys are strings).
+  defp pairs(map), do: map |> Enum.sort() |> Enum.map(fn {key, value} -> [key, value] end)
+
+  defp bundle_of(state) do
+    Map.merge(Session.bundle(state.session), %{
+      names: Enum.map(0..(state.session.players - 1), &Map.get(state.names, &1)),
+      bots: state.bots |> Map.keys() |> Enum.sort()
+    })
+  end
 
   defp table(%{session: session} = state) do
     %{

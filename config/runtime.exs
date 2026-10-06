@@ -31,6 +31,14 @@ if config_env() != :test do
     github_repo: System.get_env("BUG_REPORT_GITHUB_REPO", "xylophonehero/quacks-elixir")
 
   config :quacks, :debug_token, System.get_env("DEBUG_TOKEN")
+
+  # Game files (`Quacks.GameStore`): `tmp/games` in dev, the Fly volume in prod.
+  config :quacks,
+         :games_dir,
+         System.get_env(
+           "GAMES_DIR",
+           if(config_env() == :prod, do: "/data/games", else: "tmp/games")
+         )
 end
 
 if config_env() == :dev do

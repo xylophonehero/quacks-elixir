@@ -151,6 +151,35 @@ defmodule Quacks.Session do
       {:error, :invalid}
   end
 
+  @doc """
+  The game options of a table (`new/3`'s `sets:`, `rules:`, `expansion:`,
+  `expansions:` and `witches:`, a witch may be `nil`: dealt) as JSON-ready data, in
+  the encoding of `bundle/1`. A game file (`Quacks.GameStore`) keeps them so a
+  waiting table comes back with its settings. `decode_opts/1` reads them back.
+  """
+  @spec encode_opts(keyword) :: map
+  def encode_opts(opts) do
+    %{
+      sets: encode_map(opts[:sets] || %{}),
+      rules: encode_map(opts[:rules] || %{}),
+      expansion: encode(opts[:expansion]),
+      expansions: (opts[:expansions] || []) |> Enum.map(&Atom.to_string/1) |> Enum.sort(),
+      witches: encode_map(opts[:witches] || %{})
+    }
+  end
+
+  @doc "The options `encode_opts/1` wrote (string keys). Raises on an unknown atom."
+  @spec decode_opts(map) :: keyword
+  def decode_opts(opts) do
+    [
+      sets: decode_map(opts["sets"] || %{}),
+      rules: decode_map(opts["rules"] || %{}),
+      expansion: opts["expansion"] && decode(opts["expansion"]),
+      expansions: Enum.map(opts["expansions"] || [], &String.to_existing_atom/1),
+      witches: decode_map(opts["witches"] || %{})
+    ]
+  end
+
   defp encode(atom) when is_atom(atom) and atom not in [nil, true, false],
     do: Atom.to_string(atom)
 

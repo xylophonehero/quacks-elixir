@@ -16,6 +16,8 @@ defmodule Quacks.Application do
       # One `Quacks.GameServer` per game, found by its id (see that module).
       {Registry, keys: :unique, name: Quacks.GameRegistry},
       {DynamicSupervisor, name: Quacks.GameSupervisor, strategy: :one_for_one},
+      # Bring back the games on disk before the Endpoint takes requests.
+      Quacks.GameStore,
       # Start to serve requests, typically the last entry
       QuacksWeb.Endpoint
     ]
