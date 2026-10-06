@@ -300,7 +300,6 @@ defmodule QuacksWeb.Reveal do
 
         %{
           seat: s,
-          space: Game.scoring_index(game, s),
           coins: coins(p, Game.scoring_index(game, s)),
           vp: sum(space, :vp),
           ruby: Enum.any?(space, &(&1.rubies > 0)),

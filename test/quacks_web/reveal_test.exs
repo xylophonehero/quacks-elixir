@@ -94,6 +94,7 @@ defmodule QuacksWeb.RevealTest do
 
     # the table: no space column; the card waits in the details
     assert %{round: 1, rows: [row0, row1]} = results
+    refute Map.has_key?(row0, :space)
 
     assert %{
              seat: 0,

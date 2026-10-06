@@ -1,7 +1,8 @@
 defmodule QuacksWeb.Round20Test do
   @moduledoc """
   Round 20: the evaluation is one slide per scoring step with every seat on it (die,
-  books, scoring space), the overlay is full screen on phones,.
+  books, scoring space), the overlay is full screen on phones, and the results table
+  drops the space, heads the coins with a coin and stacks up to three die faces.
   """
   use ExUnit.Case, async: true
 
@@ -69,6 +70,13 @@ defmodule QuacksWeb.Round20Test do
     assert count(doc, ~s([data-seat="0"] [data-role=reveal-ruby-landing])) == 1
     assert count(doc, ~s([data-seat="1"] [data-role=reveal-ruby-landing])) == 0
     assert count(doc, "[data-role=reveal-coins] [data-icon=coin]") == 2
+  end
+
+  test "the table: no space column, a coin header, the die faces stacked small" do
+    doc = render_slide(:results)
+    refute doc |> LazyHTML.query("thead th") |> Enum.any?(&(LazyHTML.text(&1) =~ "Space"))
+    assert count(doc, "thead [data-icon=coin]") == 1
+    assert count(doc, ~s(tr[data-seat="0"] [data-role=die-face].size-4)) == 2
   end
 
   test "the overlay is full screen on phones" do

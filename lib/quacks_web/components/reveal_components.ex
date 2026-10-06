@@ -303,9 +303,8 @@ defmodule QuacksWeb.RevealComponents do
           <colgroup>
             <col class="w-4" />
             <col />
-            <col class="w-8" />
             <col class="w-9" />
-            <col class="w-6" />
+            <col class="w-7" />
             <col class="w-6" />
             <col class="w-7" />
             <col class={if length(@colours) > 3, do: "w-[6.5rem]", else: "w-20"} />
@@ -314,8 +313,12 @@ defmodule QuacksWeb.RevealComponents do
             <tr>
               <th scope="col"><span class="sr-only">Rank</span></th>
               <th scope="col" class="text-left">Player</th>
-              <th scope="col">Space</th>
-              <th scope="col">Coins</th>
+              <th scope="col" title="Coins">
+                <.piece_icon
+                  name={:coin}
+                  class="inline size-4 text-gold drop-shadow-[0_0_0.75px_#7a5a10]"
+                /><span class="sr-only">Coins</span>
+              </th>
               <th scope="col" title="VP">
                 <.piece_icon name={:vp} class="inline size-4 text-gold" /><span class="sr-only">VP</span>
               </th>
@@ -369,7 +372,6 @@ defmodule QuacksWeb.RevealComponents do
                   </span>
                 </span>
               </td>
-              <td class="py-1.5 text-center leading-5 tabular-nums">{row.space}</td>
               <td class="py-1.5 text-center leading-5 font-bold tabular-nums">{row.coins}</td>
               <td class="py-1.5 text-center leading-5 font-bold tabular-nums">{row.vp}</td>
               <td class="py-1.5 text-center leading-5">
@@ -377,8 +379,9 @@ defmodule QuacksWeb.RevealComponents do
                 <span :if={!row.ruby} class="text-ink-soft">–</span>
               </td>
               <td class="py-1.5 text-center leading-5" data-role="reveal-die-cell">
-                <span :if={row.die != []} class="inline-flex flex-col items-center gap-0.5">
-                  <.die_face :for={face <- row.die} face={face} class="size-5" />
+                <%!-- Up to three faces in a column, no taller than two lines. --%>
+                <span :if={row.die != []} class="inline-flex flex-col items-center gap-px">
+                  <.die_face :for={face <- row.die} face={face} class={die_size(length(row.die))} />
                 </span>
                 <span :if={row.die == []} class="text-ink-soft">–</span>
               </td>
@@ -756,6 +759,10 @@ defmodule QuacksWeb.RevealComponents do
 
   defp icon(true), do: "size-3.5"
   defp icon(false), do: "size-5"
+
+  defp die_size(1), do: "size-5"
+  defp die_size(2), do: "size-4"
+  defp die_size(_n), do: "size-3"
 
   defp update_class(:exploded), do: "bg-ruby/15 text-ruby"
   defp update_class(:stopped), do: "bg-ink/10 text-ink-soft"

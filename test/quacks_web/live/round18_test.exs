@@ -54,11 +54,15 @@ defmodule QuacksWeb.Round18Test do
     do: doc |> LazyHTML.query(selector) |> Enum.map(&String.trim(LazyHTML.text(&1)))
 
   describe "the results table" do
-    test "a real table: rank, player, space, coins, VP, ruby, die, chips" do
+    test "a real table: rank, player, coins, VP, ruby, die, chips (round 20: no space)" do
       doc = results_game() |> Reveal.slides(0) |> render_slide(:results)
 
       assert doc |> LazyHTML.query("table[data-role=reveal-results] thead th") |> Enum.count() ==
-               8
+               7
+
+      # round 20: the coins column's header is the coin icon
+      assert doc |> LazyHTML.query(~s(thead th[title=Coins] [data-icon=coin])) |> Enum.count() ==
+               1
 
       rows = LazyHTML.query(doc, "tbody tr[data-role=reveal-result]")
       assert Enum.map(rows, &LazyHTML.attribute(&1, "data-seat")) == [["0"], ["1"]]
