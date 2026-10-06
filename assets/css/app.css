@@ -1876,8 +1876,90 @@ html:has([data-layout="full"]) {
   .book-page {
     min-height: calc(100dvh - 2rem - 20px);
   }
-  .spell-book[data-step="home"] .book-page {
-    min-height: calc(100dvh - 9.5rem);
+}
+
+/* Phones, Games page (round 21): the hero and the book fill the screen exactly.
+   The book's page is a column: room code, "Games now", the list (it scrolls), and
+   New game at the foot. The screen's own padding keeps the cover's lower edge
+   clear of the home indicator, so the foot needs no safe-area padding of its own. */
+@media (width < 64rem) {
+  .lobby-screen[data-step="home"] {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+  .lobby-screen[data-step="home"] .spell-book,
+  .lobby-screen[data-step="home"] .book-cover {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .lobby-screen[data-step="home"] .book-spread {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .lobby-screen[data-step="home"] #page-home {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .lobby-screen[data-step="home"] .games-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    margin-inline: -0.25rem;
+    padding: 0 0.25rem 0.75rem;
+  }
+  .lobby-screen[data-step="home"] .page-foot {
+    position: static;
+    padding-bottom: 0.75rem;
+  }
+}
+
+/* A phone on its side: no hero, the book alone fills the screen (as on the other pages). */
+@media (width < 64rem) and (height < 32rem) {
+  .lobby-screen[data-step="home"] .lobby-hero {
+    display: none;
+  }
+  .lobby-screen[data-step="home"] .spell-book {
+    margin-top: 0;
+  }
+  /* Two columns: the room code over New game on the left, the list on the right. */
+  .lobby-screen[data-step="home"] #page-home {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "head head" "code sub" "code list" "foot list";
+    column-gap: 1.5rem;
+  }
+  .lobby-screen[data-step="home"] #page-home > .book-heading {
+    grid-area: head;
+    margin-bottom: 0.5rem;
+  }
+  .lobby-screen[data-step="home"] #room-code-form {
+    grid-area: code;
+    align-self: start;
+    border-bottom: 0;
+  }
+  .lobby-screen[data-step="home"] #page-home > h3 {
+    grid-area: sub;
+    margin-top: 0;
+  }
+  .lobby-screen[data-step="home"] .games-list {
+    grid-area: list;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lobby-screen[data-step="home"] .page-foot {
+    grid-area: foot;
+    margin: 0;
+    padding: 0 0 0.25rem;
+    border: 0;
+    box-shadow: none;
+    background: none;
+    backdrop-filter: none;
   }
 }
 
@@ -2117,6 +2199,15 @@ html[data-install="ready"] .pwa-install {
 }
 html[data-install="ios"] .pwa-ios-hint {
   display: block;
+}
+
+/* Full screen toggle (round 21, `fullscreen_button/1`): app.js sets
+   `data-fullscreen` where the browser allows it. The icon and label follow the
+   `:fullscreen` state of <html>. */
+html:not([data-fullscreen]) .fullscreen-toggle,
+:root:fullscreen .when-windowed,
+:root:not(:fullscreen) .when-fullscreen {
+  display: none;
 }
 
 /* The installed app: no browser bounce showing a white band past the table. */

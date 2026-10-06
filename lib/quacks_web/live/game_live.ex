@@ -1756,6 +1756,7 @@ defmodule QuacksWeb.GameLive do
             </.button>
             <.button navigate={~p"/"} variant={:secondary}>Lobby</.button>
             <.sheet_button for="sheet-books" variant={:secondary}>Books</.sheet_button>
+            <.fullscreen_button id="fullscreen-menu" />
           </div>
           <.reveal_settings mode={@reveal_mode} speed={@reveal_speed} reduced={@reduced} />
           <p>

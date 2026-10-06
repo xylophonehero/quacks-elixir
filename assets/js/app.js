@@ -383,6 +383,17 @@ const standalone = matchMedia("(display-mode: standalone)").matches || navigator
 // `navigator.standalone` exists only on iOS/iPadOS WebKit (an iPad says "Macintosh").
 if (!standalone && "standalone" in navigator && navigator.maxTouchPoints > 1) installState("ios")
 
+// Full screen (round 21): Android Chrome may offer no install prompt, so the game
+// menu and the lobby's Games page have a toggle (`fullscreen_button/1`). Shown only
+// where the browser allows it and outside the installed app; the request must run
+// in the click.
+if (document.fullscreenEnabled && !standalone) document.documentElement.dataset.fullscreen = "ok"
+document.addEventListener("click", e => {
+  if (!e.target.closest("[data-role=fullscreen]")) return
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+  else document.documentElement.requestFullscreen({navigationUI: "hide"}).catch(() => {})
+})
+
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session

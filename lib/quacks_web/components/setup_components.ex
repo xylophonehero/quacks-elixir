@@ -188,7 +188,8 @@ defmodule QuacksWeb.SetupComponents do
   end
 
   @doc """
-  The expansion toggles as three cards of the same size: The Herb Witches and The
+  The expansion toggles: a list of full-width rows below 64rem, three cards of the
+  same size from 64rem: The Herb Witches and The
   Alchemists (fields of `#books`) and the reverse pot side (a field of `#options`). Each input names its
   form with `form=`, so the cards may stand outside both forms (the spell book's
   left page); `books_form/1` shows them on top by default.
@@ -203,7 +204,8 @@ defmodule QuacksWeb.SetupComponents do
     ~H"""
     <div class={["space-y-2", @class]}>
       <h3 :if={@heading} class="font-bold">Expansions</h3>
-      <div class="grid grid-cols-3 gap-2" data-role="expansion-cards">
+      <%!-- Phones: a list, one row each (icon, title, blurb, switch); from 64rem: three cards. --%>
+      <div class="grid gap-2 lg:grid-cols-3" data-role="expansion-cards">
         <.toggle_card
           id="expansion"
           name="expansion"
@@ -403,7 +405,10 @@ defmodule QuacksWeb.SetupComponents do
         "has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet",
         if(@small,
           do: "col-span-2 grid-cols-[auto_1fr_auto] py-2",
-          else: "grid-cols-[1fr_auto] content-start gap-y-1 max-sm:p-2"
+          else: [
+            "max-lg:grid-cols-[auto_1fr_auto] max-lg:min-h-16 max-lg:px-3",
+            "lg:grid-cols-[1fr_auto] lg:content-start lg:gap-y-1"
+          ]
         )
       ]}
       data-role="toggle-card"
@@ -418,14 +423,14 @@ defmodule QuacksWeb.SetupComponents do
         name={@icon}
         class={["shrink-0 text-ink-soft", if(@small, do: "size-6", else: "size-8")]}
       />
-      <span class={["min-w-0", !@small && "col-span-2 row-start-2"]}>
+      <span class={["min-w-0", !@small && "lg:col-span-2 lg:row-start-2"]}>
         <span class={[
           "block leading-tight font-bold",
-          if(@small, do: "text-sm", else: "font-hand text-base sm:text-lg")
+          if(@small, do: "text-sm", else: "font-hand text-lg")
         ]}>
           {@title}
         </span>
-        <span class="block text-xs leading-snug text-ink-soft">{@text}</span>
+        <span class="block text-xs leading-snug text-ink-soft max-lg:truncate">{@text}</span>
       </span>
       <input type="hidden" name={@name} value="false" form={@form} />
       <input
@@ -435,7 +440,7 @@ defmodule QuacksWeb.SetupComponents do
         value="true"
         checked={@checked}
         form={@form}
-        class={["switch shrink-0", !@small && "col-start-2 row-start-1"]}
+        class={["switch shrink-0", !@small && "lg:col-start-2 lg:row-start-1"]}
       />
     </label>
     """
