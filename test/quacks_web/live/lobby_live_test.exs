@@ -10,31 +10,157 @@ defmodule QuacksWeb.LobbyLiveTest do
     %{conn: init_test_session(conn, player_token: "lobby-#{System.unique_integer()}")}
   end
 
-  test "the lobby is a spell book: New game, Ingredient books and Join pages", %{conn: conn} do
+  test "the lobby is a spell book of pages, one per step", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
-    assert has_element?(view, "#spell-book[data-page=new]")
+    refute has_element?(view, "[data-bookmark]")
+    assert has_element?(view, "#spell-book[data-step=home]")
 
-    for page <- ~w(new books join) do
-      assert has_element?(view, "#bookmark-#{page}[role=tab][aria-controls=page-#{page}]")
-      assert has_element?(view, "#page-#{page}[data-book-page=#{page}]")
+    # Every page is in the DOM; the server hides all but the step's page on a phone.
+    for page <- ~w(home players expansions rules books book-green book-locoweed) do
+      assert has_element?(view, "#page-#{page}")
     end
 
-    # Left page: players, seats, you, Public, expansions, house rules.
-    assert has_element?(view, "#page-new [data-role=count]", "2")
-    assert has_element?(view, "#page-new #seat-name")
-    assert has_element?(view, "#page-new [data-role=colour-picker]")
-    assert has_element?(view, "#page-new #public[checked]")
-    assert has_element?(view, "#page-new #expansion[form=books]")
-    assert has_element?(view, "#page-new #options")
-    # Right page: books, random, the seal.
-    assert has_element?(view, "#page-books #books button[popovertarget=book-picker-green]")
-    assert has_element?(view, "#page-books #random-books", "Random books")
-    assert has_element?(view, "#page-books #reset-books", "Reset to book I")
-    assert has_element?(view, "#page-books #new-game", "Start")
-    assert has_element?(view, "#page-join #room-code-form #room-code")
+    assert has_element?(view, "#page-home.flex #room-code-form #room-code")
+    assert has_element?(view, "#page-home #new-game-flow[href='/?step=players']", "New game")
+    assert has_element?(view, "#page-players.hidden")
+
+    # Players: count, seats, you, Public, Next.
+    assert has_element?(view, "#page-players [data-role=count]", "2")
+    assert has_element?(view, "#page-players #seat-name")
+    assert has_element?(view, "#page-players [data-role=colour-picker]")
+    assert has_element?(view, "#page-players #public[checked]")
+    assert has_element?(view, "#page-players #to-expansions")
+    # Expansions: three cards, House rules, Ingredient books, Start.
+    assert has_element?(
+             view,
+             "#page-expansions [data-role=expansion-cards] [data-role=toggle-card]"
+           )
+
+    assert has_element?(view, "#page-expansions #expansion[form=books]")
+    assert has_element?(view, "#page-expansions #rules-pot_side[form=options]")
+    assert has_element?(view, "#page-expansions #to-rules", "As in the rulebook")
+    assert has_element?(view, "#page-expansions #to-books", "Beginner (Set 1)")
+    assert has_element?(view, "#page-expansions #new-game", "Start")
+    assert has_element?(view, "#page-rules #options")
+    # Books: presets, the tiles as links to the colour pages, no sheets.
+    assert has_element?(view, "#page-books #preset-beginner[aria-pressed=true]")
+    assert has_element?(view, "#page-books #preset-random")
+    assert has_element?(view, "#page-books #book-link-green[href='/?step=book&colour=green']")
+    refute has_element?(view, "#book-picker-green")
+    assert has_element?(view, "#page-book-green [data-role=book-card] input[form=books]")
 
     {:ok, view, _html} = live(conn, ~p"/?page=join")
-    assert has_element?(view, "#spell-book[data-page=join]")
+    assert has_element?(view, "#spell-book[data-step=home]")
+  end
+
+  test "New game is a flow of pages: Next, the two buttons, Back", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    view |> element("#new-game-flow") |> render_click()
+    assert_patch(view, ~p"/?step=players")
+    assert has_element?(view, "#page-players.flex")
+    assert has_element?(view, "#page-home.hidden")
+
+    view |> element("#to-expansions") |> render_click()
+    assert_patch(view, ~p"/?step=expansions")
+    assert has_element?(view, "#page-expansions.flex")
+
+    view |> element("#to-rules") |> render_click()
+    assert_patch(view, ~p"/?step=rules")
+    assert has_element?(view, "#page-rules.flex")
+
+    # The visit began at home, so Back on a step is the browser's history.
+    assert view |> element("#page-rules [data-role=back]") |> render() =~ "quacks:back"
+
+    # Opened at a deep step, Back patches to the parent page.
+    {:ok, view, _html} = live(conn, ~p"/?step=books")
+    assert has_element?(view, "#page-books.flex")
+    view |> element("#page-books [data-role=back]") |> render_click()
+    assert_patch(view, ~p"/?step=expansions")
+
+    # A bad step is home; a witch page without The Herb Witches is the books page.
+    {:ok, view, _html} = live(conn, ~p"/?step=nope")
+    assert has_element?(view, "#page-home.flex")
+    {:ok, view, _html} = live(conn, ~p"/?step=witch&colour=copper")
+    assert has_element?(view, "#page-books.flex")
+  end
+
+  test "a book tile opens its colour's page; a pick applies and goes back", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/?step=books")
+
+    view |> element("#book-link-green") |> render_click()
+    assert_patch(view, ~p"/?step=book&colour=green")
+    assert has_element?(view, "#page-book-green.flex")
+
+    assert has_element?(
+             view,
+             "#page-book-green [data-role=book-card][data-set='1'] input[checked]"
+           )
+
+    # The cards belong to #books: a pick is that form's change.
+    view |> element("#books") |> render_change(%{"sets" => %{"green" => "4"}})
+    assert books(view)["green"] == "4"
+
+    assert has_element?(
+             view,
+             "#page-book-green [data-role=book-card][data-set='4'] input[checked]"
+           )
+
+    # The list was the page before: a pick goes back in the history.
+    assert view |> element("#page-book-green [data-set='4'] input") |> render() =~ "quacks:back"
+
+    # Opened at the colour page directly, a pick patches to the list.
+    {:ok, direct, _html} = live(conn, ~p"/?step=book&colour=green")
+
+    assert direct |> element("#page-book-green [data-set='4'] input") |> render() =~
+             "/?step=books"
+
+    # The witch pages follow the same pattern with The Herb Witches.
+    view |> element("#books") |> render_change(%{"expansion" => "true", "sets" => %{}})
+    assert has_element?(view, "#witch-link-copper[href='/?step=witch&colour=copper']")
+    view |> element("#witch-link-copper") |> render_click()
+
+    assert has_element?(
+             view,
+             "#page-witch-copper.flex [data-role=witch-option] input[form=books]"
+           )
+  end
+
+  test "a preset applies its books; a manual change is Custom; saved with the config",
+       %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/?step=books")
+    assert has_element?(view, "[data-role=preset-label]", "Beginner (Set 1)")
+
+    view |> element("#preset-set3") |> render_click()
+    assert_push_event(view, "save_config", %{preset: "set3"})
+    assert has_element?(view, "#preset-set3[aria-pressed=true]")
+
+    assert books(view) |> Map.drop(~w(orange black locoweed)) |> Map.values() |> Enum.uniq() == [
+             "3"
+           ]
+
+    view |> element("#books") |> render_change(%{"sets" => %{"green" => "4", "blue" => "3"}})
+    assert has_element?(view, "[data-role=preset-label]", "Custom")
+    refute has_element?(view, "[data-role=preset][aria-pressed=true]")
+
+    # A preset turns on the expansion it needs.
+    view |> element("#preset-alchemists") |> render_click()
+    assert has_element?(view, "#alchemists[checked]")
+    assert books(view)["locoweed"] == "4"
+
+    # The saved config brings the preset back.
+    render_hook(view, "load_config", %{
+      "sets" => %{
+        "green" => "2",
+        "blue" => "2",
+        "red" => "2",
+        "yellow" => "2",
+        "purple" => "2",
+        "black" => "1"
+      }
+    })
+
+    assert has_element?(view, "#preset-set2[aria-pressed=true]")
   end
 
   test "Start with an open seat opens the table at the configure screen", %{conn: conn} do
@@ -82,12 +208,12 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert {:ok, %{status: :playing, seed: {1, 2, 3}}} = GameServer.get(id)
   end
 
-  test "Random books picks a valid book per colour; Reset goes back to book I", %{conn: conn} do
+  test "Random picks a valid book per colour; Beginner goes back to book I", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 
     picks =
       for _ <- 1..15 do
-        view |> element("#random-books") |> render_click()
+        view |> element("#preset-random") |> render_click()
         books(view)
       end
 
@@ -102,10 +228,11 @@ defmodule QuacksWeb.LobbyLiveTest do
 
     # With The Alchemists locoweed is in play too.
     view |> element("#books") |> render_change(%{"alchemists" => "true", "sets" => %{}})
-    view |> element("#random-books") |> render_click()
+    view |> element("#preset-random") |> render_click()
     assert books(view)["locoweed"] in ~w(1 2 3 4 5 6)
+    assert has_element?(view, "#preset-random[aria-pressed=true]")
 
-    view |> element("#reset-books") |> render_click()
+    view |> element("#preset-beginner") |> render_click()
     assert books(view) |> Map.delete("locoweed") |> Map.values() |> Enum.uniq() == ["1"]
   end
 

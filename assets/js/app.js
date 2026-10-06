@@ -331,6 +331,9 @@ document.addEventListener("toggle", e => {
 // A choice inside a dialog (or popover sheet) closes it once it is sent.
 window.addEventListener("quacks:close", e =>
   e.target.matches("[popover]") ? e.target.hidePopover() : e.target.close?.())
+// The spell book's Back arrow (lobby_live.ex `back/2`): the page before is its
+// parent page, so the browser's own history turns back.
+window.addEventListener("quacks:back", () => history.back())
 // The reveal overlay ended (round 14): the server names the dialog that waited
 // for it (the shop, a decision, the game-over sheet).
 window.addEventListener("phx:quacks:open", e => {
