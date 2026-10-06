@@ -115,6 +115,16 @@ defmodule Quacks.GameStoreTest do
     assert {:ok, %Game{players: _}} = GameServer.begin(id, "ann")
   end
 
+  test "a private table stays private after a restore", %{dir: dir} do
+    {:ok, id} = GameServer.create(%{players: 3, public: false, name: "Ann"}, "ann")
+    shut_down(id)
+    assert restore(dir) == [id]
+
+    assert {:ok, %{public: false, names: %{0 => "Ann"}}} = GameServer.get(id)
+    refute Enum.any?(GameServer.games("bob"), &(&1.id == id))
+    assert [%{id: ^id, mine: 0}] = Enum.filter(GameServer.games("ann"), &(&1.id == id))
+  end
+
   test "bots play on after a restore" do
     id = "botsxx"
     session = Session.new({1, 2, 3}, 2)
