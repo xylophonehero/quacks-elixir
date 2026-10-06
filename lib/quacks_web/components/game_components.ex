@@ -152,7 +152,7 @@ defmodule QuacksWeb.GameComponents do
       <.chip chip={{:white, 1}} size={:sm} />
   """
   attr :chip, :any, required: true, doc: "a `{colour, value}` tuple"
-  attr :size, :atom, default: :md, values: [:xs, :sm, :md]
+  attr :size, :atom, default: :md, values: [:xs, :sm, :md, :lg]
   attr :rest, :global
 
   def chip(assigns) do
@@ -184,6 +184,7 @@ defmodule QuacksWeb.GameComponents do
         "chip-token relative inline-flex shrink-0 items-center justify-center rounded-full",
         @size == :sm && "size-6",
         @size == :md && "size-9",
+        @size == :lg && "size-12",
         @colour_class
       ]}
       aria-label={"#{@colour} #{@value}"}

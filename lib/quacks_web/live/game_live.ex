@@ -1372,15 +1372,13 @@ defmodule QuacksWeb.GameLive do
                 <.chip_picks actions={@all_actions} pool={@me.witch_offer} game={@game} me={@me} />
               </.blue_offer>
               <.witch_card :for={id <- witches_acting(@game, @all_actions)} id={id} />
-              <.blue_offer
+              <.red_rows
                 :if={@decision == :red_choice}
-                title="Toadstool chips beside the pot:"
-                hint="Tap a chip to place it after your last chip, or keep it for later, or return it to the bag."
-                label="Toadstool choice"
-                accent="border-ruby"
-              >
-                <.chip_picks actions={@all_actions} pool={@me.pending} game={@game} me={@me} />
-              </.blue_offer>
+                actions={@all_actions}
+                pool={@me.pending}
+                game={@game}
+                me={@me}
+              />
               <.chip_picks
                 :if={@decision not in [:blue_choice, :witch_offer, :red_choice]}
                 actions={@all_actions}
@@ -2408,7 +2406,7 @@ defmodule QuacksWeb.GameLive do
   attr :click, :any, default: "action", doc: "the `phx-click` of each chip"
 
   def chip_picks(assigns) do
-    picks = Enum.filter(assigns.actions, &(pick_chips(&1) != [] and not side_pick?(&1)))
+    picks = Enum.filter(assigns.actions, &(pick_chips(&1) != []))
 
     groups =
       case assigns.pool do
@@ -2420,15 +2418,14 @@ defmodule QuacksWeb.GameLive do
               picks
               |> Enum.filter(&(title.(&1) == t))
               |> Enum.sort_by(&chip_order/1)
-              |> Enum.map(&{pick_chips(&1), &1, []})
+              |> Enum.map(&{pick_chips(&1), &1})
 
             {t, tiles}
           end
 
         pool ->
           [
-            {nil,
-             for(chip <- pool, do: {[chip], pool_pick(picks, chip), sides(assigns.actions, chip)})}
+            {nil, for(chip <- pool, do: {[chip], pool_pick(picks, chip)})}
           ]
       end
 
@@ -2438,8 +2435,8 @@ defmodule QuacksWeb.GameLive do
       for {title, tiles} <- groups, tiles != [] do
         {title,
          for(
-           {chips, action, sides} <- tiles,
-           do: {chips, action, sides, action && over_limit(action, assigns.me, limit)}
+           {chips, action} <- tiles,
+           do: {chips, action, action && over_limit(action, assigns.me, limit)}
          )}
       end
 
@@ -2449,7 +2446,7 @@ defmodule QuacksWeb.GameLive do
     <div :for={{title, tiles} <- @groups} class="space-y-1" data-role="chip-picks">
       <p :if={title} class="text-sm font-semibold">{title}</p>
       <ul class="flex flex-wrap items-start gap-2">
-        <li :for={{chips, action, sides, over} <- tiles} class="flex flex-col items-center">
+        <li :for={{chips, action, over} <- tiles} class="flex flex-col items-center">
           <button
             :if={action}
             type="button"
@@ -2490,7 +2487,7 @@ defmodule QuacksWeb.GameLive do
             {if over == :explodes, do: "explodes!", else: "over #{@limit}, safe"}
           </span>
           <span
-            :if={(!over and @pool) && sides == [] && pick_verb(action)}
+            :if={(!over and @pool) && pick_verb(action)}
             class="mt-0.5 text-[11px] leading-4 font-semibold text-ink-soft"
             data-role="pick-verb"
           >
@@ -2505,24 +2502,67 @@ defmodule QuacksWeb.GameLive do
           >
             {chips |> List.last() |> elem(0)}
           </span>
-          <div :if={sides != []} class="flex">
-            <button
-              :for={side <- sides}
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  # Round 22: the Toadstool choice (red Set 2), one row per chip: the chip, then
+  # Place, Keep and Return as three equal buttons (they stack under the chip on a
+  # narrow phone). One line of help at the top.
+  attr :actions, :list, required: true
+  attr :pool, :list, required: true, doc: "the Toadstool chips that wait (`player.pending`)"
+  attr :game, Game, required: true
+  attr :me, Player, required: true
+
+  defp red_rows(assigns) do
+    ~H"""
+    <div
+      class="paper space-y-2 rounded-md border-l-4 border-ruby p-2 text-sm"
+      aria-label="Toadstool choice"
+      data-role="red-rows"
+    >
+      <p class="text-ink-soft">
+        Each Toadstool chip: place it now, keep it beside the pot for later, or return it to the bag.
+      </p>
+      <ul class="space-y-2">
+        <li
+          :for={{chip, i} <- Enum.with_index(@pool)}
+          id={"red-row-#{i}"}
+          class="flex flex-col gap-2 rounded-md bg-parchment-deep/50 p-2 min-[26rem]:flex-row min-[26rem]:items-center"
+          data-role="red-row"
+        >
+          <.chip chip={chip} size={:lg} class="self-center" data-role="red-chip" />
+          <div class="grid flex-1 grid-cols-3 gap-2">
+            <.button
+              :for={{kind, label, hint} <- red_kinds()}
+              :if={{:red, {kind, chip}} in @actions}
               type="button"
-              phx-click={@click}
-              phx-value-action={encode(side)}
-              aria-label={action_label(side, @game, @me)}
-              data-role="chip-side"
-              class="min-h-11 px-1.5 text-xs font-semibold text-ink-soft underline underline-offset-2 hover:text-ink"
+              phx-click="action"
+              phx-value-action={encode({:red, {kind, chip}})}
+              variant={if kind == :place, do: :primary, else: :secondary}
+              autofocus={i == 0 and kind == :place}
+              aria-label={action_label({:red, {kind, chip}}, @game, @me)}
+              class="min-h-12 flex-col gap-0! px-1! leading-tight"
+              data-role={"red-#{kind}"}
             >
-              {side_text(side)}
-            </button>
+              <span class="font-bold">{label}</span>
+              <span class="text-[11px] font-normal opacity-80">{hint}</span>
+            </.button>
           </div>
         </li>
       </ul>
     </div>
     """
   end
+
+  defp red_kinds,
+    do: [
+      {:place, "Place", "after your last chip"},
+      {:keep, "Keep", "for later"},
+      {:return, "Return", "to the bag"}
+    ]
 
   # The chips an action shows as its control; [] for an action without a chip.
   defp pick_chips({:place, chip}), do: [chip]
@@ -2571,15 +2611,6 @@ defmodule QuacksWeb.GameLive do
       true -> nil
     end
   end
-
-  # The toadstool's keep and return: small buttons under their chip.
-  defp side_pick?({:red, {kind, _chip}}), do: kind in [:keep, :return]
-  defp side_pick?(_action), do: false
-
-  defp sides(actions, chip), do: for({:red, {k, ^chip}} = a <- actions, k != :place, do: a)
-
-  defp side_text({:red, {:keep, _chip}}), do: "Keep"
-  defp side_text({:red, {:return, _chip}}), do: "Return"
 
   defp pool_pick(picks, chip), do: Enum.find(picks, &(pick_chips(&1) == [chip]))
 
