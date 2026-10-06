@@ -11,7 +11,7 @@ defmodule QuacksWeb.SetupComponents do
   """
   use Phoenix.Component
 
-  import QuacksWeb.CoreComponents, only: [button: 1, input: 1, sheet: 1]
+  import QuacksWeb.CoreComponents, only: [button: 1, icon: 1, input: 1, sheet: 1]
   import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
 
   import QuacksWeb.GameComponents,
@@ -22,6 +22,7 @@ defmodule QuacksWeb.SetupComponents do
       book_tiers: 1,
       book_tile: 1,
       chip: 1,
+      palette_bg: 1,
       roman: 1
     ]
 
@@ -83,40 +84,22 @@ defmodule QuacksWeb.SetupComponents do
 
   attr :disabled, :boolean, default: false
 
+  attr :expansion_cards, :boolean,
+    default: true,
+    doc: "false: the page shows `expansion_cards/1` elsewhere (the spell book's left page)"
+
+  attr :heading, :boolean, default: true, doc: "false: the page has its own heading"
+
   def books_form(assigns) do
     ~H"""
     <form id="books" phx-change="sets" aria-label="Ingredient books">
       <fieldset disabled={@disabled} class="space-y-2">
-        <h3 class="font-bold">Expansions</h3>
-        <div class="grid grid-cols-2 gap-2" data-role="expansion-cards">
-          <.toggle_card
-            id="expansion"
-            name="expansion"
-            checked={@expansion}
-            title="The Herb Witches"
-            text="Witch cards"
-            icon={:witch}
-          />
-          <.toggle_card
-            id="alchemists"
-            name="alchemists"
-            checked={@alchemists}
-            title="The Alchemists"
-            text="Patients and essence"
-            icon={:flask}
-          />
-          <%!-- Part of the house rules form (`form="options"`), shown here beside the expansions. --%>
-          <.toggle_card
-            id="rules-pot_side"
-            name="rules[pot_side]"
-            form="options"
-            checked={@pot_side == :back}
-            title="Pot: reverse side"
-            text="Test tubes"
-            icon={:tube}
-            small
-          />
-        </div>
+        <.expansion_cards
+          :if={@expansion_cards}
+          expansion={@expansion}
+          alchemists={@alchemists}
+          pot_side={@pot_side}
+        />
         <%!-- The Herb Witches: one picker per penny colour, "Random" or a card. --%>
         <div :if={@expansion} class="space-y-2" data-role="witch-pickers">
           <h3 class="pt-1 font-bold">Herb witches</h3>
@@ -136,7 +119,7 @@ defmodule QuacksWeb.SetupComponents do
             <% end %>
           </div>
         </div>
-        <h3 class="pt-1 font-bold">Ingredient books</h3>
+        <h3 :if={@heading} class="pt-1 font-bold">Ingredient books</h3>
         <p :if={!@disabled} class="text-sm text-ink-soft">Tap a book to pick another.</p>
         <div class={[
           "grid gap-2.5",
@@ -172,6 +155,70 @@ defmodule QuacksWeb.SetupComponents do
     </form>
     """
   end
+
+  @doc """
+  The expansion toggles as cards: The Herb Witches and The Alchemists (fields of
+  `#books`) and the reverse pot side (a field of `#options`). Each input names its
+  form with `form=`, so the cards may stand outside both forms (the spell book's
+  left page); `books_form/1` shows them on top by default.
+  """
+  attr :expansion, :boolean, default: false
+  attr :alchemists, :boolean, default: false
+  attr :pot_side, :atom, default: :front
+  attr :class, :any, default: nil
+
+  def expansion_cards(assigns) do
+    ~H"""
+    <div class={["space-y-2", @class]}>
+      <h3 class="font-bold">Expansions</h3>
+      <div class="grid grid-cols-2 gap-2" data-role="expansion-cards">
+        <.toggle_card
+          id="expansion"
+          name="expansion"
+          form="books"
+          checked={@expansion}
+          title="The Herb Witches"
+          text="Witch cards"
+          icon={:witch}
+        />
+        <.toggle_card
+          id="alchemists"
+          name="alchemists"
+          form="books"
+          checked={@alchemists}
+          title="The Alchemists"
+          text="Patients and essence"
+          icon={:flask}
+        />
+        <.toggle_card
+          id="rules-pot_side"
+          name="rules[pot_side]"
+          form="options"
+          checked={@pot_side == :back}
+          title="Pot: reverse side"
+          text="Test tubes"
+          icon={:tube}
+          small
+        />
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  An on/off card (see `expansion_cards/1`), for the spell book's other switches
+  (the Public toggle).
+  """
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :checked, :boolean, required: true
+  attr :title, :string, required: true
+  attr :text, :string, required: true
+  attr :icon, :any, required: true, doc: "a piece icon (atom) or a hero icon name"
+  attr :form, :string, default: nil
+  attr :small, :boolean, default: false
+
+  def switch_card(assigns), do: toggle_card(assigns)
 
   # A small witch tile: the penny colour band, then the picked card's title or
   # "Random".
@@ -288,7 +335,7 @@ defmodule QuacksWeb.SetupComponents do
   attr :checked, :boolean, required: true
   attr :title, :string, required: true
   attr :text, :string, required: true
-  attr :icon, :atom, required: true
+  attr :icon, :any, required: true
   attr :form, :string, default: nil
   attr :small, :boolean, default: false
 
@@ -309,7 +356,13 @@ defmodule QuacksWeb.SetupComponents do
       ]}
       data-role="toggle-card"
     >
+      <.icon
+        :if={is_binary(@icon)}
+        name={@icon}
+        class={["shrink-0 text-ink-soft", if(@small, do: "size-6", else: "size-9")]}
+      />
       <.piece_icon
+        :if={is_atom(@icon)}
         name={@icon}
         class={["shrink-0 text-ink-soft", if(@small, do: "size-6", else: "size-9")]}
       />
@@ -538,6 +591,58 @@ defmodule QuacksWeb.SetupComponents do
     """
   end
 
+  @colour_names ~w(gold teal violet coral lime rose sky slate)
+
+  @doc """
+  Your seat's colour picker (configure screen and spell book): the 8 palette
+  colours, one tap sends `"colour"`; colours other seats have are struck through and
+  cannot be picked. A tap submits `#rename-form` first, so a name typed just before
+  is not lost.
+  """
+  attr :colours, :map, required: true
+  attr :seat, :integer, required: true
+
+  def colour_picker(assigns) do
+    assigns =
+      assign(assigns,
+        mine: assigns.colours[assigns.seat],
+        taken: assigns.colours |> Map.delete(assigns.seat) |> Map.values(),
+        swatches: Enum.with_index(@colour_names, &{&2, &1})
+      )
+
+    ~H"""
+    <div
+      class="flex w-full gap-1.5 pt-0.5 pb-2"
+      role="group"
+      aria-label="Your colour"
+      data-role="colour-picker"
+    >
+      <button
+        :for={{colour, label} <- @swatches}
+        type="button"
+        phx-click={
+          JS.dispatch("submit", to: "#rename-form") |> JS.push("colour", value: %{colour: colour})
+        }
+        disabled={colour in @taken}
+        aria-label={if colour in @taken, do: "#{label} (taken)", else: label}
+        aria-pressed={to_string(colour == @mine)}
+        data-colour={colour}
+        class={[
+          "hit-44 size-8 shrink-0 cursor-pointer rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
+          palette_bg(colour),
+          colour == @mine && "ring-2 ring-ink ring-offset-2 ring-offset-parchment-light"
+        ]}
+      >
+        <span
+          :if={colour in @taken}
+          class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 -rotate-45 bg-ink"
+          aria-hidden="true"
+        />
+      </button>
+    </div>
+    """
+  end
+
   @doc """
   The colours the Ingredient books form offers, in the board's order
   (`Chips.order/0`): every colour but white (orange, black and locoweed in every
@@ -571,6 +676,50 @@ defmodule QuacksWeb.SetupComponents do
       {colour, parse_set(params[to_string(colour)], sets, book(%{}, colour))}
     end)
     |> Map.reject(&(&1 in [orange: 1, locoweed: nil]))
+  end
+
+  @doc """
+  A random book per colour, as `parse_sets/2` returns them: uniform over the books
+  the colour's picker offers (black I–III, orange I–II, the rest I–VI). Locoweed is
+  in play only with `alchemists?` (then I–VI, every one allowed); without it, no
+  locoweed. Not the engine, so the process's `:rand` is fine.
+  """
+  @spec random_sets(boolean) :: Chips.sets()
+  def random_sets(alchemists?) do
+    book_colours()
+    |> Map.new(fn colour ->
+      sets =
+        if colour == :locoweed and not alchemists?,
+          do: [nil],
+          else:
+            Enum.filter(book_sets(colour), &(&1 && unavailable(colour, &1, alchemists?) == nil))
+
+      {colour, Enum.at(sets, :rand.uniform(length(sets)) - 1)}
+    end)
+    |> Map.reject(&(&1 in [orange: 1, locoweed: nil]))
+  end
+
+  @doc "Book I for every colour (no locoweed): the books of a default game."
+  @spec default_sets() :: Chips.sets()
+  def default_sets, do: parse_sets(%{})
+
+  @doc """
+  The books form's params (`"sets"`, `"witches"`, `"expansion"`, `"alchemists"`)
+  as settings: `sets`, `witches`, `expansion` (`:herb_witches` or nil) and
+  `expansions` (`[:alchemists]` or `[]`), the shape `Quacks.GameServer.configure/3`
+  takes.
+  """
+  @spec parse_books(map) :: map
+  def parse_books(form) do
+    alchemists = form["alchemists"] in ["true", true]
+    sets = if is_map(form["sets"]), do: form["sets"], else: %{}
+
+    %{
+      sets: parse_sets(sets, alchemists),
+      witches: parse_witches(form["witches"]),
+      expansion: if(form["expansion"] in ["true", true], do: :herb_witches),
+      expansions: if(alchemists, do: [:alchemists], else: [])
+    }
   end
 
   # "" is "Not used" (nil) for locoweed.

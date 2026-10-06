@@ -485,6 +485,27 @@ file name in `@files` (`lib/quacks_web/components/icons.ex:22-52`) and credit th
 author in `docs/CREDITS.md`. The file must be one filled silhouette on a 512
 viewBox, because `sprite/1` and `svg/1` set the viewBox and the fill.
 
+## The spell book: CSS pages, form-attribute fields (round 17)
+
+The lobby's book (`lib/quacks_web/live/lobby_live.ex`, `.spell-book` in app.css)
+is three `<section data-book-page>` elements in one grid. The book's `data-page`
+picks the one that shows; from 64rem the grid has two columns and CSS shows New
+game on the left and Books (or Join) on the right. The ribbons are buttons with a
+`clip-path` notch; the active one hangs lower. A page turn is a short keyframe
+(`page-turn`) that runs only after a bookmark set `data-turned`, so the first paint
+never animates.
+
+The pages split one form across the spread: the expansion toggles sit on the left
+page but belong to `#books` on the right, and the pot-side toggle to `#options`.
+Each input names its form (`form="books"`), so the browser sends it with that
+form's change and LiveView's `phx-change` sees it; `SetupComponents.expansion_cards/1`
+is that block, and `books_form/1` takes `expansion_cards={false}` when the page
+shows it elsewhere. `colour_picker/1` and `switch_card/1` moved to
+`SetupComponents` too, for the book and the configure screen.
+
+The Start seal is a `.wax-seal` button in a sticky `.seal-bar`, so on a phone it
+stays at the foot of the books page while the tiles scroll.
+
 ## Tailwind: full class names in maps
 
 Tailwind v4 scans the source for class names (`@source "../../lib/quacks_web"`,

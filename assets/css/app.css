@@ -1833,6 +1833,261 @@ html:has([data-layout="full"]) {
   );
 }
 
+/* The lobby's spell book (round 17, `QuacksWeb.LobbyLive`): a leather cover, ruled
+   parchment pages and ribbon bookmarks. The book's `data-page` ("new", "books",
+   "join", set by the bookmarks) says which page shows: one at a time below 64rem;
+   from 64rem two side by side, New game on the left and Ingredient books (or Join a
+   game) on the right. */
+.spell-book [data-book-page] {
+  display: none;
+}
+.spell-book[data-page="new"] [data-book-page="new"],
+.spell-book[data-page="join"] [data-book-page="join"] {
+  display: block;
+}
+/* A column, so the Start seal sits at the page's foot. */
+.spell-book[data-page="books"] [data-book-page="books"] {
+  display: flex;
+  flex-direction: column;
+}
+
+.book-cover {
+  position: relative;
+  border-radius: 18px;
+  padding: 10px;
+  background:
+    radial-gradient(ellipse at 30% 0%, rgb(255 210 160 / 0.14), transparent 55%),
+    repeating-radial-gradient(circle at 70% 60%, rgb(0 0 0 / 0.05) 0 2px, transparent 2px 5px),
+    linear-gradient(160deg, #7a2e22, #4f1a14 55%, #3a120e);
+  box-shadow:
+    inset 0 0 0 2px rgb(224 178 60 / 0.35),
+    inset 0 0 0 7px rgb(0 0 0 / 0.18),
+    0 18px 40px -12px rgb(0 0 0 / 0.75);
+}
+
+.book-spread {
+  display: grid;
+  position: relative;
+}
+
+.book-page {
+  position: relative;
+  min-width: 0;
+  border-radius: 10px;
+  padding: 1.25rem 1rem 1rem;
+  color: var(--color-ink);
+  background-color: var(--color-parchment-light);
+  background-image:
+    radial-gradient(circle at 12% 8%, rgb(255 255 255 / 0.45), transparent 40%),
+    radial-gradient(circle at 90% 96%, rgb(120 80 30 / 0.18), transparent 55%),
+    linear-gradient(var(--color-parchment-light), var(--color-parchment));
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.5) inset, 0 2px 6px rgb(0 0 0 / 0.35);
+  transform-origin: left center;
+}
+
+/* Only a turn by a bookmark animates (`data-turned`), not the first paint. */
+.spell-book[data-turned] .book-page {
+  animation: page-turn 280ms var(--ease-out);
+}
+
+@keyframes page-turn {
+  from {
+    opacity: 0;
+    transform: perspective(1400px) rotateY(-9deg);
+  }
+}
+
+.book-heading {
+  font-family: var(--font-hand);
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #4f1a14;
+  border-bottom: 2px solid rgb(79 26 20 / 0.55);
+  box-shadow: 0 3px 0 -1px rgb(79 26 20 / 0.25);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.book-subheading {
+  font-family: var(--font-hand);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #4f1a14;
+}
+
+/* A ruled line under a block, and seats written on ruled lines. */
+.book-rule {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgb(58 46 26 / 0.18);
+}
+.book-line {
+  border-bottom: 1px solid rgb(58 46 26 / 0.18);
+}
+
+.book-page h3 {
+  font-family: var(--font-hand);
+  font-size: 1.15rem;
+  color: #4f1a14;
+}
+
+/* Ribbon bookmarks: a tab row on phones, ribbons over the cover's top edge. The
+   page that shows has the long ribbon. */
+.bookmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.8rem 1.1rem;
+  color: var(--color-parchment-light);
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 0.6rem), 0 100%);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.15);
+  filter: saturate(0.75) brightness(0.85);
+  translate: 0 -0.35rem;
+  transition:
+    translate 200ms var(--ease-out),
+    filter 150ms ease;
+}
+.bookmark:hover {
+  filter: none;
+}
+.bookmark:active {
+  translate: 0 -0.2rem;
+}
+.spell-book[data-page="new"] [data-bookmark="new"],
+.spell-book[data-page="books"] [data-bookmark="books"],
+.spell-book[data-page="join"] [data-bookmark="join"] {
+  filter: none;
+  translate: 0 0.15rem;
+}
+
+/* The Start seal: red wax pressed at the foot of the books page; the bar under it
+   stays in reach while the page scrolls. */
+.seal-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: auto -1rem -1rem;
+  padding: 0.6rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+  border-top: 1px solid rgb(58 46 26 / 0.2);
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(rgb(239 224 180 / 0.92), var(--color-parchment));
+  backdrop-filter: blur(4px);
+}
+
+.wax-seal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 5.25rem;
+  height: 5.25rem;
+  border-radius: 46% 54% 50% 50% / 52% 48% 52% 48%;
+  cursor: pointer;
+  font-family: var(--font-hand);
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #ffe9df;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.45);
+  background: radial-gradient(circle at 38% 32%, #f0675e, var(--color-ruby) 42%, #8c1612 78%);
+  box-shadow:
+    inset 0 0 0 5px rgb(120 14 10 / 0.55),
+    inset 0 0 0 7px rgb(255 160 150 / 0.25),
+    inset 0 -6px 10px rgb(0 0 0 / 0.3),
+    0 4px 10px rgb(0 0 0 / 0.4);
+  transition:
+    scale 160ms var(--ease-out),
+    filter 160ms ease;
+}
+.wax-seal:hover {
+  scale: 1.05;
+  filter: brightness(1.08);
+}
+.wax-seal:active {
+  scale: 0.94;
+}
+.wax-seal.phx-click-loading {
+  filter: brightness(0.9);
+}
+
+@media (width >= 64rem) {
+  .book-cover {
+    padding: 14px 16px 16px;
+  }
+  .book-spread {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+  .spell-book [data-book-page="new"] {
+    display: block;
+  }
+  .spell-book:not([data-page="join"]) [data-book-page="books"] {
+    display: flex;
+    flex-direction: column;
+  }
+  .spell-book:not([data-page="join"]) [data-bookmark="new"],
+  .spell-book:not([data-page="join"]) [data-bookmark="books"] {
+    filter: none;
+    translate: 0 0.15rem;
+  }
+  .book-page {
+    padding: 1.75rem 2rem 1.5rem;
+  }
+  .book-page-left {
+    grid-column: 1;
+    grid-row: 1;
+    border-radius: 10px 2px 2px 10px;
+    box-shadow:
+      inset -26px 0 30px -24px rgb(60 30 10 / 0.55),
+      0 2px 6px rgb(0 0 0 / 0.35);
+  }
+  .spell-book[data-turned] .book-page-left {
+    animation: none;
+  }
+  .book-page-right {
+    grid-column: 2;
+    grid-row: 1;
+    border-radius: 2px 10px 10px 2px;
+    box-shadow:
+      inset 26px 0 30px -24px rgb(60 30 10 / 0.55),
+      0 2px 6px rgb(0 0 0 / 0.35);
+  }
+  /* The spine: a dark fold between the pages. */
+  .book-spread::after {
+    content: "";
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    left: calc(50% - 3px);
+    width: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #2a0d0a, #5a2018, #2a0d0a);
+    pointer-events: none;
+  }
+  .seal-bar {
+    margin: auto 0 0;
+    padding: 1rem 0 0;
+    background: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spell-book[data-turned] .book-page {
+    animation: none;
+  }
+  .bookmark,
+  .wax-seal {
+    transition: none;
+  }
+}
+
 /* PWA (app.js sets the data attributes on <html>, which LiveView never patches). */
 .pwa-install,
 .pwa-ios-hint {

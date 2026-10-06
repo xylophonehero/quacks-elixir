@@ -468,7 +468,8 @@ writes one **game file**, `<GAMES_DIR>/<id>.json`. `Quacks.GameStore`
   plus `names` and `bots`, chapter 3) and a `"table"` key: the id, `status`
   (`"waiting"` or `"playing"`), `max_players`, the seed, the settings
   (`Session.encode_opts/1`), the player tokens (token -> seat), names, colours, bots
-  with their rng state, `seen`, the creator's token and `next_id`. A waiting table
+  with their rng state, `seen`, the creator's token, `next_id` and `public` (a file
+  without it restores as public). A waiting table
   has no bundle part, only `"table"`. The bundle part is the same as in a bug
   report, so `mix quacks.replay` and `/debug/replay?bundle=` read a game file as
   they read a report. A bug report does not get the tokens: only the file has them.
