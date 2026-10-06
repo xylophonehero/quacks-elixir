@@ -455,92 +455,96 @@ defmodule QuacksWeb.LobbyLive do
 
     ~H"""
     <Layouts.app flash={@flash} full>
-      <div class="mx-auto max-w-6xl px-3 pt-4 pb-6 sm:px-6 lg:pt-6">
-        <header
-          class={[
-            "lobby-hero flex items-center justify-center gap-3 text-left",
-            @step != "home" && "max-lg:hidden"
-          ]}
-          data-role="lobby-hero"
-        >
-          <div
-            class="lobby-glow grid size-20 shrink-0 place-items-center sm:size-24"
-            aria-hidden="true"
+      <div class="mx-auto max-w-6xl px-3 pb-6 sm:px-6">
+        <%!-- Phones, Games page: the hero and the book fill the screen (app.css
+             `.lobby-screen`); the games list scrolls inside the page. --%>
+        <div class="lobby-screen pt-4 lg:pt-6" data-step={@step}>
+          <header
+            class={[
+              "lobby-hero flex items-center justify-center gap-3 text-left",
+              @step != "home" && "max-lg:hidden"
+            ]}
+            data-role="lobby-hero"
           >
-            <.piece_icon
-              name={:cauldron}
-              class="size-16 text-parchment drop-shadow-[0_6px_10px_rgb(0_0_0/0.5)] sm:size-20"
-            />
-          </div>
-          <div>
-            <h1 class="font-hand text-5xl leading-none font-bold tracking-tight text-parchment">
-              Quacks
-            </h1>
-            <p class="mt-1 text-sm text-parchment-dim sm:text-base">
-              Brew, push your luck, don't explode.
-            </p>
-          </div>
-        </header>
+            <div
+              class="lobby-glow grid size-20 shrink-0 place-items-center sm:size-24"
+              aria-hidden="true"
+            >
+              <.piece_icon
+                name={:cauldron}
+                class="size-16 text-parchment drop-shadow-[0_6px_10px_rgb(0_0_0/0.5)] sm:size-20"
+              />
+            </div>
+            <div>
+              <h1 class="font-hand text-5xl leading-none font-bold tracking-tight text-parchment">
+                Quacks
+              </h1>
+              <p class="mt-1 text-sm text-parchment-dim sm:text-base">
+                Brew, push your luck, don't explode.
+              </p>
+            </div>
+          </header>
 
-        <div
-          id="spell-book"
-          class={["spell-book", if(@step == "home", do: "mt-3", else: "lg:mt-3")]}
-          data-step={@step}
-          data-turned={@turned}
-        >
-          <div class="book-cover">
-            <div class="book-spread">
-              <.home_page {assigns} />
-              <.players_page {assigns} />
-              <.expansions_page {assigns} />
-              <.rules_page {assigns} />
-              <.books_page {assigns} />
-              <.book_page
-                :for={colour <- book_colours()}
-                a={assigns}
-                id={"page-book-#{colour}"}
-                page={{"book", colour}}
-                side={:right}
-                title={book_name(colour)}
-              >
-                <:title_icon>
-                  <.ingredient_icon colour={colour} class={["size-8 shrink-0", book_ink(colour)]} />
-                </:title_icon>
-                <p class="text-sm text-ink-soft">
-                  <span class="capitalize">{colour}</span>. Tap a book to use it.
-                </p>
-                <.book_options
-                  colour={colour}
-                  chosen={Quacks.Rules.Chips.set(nil, @sets, colour)}
-                  players={@players}
-                  alchemists={@alchemists}
-                  form="books"
-                  on_pick={back(assigns, "book")}
-                  class="mt-3"
-                />
-              </.book_page>
-              <%= if @expansion do %>
+          <div
+            id="spell-book"
+            class={["spell-book", if(@step == "home", do: "mt-3", else: "lg:mt-3")]}
+            data-step={@step}
+            data-turned={@turned}
+          >
+            <div class="book-cover">
+              <div class="book-spread">
+                <.home_page {assigns} />
+                <.players_page {assigns} />
+                <.expansions_page {assigns} />
+                <.rules_page {assigns} />
+                <.books_page {assigns} />
                 <.book_page
-                  :for={colour <- witch_colours()}
+                  :for={colour <- book_colours()}
                   a={assigns}
-                  id={"page-witch-#{colour}"}
-                  page={{"witch", colour}}
+                  id={"page-book-#{colour}"}
+                  page={{"book", colour}}
                   side={:right}
-                  title={"#{String.capitalize(to_string(colour))} witch"}
+                  title={book_name(colour)}
                 >
                   <:title_icon>
-                    <.piece_icon name={:witch} class="size-8 shrink-0" />
+                    <.ingredient_icon colour={colour} class={["size-8 shrink-0", book_ink(colour)]} />
                   </:title_icon>
-                  <p class="text-sm text-ink-soft">Tap a witch to use her, or Random.</p>
-                  <.witch_options
+                  <p class="text-sm text-ink-soft">
+                    <span class="capitalize">{colour}</span>. Tap a book to use it.
+                  </p>
+                  <.book_options
                     colour={colour}
-                    chosen={@witches[colour]}
+                    chosen={Quacks.Rules.Chips.set(nil, @sets, colour)}
+                    players={@players}
+                    alchemists={@alchemists}
                     form="books"
-                    on_pick={back(assigns, "witch")}
+                    on_pick={back(assigns, "book")}
                     class="mt-3"
                   />
                 </.book_page>
-              <% end %>
+                <%= if @expansion do %>
+                  <.book_page
+                    :for={colour <- witch_colours()}
+                    a={assigns}
+                    id={"page-witch-#{colour}"}
+                    page={{"witch", colour}}
+                    side={:right}
+                    title={"#{String.capitalize(to_string(colour))} witch"}
+                  >
+                    <:title_icon>
+                      <.piece_icon name={:witch} class="size-8 shrink-0" />
+                    </:title_icon>
+                    <p class="text-sm text-ink-soft">Tap a witch to use her, or Random.</p>
+                    <.witch_options
+                      colour={colour}
+                      chosen={@witches[colour]}
+                      form="books"
+                      on_pick={back(assigns, "witch")}
+                      class="mt-3"
+                    />
+                  </.book_page>
+                <% end %>
+              </div>
             </div>
           </div>
         </div>
@@ -611,15 +615,21 @@ defmodule QuacksWeb.LobbyLive do
         <.button type="submit" variant={:primary} class="min-h-11 px-5">Go</.button>
       </form>
 
-      <h3 class="book-subheading mt-4">Games now</h3>
-      <ul id="games" class="mt-2 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+      <h3 class="book-subheading mt-3">Games now</h3>
+      <ul
+        id="games"
+        class={[
+          "games-list mt-2 grid content-start gap-2.5",
+          "sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"
+        ]}
+      >
         <.game_card :for={game <- @games} game={game} />
         <li
           :if={@games == []}
           class="col-span-full rounded-[14px] border border-dashed border-ink-soft/40 px-3 py-4 text-center text-sm text-ink-soft"
           data-role="no-games"
         >
-          No public games now. Start one, or ask for a room code.
+          No public games now: start one, or join with a room code.
         </li>
       </ul>
 
