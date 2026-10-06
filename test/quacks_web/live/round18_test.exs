@@ -189,6 +189,7 @@ defmodule QuacksWeb.Round18Test do
 
       view |> element("#reveal-skip") |> render_click()
       assert has_element?(view, "[data-role=reveal-slide][data-kind=standings]")
+      assert has_element?(view, "#reveal-next", "Move the droplet")
       view |> element("#reveal-next") |> render_click()
 
       refute has_element?(view, "[data-role=reveal]")

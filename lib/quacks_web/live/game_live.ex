@@ -113,8 +113,9 @@ defmodule QuacksWeb.GameLive do
   # The colours with an ingredient book (white has none), for `offer_books/1`.
   @book_colours Chips.order() -- [:white]
 
-  # The standings slide's first render shows the old ranks this long (round 18).
-  @settle_ms 300
+  # The standings slide's first render shows the old ranks this long (round 18; the
+  # tests set it long and send the tick themselves).
+  @settle_ms Application.compile_env(:quacks, :reveal_settle_ms, 300)
 
   @doc "Join game `id`: take a free seat, or watch when the game is full."
   @impl true
@@ -2908,6 +2909,7 @@ defmodule QuacksWeb.GameLive do
   defp close_label(%{key: {:final, _}}, _decision, _skip), do: "See the results"
   defp close_label(_reveal, :shop, _skip), do: "To the shop"
   defp close_label(_reveal, :rubies, _skip), do: "Spend rubies"
+  defp close_label(_reveal, :droplet_choice, _skip), do: "Move the droplet"
   defp close_label(%{key: {:results, _}}, _decision, true), do: "Done"
   defp close_label(_reveal, _decision, _skip), do: "Close"
 
