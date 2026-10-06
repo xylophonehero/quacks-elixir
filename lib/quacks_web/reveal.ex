@@ -239,10 +239,7 @@ defmodule QuacksWeb.Reveal do
     |> Enum.map_reduce(base, fn slide, totals ->
       gains = Map.get(slide, :gains, %{})
 
-      totals =
-        Enum.reduce(gains, totals, fn {s, {vp, rubies}}, acc ->
-          Map.update(acc, s, {vp, rubies}, fn {v, r} -> {v + vp, r + rubies} end)
-        end)
+      totals = Enum.reduce(gains, totals, &add_gain/2)
 
       rows =
         for s <- standings_of(totals) do
@@ -253,6 +250,9 @@ defmodule QuacksWeb.Reveal do
     end)
     |> elem(0)
   end
+
+  defp add_gain({s, {vp, rubies}}, totals),
+    do: Map.update(totals, s, {vp, rubies}, fn {v, r} -> {v + vp, r + rubies} end)
 
   # Seats in VP order: most VP first, a tie to fewer rubies, then the lower seat (the
   # order of `Quacks.Game.Evaluation.standings/1`).

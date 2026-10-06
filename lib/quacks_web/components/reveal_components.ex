@@ -252,8 +252,11 @@ defmodule QuacksWeb.RevealComponents do
                 <span class="w-3.5 shrink-0 font-hand text-base text-ink-soft">{i + 1}</span>
                 <.seat_dot seat={row.seat} />
                 <span class="truncate">{short_name(@names, row.seat, @seat)}</span>
-                <span class="shrink-0 font-hand text-base tabular-nums" data-role="reveal-total">
-                  {row.total}
+                <span
+                  class="shrink-0 text-xs font-normal text-ink-soft tabular-nums"
+                  data-role="reveal-total"
+                >
+                  {row.total} VP
                 </span>
               </span>
               <span class="tabular-nums">{row.space}</span>

@@ -489,7 +489,7 @@ defmodule QuacksWeb.SetupComponents do
           name="black_rule"
           legend="Black chips compare with"
           value={@rules.black_rule}
-          options={[neighbours: "neighbours", standings: "players ranked above (unofficial)"]}
+          options={[neighbours: "neighbours", standings: "players ranked above"]}
         />
         <.radios
           name="die"

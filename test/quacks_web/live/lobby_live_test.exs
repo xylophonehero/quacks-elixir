@@ -4,6 +4,7 @@ defmodule QuacksWeb.LobbyLiveTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.GameServer
+  alias Quacks.Rules.Books
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "lobby-#{System.unique_integer()}")}
@@ -94,9 +95,9 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert QuacksWeb.SetupComponents.parse_rules(%{"black_rule" => "standings"}).black_rule ==
              :standings
 
-    book = Quacks.Rules.Books.get({:black, 1}, %{black_rule: :standings})
+    book = Books.get({:black, 1}, %{black_rule: :standings})
     assert book.text =~ "ranked above you"
-    assert Quacks.Rules.Books.get({:black, 1}, %{black_rule: :neighbours}).text =~ "other players"
+    assert Books.get({:black, 1}, %{black_rule: :neighbours}).text =~ "other players"
 
     render_click(view, "players", %{"count" => "1"})
     view |> element("button", "Start game") |> render_click()
