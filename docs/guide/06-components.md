@@ -505,6 +505,13 @@ picker sheets; the configure screen still uses the sheets.
 
 A page's foot (`.page-foot` for New game and Next, `.start-bar` for Start) is
 sticky on a phone, so the main button stays at the bottom while the page scrolls.
+The Games page is different (round 21): on a phone, `.lobby-screen[data-step=home]`
+makes the hero and the book exactly `100dvh` high, with the safe-area padding below
+the cover. The page is a column, and only the games list (`.games-list`) scrolls.
+On a phone on its side (`height < 32rem`) the hero goes and the page becomes a grid:
+the room code over New game on the left, the list on the right. Below 64rem the
+expansion cards are a list of full-width rows (icon, title, blurb, switch); from
+64rem they are three cards.
 `.start-button` and `.flow-button` are ink buttons in the display font with a gold
 hairline inside. The presets row is a horizontal scroll of `.preset-card` buttons;
 `aria-pressed` marks the preset that matches the books
@@ -969,6 +976,21 @@ fetch handler and nothing else, app.js registers it on load, and `sw.js` is in
 `QuacksWeb.static_paths/0` so `Plug.Static` serves it from `/`. In a React SPA the
 service worker comes with the template (for example Workbox); here the empty one is
 the whole story.
+
+**Full screen when there is no install (round 21).** Android Chrome does not always
+offer the install prompt, so the game menu and the lobby's Games page have a Full
+screen toggle (`CoreComponents.fullscreen_button/1`, `data-role="fullscreen"`). One
+click listener in app.js (`assets/js/app.js:386-395`) calls
+`document.documentElement.requestFullscreen()` or `document.exitFullscreen()`. The
+call must run inside the click (a user gesture), so a hook or a `push_event` from the
+server cannot do it. app.js sets `data-fullscreen="ok"` on `<html>` only when
+`document.fullscreenEnabled` is true and the app does not run installed (iPhone
+Safari has no Fullscreen API, and the installed app has no browser bar to remove);
+without it, CSS hides the toggle. The icon and the label follow the `:fullscreen`
+pseudo-class on `<html>` (`.when-windowed`, `.when-fullscreen` in app.css), so no
+JS keeps the state. Entering full screen closes open popovers (the menu sheet) as
+the Fullscreen spec says. The game grid uses `dvh`, so it fills the larger viewport
+with no change.
 
 ## State ownership, compared to React
 
