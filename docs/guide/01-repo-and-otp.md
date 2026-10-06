@@ -92,6 +92,7 @@ flowchart TD
   sup --> pubsub[Phoenix.PubSub<br/>Quacks.PubSub]
   sup --> reg[Registry<br/>Quacks.GameRegistry]
   sup --> dyn[DynamicSupervisor<br/>Quacks.GameSupervisor]
+  sup --> store[Quacks.GameStore<br/>restore at boot, no process]
   sup --> ep[QuacksWeb.Endpoint<br/>Bandit HTTP + sockets]
   dyn --> g1[GameServer 'qwerty']
   dyn --> g2[GameServer 'abcdef']
@@ -108,11 +109,14 @@ The children, one by one:
   (`"qwerty"`) to the pid of its GameServer. `keys: :unique` means one process per id.
 - **DynamicSupervisor** named `Quacks.GameSupervisor`: a supervisor that starts with
   no children. The app adds one GameServer each time a player opens a new game.
+- **Quacks.GameStore**: not a process. Its start function reads every game file
+  in `GAMES_DIR`, starts a GameServer for each, logs `restored N games` and returns
+  `:ignore` (chapter 4, "Games on disk").
 - **QuacksWeb.Endpoint**: the HTTP server (Bandit), the static files, the
   `/live` websocket, the router.
 
 Note the order. The Endpoint is last, so no request can arrive before PubSub and
-the Registry exist.
+the Registry exist, and before the stored games are back.
 
 A GameServer uses `restart: :temporary` (`lib/quacks/game_server.ex:40`). If one game
 crashes, the DynamicSupervisor does *not* restart it: its state is gone anyway, and
@@ -133,7 +137,9 @@ game.
 6. In dev the Endpoint plugs in Tidewave (`lib/quacks_web/endpoint.ex:32-34`), the
    MCP server that lets an agent run code inside the live app.
 
-There is no database: no Ecto, no Repo, no migrations. Every game lives in memory.
+There is no database: no Ecto, no Repo, no migrations. Every game lives in memory,
+and each one also writes a game file (`tmp/games/<id>.json` in dev) that the next
+boot reads back (chapter 4).
 
 ## Dev, test and prod
 
@@ -158,8 +164,8 @@ connections from an unknown origin, and a silent fallback would break every page
   games live in memory, so a stopped machine loses every game.
 - `.github/workflows/fly-deploy.yml` deploys every push to `master`.
 - `.github/workflows/ci.yml` runs `mix precommit` on every push and pull request.
-- A deploy restarts the node and ends the running games. This is a known cost of
-  "no database".
+- A deploy restarts the node. The games come back from the volume `quacks_data`
+  (mounted at `/data`, `GAMES_DIR = "/data/games"`), see chapter 4, "Games on disk".
 
 ## What to try
 
