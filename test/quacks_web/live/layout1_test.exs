@@ -133,7 +133,8 @@ defmodule QuacksWeb.Layout1Test do
       assert has_element?(view, "#{column} > dialog#decision-shop[data-side=panel]")
       # no choice on the card: no card dialog (round 14: the reveal overlay shows it)
       refute has_element?(view, "dialog#card-round-1")
-      assert has_element?(view, "[data-role=fortune-tile].lg\\:hidden")
+      # round 22: the card sits in the pot's top left corner on every layout
+      assert has_element?(view, "[data-role=pot-area] #corner-card[data-role=fortune-tile]")
     end
 
     test "a fortune choice opens the card's dialog as a panel when it arrives" do

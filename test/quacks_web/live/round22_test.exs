@@ -62,4 +62,17 @@ defmodule QuacksWeb.Round22Test do
              )
     end
   end
+
+  describe "the corner card" do
+    test "the round's card sits in the pot's top left corner with its icon and name" do
+      {id, view} = solo(%{})
+      {:ok, %{game: game}} = GameServer.get(id)
+      card = Quacks.Rules.Fortune.card(game.fortune_card)
+
+      tile = "[data-role=pot-area] > [data-role=pot-corner] > #corner-card"
+      assert has_element?(view, ~s(#{tile}[popovertarget="sheet-fortune"]), card.name)
+      assert has_element?(view, "#{tile} [data-role=card-motif], #{tile} svg")
+      refute has_element?(view, "header [data-role=fortune-tile]")
+    end
+  end
 end

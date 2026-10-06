@@ -1202,53 +1202,20 @@ defmodule QuacksWeb.GameComponents do
   }
 
   @doc """
-  This round's Fortune Teller card as a small portrait card beside the pot: the
-  colour band, the motif and the name. It opens the `sheet-fortune` sheet with the full text.
+  This round's Fortune Teller card as a small portrait card in the pot's top left
+  corner (round 22, every layout): the colour band, the motif and the name. It
+  opens the `sheet-fortune` sheet with the full text.
   """
   attr :id, :atom, required: true, doc: "`game.fortune_card`"
+  attr :dom_id, :string, default: nil
   attr :class, :any, default: nil
-  attr :compact, :boolean, default: false, doc: "the header's small tile: band and motif"
-
-  def fortune_tile(%{compact: true} = assigns) do
-    assigns = assign(assigns, card: Fortune.card(assigns.id), motif: @card_motifs[assigns.id])
-
-    ~H"""
-    <button
-      type="button"
-      popovertarget="sheet-fortune"
-      class={[
-        "paper card-portrait flex aspect-[5/7] w-7 shrink-0 rotate-3 flex-col items-center rounded-sm touch-manipulation hit-44",
-        "transition-transform duration-100 ease-out active:scale-95",
-        @class
-      ]}
-      aria-label={"Fortune teller card: #{@card.name}. Show the text"}
-      data-role="fortune-tile"
-      data-colour={@card.colour}
-    >
-      <span class={[
-        "h-1 w-full shrink-0 rounded-t-sm",
-        @card.colour == :blue && "bg-chip-blue",
-        @card.colour == :purple && "bg-chip-purple"
-      ]} />
-      <span
-        class={[
-          "grid flex-1 place-items-center",
-          @card.colour == :blue && "text-chip-blue",
-          @card.colour == :purple && "text-chip-purple"
-        ]}
-        aria-hidden="true"
-      >
-        <.card_motif motif={@motif} class="size-4" />
-      </span>
-    </button>
-    """
-  end
 
   def fortune_tile(assigns) do
     assigns = assign(assigns, card: Fortune.card(assigns.id), motif: @card_motifs[assigns.id])
 
     ~H"""
     <button
+      id={@dom_id}
       type="button"
       popovertarget="sheet-fortune"
       class={[

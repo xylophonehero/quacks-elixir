@@ -19,10 +19,11 @@ defmodule QuacksWeb.GameLive do
   The layout, top to bottom: the header ("You are" and your seat colour, which also
   runs along the top edge), your status, the players row (one name card per seat,
   solo too; a tap opens that player's sheet), the pot, and the bottom bar with only
-  Stop/Resume and Draw. Around the pot: the witches (top left), this round's fortune card (top
-  right), the flask (bottom left) and the bag (bottom right). The log, the share
-  link and the books are in the menu. A new fortune card shows in a small dialog
-  once per round.
+  Stop/Resume and Draw. Around the pot (round 22): this round's fortune card with the witches
+  below it (top left), the kept Toadstool chips (top right), the flask (bottom
+  left) and the bag (bottom right). The log, the share link and the books are in
+  the menu. A new fortune card hovers over the pot once per round, with a bottom
+  sheet under it.
 
   From 64rem the right column is the context space (layouts 1 and 2): the
   decision, only while one waits, as a non-modal panel (`dialog_sheet` with
@@ -1101,8 +1102,6 @@ defmodule QuacksWeb.GameLive do
             </span>
           </p>
           <div class="ml-auto min-w-0"><.round_phase game={@game} seat={@seat || 0} /></div>
-          <%!-- Phones: the round's card waits here, not on the pot's rim. --%>
-          <.fortune_tile :if={@game.fortune_card} id={@game.fortune_card} compact class="lg:hidden" />
           <%!-- Below 80rem (no books column) the books open in a sheet: a drawer on
                the right from 48rem, so it never covers the pot. --%>
           <button
@@ -1214,20 +1213,33 @@ defmodule QuacksWeb.GameLive do
                 beats={replay_marks(@game, @seat)}
                 effects={replay_effects(@game, @seat, @seen)}
               />
-              <%!-- Small enough for the free corner outside the round rim. --%>
-              <.sheet_button
-                :if={@game.witches}
-                for="sheet-witches"
-                class="absolute top-0 left-0 flex-col gap-0! rounded-2xl px-1.5! py-1 text-[10px] leading-tight lg:hidden"
-                data-role="witches-button"
+              <%!-- Round 22: the top left corner holds the round's card (a tap
+                   shows its text) and, below it, the witches. Small enough for the
+                   free corner outside the round rim. --%>
+              <div
+                :if={@game.fortune_card || @game.witches}
+                class="absolute top-0 left-0 flex flex-col items-start gap-1.5"
+                data-role="pot-corner"
               >
-                <span class="flex -space-x-1.5">
-                  <.piece_icon name={:penny} class="size-4 text-penny-copper" />
-                  <.piece_icon name={:penny} class="size-4 text-penny-silver" />
-                  <.piece_icon name={:penny} class="size-4 text-penny-gold" />
-                </span>
-                Witches
-              </.sheet_button>
+                <.fortune_tile
+                  :if={@game.fortune_card}
+                  id={@game.fortune_card}
+                  dom_id="corner-card"
+                />
+                <.sheet_button
+                  :if={@game.witches}
+                  for="sheet-witches"
+                  class="flex-col gap-0! rounded-2xl px-1.5! py-1 text-[10px] leading-tight lg:hidden"
+                  data-role="witches-button"
+                >
+                  <span class="flex -space-x-1.5">
+                    <.piece_icon name={:penny} class="size-4 text-penny-copper" />
+                    <.piece_icon name={:penny} class="size-4 text-penny-silver" />
+                    <.piece_icon name={:penny} class="size-4 text-penny-gold" />
+                  </span>
+                  Witches
+                </.sheet_button>
+              </div>
               <p
                 :if={stir?(@game)}
                 class="absolute top-0 left-1/2 -translate-x-1/2 rounded-full bg-gold px-3 py-0.5 text-sm font-bold whitespace-nowrap text-ink shadow-md"
