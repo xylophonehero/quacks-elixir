@@ -224,7 +224,11 @@ defmodule QuacksWeb.GameLive do
   def handle_event("sets", %{"sets" => params} = form, socket) when is_map(params) do
     # The Herb Witches change no book; without The Alchemists locoweed III falls back.
     alchemists = form["alchemists"] == "true"
-    config = %{sets: parse_sets(params, alchemists)} |> Map.merge(expansions(form, alchemists))
+
+    config =
+      %{sets: parse_sets(params, alchemists), witches: parse_witches(form["witches"])}
+      |> Map.merge(expansions(form, alchemists))
+
     {:noreply, configure(socket, config)}
   end
 
@@ -250,7 +254,8 @@ defmodule QuacksWeb.GameLive do
         %{
           players: players,
           sets: parse_sets(form.("sets"), alchemists),
-          rules: parse_rules(form.("rules"))
+          rules: parse_rules(form.("rules")),
+          witches: parse_witches(form.("witches"))
         },
         expansions(%{"expansion" => to_string(saved["expansion"] == true)}, alchemists)
       )
@@ -736,6 +741,7 @@ defmodule QuacksWeb.GameLive do
       debug: table.debug,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
+      witches: table.witches,
       expansion: :herb_witches in table.expansions,
       alchemists: :alchemists in table.expansions,
       # Nobody changed the books or options yet (see "load_config"). Only the
@@ -783,6 +789,7 @@ defmodule QuacksWeb.GameLive do
       players: table.players,
       sets: form.(table.sets),
       rules: form.(table.rules),
+      witches: form.(table.witches),
       expansion: :herb_witches in table.expansions,
       alchemists: :alchemists in table.expansions
     }
@@ -925,6 +932,7 @@ defmodule QuacksWeb.GameLive do
           alchemists={@alchemists}
           pot_side={@rules.pot_side}
           players={@players}
+          witches={@witches}
           disabled={!@host}
         />
         <%!-- The browser owns `open`: a patch must not close it while the host steps. --%>

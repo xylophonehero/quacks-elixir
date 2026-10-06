@@ -113,6 +113,7 @@ defmodule Quacks.GameServer do
           rejoinable: [Game.seat()],
           sets: Quacks.Rules.Chips.sets(),
           rules: map,
+          witches: %{optional(atom) => atom | nil},
           expansion: nil | :herb_witches,
           expansions: MapSet.t(Game.expansion()),
           debug: nil | %{at: non_neg_integer, total: non_neg_integer, frozen: boolean}
@@ -197,7 +198,8 @@ defmodule Quacks.GameServer do
         opts: [
           sets: session.sets,
           rules: session.rules,
-          expansions: Enum.to_list(session.expansions)
+          expansions: Enum.to_list(session.expansions),
+          witches: session.witches
         ],
         tokens: if(token && opts[:seat] in seats, do: %{token => opts[:seat]}, else: %{}),
         names: Map.new(seats, &{&1, Enum.at(names, &1) || default_name(&1)}),
@@ -305,7 +307,8 @@ defmodule Quacks.GameServer do
 
   @doc """
   The host (creator) sets the game up while it is `:waiting`: any of `players:`
-  (1..8; not fewer than the seats taken), `sets:`, `rules:`
+  (1..8; not fewer than the seats taken), `sets:`, `rules:`, `witches:` (the herb
+  witch picks, `%{copper: :c3, silver: nil, gold: nil}`; nil: dealt),
   `expansion:` and `expansions:` (a list of `:herb_witches`, `:alchemists`; keys left
   out keep their value). Bad values are refused as
   `Quacks.Game.new/1` would refuse them. Waiting pages hear `{:names, id, names}` and
@@ -642,7 +645,7 @@ defmodule Quacks.GameServer do
     opts =
       Keyword.merge(
         state.opts,
-        Keyword.new(Map.take(config, [:sets, :rules, :expansion, :expansions]))
+        Keyword.new(Map.take(config, [:sets, :rules, :expansion, :expansions, :witches]))
       )
 
     cond do
@@ -1093,6 +1096,7 @@ defmodule Quacks.GameServer do
       rejoinable: rejoinable(state) |> Enum.sort(),
       sets: state.opts[:sets],
       rules: state.opts[:rules],
+      witches: state.opts[:witches] || %{},
       expansion: state.opts[:expansion],
       expansions:
         MapSet.new(
