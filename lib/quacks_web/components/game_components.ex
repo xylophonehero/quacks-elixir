@@ -1792,12 +1792,12 @@ defmodule QuacksWeb.GameComponents do
         data-role="player-pennies"
       >
         <.piece_icon
-          :for={colour <- [:silver, :copper, :gold]}
+          :for={colour <- [:copper, :silver, :gold]}
           name={:penny}
           class={["size-3", penny_text(colour), !@p.pennies[colour] && "opacity-30"]}
         />
         <span class="sr-only">
-          witch pennies left: {Enum.count([:silver, :copper, :gold], &@p.pennies[&1])}
+          witch pennies left: {Enum.count([:copper, :silver, :gold], &@p.pennies[&1])}
         </span>
       </span>
     </span>

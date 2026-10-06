@@ -1131,8 +1131,8 @@ defmodule QuacksWeb.GameLive do
                 data-role="witches-button"
               >
                 <span class="flex -space-x-1.5">
-                  <.piece_icon name={:penny} class="size-4 text-penny-silver" />
                   <.piece_icon name={:penny} class="size-4 text-penny-copper" />
+                  <.piece_icon name={:penny} class="size-4 text-penny-silver" />
                   <.piece_icon name={:penny} class="size-4 text-penny-gold" />
                 </span>
                 Witches
@@ -1404,7 +1404,12 @@ defmodule QuacksWeb.GameLive do
             </div>
           </.dialog_sheet>
           <.sheet :if={@game.witches} id="sheet-witches" label="Herb witches" inline_lg>
-            <section class="space-y-2" aria-label="Herb witches">
+            <%!-- The title row holds the × (it floats right), so it never squeezes the
+                 first card (round 14). --%>
+            <h2 class="min-h-8 font-hand text-2xl leading-8 font-bold" data-role="witches-title">
+              Herb witches
+            </h2>
+            <section class="clear-both space-y-2 pt-1" aria-label="Herb witches">
               <.witch_card
                 :for={{colour, id} <- witches(@game)}
                 id={id}
@@ -3118,7 +3123,8 @@ defmodule QuacksWeb.GameLive do
   defp witch?(_action), do: false
 
   # The witches in penny order: silver, copper, gold.
-  defp witches(game), do: for(c <- [:silver, :copper, :gold], do: {c, game.witches[c]})
+  # Copper, silver, gold: the order of the rulebook's pennies (round 14).
+  defp witches(game), do: for(c <- [:copper, :silver, :gold], do: {c, game.witches[c]})
 
   # The witches that `actions` can call, for the decision dialog.
   defp witches_acting(%{witches: nil}, _actions), do: []
