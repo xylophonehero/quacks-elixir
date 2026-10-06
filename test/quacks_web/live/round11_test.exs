@@ -130,10 +130,20 @@ defmodule QuacksWeb.Round11Test do
       assert drawn(id) == 0
     end
 
-    test "Enter takes the only primary button: the shop's Done" do
+    test "Enter takes the only primary button: the reveal's Next, then the shop's Done" do
       {id, view} = solo()
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0))
+      # round 14: Enter steps through the reveal overlay first
+      assert has_element?(view, "#reveal-slide-0")
       key(view, "Enter")
+      assert has_element?(view, "#reveal-slide-1")
+      key(view, "d")
+      assert has_element?(view, "#reveal-slide-1")
+
+      for _ <- 2..10, has_element?(view, "[data-role=reveal]"), do: key(view, "Enter")
+      refute has_element?(view, "[data-role=reveal]")
+
+      # nothing to spend: the round ended by itself when the overlay closed
       {:ok, %{game: game}} = GameServer.get(id)
       refute Game.phase(game, 0) == :shop
     end

@@ -71,7 +71,7 @@ defmodule QuacksWeb.MotionTest do
 
     assert has_element?(
              view,
-             "#card-round-1 #card-flip-#{card} .card-front [data-role=fortune-card]"
+             "#reveal-card-1 #card-flip-#{card} .card-front [data-role=fortune-card]"
            )
 
     assert has_element?(view, "#card-flip-#{card} .card-back[aria-hidden=true]")

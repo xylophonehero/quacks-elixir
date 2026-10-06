@@ -1596,11 +1596,9 @@ defmodule QuacksWeb.GameComponents do
   attr :bot, :boolean, default: false
   attr :updates, :list, default: [], doc: "the round's results, `Replay.updates/2`"
 
-  attr :last, :integer,
-    default: nil,
-    doc: "while the replay runs: its last beat (that chip ends the replay, see app.js)"
-
-  attr :on_tap, JS, default: %JS{}, doc: "JS to run on a tap, before the sheet opens"
+  attr :ticks, :boolean,
+    default: false,
+    doc: "while the replay runs: the counters tick on their beats"
 
   def player_chip(assigns) do
     assigns =
@@ -1614,7 +1612,7 @@ defmodule QuacksWeb.GameComponents do
     <button
       type="button"
       popovertarget={"sheet-player-#{@seat}"}
-      phx-click={JS.push(@on_tap, "open_player", value: %{seat: @seat})}
+      phx-click={JS.push("open_player", value: %{seat: @seat})}
       class={[
         "row-span-2 grid min-h-11 w-full min-w-0 cursor-pointer grid-rows-subgrid rounded-lg px-1 py-1 text-left text-xs touch-manipulation sm:px-2",
         "transition-[scale,background-color] duration-150 ease-out active:scale-[0.97]",
@@ -1661,18 +1659,9 @@ defmodule QuacksWeb.GameComponents do
           />
         </span>
       </span>
-      <.chip_stats game={@game} p={@p} ticks={@last && card_ticks(@game, @seat, @updates)} />
+      <.chip_stats game={@game} p={@p} ticks={@ticks && card_ticks(@game, @seat, @updates)} />
       <%!-- No update chips (round 12): the state badge and the counters say it. The
-           card with the replay's last beat keeps an invisible timer whose
-           animation ends the replay (app.js, `.replay-timer` in app.css). --%>
-      <span
-        :if={@last && Enum.any?(@updates, &(&1.beat == @last))}
-        class="replay-timer"
-        aria-hidden="true"
-        data-role="replay-timer"
-        data-replay-last
-        style={"--beat: #{@last}"}
-      />
+           reveal overlay ends the replay (round 14). --%>
     </button>
     """
   end

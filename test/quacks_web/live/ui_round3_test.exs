@@ -58,8 +58,8 @@ defmodule QuacksWeb.UiRound3Test do
 
     html = render(view)
     # Stop, Draw, and the flask button (shown from 64rem only).
-    assert count(html, "footer button") == 3
-    assert count(html, "footer [popovertarget]") == 0
+    assert count(html, "footer.game-bar button") == 3
+    assert count(html, "footer.game-bar [popovertarget]") == 0
   end
 
   test "a new fortune card opens once per round, and not without cards" do
@@ -67,28 +67,32 @@ defmodule QuacksWeb.UiRound3Test do
     view = open(browser("solo"), id)
     {:ok, %{game: %{fortune_card: card}}} = GameServer.get(id)
 
-    assert has_element?(view, "dialog#card-round-1[phx-mounted] [data-role=card-modal]")
+    # round 14: the card shows in the reveal overlay, one slide
+    assert has_element?(view, "dialog#reveal-card-1[phx-mounted] [data-kind=card]")
 
     assert has_element?(
              view,
-             "#card-round-1 [data-role=fortune-card]",
+             "#reveal-card-1 [data-role=fortune-card]",
              Fortune.card(card).name
            )
 
-    assert has_element?(view, "#card-round-1 form[method=dialog] button", "OK")
+    assert has_element?(view, "#reveal-card-1 #reveal-next", "Close")
+    refute has_element?(view, "#reveal-card-1 #reveal-skip")
 
-    # later renders keep the same dialog: it does not open again
+    # later renders keep the same overlay: it does not open again
     view |> element("button", "Draw a chip") |> render_click()
-    assert count(render(view), "[data-role=card-modal]") == 1
+    assert count(render(view), "[data-role=reveal]") == 1
 
+    view |> element("#reveal-next") |> render_click()
+    refute has_element?(view, "[data-role=reveal]")
     to_shop_rest(view)
     assert has_element?(view, "li", "— Round 1 over —")
-    refute has_element?(view, "#card-round-1")
-    assert has_element?(view, "dialog#card-round-2[phx-mounted]")
+    refute has_element?(view, "#reveal-card-1")
+    assert has_element?(view, "dialog#reveal-card-2[phx-mounted]")
 
     {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, %{fortune: false})
     view = open(browser("solo2"), id)
-    refute has_element?(view, "[data-role=card-modal]")
+    refute has_element?(view, "[data-role=reveal]")
     refute has_element?(view, "[data-role=fortune-tile]")
   end
 

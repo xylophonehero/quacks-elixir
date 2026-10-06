@@ -85,7 +85,7 @@ defmodule QuacksWeb.TidyTest do
     end
   end
 
-  test "G5: a decision waits for the round's new card, which opens it on close" do
+  test "G5: a decision waits for the round's new card, which opens it on close (round 14: the overlay)" do
     {:ok, id} = GameServer.start(2, {1, 2, 3})
     alice = open(browser(token("alice")), id)
     _bob = open(browser(token("bob")), id)
@@ -94,7 +94,9 @@ defmodule QuacksWeb.TidyTest do
 
     assert has_element?(alice, "dialog#decision-droplet_choice")
     refute has_element?(alice, "dialog#decision-droplet_choice[phx-mounted*='quacks:modal']")
-    assert has_element?(alice, "dialog#card-round-1[data-then-open=decision-droplet_choice]")
+    assert has_element?(alice, "dialog#reveal-card-1")
+    alice |> element("#reveal-next") |> render_click()
+    assert_push_event(alice, "quacks:open", %{to: "#decision-droplet_choice"})
   end
 
   test "G6: the card tile is small on phones" do
