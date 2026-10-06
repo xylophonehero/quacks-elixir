@@ -828,7 +828,9 @@ defmodule QuacksWeb.GameLive do
   defp configure(socket, config) do
     case GameServer.configure(socket.assigns.id, socket.assigns.token, config) do
       {:ok, table} ->
-        socket |> assign_table(table) |> push_event("save_config", saved_config(table))
+        socket
+        |> assign_table(table)
+        |> push_event("save_config", saved_config(table, socket.assigns.seat))
 
       {:error, :not_creator} ->
         put_flash(socket, :error, "Only the host can change the game.")
@@ -841,10 +843,10 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # The table's settings in the shape of the configure forms (strings), for the
-  # browser's memory; "load_config" reads them back through `parse_sets/1` and
+  # The table's settings in the shape of the configure forms (strings), and your
+  # seat's colour, for the browser's memory; "load_config" reads them back through `parse_sets/1` and
   # `parse_rules/1`.
-  defp saved_config(table) do
+  defp saved_config(table, seat) do
     form = fn map -> Map.new(map || %{}, fn {key, value} -> {key, to_string(value)} end) end
 
     %{
@@ -853,7 +855,11 @@ defmodule QuacksWeb.GameLive do
       rules: form.(table.rules),
       witches: form.(table.witches),
       expansion: :herb_witches in table.expansions,
-      alchemists: :alchemists in table.expansions
+      alchemists: :alchemists in table.expansions,
+      # The spell book's extras (`QuacksWeb.LobbyLive`).
+      public: table.public,
+      bots: table.bots |> Map.keys() |> Enum.sort(),
+      colour: table.colours[seat]
     }
   end
 
@@ -1874,55 +1880,6 @@ defmodule QuacksWeb.GameLive do
           </.form>
         </div>
       </div>
-    </div>
-    """
-  end
-
-  @colour_names ~w(gold teal violet coral lime rose sky slate)
-
-  # Your seat's colour picker on the configure screen: the 8 palette colours, one tap
-  # sets yours; colours other seats have are struck through and cannot be picked.
-  # A tap sends the name field first, so a name typed just before is not lost.
-  attr :colours, :map, required: true
-  attr :seat, :integer, required: true
-
-  defp colour_picker(assigns) do
-    assigns =
-      assign(assigns,
-        mine: assigns.colours[assigns.seat],
-        taken: assigns.colours |> Map.delete(assigns.seat) |> Map.values(),
-        swatches: Enum.with_index(@colour_names, &{&2, &1})
-      )
-
-    ~H"""
-    <div
-      class="flex w-full gap-1.5 pt-0.5 pb-2"
-      role="group"
-      aria-label="Your colour"
-      data-role="colour-picker"
-    >
-      <button
-        :for={{colour, label} <- @swatches}
-        type="button"
-        phx-click={
-          JS.dispatch("submit", to: "#rename-form") |> JS.push("colour", value: %{colour: colour})
-        }
-        disabled={colour in @taken}
-        aria-label={if colour in @taken, do: "#{label} (taken)", else: label}
-        aria-pressed={to_string(colour == @mine)}
-        data-colour={colour}
-        class={[
-          "hit-44 size-8 shrink-0 cursor-pointer rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
-          palette_bg(colour),
-          colour == @mine && "ring-2 ring-ink ring-offset-2 ring-offset-parchment-light"
-        ]}
-      >
-        <span
-          :if={colour in @taken}
-          class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 -rotate-45 bg-ink"
-          aria-hidden="true"
-        />
-      </button>
     </div>
     """
   end

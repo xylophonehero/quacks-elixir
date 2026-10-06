@@ -51,7 +51,7 @@ defmodule QuacksWeb.Polish3Test do
       assert has_element?(view, "[data-role=lobby-hero] svg[data-icon=cauldron]")
       assert has_element?(view, "[data-role=lobby-hero] h1.font-hand", "Quacks")
       assert has_element?(view, "[data-role=lobby-hero]", "don't explode")
-      assert has_element?(view, "#new-game", "New game")
+      assert has_element?(view, "#new-game", "Start")
       assert has_element?(view, "footer#credits", "game-icons.net")
     end
 
