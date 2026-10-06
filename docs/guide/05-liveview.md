@@ -214,57 +214,46 @@ these assigns, the reply path and the broadcast path cannot disagree.
 
 ## Acknowledgement events: `"seen"`
 
-Two things play once per round: the new fortune card and the round results (the
-update chips on the name cards, chapter 6). They must not play again on a reload.
-The page tells the server when the seat is done with one. `dialog_sheet` takes an
-`on_close` JS command; app.js runs it on the dialog's `close` event. For the card
-(`lib/quacks_web/live/game_live.ex:1440`):
+Three things play once: the new fortune card, the round results and (round 14)
+the final scoring. They must not play again on a reload. Since round 14 all three
+show in the reveal overlay (chapter 6), and the server ends it, so most acks start
+on the server: `close_reveal/1` calls `mark_seen/2`, which calls `GameServer.ack/4`
+(chapter 4) and keeps the same map in the `@seen` assign.
+
+The browser still sends `"seen"` in one place: the card dialog that holds a
+fortune choice runs `on_close` on its `close` event:
 
 ```heex
 on_close={JS.push("seen", value: %{kind: "card", round: @game.round})}
 ```
 
-For the results, `replay_end/3` (`lib/quacks_web/live/game_live.ex:2586-2597`)
-builds the same push. The last update chip, "Skip" or a first tap on a name card
-runs it:
+The handler accepts only the three known kinds, so `String.to_existing_atom/1`
+never makes an atom from user input. When the kind and round match the open
+overlay, it ends the overlay; otherwise it only acks:
 
 ```elixir
-js =
-  JS.add_class("replay-done", to: "#players-row")
-  |> JS.push("seen", value: %{kind: "results", round: game.round})
-```
+def handle_event("seen", %{"kind" => kind, "round" => round}, %{assigns: %{seat: seat}} = socket)
+    when is_integer(seat) and kind in ["card", "results", "final"] and is_integer(round) do
+  key = {String.to_existing_atom(kind), round}
 
-The handler checks the params and calls `GameServer.ack/4` (chapter 4), then keeps
-the same map in the `@seen` assign (`lib/quacks_web/live/game_live.ex:355-368`):
+  socket =
+    case socket.assigns.reveal do
+      %{key: ^key} -> close_reveal(socket)
+      _other -> socket |> mark_seen(key) |> auto_done()
+    end
 
-```elixir
-def handle_event(
-      "seen",
-      %{"kind" => kind, "round" => round},
-      %{assigns: %{seat: seat}} = socket
-    )
-    when is_integer(seat) and kind in ["card", "results"] and is_integer(round) do
-  kind = String.to_existing_atom(kind)
-  GameServer.ack(socket.assigns.id, seat, kind, round)
-  {:noreply, update(socket, :seen, &Map.put(&1, kind, round))}
+  {:noreply, socket}
 end
-
-def handle_event("seen", _params, socket), do: {:noreply, socket}
 ```
 
-- The guard accepts only the two known kinds, so `String.to_existing_atom/1` never
-  makes an atom from user input. Anything else falls to the no-op clause.
-- `mount/3` reads `seen` from the table. `seen?/3`
-  (`lib/quacks_web/live/game_live.ex:2572-2578`) then drives `auto_open` on the
-  card, and `replaying?/2` (lines 2583-2584) on the players row: a seen round
-  mounts with `replay-done`, so the update chips show at once and do not play
-  again.
-- A spectator's `seen` is `:all`: no card opens and no replay plays.
-- Order: the shop, the rubies step and a droplet move wait for the replay
-  (`waits_for_results?/3`, lines 2786-2787). `replay_end/3` then opens the waiting
-  decision with `JS.dispatch("quacks:modal", to: "#decision-...")`. A droplet or
-  patient choice at the start of a round waits for the new card the same way: the
-  card's `then_open` names the decision dialog.
+- `mount/3` reads `seen` from the table, and `open_reveal/1` opens the overlay only
+  for a moment that is not seen. `replaying?/2` drives the players row: a seen
+  round mounts with `replay-done`, so the counters show at once.
+- A spectator's `seen` is `:all`: no overlay, no replay.
+- Order: a decision dialog mounts with `auto_open={is_nil(@reveal)}`. When the
+  overlay ends, the server pushes `quacks:open` with the waiting dialog (the shop,
+  the rubies step, a droplet or patient choice, the game-over sheet), and app.js
+  opens it.
 
 ## When the game is gone: `:not_found`
 

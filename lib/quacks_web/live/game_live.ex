@@ -41,22 +41,21 @@ defmodule QuacksWeb.GameLive do
   hook in app.js): each change is pushed as `"save_config"`, and a fresh configure
   screen sends them back once as `"load_config"`.
 
-  A new fortune card shows in one dialog; when it asks this seat a choice, the
-  choice is in the same dialog. The shop has two steps, each its own dialog: first
+  A new fortune card shows in the reveal overlay (below); when it asks this seat a
+  choice, the card and the choice are one dialog instead. The shop has two steps, each its own dialog: first
   your chips, the buy (one row of chip tiles per colour) and "Done"; then "Spend
   rubies" (the ruby options and witch calls) and "Keep rubies".
 
-  Round results (layout 1): no dialog. When the shop phase begins, each name card's
-  VP and ruby counters tick on their replay beats (`QuacksWeb.Replay.updates/2`), in
-  step with the marks on your pot (round 12: no update chips; the state badge says
-  stopped or exploded). The last beat's timer, "Skip" or a first tap on a card ends
-  the replay: the round counts as
-  seen (`"seen"`, `GameServer.ack/4`) and the shop opens (`replay_end/3`); a tap
-  opens the card's sheet with the result lines instead. A seat that can buy nothing
-  (it exploded and took the VP, or has too few coins) skips the buy and gets the
-  rubies step; with nothing to spend there either, its round ends by itself once the
-  replay played (`auto_done/2`). A buy or ruby spend that leaves nothing else to do
-  ends the round for this seat at once.
+  The reveal overlay (round 14, `QuacksWeb.Reveal`, `reveal_overlay/1`): the round's
+  card at its start, the evaluation when the shop phase begins and the final
+  scoring at the end, one slide at a time, per browser (`@reveal`). Next, Skip,
+  Enter, Space, Esc; Auto mode advances on a server timer. Under it each name
+  card's VP and ruby counters tick on their replay beats. Its end marks the moment
+  seen (`GameServer.ack/4`) and opens the waiting shop or decision. A seat that can
+  buy nothing (it exploded and took the VP, or has too few coins) skips the buy and
+  gets the rubies step; with nothing to spend there either, its round ends by
+  itself once the overlay ended (`auto_done/2`). A buy or ruby spend that leaves
+  nothing else to do ends the round for this seat at once.
 
   In every choice between chips (crow skull, toadstool, silver witch, fortune cards,
   chip actions) the chips themselves are the buttons (`chip_picks/1`); only options
