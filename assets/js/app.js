@@ -296,9 +296,9 @@ document.addEventListener("click", e => {
     fastBeats(n)
   } catch (_e) {}
 }, true)
-// The round results play as update chips on the name cards; the chip that lands
-// last ends the replay: the players row runs its `data-on-replay-end` JS
-// (`replay_end/3` in game_live.ex: seen, and the shop opens).
+// The round results play on the name cards' counters; the card with the last beat
+// holds an invisible `.replay-timer` whose end ends the replay: the players row runs
+// its `data-on-replay-end` JS (`replay_end/3` in game_live.ex: seen, and the shop opens).
 document.addEventListener("animationend", e => {
   // Only its last animation counts (a hold keeps the pot motion of that beat).
   if (!e.target.matches?.("[data-replay-last]") ||

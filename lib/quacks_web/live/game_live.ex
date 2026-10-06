@@ -46,10 +46,11 @@ defmodule QuacksWeb.GameLive do
   your chips, the buy (one row of chip tiles per colour) and "Done"; then "Spend
   rubies" (the ruby options and witch calls) and "Keep rubies".
 
-  Round results (layout 1): no dialog. When the shop phase begins, each name card
-  plays its update chips ("stopped", "+7 VP", rubies, droplet) on their replay beats
-  (`QuacksWeb.Replay.updates/2`), in step with the marks on your pot. The chip that
-  lands last, "Skip" or a first tap on a card ends the replay: the round counts as
+  Round results (layout 1): no dialog. When the shop phase begins, each name card's
+  VP and ruby counters tick on their replay beats (`QuacksWeb.Replay.updates/2`), in
+  step with the marks on your pot (round 12: no update chips; the state badge says
+  stopped or exploded). The last beat's timer, "Skip" or a first tap on a card ends
+  the replay: the round counts as
   seen (`"seen"`, `GameServer.ack/4`) and the shop opens (`replay_end/3`); a tap
   opens the card's sheet with the result lines instead. A seat that can buy nothing
   (it exploded and took the VP, or has too few coins) skips the buy and gets the
@@ -1052,14 +1053,13 @@ defmodule QuacksWeb.GameLive do
           />
           <.status :if={@seat} game={@game} seat={@seat} beats={stat_beats(@game, @seat, @seen)} />
           <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
-               brew each card plays its update chips (the round results); the last
-               one to land ends the replay (`replay_end/3`, app.js). The third row
-               (the update chips) has a fixed height, and on phones the counts row two lines, so the row keeps its height
-               when the chips come. --%>
+               brew each card's counters tick on the replay beats; the card with the
+               last beat ends the replay (`replay_end/3`, app.js). On phones the
+               counts row has two lines, so the row keeps its height. --%>
           <nav
             id="players-row"
             class={[
-              "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_2.125rem_2.25rem] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)] sm:grid-rows-[auto_auto_1.25rem] phone-landscape:auto-cols-[minmax(5.5rem,1fr)]",
+              "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_2.125rem] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)] sm:grid-rows-[auto_auto] phone-landscape:auto-cols-[minmax(5.5rem,1fr)]",
               not replaying?(@game, @seen) && "replay-done"
             ]}
             aria-label="Players"
@@ -1544,13 +1544,9 @@ defmodule QuacksWeb.GameLive do
           >
             Show the result
           </.button>
-          <div
-            :if={@seat && @game.phase == :potions}
-            class="flex items-center gap-2"
-            data-role="fuse-row"
-          >
+          <div :if={@seat && @game.phase == :potions} class="flex flex-col gap-1" data-role="fuse-row">
+            <.reward_line game={@game} seat={@seat} />
             <.fuse_meter game={@game} seat={@seat} />
-            <.next_reward game={@game} seat={@seat} />
           </div>
           <%!-- From 64rem an exploded pot puts its result here, where Stop and Draw
                were, and says what comes next. --%>
