@@ -1150,6 +1150,13 @@ defmodule QuacksWeb.GameLive do
               ticks={replaying?(@game, @seen)}
             />
           </nav>
+          <%!-- Round 16: the rat track, a fixed height while the rats rule is on. --%>
+          <.rat_track
+            :if={@game.rules.rats and length(@game.seats) > 1}
+            game={@game}
+            seat={@seat}
+            names={@names}
+          />
         </div>
 
         <%!-- Only a spectator has a notice here; it does not change while watching. --%>

@@ -327,6 +327,22 @@ place.
 order (`Chips.order/0`, chapter 7), left of the pot (`id="books-column"`,
 `data-area="books"`).
 
+### The rat track (round 16)
+
+`rat_track/1` (`lib/quacks_web/components/game_components.ex`) is a slim VP track
+under the name cards, inside the `players` area. It has a fixed height (`h-7`) and
+shows only while the rats rule is on with 2+ players, so it never comes and goes
+during a game and the pot below it does not move.
+
+The positions are plain arithmetic on the server: the lowest VP is 0, the leader's
+VP is 1, and each dot and each rat gets `left: calc(0.5rem + (100% - 1rem) * x)`.
+The rats are the printed tails (`ScoringTrack.tails/0`) between the last player
+and the leader; a seat gets the rats right of its dot, the same count as
+`ScoringTrack.rat_tails/2`. Dots on the same VP shift 7px apart. When VP change, the
+dot's `left` changes, and a CSS `transition` on `left` slides it: no hook needed.
+Only the leader's and your own dot have a number. The whole track is one
+`role="img"` with an `aria-label` that names every seat's VP and rats.
+
 ## Hotkeys
 
 One attribute on the grid, `phx-window-keydown="hotkey"`
