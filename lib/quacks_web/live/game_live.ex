@@ -2617,7 +2617,12 @@ defmodule QuacksWeb.GameLive do
           class="flex flex-col gap-2 rounded-md bg-parchment-deep/50 p-2 min-[26rem]:flex-row min-[26rem]:items-center"
           data-role="red-row"
         >
-          <.chip chip={chip} size={:lg} class="self-center" data-role="red-chip" />
+          <div class="flex shrink-0 items-center gap-2">
+            <.chip chip={chip} size={:lg} data-role="red-chip" />
+            <span class="font-hand text-lg font-bold min-[26rem]:hidden">
+              Toadstool {elem(chip, 1)}
+            </span>
+          </div>
           <div class="grid flex-1 grid-cols-3 gap-2">
             <.button
               :for={{kind, label, hint} <- red_kinds()}

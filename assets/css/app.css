@@ -2312,6 +2312,14 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.45));
 }
 
+/* Large screens: a bigger card, a little above the centre, clear of the sheet. */
+@media (width >= 64rem) {
+  .pot-card {
+    top: 40%;
+    width: min(40%, 18rem);
+  }
+}
+
 /* While the big card shows, its corner is empty: the card lands there. */
 .pot-square:has(.pot-card-reveal) #corner-card {
   visibility: hidden;
