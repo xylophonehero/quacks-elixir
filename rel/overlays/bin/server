@@ -2,4 +2,18 @@
 set -eu
 
 cd -P -- "$(dirname -- "$0")"
+
+# The image starts as root: Fly mounts the games volume (GAMES_DIR) owned by root, so
+# hand the games directory to `nobody` first, then run the app as `nobody`.
+if [ "$(id -u)" = 0 ]; then
+  if [ -n "${GAMES_DIR:-}" ]; then
+    mkdir -p "$GAMES_DIR"
+    chown nobody "$GAMES_DIR"
+  fi
+
+  if command -v setpriv >/dev/null 2>&1; then
+    exec env HOME=/app setpriv --reuid=65534 --regid=65534 --clear-groups "$0" "$@"
+  fi
+fi
+
 PHX_SERVER=true exec ./quacks start

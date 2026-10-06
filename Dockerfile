@@ -101,7 +101,8 @@ ENV MIX_ENV="prod"
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/quacks ./
 
-USER nobody
+# No `USER nobody` here: `bin/server` starts as root to hand the games volume
+# (GAMES_DIR) to nobody, then drops to nobody itself.
 
 # If using an environment that doesn't automatically reap zombie processes, it is
 # advised to add an init process such as tini via `apt-get install`
