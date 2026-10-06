@@ -1197,6 +1197,11 @@ html:has([data-layout="full"]) {
   transition: translate 300ms var(--ease-in-out);
 }
 
+/* The ghost marker (the essence the pot reaches now) follows each draw. */
+.essence-ghost {
+  transition: translate 200ms var(--ease-out);
+}
+
 /* Motion, batch 2: the step-B replay (animations.md §3 B2; since layout 1 on the
    name cards). The server numbers each result line (`--beat`, `QuacksWeb.Replay`):
    the card counters and the pot marks of your own lines (`beat-ring`); both start on the same patch
@@ -1469,6 +1474,7 @@ html:has([data-layout="full"]) {
   .pot-lg [data-role="droplet"],
   .pot-lg [data-role="rat"],
   .essence-marker,
+  .essence-ghost,
   .stat-tick {
     transition: none;
   }

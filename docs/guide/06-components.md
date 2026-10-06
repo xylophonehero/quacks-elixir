@@ -81,6 +81,16 @@ The `:lg` strip sits on the dark iron bar and the `:sm` strip on parchment, so
 glyphs are `aria-hidden`. Tests find a glyph by `data-glyph` and a column by
 `data-space` (`test/quacks_web/live/alchemists_live_test.exs`).
 
+The essence marker moves only in the essence phase, so during brewing it shows the
+last round. With `preview` (only your own seat: the `:lg` strip and your own
+sheet), `flask_strip/1` adds a ghost marker labelled "now" at `preview_space/2`.
+That function calls `Quacks.Game.Essence.count/2`, the same count the essence phase
+uses, and drops the exploded neighbours, because they are not known until they
+stop. The ghost is absolute and one column wide like the real marker, so the strip
+height does not change. It is under the real marker in the DOM, so on the same
+space it shows as a dashed ring. Outside `:potions` it is `nil` and not rendered.
+It slides with `translate` (`.essence-ghost`); reduced motion turns that off.
+
 ## HEEx in five rules
 
 1. `{expr}` interpolates in attributes and text: `{face(@chip)}`.
