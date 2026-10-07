@@ -774,19 +774,15 @@ defmodule QuacksWeb.SetupComponents do
   @doc """
   A random book per colour, as `parse_sets/2` returns them: uniform over the books
   the colour's picker offers (black I–III, orange I–II, the rest I–VI). Locoweed is
-  in play only with `alchemists?` (then I–VI, every one allowed); without it, no
-  locoweed. Not the engine, so the process's `:rand` is fine.
+  uniform over "no locoweed" and its books, with or without an expansion; a book
+  that needs an expansion (locoweed III needs The Alchemists) only when that
+  expansion is on. Not the engine, so the process's `:rand` is fine.
   """
   @spec random_sets(boolean) :: Chips.sets()
   def random_sets(alchemists?) do
     book_colours()
     |> Map.new(fn colour ->
-      sets =
-        if colour == :locoweed and not alchemists?,
-          do: [nil],
-          else:
-            Enum.filter(book_sets(colour), &(&1 && unavailable(colour, &1, alchemists?) == nil))
-
+      sets = Enum.filter(book_sets(colour), &(unavailable(colour, &1, alchemists?) == nil))
       {colour, Enum.at(sets, :rand.uniform(length(sets)) - 1)}
     end)
     |> Map.reject(&(&1 in [orange: 1, locoweed: nil]))

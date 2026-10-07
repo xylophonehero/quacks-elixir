@@ -226,7 +226,7 @@ defmodule QuacksWeb.LobbyLiveTest do
       end
 
     for picked <- picks do
-      assert picked["locoweed"] == "off"
+      assert picked["locoweed"] in ~w(off 1 2 4 5 6)
       assert picked["black"] in ~w(1 2 3)
       assert picked["orange"] in ~w(1 2)
       assert picked["green"] in ~w(1 2 3 4 5 6)
@@ -237,7 +237,7 @@ defmodule QuacksWeb.LobbyLiveTest do
     # With The Alchemists locoweed is in play too.
     view |> element("#books") |> render_change(%{"alchemists" => "true", "sets" => %{}})
     view |> element("#preset-random") |> render_click()
-    assert books(view)["locoweed"] in ~w(1 2 3 4 5 6)
+    assert books(view)["locoweed"] in ~w(off 1 2 3 4 5 6)
     assert has_element?(view, "#preset-random[aria-pressed=true]")
 
     view |> element("#preset-beginner") |> render_click()
