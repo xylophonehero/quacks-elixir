@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GenServer Cheat Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;600&amp;family=IM+Fell+English:ital@0;1&amp;display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="page">
+
+<nav class="crumbs" aria-label="Course">
+  <a href="../index.html">Course hub</a>
+  <span class="spacer"></span>
+  <a href="../lessons/0003-one-process-per-game.html">Lesson 3</a>
+  <a href="glossary.html">Glossary</a>
+</nav>
+
+<header>
+  <p class="eyebrow">Reference &middot; from lessons 3 and 5</p>
+  <h1>GenServer cheat sheet</h1>
+  <p class="lede">A GenServer is a process that loops: take one message, run a callback, keep the state it returns. You write the callbacks; OTP writes the loop.</p>
+</header>
+
+<h2>Three ways to send, three callbacks</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Client side</th><th>Server callback</th><th>Caller</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><code>GenServer.call(pid, msg, timeout \\ 5000)</code></td><td><code>handle_call(msg, from, state)</code></td><td>blocks until the reply or the timeout, then exits</td><td>the caller needs an answer, or should be slowed down (back-pressure). Every Quacks move.</td></tr>
+    <tr><td><code>GenServer.cast(pid, msg)</code></td><td><code>handle_cast(msg, state)</code></td><td>returns <code>:ok</code> at once</td><td>fire and forget, and losing track of failures is fine. Quacks never casts.</td></tr>
+    <tr><td><code>send(pid, msg)</code>, <code>Process.send_after/3</code>, monitors, PubSub</td><td><code>handle_info(msg, state)</code></td><td>does not wait</td><td>timers, <code>:DOWN</code> notices, broadcasts, anything not sent through the GenServer API.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Callbacks and what they return</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Callback</th><th>Returns</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>init(arg)</code></td><td><code>{:ok, state}</code>, <code>{:ok, state, timeout}</code>, <code>:ignore</code>, <code>{:stop, reason}</code></td><td>Set up the first state. Runs inside the new process, while <code>start_link</code> waits.</td></tr>
+    <tr><td><code>handle_call/3</code></td><td><code>{:reply, reply, state}</code>, <code>{:reply, reply, state, timeout}</code>, <code>{:noreply, state}</code>, <code>{:stop, reason, reply, state}</code></td><td>Answer the caller and keep the new state. <code>:noreply</code> means you will answer later with <code>GenServer.reply/2</code>.</td></tr>
+    <tr><td><code>handle_cast/2</code>, <code>handle_info/2</code></td><td><code>{:noreply, state}</code>, <code>{:noreply, state, timeout}</code>, <code>{:stop, reason, state}</code></td><td>Keep the new state; nobody waits for a reply.</td></tr>
+    <tr><td><code>terminate(reason, state)</code></td><td>anything</td><td>Last words. Runs on <code>:stop</code>, on a raise in a callback, and on a supervisor shutdown if the process traps exits.</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="small">A <code>timeout</code> in a return tuple is the <em>server&rsquo;s</em> idle timer: no message within it, and <code>handle_info(:timeout, state)</code> runs. Quacks uses <code>@idle_timeout</code>, 2 hours. The <em>caller&rsquo;s</em> timeout is the third argument of <code>call</code>.</p>
+
+<h2>The shape in Quacks</h2>
+<figure class="excerpt" data-label="Quacks.GameServer, abridged"><pre><code>use GenServer, restart: :temporary
+
+# client API: runs in the caller's process
+def apply(id, seat, action), do: call(id, {:apply, seat, action})
+
+def start_link({id, _fields} = arg),
+  do: GenServer.start_link(__MODULE__, arg, name: {:via, Registry, {Quacks.GameRegistry, id}})
+
+# callbacks: run in the GameServer process
+def init({id, fields}), do: ... {:ok, state, @idle_timeout}
+def handle_call(msg, from, state), do: msg |&gt; server_call(from, state) |&gt; stored(state)
+def handle_info(msg, state), do: msg |&gt; server_info(state) |&gt; stored(state)
+def terminate(_reason, state), do: ...  # writes a pending game file</code></pre></figure>
+<p>Line by line: <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L80" target="_blank" rel="noopener">:80</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L374" target="_blank" rel="noopener">:374</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L361-L362" target="_blank" rel="noopener">:361</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L580" target="_blank" rel="noopener">:580</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L630" target="_blank" rel="noopener">:630</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L644" target="_blank" rel="noopener">:644</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L647-L651" target="_blank" rel="noopener">:647</a> in <code>lib/quacks/game_server.ex</code>.</p>
+
+<h2>Rules of thumb</h2>
+<ul>
+  <li><strong>Client functions hide the messages.</strong> Callers use <code>GameServer.apply/3</code>, never a raw <code>GenServer.call</code> with a tuple. One module owns its protocol.</li>
+  <li><strong>One message at a time.</strong> The mailbox serialises everything, so state needs no locks. Anything slow in a callback delays every caller behind it.</li>
+  <li><strong>Prefer <code>call</code>.</strong> It reports errors back and gives back-pressure. Reach for <code>cast</code> only when you truly do not care.</li>
+  <li><strong>A call can fail three ways</strong>: no process (<code>:noproc</code>), the server dies during the call (its exit reason), or no reply in time (<code>:timeout</code>). Quacks&rsquo; <code>call/2</code> turns only <code>:noproc</code>, <code>:normal</code>, <code>:shutdown</code> and <code>:killed</code> into <code>{:error, :not_found}</code>.</li>
+  <li><strong>Find processes by name, not pid.</strong> A Registry with <code>{:via, Registry, {name, key}}</code> maps a key to the current pid.</li>
+  <li><strong>Pick the restart type on purpose.</strong> <code>:permanent</code> for services, <code>:transient</code> for jobs that may finish, <code>:temporary</code> when a restart would not help (a game whose state died with it).</li>
+  <li><strong>Monitor to watch, link to share fate.</strong> <code>Process.monitor/1</code> gives a <code>:DOWN</code> message. A link kills both unless one traps exits.</li>
+</ul>
+
+<h2>Supervisors in one table</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Option</th><th>Values</th><th>Default</th></tr></thead>
+  <tbody>
+    <tr><td><code>strategy</code></td><td><code>:one_for_one</code>, <code>:one_for_all</code>, <code>:rest_for_one</code></td><td>required</td></tr>
+    <tr><td><code>max_restarts</code> / <code>max_seconds</code></td><td>restarts allowed in a window before the supervisor gives up</td><td>3 in 5 s</td></tr>
+    <tr><td>child <code>restart</code></td><td><code>:permanent</code>, <code>:transient</code>, <code>:temporary</code></td><td><code>:permanent</code></td></tr>
+  </tbody>
+</table>
+</div>
+<p>Docs: <a href="https://hexdocs.pm/elixir/1.18.3/GenServer.html" target="_blank" rel="noopener"><code>GenServer</code></a>, <a href="https://hexdocs.pm/elixir/1.18.3/Supervisor.html" target="_blank" rel="noopener"><code>Supervisor</code></a>, <a href="https://hexdocs.pm/elixir/1.18.3/DynamicSupervisor.html" target="_blank" rel="noopener"><code>DynamicSupervisor</code></a>, <a href="https://hexdocs.pm/elixir/1.18.3/Registry.html" target="_blank" rel="noopener"><code>Registry</code></a> (Elixir 1.18.3).</p>
+
+<nav class="pager" aria-label="Pages">
+  <a href="../index.html"><small>Back to</small><span class="t">Course hub</span></a>
+  <a class="next" href="glossary.html"><small>Also</small><span class="t">Glossary</span></a>
+</nav>
+</div>
+<script src="../assets/code.js"></script>
+</body>
+</html>

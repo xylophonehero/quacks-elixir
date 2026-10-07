@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Let It Crash</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;600&amp;family=IM+Fell+English:ital@0;1&amp;display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="page">
+
+<nav class="crumbs" aria-label="Course">
+  <a href="../index.html">Course hub</a>
+  <span class="spacer"></span>
+  <a href="../reference/genserver-cheatsheet.html">GenServer sheet</a>
+  <a href="../reference/glossary.html">Glossary</a>
+</nav>
+
+<header>
+  <p class="eyebrow">Lesson 5 &middot; about 10 minutes</p>
+  <h1>Let it crash</h1>
+  <div class="recipe">
+    <dl>
+      <dt>Yields</dt>
+      <dd class="yield">You can say what restarts when any part of Quacks crashes, what a game keeps after its process dies, and when to link or monitor.</dd>
+      <dt>You bring</dt>
+      <dd>Lesson 3&rsquo;s GameServer and DynamicSupervisor, and React error boundaries.</dd>
+      <dt>Guide</dt>
+      <dd><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/01-repo-and-otp.md" target="_blank" rel="noopener">Ch. 1, the supervision tree</a> and <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/04-gameserver.md" target="_blank" rel="noopener">Ch. 4, crashes and games on disk</a></dd>
+    </dl>
+  </div>
+</header>
+
+<p class="lede">Elixir code rarely wraps work in <code>try</code>. A process that hits something unexpected dies, and a supervisor decides what to start again. The design question moves from &ldquo;how do I catch this?&rdquo; to &ldquo;what should a crash take down with it?&rdquo;</p>
+
+<h2>The tree</h2>
+<p>When the app boots, <code>Quacks.Application.start/2</code> starts one supervisor with seven children, in order.</p>
+<figure class="excerpt" data-path="lib/quacks/application.ex" data-start="12" data-hl="27"><pre><code>children = [
+  QuacksWeb.Telemetry,
+  {DNSCluster, query: Application.get_env(:quacks, :dns_cluster_query) || :ignore},
+  {Phoenix.PubSub, name: Quacks.PubSub},
+  # One `Quacks.GameServer` per game, found by its id (see that module).
+  {Registry, keys: :unique, name: Quacks.GameRegistry},
+  {DynamicSupervisor, name: Quacks.GameSupervisor, strategy: :one_for_one},
+  # Bring back the games on disk before the Endpoint takes requests.
+  Quacks.GameStore,
+  # Start to serve requests, typically the last entry
+  QuacksWeb.Endpoint
+]
+
+# See https://elixir.hexdocs.pm/Supervisor.html
+# for other strategies and supported options
+opts = [strategy: :one_for_one, name: Quacks.Supervisor]</code></pre></figure>
+<p>Two settings decide what happens after a crash (<a href="https://hexdocs.pm/elixir/1.18.3/Supervisor.html" target="_blank" rel="noopener"><code>Supervisor</code> docs</a>):</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Setting</th><th>Values</th><th>In Quacks</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Strategy</strong> (the supervisor&rsquo;s)</td><td><code>:one_for_one</code> restart only the crashed child; <code>:one_for_all</code> restart all; <code>:rest_for_one</code> restart it and those started after it</td><td>both supervisors use <code>:one_for_one</code></td></tr>
+    <tr><td><strong>Restart</strong> (the child&rsquo;s)</td><td><code>:permanent</code> always; <code>:transient</code> only after an abnormal exit; <code>:temporary</code> never</td><td>GameServer is <code>:temporary</code>; the rest are <code>:permanent</code></td></tr>
+  </tbody>
+</table>
+</div>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="80"><pre><code>use GenServer, restart: :temporary</code></pre></figure>
+<p>One guard rail: a supervisor allows 3 restarts in 5 seconds by default. One more and it gives up and exits itself, so its own supervisor deals with it. At the top, that stops the application and the VM.</p>
+<aside class="note"><b>React &asymp;</b>An error boundary that unmounts the broken subtree and mounts it fresh. The supervisor is the boundary; the restart strategy says how much of the subtree to remount.</aside>
+
+<h2>Crash something</h2>
+<p>Two games run: <code>abcdef</code> with tabs A and B, and <code>qwerty</code> with tab C. Tap any part to crash it. Tap the same part four times quickly to hit the restart limit.</p>
+
+<section class="lab" id="tree-lab" aria-label="Supervision tree simulator">
+  <ul class="tree" id="tree"></ul>
+  <div class="lab-row">
+    <button class="btn" type="button" id="tree-reset">Reset</button>
+  </div>
+  <div>
+    <p class="lab-label">What happened</p>
+    <ol class="lab-log" id="tree-log" aria-live="polite"><li>Everything runs. Tap a part to crash it.</li></ol>
+  </div>
+</section>
+
+<h2>Links and monitors</h2>
+<p>Two ways for one process to hear about another&rsquo;s death:</p>
+<ul>
+  <li>A <strong>link</strong> is two-way. When one side exits abnormally, the exit signal kills the other too, unless it <strong>traps exits</strong>; then the signal arrives as an <code>{:EXIT, pid, reason}</code> message. Supervisors link to their children. A Registry links to every process registered in it.</li>
+  <li>A <strong>monitor</strong> is one-way and never kills. The watcher gets <code>{:DOWN, ref, :process, pid, reason}</code> in its mailbox.</li>
+</ul>
+<p>The GameServer monitors each page that claims a seat. A tab that closes must not take the game down; it only makes a seat absent.</p>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="1012" data-hl="1013"><pre><code>defp watch(state, pid, token) do
+  Process.monitor(pid)</code></pre></figure>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="997"><pre><code>defp server_info({:DOWN, _ref, :process, pid, _reason}, state) do
+  before = absent(state)
+  state = mark_away(%{state | pages: Map.delete(state.pages, pid)})
+  if absent(state) != before, do: broadcast_names(state)
+  {:noreply, state, @idle_timeout}
+end</code></pre></figure>
+<p>And the GameServer traps exits, so that a shutdown from its supervisor runs <code>terminate/2</code> and writes any pending game file:</p>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="647"><pre><code>def terminate(_reason, %{write_timer: ref} = state) when is_reference(ref),
+  do: write_file(state)
+
+def terminate(_reason, _state), do: :ok</code></pre></figure>
+<p><code>terminate/2</code> also runs when a callback raises, so a crash writes its last pending change too (<a href="https://hexdocs.pm/elixir/1.18.3/GenServer.html#c:terminate/2" target="_blank" rel="noopener"><code>terminate/2</code> docs</a>).</p>
+<aside class="note"><b>React &asymp;</b>A monitor is <code>addEventListener("close")</code> on someone else&rsquo;s socket. A link is two components that share one error boundary.</aside>
+
+<h2>What a game keeps</h2>
+<p>Its state is in the process, so a crash loses the process&rsquo;s memory. What is left is the <strong>game file</strong>: each change schedules a write of the seed, the moves and the table, at most once per 500 ms. A crash leaves the file on disk. Only the idle timeout and a finished game&rsquo;s expiry delete it.</p>
+<p>But nothing reads the file until the next boot. <code>Quacks.GameStore</code> restores every game file once, as a child of the application, and then returns <code>:ignore</code>: there is no process to call later (<a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_store.ex#L118-L130" target="_blank" rel="noopener">game_store.ex:118&ndash;130</a>). So a crashed game is gone until the next deploy or restart, then it comes back.</p>
+<p>Meanwhile, its tabs learn on their next call. <code>call/2</code> turns a missing process into <code>{:error, :not_found}</code>, and every handler ends the same way:</p>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="554" data-hl="559-560"><pre><code>defp call(id, msg) do
+  case Registry.lookup(Quacks.GameRegistry, id) do
+    [{pid, _}] -&gt; GenServer.call(pid, msg)
+    [] -&gt; {:error, :not_found}
+  end
+catch
+  :exit, {reason, _} when reason in [:noproc, :normal, :shutdown, :killed] -&gt;
+    {:error, :not_found}
+end</code></pre></figure>
+<figure class="excerpt" data-path="lib/quacks_web/live/game_live.ex" data-start="787"><pre><code># The game process is gone (it stopped or crashed): back to the lobby.
+defp ended(socket) do
+  socket |&gt; put_flash(:error, "This game has ended.") |&gt; push_navigate(to: ~p"/")
+end</code></pre></figure>
+<p>Read the <code>catch</code> guard closely. If the GameServer raises <em>while handling your call</em>, your call exits with the exception as its reason, not one of those four atoms. The guard fails, the exit is not caught, and your LiveView crashes too. The browser remounts it, <code>mount/3</code> finds no game and says &ldquo;Game abcdef does not exist.&rdquo; Same end, different words. The guide&rsquo;s chapter 4 says this case is caught; it is only caught for those four reasons.</p>
+<p>Rejoining is not a crash path. A crashed LiveView remounts with the same <code>player_token</code> cookie and gets its seat back from <code>claim_seat</code>. <code>rejoin/4</code> is for a browser that lost the cookie.</p>
+
+<h3>A review question</h3>
+<p>Why <code>:temporary</code> and not <code>:transient</code> with a reload from the game file? A bug that crashes a game on a certain move would crash it again on reload, three times in five seconds, and then the DynamicSupervisor itself would give up, taking every other game with it. <code>:temporary</code> keeps one bad game from ending all of them. The cost is that a crashed game waits for the next boot.</p>
+
+<h2>Check yourself</h2>
+<p>Two questions reach back to lessons 3 and 4.</p>
+
+<div class="quiz" id="quiz5" data-quiz="quiz-0005" data-lesson="0005"></div>
+<script type="application/json" id="quiz-0005">
+{"items": [
+  {"id": "temp", "q": "The GameServer for <code>abcdef</code> raises inside a callback. What restarts it?",
+   "answer": 2,
+   "options": [
+     {"t": "Quacks.Supervisor restarts it, since its children are permanent", "why": "The GameServer is not a child of <code>Quacks.Supervisor</code>; it lives under the DynamicSupervisor, with <code>restart: :temporary</code>."},
+     {"t": "The DynamicSupervisor, which reloads it from its file", "why": "A <code>:temporary</code> child is never restarted, and nothing reloads files after boot."},
+     {"t": "Nothing; it is temporary, so it stays down", "why": "<code>use GenServer, restart: :temporary</code>: the supervisor removes it. Other games run on."},
+     {"t": "The next tab that calls starts it again", "why": "A call to a missing game returns <code>{:error, :not_found}</code>. Only <code>create</code>, <code>start</code> or a boot starts game processes."}
+   ]},
+  {"id": "survive", "q": "After that crash, what is left of game <code>abcdef</code>?",
+   "answer": 0,
+   "options": [
+     {"t": "The game file on disk, read at boot", "why": "The file holds the seed, the moves and the table. <code>GameStore</code> restores it at the next boot. The crash does not delete it."},
+     {"t": "Its state, held by the DynamicSupervisor for later", "why": "Supervisors keep child specs, not state. The state died with the process."},
+     {"t": "Nothing at all, since state lived in memory", "why": "The game file survives. Only the idle timeout or expiry deletes it."},
+     {"t": "Each tab's copy, which takes over the game", "why": "A LiveView's <code>@game</code> is a render copy. No tab can apply moves; only a GameServer can."}
+   ]},
+  {"id": "dynsup", "q": "The DynamicSupervisor <code>Quacks.GameSupervisor</code> itself crashes. What happens to the running games?",
+   "answer": 3,
+   "options": [
+     {"t": "They keep running without any supervisor above them", "why": "A supervisor shuts its children down before it exits. They do not outlive it."},
+     {"t": "They restart too, because the strategy is one_for_all", "why": "The top supervisor is <code>:one_for_one</code>. Only the crashed child, the DynamicSupervisor, restarts."},
+     {"t": "Only the game that caused it stops running", "why": "Its children go down with it, all of them."},
+     {"t": "All stop; it restarts empty, without the games", "why": "It shuts every GameServer down (each writes its pending file in <code>terminate/2</code>), then <code>Quacks.Supervisor</code> restarts it with no children."}
+   ]},
+  {"id": "monitor", "q": "Why does the GameServer <em>monitor</em> each page instead of <em>linking</em> to it?",
+   "answer": 1,
+   "options": [
+     {"t": "Links only work between processes on two different nodes", "why": "Links work on one node or across nodes alike."},
+     {"t": "A closing tab sends a message, not a crash", "why": "A monitor delivers <code>{:DOWN, ...}</code> and never kills. A link from a crashing page could take the game down with it."},
+     {"t": "Monitors are much faster to set up than links", "why": "Speed is not the point. The difference is one-way notice versus a shared fate."},
+     {"t": "LiveView processes refuse links coming from any GenServer process", "why": "Any two processes can link. The GameServer chooses not to."}
+   ]},
+  {"id": "strategy", "kind": "type", "q": "Which supervisor strategy restarts only the child that crashed? Type it.",
+   "placeholder": ":strategy",
+   "accept": [":one_for_one", "one_for_one", "strategy: :one_for_one"],
+   "answer": ":one_for_one",
+   "why": "Both <code>Quacks.Supervisor</code> and <code>Quacks.GameSupervisor</code> use it."},
+  {"id": "l3-catch", "q": "From lesson 3: the GameServer raises a <code>RuntimeError</code> while handling tab A&rsquo;s call. Does <code>call/2</code>&rsquo;s <code>catch</code> turn it into <code>:not_found</code>?",
+   "answer": 2,
+   "options": [
+     {"t": "Yes, since call/2 catches every single exit from GenServer.call", "why": "The clause has a guard: only <code>:noproc</code>, <code>:normal</code>, <code>:shutdown</code> and <code>:killed</code>."},
+     {"t": "Yes, because the process is gone once it crashes", "why": "The catch looks at the exit reason, not at whether the process still exists."},
+     {"t": "No; the exception fails the guard, crashing tab A", "why": "The exit reason is <code>{%RuntimeError{}, stacktrace}</code>, which fails the guard. Tab A's LiveView exits, remounts, and finds no game."},
+     {"t": "No; the error comes back as an error tuple", "why": "A raise in the server is not a return value. The caller sees an exit."}
+   ]},
+  {"id": "l4-reconnect", "q": "From lesson 4: the Endpoint restarts and tab B&rsquo;s LiveView dies with its websocket. What does tab B do next?",
+   "answer": 0,
+   "options": [
+     {"t": "Reconnects, mounts again, and keeps its seat by token", "why": "The LiveView client reconnects on its own. The connected mount subscribes again and <code>claim_seat</code> finds the same token."},
+     {"t": "Shows an error page until the player reloads it", "why": "The client retries the socket by itself; no reload is needed."},
+     {"t": "Replays its last diffs to rebuild the old process", "why": "Diffs are not stored. A new process mounts from the GameServer's state."},
+     {"t": "Joins as a spectator because its seat was freed", "why": "Seats belong to tokens. A page going away makes a seat absent, not free."}
+   ]}
+]}
+</script>
+
+<section class="source">
+  <h2>Read next</h2>
+  <p><strong>Primary source:</strong> the Elixir guide&rsquo;s <a href="https://hexdocs.pm/elixir/1.18.3/supervisor-and-application.html" target="_blank" rel="noopener">Supervision trees and applications</a>, then the LiveView guide <a href="https://hexdocs.pm/phoenix_live_view/1.2.12/error-handling.html" target="_blank" rel="noopener">Error and exception handling</a>, which explains how a crashed LiveView recovers in the browser.</p>
+  <p>In the guide: <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/04-gameserver.md" target="_blank" rel="noopener">chapter 4</a>, sections &ldquo;Crashes and deploys&rdquo; and &ldquo;Games on disk&rdquo;.</p>
+</section>
+
+<section class="ask">
+  <h2>Questions? Ask your agent</h2>
+  <p>Open the Claude app and ask. Good starters: &ldquo;What would it take to restore one crashed game from its file without a restart?&rdquo; or &ldquo;Show me a test that crashes a GameServer during a call.&rdquo;</p>
+</section>
+
+<nav class="pager" aria-label="Lessons">
+  <a href="0004-what-goes-over-the-wire.html"><small>Previous lesson</small><span class="t">What goes over the wire</span></a>
+  <span class="next"><small>Next, coming soon</small><span class="t">Replay, undo and bug reports</span></span>
+</nav>
+
+</div>
+<script src="../assets/progress.js"></script>
+<script src="../assets/code.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+/* Supervision tree simulator for this lesson. A model of what each crash does in
+   Quacks; the outcomes follow application.ex, game_server.ex and game_store.ex. */
+(function () {
+  var TREE = [
+    { id: "root", nm: "Quacks.Supervisor", tag: "one_for_one", kids: [
+      { id: "tel", nm: "QuacksWeb.Telemetry", tag: "permanent" },
+      { id: "dns", nm: "DNSCluster", tag: "permanent" },
+      { id: "pubsub", nm: "Phoenix.PubSub", tag: "permanent" },
+      { id: "reg", nm: "Registry GameRegistry", tag: "permanent" },
+      { id: "dyn", nm: "DynamicSupervisor GameSupervisor", tag: "permanent", kids: [
+        { id: "g1", nm: "GameServer \"abcdef\"", tag: "temporary" },
+        { id: "g2", nm: "GameServer \"qwerty\"", tag: "temporary" }
+      ] },
+      { id: "store", nm: "Quacks.GameStore", tag: "ran at boot, no process", static: true },
+      { id: "ep", nm: "QuacksWeb.Endpoint", tag: "permanent", kids: [
+        { id: "lvA", nm: "LiveView, tab A on abcdef", tag: "linked to its websocket" },
+        { id: "lvB", nm: "LiveView, tab B on abcdef", tag: "linked to its websocket" },
+        { id: "lvC", nm: "LiveView, tab C on qwerty", tag: "linked to its websocket" }
+      ] }
+    ] }
+  ];
+  var LV = ["lvA", "lvB", "lvC"];
+  var GAMES = ["g1", "g2"];
+  var st, log, crashes;
+
+  function reset() {
+    st = {};
+    log = [];
+    crashes = [];
+  }
+
+  function set(ids, state) { ids.forEach(function (i) { st[i] = state; }); }
+  function live(i) { return st[i] !== "gone" && st[i] !== "dead"; }
+
+  // Count restarts of Quacks.Supervisor's children: 3 in 5 s is the default limit.
+  function restartRoot(id) {
+    var now = Date.now();
+    crashes = crashes.filter(function (t) { return now - t < 5000; });
+    crashes.push(now);
+    if (crashes.length > 3) {
+      everythingDown();
+      return false;
+    }
+    st[id] = "restarted";
+    return true;
+  }
+
+  function everythingDown() {
+    Object.keys(nodes).forEach(function (i) { if (i !== "store") st[i] = "dead"; });
+    log.unshift("<strong>Restart limit.</strong> A fourth restart within 5 seconds: <code>Quacks.Supervisor</code> gives up and exits, so the application stops. In the release the VM exits and Fly starts the machine again. At boot <code>GameStore</code> restores every game file, and tabs reconnect into their seats.");
+  }
+
+  var OUT = {
+    root: function () {
+      everythingDown();
+      log[0] = "<strong>The top supervisor died.</strong> The application stops with it. In the release the VM exits and Fly starts the machine again; <code>GameStore</code> restores every game file at boot.";
+    },
+    tel: function () {
+      if (restartRoot("tel")) log.unshift("<strong>Telemetry restarted.</strong> Metrics only. No player notices.");
+    },
+    dns: function () {
+      if (restartRoot("dns")) log.unshift("<strong>DNSCluster restarted.</strong> Prod sets no query, so it does nothing either way.");
+    },
+    pubsub: function () {
+      if (!restartRoot("pubsub")) return;
+      set(LV.filter(live), "reconnected");
+      log.unshift("<strong>PubSub restarted, empty.</strong> It keeps subscribers in a Registry, which links to them, so every subscribed LiveView went down with it. Each browser reconnects, mounts, subscribes to the new PubSub and claims its seat by token. The games never noticed.");
+    },
+    reg: function () {
+      if (!restartRoot("reg")) return;
+      var hit = GAMES.filter(live);
+      set(hit, "gone");
+      log.unshift("<strong>GameRegistry restarted, empty.</strong> Each GameServer registered itself, so it is linked to the Registry. It traps exits, so the signal arrives as <code>{:EXIT, pid, reason}</code>, and no <code>server_info</code> clause matches that: <code>FunctionClauseError</code>, crash. " + (hit.length ? "All games stop. Their files stay on disk for the next boot; tabs get <code>:not_found</code> on their next tap." : "No game was running."));
+    },
+    dyn: function () {
+      if (!restartRoot("dyn")) return;
+      var hit = GAMES.filter(live);
+      set(hit, "gone");
+      log.unshift("<strong>GameSupervisor restarted, empty.</strong> " + (hit.length ? "First it shut down every GameServer; each ran <code>terminate/2</code> and wrote its pending file. " : "") + "The games are gone until the next boot. Tabs get <code>:not_found</code> on their next tap: &ldquo;This game has ended.&rdquo;");
+    },
+    g1: function () { game("g1", "abcdef", "tabs A and B"); },
+    g2: function () { game("g2", "qwerty", "tab C"); },
+    store: function () {
+      log.unshift("<strong>Nothing to crash.</strong> <code>GameStore</code> ran <code>restore/0</code> at boot and returned <code>:ignore</code>. No process is left.");
+    },
+    ep: function () {
+      if (!restartRoot("ep")) return;
+      set(LV.filter(live), "reconnected");
+      log.unshift("<strong>Endpoint restarted.</strong> HTTP and every websocket dropped, and each LiveView with them. The GameServers got <code>{:DOWN, ...}</code> and marked seats away. Browsers reconnect, mount, and claim the same seats by token. Games kept running.");
+    },
+    lvA: function () { lv("lvA", "A", "g1"); },
+    lvB: function () { lv("lvB", "B", "g1"); },
+    lvC: function () { lv("lvC", "C", "g2"); }
+  };
+
+  function game(id, name, tabs) {
+    if (!live(id)) { log.unshift("<code>" + name + "</code> is already gone. A temporary child is not restarted."); return; }
+    st[id] = "gone";
+    log.unshift("<strong>GameServer <code>" + name + "</code> crashed and stays down</strong> (<code>restart: :temporary</code>). <code>terminate/2</code> wrote any pending change; the file waits for the next boot. " + tabs + " still show the last board. On the next tap <code>call/2</code> returns <code>:not_found</code> and the page goes to the lobby: &ldquo;This game has ended.&rdquo; Every other game runs on.");
+  }
+
+  function lv(id, tab, g) {
+    st[id] = "reconnected";
+    log.unshift("<strong>Tab " + tab + "&rsquo;s LiveView crashed.</strong> Its GameServer got <code>{:DOWN, ...}</code> from its monitor and marked the seat away. The browser&rsquo;s LiveView client rejoins: a new process mounts and <code>claim_seat</code> finds the same token. " + (live(g) ? "The game never stopped." : "But its game is gone, so the mount says &ldquo;Game does not exist.&rdquo;"));
+  }
+
+  var nodes = {};
+  var treeEl = document.getElementById("tree");
+  var logEl = document.getElementById("tree-log");
+
+  function build(list, parent) {
+    list.forEach(function (n) {
+      nodes[n.id] = n;
+      var li = document.createElement("li");
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "tree-node" + (n.static ? " static" : "");
+      b.dataset.id = n.id;
+      b.innerHTML = '<span class="nm"></span><span class="tag"></span>';
+      b.querySelector(".nm").textContent = n.nm;
+      b.querySelector(".tag").textContent = n.tag;
+      b.setAttribute("aria-label", "Crash " + n.nm);
+      b.addEventListener("click", function () {
+        if (st[n.id] === "dead") return;
+        OUT[n.id]();
+        render();
+      });
+      li.appendChild(b);
+      if (n.kids) {
+        var ul = document.createElement("ul");
+        build(n.kids, ul);
+        li.appendChild(ul);
+      }
+      parent.appendChild(li);
+    });
+  }
+
+  var STATE_TEXT = { restarted: "restarted", reconnected: "reconnected", gone: "gone", dead: "down" };
+
+  function render() {
+    treeEl.querySelectorAll(".tree-node").forEach(function (b) {
+      var s = st[b.dataset.id];
+      b.classList.remove("down", "restarted", "reconnected", "gone");
+      if (s === "dead") b.classList.add("down");
+      else if (s) b.classList.add(s);
+      var n = nodes[b.dataset.id];
+      b.querySelector(".tag").textContent = n.tag + (s ? " · " + STATE_TEXT[s] : "");
+    });
+    logEl.innerHTML = "";
+    (log.length ? log.slice(0, 5) : ["Everything runs. Tap a part to crash it."]).forEach(function (l) {
+      var li = document.createElement("li");
+      li.innerHTML = l;
+      logEl.appendChild(li);
+    });
+  }
+
+  build(TREE, treeEl);
+  document.getElementById("tree-reset").addEventListener("click", function () { reset(); render(); });
+  reset();
+  render();
+})();
+</script>
+</body>
+</html>

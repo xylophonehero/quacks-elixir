@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>One Process per Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;600&amp;family=IM+Fell+English:ital@0;1&amp;display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="page">
+
+<nav class="crumbs" aria-label="Course">
+  <a href="../index.html">Course hub</a>
+  <span class="spacer"></span>
+  <a href="../reference/genserver-cheatsheet.html">GenServer sheet</a>
+  <a href="../reference/glossary.html">Glossary</a>
+</nav>
+
+<header>
+  <p class="eyebrow">Lesson 3 &middot; about 10 minutes</p>
+  <h1>One process per game</h1>
+  <div class="recipe">
+    <dl>
+      <dt>Yields</dt>
+      <dd class="yield">You can say how a game id finds its process, which callback handles which message, and why two moves never race.</dd>
+      <dt>You bring</dt>
+      <dd>Lesson 1&rsquo;s nine hops and lesson 2&rsquo;s function-head matching.</dd>
+      <dt>Guide</dt>
+      <dd><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/04-gameserver.md" target="_blank" rel="noopener">Ch. 4, GameServer</a> and <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/01-repo-and-otp.md" target="_blank" rel="noopener">Ch. 1, the OTP app</a></dd>
+    </dl>
+  </div>
+</header>
+
+<p class="lede">In React, state lives inside a component and dies with it. In Quacks, the game&rsquo;s state lives inside a process that no tab owns. Tabs come and go; the process keeps the game and takes one message at a time.</p>
+
+<h2>A process in eight lines</h2>
+<p>Strip away OTP and a process is three primitives: <code>spawn</code> starts a function in a new process, <code>send</code> drops a message in a mailbox, <code>receive</code> takes one out by pattern. This sketch is not in the repo; it is what the GameServer is built from.</p>
+<figure class="excerpt" data-label="iex sketch: spawn, send, receive"><pre><code>pid = spawn(fn -&gt;
+  receive do
+    {:hello, from} -&gt; send(from, :hi)
+  end
+end)
+
+send(pid, {:hello, self()})
+receive do: (:hi -&gt; :got_it)</code></pre></figure>
+<p><code>receive</code> picks the first message that matches a clause, the same way a function picks its first matching head. Messages are copied into the receiver&rsquo;s memory. Nothing is shared (<a href="https://hexdocs.pm/elixir/1.18.3/processes.html" target="_blank" rel="noopener">Elixir guide: Processes</a>).</p>
+<aside class="note"><b>React &asymp;</b>A Web Worker with <code>postMessage</code> and <code>onmessage</code>, except a BEAM process costs a few KB, so you start one per game without a second thought.</aside>
+
+<h2>GenServer: that loop, packaged</h2>
+<p>Writing <code>receive</code> loops by hand gets old. A <strong>GenServer</strong> is OTP&rsquo;s ready-made loop: wait for a message, call your callback, keep the state it returns, wait again. You write only the callbacks, and each one is a function with pattern-matched heads. Three kinds of message, three callbacks:</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Sent with</th><th>Lands in</th><th>Caller waits?</th><th>In Quacks</th></tr></thead>
+  <tbody>
+    <tr><td><code>GenServer.call/3</code></td><td><code>handle_call/3</code></td><td>yes, for the reply</td><td>every move, seat claim, <code>get</code></td></tr>
+    <tr><td><code>GenServer.cast/2</code></td><td><code>handle_cast/2</code></td><td>no</td><td>not used at all</td></tr>
+    <tr><td><code>send/2</code>, timers, monitors</td><td><code>handle_info/2</code></td><td>no</td><td>bot ticks, file writes, <code>:DOWN</code>, idle timeout</td></tr>
+  </tbody>
+</table>
+</div>
+<p>The GameServer routes every call through one head and fans out to private <code>server_call/3</code> clauses. Read them like lesson 2&rsquo;s <code>die_rolls</code>: first match wins.</p>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="630"><pre><code>def handle_call(msg, from, state), do: msg |&gt; server_call(from, state) |&gt; stored(state)</code></pre></figure>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="693" data-hl="693,696"><pre><code>defp server_call({:apply, _, _}, _from, %{session: nil} = state),
+  do: {:reply, {:error, :not_started}, state, @idle_timeout}
+
+defp server_call({:apply, seat, action}, _from, state) do
+  case Session.apply(state.session, seat, action) do
+    {:ok, session} -&gt; reply_game(acted(%{state | session: session}))
+    error -&gt; {:reply, error, state, @idle_timeout}
+  end
+end</code></pre></figure>
+<p>The return value is an instruction to the loop. <code>{:reply, reply, new_state, timeout}</code> means: send <code>reply</code> to the caller, keep <code>new_state</code>, and if no message comes within <code>timeout</code>, send me <code>:timeout</code>. That fourth element is the two-hour idle timer, nothing to do with the caller.</p>
+<p>Messages nobody waits for go to <code>handle_info/2</code>. Note the guard on the bot tick: a tick that is not the seat&rsquo;s pending number falls through to the next clause and is dropped.</p>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="972"><pre><code>defp server_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
+     when :erlang.map_get(seat, ticks) == tick do</code></pre></figure>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="994"><pre><code>defp server_info({:bot, _seat, _tick}, state), do: {:noreply, state, @idle_timeout}</code></pre></figure>
+<aside class="note"><b>React &asymp;</b><code>useReducer</code>, where the reducer is split into clauses and the dispatcher is a queue. The difference is lifetime: this reducer&rsquo;s state outlives every component that reads it.</aside>
+
+<h2>How a game id finds its process</h2>
+<p>Two children of the application make this work (<a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/application.ex#L16-L18" target="_blank" rel="noopener">application.ex:16&ndash;18</a>): a <strong>Registry</strong> that maps names to pids, and a <strong>DynamicSupervisor</strong> that starts with no children and gains one per game.</p>
+<figure class="excerpt" data-path="lib/quacks/application.ex" data-start="16"><pre><code># One `Quacks.GameServer` per game, found by its id (see that module).
+{Registry, keys: :unique, name: Quacks.GameRegistry},
+{DynamicSupervisor, name: Quacks.GameSupervisor, strategy: :one_for_one},</code></pre></figure>
+<p>A new game asks the DynamicSupervisor for a child. If two games draw the same six letters, the Registry refuses the second name and the code just picks another id.</p>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="213"><pre><code>defp start_server(fields) do
+  case start_server(new_id(), fields) do
+    {:ok, id} -&gt; {:ok, id}
+    # Two games drew the same id; try again with a new one.
+    {:error, :already_started} -&gt; start_server(fields)
+  end
+end
+
+defp start_server(id, fields) do
+  case DynamicSupervisor.start_child(Quacks.GameSupervisor, {__MODULE__, {id, fields}}) do
+    {:ok, _pid} -&gt;
+      broadcast_lobby()
+      {:ok, id}
+
+    {:error, {:already_started, _pid}} -&gt;
+      {:error, :already_started}
+  end
+end</code></pre></figure>
+<p>The supervisor calls <code>start_link/1</code>, which registers the new process under its id with a <code>:via</code> name:</p>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="361"><pre><code>def start_link({id, _fields} = arg),
+  do: GenServer.start_link(__MODULE__, arg, name: {:via, Registry, {Quacks.GameRegistry, id}})</code></pre></figure>
+<p>From then on, every client function does what you saw in lesson 1&rsquo;s hop 4: <code>Registry.lookup(Quacks.GameRegistry, id)</code>, then <code>GenServer.call(pid, msg)</code> (<a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L554-L562" target="_blank" rel="noopener">game_server.ex:554&ndash;562</a>). No list of games is kept anywhere else.</p>
+
+<h2>The state is a plain map</h2>
+<p><code>init/1</code> builds the state once. It holds the <code>session</code> (the game plus its moves, <code>nil</code> while the table waits) and the table around it: tokens, names, bots, pages, timers.</p>
+<figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="580" data-hl="584-588"><pre><code>def init({id, fields}) do
+  # So a deploy's shutdown runs `terminate/2`, which writes a pending change.
+  Process.flag(:trap_exit, true)
+
+  state =
+    Map.merge(
+      %{
+        id: id,
+        session: nil,</code></pre></figure>
+<p>Lesson 5 comes back to that <code>trap_exit</code> line.</p>
+
+<h2>The mailbox in action</h2>
+<p>Each tab&rsquo;s LiveView sends <code>{:apply, seat, action}</code> with <code>call</code>, so it is stuck until the reply comes. A bot tick arrives as a plain message. Queue a few, then step the GameServer through them one at a time. Two messages are already waiting.</p>
+
+<section class="lab" id="mailbox-lab" aria-label="Mailbox simulator">
+  <div class="mb-tabs" id="mb-tabs"></div>
+  <div>
+    <p class="lab-label" id="mb-qlabel">GameServer mailbox, oldest first</p>
+    <ol class="mb-queue" id="mb-queue" aria-labelledby="mb-qlabel"></ol>
+  </div>
+  <div class="lab-row">
+    <button class="btn primary" type="button" id="mb-step">Handle next message</button>
+    <button class="btn" type="button" id="mb-reset">Reset</button>
+  </div>
+  <div>
+    <p class="lab-label">What the GameServer did, newest first</p>
+    <ol class="lab-log" id="mb-log" aria-live="polite"><li>Nothing yet. Tap <em>Handle next message</em>.</li></ol>
+  </div>
+  <div>
+    <p class="lab-label">GameServer state (abridged)</p>
+    <pre id="mb-state"></pre>
+  </div>
+</section>
+
+<p>Try this: tap <em>Stop</em> in tab B while its draw is still queued. You can&rsquo;t. Tab B&rsquo;s process is blocked inside <code>GenServer.call</code>. That wait is the back-pressure: a tab can never have two moves in flight.</p>
+
+<h2>Timeouts: the two kinds</h2>
+<ul>
+  <li><strong>The call timeout</strong> is the caller&rsquo;s. <code>GenServer.call/2</code> waits 5 seconds by default, then the <em>caller</em> exits with <code>:timeout</code>. Quacks never sets another value (<a href="https://hexdocs.pm/elixir/1.18.3/GenServer.html#call/3" target="_blank" rel="noopener">docs</a>).</li>
+  <li><strong>The idle timeout</strong> is the server&rsquo;s. The <code>@idle_timeout</code> in every return tuple is 2 hours; when it fires, <code>server_info(:timeout, state)</code> deletes the game file and returns <code>{:stop, :normal, state}</code> (<a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L963-L967" target="_blank" rel="noopener">game_server.ex:963</a>).</li>
+</ul>
+<p>One consequence for review: anything slow inside a callback delays every message behind it. Bot planning runs <em>inside</em> the GameServer (<code>plan/2</code>, up to 30 <code>AI.decide</code> calls, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L1118-L1130" target="_blank" rel="noopener">game_server.ex:1118</a>). If a callback ever took more than 5 seconds, the waiting tab&rsquo;s call would exit with <code>:timeout</code>, and <code>call/2</code> only catches <code>:noproc</code>, <code>:normal</code>, <code>:shutdown</code> and <code>:killed</code>. That tab&rsquo;s LiveView would crash and remount. Worth keeping in mind when a PR makes the bots think harder.</p>
+<aside class="note"><b>React &asymp;</b>Like a long synchronous task on the main thread: everything queued behind it waits. Here the &ldquo;thread&rdquo; is one game, so other games keep running.</aside>
+
+<h2>Check yourself</h2>
+<p>Two questions reach back to lessons 1 and 2. Mixing them in is on purpose.</p>
+
+<div class="quiz" id="quiz3" data-quiz="quiz-0003" data-lesson="0003"></div>
+<script type="application/json" id="quiz-0003">
+{"items": [
+  {"id": "find", "q": "How does <code>GameServer.apply(\"abcdef\", 0, :draw)</code> find the right process?",
+   "answer": 2,
+   "options": [
+     {"t": "It scans every child of the DynamicSupervisor", "why": "The supervisor could list its children, but nothing here asks it. The Registry answers in one lookup."},
+     {"t": "It broadcasts on PubSub and awaits replies", "why": "PubSub carries the game out to the tabs. It is never used to find a process."},
+     {"t": "It looks the id up in GameRegistry", "why": "<code>start_link/1</code> registered the process with <code>{:via, Registry, {Quacks.GameRegistry, id}}</code>, and <code>call/2</code> runs <code>Registry.lookup/2</code>."},
+     {"t": "The id string itself encodes the pid", "why": "The id is six random letters. The Registry maps it to the pid."}
+   ]},
+  {"id": "tick", "q": "A bot tick <code>{:bot, 1, 7}</code> arrives from <code>Process.send_after/3</code>. Which callback handles it?",
+   "answer": 0,
+   "options": [
+     {"t": "handle_info/2, because nobody is waiting for it", "why": "Plain messages, timers and monitor notices all land in <code>handle_info/2</code>, which hands them to <code>server_info/2</code>."},
+     {"t": "handle_call/3, because the bot needs a reply", "why": "The bot is the server itself. It sent the tick to its own mailbox; there is no caller."},
+     {"t": "handle_cast/2, because it is fire and forget", "why": "A cast also needs nobody to wait, but it is sent with <code>GenServer.cast/2</code>. This module has no <code>handle_cast</code> at all."},
+     {"t": "handle_event/3, because a timer is an event", "why": "<code>handle_event/3</code> is a LiveView callback for browser events, not a GenServer callback."}
+   ]},
+  {"id": "stale", "q": "Tick 7 for seat 1 waited 700 ms. Meanwhile a human moved and seat 1 was given tick 8. What happens to tick 7?",
+   "answer": 3,
+   "options": [
+     {"t": "The bot acts twice, once for each tick", "why": "Each seat has at most one pending tick in <code>bot_ticks</code>; only that number passes the guard."},
+     {"t": "The GameServer crashes when the stale tick arrives", "why": "A second clause, <code>server_info({:bot, _seat, _tick}, state)</code>, catches it."},
+     {"t": "The mailbox drops it before it is read", "why": "The mailbox never drops anything. The callback decides."},
+     {"t": "The guard fails; the next clause ignores it", "why": "<code>:erlang.map_get(seat, ticks) == tick</code> is false for 7, so the catch-all clause returns <code>{:noreply, state, @idle_timeout}</code>."}
+   ]},
+  {"id": "block", "kind": "type", "q": "Which function call keeps tab A&rsquo;s LiveView process waiting until the GameServer replies? Type it.",
+   "placeholder": "Module.function",
+   "accept": ["GenServer.call", "GenServer.call/2", "GenServer.call/3", "call", "GenServer.call(pid, msg)"],
+   "answer": "GenServer.call/2",
+   "why": "It sends the message and blocks in a <code>receive</code> for the reply, 5 seconds at most by default."},
+  {"id": "slow", "q": "A GameServer callback takes 6 seconds. What happens to the tab whose call is waiting?",
+   "answer": 1,
+   "options": [
+     {"t": "call/2 catches the exit and returns :not_found instead", "why": "<code>call/2</code> catches only exits with <code>:noproc</code>, <code>:normal</code>, <code>:shutdown</code> or <code>:killed</code>. A timeout is not among them."},
+     {"t": "Its call exits with :timeout after five seconds", "why": "The default call timeout is 5000 ms. The exit is not caught, so that LiveView process crashes and the browser remounts it."},
+     {"t": "It waits; calls never time out by default", "why": "<code>GenServer.call/2</code> has a default timeout of 5 seconds. You pass <code>:infinity</code> to wait forever."},
+     {"t": "The supervisor kills the slow GameServer process first", "why": "Supervisors do not watch for slowness. They only act when a child exits."}
+   ]},
+  {"id": "l1-order", "q": "From lesson 1: inside <code>reply_game/1</code>, what happens first?",
+   "code": {"path": "lib/quacks/game_server.ex", "start": 1261, "src": "defp reply_game(state) do\n  game = state.session.game\n  Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:game, state.id, game})\n  {:reply, {:ok, game}, state, @idle_timeout}\nend"},
+   "answer": 2,
+   "options": [
+     {"t": "The reply goes first, then the broadcast", "why": "The reply is only an instruction in the return tuple. The loop sends it after the callback returns, so the broadcast goes out first."},
+     {"t": "Both happen at once on two cores", "why": "One process runs one thing at a time. The broadcast line runs, then the function returns."},
+     {"t": "The broadcast goes out, then the reply", "why": "The broadcast runs in the function body; the reply is sent by the GenServer loop after <code>reply_game/1</code> returns. So tab B can start re-rendering before tab A has its reply."},
+     {"t": "Nothing; the session must be written first", "why": "The game file is written later, debounced by 500 ms, from a <code>{:write, ref}</code> message."}
+   ]},
+  {"id": "l2-with", "q": "From lesson 2, in the bot tick: <code>with false &lt;- capped?(state, game, seat), ...</code>. <code>capped?</code> returns <code>true</code>. What does the <code>with</code> do?",
+   "answer": 0,
+   "options": [
+     {"t": "Stops; its else branch reschedules the bot", "why": "<code>true</code> does not match <code>false</code>, so the chain stops and <code>else</code> runs <code>schedule_bots(state)</code>."},
+     {"t": "Raises a MatchError and crashes the GameServer", "why": "A miss in <code>with</code> never raises. Only a bare <code>=</code> match does."},
+     {"t": "Continues, since true is a truthy value", "why": "<code>with</code> matches patterns. It does not test truthiness; <code>false &lt;- true</code> is a miss."},
+     {"t": "Returns nil, the default for missing branches", "why": "This <code>with</code> has an <code>else</code>. Without one it would return the value that missed, <code>true</code>."}
+   ]}
+]}
+</script>
+
+<section class="source">
+  <h2>Read next</h2>
+  <p><strong>Primary source:</strong> the Elixir guide&rsquo;s <a href="https://hexdocs.pm/elixir/1.18.3/genservers.html" target="_blank" rel="noopener">Client-server communication with GenServer</a>, then <a href="https://hexdocs.pm/elixir/1.18.3/dynamic-supervisor.html" target="_blank" rel="noopener">Dynamic supervisors</a>. They build a bucket registry the same shape as Quacks&rsquo; game registry.</p>
+  <p>In the guide: <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/04-gameserver.md" target="_blank" rel="noopener">chapter 4</a> covers bot ticks, plans and presence in depth. Keep the <a href="../reference/genserver-cheatsheet.html">GenServer cheat sheet</a> open while you read it.</p>
+</section>
+
+<section class="ask">
+  <h2>Questions? Ask your agent</h2>
+  <p>Open the Claude app and ask. Good starters: &ldquo;Why does Quacks never use <code>cast</code>?&rdquo; or &ldquo;How long does <code>plan/2</code> take for a bot in the shop?&rdquo;</p>
+</section>
+
+<nav class="pager" aria-label="Lessons">
+  <a href="0002-reading-the-engine.html"><small>Previous lesson</small><span class="t">Reading the engine</span></a>
+  <a class="next" href="0004-what-goes-over-the-wire.html"><small>Next lesson</small><span class="t">What goes over the wire</span></a>
+</nav>
+
+</div>
+<script src="../assets/progress.js"></script>
+<script src="../assets/code.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+/* Mailbox simulator for this lesson: a toy model of the GameServer loop. */
+(function () {
+  var BAGS = {
+    0: ["{:white, 1}", "{:orange, 1}", "{:white, 2}", "{:green, 1}", "{:white, 3}"],
+    1: ["{:white, 2}", "{:white, 1}", "{:green, 1}", "{:orange, 1}", "{:white, 1}"],
+    2: ["{:orange, 1}", "{:white, 1}", "{:white, 3}", "{:green, 1}", "{:white, 2}"]
+  };
+  var NAMES = { 0: "Tab A, seat 0", 1: "Tab B, seat 1" };
+  var s;
+
+  function fresh() {
+    s = {
+      seats: {
+        0: { phase: "potions", pot: [] },
+        1: { phase: "potions", pot: [] },
+        2: { phase: "potions", pot: [] }
+      },
+      actions: [],
+      queue: [
+        { kind: "call", seat: 0, action: "draw" },
+        { kind: "call", seat: 1, action: "draw" }
+      ],
+      waiting: { 0: true, 1: true },
+      status: { 0: "Waiting in GenServer.call", 1: "Waiting in GenServer.call" },
+      tick: 6,
+      log: []
+    };
+  }
+
+  function msgText(m) {
+    return m.kind === "call" ? "{:apply, " + m.seat + ", :" + m.action + "}" : "{:bot, 2, " + m.tick + "}";
+  }
+
+  function legal(seat, action) {
+    var p = s.seats[seat];
+    if (p.phase !== "potions") return false;
+    if (action === "draw") return p.pot.length < BAGS[seat].length;
+    if (action === "stop") return p.pot.length > 0;
+    return false;
+  }
+
+  function apply(seat, action) {
+    var p = s.seats[seat];
+    if (!legal(seat, action)) return { ok: false, phase: p.phase };
+    if (action === "draw") p.pot.push(BAGS[seat][p.pot.length]);
+    if (action === "stop") p.phase = "stopped";
+    s.actions.unshift("{" + seat + ", :" + action + "}");
+    return { ok: true };
+  }
+
+  function step() {
+    var m = s.queue.shift();
+    if (!m) return;
+    var line;
+    if (m.kind === "call") {
+      var r = apply(m.seat, m.action);
+      var other = m.seat === 0 ? 1 : 0;
+      if (r.ok) {
+        var got = m.action === "draw" ? "drew " + s.seats[m.seat].pot[s.seats[m.seat].pot.length - 1] : "stopped";
+        line = "<code>handle_call(" + msgText(m) + ", from, state)</code>: Session.apply gives <code>{:ok, game}</code>. Broadcast <code>{:game, id, game}</code>, then reply to " + NAMES[m.seat] + ".";
+        s.status[m.seat] = "Got <code>{:ok, game}</code>: " + got + ".";
+        if (!s.waiting[other]) s.status[other] = "<code>handle_info({:game, ...})</code>: re-rendered.";
+      } else {
+        line = "<code>handle_call(" + msgText(m) + ", from, state)</code>: the engine says no. Reply <code>{:error, {:illegal_action, :" + m.action + ", :" + r.phase + "}}</code>. State unchanged, no broadcast.";
+        s.status[m.seat] = "Got an error tuple: flash &ldquo;not allowed right now&rdquo;.";
+      }
+      s.waiting[m.seat] = false;
+    } else {
+      var rb = apply(2, "draw");
+      if (rb.ok) {
+        line = "<code>handle_info(" + msgText(m) + ", state)</code>: the bot draws " + s.seats[2].pot[s.seats[2].pot.length - 1] + ". Broadcast; no reply, nobody is waiting.";
+        [0, 1].forEach(function (t) { if (!s.waiting[t]) s.status[t] = "<code>handle_info({:game, ...})</code>: re-rendered."; });
+      } else {
+        line = "<code>handle_info(" + msgText(m) + ", state)</code>: the bot has nothing to do. No change.";
+      }
+    }
+    s.log.unshift(line);
+    render();
+  }
+
+  function send(seat, action) {
+    if (s.waiting[seat]) return;
+    s.queue.push({ kind: "call", seat: seat, action: action });
+    s.waiting[seat] = true;
+    s.status[seat] = "Waiting in GenServer.call";
+    render();
+  }
+
+  function tick() {
+    s.tick += 1;
+    s.queue.push({ kind: "info", tick: s.tick });
+    render();
+  }
+
+  function stateText() {
+    function seat(n) {
+      var p = s.seats[n];
+      return "      " + n + " => %{phase: :" + p.phase + ", pot: [" + p.pot.join(", ") + "]}";
+    }
+    var acts = s.actions.slice(0, 4).join(", ") + (s.actions.length > 4 ? ", ..." : "");
+    return "%{\n  id: \"abcdef\",\n  session: %Session{\n    actions: [" + acts + "],\n    game: %Game{players: %{\n" +
+      [0, 1, 2].map(seat).join(",\n") + "\n    }}\n  },\n  bots: %{2 => :balanced},\n  bot_ticks: %{2 => " + s.tick + "}\n}";
+  }
+
+  var tabsEl = document.getElementById("mb-tabs");
+  var qEl = document.getElementById("mb-queue");
+  var logEl = document.getElementById("mb-log");
+  var stEl = document.getElementById("mb-state");
+  var stepBtn = document.getElementById("mb-step");
+
+  function render() {
+    tabsEl.innerHTML = "";
+    [0, 1].forEach(function (seat) {
+      var box = document.createElement("div");
+      box.className = "mb-tab" + (s.waiting[seat] ? " waiting" : "");
+      var h = document.createElement("h4");
+      h.textContent = NAMES[seat];
+      var st = document.createElement("p");
+      st.className = "mb-status";
+      st.innerHTML = s.status[seat] || "Idle.";
+      var row = document.createElement("div");
+      row.className = "lab-row";
+      ["draw", "stop"].forEach(function (a) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn";
+        b.textContent = a === "draw" ? "Draw" : "Stop";
+        b.disabled = !!s.waiting[seat];
+        b.setAttribute("aria-label", NAMES[seat] + ": " + b.textContent);
+        b.addEventListener("click", function () { send(seat, a); });
+        row.appendChild(b);
+      });
+      box.append(h, st, row);
+      tabsEl.appendChild(box);
+    });
+    var bot = document.createElement("div");
+    bot.className = "mb-tab";
+    bot.innerHTML = '<h4>Bot timer, seat 2</h4><p class="mb-status">Process.send_after(self(), {:bot, 2, n}, 700)</p>';
+    var bb = document.createElement("button");
+    bb.type = "button";
+    bb.className = "btn";
+    bb.textContent = "Send a tick";
+    bb.addEventListener("click", tick);
+    var brow = document.createElement("div");
+    brow.className = "lab-row";
+    brow.appendChild(bb);
+    bot.appendChild(brow);
+    tabsEl.appendChild(bot);
+
+    qEl.innerHTML = "";
+    if (!s.queue.length) {
+      var e = document.createElement("li");
+      e.className = "empty";
+      e.textContent = "Empty. The GameServer sleeps until a message arrives.";
+      qEl.appendChild(e);
+    }
+    s.queue.forEach(function (m) {
+      var li = document.createElement("li");
+      li.className = m.kind;
+      li.textContent = msgText(m) + (m.kind === "call" ? " · call" : " · info");
+      qEl.appendChild(li);
+    });
+    stepBtn.disabled = !s.queue.length;
+    if (s.log.length) {
+      logEl.innerHTML = "";
+      s.log.slice(0, 6).forEach(function (l) {
+        var li = document.createElement("li");
+        li.innerHTML = l;
+        logEl.appendChild(li);
+      });
+    } else {
+      logEl.innerHTML = "<li>Nothing yet. Tap <em>Handle next message</em>.</li>";
+    }
+    stEl.textContent = stateText();
+  }
+
+  stepBtn.addEventListener("click", step);
+  document.getElementById("mb-reset").addEventListener("click", function () { fresh(); render(); });
+  fresh();
+  render();
+})();
+</script>
+</body>
+</html>

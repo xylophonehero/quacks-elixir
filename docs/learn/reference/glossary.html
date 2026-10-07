@@ -19,7 +19,7 @@
 </nav>
 
 <header>
-  <p class="eyebrow">Reference &middot; lessons 1 and 2</p>
+  <p class="eyebrow">Reference &middot; lessons 1 to 5</p>
   <h1>Glossary</h1>
   <p class="lede">The words this course uses for Elixir, OTP and LiveView, one meaning each. Lessons use these terms and avoid the aliases.</p>
   <p class="small">Game terms (chip, pot, seat, round) live in the repo&rsquo;s own <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/CONTEXT.md" target="_blank" rel="noopener">docs/CONTEXT.md</a>.</p>
@@ -54,6 +54,45 @@
   <dt id="registry">Registry</dt>
   <dd>A name table from a key to a pid. <code>Quacks.GameRegistry</code> maps a game id to its GameServer.
     <span class="avoid"><i>Avoid</i>lookup table, directory</span></dd>
+  <dt id="via">Via name</dt>
+  <dd>A process name of the form <code>{:via, Registry, {Quacks.GameRegistry, id}}</code>, so callers can reach a process by a key instead of a pid.
+    <span class="avoid"><i>Avoid</i>alias, handle</span></dd>
+
+  <dt id="cast"><code>cast</code></dt>
+  <dd>Sending a message to a GenServer without waiting (<code>GenServer.cast/2</code>, handled in <code>handle_cast/2</code>). Quacks never uses it.
+    <span class="avoid"><i>Avoid</i>async call, fire-and-forget call</span></dd>
+
+  <dt id="call-timeout">Call timeout</dt>
+  <dd>How long a caller waits in <code>call</code> before it exits with <code>:timeout</code>; 5 s by default. Not the same as the <strong>idle timeout</strong>, the fourth element of a callback&rsquo;s return tuple, which wakes the server with <code>:timeout</code> after silence (2 h in the GameServer).
+    <span class="avoid"><i>Avoid</i>timeout (say which one)</span></dd>
+
+  <dt id="supervisor">Supervisor</dt>
+  <dd>A process whose only job is to start child processes and start them again, by its strategy, when they exit. <code>Quacks.Supervisor</code> is the root.
+    <span class="avoid"><i>Avoid</i>manager, watchdog, parent</span></dd>
+
+  <dt id="dynsup">DynamicSupervisor</dt>
+  <dd>A supervisor that starts with no children and adds them at runtime. <code>Quacks.GameSupervisor</code> gets one GameServer per game.
+    <span class="avoid"><i>Avoid</i>pool, worker manager</span></dd>
+
+  <dt id="strategy">Restart strategy</dt>
+  <dd>What a supervisor restarts when one child exits: <code>:one_for_one</code> only that child, <code>:one_for_all</code> every child, <code>:rest_for_one</code> that child and the ones started after it.
+    <span class="avoid"><i>Avoid</i>restart policy (that is the child&rsquo;s restart type)</span></dd>
+
+  <dt id="restart-type">Restart type</dt>
+  <dd>A child&rsquo;s own setting: <code>:permanent</code> always restarted, <code>:transient</code> only after an abnormal exit, <code>:temporary</code> never. The GameServer is <code>:temporary</code>.
+    <span class="avoid"><i>Avoid</i>restart strategy</span></dd>
+
+  <dt id="link">Link</dt>
+  <dd>A two-way bond between processes: when one exits abnormally, the exit signal kills the other, unless it traps exits. Supervisors link to their children; a Registry links to the processes registered in it.
+    <span class="avoid"><i>Avoid</i>connection, dependency</span></dd>
+
+  <dt id="trap-exits">Trapping exits</dt>
+  <dd><code>Process.flag(:trap_exit, true)</code>: exit signals from links arrive as <code>{:EXIT, pid, reason}</code> messages instead of killing the process. The GameServer traps exits so a shutdown runs <code>terminate/2</code>.
+    <span class="avoid"><i>Avoid</i>catching exits (that is <code>catch :exit</code> around a call)</span></dd>
+
+  <dt id="monitor">Monitor</dt>
+  <dd>A one-way watch on another process (<code>Process.monitor/1</code>): when it ends, the watcher gets <code>{:DOWN, ref, :process, pid, reason}</code> and lives on.
+    <span class="avoid"><i>Avoid</i>link, heartbeat, listener</span></dd>
 </dl>
 
 <h2>LiveView</h2>
@@ -85,6 +124,29 @@
   <dt id="diff">Diff</dt>
   <dd>The JSON patch LiveView sends to the browser after a render: only the dynamic parts of the template whose assigns changed.
     <span class="avoid"><i>Avoid</i>update, delta, patch (fine in passing)</span></dd>
+  <dt id="connected">Connected mount</dt>
+  <dd>The second run of <code>mount/3</code>, in the LiveView process that lives with the tab, where <code>connected?(socket)</code> is true. The first run answers plain HTTP.
+    <span class="avoid"><i>Avoid</i>hydration, client mount</span></dd>
+
+  <dt id="statics">Statics and dynamics</dt>
+  <dd>The two halves a HEEx template compiles to: the literal HTML between expressions (statics, sent once) and the <code>{...}</code> slots (dynamics, sent again when they change).
+    <span class="avoid"><i>Avoid</i>template and data, markup and values</span></dd>
+
+  <dt id="change-tracking">Change tracking</dt>
+  <dd>LiveView&rsquo;s record of which assigns changed since the last render, so it re-runs and sends only the dynamics that read them. <code>assign/3</code> with an equal value is not a change.
+    <span class="avoid"><i>Avoid</i>dirty checking, reactivity</span></dd>
+
+  <dt id="comprehension">Comprehension</dt>
+  <dd>A <code>for</code> or <code>:for</code> loop in a template. LiveView sends its row statics once and tracks rows by index, or by <code>:key</code> when given one.
+    <span class="avoid"><i>Avoid</i>map, list render</span></dd>
+
+  <dt id="stream">Stream</dt>
+  <dd>A LiveView collection (<code>stream/4</code>, <code>stream_insert/4</code>) whose items go to the browser with DOM ids and are then dropped from the server&rsquo;s memory.
+    <span class="avoid"><i>Avoid</i>Elixir <code>Stream</code> (a lazy enumerable, unrelated)</span></dd>
+
+  <dt id="temporary-assigns">Temporary assigns</dt>
+  <dd>Assigns reset to a default after every render, so the server does not keep them. The older tool for large lists; streams cover most uses now.
+    <span class="avoid"><i>Avoid</i>ephemeral state</span></dd>
 </dl>
 
 <h2>Reading Elixir</h2>

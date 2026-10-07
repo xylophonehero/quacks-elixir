@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>What Goes over the Wire</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;600&amp;family=IM+Fell+English:ital@0;1&amp;display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="page">
+
+<nav class="crumbs" aria-label="Course">
+  <a href="../index.html">Course hub</a>
+  <span class="spacer"></span>
+  <a href="../reference/flow-cheatsheet.html">Cheat sheet</a>
+  <a href="../reference/glossary.html">Glossary</a>
+</nav>
+
+<header>
+  <p class="eyebrow">Lesson 4 &middot; about 10 minutes</p>
+  <h1>What goes over the wire</h1>
+  <div class="recipe">
+    <dl>
+      <dt>Yields</dt>
+      <dd class="yield">You can say what LiveView sends on the first load and after a move, and spot a template change that would make every diff bigger.</dd>
+      <dt>You bring</dt>
+      <dd>Lesson 1&rsquo;s hop 9, lesson 3&rsquo;s mailbox, and React&rsquo;s reconciliation.</dd>
+      <dt>Guide</dt>
+      <dd><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/05-liveview.md" target="_blank" rel="noopener">Ch. 5, LiveView</a> and <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/06-components.md" target="_blank" rel="noopener">Ch. 6, components</a></dd>
+    </dl>
+  </div>
+</header>
+
+<p class="lede">React ships the app to the browser and diffs there. LiveView keeps the app on the server and ships the diff. This lesson opens the diff and looks at its bytes.</p>
+
+<h2>Two renders, one process</h2>
+<p>A tab&rsquo;s life starts with a plain HTTP request. <code>mount/3</code> runs, <code>render/1</code> runs, and the full HTML goes back for a fast first paint. No process is kept. Then <code>app.js</code> opens the websocket and LiveView starts a <em>new</em> process that mounts again. <code>connected?/1</code> tells the two apart, which is why only the second subscribes and is watched by the GameServer.</p>
+<figure class="excerpt" data-path="lib/quacks_web/live/game_live.ex" data-start="123" data-hl="126,129"><pre><code>def mount(%{"id" =&gt; id}, session, socket) do
+  case GameServer.get(id) do
+    {:ok, table} -&gt;
+      if connected?(socket), do: Phoenix.PubSub.subscribe(Quacks.PubSub, GameServer.topic(id))
+
+      seat =
+        case GameServer.claim_seat(id, session["player_token"], watch: connected?(socket)) do</code></pre></figure>
+<p>From then on the process loops like any GenServer: <code>handle_event/3</code> for browser events, <code>handle_info/2</code> for mailbox messages, and after each one LiveView calls <code>render/1</code> and diffs. The game page picks its template with function heads you already know how to read:</p>
+<figure class="excerpt" data-path="lib/quacks_web/live/game_live.ex" data-start="933"><pre><code>def render(%{game: nil} = assigns) do</code></pre></figure>
+<figure class="excerpt" data-path="lib/quacks_web/live/game_live.ex" data-start="1110"><pre><code>def render(assigns) do</code></pre></figure>
+<p>No game yet: the configure screen. Otherwise: the board. The begin broadcast sets <code>@game</code>, and the next render matches the second clause.</p>
+<aside class="note"><b>React &asymp;</b>Server rendering plus hydration, except nothing hydrates. The second mount builds fresh server state, and the browser only ever receives HTML and patches.</aside>
+
+<h2>Statics once, dynamics on change</h2>
+<p>HEEx compiles a template into <strong>statics</strong>, the literal HTML between expressions, and <strong>dynamics</strong>, the <code>{...}</code> slots. The connected mount sends both. After that, LiveView re-runs only the slots whose assigns changed and sends only those (<a href="https://hexdocs.pm/phoenix_live_view/1.2.12/assigns-eex.html" target="_blank" rel="noopener">Assigns and HEEx: change tracking</a>).</p>
+<p>&ldquo;Changed&rdquo; is decided when you assign. Here is LiveView&rsquo;s own <code>assign/3</code>; the pin from lesson 2 does the work:</p>
+<figure class="excerpt" data-label="phoenix_live_view 1.2.12, lib/phoenix_live_view/utils.ex:36-41"><pre><code>def assign(%Socket{} = socket, key, value) do
+  case socket do
+    %{assigns: %{^key =&gt; ^value}} -&gt; socket
+    %{} -&gt; force_assign(socket, key, value)
+  end
+end</code></pre></figure>
+<p class="small">Source: <a href="https://github.com/phoenixframework/phoenix_live_view/blob/v1.2.12/lib/phoenix_live_view/utils.ex#L36-L41" target="_blank" rel="noopener">utils.ex on GitHub, tag v1.2.12</a>.</p>
+<p>If the new value equals the old one, the socket comes back untouched and nothing reading that assign re-runs. That is why <code>put_game/2</code> recomputing <code>@actions</code> after every move costs nothing on the wire when the list is the same.</p>
+
+<h2>See the diff</h2>
+<p>This is the bottom bar of the game page, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks_web/live/game_live.ex#L1728-L1771" target="_blank" rel="noopener">game_live.ex:1728&ndash;1771</a>, with the classes and the flask button left out. Tap through the moments. Highlighted slots are the ones LiveView re-runs and sends. Frames are simplified to their diff part.</p>
+
+<section class="diffviz" data-diff="diff-bar" aria-label="Diff visualizer for the action bar"></section>
+<script type="application/json" id="diff-bar">{
+ "template": "<section aria-label=\"Actions\" data-role=\"action-bar\">\n  <button phx-click=\"action\" phx-value-action=\"«0»\"«1» data-slot=\"stop\">\n    «2»\n  <\/button>\n  <button phx-click=\"action\" phx-value-action=\"«3»\"«4» data-slot=\"draw\">\n    Draw a chip\n  <\/button>\n<\/section>",
+ "slots": [
+  "encode(@stop_slot)",
+  "disabled={@stop_slot not in @actions}",
+  "if @stop_slot == :resume, do: \"Resume\", else: \"Stop\"",
+  "encode(:draw)",
+  "disabled={:draw not in @actions}"
+ ],
+ "steps": [
+  {
+   "label": "First load",
+   "wire": "html",
+   "changed": [],
+   "payload": "<section aria-label=\"Actions\" data-role=\"action-bar\">\n  <button phx-click=\"action\" phx-value-action=\"g3cEc3RvcA\" disabled data-slot=\"stop\">\n    Stop\n  <\/button>\n  <button phx-click=\"action\" phx-value-action=\"g3cEZHJhdw\" data-slot=\"draw\">\n    Draw a chip\n  <\/button>\n<\/section>",
+   "note": "The HTTP response: plain HTML for the whole page, this bar included. The pot is empty, so <code>@actions<\/code> is <code>[:draw]<\/code> and Stop is disabled."
+  },
+  {
+   "label": "Connected mount",
+   "changed": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "payload": {
+    "s": [
+     "<section aria-label=\"Actions\" data-role=\"action-bar\">\n  <button phx-click=\"action\" phx-value-action=\"",
+     "\"",
+     " data-slot=\"stop\">\n    ",
+     "\n  <\/button>\n  <button phx-click=\"action\" phx-value-action=\"",
+     "\"",
+     " data-slot=\"draw\">\n    Draw a chip\n  <\/button>\n<\/section>"
+    ],
+    "0": "g3cEc3RvcA",
+    "1": " disabled",
+    "2": "Stop",
+    "3": "g3cEZHJhdw",
+    "4": ""
+   },
+   "note": "The websocket join: the statics once (<code>\"s\"<\/code>) and every slot&rsquo;s value, keyed by slot number. The client keeps the statics for the life of the tab."
+  },
+  {
+   "label": "You draw",
+   "changed": [
+    1,
+    4
+   ],
+   "payload": {
+    "1": "",
+    "4": ""
+   },
+   "note": "<code>@actions<\/code> became <code>[:draw, :stop, :use_flask]<\/code>. Slots 1 and 4 read it, so both re-run and are sent, even though slot 4&rsquo;s value is the same. <code>@stop_slot<\/code> is still <code>:stop<\/code>: slots 0 and 2 stay quiet."
+  },
+  {
+   "label": "Bob draws",
+   "changed": [],
+   "payload": {},
+   "note": "<code>@game<\/code> changed, but <code>@actions<\/code> and <code>@stop_slot<\/code> got equal values, so <code>assign/3<\/code> left them unchanged. Nothing for this bar. Bob&rsquo;s pot elsewhere on the page does change."
+  },
+  {
+   "label": "You stop",
+   "changed": [
+    0,
+    1,
+    2,
+    4
+   ],
+   "payload": {
+    "0": "g3cGcmVzdW1l",
+    "1": "",
+    "2": "Resume",
+    "4": " disabled"
+   },
+   "note": "Bob still brews, so <code>stop_slot/2<\/code> gives <code>:resume<\/code> and <code>@actions<\/code> is <code>[:resume]<\/code>. Four slots re-run. Slot 3 never does."
+  }
+ ]
+}</script>
+
+<p>Slot 3, <code>encode(:draw)</code>, reads no assign. It goes out once, on the connected mount, and never again.</p>
+
+<h2>Where tracking helps, and where it doesn&rsquo;t</h2>
+<p><strong>Helps: sheets that render only when open.</strong> Each player sheet&rsquo;s body is behind <code>:if={@open_sheet == seat}</code>. A closed sheet renders nothing, so a move sends nothing for it.</p>
+<figure class="excerpt" data-path="lib/quacks_web/live/game_live.ex" data-start="1813" data-hl="1819"><pre><code>&lt;.sheet
+  :for={seat &lt;- @game.seats}
+  id={"sheet-player-#{seat}"}
+  label={name(@names, seat)}
+  data-on-hide={JS.push("close_player", value: %{seat: seat})}
+&gt;
+  &lt;div :if={@open_sheet == seat} class="space-y-2"&gt;
+    &lt;.result_lines :if={results?(@game)} game={@game} seat={seat} /&gt;
+    &lt;.player_card game={@game} seat={seat} name={name(@names, seat)} you={seat == @seat} /&gt;
+  &lt;/div&gt;
+&lt;/.sheet&gt;</code></pre></figure>
+
+<p><strong>Hurts: the whole <code>@game</code> as one assign.</strong> LiveView can track <code>@game.round</code> on its own, but an expression like <code>results?(@game)</code> or a component given <code>game={@game}</code> depends on the whole struct. The struct changes on every move by anyone, because the log grows. So every such slot re-runs on every move, in every tab. <code>game_live.ex</code> passes <code>game={@game}</code> to about twenty components.</p>
+
+<p><strong>Hurts: a list that grows at the front.</strong> The log sheet sits behind the menu, but it is always rendered. Its rows come from a comprehension, and LiveView tracks comprehension rows by index. A new line goes in at index 0, so every row moves one index down and all of them count as changed.</p>
+<figure class="excerpt" data-path="lib/quacks_web/components/game_components.ex" data-start="2700" data-hl="2701,2707"><pre><code>def action_log(assigns) do
+  assigns = assign(assigns, entries: log_lines(assigns.log, assigns.limit, assigns.names))
+
+  ~H"""
+  &lt;div class="paper rounded-lg p-3"&gt;
+    &lt;h2 class="text-lg font-bold"&gt;Log&lt;/h2&gt;
+    &lt;ol class="mt-1 space-y-1 text-sm" aria-label="Recent actions"&gt;
+      &lt;li :for={{seat, line} &lt;- @entries} class="flex items-baseline gap-1.5"&gt;</code></pre></figure>
+
+<section class="diffviz" data-diff="diff-log" aria-label="Diff visualizer for the log rows"></section>
+<script type="application/json" id="diff-log">{
+ "template": "<ol aria-label=\"Recent actions\">\n  <li :for={{seat, line} <- @entries}>«0»<\/li>\n<\/ol>",
+ "slots": [
+  "line (one value per row; the seat dot is left out)"
+ ],
+ "steps": [
+  {
+   "label": "Three lines",
+   "changed": [
+    0
+   ],
+   "payload": {
+    "s": [
+     "<ol aria-label=\"Recent actions\">",
+     "\n<\/ol>"
+    ],
+    "0": {
+     "s": [
+      "\n  <li>",
+      "<\/li>"
+     ],
+     "k": {
+      "0": {
+       "0": "Nick: Drew white 2 → space 4"
+      },
+      "1": {
+       "0": "Bob: Drew orange 1 → space 2"
+      },
+      "2": {
+       "0": "Nick: Drew white 1 → space 2"
+      },
+      "kc": 3
+     }
+    }
+   },
+   "note": "A comprehension sends its row statics once and each row&rsquo;s slot under <code>\"k\"<\/code>, keyed by index, with <code>\"kc\"<\/code> the row count."
+  },
+  {
+   "label": "Bob draws",
+   "changed": [
+    0
+   ],
+   "payload": {
+    "0": {
+     "k": {
+      "0": {
+       "0": "Bob: Drew green 1 → space 4"
+      },
+      "1": {
+       "0": "Nick: Drew white 2 → space 4"
+      },
+      "2": {
+       "0": "Bob: Drew orange 1 → space 2"
+      },
+      "3": {
+       "0": "Nick: Drew white 1 → space 2"
+      },
+      "kc": 4
+     }
+    }
+   },
+   "note": "One new line at index 0. Every old row now sits at a new index, so all four go out. With the real limit of 20 rows, that is 20 rows for every move, in every tab, even with the log sheet closed."
+  },
+  {
+   "label": "With a stream",
+   "wire": "sketch",
+   "changed": [
+    0
+   ],
+   "payload": "insert <li id=\"log-41\">Bob: Drew green 1 → space 4<\/li> at 0, limit 20",
+   "note": "A sketch of what <code>stream_insert(socket, :log, entry, at: 0, limit: 20)<\/code> would send: one row and where to put it. Quacks does not do this today."
+  }
+ ]
+}</script>
+
+<p>Add it up and the repo&rsquo;s own glossary says it plainly: &ldquo;Every game diff is tens of KB of JSON&rdquo; (<a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/CONTEXT.md" target="_blank" rel="noopener">CONTEXT.md, live socket</a>). That is why the endpoint sets <code>fullsweep_after: 0</code>: the garbage from big diffs piled up in each socket process.</p>
+<aside class="note"><b>React &asymp;</b>Passing the whole store to every component instead of a selector. In React it costs renders; here it costs renders <em>and</em> bytes on the wire, per tab.</aside>
+
+<h2>Streams and temporary assigns</h2>
+<ul>
+  <li><strong>Streams</strong> (<code>stream/4</code>, <code>stream_insert/4</code>) send each item once with a DOM id, then forget it on the server. Inserting at the top sends one row. Good for long feeds; the server cannot re-read the list later.</li>
+  <li><strong>Temporary assigns</strong> reset an assign to a default after each render, so the server does not keep it. The older tool for the same job; streams cover most uses now.</li>
+  <li><strong><code>:key</code> on a comprehension</strong> tracks rows by an id instead of the index, so a prepend sends only the new row while the server keeps the list.</li>
+</ul>
+<p>Quacks uses none of them yet. For the log, a stream or a <code>:key</code> (each log entry&rsquo;s position from the end is a stable id) would cut the bytes. A stream would not save memory here, since the full log already sits inside <code>@game</code>.</p>
+<p>One more cost to keep in mind: each tab&rsquo;s LiveView holds its own <code>@game</code>. A PubSub broadcast copies the struct into every subscriber&rsquo;s heap. Four tabs, four copies. Lesson 7 measures it.</p>
+
+<h2>Check yourself</h2>
+<p>Two questions reach back to lessons 2 and 3.</p>
+
+<div class="quiz" id="quiz4" data-quiz="quiz-0004" data-lesson="0004"></div>
+<script type="application/json" id="quiz-0004">
+{"items": [
+  {"id": "resend", "q": "After the connected mount, which parts of a template does LiveView send again?",
+   "answer": 3,
+   "options": [
+     {"t": "The whole template, rendered fresh as HTML", "why": "Full HTML goes only in the first HTTP response."},
+     {"t": "Every dynamic slot on every single render", "why": "Slots whose assigns did not change are not re-run and not sent."},
+     {"t": "Only the statics, since dynamics stay client-side", "why": "The other way round: statics go once, dynamics are what change."},
+     {"t": "Only dynamic slots whose assigns have changed", "why": "Change tracking re-runs a slot only when an assign it reads changed, and sends its new value."}
+   ]},
+  {"id": "same", "q": "Bob draws. In tab A, <code>put_game/2</code> assigns <code>@actions</code> the same list as before. What goes out for the Draw button?",
+   "answer": 0,
+   "options": [
+     {"t": "Nothing, because the assigned value did not change", "why": "<code>assign/3</code> matches <code>%{^key =&gt; ^value}</code> and returns the socket untouched, so the slot is not marked changed."},
+     {"t": "Its disabled slot, because put_game ran once again", "why": "Running <code>assign</code> is not enough. The value must differ."},
+     {"t": "The whole button, since its parent template re-rendered", "why": "LiveView tracks slots, not elements. Nothing in this button reads a changed assign."},
+     {"t": "An empty diff that forces a full reload", "why": "There is no reload. Unchanged parts simply are not in the diff."}
+   ]},
+  {"id": "prepend", "q": "One line is added to the front of the 20 rows in the log sheet. What does LiveView send for that list?",
+   "answer": 2,
+   "options": [
+     {"t": "Just the one new row and its position", "why": "That is what a stream or a <code>:key</code> would give. Without them, rows are tracked by index."},
+     {"t": "Nothing, because the log sheet is still closed", "why": "The log sheet is always rendered, even when hidden behind the menu."},
+     {"t": "All rows again, since every row's index shifted", "why": "Comprehensions are tracked by index. After a prepend every index holds a different row, so all count as changed."},
+     {"t": "A full HTML copy of the log sheet", "why": "Diffs are JSON slot values. The statics of the row are not re-sent."}
+   ]},
+  {"id": "stream", "kind": "type", "q": "Which LiveView function sets up a collection that the server sends item by item and does not keep in memory?",
+   "placeholder": "function name",
+   "accept": ["stream", "stream/3", "stream/4", "Phoenix.LiveView.stream", "Phoenix.LiveView.stream/4"],
+   "answer": "stream/4",
+   "why": "<code>stream/4</code> (and <code>stream_insert/4</code> to add one) send items with DOM ids and drop them from the socket after render."},
+  {"id": "static-slot", "q": "The Draw button has <code>phx-value-action={encode(:draw)}</code>. That slot reads no assign. When is it sent?",
+   "answer": 1,
+   "options": [
+     {"t": "On every render, since functions always re-run", "why": "LiveView only re-runs a slot when an assign it reads changes. This one reads none."},
+     {"t": "Once, with the connected mount, never again", "why": "With no assigns to track, it is computed on the first render and never marked changed."},
+     {"t": "Never; LiveView inlines it as a static", "why": "It is still a dynamic slot. It just never changes."},
+     {"t": "Whenever @actions changes, as its sibling does", "why": "Change tracking is per slot. A sibling's assigns do not matter."}
+   ]},
+  {"id": "l3-mailbox", "q": "From lesson 3: a PubSub broadcast reaches tab B&rsquo;s LiveView. Where does it wait, and which callback takes it?",
+   "answer": 3,
+   "options": [
+     {"t": "In the browser, until JavaScript passes it in", "why": "The broadcast stays on the server. It is a message between two processes."},
+     {"t": "In PubSub, until tab B fetches it later", "why": "PubSub pushes to subscribers' mailboxes; nobody polls."},
+     {"t": "In the GameServer's mailbox, then later in handle_call/3", "why": "The GameServer sent it. It lands in each subscriber's mailbox."},
+     {"t": "In its own mailbox, then handled in handle_info/2", "why": "A LiveView is a process. Messages that are not browser events go to <code>handle_info/2</code>, here the <code>{:game, id, game}</code> clause."}
+   ]},
+  {"id": "l2-render", "q": "From lesson 2: the game has begun, so <code>@game</code> is a <code>%Game{}</code>. Which clause renders?",
+   "code": {"path": "lib/quacks_web/live/game_live.ex", "start": 933, "src": "def render(%{game: nil} = assigns) do"},
+   "answer": 1,
+   "options": [
+     {"t": "The first; every assigns map matches it", "why": "<code>%{game: nil}</code> only matches when the <code>game</code> key holds <code>nil</code>."},
+     {"t": "The second, since game is not nil", "why": "The first pattern fails on <code>game: %Game{}</code>, so Elixir tries <code>render(assigns)</code>, which matches anything."},
+     {"t": "Both, and LiveView merges the two templates", "why": "Exactly one clause runs: the first that matches."},
+     {"t": "Neither clause, so render raises a FunctionClauseError", "why": "The second clause, <code>render(assigns)</code>, is a catch-all."}
+   ]}
+]}
+</script>
+
+<section class="source">
+  <h2>Read next</h2>
+  <p><strong>Primary source:</strong> <a href="https://hexdocs.pm/phoenix_live_view/1.2.12/assigns-eex.html" target="_blank" rel="noopener">Assigns and HEEx templates</a> for LiveView 1.2.12, sections &ldquo;Change tracking&rdquo; and &ldquo;Comprehensions&rdquo;. Then the <a href="https://hexdocs.pm/phoenix_live_view/1.2.12/Phoenix.LiveView.html" target="_blank" rel="noopener"><code>Phoenix.LiveView</code></a> docs on streams.</p>
+  <p>In the guide: <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/05-liveview.md" target="_blank" rel="noopener">chapter 5</a> for the lifecycle and derived assigns, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/06-components.md" target="_blank" rel="noopener">chapter 6</a> for the components that take <code>game={@game}</code>.</p>
+</section>
+
+<section class="ask">
+  <h2>Questions? Ask your agent</h2>
+  <p>Open the Claude app and ask. Good starters: &ldquo;Measure one real diff after a draw in a 4-seat game&rdquo; or &ldquo;Which components could take <code>@me</code> instead of <code>@game</code>?&rdquo;</p>
+</section>
+
+<nav class="pager" aria-label="Lessons">
+  <a href="0003-one-process-per-game.html"><small>Previous lesson</small><span class="t">One process per game</span></a>
+  <a class="next" href="0005-let-it-crash.html"><small>Next lesson</small><span class="t">Let it crash</span></a>
+</nav>
+
+</div>
+<script src="../assets/progress.js"></script>
+<script src="../assets/code.js"></script>
+<script src="../assets/diffviz.js"></script>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -29,6 +29,14 @@ Verification note (2026-10-07): the build sandbox blocks hexdocs.pm, fly.io, eli
   The official GenServer walkthrough. Use for: lesson 3, `call` versus `cast`.
 - [Mix and OTP: Supervision trees and applications](https://hexdocs.pm/elixir/1.18.3/supervisor-and-application.html)
   Supervisors and the application callback. Use for: lesson 5, `Quacks.Application`.
+- [Mix and OTP: Dynamic supervisors](https://hexdocs.pm/elixir/1.18.3/dynamic-supervisor.html)
+  Starting children at runtime, the same shape as one GameServer per game. Use for: lesson 3.
+- [`Supervisor`](https://hexdocs.pm/elixir/1.18.3/Supervisor.html), [`DynamicSupervisor`](https://hexdocs.pm/elixir/1.18.3/DynamicSupervisor.html) and [`Registry`](https://hexdocs.pm/elixir/1.18.3/Registry.html) module docs
+  Strategies, restart types, the 3-in-5-seconds default, `:via` names. Use for: lessons 3 and 5. Registry's source at v1.18.3 shows it links to every registering process (`registry.ex`, `register/3`).
+- [`Process` module docs](https://hexdocs.pm/elixir/1.18.3/Process.html)
+  `monitor/1`, `flag(:trap_exit, true)`, `send_after/3`. Use for: lesson 5, links versus monitors.
+- [Anti-patterns: process-related](https://hexdocs.pm/elixir/1.18.3/process-anti-patterns.html)
+  Official list, including "Sending unnecessary data" between processes. Use for: reviewing a PR that adds a process or broadcasts a big struct.
 - [`GenServer` module docs](https://hexdocs.pm/elixir/1.18.3/GenServer.html)
   Callbacks, timeouts, return tuples. Use for: `@idle_timeout`, `handle_info(:timeout, ...)`.
 - [Erlang `rand` module](https://www.erlang.org/doc/apps/stdlib/rand.html) (not checked against source; OTP 27 docs layout)
@@ -44,6 +52,12 @@ Verification note (2026-10-07): the build sandbox blocks hexdocs.pm, fly.io, eli
   `phx-click`, `phx-value-*` and the other client bindings. Use for: how a tap becomes an event.
 - [LiveView: Assigns and HEEx templates](https://hexdocs.pm/phoenix_live_view/1.2.12/assigns-eex.html)
   Change tracking and what makes a diff small or large. Use for: lessons 4 and 7.
+- [LiveView: Error and exception handling](https://hexdocs.pm/phoenix_live_view/1.2.12/error-handling.html)
+  What the browser does when a LiveView crashes, and when to let it. Use for: lesson 5.
+- [`Phoenix.Component` docs, 1.2.12](https://hexdocs.pm/phoenix_live_view/1.2.12/Phoenix.Component.html)
+  Function components, `attr`, `:key` on comprehensions and how change tracking passes into components. Use for: lesson 4.
+- [LiveView source: `assign/3` at v1.2.12](https://github.com/phoenixframework/phoenix_live_view/blob/v1.2.12/lib/phoenix_live_view/utils.ex#L36-L41)
+  The pinned match that skips equal values. Use for: lesson 4, why recomputing an equal assign is free.
 - [LiveView: Deployments and recovery](https://hexdocs.pm/phoenix_live_view/1.2.12/deployments.html)
   What happens to open tabs during a deploy. Use for: lesson 8.
 - [`Phoenix.PubSub` 2.3.0](https://hexdocs.pm/phoenix_pubsub/2.3.0/Phoenix.PubSub.html)
