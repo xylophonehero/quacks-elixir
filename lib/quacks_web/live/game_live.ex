@@ -894,12 +894,6 @@ defmodule QuacksWeb.GameLive do
             <.colour_picker :if={seat == @seat} colours={@colours} seat={seat} />
           </li>
         </ol>
-        <.patient_picker
-          :if={@patients && @seat && Map.has_key?(@patient_picks, @seat)}
-          id="waiting-patient"
-          patients={@patients}
-          chosen={@patient_picks[@seat]}
-        />
         <div :if={!@full} class="space-y-1 text-sm">
           <span class="font-semibold">Share this link to invite players</span>
           <div class="flex gap-2">
@@ -914,35 +908,46 @@ defmodule QuacksWeb.GameLive do
             <.copy_link url={url(~p"/g/#{@id}")} copied={@copied} />
           </div>
         </div>
-        <div
-          :if={@seat}
-          class="flex flex-wrap items-center justify-end gap-2 pt-1"
-          data-role="start-bar"
-        >
-          <.button
-            :if={@host and @full}
-            phx-click="begin"
-            variant={:primary}
-            class="min-h-12 px-6 text-base"
-            data-role="start-game"
-          >
-            Start game
-          </.button>
-          <.button
-            :if={@host and !@full}
-            phx-click="fill_bots"
-            variant={:secondary}
-            class="min-h-12 px-5 text-base"
-            data-role="fill-bots"
-          >
-            Fill with bots
-          </.button>
-          <p :if={!@host} class="text-sm font-semibold text-ink-soft" data-role="waiting-for-host">
-            Waiting for {name(@names, @creator)} to start the game.
-          </p>
-        </div>
+        <.patient_picker
+          :if={@patients && @seat && Map.has_key?(@patient_picks, @seat)}
+          class="pt-1"
+          id="waiting-patient"
+          patients={@patients}
+          chosen={@patient_picks[@seat]}
+        />
       </section>
       <.spectator_note :if={is_nil(@seat)} rejoinable={@rejoinable} names={@names} />
+      <%!-- The action stays in reach at the bottom while the patients scroll. --%>
+      <div
+        :if={@seat}
+        class="sticky bottom-0 z-10 -mx-4 -mb-6 flex items-center justify-end gap-3 border-t-2 border-black/30 bg-wood-dark/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-10px_20px_-12px_rgb(0_0_0/0.7)] backdrop-blur-sm sm:-mx-6 sm:-mb-12 sm:rounded-t-xl sm:px-6"
+        data-role="start-bar"
+      >
+        <.button
+          :if={@host and @full}
+          phx-click="begin"
+          variant={:primary}
+          class="min-h-12 px-6 text-base"
+          data-role="start-game"
+        >
+          Start game
+        </.button>
+        <p :if={@host and !@full} class="min-w-0 flex-1 text-sm leading-snug text-parchment-dim">
+          Share the link, or play the open seats with bots.
+        </p>
+        <.button
+          :if={@host and !@full}
+          phx-click="fill_bots"
+          variant={:primary}
+          class="min-h-12 shrink-0 px-5 text-base"
+          data-role="fill-bots"
+        >
+          Fill with bots
+        </.button>
+        <p :if={!@host} class="min-w-0 flex-1 text-sm font-semibold" data-role="waiting-for-host">
+          Waiting for {name(@names, @creator)} to start the game.
+        </p>
+      </div>
     </Layouts.app>
     """
   end

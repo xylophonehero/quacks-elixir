@@ -27,7 +27,7 @@ defmodule QuacksWeb.BotsLiveTest do
     refute has_element?(host, "button", "Start game")
     assert has_element?(host, "[data-role='waiting-for-players']", "1 of 3 seated")
 
-    host |> element("#waiting-panel [data-role=fill-bots]") |> render_click()
+    host |> element("[data-role=fill-bots]") |> render_click()
     {:ok, %{names: names, status: :playing}} = GameServer.get(id)
     assert names[1] in Names.all() and names[2] in Names.all() and names[1] != names[2]
     assert has_element?(host, "[data-role='player-chip'][data-seat='1'] [data-role='bot-badge']")

@@ -250,7 +250,7 @@ defmodule QuacksWeb.Polish2Test do
     test "Start game for the host once every seat is taken; the guest waits" do
       {:ok, id} = GameServer.start(2, {1, 2, 3})
       host = open(browser("host"), id)
-      bar = "#waiting-panel [data-role=start-bar]"
+      bar = "[data-role=start-bar]"
       refute has_element?(host, "#{bar} [data-role=start-game]")
       assert has_element?(host, "#{bar} [data-role=fill-bots]")
 
