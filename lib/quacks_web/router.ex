@@ -15,6 +15,11 @@ defmodule QuacksWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # No pipeline: the browser pipeline only accepts html.
+  scope "/", QuacksWeb do
+    get "/manifest.webmanifest", PwaController, :manifest
+  end
+
   scope "/", QuacksWeb do
     pipe_through :browser
 
