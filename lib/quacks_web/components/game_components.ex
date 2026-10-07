@@ -797,8 +797,9 @@ defmodule QuacksWeb.GameComponents do
   (`ScoringTrack.tails/0`) between the last player and the leader, the leader on
   the left. Every seat's dot sits in the step of its rats
   (`ScoringTrack.rat_tails/2`: the leader's step has none, each tail to the right
-  adds one); seats in one step stack. Under each rat tail its VP. A fixed height;
-  nothing to tap.
+  adds one); seats in one step stack. Under each rat tail its VP; above the
+  leader's dot (round 24) the leader's VP, once for a tie. A fixed height; nothing
+  to tap.
   """
   attr :game, :map, required: true
   attr :seat, :any, default: nil, doc: "this browser's seat, nil for a spectator"
@@ -846,19 +847,19 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <div
       id="rat-track"
-      class={["relative h-7 select-none", @class]}
+      class={["relative h-8 select-none", @class]}
       role="img"
       aria-label={"Rat track, leader first: " <> @label}
       data-role="rat-track"
       data-steps={@steps}
     >
       <span
-        class="absolute top-2.5 h-px rounded-full bg-parchment/35"
+        class="absolute top-3.5 h-px rounded-full bg-parchment/35"
         style={"left: #{pos(0.5 / @steps)}; right: #{pos(0.5 / @steps)}"}
       />
       <span
         :for={rat <- @rats}
-        class="absolute top-2.5 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-parchment-dim"
+        class="absolute top-3.5 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-parchment-dim"
         style={"left: #{pos(rat.x)}"}
         data-role="track-rat"
         data-vp={rat.vp}
@@ -870,7 +871,7 @@ defmodule QuacksWeb.GameComponents do
       </span>
       <span
         :for={dot <- @dots}
-        class="absolute top-2.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none"
+        class="absolute top-3.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none"
         style={"left: calc(#{pos(dot.x)} + #{dot.shift * 7}px)"}
         title={"#{Map.get(@names, dot.seat, "Player #{dot.seat + 1}")}: #{dot.vp} VP"}
         data-role="track-dot"
@@ -886,6 +887,14 @@ defmodule QuacksWeb.GameComponents do
             else: "size-2.5 ring-1 ring-black/40"
           )
         ]} />
+      </span>
+      <span
+        class="absolute top-3.5 -translate-x-1/2 -translate-y-[calc(100%+0.4rem)] text-[10px] leading-none font-bold text-parchment tabular-nums"
+        style={"left: #{pos(0.5 / @steps)}"}
+        aria-hidden="true"
+        data-role="leader-vp"
+      >
+        {@leader}
       </span>
     </div>
     """
@@ -1220,11 +1229,13 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   This round's Fortune Teller card as a small portrait card in the pot's top left
   corner (round 22, every layout): the colour band, the motif and the name. It
-  opens the `sheet-fortune` sheet with the full text.
+  opens the `sheet-fortune` sheet with the full text, or (round 24, with `click`)
+  sends that event: `GameLive` grows it back into the big card over the pot.
   """
   attr :id, :atom, required: true, doc: "`game.fortune_card`"
   attr :dom_id, :string, default: nil
   attr :class, :any, default: nil
+  attr :click, :string, default: nil, doc: "an event to push instead of opening the sheet"
 
   def fortune_tile(assigns) do
     assigns = assign(assigns, card: Fortune.card(assigns.id), motif: @card_motifs[assigns.id])
@@ -1233,13 +1244,14 @@ defmodule QuacksWeb.GameComponents do
     <button
       id={@dom_id}
       type="button"
-      popovertarget="sheet-fortune"
+      popovertarget={!@click && "sheet-fortune"}
+      phx-click={@click}
       class={[
         "paper card-portrait flex aspect-[5/7] w-12 max-w-full rotate-3 flex-col items-center overflow-hidden rounded-md text-center touch-manipulation lg:w-20",
         "transition-transform duration-100 ease-out active:scale-95",
         @class
       ]}
-      aria-label={"Fortune teller card: #{@card.name}. Show the text"}
+      aria-label={"Fortune teller card: #{@card.name}. " <> if(@click, do: "Show it big", else: "Show the text")}
       data-role="fortune-tile"
       data-colour={@card.colour}
     >
@@ -3401,6 +3413,10 @@ defmodule QuacksWeb.GameComponents do
   defp fortune_choice({:place, chip}, _card), do: "Safety Procedure: place #{chip_name(chip)}"
   defp fortune_choice(:return_all, _card), do: "Safety Procedure: return all to the bag"
   defp fortune_choice(other, _card), do: inspect({:fortune, other})
+
+  @doc "Round 24: what card `id` did for a player (`outcome` of its log entry), as text."
+  @spec card_outcome(term, atom) :: String.t()
+  def card_outcome(outcome, id), do: outcome |> fortune_outcome(id) |> String.capitalize()
 
   # What a card did for a player, for the log.
   defp fortune_outcome({:drew, chips}, :p8),

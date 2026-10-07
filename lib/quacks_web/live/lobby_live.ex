@@ -594,7 +594,8 @@ defmodule QuacksWeb.LobbyLive do
           </li>
         </ul>
         <%!-- Shown by app.js only: the install button after `beforeinstallprompt`, the
-               hint on iOS Safari outside the installed app (see `.pwa-install` in app.css). --%>
+               hint on iOS Safari outside the installed app, the browser-menu hint when
+               the prompt did not come (see `.pwa-install` in app.css). --%>
         <div id="install-app" class="flex flex-col items-center gap-1 pt-4 text-center">
           <button
             type="button"
@@ -609,6 +610,10 @@ defmodule QuacksWeb.LobbyLive do
           </button>
           <p data-role="install-hint" class="pwa-ios-hint text-xs text-ink-soft">
             Add to Home Screen from the Share menu.
+          </p>
+          <%!-- Round 24: no prompt 3 s after load (Android Chrome may never fire it). --%>
+          <p data-role="install-menu-hint" class="pwa-menu-hint text-xs text-ink-soft">
+            Install from your browser menu: ⋮ → Install app
           </p>
         </div>
 

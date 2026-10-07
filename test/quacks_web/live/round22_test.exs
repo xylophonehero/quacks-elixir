@@ -71,7 +71,7 @@ defmodule QuacksWeb.Round22Test do
       card = Fortune.card(game.fortune_card)
 
       tile = "[data-role=pot-area] > [data-role=pot-corner] > #corner-card"
-      assert has_element?(view, ~s(#{tile}[popovertarget="sheet-fortune"]), card.name)
+      assert has_element?(view, ~s(#{tile}[phx-click="card_grow"]), card.name)
       assert has_element?(view, "#{tile} [data-role=card-motif], #{tile} svg")
       refute has_element?(view, "header [data-role=fortune-tile]")
     end
@@ -137,12 +137,10 @@ defmodule QuacksWeb.Round22Test do
   end
 
   describe "a new card over the pot" do
-    test "the card hovers over the pot; the overlay is a bottom sheet with Continue" do
+    test "the card hovers over the pot; a tap shrinks it into the corner" do
       {id, view} = solo(%{})
       {:ok, %{game: game}} = GameServer.get(id)
       name = Fortune.card(game.fortune_card).name
-
-      assert has_element?(view, "dialog#reveal-card-1.reveal-card-sheet")
 
       assert has_element?(
                view,
@@ -150,12 +148,11 @@ defmodule QuacksWeb.Round22Test do
                name
              )
 
-      refute has_element?(view, "#reveal-card-1 [data-role=fortune-card]")
-      refute has_element?(view, "#reveal-card-1 [data-role=reveal-strip]")
-      assert has_element?(view, "#reveal-card-1 #reveal-next", "Continue")
+      # Round 24: no sheet for a card that did nothing by itself.
+      refute has_element?(view, "dialog#reveal-card-1")
 
-      # Continue: the card shrinks into the corner (a view transition of type card).
-      view |> element("#reveal-next") |> render_click()
+      # The tap: the card shrinks into the corner (a view transition of type card).
+      view |> element("#card-tap") |> render_click()
       assert_push_event(view, "quacks:vt", %{type: "card"})
       refute has_element?(view, "#pot-card-1")
       assert has_element?(view, "[data-role=pot-area] #corner-card", name)
@@ -169,6 +166,7 @@ defmodule QuacksWeb.Round22Test do
       end)
 
       assert has_element?(view, "dialog#card-round-1")
+      view |> element("#card-tap") |> render_click()
       # From 64rem the choice is a panel with the card; the pot card is for phones.
       assert has_element?(view, "#pot-card-1.lg\\:hidden")
       assert has_element?(view, "#card-round-1 .max-lg\\:hidden [data-role=fortune-card]")
