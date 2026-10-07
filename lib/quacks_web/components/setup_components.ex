@@ -505,7 +505,7 @@ defmodule QuacksWeb.SetupComponents do
           name="black_rule"
           legend="Black chips compare with"
           value={@rules.black_rule}
-          options={[standings: "players ranked above (default)", neighbours: "neighbours (rulebook)"]}
+          options={[neighbours: "neighbours (rulebook)", standings: "players ranked above"]}
         />
         <.radios
           name="die"
@@ -766,22 +766,23 @@ defmodule QuacksWeb.SetupComponents do
 
   @doc """
   The house rules of a config the browser saved (`ConfigMemory`). A config saved
-  before round 25 (no `"v"`) holds `black_rule: "neighbours"`, the default then, not
-  a choice: it is dropped, so the new default (`:standings`) applies.
+  before round 27 (no `"v"`, or `"v" => 25`) holds the `black_rule` default of its
+  time (neighbours before round 25, standings in rounds 25 and 26), not a choice: it
+  is dropped, so the current default (`:neighbours`, the rulebook) applies.
 
-      iex> QuacksWeb.SetupComponents.saved_rules(%{"rules" => %{"black_rule" => "neighbours", "rats" => "false"}})
+      iex> QuacksWeb.SetupComponents.saved_rules(%{"v" => 25, "rules" => %{"black_rule" => "standings", "rats" => "false"}})
       %{"rats" => "false"}
-      iex> QuacksWeb.SetupComponents.saved_rules(%{"v" => 25, "rules" => %{"black_rule" => "neighbours"}})
-      %{"black_rule" => "neighbours"}
+      iex> QuacksWeb.SetupComponents.saved_rules(%{"rules" => %{"black_rule" => "neighbours"}})
+      %{}
+      iex> QuacksWeb.SetupComponents.saved_rules(%{"v" => 27, "rules" => %{"black_rule" => "standings"}})
+      %{"black_rule" => "standings"}
   """
   @spec saved_rules(map) :: map
-  def saved_rules(%{"v" => v, "rules" => rules}) when is_integer(v) and v >= 25 and is_map(rules),
+  def saved_rules(%{"v" => v, "rules" => rules}) when is_integer(v) and v >= 27 and is_map(rules),
     do: rules
 
-  def saved_rules(%{"rules" => %{"black_rule" => "neighbours"} = rules}),
-    do: Map.delete(rules, "black_rule")
+  def saved_rules(%{"rules" => rules}) when is_map(rules), do: Map.delete(rules, "black_rule")
 
-  def saved_rules(%{"rules" => rules}) when is_map(rules), do: rules
   def saved_rules(_saved), do: %{}
 
   @doc """

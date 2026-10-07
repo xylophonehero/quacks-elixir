@@ -338,7 +338,7 @@ defmodule QuacksWeb.LobbyLive do
 
     %{
       # The config's version (`SetupComponents.saved_rules/1`).
-      v: 25,
+      v: 27,
       players: a.players,
       sets: form.(a.sets),
       rules: form.(a.rules),
@@ -1119,7 +1119,7 @@ defmodule QuacksWeb.LobbyLive do
   # The House rules row's line.
   defp rules_summary(rules) do
     case Enum.count(rules, fn {key, value} -> Game.default_rules()[key] != value end) do
-      0 -> "Default rules"
+      0 -> "As in the rulebook"
       1 -> "1 changed"
       n -> "#{n} changed"
     end

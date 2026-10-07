@@ -181,7 +181,8 @@ closes the dialog in one chain:
 `JS.push("action") |> JS.dispatch("quacks:close", to: "#card-round-#{game.round}")`
 (`card_click/1`, `lib/quacks_web/live/game_live.ex:2432-2434`). Five hooks have
 state: `ConfigMemory` (`assets/js/app.js:43-53`) keeps the host's last settings in
-`localStorage` (round 14: also the herb witch picks), `NameMemory` keeps your name,
+`localStorage` (round 14: also the herb witch picks; round 27: the config carries
+`v: 27`, and an older one drops its `black_rule`, see `SetupComponents.saved_rules/1`), `NameMemory` keeps your name,
 `RevealSettings` keeps the reveal settings, `AppStatus` writes the menu's "App"
 line, and `PotMotion` animates the pot (see "Motion" below).
 
@@ -578,7 +579,7 @@ text. It sends `"patient"`; `parse_patient/2` turns any id that is not dealt int
 **The New game flow (round 23).** The New game page (`?step=players`) has the
 player count, the seats (name, colour), the Public switch, then three rows
 (`page_link/1`): House rules, Expansions and Ingredient books, each with a line on
-the current choice ("Default rules" / "N changed", "Base game" / "Herb
+the current choice ("As in the rulebook" / "N changed", "Base game" / "Herb
 Witches · test tubes", the preset or Custom). Expansions, House rules and Ingredient
 books are children of New game; a colour or witch page is a child of Ingredient
 books. The Expansions page has only the three expansion rows.
