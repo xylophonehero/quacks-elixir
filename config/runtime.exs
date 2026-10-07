@@ -32,6 +32,16 @@ if config_env() != :test do
 
   config :quacks, :debug_token, System.get_env("DEBUG_TOKEN")
 
+  # PWA name and icon colour (`QuacksWeb.PwaController`), so the apps install side by side.
+  flavour =
+    cond do
+      System.get_env("APP_ENV") == "staging" -> :staging
+      config_env() == :dev -> :dev
+      true -> :prod
+    end
+
+  config :quacks, :flavour, flavour
+
   # Game files (`Quacks.GameStore`): `tmp/games` in dev, the Fly volume in prod.
   config :quacks,
          :games_dir,

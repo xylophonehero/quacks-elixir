@@ -1,5 +1,5 @@
 defmodule QuacksWeb.PwaTest do
-  use QuacksWeb.ConnCase, async: true
+  use QuacksWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
 
@@ -26,6 +26,28 @@ defmodule QuacksWeb.PwaTest do
     for icon <- manifest["icons"] do
       assert File.exists?(Path.join(:code.priv_dir(:quacks), "static" <> icon["src"]))
     end
+  end
+
+  test "staging and dev get their own name and icons" do
+    for {flavour, name} <- [staging: "Quacks Staging", dev: "Quacks Dev"] do
+      dir = Atom.to_string(flavour)
+      Application.put_env(:quacks, :flavour, flavour)
+
+      manifest =
+        build_conn()
+        |> put_req_header("accept", "application/manifest+json")
+        |> get("/manifest.webmanifest")
+        |> json_response(200)
+
+      assert manifest["name"] == name
+
+      for icon <- manifest["icons"] do
+        assert icon["src"] =~ "/images/pwa/#{dir}/"
+        assert File.exists?(Path.join(:code.priv_dir(:quacks), "static" <> icon["src"]))
+      end
+    end
+  after
+    Application.delete_env(:quacks, :flavour)
   end
 
   test "the root layout links the manifest, the theme colour and the touch icon", %{conn: conn} do
@@ -58,10 +80,8 @@ defmodule QuacksWeb.PwaTest do
       |> LazyHTML.query(~s(link[rel="manifest"]))
       |> LazyHTML.attribute("href")
 
-    # A digested name (manifest-<hash>.webmanifest?vsn=d) is not in Plug.Static's
-    # `only:` list, so it would answer 404 in prod.
+    # A route, not a static file: a digested name would answer 404.
     assert href == "/manifest.webmanifest"
-    assert Path.basename(href) in QuacksWeb.static_paths()
 
     conn = get(build_conn(), href)
     assert response(conn, 200)

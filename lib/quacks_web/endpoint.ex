@@ -28,7 +28,6 @@ defmodule QuacksWeb.Endpoint do
     from: :quacks,
     gzip: not code_reloading?,
     only: QuacksWeb.static_paths(),
-    content_types: %{"manifest.webmanifest" => "application/manifest+json"},
     raise_on_missing_only: code_reloading?
 
   # Code reloading can be explicitly enabled under the
