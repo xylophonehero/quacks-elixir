@@ -41,7 +41,7 @@ defmodule QuacksWeb.LobbyLiveTest do
 
     assert has_element?(view, "#page-expansions #expansion[form=books]")
     assert has_element?(view, "#page-expansions #rules-pot_side[form=options]")
-    assert has_element?(view, "#page-expansions #to-rules", "As in the rulebook")
+    assert has_element?(view, "#page-expansions #to-rules", "Default rules")
     refute has_element?(view, "#page-expansions #to-books")
     # One bar for the flow, under the pages, hidden on the Games page.
     assert has_element?(view, "#flow-bar[hidden] #new-game", "Start")

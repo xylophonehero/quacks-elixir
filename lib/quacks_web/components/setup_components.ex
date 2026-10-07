@@ -895,6 +895,26 @@ defmodule QuacksWeb.SetupComponents do
   def step_rule(rules, _rule, _to), do: rules
 
   @doc """
+  The house rules of a config the browser saved (`ConfigMemory`). A config saved
+  before round 25 (no `"v"`) holds `black_rule: "neighbours"`, the default then, not
+  a choice: it is dropped, so the new default (`:standings`) applies.
+
+      iex> QuacksWeb.SetupComponents.saved_rules(%{"rules" => %{"black_rule" => "neighbours", "rats" => "false"}})
+      %{"rats" => "false"}
+      iex> QuacksWeb.SetupComponents.saved_rules(%{"v" => 25, "rules" => %{"black_rule" => "neighbours"}})
+      %{"black_rule" => "neighbours"}
+  """
+  @spec saved_rules(map) :: map
+  def saved_rules(%{"v" => v, "rules" => rules}) when is_integer(v) and v >= 25 and is_map(rules),
+    do: rules
+
+  def saved_rules(%{"rules" => %{"black_rule" => "neighbours"} = rules}),
+    do: Map.delete(rules, "black_rule")
+
+  def saved_rules(%{"rules" => rules}) when is_map(rules), do: rules
+  def saved_rules(_saved), do: %{}
+
+  @doc """
   The Options form's `%{"explode_above" => "9", "rats" => "false", ...}` as house
   rules. A missing or bad value keeps its default (`Quacks.Game.default_rules/0`).
   The reverse-side checkbox sends `"pot_side" => "true"` (the saved config `"back"`).

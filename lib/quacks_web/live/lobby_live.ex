@@ -56,6 +56,7 @@ defmodule QuacksWeb.LobbyLive do
       parse_books: 1,
       parse_rules: 1,
       random_sets: 1,
+      saved_rules: 1,
       step_rule: 3,
       switch_card: 1,
       witch_colours: 0,
@@ -258,7 +259,7 @@ defmodule QuacksWeb.LobbyLive do
        witches: books.witches,
        expansion: books.expansion == :herb_witches,
        alchemists: books.expansions == [:alchemists],
-       rules: parse_rules(if is_map(saved["rules"]), do: saved["rules"], else: %{})
+       rules: saved |> saved_rules() |> parse_rules()
      )
      |> drop_extra_bots()}
   end
@@ -323,6 +324,8 @@ defmodule QuacksWeb.LobbyLive do
     form = fn map -> Map.new(map, fn {key, value} -> {key, to_string(value)} end) end
 
     %{
+      # The config's version (`SetupComponents.saved_rules/1`).
+      v: 25,
       players: a.players,
       sets: form.(a.sets),
       rules: form.(a.rules),
@@ -1099,7 +1102,7 @@ defmodule QuacksWeb.LobbyLive do
   # The House rules row's line.
   defp rules_summary(rules) do
     case Enum.count(rules, fn {key, value} -> Game.default_rules()[key] != value end) do
-      0 -> "As in the rulebook"
+      0 -> "Default rules"
       1 -> "1 changed"
       n -> "#{n} changed"
     end

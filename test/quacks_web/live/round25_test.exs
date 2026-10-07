@@ -12,6 +12,8 @@ defmodule QuacksWeb.Round25Test do
   alias Quacks.GameServer
   alias Quacks.Rules.BookPresets
 
+  doctest QuacksWeb.SetupComponents, import: true, only: [saved_rules: 1]
+
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
   defp lobby(path) do
@@ -78,6 +80,25 @@ defmodule QuacksWeb.Round25Test do
     view = lobby(~p"/?step=rules")
     assert has_element?(view, "#rules-black_rule-standings[checked]")
     assert has_element?(view, "#rules-black_rule-neighbours")
+  end
+
+  test "a config saved before round 25 does not keep the old neighbours default" do
+    view = lobby(~p"/?step=rules")
+
+    render_hook(view, "load_config", %{"players" => 2, "rules" => %{"black_rule" => "neighbours"}})
+
+    assert has_element?(view, "#rules-black_rule-standings[checked]")
+
+    # A round-25 config keeps the choice and says its version.
+    render_hook(view, "load_config", %{
+      "v" => 25,
+      "players" => 2,
+      "rules" => %{"black_rule" => "neighbours"}
+    })
+
+    assert has_element?(view, "#rules-black_rule-neighbours[checked]")
+    view |> element("#options") |> render_change(%{"rules" => %{"black_rule" => "standings"}})
+    assert_push_event(view, "save_config", %{v: 25, rules: %{black_rule: "standings"}})
   end
 
   describe "the corner card grows back" do

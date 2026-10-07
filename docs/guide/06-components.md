@@ -572,7 +572,7 @@ picker sheets; the configure screen still uses the sheets.
 **The New game flow (round 23).** The New game page (`?step=players`) has the
 player count, the seats (name, colour), the Public switch, then three rows
 (`page_link/1`): House rules, Expansions and Ingredient books, each with a line on
-the current choice ("As in the rulebook" / "N changed", "Base game" / "Herb
+the current choice ("Default rules" / "N changed", "Base game" / "Herb
 Witches · test tubes", the preset or Custom). Expansions, House rules and Ingredient
 books are children of New game; a colour or witch page is a child of Ingredient
 books. The Expansions page has only the three expansion rows.
