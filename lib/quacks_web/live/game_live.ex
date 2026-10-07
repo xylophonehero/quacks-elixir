@@ -1477,6 +1477,10 @@ defmodule QuacksWeb.GameLive do
                 game={@game}
                 me={@me}
               />
+              <.ladder
+                :if={@decision == :chip_choice}
+                rungs={ladder(@me, @all_actions, @game)}
+              />
               <section
                 class={[
                   "gap-2 *:min-h-11",
@@ -1487,6 +1491,7 @@ defmodule QuacksWeb.GameLive do
               >
                 <.button
                   :for={action <- dialog_buttons(@all_actions, @decision)}
+                  :if={not ladder_action?(action)}
                   phx-click="action"
                   phx-value-action={encode(action)}
                   variant={choice_variant(dialog_buttons(@all_actions, @decision))}
@@ -2777,6 +2782,106 @@ defmodule QuacksWeb.GameLive do
 
   # The buttons of a choice that are not chips ("Return all", "Done", "3 rubies").
   defp text_actions(actions), do: Enum.filter(actions, &(pick_chips(&1) == []))
+
+  @doc """
+  Round 24: the chip actions of a ladder book with every rung, in order: Ghost's
+  breath II (trade 1, 2 or 3 purple), Garden spider IV (pay 1 or 2 rubies) and
+  Ghost's breath IV (the swaps of the tiers this pot does not reach). A rung the
+  player can take is a button; one they cannot is greyed, `aria-disabled`, with
+  its reason.
+  """
+  attr :rungs, :list, required: true, doc: "`ladder/2`: `%{action, label, reason}` maps"
+
+  def ladder(assigns) do
+    ~H"""
+    <section
+      :if={@rungs != []}
+      class="flex flex-col gap-2"
+      aria-label="Chip actions"
+      data-role="ladder"
+    >
+      <%= for rung <- @rungs do %>
+        <.button
+          :if={is_nil(rung.reason)}
+          phx-click="action"
+          phx-value-action={encode(rung.action)}
+          variant={:secondary}
+          class="min-h-11"
+          data-role="ladder-rung"
+        >
+          {rung.label}
+        </.button>
+        <div
+          :if={rung.reason}
+          class="flex min-h-11 cursor-not-allowed flex-col justify-center rounded-lg border border-dashed border-ink/30 px-3 py-1.5 text-sm text-ink/50"
+          role="button"
+          aria-disabled="true"
+          data-role="ladder-rung-off"
+        >
+          <span class="font-semibold">{rung.label}</span>
+          <span class="text-xs" data-role="ladder-reason">{rung.reason}</span>
+        </div>
+      <% end %>
+    </section>
+    """
+  end
+
+  # The rungs of this seat's open ladder choices (`me.chip_choices`, the engine's
+  # data); the legal ones come from `legal_actions/2`, the rest from the book.
+  defp ladder(%Player{} = me, actions, game) do
+    purple = Enum.count(Player.pot_chips(me), &match?({:purple, _}, &1))
+    label = &action_label(&1, game, me)
+    Enum.flat_map(me.chip_choices, &rungs(&1, me, purple, actions, label))
+  end
+
+  defp ladder(_me, _actions, _game), do: []
+
+  defp rungs({:purple_trade, _tier}, _me, purple, actions, label) do
+    for t <- 1..3 do
+      action = {:chip, {:purple_trade, t}}
+
+      %{
+        action: action,
+        label: label.(action),
+        reason: if(action not in actions, do: "needs #{t} purple, you have #{purple}")
+      }
+    end
+  end
+
+  # Garden spider IV: one ruby per green chip on the last two spaces.
+  defp rungs({:ruby_move, greens}, me, _purple, actions, label) do
+    for k <- 1..2 do
+      action = {:chip, {:pay_ruby_move, k}}
+
+      reason =
+        cond do
+          action in actions -> nil
+          k > greens -> "needs #{k} green chips on the last two spaces, you have #{greens}"
+          true -> "needs #{k} #{if k == 1, do: "ruby", else: "rubies"}, you have #{me.rubies}"
+        end
+
+      %{action: action, label: label.(action), reason: reason}
+    end
+  end
+
+  # Ghost's breath IV: the swaps are chip picks; the tiers above the pot's purple
+  # chips show here, greyed.
+  defp rungs({:upgrade, tier}, _me, purple, _actions, _label) do
+    book = Books.get({:purple, 4})
+
+    for {{_label, text}, t} <- Enum.with_index(book.tiers, 1), t > tier do
+      %{
+        action: nil,
+        label: "Ghost's breath: swap #{text}",
+        reason: "needs #{t} purple, you have #{purple}"
+      }
+    end
+  end
+
+  defp rungs(_choice, _me, _purple, _actions, _label), do: []
+
+  defp ladder_action?({:chip, {kind, _}}) when kind in [:purple_trade, :pay_ruby_move], do: true
+  defp ladder_action?(_action), do: false
 
   # The board's colour order (`Chips.order/0`, white first), then value.
   defp chip_order(action), do: Enum.map(pick_chips(action), &Chips.sort_key/1)

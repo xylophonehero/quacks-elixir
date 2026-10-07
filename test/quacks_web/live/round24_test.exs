@@ -173,4 +173,62 @@ defmodule QuacksWeb.Round24Test do
       assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='0'][title]")
     end
   end
+
+  describe "chip actions: every rung" do
+    # Step B with `pot` in the pot (the explosion's buy path runs the evaluation).
+    defp chip_actions(sets, pot, fields \\ []) do
+      {id, view} = solo(%{fortune: false})
+
+      replace_game(id, fn g ->
+        %{g | sets: Map.merge(g.sets, sets)}
+        |> H.put([phase: :explosion_choice, exploded?: true, drawn: pot, pot_index: 10] ++ fields)
+        |> H.apply!({:explosion_choice, :buy})
+      end)
+
+      view
+    end
+
+    test "Ghost's breath II: trade 1 and 2 are buttons, trade 3 is greyed with a reason" do
+      view = chip_actions(%{purple: 2}, [{{:purple, 1}, 10}, {{:purple, 1}, 8}])
+      ladder = "dialog#decision-chip_choice [data-role=ladder]"
+
+      assert has_element?(view, "#{ladder} button[data-role=ladder-rung]", "trade 1 purple")
+      assert has_element?(view, "#{ladder} button[data-role=ladder-rung]", "trade 2 purple")
+
+      off = "#{ladder} [data-role=ladder-rung-off][aria-disabled=true]"
+      assert has_element?(view, off, "trade 3 purple")
+      assert has_element?(view, "#{off} [data-role=ladder-reason]", "needs 3 purple, you have 2")
+
+      # No rung twice; Done stays.
+      refute has_element?(view, "[data-role=decision-actions] button", "trade 1 purple")
+      assert has_element?(view, "[data-role=decision-actions] button", "Done with chip actions")
+
+      view |> element("#{ladder} button", "trade 2 purple") |> render_click()
+      refute has_element?(view, "dialog#decision-chip_choice")
+    end
+
+    test "Garden spider IV: a rung over the rubies is greyed" do
+      view =
+        chip_actions(%{green: 4}, [{{:green, 1}, 10}, {{:green, 1}, 8}], rubies: 1)
+
+      ladder = "dialog#decision-chip_choice [data-role=ladder]"
+      assert has_element?(view, "#{ladder} button[data-role=ladder-rung]", "pay 1 ruby")
+
+      assert has_element?(
+               view,
+               "#{ladder} [data-role=ladder-rung-off] [data-role=ladder-reason]",
+               "needs 2 rubies, you have 1"
+             )
+    end
+
+    test "Ghost's breath IV: the tiers the pot does not reach are greyed" do
+      view =
+        chip_actions(%{purple: 4}, [{{:purple, 1}, 10}, {{:green, 1}, 8}])
+
+      assert has_element?(view, "dialog#decision-chip_choice [data-role=chip-pick]")
+      off = "dialog#decision-chip_choice [data-role=ladder-rung-off]"
+      assert has_element?(view, off, "a 2-chip → a 4-chip")
+      assert has_element?(view, off, "needs 3 purple, you have 1")
+    end
+  end
 end
