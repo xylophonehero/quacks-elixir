@@ -114,7 +114,7 @@ A builder is done when:
 1. Engine: the allowed values in `@rule_values` and the default in `@rules`
    (`lib/quacks/game.ex:80-103`), the `@type rules` (`lib/quacks/game.ex:301-312`), then
    read `g.rules.your_rule` where it matters.
-2. Configure screen: `options_form/1` and the copy of `@rule_values` in
+2. Spell book: `options_form/1` and the copy of `@rule_values` in
    `lib/quacks_web/components/setup_components.ex:43` and `:218`; `parse_rules/1`
    turns the form into the map.
 3. In-game summary: `rule_label/1` near `lib/quacks_web/components/game_components.ex:1540`.

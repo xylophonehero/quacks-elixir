@@ -154,8 +154,8 @@ like `sort((a, b) => a.colourIndex - b.colourIndex || a.value - b.value)` in JS.
 The readers: `Books.in_play/2` (`lib/quacks/rules/books.ex:261-274`), the shop rows
 and the chip picks in `GameLive` (`lib/quacks_web/live/game_live.ex:2199-2208` and
 `chip_order/1`, line 2416), the bag counts (`chip_counts/1`,
-`lib/quacks_web/components/game_components.ex:976-977`) and the configure screen's
-book picker (`SetupComponents.book_colours/0`,
+`lib/quacks_web/components/game_components.ex:976-977`) and the spell book's
+book tiles (`SetupComponents.book_colours/0`,
 `lib/quacks_web/components/setup_components.ex:404`). To change the order, change one
 line; the doctests show the new order.
 

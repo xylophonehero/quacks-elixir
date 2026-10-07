@@ -185,12 +185,12 @@ state: `ConfigMemory` (`assets/js/app.js:43-53`) keeps the host's last settings 
 `RevealSettings` keeps the reveal settings, `AppStatus` writes the menu's "App"
 line, and `PotMotion` animates the pot (see "Motion" below).
 
-**The witch pickers (round 14).** With The Herb Witches on, the configure screen's
-books form shows a tile per penny colour (copper, silver, gold). A tap opens a
-popover sheet with "Random" and the colour's four cards as radio cards
-(`witches[colour]`), the same pattern as the book pickers. `parse_witches/1`
+**The witch pickers (round 14).** With The Herb Witches on, the spell book's
+books form shows a tile per penny colour (copper, silver, gold). A tap opens the
+colour's page with "Random" and its four cards as radio cards
+(`witches[colour]`), the same pattern as the book pages. `parse_witches/1`
 (`lib/quacks_web/components/setup_components.ex:273`) turns the form into
-`%{copper: :c3, silver: nil, gold: nil}`, which goes to `GameServer.configure/3`
+`%{copper: :c3, silver: nil, gold: nil}`, which goes to `GameServer.create/3`
 and on to `Game.new(witches: ...)`. The engine deals first and then replaces the
 picked colours (`pick_witches/2`, `lib/quacks/game.ex:399`), so the random stream
 stays the same. The witches sheet in the game has a title row now, so its × no
@@ -566,8 +566,14 @@ The pages split the forms: the expansion cards (Expansions page) belong to
 (`SetupComponents.book_options/1`, `witch_options/1`) to `#books`. Each input
 names its form (`form="books"`), so the browser sends it with that form's change
 and LiveView's `phx-change` sees it. `books_form/1` takes `patch` (a function from
-`{:book | :witch, colour}` to a path): its tiles become links and it draws no
-picker sheets; the configure screen still uses the sheets.
+`{:book | :witch, colour}` to a path): its tiles are links to the colour pages
+(round 26: the only mode; the configure screen and its picker sheets are gone).
+
+**The patient picker (round 26).** `AlchemistsComponents.patient_picker/1` is a
+small form of radio cards (`book-card`, the same check as the book cards):
+"Random" and the 3 dealt patients, each with icon, name and a 3-line clamp of the
+text. It sends `"patient"`; `parse_patient/2` turns any id that is not dealt into
+`:random`. The spell book and the waiting panel both use it.
 
 **The New game flow (round 23).** The New game page (`?step=players`) has the
 player count, the seats (name, colour), the Public switch, then three rows

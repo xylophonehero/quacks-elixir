@@ -203,7 +203,8 @@ these assigns, the reply path and the broadcast path cannot disagree.
   *verified route*: the compiler checks that the path exists in the router.
 - Before the game begins, `@game` is `nil`. `render/1` has two clauses
   (`lib/quacks_web/live/game_live.ex:686` and `:862`): `def render(%{game: nil} =
-  assigns)` draws the configure screen, the other the board. The begin broadcast
+  assigns)` draws the waiting panel (round 26: seats, link, your colour and
+  patient, Start or "Fill with bots"; no settings), the other the board. The begin broadcast
   sets `@game`, and the next render picks the other clause.
 - `terminate/2` frees the seat when a tab closes before the start
   (`lib/quacks_web/live/game_live.ex:484-488`).
@@ -214,14 +215,15 @@ own, waiting or playing), list again on `:games_changed`. The server broadcasts 
 when seats or games change and when a game's round changes (`stage/1` in
 `changed/2`), so the Games page's "Round 3 of 9" stays fresh.
 
-Unlike the configure screen, the book holds its settings in the page's own assigns:
+The book holds its settings in the page's own assigns:
 no game exists until Start. Each event (`"players"`, `"sets"`, `"rules"`,
 `"public"`, `"add_bot"`, `"preset"`, `"random_books"`, ...) changes an assign and pushes
-`"save_config"` to the `ConfigMemory` hook (localStorage, the same key the
-configure screen uses); on mount the hook sends `"load_config"` back. `"start"`
+`"save_config"` to the `ConfigMemory` hook (localStorage); on mount the hook sends `"load_config"` back. `"start"`
 builds one config map and calls `GameServer.create/3`, which seats you, your name
 and colour and the bots in one call, so a solo or all-bot game begins at once
-without a waiting room.
+without a waiting panel. The book also holds the table's seed from mount, so with
+The Alchemists the Expansions page can show the 3 patients that seed deals
+(`patient_picker/1`, `"patient"`), and Start passes the seed and your pick on.
 
 Which page shows is the URL (round 19). Each page of the book is a step:
 `/` (Games), `?step=players`, `expansions`, `rules`, `books`, and
