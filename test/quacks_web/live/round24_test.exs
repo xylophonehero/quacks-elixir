@@ -142,4 +142,35 @@ defmodule QuacksWeb.Round24Test do
       assert has_element?(view, "#sheet-fortune [data-role=fortune-card]")
     end
   end
+
+  describe "the rat track" do
+    test "the leader's VP shows once above the leader's dot" do
+      {:ok, id} = GameServer.start(3, {1, 2, 3}, %{}, %{fortune: false})
+      token = "r24-rats-#{System.unique_integer()}"
+      {:ok, view, _html} = live(browser(token), ~p"/g/#{id}")
+      {:ok, _} = GameServer.add_bot(id, token)
+      {:ok, _} = GameServer.add_bot(id, token)
+      {:ok, _} = GameServer.begin(id, token)
+
+      replace_game(id, fn g ->
+        [2, 30, 11]
+        |> Enum.with_index()
+        |> Enum.reduce(g, fn {vp, s}, g -> H.put(g, s, vp: vp) end)
+      end)
+
+      leader = "#rat-track [data-role=leader-vp]"
+      assert has_element?(view, leader, "30")
+      html = view |> element("#rat-track") |> render()
+
+      assert html
+             |> LazyHTML.from_fragment()
+             |> LazyHTML.query("[data-role=leader-vp]")
+             |> Enum.count() == 1
+
+      # The leader's step is the first: its x is half a step.
+      assert has_element?(view, ~s(#{leader}[style*="0.0385"]))
+      # The other dots keep their tooltips.
+      assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='0'][title]")
+    end
+  end
 end

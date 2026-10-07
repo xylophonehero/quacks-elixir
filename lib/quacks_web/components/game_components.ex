@@ -797,8 +797,9 @@ defmodule QuacksWeb.GameComponents do
   (`ScoringTrack.tails/0`) between the last player and the leader, the leader on
   the left. Every seat's dot sits in the step of its rats
   (`ScoringTrack.rat_tails/2`: the leader's step has none, each tail to the right
-  adds one); seats in one step stack. Under each rat tail its VP. A fixed height;
-  nothing to tap.
+  adds one); seats in one step stack. Under each rat tail its VP; above the
+  leader's dot (round 24) the leader's VP, once for a tie. A fixed height; nothing
+  to tap.
   """
   attr :game, :map, required: true
   attr :seat, :any, default: nil, doc: "this browser's seat, nil for a spectator"
@@ -846,19 +847,19 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <div
       id="rat-track"
-      class={["relative h-7 select-none", @class]}
+      class={["relative h-8 select-none", @class]}
       role="img"
       aria-label={"Rat track, leader first: " <> @label}
       data-role="rat-track"
       data-steps={@steps}
     >
       <span
-        class="absolute top-2.5 h-px rounded-full bg-parchment/35"
+        class="absolute top-3.5 h-px rounded-full bg-parchment/35"
         style={"left: #{pos(0.5 / @steps)}; right: #{pos(0.5 / @steps)}"}
       />
       <span
         :for={rat <- @rats}
-        class="absolute top-2.5 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-parchment-dim"
+        class="absolute top-3.5 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-parchment-dim"
         style={"left: #{pos(rat.x)}"}
         data-role="track-rat"
         data-vp={rat.vp}
@@ -870,7 +871,7 @@ defmodule QuacksWeb.GameComponents do
       </span>
       <span
         :for={dot <- @dots}
-        class="absolute top-2.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none"
+        class="absolute top-3.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none"
         style={"left: calc(#{pos(dot.x)} + #{dot.shift * 7}px)"}
         title={"#{Map.get(@names, dot.seat, "Player #{dot.seat + 1}")}: #{dot.vp} VP"}
         data-role="track-dot"
@@ -886,6 +887,14 @@ defmodule QuacksWeb.GameComponents do
             else: "size-2.5 ring-1 ring-black/40"
           )
         ]} />
+      </span>
+      <span
+        class="absolute top-3.5 -translate-x-1/2 -translate-y-[calc(100%+0.4rem)] text-[10px] leading-none font-bold text-parchment tabular-nums"
+        style={"left: #{pos(0.5 / @steps)}"}
+        aria-hidden="true"
+        data-role="leader-vp"
+      >
+        {@leader}
       </span>
     </div>
     """
