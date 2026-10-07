@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reading the Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;600&amp;family=IM+Fell+English:ital@0;1&amp;display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="page">
+
+<nav class="crumbs" aria-label="Course">
+  <a href="../index.html">Course hub</a>
+  <span class="spacer"></span>
+  <a href="../reference/flow-cheatsheet.html">Cheat sheet</a>
+  <a href="../reference/glossary.html">Glossary</a>
+</nav>
+
+<header>
+  <p class="eyebrow">Lesson 2 &middot; about 10 minutes</p>
+  <h1>Reading the engine</h1>
+  <div class="recipe">
+    <dl>
+      <dt>Yields</dt>
+      <dd class="yield">You can read <code>Game.apply/3</code>, say which function clause runs for a given input, and explain why the random state lives in the game struct.</dd>
+      <dt>You bring</dt>
+      <dd>Lesson 1, TypeScript unions, and Redux reducers.</dd>
+      <dt>Guide</dt>
+      <dd><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/02-engine.md" target="_blank" rel="noopener">Ch. 2, the engine</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/03-session-log-replay.md" target="_blank" rel="noopener">Ch. 3, replay</a> and <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/10-idioms.md" target="_blank" rel="noopener">Ch. 10, idioms</a></dd>
+    </dl>
+  </div>
+</header>
+
+<p class="lede">In lesson 1 the GameServer handed every move to <code>Quacks.Game</code>. That module is the whole rulebook, written as plain functions on one value. Today you read it.</p>
+
+<h2>The shapes you will meet</h2>
+<p>Four kinds of value cover almost all of the engine.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Elixir</th><th>Example in Quacks</th><th>Closest TypeScript</th></tr></thead>
+  <tbody>
+    <tr><td>atom</td><td><code>:draw</code>, <code>:potions</code></td><td>a string literal type, <code>"draw"</code></td></tr>
+    <tr><td>tuple</td><td><code>{:white, 2}</code>, <code>{:ok, game}</code></td><td>a fixed-length array, <code>["white", 2]</code></td></tr>
+    <tr><td>map</td><td><code>%{0 =&gt; player}</code></td><td>an object or <code>Map</code></td></tr>
+    <tr><td>struct</td><td><code>%Quacks.Game{}</code></td><td>an interface with defaults</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>A chip is the tuple <code>{:white, 2}</code>: colour, then value. A move is an atom like <code>:draw</code> or a tagged tuple like <code>{:buy, [{:green, 2}]}</code>. The first element is the tag, the way <code>type</code> tags a TypeScript discriminated union.</p>
+
+<p>The game is one struct with fifteen fields. Note <code>rng</code> and <code>log</code>; both matter below.</p>
+<figure class="excerpt" data-path="lib/quacks/game.ex" data-start="113" data-hl="116-117"><pre><code>defstruct round: 1,
+          phase: :potions,
+          supply: %{},
+          rng: nil,
+          log: [],
+          players: %{},
+          seats: [],
+          fortune_deck: [],
+          fortune_card: nil,
+          sets: @sets,
+          rules: @rules,
+          expansion: nil,
+          expansions: MapSet.new(),
+          witches: nil,
+          patients: nil</code></pre></figure>
+
+<h2>Nothing changes in place</h2>
+<p>Every value is immutable. <code>%{g | log: [entry | log]}</code> builds a <em>new</em> struct with one key replaced; the old <code>g</code> is untouched. <code>[entry | log]</code> builds a new list with <code>entry</code> in front, which is why the log is newest first.</p>
+<figure class="excerpt" data-path="lib/quacks/game.ex" data-start="956"><pre><code>def update_player(%__MODULE__{players: players} = g, seat, fun),
+  do: %{g | players: Map.update!(players, seat, fun)}
+
+@doc false
+def record(%__MODULE__{log: log} = g, entry), do: %{g | log: [entry | log]}
+
+@doc false
+def record(%__MODULE__{} = g, seat, entry), do: record(g, {seat, entry})</code></pre></figure>
+<aside class="note"><b>React &asymp;</b><code>{...g, log: [entry, ...g.log]}</code>, the spread you write in every reducer. In Elixir it is the only way, so you never need <code>Object.freeze</code> or Immer.</aside>
+
+<h2><code>=</code> matches, and so do function heads</h2>
+<p>In Elixir <code>=</code> is a <strong>match</strong>. <code>{:ok, game} = result</code> checks that <code>result</code> is a two-tuple starting with <code>:ok</code> and binds <code>game</code>. If the shape is different, it raises (<a href="https://hexdocs.pm/elixir/1.18.3/pattern-matching.html" target="_blank" rel="noopener">Elixir guide: Pattern matching</a>).</p>
+<p>A function can have several clauses. Elixir tries them top to bottom and runs the first whose pattern, and <code>when</code> guard if any, fits. This replaces most <code>switch</code> and <code>if</code> chains. Here is one player&rsquo;s legal moves in the potions phase, one clause per sub-phase:</p>
+<figure class="excerpt" data-path="lib/quacks/game/potions.ex" data-start="58"><pre><code>def legal_actions(%Player{phase: :potions, bag: bag, drawn: drawn, flask: flask} = p) do
+  List.flatten([
+    if(bag == [], do: [], else: :draw),
+    if(drawn == [], do: [], else: :stop),
+    if(flask and last_white?(p), do: :use_flask, else: [])
+  ])
+end
+
+def legal_actions(%Player{phase: :yellow_choice}), do: [:return_white, :keep]</code></pre></figure>
+<p>A map pattern only names the keys it cares about. <code>%{fortune_card: :b4}</code> matches any map or struct whose <code>fortune_card</code> is <code>:b4</code>, whatever else it holds. The second clause is the default; the <code>_</code> prefix marks a variable the body ignores.</p>
+<figure class="excerpt" data-path="lib/quacks/game/fortune.ex" data-start="183"><pre><code>def die_rolls(%{fortune_card: :b4}), do: 2
+def die_rolls(_g), do: 1</code></pre></figure>
+<aside class="note"><b>React &asymp;</b>A <code>switch (action.type)</code> where each case can also destructure, check nested values and bind names, all in the case label.</aside>
+
+<h2>The contract: <code>{:ok, game}</code> or <code>{:error, reason}</code></h2>
+<p>Now the function from lesson 1&rsquo;s hop 5, read slowly.</p>
+<figure class="excerpt" data-path="lib/quacks/game.ex" data-start="646" data-hl="646,649,651,653"><pre><code>def apply(%__MODULE__{} = game, seat, action) do
+  action = normalise(action)
+
+  if action in legal_actions(game, seat) do
+    # The action goes in the log first, so the events it causes come after it.
+    {:ok, game |> record(seat, action) |> step(seat, action)}
+  else
+    {:error, {:illegal_action, action, phase(game, seat)}}
+  end
+end</code></pre></figure>
+<ul>
+  <li><strong>Line 646.</strong> <code>%__MODULE__{} = game</code> accepts only a <code>%Quacks.Game{}</code>. <code>__MODULE__</code> is the current module&rsquo;s name.</li>
+  <li><strong>Line 649.</strong> The only check is <code>legal_actions/2</code>. The UI&rsquo;s buttons come from the same list, so the engine can never accept a move the page would not offer.</li>
+  <li><strong>Line 651.</strong> The pipe <code>|&gt;</code> passes the left value as the <em>first</em> argument of the next call. Read it as: log the action, then run it. That is why every engine function takes the game first.</li>
+  <li><strong>Line 653.</strong> A bad move is a value, never an exception. The caller matches on the tuple, as <code>play/3</code> did in lesson 1.</li>
+</ul>
+<aside class="note"><b>React &asymp;</b>A reducer that returns <code>{ok: true, state}</code> or <code>{ok: false, error}</code> instead of throwing. TypeScript would type it as a union; here <code>@spec</code> says the same and Dialyzer checks it.</aside>
+
+<h2><code>with</code>: a chain that stops at the first miss</h2>
+<p><code>Quacks.Session</code> wraps the game and keeps the list of moves. Its <code>apply/3</code> uses <code>with</code>: if the right side of <code>&lt;-</code> matches the left, carry on; if not, return that value as it is (<a href="https://hexdocs.pm/elixir/1.18.3/Kernel.SpecialForms.html#with/1" target="_blank" rel="noopener"><code>with/1</code> docs</a>).</p>
+<figure class="excerpt" data-path="lib/quacks/session.ex" data-start="70"><pre><code>def apply(%__MODULE__{} = s, seat, action) do
+  with {:ok, game} &lt;- Game.apply(s.game, seat, action),
+       do: {:ok, %{s | game: game, actions: [{seat, action} | s.actions]}}
+end</code></pre></figure>
+<p>An illegal move gives <code>{:error, ...}</code>, which does not match <code>{:ok, game}</code>, so <code>with</code> returns the engine&rsquo;s error and the session stays as it was.</p>
+<aside class="note"><b>React &asymp;</b>A chain of <code>await</code>s where each step returns a result object, and the first failure short-circuits. No <code>try</code>/<code>catch</code>.</aside>
+
+<h2>Why the random state lives in the struct</h2>
+<p><code>Game.new/1</code> seeds a random state and stores it in the struct: <code>rng = :rand.seed_s(:exsss, seed)</code> (<a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game.ex#L378" target="_blank" rel="noopener">game.ex:378</a>). Every random pick reads <code>g.rng</code> and writes the next state back.</p>
+<figure class="excerpt" data-path="lib/quacks/game/potions.ex" data-start="633" data-hl="638,640"><pre><code>def take_random(g, seat, n) do
+  size = length(Game.player(g, seat).bag)
+
+  Enum.reduce(1..min(n, size)//1, {[], g}, fn _, {taken, g} -&gt;
+    bag = Game.player(g, seat).bag
+    {i, rng} = :rand.uniform_s(length(bag), g.rng)
+    {chip, bag} = List.pop_at(bag, i - 1)
+    {[chip | taken], %{Game.update_player(g, seat, &amp;%{&amp;1 | bag: bag}) | rng: rng}}
+  end)
+end</code></pre></figure>
+<p><code>:rand.uniform_s/2</code> takes a state and returns <code>{value, new_state}</code>. It is pure. <code>:rand.uniform/1</code>, <code>Enum.random/1</code> and <code>Enum.shuffle/1</code> instead read a hidden per-process state, and <code>AGENTS.md</code> bans them in the engine. The payoff: the seed plus the list of moves rebuilds the exact game.</p>
+<figure class="excerpt" data-path="lib/quacks/session.ex" data-start="94"><pre><code>def replay(seed, players, actions, opts \\ []) do
+  Enum.reduce(Enum.reverse(actions), new_game(seed, players, opts), fn {seat, action}, game -&gt;
+    {:ok, game} = Game.apply(game, seat, action)
+    game
+  end)
+end</code></pre></figure>
+<p>Undo is replay minus the last move. A bug report is a seed and a move list. A test can say &ldquo;this seed draws these chips&rdquo; (<a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/test/quacks/game_test.exs#L40-L46" target="_blank" rel="noopener">game_test.exs:40&ndash;46</a>). Note the bare <code>{:ok, game} =</code> match in <code>replay/4</code>: a recorded move that is illegal on replay is a bug, so crashing is the right answer there.</p>
+<aside class="note"><b>React &asymp;</b>Redux DevTools time travel, which works only if reducers are pure. Calling <code>Math.random()</code> inside a reducer breaks it; so would <code>:rand.uniform/1</code> here.</aside>
+
+<h2>Which clause matches? Predict, then check</h2>
+<p>Say your answer out loud before you tap. The effort is the point.</p>
+
+<div class="quiz" id="quiz2" data-quiz="quiz-0002" data-lesson="0002"></div>
+<script type="application/json" id="quiz-0002">
+{"items": [
+  {"id": "dierolls", "q": "What does this call return?",
+   "code": {"label": "Predict: Fortune.die_rolls/1", "plain": true, "src": "def die_rolls(%{fortune_card: :b4}), do: 2\ndef die_rolls(_g), do: 1\n\ndie_rolls(%{fortune_card: :b4, round: 3})"},
+   "answer": 1,
+   "options": [
+     {"t": "1, the default clause runs every time", "why": "The default only runs when the clauses above it do not match."},
+     {"t": "2, the first clause matches this map", "why": "A map pattern only checks the keys it names. <code>round: 3</code> is extra and does not matter."},
+     {"t": "Error, the map has an extra key", "why": "Map patterns ignore keys they do not name. Only struct patterns check the struct's type."},
+     {"t": "Error, plain maps cannot match struct patterns", "why": "<code>%{fortune_card: :b4}</code> is a map pattern, not a struct pattern. It matches a plain map and a <code>%Game{}</code> alike."}
+   ]},
+  {"id": "yellow", "kind": "type", "q": "A player struct has <code>phase: :yellow_choice</code>. What does <code>Potions.legal_actions/1</code> return? Type the list.",
+   "code": {"path": "lib/quacks/game/potions.ex", "start": 66, "src": "def legal_actions(%Player{phase: :yellow_choice}), do: [:return_white, :keep]"},
+   "placeholder": "[:atom, ...]",
+   "accept": ["[:return_white, :keep]", "[:return_white,:keep]"],
+   "answer": "[:return_white, :keep]",
+   "why": "The clause matches on <code>phase</code> alone. This is the Mandrake question: put the white chip back, or keep it."},
+  {"id": "mandrake", "q": "A yellow chip was just drawn. Does this clause give the player a choice?",
+   "code": {"label": "Predict: Potions.on_draw/4 (potions.ex:385-390)", "plain": true, "src": "# drawn, newest first: [{chip, space}, ...]\ndrawn = [{{:yellow, 1}, 9}, {{:white, 2}, 7}, {{:orange, 1}, 6}]\n\ncase drawn do\n  [_, {{:white, _}, _} | _] -> :yellow_choice\n  _ -> :no_choice\nend"},
+   "answer": 2,
+   "options": [
+     {"t": "No, the newest chip is not white", "why": "The first element is matched by <code>_</code>, which accepts anything. The pattern looks at the second element."},
+     {"t": "No, the pattern needs exactly two chips", "why": "<code>| _</code> at the end matches the rest of the list, of any length, even empty."},
+     {"t": "Yes, the chip before it is white", "why": "<code>[_, second | _]</code> reads: any first chip, then a second one, then any rest. The second is <code>{{:white, 2}, 7}</code>, a white chip on space 7."},
+     {"t": "Yes, any list with white chips matches", "why": "Position matters. A white chip third in the list would not match."}
+   ]},
+  {"id": "with", "q": "The pot is empty, so <code>:stop</code> is not legal yet. What does <code>Session.apply(s, 0, :stop)</code> return?",
+   "code": {"path": "lib/quacks/session.ex", "start": 70, "src": "def apply(%__MODULE__{} = s, seat, action) do\n  with {:ok, game} <- Game.apply(s.game, seat, action),\n       do: {:ok, %{s | game: game, actions: [{seat, action} | s.actions]}}\nend"},
+   "answer": 0,
+   "options": [
+     {"t": "The engine's error tuple; the session stays unchanged", "why": "<code>{:error, {:illegal_action, :stop, :potions}}</code> does not match <code>{:ok, game}</code>, so <code>with</code> returns it as it is."},
+     {"t": "It raises a MatchError and the process crashes", "why": "That is what <code>{:ok, game} = ...</code> does in <code>replay/4</code>. <code>&lt;-</code> inside <code>with</code> does not raise; it returns the value that missed."},
+     {"t": "{:ok, session}, with the stop recorded in actions", "why": "The <code>do:</code> part only runs when the match succeeds."},
+     {"t": "nil, because with has no else branch here", "why": "Without <code>else</code>, <code>with</code> returns the non-matching value itself, not <code>nil</code>."}
+   ]},
+  {"id": "pipe", "q": "<code>game |&gt; record(seat, action) |&gt; step(seat, action)</code> is the same as which call?",
+   "answer": 2,
+   "options": [
+     {"t": "record(step(game, seat, action), seat, action)", "why": "That runs the step first. The pipe runs left to right: <code>record</code> first."},
+     {"t": "step(game, record(seat, action), seat, action)", "why": "The piped value always becomes the first argument, not the second."},
+     {"t": "step(record(game, seat, action), seat, action)", "why": "<code>game</code> goes into <code>record/3</code> as its first argument, and the result goes into <code>step/3</code> as its first argument."},
+     {"t": "record(game, step(seat, action), seat, action)", "why": "Nothing is nested inside <code>record</code> here. Each step takes the previous result first."}
+   ]},
+  {"id": "rng", "q": "Why does <code>take_random/3</code> put the new <code>rng</code> back in the game instead of calling <code>:rand.uniform/1</code>?",
+   "answer": 3,
+   "options": [
+     {"t": "Because the :rand.uniform/1 call is much slower", "why": "Speed is not the reason. Both are fast."},
+     {"t": "So each player gets a fairer random chip", "why": "Both functions draw from the same kind of generator. Fairness is the same."},
+     {"t": "Because processes cannot call :rand without a seed", "why": "<code>:rand.uniform/1</code> seeds itself on first use, from hidden state in the process dictionary. That hidden state is the problem."},
+     {"t": "So seed plus actions rebuilds the same game", "why": "With the state in the struct, <code>Session.replay/4</code> draws the same chips every time. Undo, bug reports and tests depend on it."}
+   ]},
+  {"id": "replay", "kind": "type", "q": "Undo is replay minus the last action. Which <code>Session</code> function rebuilds a game from a seed and a list of actions?",
+   "placeholder": "function name",
+   "accept": ["replay", "replay/4", "Session.replay", "Session.replay/4", "replay/3"],
+   "answer": "Session.replay/4",
+   "why": "It reduces over the actions, oldest first, starting from <code>new_game(seed, players, opts)</code>."}
+]}
+</script>
+
+<section class="source">
+  <h2>Read next</h2>
+  <p><strong>Primary source:</strong> the Elixir guide&rsquo;s <a href="https://hexdocs.pm/elixir/1.18.3/pattern-matching.html" target="_blank" rel="noopener">Pattern matching</a> chapter, then <a href="https://hexdocs.pm/elixir/1.18.3/case-cond-and-if.html" target="_blank" rel="noopener">case, cond, and if</a>. They are short and they are for Elixir 1.18.3, the version in the <code>Dockerfile</code>. For the random state, see Erlang&rsquo;s <a href="https://www.erlang.org/doc/apps/stdlib/rand.html" target="_blank" rel="noopener"><code>rand</code> module</a>.</p>
+  <p>In the guide: <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/02-engine.md" target="_blank" rel="noopener">chapter 2</a> follows a full draw step by step, and <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/10-idioms.md" target="_blank" rel="noopener">chapter 10</a> lists every idiom with one real use.</p>
+</section>
+
+<section class="ask">
+  <h2>Questions? Ask your agent</h2>
+  <p>Open the Claude app and ask. Good starters: &ldquo;Walk me through <code>step/3</code> for <code>:potions</code> in game.ex&rdquo; or &ldquo;What would break if one chip effect called <code>Enum.random/1</code>?&rdquo;</p>
+</section>
+
+<nav class="pager" aria-label="Lessons">
+  <a href="0001-a-tap-round-trip.html"><small>Previous lesson</small><span class="t">A tap&rsquo;s round trip</span></a>
+  <span class="next"><small>Next, coming soon</small><span class="t">Processes, mailboxes and GenServer</span></span>
+</nav>
+
+</div>
+<script src="../assets/progress.js"></script>
+<script src="../assets/code.js"></script>
+<script src="../assets/stepper.js"></script>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

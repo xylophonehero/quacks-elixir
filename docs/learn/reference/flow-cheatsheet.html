@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Round Trip Cheat Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;600&amp;family=IM+Fell+English:ital@0;1&amp;display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  .hop-table td:first-child { width: 2.4rem; }
+  .hop-table .chip { width: 1.5rem; height: 1.5rem; font-size: 0.7rem; }
+  .hop-table td a { overflow-wrap: anywhere; }
+  .hop-table td code { white-space: normal; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<nav class="crumbs" aria-label="Course">
+  <a href="../index.html">Course hub</a>
+  <span class="spacer"></span>
+  <a href="../lessons/0001-a-tap-round-trip.html">Lesson 1</a>
+  <a href="glossary.html">Glossary</a>
+</nav>
+
+<header>
+  <p class="eyebrow">Reference &middot; from lesson 1</p>
+  <h1>A tap&rsquo;s round trip</h1>
+  <p class="lede">One move, <em>Draw a chip</em> in tab A, in nine hops. The server is the store: one process per game holds the state, one process per tab renders it.</p>
+</header>
+
+<figure class="stepper" aria-label="Round trip diagram" style="border-top:0;padding-top:0">
+<svg viewBox="0 0 360 450" role="img" aria-labelledby="cs-title">
+  <title id="cs-title">Tab A sends an event to its GameLive process, which calls the GameServer, which applies the move with Quacks.Game, broadcasts on PubSub and replies. Both GameLive processes send diffs to their tabs.</title>
+  <rect class="d-band" x="0" y="0" width="360" height="78" rx="6"/>
+  <text class="d-band-label" x="8" y="13">Browser</text>
+  <rect class="d-band" x="0" y="104" width="360" height="346" rx="6"/>
+  <text class="d-band-label" x="352" y="442" text-anchor="end">BEAM node &middot; one Fly machine</text>
+  <g class="d-node"><rect x="10" y="22" width="140" height="44" rx="5"/><text x="20" y="40">Tab A, seat 0</text><text class="sub" x="20" y="56">1 taps Draw a chip</text></g>
+  <g class="d-node"><rect x="210" y="22" width="140" height="44" rx="5"/><text x="220" y="40">Tab B, seat 1</text><text class="sub" x="220" y="56">watches the pot</text></g>
+  <g class="d-node"><rect x="10" y="130" width="140" height="44" rx="5"/><text x="20" y="148">GameLive, tab A</text><text class="sub" x="20" y="164">3 handle_event</text></g>
+  <g class="d-node"><rect x="210" y="130" width="140" height="44" rx="5"/><text x="220" y="148">GameLive, tab B</text><text class="sub" x="220" y="164">process + assigns</text></g>
+  <g class="d-node"><rect x="10" y="262" width="140" height="44" rx="5"/><text x="20" y="280">GameServer</text><text class="sub" x="20" y="296">process + mailbox</text></g>
+  <g class="d-node"><rect x="210" y="262" width="140" height="44" rx="5"/><text x="220" y="280">PubSub</text><text class="sub" x="220" y="296">"game:abcdef"</text></g>
+  <g class="d-node pure"><rect x="10" y="394" width="140" height="44" rx="5"/><text x="20" y="412">Quacks.Game</text><text class="sub" x="20" y="428">pure functions</text></g>
+  <g class="d-edge is-on"><path d="M50 66 V124"/><polygon class="head" points="46,123 54,123 50,130"/><text x="56" y="102">2 event</text></g>
+  <g class="d-edge is-on"><path d="M120 130 V72"/><polygon class="head" points="116,73 124,73 120,66"/><text x="126" y="102">9 diff</text></g>
+  <g class="d-edge is-on"><path d="M315 130 V72"/><polygon class="head" points="311,73 319,73 315,66"/><text x="321" y="102">9 diff</text></g>
+  <g class="d-edge is-on"><path d="M50 174 V256"/><polygon class="head" points="46,255 54,255 50,262"/><text x="56" y="222">4 call</text></g>
+  <g class="d-edge is-on"><path d="M120 262 V180"/><polygon class="head" points="116,181 124,181 120,174"/><text x="126" y="222">7 reply</text></g>
+  <g class="d-edge is-on"><path d="M50 306 V388"/><polygon class="head" points="46,387 54,387 50,394"/><text x="56" y="354">5 apply/3</text></g>
+  <g class="d-edge is-on"><path d="M120 394 V312"/><polygon class="head" points="116,313 124,313 120,306"/><text x="126" y="354">{:ok, game}</text></g>
+  <g class="d-edge is-on"><path d="M150 284 H203"/><polygon class="head" points="203,280 203,288 210,284"/><text x="180" y="276" text-anchor="middle">6 broadcast</text></g>
+  <g class="d-edge is-on"><path d="M265 262 V180"/><polygon class="head" points="261,181 269,181 265,174"/><text x="271" y="222">8 handle_info</text></g>
+  <g class="d-edge is-on"><path d="M210 266 L155.7 178"/><polygon class="head" points="159.1,175.9 152.3,180.1 152,172"/></g>
+</svg>
+</figure>
+
+<h2>Where it is in the code</h2>
+<p class="small">Line numbers are for the <code>staging</code> branch. Function names stay searchable when lines drift.</p>
+<div class="table-wrap">
+<table class="hop-table">
+  <thead><tr><th>Hop</th><th>What happens</th><th>Where</th><th>React &asymp;</th></tr></thead>
+  <tbody>
+    <tr><td><span class="chip" data-c="orange">1</span></td><td><code>phx-click="action"</code>, <code>phx-value-action={encode(:draw)}</code></td><td><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks_web/live/game_live.ex#L1761-L1770" target="_blank" rel="noopener">game_live.ex:1761</a></td><td><code>onClick</code>, but the handler is on the server</td></tr>
+    <tr><td><span class="chip" data-c="green">2</span></td><td>LiveView client sends the event over the <code>/live</code> websocket</td><td><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks_web/endpoint.ex#L17-L19" target="_blank" rel="noopener">endpoint.ex:17</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/assets/js/app.js#L242" target="_blank" rel="noopener">app.js:242</a></td><td><code>socket.send</code></td></tr>
+    <tr><td><span class="chip" data-c="blue">3</span></td><td><code>handle_event("action", ...)</code> decodes, then <code>play/3</code></td><td><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks_web/live/game_live.ex#L167-L179" target="_blank" rel="noopener">game_live.ex:167</a></td><td>event handler in a server-side component</td></tr>
+    <tr><td><span class="chip" data-c="red">4</span></td><td><code>GameServer.apply/3</code> &rarr; <code>call/2</code> &rarr; <code>GenServer.call</code>; message waits in the mailbox</td><td><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L374" target="_blank" rel="noopener">game_server.ex:374</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L554-L562" target="_blank" rel="noopener">:554</a></td><td><code>await store.dispatch()</code></td></tr>
+    <tr><td><span class="chip" data-c="yellow">5</span></td><td><code>server_call({:apply, ...})</code> &rarr; <code>Session.apply/3</code> &rarr; <code>Game.apply/3</code></td><td><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L696-L701" target="_blank" rel="noopener">game_server.ex:696</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/session.ex#L70-L73" target="_blank" rel="noopener">session.ex:70</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game.ex#L646-L655" target="_blank" rel="noopener">game.ex:646</a></td><td>the reducer</td></tr>
+    <tr><td><span class="chip" data-c="purple">6</span></td><td><code>reply_game/1</code> broadcasts <code>{:game, id, game}</code> on <code>"game:" &lt;&gt; id</code></td><td><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L1261-L1265" target="_blank" rel="noopener">game_server.ex:1261</a></td><td><code>store.subscribe</code> listeners fire</td></tr>
+    <tr><td><span class="chip" data-c="orange">7</span></td><td>reply <code>{:ok, game}</code> reaches <code>play/3</code>; <code>put_game/2</code> sets <code>@game</code>, <code>@me</code>, <code>@actions</code></td><td><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks_web/live/game_live.ex#L793-L804" target="_blank" rel="noopener">game_live.ex:793</a>, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks_web/live/game_live.ex#L2990" target="_blank" rel="noopener">:2990</a></td><td><code>setState</code> plus selectors</td></tr>
+    <tr><td><span class="chip" data-c="green">8</span></td><td><code>handle_info({:game, ...})</code> in every subscribed tab; tab A skips its own copy</td><td><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks_web/live/game_live.ex#L584-L590" target="_blank" rel="noopener">game_live.ex:584</a>, subscribe at <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks_web/live/game_live.ex#L126" target="_blank" rel="noopener">:126</a></td><td>subscription callback</td></tr>
+    <tr><td><span class="chip" data-c="blue">9</span></td><td>re-render; only changed dynamic parts go to each browser as a diff</td><td>LiveView itself (<a href="https://hexdocs.pm/phoenix_live_view/1.2.12/assigns-eex.html" target="_blank" rel="noopener">docs</a>)</td><td>reconciliation, run on the server</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Rules of thumb</h2>
+<ul>
+  <li><strong>Two taps at once</strong> are queued in the GameServer&rsquo;s mailbox and applied one after the other. No locks.</li>
+  <li><strong><code>call</code>, never <code>cast</code></strong>: every tab gets an answer, and waiting gives back-pressure.</li>
+  <li><strong>Subscribe only when connected</strong>: the first <code>mount/3</code> answers plain HTTP; the second runs in the tab&rsquo;s long-lived process.</li>
+  <li><strong>The struct never reaches the browser.</strong> It travels between processes in memory. Only HTML diffs cross the network.</li>
+  <li><strong>Errors are values.</strong> An illegal move is <code>{:error, {:illegal_action, action, phase}}</code>, shown as a flash.</li>
+  <li><strong>Game gone?</strong> <code>call/2</code> turns a missing or dying server into <code>{:error, :not_found}</code>, and the tab goes back to the lobby.</li>
+</ul>
+
+<nav class="pager" aria-label="Pages">
+  <a href="../index.html"><small>Back to</small><span class="t">Course hub</span></a>
+  <a class="next" href="glossary.html"><small>Also</small><span class="t">Glossary</span></a>
+</nav>
+</div>
+</body>
+</html>

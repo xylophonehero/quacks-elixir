@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quacks Elixir Glossary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;600&amp;family=IM+Fell+English:ital@0;1&amp;display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="page">
+
+<nav class="crumbs" aria-label="Course">
+  <a href="../index.html">Course hub</a>
+  <span class="spacer"></span>
+  <a href="flow-cheatsheet.html">Cheat sheet</a>
+</nav>
+
+<header>
+  <p class="eyebrow">Reference &middot; lessons 1 and 2</p>
+  <h1>Glossary</h1>
+  <p class="lede">The words this course uses for Elixir, OTP and LiveView, one meaning each. Lessons use these terms and avoid the aliases.</p>
+  <p class="small">Game terms (chip, pot, seat, round) live in the repo&rsquo;s own <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/CONTEXT.md" target="_blank" rel="noopener">docs/CONTEXT.md</a>.</p>
+</header>
+
+<h2>Processes</h2>
+<dl class="terms">
+  <dt id="process">Process</dt>
+  <dd>A lightweight, isolated unit of execution on the BEAM with its own memory and a mailbox; processes share nothing and talk only by messages. In this course it never means an OS process.
+    <span class="avoid"><i>Avoid</i>thread, worker, actor</span></dd>
+
+  <dt id="beam">BEAM</dt>
+  <dd>The Erlang virtual machine that runs Elixir code and schedules every process. Quacks runs one BEAM node on one Fly machine.
+    <span class="avoid"><i>Avoid</i>the runtime, Erlang VM (fine, but say BEAM)</span></dd>
+
+  <dt id="mailbox">Mailbox</dt>
+  <dd>The queue of messages waiting for one process. The process handles them one at a time, which is why a GameServer never sees two moves at once.
+    <span class="avoid"><i>Avoid</i>inbox, message queue, event loop</span></dd>
+
+  <dt id="genserver">GenServer</dt>
+  <dd>An OTP behaviour for a process that loops forever: take a message from the mailbox, run a callback, keep the new state. <code>Quacks.GameServer</code> is one, one per game.
+    <span class="avoid"><i>Avoid</i>service, server class, store (the analogy is fine, the term is not)</span></dd>
+
+  <dt id="call"><code>call</code></dt>
+  <dd>Sending a message to a GenServer and waiting for its reply (<code>GenServer.call/2</code>, 5 s timeout by default). Its fire-and-forget sibling is <code>cast</code>; Quacks never uses it.
+    <span class="avoid"><i>Avoid</i>request, invoke, RPC</span></dd>
+
+  <dt id="pubsub">PubSub</dt>
+  <dd>A publish/subscribe bus between processes (<code>Quacks.PubSub</code>). A process subscribes to a <strong>topic</strong> string such as <code>"game:abcdef"</code>; a broadcast sends a message to every subscriber&rsquo;s mailbox.
+    <span class="avoid"><i>Avoid</i>event bus, channel, websocket push</span></dd>
+
+  <dt id="registry">Registry</dt>
+  <dd>A name table from a key to a pid. <code>Quacks.GameRegistry</code> maps a game id to its GameServer.
+    <span class="avoid"><i>Avoid</i>lookup table, directory</span></dd>
+</dl>
+
+<h2>LiveView</h2>
+<dl class="terms">
+  <dt id="liveview">LiveView</dt>
+  <dd>A process per browser tab that holds the tab&rsquo;s state, renders HTML from it and handles its events. <code>QuacksWeb.GameLive</code> is the game page&rsquo;s LiveView.
+    <span class="avoid"><i>Avoid</i>component, page controller, view</span></dd>
+
+  <dt id="socket">LiveView socket</dt>
+  <dd>The struct a LiveView passes through every callback (<code>socket</code>); it carries the assigns. Not the network connection, which this course calls the <strong>websocket</strong>.
+    <span class="avoid"><i>Avoid</i>connection (for the struct), the socket (for the websocket)</span></dd>
+
+  <dt id="assigns">Assigns</dt>
+  <dd>The map of state on the LiveView socket (<code>socket.assigns</code>), read in templates as <code>@name</code> and set with <code>assign/2</code>.
+    <span class="avoid"><i>Avoid</i>state, props</span></dd>
+
+  <dt id="mount"><code>mount/3</code></dt>
+  <dd>The LiveView callback that sets up the first assigns. It runs twice: once for the plain HTTP render, once in the connected process that lives with the tab. Only the second has <code>connected?(socket)</code> true.
+    <span class="avoid"><i>Avoid</i>constructor, componentDidMount</span></dd>
+
+  <dt id="handle_event"><code>handle_event/3</code></dt>
+  <dd>The LiveView callback for an event from the browser, such as a <code>phx-click</code>.
+    <span class="avoid"><i>Avoid</i>click handler, onClick</span></dd>
+
+  <dt id="handle_info"><code>handle_info/2</code></dt>
+  <dd>The callback for any other message in the process&rsquo;s mailbox, such as a PubSub broadcast.
+    <span class="avoid"><i>Avoid</i>listener, subscription callback</span></dd>
+
+  <dt id="diff">Diff</dt>
+  <dd>The JSON patch LiveView sends to the browser after a render: only the dynamic parts of the template whose assigns changed.
+    <span class="avoid"><i>Avoid</i>update, delta, patch (fine in passing)</span></dd>
+</dl>
+
+<h2>Reading Elixir</h2>
+<dl class="terms">
+  <dt id="atom">Atom</dt>
+  <dd>A constant whose value is its own name, written <code>:draw</code>. Atoms are never garbage-collected, so code never makes them from user input.
+    <span class="avoid"><i>Avoid</i>symbol, enum value</span></dd>
+
+  <dt id="tuple">Tuple</dt>
+  <dd>A fixed-size, ordered group of values, written <code>{:white, 2}</code>. A <strong>tagged tuple</strong> starts with an atom that names its shape, such as <code>{:ok, game}</code> or <code>{:buy, chips}</code>.
+    <span class="avoid"><i>Avoid</i>array, pair, record</span></dd>
+
+  <dt id="struct">Struct</dt>
+  <dd>A map with a fixed set of keys, defaults and a module name, written <code>%Quacks.Game{}</code>. Updating an unknown key raises.
+    <span class="avoid"><i>Avoid</i>object, class instance, record</span></dd>
+
+  <dt id="immutable">Immutable</dt>
+  <dd>A value never changes after it is made. <code>%{g | round: 2}</code> builds a new struct; <code>g</code> stays as it was.
+    <span class="avoid"><i>Avoid</i>frozen, read-only, constant</span></dd>
+
+  <dt id="match">Pattern match</dt>
+  <dd>Checking a value against a shape and binding names from it, as in <code>{:ok, game} = result</code>. A failed <code>=</code> match raises <code>MatchError</code>.
+    <span class="avoid"><i>Avoid</i>destructuring (it is more), assignment</span></dd>
+
+  <dt id="clause">Function clause</dt>
+  <dd>One of several definitions of the same function. Elixir runs the first clause whose pattern and guard fit the arguments.
+    <span class="avoid"><i>Avoid</i>overload, case branch</span></dd>
+
+  <dt id="guard">Guard</dt>
+  <dd>The <code>when</code> part of a clause, built only from a fixed set of side-effect-free checks such as <code>is_integer(seat)</code>.
+    <span class="avoid"><i>Avoid</i>condition, precondition</span></dd>
+
+  <dt id="pipe">Pipe</dt>
+  <dd>The <code>|&gt;</code> operator: it passes the value on its left as the first argument of the call on its right.
+    <span class="avoid"><i>Avoid</i>chain, fluent call</span></dd>
+
+  <dt id="with"><code>with</code></dt>
+  <dd>A chain of pattern matches (<code>pattern &lt;- expr</code>) that runs its <code>do</code> block when all match and otherwise returns the first value that did not.
+    <span class="avoid"><i>Avoid</i>try block, promise chain</span></dd>
+
+  <dt id="result">Result tuple</dt>
+  <dd>The convention <code>{:ok, value}</code> or <code>{:error, reason}</code> for a function that can fail as a normal outcome. <code>Game.apply/3</code> returns one.
+    <span class="avoid"><i>Avoid</i>Either, response object, exception</span></dd>
+
+  <dt id="pure">Pure function</dt>
+  <dd>A function whose result depends only on its arguments and which changes nothing else. The whole engine, <code>Quacks.Game</code>, is pure.
+    <span class="avoid"><i>Avoid</i>stateless function, helper</span></dd>
+
+  <dt id="rng">RNG state</dt>
+  <dd>The random generator&rsquo;s state as a value, stored in <code>game.rng</code> and advanced with <code>:rand.uniform_s/2</code>. Seed plus actions then rebuild the same game.
+    <span class="avoid"><i>Avoid</i>seed (the seed only starts it), random</span></dd>
+</dl>
+
+<nav class="pager" aria-label="Pages">
+  <a href="../index.html"><small>Back to</small><span class="t">Course hub</span></a>
+  <a class="next" href="flow-cheatsheet.html"><small>Also</small><span class="t">Round trip cheat sheet</span></a>
+</nav>
+</div>
+</body>
+</html>

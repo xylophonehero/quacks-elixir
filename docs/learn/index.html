@@ -1,0 +1,84 @@
+<title>Quacks Elixir School</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;600&amp;family=IM+Fell+English:ital@0;1&amp;display=swap">
+<link rel="stylesheet" href="assets/course.css">
+<style>
+  .hub-title { font-size: clamp(2.4rem, 9vw, 3.4rem); }
+  .mission { font-size: 1.15rem; margin-top: 0.8rem; }
+  .refs { list-style: none; padding: 0; margin: 0.6rem 0 0; display: grid; gap: 0; }
+  .refs li { margin: 0; border-top: 1px solid var(--rule); }
+  .refs li:last-child { border-bottom: 1px solid var(--rule); }
+  .refs a { display: flex; flex-direction: column; padding-block: 0.7rem; min-height: 44px; text-decoration: none; }
+  .refs a .t { font-family: var(--font-display); font-size: 1.15rem; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+  .refs a .d { font-size: 0.9rem; color: var(--fg-muted); }
+</style>
+
+<div class="page">
+
+<header>
+  <p class="eyebrow">A brewer&rsquo;s notebook for Elixir and Phoenix</p>
+  <h1 class="hub-title">Quacks Elixir School</h1>
+  <p class="mission">Learn Elixir and Phoenix LiveView by reading the Quacks codebase, so you can review and steer the agents that build it. Each lesson takes about ten minutes on a phone and ends with one thing you can now do.</p>
+</header>
+
+<h2>Lessons</h2>
+<ol class="lessons" id="lesson-list">
+  <li>
+    <a href="lessons/0001-a-tap-round-trip.html" data-lesson="0001">
+      <span class="chip" data-c="orange">1</span>
+      <span class="t">A tap&rsquo;s round trip</span>
+      <span class="status new" data-status="0001">New</span>
+      <span class="d">One Draw tap from the browser through LiveView, the GameServer, the engine and PubSub, and back to every tab.</span>
+    </a>
+  </li>
+  <li>
+    <a href="lessons/0002-reading-the-engine.html" data-lesson="0002">
+      <span class="chip" data-c="green">2</span>
+      <span class="t">Reading the engine</span>
+      <span class="status new" data-status="0002">New</span>
+      <span class="d">Structs, pattern matching in function heads, result tuples, <code>with</code>, pipes, and the RNG kept in the struct.</span>
+    </a>
+  </li>
+</ol>
+
+<h2>Coming up</h2>
+<ol class="lessons" aria-label="Planned lessons">
+  <li class="planned"><div class="row"><span class="chip" data-c="blue">3</span><span class="t">Processes, mailboxes and GenServer</span><span class="status">Planned</span><span class="d">How a process differs from React state, and how the GameServer loop works.</span></div></li>
+  <li class="planned"><div class="row"><span class="chip" data-c="red">4</span><span class="t">The LiveView lifecycle and the wire</span><span class="status">Planned</span><span class="d">The two mounts, events, and exactly what a diff carries.</span></div></li>
+  <li class="planned"><div class="row"><span class="chip" data-c="yellow">5</span><span class="t">Supervision: let it crash</span><span class="status">Planned</span><span class="d">The supervision tree, <code>restart: :temporary</code>, and what a crash costs one game.</span></div></li>
+  <li class="planned"><div class="row"><span class="chip" data-c="purple">6</span><span class="t">Replay, undo and bug-report bundles</span><span class="status">Planned</span><span class="d">Seed plus actions as the truth, and loading a reported game.</span></div></li>
+  <li class="planned"><div class="row"><span class="chip" data-c="orange">7</span><span class="t">Performance on the BEAM</span><span class="status">Planned</span><span class="d">Diffs, streams, memory per process, and the scheduler.</span></div></li>
+  <li class="planned"><div class="row"><span class="chip" data-c="green">8</span><span class="t">The machine</span><span class="status">Planned</span><span class="d">One Fly machine, the volume, and what happens during a deploy.</span></div></li>
+  <li class="planned"><div class="row"><span class="chip" data-c="blue">9</span><span class="t">Scaling to more machines</span><span class="status">Planned</span><span class="d">Clustering, distributed registries and sticky sessions.</span></div></li>
+  <li class="planned"><div class="row"><span class="chip" data-c="red">10</span><span class="t">Bots and expectimax</span><span class="status">Planned</span><span class="d">How the bots pick a move with exact odds and expected value.</span></div></li>
+</ol>
+
+<h2>Reference</h2>
+<ul class="refs">
+  <li><a href="reference/flow-cheatsheet.html"><span class="t">Round trip cheat sheet</span><span class="d">The nine hops on one page, with where each lives in the code.</span></a></li>
+  <li><a href="reference/glossary.html"><span class="t">Glossary</span><span class="d">One meaning per term: process, mailbox, assigns, pattern match and more.</span></a></li>
+  <li><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/GUIDE.md" target="_blank" rel="noopener"><span class="t">How Quacks is built</span><span class="d">The repo&rsquo;s own guide, eleven chapters. The lessons walk through it.</span></a></li>
+</ul>
+
+<section class="ask">
+  <h2>Stuck or curious?</h2>
+  <p>Ask your agent in the Claude app. It can open any file in the repo, explain a line, or build the next lesson around what you want to know.</p>
+</section>
+
+<p class="small">Progress is saved in this browser only.</p>
+</div>
+
+<script src="assets/progress.js"></script>
+<script>
+(function () {
+  var p = window.QES && window.QES.progress;
+  if (!p) return;
+  var labels = { "new": "New", started: "Started", done: "Done" };
+  document.querySelectorAll("[data-status]").forEach(function (el) {
+    var s = p.status(el.getAttribute("data-status"));
+    el.textContent = labels[s];
+    el.className = "status " + s;
+  });
+})();
+</script>

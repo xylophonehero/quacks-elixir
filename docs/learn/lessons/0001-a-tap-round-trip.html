@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A Tap's Round Trip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;600&amp;family=IM+Fell+English:ital@0;1&amp;display=swap">
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="page">
+
+<nav class="crumbs" aria-label="Course">
+  <a href="../index.html">Course hub</a>
+  <span class="spacer"></span>
+  <a href="../reference/flow-cheatsheet.html">Cheat sheet</a>
+  <a href="../reference/glossary.html">Glossary</a>
+</nav>
+
+<header>
+  <p class="eyebrow">Lesson 1 &middot; about 10 minutes</p>
+  <h1>A tap&rsquo;s round trip</h1>
+  <div class="recipe">
+    <dl>
+      <dt>Yields</dt>
+      <dd class="yield">You can name the nine hops a tap on <em>Draw a chip</em> takes, and say which process runs each one.</dd>
+      <dt>You bring</dt>
+      <dd>React state, a websocket, and the idea of a reducer.</dd>
+      <dt>Guide</dt>
+      <dd><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/04-gameserver.md" target="_blank" rel="noopener">Ch. 4, GameServer</a> and <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/05-liveview.md" target="_blank" rel="noopener">Ch. 5, LiveView</a></dd>
+    </dl>
+  </div>
+</header>
+
+<p class="lede">In a React app the browser holds the state and the server is a database behind an API. Quacks flips that. The state lives on the server, in a process, and the browser is a thin screen that sends taps and receives patches.</p>
+
+<aside class="note"><b>React &asymp;</b>Think of the GameServer as a Redux store that lives on the server, one per game. Every tab subscribes to it. Nobody keeps a copy they can edit.</aside>
+
+<p>Two kinds of process do the work. A <strong>process</strong> on the BEAM (the Erlang virtual machine) is a tiny isolated worker with its own memory and a <strong>mailbox</strong>. It shares nothing and talks only by sending messages. A server can run hundreds of thousands of them (<a href="https://hexdocs.pm/elixir/1.18.3/processes.html" target="_blank" rel="noopener">Elixir guide: Processes</a>).</p>
+
+<ul>
+  <li><strong>GameLive</strong>, one per open tab. It holds that tab&rsquo;s view state in its <em>assigns</em> and renders HTML.</li>
+  <li><strong>GameServer</strong>, one per game. It holds the game and applies every move.</li>
+</ul>
+
+<p>Between them sits <strong>PubSub</strong>, a message bus inside the same node. The engine, <code>Quacks.Game</code>, is no process at all. It is plain functions that the GameServer calls.</p>
+
+<h2>Step through one tap</h2>
+<p>Tab A is seat 0 and taps <em>Draw a chip</em>. Tab B is seat 1 and watches. Tap <em>Next</em> to follow the move. The diagram lights the parts each hop touches.</p>
+
+<section class="stepper" id="trip" aria-label="Round trip of one Draw tap">
+<svg viewBox="0 0 360 450" role="img" aria-labelledby="trip-title">
+  <title id="trip-title">Two browser tabs, their two GameLive processes, the GameServer, PubSub and the pure engine, with arrows for each hop.</title>
+  <rect class="d-band" x="0" y="0" width="360" height="78" rx="6"/>
+  <text class="d-band-label" x="8" y="13">Browser</text>
+  <rect class="d-band" x="0" y="104" width="360" height="346" rx="6"/>
+  <text class="d-band-label" x="352" y="442" text-anchor="end">BEAM node &middot; one Fly machine</text>
+
+  <g class="d-node" data-hop="1 2 9"><rect x="10" y="22" width="140" height="44" rx="5"/><text x="20" y="40">Tab A, seat 0</text><text class="sub" x="20" y="56">taps Draw a chip</text></g>
+  <g class="d-node" data-hop="9"><rect x="210" y="22" width="140" height="44" rx="5"/><text x="220" y="40">Tab B, seat 1</text><text class="sub" x="220" y="56">watches the pot</text></g>
+  <g class="d-node" data-hop="2 3 4 7 8 9"><rect x="10" y="130" width="140" height="44" rx="5"/><text x="20" y="148">GameLive, tab A</text><text class="sub" x="20" y="164">process + assigns</text></g>
+  <g class="d-node" data-hop="8 9"><rect x="210" y="130" width="140" height="44" rx="5"/><text x="220" y="148">GameLive, tab B</text><text class="sub" x="220" y="164">process + assigns</text></g>
+  <g class="d-node" data-hop="4 5 6 7"><rect x="10" y="262" width="140" height="44" rx="5"/><text x="20" y="280">GameServer</text><text class="sub" x="20" y="296">process + mailbox</text></g>
+  <g class="d-node" data-hop="6 8"><rect x="210" y="262" width="140" height="44" rx="5"/><text x="220" y="280">PubSub</text><text class="sub" x="220" y="296">"game:abcdef"</text></g>
+  <g class="d-node pure" data-hop="5"><rect x="10" y="394" width="140" height="44" rx="5"/><text x="20" y="412">Quacks.Game</text><text class="sub" x="20" y="428">pure functions</text></g>
+
+  <g class="d-edge" data-hop="2"><path d="M50 66 V124"/><polygon class="head" points="46,123 54,123 50,130"/><text x="56" y="102">event</text></g>
+  <g class="d-edge" data-hop="9"><path d="M120 130 V72"/><polygon class="head" points="116,73 124,73 120,66"/><text x="126" y="102">diff</text></g>
+  <g class="d-edge" data-hop="9"><path d="M315 130 V72"/><polygon class="head" points="311,73 319,73 315,66"/><text x="321" y="102">diff</text></g>
+  <g class="d-edge" data-hop="4"><path d="M50 174 V256"/><polygon class="head" points="46,255 54,255 50,262"/><text x="56" y="222">call</text></g>
+  <g class="d-edge" data-hop="7"><path d="M120 262 V180"/><polygon class="head" points="116,181 124,181 120,174"/><text x="126" y="222">reply</text></g>
+  <g class="d-edge" data-hop="5"><path d="M50 306 V388"/><polygon class="head" points="46,387 54,387 50,394"/><text x="56" y="354">apply/3</text></g>
+  <g class="d-edge" data-hop="5"><path d="M120 394 V312"/><polygon class="head" points="116,313 124,313 120,306"/><text x="126" y="354">{:ok, game}</text></g>
+  <g class="d-edge" data-hop="6"><path d="M150 284 H203"/><polygon class="head" points="203,280 203,288 210,284"/><text x="180" y="276" text-anchor="middle">broadcast</text></g>
+  <g class="d-edge" data-hop="8"><path d="M265 262 V180"/><polygon class="head" points="261,181 269,181 265,174"/><text x="271" y="222">handle_info</text></g>
+  <g class="d-edge" data-hop="8"><path d="M210 266 L155.7 178"/><polygon class="head" points="159.1,175.9 152.3,180.1 152,172"/></g>
+</svg>
+
+<div class="controls">
+  <button class="btn" type="button" data-act="prev">Back</button>
+  <span class="count" aria-live="polite"></span>
+  <button class="btn primary" type="button" data-act="next">Next</button>
+</div>
+
+<ol class="panels">
+<li class="panel" data-step="1">
+  <h3><span class="chip" data-c="orange">1</span> The tap</h3>
+  <p>The button is plain HEEx, Phoenix&rsquo;s HTML template language. <code>phx-click</code> names the event. <code>phx-value-action</code> attaches the move, an Elixir term turned into a URL-safe string by <code>encode/1</code>. The button is disabled unless <code>:draw</code> is in <code>@actions</code>, the list the engine says is legal.</p>
+  <figure class="excerpt" data-path="lib/quacks_web/live/game_live.ex" data-start="1761" data-hl="1762-1764"><pre><code>&lt;.button
+  phx-click="action"
+  phx-value-action={encode(:draw)}
+  disabled={:draw not in @actions}
+  variant={:primary}
+  data-slot="draw"
+&gt;</code></pre></figure>
+  <p class="note"><b>React &asymp;</b><code>&lt;button onClick={() =&gt; dispatch(draw)} disabled={!actions.includes("draw")}&gt;</code>. The difference: there is no handler in the browser. The click is data that travels to the server.</p>
+</li>
+
+<li class="panel" data-step="2">
+  <h3><span class="chip" data-c="green">2</span> Over the websocket</h3>
+  <p>When the page loaded, <code>app.js</code> opened one websocket to <code>/live</code>. LiveView&rsquo;s client sends the event over it: the name <code>"action"</code> and the params <code>%{"action" =&gt; "g2gC..."}</code>. No new HTTP request is made.</p>
+  <figure class="excerpt" data-path="lib/quacks_web/endpoint.ex" data-start="17"><pre><code>socket "/live", Phoenix.LiveView.Socket,
+  websocket: [connect_info: [session: @session_options], fullsweep_after: 0],
+  longpoll: [connect_info: [session: @session_options]]</code></pre></figure>
+  <p class="note"><b>React &asymp;</b>A <code>socket.send(JSON.stringify({event, params}))</code> on a socket that stays open. LiveView writes this client for you (<a href="https://hexdocs.pm/phoenix_live_view/1.2.12/bindings.html" target="_blank" rel="noopener">Bindings guide</a>).</p>
+</li>
+
+<li class="panel" data-step="3">
+  <h3><span class="chip" data-c="blue">3</span> <code>handle_event</code> in tab A&rsquo;s process</h3>
+  <p>On the server, the event lands in the mailbox of tab A&rsquo;s <strong>GameLive process</strong>. Elixir picks the first <code>handle_event</code> clause whose pattern fits. This one needs an integer seat in the assigns, so a spectator (seat <code>nil</code>) falls to the second clause. It decodes the move and calls <code>play/3</code>.</p>
+  <figure class="excerpt" data-path="lib/quacks_web/live/game_live.ex" data-start="167" data-hl="167-168"><pre><code>def handle_event("action", %{"action" =&gt; encoded}, %{assigns: %{seat: seat}} = socket)
+    when is_integer(seat) do
+  case decode(encoded) do
+    {:ok, action} -&gt;
+      play(socket, seat, action)
+
+    {:error, :bad_action} -&gt;
+      {:noreply, put_flash(socket, :error, "That move could not be read.")}
+  end
+end
+
+def handle_event("action", _params, socket),
+  do: {:noreply, put_flash(socket, :error, "You are watching this game.")}</code></pre></figure>
+  <p class="note"><b>React &asymp;</b>A component instance that lives on the server. <code>socket.assigns</code> is its state. The seat comes from there, so the browser cannot claim another seat.</p>
+</li>
+
+<li class="panel" data-step="4">
+  <h3><span class="chip" data-c="red">4</span> <code>GenServer.call</code> to the game</h3>
+  <p><code>play/3</code> calls <code>GameServer.apply/3</code>. That function runs in tab A&rsquo;s process. It finds the game&rsquo;s pid by id in the Registry and sends <code>{:apply, 0, :draw}</code> with <code>GenServer.call</code>. Tab A&rsquo;s process now waits for the reply.</p>
+  <figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="554" data-hl="556"><pre><code>defp call(id, msg) do
+  case Registry.lookup(Quacks.GameRegistry, id) do
+    [{pid, _}] -&gt; GenServer.call(pid, msg)
+    [] -&gt; {:error, :not_found}
+  end
+catch
+  :exit, {reason, _} when reason in [:noproc, :normal, :shutdown, :killed] -&gt;
+    {:error, :not_found}
+end</code></pre></figure>
+  <p>The message joins the GameServer&rsquo;s <strong>mailbox</strong>. The GameServer takes one message at a time. That single fact is why two taps can never race.</p>
+  <p class="note"><b>React &asymp;</b><code>await store.dispatch(action)</code>, where the store is a separate worker with a queue in front of it.</p>
+</li>
+
+<li class="panel" data-step="5">
+  <h3><span class="chip" data-c="yellow">5</span> The engine decides</h3>
+  <p>Every call goes through one <code>handle_call/3</code> that hands the message to a private <code>server_call/3</code>. The <code>:apply</code> clause asks the session to apply the move. The session calls the pure engine.</p>
+  <figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="696"><pre><code>defp server_call({:apply, seat, action}, _from, state) do
+  case Session.apply(state.session, seat, action) do
+    {:ok, session} -&gt; reply_game(acted(%{state | session: session}))
+    error -&gt; {:reply, error, state, @idle_timeout}
+  end
+end</code></pre></figure>
+  <figure class="excerpt" data-path="lib/quacks/game.ex" data-start="646" data-hl="649"><pre><code>def apply(%__MODULE__{} = game, seat, action) do
+  action = normalise(action)
+
+  if action in legal_actions(game, seat) do
+    # The action goes in the log first, so the events it causes come after it.
+    {:ok, game |> record(seat, action) |> step(seat, action)}
+  else
+    {:error, {:illegal_action, action, phase(game, seat)}}
+  end
+end</code></pre></figure>
+  <p><code>Game.apply/3</code> takes a game and returns a new one. It never touches a process, a socket or a clock. Lesson 2 reads it line by line.</p>
+  <p class="note"><b>React &asymp;</b>The reducer: <code>(state, action) =&gt; state</code>. It also returns an error tuple for an illegal move instead of throwing.</p>
+</li>
+
+<li class="panel" data-step="6">
+  <h3><span class="chip" data-c="purple">6</span> Broadcast to the topic</h3>
+  <p><code>reply_game/1</code> does two things. First it broadcasts <code>{:game, id, game}</code> on the topic <code>"game:abcdef"</code>. Then it returns the reply for the caller.</p>
+  <figure class="excerpt" data-path="lib/quacks/game_server.ex" data-start="1261" data-hl="1263"><pre><code>defp reply_game(state) do
+  game = state.session.game
+  Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:game, state.id, game})
+  {:reply, {:ok, game}, state, @idle_timeout}
+end</code></pre></figure>
+  <p>The broadcast sends the whole struct to each subscriber, in memory. Nothing crosses the network yet.</p>
+  <p class="note"><b>React &asymp;</b><code>store.subscribe(listener)</code> firing for every listener. Here each listener is another process with its own mailbox.</p>
+</li>
+
+<li class="panel" data-step="7">
+  <h3><span class="chip" data-c="orange">7</span> The reply reaches tab A</h3>
+  <p><code>GenServer.call</code> returns <code>{:ok, game}</code> inside <code>play/3</code>. <code>put_game/2</code> stores the game and works out the derived assigns once: <code>@me</code>, <code>@decision</code> and <code>@actions</code>.</p>
+  <figure class="excerpt" data-path="lib/quacks_web/live/game_live.ex" data-start="793" data-hl="795-796"><pre><code>defp play(socket, seat, action) do
+  case GameServer.apply(socket.assigns.id, seat, action) do
+    {:ok, game} -&gt;
+      {:noreply, socket |> put_game(game) |> auto_done(shop_move?(action))}
+
+    {:error, {:illegal_action, action, _phase}} -&gt;
+      {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
+
+    {:error, :not_found} -&gt;
+      {:noreply, ended(socket)}
+  end
+end</code></pre></figure>
+  <p class="note"><b>React &asymp;</b><code>setState</code> plus selectors. <code>put_game/2</code> is the only place that sets these assigns, so the reply path and the broadcast path cannot disagree.</p>
+</li>
+
+<li class="panel" data-step="8">
+  <h3><span class="chip" data-c="green">8</span> <code>handle_info</code> in every tab</h3>
+  <p>Each GameLive subscribed in <code>mount/3</code>, but only on the connected mount, the one that runs in a process for the life of the tab (<a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks_web/live/game_live.ex#L126" target="_blank" rel="noopener">game_live.ex:126</a>). The broadcast arrives as a plain message. Tab B takes the new game. Tab A already has it from the reply, so it skips the copy. It also skips an older copy that arrives late, using the log length as a version number.</p>
+  <figure class="excerpt" data-path="lib/quacks_web/live/game_live.ex" data-start="584"><pre><code>def handle_info({:game, _id, game}, socket) do
+  current = socket.assigns.game
+
+  if game == current or length(game.log) &lt; length(current.log),
+    do: {:noreply, socket},
+    else: {:noreply, put_game(socket, game)}
+end</code></pre></figure>
+  <p class="note"><b>React &asymp;</b>A subscription callback. <code>game == current</code> compares deeply by value, with no custom <code>equals</code>.</p>
+</li>
+
+<li class="panel" data-step="9">
+  <h3><span class="chip" data-c="blue">9</span> Re-render and send the diff</h3>
+  <p>After each callback returns, LiveView re-renders the template. It tracks which assigns changed and which parts of the template read them, then sends only the changed dynamic parts as JSON over each tab&rsquo;s websocket. The client patches the DOM. Tab A sees its chip land. Tab B sees the same chip land in seat 0&rsquo;s pot.</p>
+  <p>The static HTML went down once, on the first load. From then on only the changed values travel (<a href="https://hexdocs.pm/phoenix_live_view/1.2.12/assigns-eex.html" target="_blank" rel="noopener">Assigns and HEEx templates</a>).</p>
+  <p class="note"><b>React &asymp;</b>Reconciliation, run on the server. React diffs a virtual DOM in the browser. LiveView diffs on the server and ships the patch.</p>
+</li>
+</ol>
+</section>
+
+<h2>Two tabs, one moment</h2>
+<p>What if tab A and tab B both tap at the same instant? Each tab&rsquo;s process sends a <code>{:apply, ...}</code> message. Both land in the one GameServer mailbox, in some order. The GameServer applies the first, replies and broadcasts. Then it takes the second message and applies it to the <em>new</em> game. If the second move is no longer legal, the engine returns an error and that tab shows a flash. No locks, no transactions. The module doc says it plainly:</p>
+<blockquote>
+  It serialises the moves (two clicks at the same moment are applied one after the other, never on top of each other).
+  <cite><a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/lib/quacks/game_server.ex#L5-L13" target="_blank" rel="noopener">lib/quacks/game_server.ex:5&ndash;13</a></cite>
+</blockquote>
+<aside class="note"><b>React &asymp;</b>Like a reducer called by one dispatcher in a strict queue. In the browser, JavaScript&rsquo;s single thread gives you this for free. On a server with many cores, the mailbox gives it to you per game.</aside>
+<p>One more reason the GameServer uses <code>call</code> and never <code>cast</code>: <code>call</code> waits for an answer. A tab always learns whether its move worked, and a fast clicker cannot flood the queue.</p>
+
+<h2>Check yourself</h2>
+<p>Answer from memory first. Each answer explains itself, right or wrong.</p>
+
+<div class="quiz" id="quiz1" data-quiz="quiz-0001" data-lesson="0001"></div>
+<script type="application/json" id="quiz-0001">
+{"items": [
+  {"id": "where", "q": "Two players share one game. Where does the current game struct live?",
+   "answer": 1,
+   "options": [
+     {"t": "In each browser tab's JavaScript memory store", "why": "The browser holds only HTML. It never receives the struct, only the rendered diff."},
+     {"t": "In the GameServer process for that game", "why": "One GameServer per game holds the session and the game. Each GameLive keeps a copy in its assigns to render, but the GameServer owns it."},
+     {"t": "In a database row read per click", "why": "Quacks has no database. Games live in memory, plus a game file on disk so a deploy does not lose them."},
+     {"t": "In the PubSub topic between all tabs", "why": "PubSub only passes messages along. It stores nothing."}
+   ]},
+  {"id": "race", "q": "Tab A and tab B tap <em>Draw</em> in the same millisecond. What happens?",
+   "answer": 3,
+   "options": [
+     {"t": "Both moves apply to the same old game", "why": "That would be a race. The GameServer handles one message at a time, so the second move sees the first move's result."},
+     {"t": "The second tap fails with a lock error", "why": "There are no locks. Nothing needs them, because one process applies the moves in order."},
+     {"t": "The browser cancels one tap before sending it", "why": "Each tab sends its own event. The tabs do not know about each other."},
+     {"t": "The mailbox queues them; they apply in turn", "why": "Both <code>{:apply, ...}</code> messages wait in the GameServer's mailbox. It applies one, replies, broadcasts, then takes the next."}
+   ]},
+  {"id": "skip", "q": "Tab A made the move. Its GameLive receives the new game twice. Why does it ignore the broadcast copy?",
+   "answer": 0,
+   "options": [
+     {"t": "It already put that game from the reply", "why": "The reply to <code>GenServer.call</code> carried the same game, and <code>game == current</code> is true, so <code>handle_info</code> returns the socket unchanged."},
+     {"t": "PubSub never delivers to the process that called", "why": "Tab A is subscribed to the topic like every tab, so it does get the broadcast."},
+     {"t": "The broadcast carries a diff, not a game", "why": "The broadcast carries the whole struct, <code>{:game, id, game}</code>. Diffs only exist between LiveView and the browser."},
+     {"t": "Broadcasts to the acting seat are always older", "why": "Usually it is the same game. The log-length check only catches a copy that arrives late."}
+   ]},
+  {"id": "mount", "q": "Why does <code>mount/3</code> subscribe to the topic only when <code>connected?(socket)</code> is true?",
+   "answer": 2,
+   "options": [
+     {"t": "Subscribing in both mounts would make every broadcast arrive twice", "why": "The two mounts run in different processes, so this is not the reason. The first one does not stay around as the tab."},
+     {"t": "PubSub only accepts subscribers that hold an open websocket connection", "why": "Any process can subscribe. PubSub knows nothing about websockets."},
+     {"t": "Only the connected mount's process stays alive with the tab", "why": "The first mount answers the plain HTTP request. The second mount runs in the LiveView process that lives as long as the tab, so it is the one that should listen."},
+     {"t": "The disconnected mount does not yet know the game id", "why": "Both mounts get <code>%{\"id\" =&gt; id}</code> from the URL."}
+   ]},
+  {"id": "wire", "q": "After <code>put_game/2</code> changes the assigns, what does the server send to tab B?",
+   "answer": 1,
+   "options": [
+     {"t": "The full game struct encoded as JSON text", "why": "The struct stays on the server. The browser could not use it: it has no rules and no React."},
+     {"t": "Only the changed parts of the rendered page", "why": "LiveView tracks which assigns changed and sends only the dynamic parts that depend on them."},
+     {"t": "A full new HTML page for the browser", "why": "Full HTML goes down once, on the first load. After that, only diffs."},
+     {"t": "The action, so the browser can replay it", "why": "The browser has no engine to replay with. The server is the only place the rules run."}
+   ]},
+  {"id": "spectator", "q": "A spectator (seat <code>nil</code>) forges an <code>\"action\"</code> event in the dev tools. Which clause runs?",
+   "code": {"label": "lib/quacks_web/live/game_live.ex:167-179, shortened", "plain": true, "src": "def handle_event(\"action\", %{\"action\" => encoded}, %{assigns: %{seat: seat}} = socket)\n    when is_integer(seat) do\n  # decode, then play/3\nend\n\ndef handle_event(\"action\", _params, socket),\n  do: {:noreply, put_flash(socket, :error, \"You are watching this game.\")}"},
+   "answer": 3,
+   "options": [
+     {"t": "The first clause, which then crashes the GameServer", "why": "The guard <code>is_integer(seat)</code> fails for <code>nil</code>, so the first clause never runs."},
+     {"t": "No clause matches, so the LiveView process crashes", "why": "The second clause matches any params. It is the catch-all."},
+     {"t": "The first clause; the engine then rejects it", "why": "The guard stops it before the engine is involved."},
+     {"t": "The second clause, which only shows a flash", "why": "Pattern and guard fail on the first clause, so Elixir tries the next one. It matches anything and puts a flash."}
+   ]},
+  {"id": "legal", "kind": "type", "q": "The GameServer adds no rules of its own. Which engine function is the one list of what a seat may do right now? Type its name.",
+   "placeholder": "function name",
+   "accept": ["legal_actions", "legal_actions/2", "Game.legal_actions", "Game.legal_actions/2", "legal_actions(game, seat)", "Game.legal_actions(game, seat)"],
+   "answer": "Game.legal_actions/2",
+   "why": "<code>Game.apply/3</code> checks every move against it, the page builds <code>@actions</code> from it, and the bots pick from it. One list, four readers."}
+]}
+</script>
+
+<section class="source">
+  <h2>Read next</h2>
+  <p><strong>Primary source:</strong> the <a href="https://hexdocs.pm/phoenix_live_view/1.2.12/Phoenix.LiveView.html" target="_blank" rel="noopener"><code>Phoenix.LiveView</code> docs</a>, section &ldquo;Life-cycle&rdquo;, for LiveView 1.2.12, the version in <code>mix.lock</code>. It explains the two mounts and the diffs in the authors&rsquo; words.</p>
+  <p>Then the guide: <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/04-gameserver.md" target="_blank" rel="noopener">chapter 4</a> for the GameServer, <a href="https://github.com/xylophonehero/quacks-elixir/blob/staging/docs/guide/05-liveview.md" target="_blank" rel="noopener">chapter 5</a> for the LiveView side. Its sequence diagram &ldquo;a human draws, the bots follow&rdquo; extends today&rsquo;s nine hops with the bot ticks.</p>
+</section>
+
+<section class="ask">
+  <h2>Questions? Ask your agent</h2>
+  <p>Open the Claude app and ask. Good starters: &ldquo;What would break if <code>GameServer.apply/3</code> used <code>cast</code>?&rdquo; or &ldquo;Show me what a LiveView diff looks like for the Draw tap.&rdquo;</p>
+</section>
+
+<nav class="pager" aria-label="Lessons">
+  <a href="../index.html"><small>Back to</small><span class="t">Course hub</span></a>
+  <a class="next" href="0002-reading-the-engine.html"><small>Next lesson</small><span class="t">Reading the engine</span></a>
+</nav>
+
+</div>
+<script src="../assets/progress.js"></script>
+<script src="../assets/code.js"></script>
+<script src="../assets/stepper.js"></script>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
