@@ -92,12 +92,11 @@ defmodule QuacksWeb.Round14Test do
       {:ok, id} = GameServer.start(1, {1, 2, 3})
       {:ok, view, _html} = live(browser("r14-card-#{System.unique_integer()}"), ~p"/g/#{id}")
 
-      assert has_element?(
-               view,
-               "#reveal-card-1 #reveal-slide-0[data-kind=card] [data-role=reveal-card-name]"
-             )
+      # Round 24: the card waits for a tap over the pot, with no sheet.
+      assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
+      refute has_element?(view, "#reveal-card-1")
 
-      view |> element("#reveal-next") |> render_click()
+      view |> element("#card-tap") |> render_click()
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
     end
 

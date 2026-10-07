@@ -1220,11 +1220,13 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   This round's Fortune Teller card as a small portrait card in the pot's top left
   corner (round 22, every layout): the colour band, the motif and the name. It
-  opens the `sheet-fortune` sheet with the full text.
+  opens the `sheet-fortune` sheet with the full text, or (round 24, with `click`)
+  sends that event: `GameLive` grows it back into the big card over the pot.
   """
   attr :id, :atom, required: true, doc: "`game.fortune_card`"
   attr :dom_id, :string, default: nil
   attr :class, :any, default: nil
+  attr :click, :string, default: nil, doc: "an event to push instead of opening the sheet"
 
   def fortune_tile(assigns) do
     assigns = assign(assigns, card: Fortune.card(assigns.id), motif: @card_motifs[assigns.id])
@@ -1233,13 +1235,14 @@ defmodule QuacksWeb.GameComponents do
     <button
       id={@dom_id}
       type="button"
-      popovertarget="sheet-fortune"
+      popovertarget={!@click && "sheet-fortune"}
+      phx-click={@click}
       class={[
         "paper card-portrait flex aspect-[5/7] w-12 max-w-full rotate-3 flex-col items-center overflow-hidden rounded-md text-center touch-manipulation lg:w-20",
         "transition-transform duration-100 ease-out active:scale-95",
         @class
       ]}
-      aria-label={"Fortune teller card: #{@card.name}. Show the text"}
+      aria-label={"Fortune teller card: #{@card.name}. " <> if(@click, do: "Show it big", else: "Show the text")}
       data-role="fortune-tile"
       data-colour={@card.colour}
     >
@@ -3401,6 +3404,10 @@ defmodule QuacksWeb.GameComponents do
   defp fortune_choice({:place, chip}, _card), do: "Safety Procedure: place #{chip_name(chip)}"
   defp fortune_choice(:return_all, _card), do: "Safety Procedure: return all to the bag"
   defp fortune_choice(other, _card), do: inspect({:fortune, other})
+
+  @doc "Round 24: what card `id` did for a player (`outcome` of its log entry), as text."
+  @spec card_outcome(term, atom) :: String.t()
+  def card_outcome(outcome, id), do: outcome |> fortune_outcome(id) |> String.capitalize()
 
   # What a card did for a player, for the log.
   defp fortune_outcome({:drew, chips}, :p8),

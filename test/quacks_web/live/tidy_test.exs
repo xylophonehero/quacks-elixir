@@ -94,8 +94,8 @@ defmodule QuacksWeb.TidyTest do
 
     assert has_element?(alice, "dialog#decision-droplet_choice")
     refute has_element?(alice, "dialog#decision-droplet_choice[phx-mounted*='quacks:modal']")
-    assert has_element?(alice, "dialog#reveal-card-1")
-    alice |> element("#reveal-next") |> render_click()
+    assert has_element?(alice, "#pot-card-1 [data-role=card-caption]")
+    alice |> element("#card-tap") |> render_click()
     assert_push_event(alice, "quacks:open", %{to: "#decision-droplet_choice"})
   end
 

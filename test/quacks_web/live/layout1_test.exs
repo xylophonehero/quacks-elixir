@@ -145,10 +145,11 @@ defmodule QuacksWeb.Layout1Test do
         g |> H.put(fortune_card: :p1, phase: :fortune_choice) |> Map.put(:phase, :fortune_choice)
       end)
 
-      assert has_element?(
-               view,
-               "dialog#card-round-1[data-side=panel][phx-mounted*='quacks:modal']"
-             )
+      # Round 24: the card hovers first; a tap opens the choice.
+      assert has_element?(view, "dialog#card-round-1[data-side=panel]")
+      refute has_element?(view, "dialog#card-round-1[phx-mounted*='quacks:modal']")
+      view |> element("#card-tap") |> render_click()
+      assert_push_event(view, "quacks:open", %{to: "#card-round-1"})
 
       assert has_element?(view, "[data-role=decision-button]", "Back to choice")
     end

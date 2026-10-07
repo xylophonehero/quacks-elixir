@@ -30,15 +30,15 @@ defmodule QuacksWeb.QaFixesTest do
       token = "card-#{System.unique_integer()}"
       view = open(browser(token), id)
 
-      # round 14: the card shows in the reveal overlay
-      assert auto_open?(view, "#reveal-card-1")
-      assert has_element?(view, "dialog#reveal-card-1[data-on-close*='reveal_close']")
+      # round 24: the card hovers over the pot until a tap
+      assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
 
-      view |> element("#reveal-next") |> render_click()
+      view |> element("#card-tap") |> render_click()
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
 
       reloaded = open(browser(token), id)
-      refute has_element?(reloaded, "dialog#reveal-card-1")
+      refute has_element?(reloaded, "#pot-card-1")
+      refute has_element?(reloaded, "#card-tap")
     end
 
     test "the replay plays once; after that, a reload opens the shop" do
