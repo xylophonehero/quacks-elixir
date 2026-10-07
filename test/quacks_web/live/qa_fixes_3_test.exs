@@ -270,7 +270,10 @@ defmodule QuacksWeb.QaFixes3Test do
       {:ok, _} = GameServer.add_bot(id, alice)
       view |> element("button", "Start game") |> render_click()
 
-      assert has_element?(view, "[data-role=player-chip] [data-role=player-state].-right-2\\.5")
+      # Round 27: on the tile's top right corner, once the seat stops.
+      {:ok, _} = GameServer.apply(id, 0, :draw)
+      {:ok, _} = GameServer.apply(id, 0, :stop)
+      assert has_element?(view, "[data-role=player-chip] [data-role=player-state].-right-1\\.5")
 
       assert has_element?(
                view,

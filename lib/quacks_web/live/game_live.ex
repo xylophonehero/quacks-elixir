@@ -18,8 +18,8 @@ defmodule QuacksWeb.GameLive do
   Closing the page before the start frees the seat (`terminate/2`).
 
   The layout, top to bottom: the header ("You are" and your seat colour, which also
-  runs along the top edge), your status, the players row (one name card per seat,
-  solo too; a tap opens that player's sheet), the pot, and the bottom bar with only
+  runs along the top edge), your status, the players row (round 27: one tile per seat
+  in a fixed seat loop, solo too; a tap opens that player's sheet), the pot, and the bottom bar with only
   Stop/Resume and Draw. Around the pot (round 22): this round's fortune card with the witches
   below it (top left), the kept Toadstool chips (top right), the flask (bottom
   left) and the bag (bottom right). The log, the share link and the books are in
@@ -1037,26 +1037,32 @@ defmodule QuacksWeb.GameLive do
             phx-mounted={JS.remove_class("replay-done", to: "#players-row")}
           />
           <.status :if={@seat} game={@game} seat={@seat} beats={stat_beats(@game, @seat, @seen)} />
-          <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
-               brew each card's counters tick on the replay beats; the card with the
-               last beat ends the replay (`replay_end/3`, app.js). On phones the
-               counts row has two lines, so the row keeps its height. --%>
+          <%!-- Round 27: one tile per seat in a fixed seat loop (`seat_loop/1`):
+               one row up to 4 seats, two rows from 5, the second row backwards, so
+               neighbours touch. The tiles never re-order and have a fixed height.
+               After the brew each tile's counters tick on the replay beats; the
+               tile with the last beat ends the replay (`replay_end/3`, app.js). --%>
           <nav
             id="players-row"
             class={[
-              "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_2.125rem] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)] sm:grid-rows-[auto_auto] phone-landscape:auto-cols-[minmax(5.5rem,1fr)]",
+              "-mx-2 grid gap-1 px-2 pt-1.5 pb-0.5",
               not replaying?(@game, @seen) && "replay-done"
             ]}
+            style={"grid-template-columns: repeat(#{loop_columns(length(@game.seats))}, minmax(0, 1fr))"}
             aria-label="Players"
             data-role="players-row"
+            data-columns={loop_columns(length(@game.seats))}
           >
             <.player_chip
-              :for={seat <- @game.seats}
+              :for={{seat, row, col} <- seat_loop(@game.seats)}
               game={@game}
               seat={seat}
               name={name(@names, seat)}
               you={seat == @seat}
               bot={Map.has_key?(@bots, seat)}
+              lead={seat in round_leaders(@game)}
+              row={row}
+              col={col}
               updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
               ticks={replaying?(@game, @seen)}
             />
