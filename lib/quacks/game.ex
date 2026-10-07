@@ -340,6 +340,8 @@ defmodule Quacks.Game do
   e.g. `%{copper: :c3, silver: nil}`, nil or left out: dealt) and 3 witch pennies per
   player. The Alchemists: locoweed book III may be picked, 3 patients are dealt
   (`patients`) and the game starts in `:patient_choice` (round 1's card comes after).
+  `patients:` picks patients before the game, e.g. `%{0 => :nervousness, 1 => :random}`
+  (`Quacks.Game.Essence.prepick/2`; only with The Alchemists, else ignored).
   An unknown colour, set, rule or expansion raises `ArgumentError`.
   """
   @spec new(
@@ -350,7 +352,8 @@ defmodule Quacks.Game do
           fortune: boolean,
           expansion: nil | :herb_witches,
           expansions: Enumerable.t(expansion),
-          witches: %{optional(WitchCards.colour()) => WitchCards.id() | nil} | nil
+          witches: %{optional(WitchCards.colour()) => WitchCards.id() | nil} | nil,
+          patients: %{optional(seat) => Alchemists.id() | :random} | nil
         ) :: t
   def new(opts) do
     seed = Keyword.fetch!(opts, :seed)
@@ -403,7 +406,9 @@ defmodule Quacks.Game do
         if MapSet.member?(expansions, x), do: record(g, {:expansion, x}), else: g
       end)
 
-    if MapSet.member?(expansions, :alchemists), do: Essence.setup(game), else: start_round(game)
+    if MapSet.member?(expansions, :alchemists),
+      do: game |> Essence.setup() |> Essence.prepick(opts[:patients]),
+      else: start_round(game)
   end
 
   # The host's picks replace the dealt witch of their colour (nil: dealt). The deal

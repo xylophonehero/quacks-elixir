@@ -87,8 +87,8 @@ The table fields that are not plain settings (type `table`,
 
 | Field | What it holds | Who reads it |
 |-------|---------------|--------------|
-| `creator` | the seat of the **host** now: `host/1` (`lib/quacks/game_server.ex:1004-1013`) | the configure screen (who may change settings, start, add bots) |
-| `founder` | the seat of the browser that **created** the table (`state.tokens[state.creator]`), `nil` while that browser is not seated | `assign_table/2`: only the founder's saved settings load into a fresh table (`lib/quacks_web/live/game_live.ex:631-635`) |
+| `creator` | the seat of the **host** now: `host/1` (`lib/quacks/game_server.ex:1004-1013`) | the waiting panel (who may start or fill the open seats with bots) |
+| `founder` | the seat of the browser that **created** the table (`state.tokens[state.creator]`), `nil` while that browser is not seated | the Games list and restore (which browser opened the table) |
 | `absent` | the human seats with no live page now, from `absent/1` (`lib/quacks/game_server.ex:800-804`) | the spectator note: "Rejoin as ..." buttons |
 | `seen` | per seat, `%{card: round, results: round}`: the last fortune card and round results (update chips) that seat closed | `GameLive` mounts them closed (see `ack/4` below) |
 | `debug` | `nil`, or `%{at, total, frozen}` for a table built from a bug report | the menu's scrubber (chapter 5) |
@@ -162,7 +162,7 @@ browser cannot pick another seat.
 The first token to take a seat is the creator: `creator: state.creator || token`
 (`lib/quacks/game_server.ex:533`). The host is the creator while seated, else the
 seated browser with the lowest seat (`host/1`, `lib/quacks/game_server.ex:1004-1013`).
-`configure/3`, `add_bot/3`, `remove_bot/3` and `begin/2` check it, for example
+`configure/3`, `add_bot/3`, `remove_bot/3`, `fill_bots/2` and `begin/2` check it, for example
 `token != host(state) -> {:reply, {:error, :not_creator}, ...}`
 (`lib/quacks/game_server.ex:608-609`).
 
@@ -601,3 +601,17 @@ the seats and puts the bots back, then starts the server with
   tables first.
 
 Chapter 5 shows the route that calls this and the scrubber that drives it.
+
+## Patient picks before the game (round 26)
+
+The Alchemists deal 3 patients from the seed alone (`Essence.dealt/1`), so a table
+knows its deal before the game exists. `create/3` stores the host's pick in
+`opts[:patients]` (`%{seat => id | :random}`, Random when the id is not dealt);
+the key also marks a spell book table, so `claim_seat` gives each joiner
+`:random` and `leave_seat` drops the pick. `pick_patient/3` changes one while
+waiting. `begin_game/1` renumbers the picks with the seats, keeps only humans and
+passes them to `Session.new/3`, and `Game.new/1` applies each as that seat's
+`{:patient, id}`. Because the picks live in `opts`, the game file keeps them
+(`Session.encode_opts/1`), and the session's bundle keeps them for replay. A play
+again resets them to Random (solo: no picks, the choice comes in the game).
+`valid?/2` checks the settings with seed `{1, 2, 3}`, so it leaves the picks out.

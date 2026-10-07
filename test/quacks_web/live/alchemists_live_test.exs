@@ -28,29 +28,34 @@ defmodule QuacksWeb.AlchemistsLiveTest do
   end
 
   test "The Alchemists toggle makes locoweed III selectable", %{conn: conn} do
-    {:ok, id} = GameServer.start(2, {1, 2, 3})
-    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
-    card = "#book-picker-locoweed [data-role=book-card][data-set='3']"
+    # Round 26: the books are picked in the spell book.
+    {:ok, view, _html} = live(conn, ~p"/?seed=1,2,3&step=book&colour=locoweed")
+    card = "#page-book-locoweed [data-role=book-card][data-set='3']"
+    books = fn params -> view |> element("#books") |> render_change(params) end
 
     assert has_element?(view, "#alchemists")
     assert has_element?(view, "#{card}[aria-disabled]", "needs The Alchemists")
 
-    view |> form("#books", alchemists: "true") |> render_change()
+    books.(%{"alchemists" => "true", "sets" => %{}})
     refute has_element?(view, "#{card}[aria-disabled]")
-    view |> form("#books", alchemists: "true", sets: %{locoweed: "3"}) |> render_change()
-    assert {:ok, %{sets: %{locoweed: 3}, expansions: expansions}} = GameServer.get(id)
-    assert MapSet.member?(expansions, :alchemists)
-
-    # both expansions together
-    view |> form("#books", alchemists: "true", expansion: "true") |> render_change()
-    {:ok, table} = GameServer.get(id)
-    assert MapSet.equal?(table.expansions, MapSet.new([:alchemists, :herb_witches]))
+    books.(%{"alchemists" => "true", "expansion" => "true", "sets" => %{"locoweed" => "3"}})
+    assert has_element?(view, "#books [data-book=locoweed-3]")
 
     # off again: III greys out and falls back to no locoweed
-    view |> form("#books", alchemists: "false", expansion: "false") |> render_change()
+    books.(%{"alchemists" => "false", "sets" => %{"locoweed" => "3"}})
     assert has_element?(view, "#{card}[aria-disabled]")
-    {:ok, table} = GameServer.get(id)
-    assert MapSet.size(table.expansions) == 0 and table.sets[:locoweed] == nil
+    assert has_element?(view, "#books [data-book=locoweed-off]")
+
+    # both expansions together reach the game
+    books.(%{"alchemists" => "true", "expansion" => "true", "sets" => %{"locoweed" => "3"}})
+    render_click(view, "players", %{"count" => "1"})
+
+    {:error, {:live_redirect, %{to: "/g/" <> id}}} =
+      view |> element("#new-game") |> render_click()
+
+    {:ok, %{game: game, expansions: expansions}} = GameServer.get(id)
+    assert MapSet.equal?(expansions, MapSet.new([:alchemists, :herb_witches]))
+    assert game.sets.locoweed == 3
   end
 
   test "the patient dialog shows 3 cards; a pick starts round 1", %{conn: conn} do

@@ -30,15 +30,17 @@ defmodule QuacksWeb.LobbyFlowTest do
   end
 
   test "the waiting room shows every seat, the share link and who may start" do
-    {:ok, id} = GameServer.start(3, {1, 2, 3})
+    {:ok, id} = GameServer.start(2, {1, 2, 3})
     alice = open(browser("alice"), id)
 
-    assert has_element?(alice, "[data-role=waiting-for-players]", "1 of 3 seated")
+    assert has_element?(alice, "[data-role=waiting-for-players]", "1 of 2 seated")
     assert has_element?(alice, ~s([data-seat="0"] input#seat-name[placeholder="Player 1"]))
     assert has_element?(alice, ~s([data-role=seat-slot][data-seat="0"]), "you")
-    assert has_element?(alice, ~s([data-role=seat-slot][data-seat="1"]), "empty")
-    assert has_element?(alice, ~s([data-role=seat-slot][data-seat="2"]), "empty")
+    assert has_element?(alice, ~s([data-role=seat-slot][data-seat="1"]), "open seat")
     assert has_element?(alice, ~s(input[data-role=share-link][readonly][value$="/g/#{id}"]))
+    # Round 26: a seat is open, so no Start yet; the host may fill it with a bot.
+    refute has_element?(alice, "button", "Start game")
+    assert has_element?(alice, "[data-role=fill-bots]", "Fill with bots")
 
     bob = open(browser("bob"), id)
     # bob's arrival reaches alice's page
@@ -50,7 +52,8 @@ defmodule QuacksWeb.LobbyFlowTest do
     bob |> form("#rename-form", name: "Bob") |> render_change()
     assert has_element?(alice, ~s([data-role=seat-slot][data-seat="1"]), "Bob")
 
-    # one empty seat left: the game starts with the two seated players
+    # every seat taken: no more link, and the host may start
+    refute has_element?(alice, "[data-role=share-link]")
     alice |> element("button", "Start game") |> render_click()
     assert {:ok, %{status: :playing, players: 2}} = GameServer.get(id)
     open_player(alice, 1)
@@ -67,10 +70,11 @@ defmodule QuacksWeb.LobbyFlowTest do
     Process.flag(:trap_exit, true)
     GenServer.stop(alice.pid, {:shutdown, :closed})
 
-    assert has_element?(bob, ~s([data-role=seat-slot][data-seat="0"]), "empty")
+    assert has_element?(bob, ~s([data-role=seat-slot][data-seat="0"]), "open seat")
     assert has_element?(bob, "[data-role=waiting-for-players]", "1 of 2 seated")
-    bob |> element("button", "Start game") |> render_click()
-    assert {:ok, %{status: :playing, players: 1, names: %{0 => "Player 1"}}} = GameServer.get(id)
+    bob |> element("[data-role=fill-bots]") |> render_click()
+    assert {:ok, %{status: :playing, players: 2, bots: bots}} = GameServer.get(id)
+    assert map_size(bots) == 1
   end
 
   test "a stopped player sees Resume and who still brews" do
@@ -119,13 +123,13 @@ defmodule QuacksWeb.LobbyFlowTest do
 
   test "the host's chip supply option" do
     conn = browser("carol")
-    {:ok, id} = GameServer.start(2)
-    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+    {:ok, view, _html} = live(conn, ~p"/?step=rules")
     assert has_element?(view, "#rules-supply-infinite[checked]")
 
     view |> element("#options") |> render_change(%{"rules" => %{"supply" => "limited"}})
     render_click(view, "players", %{"count" => "1"})
-    view |> element("button", "Start game") |> render_click()
+    {:error, {:live_redirect, %{to: to}}} = view |> element("#new-game") |> render_click()
+    {:ok, view, _html} = live(conn, to)
 
     assert has_element?(view, "[data-role=house-rules]", "limited chip supply")
   end

@@ -38,8 +38,8 @@ document.addEventListener("submit", e => {
   if (field) field.value = JSON.stringify({ua: navigator.userAgent, viewport: `${innerWidth}x${innerHeight}`, online: navigator.onLine, errors: recentErrors})
 }, true)
 
-// The configure screen remembers the host's last settings (see `ConfigMemory` in
-// game_live.ex): the server pushes each change; a fresh screen sends them back once.
+// The spell book remembers the host's last settings (see `ConfigMemory` in
+// lobby_live.ex): the server pushes each change; a fresh book sends them back once.
 const ConfigMemory = {
   mounted() {
     this.handleEvent("save_config", config => {
@@ -52,7 +52,7 @@ const ConfigMemory = {
   }
 }
 
-// Your name on the configure screen: kept in this browser, and filled in on a new
+// Your name in the spell book and the waiting panel: kept in this browser, and filled in on a new
 // table where your seat still has the default name ("Player N").
 const NameMemory = {
   mounted() {

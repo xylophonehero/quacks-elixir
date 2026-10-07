@@ -38,59 +38,23 @@ defmodule QuacksWeb.UiRound4Test do
   end
 
   test "the black book is offered without the expansion and reaches the game" do
-    {:ok, id} = GameServer.start(2)
-    view = open(browser("host"), id)
+    # Round 26: the books are picked in the spell book.
+    {:ok, view, _html} = live(browser("host"), ~p"/?step=book&colour=black")
 
     refute has_element?(view, "#expansion[checked]")
     assert has_element?(view, "input[name='sets[black]'][value='2']")
     assert has_element?(view, "input[name='sets[black]'][value='3']")
     refute has_element?(view, "input[name='sets[black]'][value='5']")
 
-    view |> form("#books", sets: %{black: "3"}) |> render_change()
-    view |> element("button", "Start game") |> render_click()
+    view |> element("#books") |> render_change(%{"sets" => %{"black" => "3"}})
+    render_click(view, "players", %{"count" => "1"})
+
+    {:error, {:live_redirect, %{to: "/g/" <> id}}} =
+      view |> element("#new-game") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
     assert game.expansion == nil
     assert game.sets.black == 3
-  end
-
-  test "the host's changes go to the browser; a fresh screen takes them back once" do
-    {:ok, id} = GameServer.start(2)
-    host = open(browser("host"), id)
-    assert has_element?(host, "#config-memory[phx-hook=ConfigMemory][data-fresh]")
-
-    saved = %{
-      "players" => 9,
-      "sets" => %{"green" => "3", "black" => "2", "blue" => "bad"},
-      "rules" => %{"rats" => "false", "explode_above" => "42"},
-      "expansion" => false
-    }
-
-    render_hook(host, "load_config", saved)
-    {:ok, table} = GameServer.get(id)
-    assert table.max_players == 8
-    assert %{green: 3, black: 2, blue: 1} = table.sets
-    assert %{rats: false, explode_above: 7} = table.rules
-    refute has_element?(host, "#config-memory[data-fresh]")
-
-    # once configured, a second load changes nothing; junk is ignored
-    render_hook(host, "load_config", %{saved | "sets" => %{"green" => "4"}})
-    render_hook(host, "load_config", %{"players" => "x"})
-    assert {:ok, %{sets: %{green: 3}}} = GameServer.get(id)
-
-    # every host change is pushed to the browser in the form's shape
-    host |> form("#books", sets: %{green: "2"}) |> render_change()
-
-    assert_push_event(host, "save_config", %{
-      players: 8,
-      sets: %{green: "2", black: "2"},
-      rules: %{rats: "false"},
-      expansion: false
-    })
-
-    # a joiner has no memory hook
-    joiner = open(browser("joiner"), id)
-    refute has_element?(joiner, "#config-memory")
   end
 
   test "a card with a choice is one dialog: the card, its offer and the buttons" do

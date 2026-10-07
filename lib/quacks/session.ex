@@ -14,6 +14,7 @@ defmodule Quacks.Session do
             expansion: nil,
             expansions: MapSet.new(),
             witches: %{},
+            patients: %{},
             actions: [],
             game: nil
 
@@ -25,19 +26,21 @@ defmodule Quacks.Session do
           expansion: nil | :herb_witches,
           expansions: MapSet.t(Game.expansion()),
           witches: %{optional(atom) => atom},
+          patients: %{optional(Game.seat()) => atom},
           actions: [{Game.seat(), Game.action()}],
           game: Game.t()
         }
 
   # The `Game.new/1` options a session passes on.
-  @game_opts [:sets, :rules, :fortune, :expansion, :expansions, :witches]
+  @game_opts [:sets, :rules, :fortune, :expansion, :expansions, :witches, :patients]
 
   @doc """
   A new session. `opts`: `sets: %{green: 2}` picks Ingredient Sets, `rules:
   %{explode_above: 9}` sets house rules, `fortune: false` plays without Fortune
   Teller cards, `expansions: [:herb_witches, :alchemists]` turns expansions on
   (`expansion: :herb_witches` is the old alias; see `Quacks.Game.new/1`),
-  `witches: %{copper: :c3}` picks herb witches (the rest are dealt).
+  `witches: %{copper: :c3}` picks herb witches (the rest are dealt), `patients:
+  %{0 => :random}` picks The Alchemists' patients before the game (round 26).
   """
   @spec new({integer, integer, integer}, 1..8,
           sets: map,
@@ -45,7 +48,8 @@ defmodule Quacks.Session do
           fortune: boolean,
           expansion: nil | :herb_witches,
           expansions: Enumerable.t(Game.expansion()),
-          witches: map | nil
+          witches: map | nil,
+          patients: map | nil
         ) :: t
   def new(seed, players \\ 1, opts \\ []) do
     game = new_game(seed, players, opts)
@@ -58,6 +62,7 @@ defmodule Quacks.Session do
       expansion: game.expansion,
       expansions: game.expansions,
       witches: picks(opts[:witches]),
+      patients: opts[:patients] || %{},
       game: game
     }
   end
@@ -84,7 +89,8 @@ defmodule Quacks.Session do
             sets: s.sets,
             rules: s.rules,
             expansions: s.expansions,
-            witches: s.witches
+            witches: s.witches,
+            patients: s.patients
           )
     }
 
@@ -100,8 +106,9 @@ defmodule Quacks.Session do
 
   @doc """
   The session as plain, JSON-ready data, for a bug report: `%{version: 1, seed,
-  players, opts: %{sets, rules, expansions, witches}, log}` (`witches`: the picked
-  herb witches, `%{"copper" => "c3"}`; older bundles have none). `log` holds `[seat, action]`
+  players, opts: %{sets, rules, expansions, witches, patients}, log}` (`witches`: the picked
+  herb witches, `%{"copper" => "c3"}`; `patients`: the patients picked before the
+  game, seat to id or `random`; older bundles have neither). `log` holds `[seat, action]`
   pairs, oldest first. An action is encoded as JSON like this: an atom is a
   string, a tuple is an array, a list is `{"l": [...]}`, a map is `{"m": [[k,
   v], ...]}` and a string is `{"s": "..."}`. `from_bundle/2` reads it back.
@@ -116,7 +123,8 @@ defmodule Quacks.Session do
         sets: encode_map(s.sets),
         rules: encode_map(s.rules),
         expansions: s.expansions |> Enum.sort() |> Enum.map(&Atom.to_string/1),
-        witches: encode_map(s.witches)
+        witches: encode_map(s.witches),
+        patients: encode(s.patients)
       },
       log:
         s.actions |> Enum.reverse() |> Enum.map(fn {seat, action} -> [seat, encode(action)] end)
@@ -140,7 +148,8 @@ defmodule Quacks.Session do
       sets: decode_map(opts["sets"]),
       rules: decode_map(opts["rules"]),
       expansions: Enum.map(opts["expansions"], &String.to_existing_atom/1),
-      witches: decode_map(opts["witches"] || %{})
+      witches: decode_map(opts["witches"] || %{}),
+      patients: decode(opts["patients"] || %{"m" => []})
     ]
 
     s = new(List.to_tuple(seed), players, game_opts)
@@ -164,7 +173,8 @@ defmodule Quacks.Session do
       rules: encode_map(opts[:rules] || %{}),
       expansion: encode(opts[:expansion]),
       expansions: (opts[:expansions] || []) |> Enum.map(&Atom.to_string/1) |> Enum.sort(),
-      witches: encode_map(opts[:witches] || %{})
+      witches: encode_map(opts[:witches] || %{}),
+      patients: encode(opts[:patients] || %{})
     }
   end
 
@@ -176,7 +186,8 @@ defmodule Quacks.Session do
       rules: decode_map(opts["rules"] || %{}),
       expansion: opts["expansion"] && decode(opts["expansion"]),
       expansions: Enum.map(opts["expansions"] || [], &String.to_existing_atom/1),
-      witches: decode_map(opts["witches"] || %{})
+      witches: decode_map(opts["witches"] || %{}),
+      patients: decode(opts["patients"] || %{"m" => []})
     ]
   end
 

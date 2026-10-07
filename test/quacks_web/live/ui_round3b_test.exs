@@ -34,47 +34,6 @@ defmodule QuacksWeb.UiRound3bTest do
       |> element(~s([data-role=player-chip][data-seat="#{seat}"] [data-role=player-state]))
       |> render()
 
-  test "the host configures the game; a joiner sees the settings read-only, live" do
-    {:ok, id} = GameServer.start(2)
-    alice = open(browser("alice"), id)
-    bob = open(browser("bob"), id)
-
-    # two are seated, so the count cannot go below 2; only the host may change it
-    assert has_element?(alice, "button[aria-label='Fewer players'][disabled]")
-    assert has_element?(bob, "button[aria-label='More players'][disabled]")
-    assert has_element?(bob, "#books fieldset[disabled]")
-    assert has_element?(bob, "[data-role=read-only]", "Player 1 sets the game up.")
-
-    alice |> element("button[aria-label='More players']") |> render_click()
-    assert has_element?(bob, "[data-role=count]", "3")
-    assert has_element?(bob, ~s([data-role=seat-slot][data-seat="2"]), "empty")
-
-    alice |> form("#books", sets: %{green: "2"}) |> render_change()
-    assert has_element?(bob, "#books [data-book=green-2]")
-    # a joiner sees the tiles but no pickers
-    refute has_element?(bob, "#books button[popovertarget]")
-    refute has_element?(bob, "#book-picker-green")
-
-    alice |> element("#options") |> render_change(%{"rules" => %{"rats" => "false"}})
-    assert has_element?(bob, "#rules-rats:not([checked])")
-
-    # a crafted event from the joiner changes nothing
-    render_click(bob, "players", %{"count" => "4"})
-    assert {:ok, %{max_players: 3, sets: %{green: 2}, rules: %{rats: false}}} = GameServer.get(id)
-  end
-
-  test "solo: count 1, then Start begins the game at once" do
-    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
-    view = open(browser("solo"), id)
-    view |> element("button[aria-label='Fewer players']") |> render_click()
-    assert has_element?(view, "[data-role=count]", "1")
-    refute has_element?(view, "[data-role=share-link]")
-
-    view |> element("button", "Start game") |> render_click()
-    assert has_element?(view, "button[data-slot=draw]:not([disabled])", "Draw a chip")
-    assert {:ok, %{status: :playing, players: 1}} = GameServer.get(id)
-  end
-
   test "round 9: a Stir! banner; a pick locks Draw and Stop; no Resume" do
     {id, alice, bob} = duo()
 

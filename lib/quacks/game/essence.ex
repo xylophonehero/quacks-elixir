@@ -45,6 +45,54 @@ defmodule Quacks.Game.Essence do
     Game.record(%{g | patients: patients, phase: :patient_choice}, {:patients, patients})
   end
 
+  @doc """
+  The 3 patients a game with `seed` deals (`setup/1`), so a setup screen can offer
+  them before the game exists.
+  """
+  @spec dealt({integer, integer, integer}) :: [Alchemists.id()]
+  def dealt(seed), do: Alchemists.deal(:rand.seed_s(:exsss, seed))
+
+  @doc """
+  The patients picked before the game (round 26): `picks` maps a seat to one of the
+  dealt patients or `:random` (one of the 3, from a jump of the seed, so the game's
+  own random stream does not change). Each pick is an ordinary `{:patient, id}`
+  action in the log; seats left out choose in `:patient_choice` as before. A seat
+  or patient that is not in the game raises `ArgumentError`.
+  """
+  @spec prepick(Game.t(), %{optional(Game.seat()) => Alchemists.id() | :random} | nil) ::
+          Game.t()
+  def prepick(g, nil), do: g
+
+  def prepick(g, picks) when is_map(picks) do
+    rng = g.rng |> :rand.jump() |> :rand.jump() |> :rand.jump() |> :rand.jump()
+
+    {g, _rng} =
+      picks
+      |> Enum.sort()
+      |> Enum.reduce({g, rng}, fn {seat, pick}, {g, rng} ->
+        if seat not in g.seats, do: raise(ArgumentError, "no seat #{inspect(seat)}")
+        {id, rng} = resolve(pick, g.patients, rng)
+        {:ok, g} = Game.apply(g, seat, {:patient, id})
+        {g, rng}
+      end)
+
+    g
+  end
+
+  def prepick(_g, picks),
+    do: raise(ArgumentError, "patients must be a map, got #{inspect(picks)}")
+
+  defp resolve(:random, dealt, rng) do
+    {n, rng} = :rand.uniform_s(length(dealt), rng)
+    {Enum.at(dealt, n - 1), rng}
+  end
+
+  defp resolve(id, dealt, rng) do
+    if id in dealt,
+      do: {id, rng},
+      else: raise(ArgumentError, "patient #{inspect(id)} is not dealt (#{inspect(dealt)})")
+  end
+
   # -- legal actions -------------------------------------------------------------------
 
   @doc "The essence and patient actions `seat` has now (any game phase)."

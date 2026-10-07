@@ -1,23 +1,22 @@
 defmodule QuacksWeb.SetupComponents do
   @moduledoc """
-  The forms that set a game up before it starts, on the configure screen of a
-  waiting game (`QuacksWeb.GameLive`): the Ingredient books with the Herb Witches
-  toggle, and the house rules ("Options").
+  The forms that set a game up before it starts, in the spell book
+  (`QuacksWeb.LobbyLive`): the expansion toggles, the Ingredient books, the house
+  rules ("Options") and the seat colour picker (also on the waiting panel).
 
-  Both are plain `phx-change` forms: every change sends every field, and the page
-  turns them into game settings with `parse_sets/2` and `parse_rules/1`. A bad or
-  missing value falls back to its default, so a crafted request cannot break a game.
-  With `disabled` the forms are read-only (players who are not the host).
+  The forms are plain `phx-change` forms: every change sends every field, and the
+  page turns them into game settings with `parse_sets/2` and `parse_rules/1`. A bad
+  or missing value falls back to its default, so a crafted request cannot break a
+  game.
   """
   use Phoenix.Component
 
-  import QuacksWeb.CoreComponents, only: [button: 1, icon: 1, input: 1, sheet: 1]
-  import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
+  import QuacksWeb.CoreComponents, only: [button: 1, icon: 1, input: 1]
+  import QuacksWeb.Icons, only: [piece_icon: 1]
 
   import QuacksWeb.GameComponents,
     only: [
       book_info: 2,
-      book_ink: 1,
       book_seal: 1,
       book_tiers: 1,
       book_tile: 1,
@@ -59,130 +58,59 @@ defmodule QuacksWeb.SetupComponents do
   }
 
   @doc """
-  The Ingredient books form (`#books`, event `"sets"`): the two expansion toggles
-  as cards on top (both may be on), with the reverse pot side as a third card of
-  the same size (that switch belongs to `#options`), then one `book_tile` per
-  colour. The host sees compact tiles (icon, name, book seal) in a grid; the picker
-  has the full text (`book_options/1`). Locoweed III is greyed out without The
-  Alchemists. The host taps a tile to open its picker sheet, a list of book cards
-  (radio buttons `sets[colour]`); a tap on a card picks that book and closes the
-  sheet. With `patch` (the spell book) a tile is a link to its colour's page
-  instead. Other players see the tiles only.
+  The Ingredient books form of the spell book (`#books`, event `"sets"`): with The
+  Herb Witches a tile per penny colour, then one compact `book_tile` per colour
+  (icon, name, book seal). Each tile links to its colour's page (`patch`), where
+  `book_options/1` and `witch_options/1` draw the radio cards of this form. The
+  expansion toggles (`expansion_cards/1`) stand outside it and name it with `form=`.
   """
   attr :sets, :map, required: true, doc: "the chosen books; colours left out use their default"
   attr :expansion, :boolean, default: false, doc: "The Herb Witches"
-  attr :alchemists, :boolean, default: false, doc: "The Alchemists"
-
-  attr :pot_side, :atom,
-    default: :front,
-    doc: "the house rule; its checkbox belongs to `#options`"
-
   attr :players, :integer, default: nil, doc: "the table size, see `book_tiers/1`"
 
   attr :witches, :map,
     default: %{},
     doc: "the herb witch picks, `%{copper: :c3}`; a colour left out or nil is dealt"
 
-  attr :disabled, :boolean, default: false
-
-  attr :expansion_cards, :boolean,
-    default: true,
-    doc: "false: the page shows `expansion_cards/1` elsewhere (the spell book's left page)"
-
   attr :heading, :boolean, default: true, doc: "false: the page has its own heading"
 
   attr :patch, :any,
-    default: nil,
-    doc: """
-    nil: a tile opens its picker sheet. A function `({:book | :witch, colour} -> path)`:
-    a tile is a link to that path (the spell book's colour pages), and the form draws
-    no pickers; the page draws them with `book_options/1` and `witch_options/1`.
-    """
+    required: true,
+    doc: "a function `({:book | :witch, colour} -> path)`: the colour page of a tile"
 
   def books_form(assigns) do
     ~H"""
     <form id="books" phx-change="sets" aria-label="Ingredient books">
-      <fieldset disabled={@disabled} class="space-y-2">
-        <.expansion_cards
-          :if={@expansion_cards}
-          expansion={@expansion}
-          alchemists={@alchemists}
-          pot_side={@pot_side}
-        />
-        <%!-- The Herb Witches: one picker per penny colour, "Random" or a card. --%>
+      <div class="space-y-2">
+        <%!-- The Herb Witches: one tile per penny colour, "Random" or a card. --%>
         <div :if={@expansion} class="space-y-2" data-role="witch-pickers">
           <h3 class="pt-1 font-bold">Herb witches</h3>
           <div class="grid grid-cols-3 gap-2">
-            <%= for colour <- witch_colours() do %>
-              <.witch_tile :if={@disabled} colour={colour} id={@witches[colour]} />
-              <.link
-                :if={!@disabled and @patch}
-                patch={@patch.({:witch, colour})}
-                id={"witch-link-#{colour}"}
-                aria-label={"#{colour} witch: change"}
-                class="block rounded-lg text-left transition-[translate,scale] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
-              >
-                <.witch_tile colour={colour} id={@witches[colour]} />
-              </.link>
-              <button
-                :if={!@disabled and !@patch}
-                type="button"
-                popovertarget={"witch-picker-#{colour}"}
-                aria-label={"#{colour} witch: change"}
-                class="block cursor-pointer rounded-lg text-left transition-[translate,scale] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
-              >
-                <.witch_tile colour={colour} id={@witches[colour]} />
-              </button>
-              <.witch_picker
-                :if={!@disabled and !@patch}
-                colour={colour}
-                chosen={@witches[colour]}
-              />
-            <% end %>
+            <.link
+              :for={colour <- witch_colours()}
+              patch={@patch.({:witch, colour})}
+              id={"witch-link-#{colour}"}
+              aria-label={"#{colour} witch: change"}
+              class="block rounded-lg text-left transition-[translate,scale] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
+            >
+              <.witch_tile colour={colour} id={@witches[colour]} />
+            </.link>
           </div>
         </div>
         <h3 :if={@heading} class="pt-1 font-bold">Ingredient books</h3>
-        <p :if={!@disabled} class="text-sm text-ink-soft">Tap a book to pick another.</p>
-        <div class={[
-          "grid gap-2.5",
-          if(@disabled, do: "grid-cols-1 sm:grid-cols-2", else: "grid-cols-2 sm:grid-cols-3")
-        ]}>
-          <%= for colour <- book_colours() do %>
-            <.book_tile
-              :if={@disabled}
-              colour={colour}
-              set={book(@sets, colour)}
-              players={@players}
-            />
-            <.link
-              :if={!@disabled and @patch}
-              patch={@patch.({:book, colour})}
-              id={"book-link-#{colour}"}
-              aria-label={"#{colour} book: change"}
-              class="block rounded-[14px] text-left transition-[translate,scale,box-shadow] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
-            >
-              <.book_tile colour={colour} set={book(@sets, colour)} players={@players} compact />
-            </.link>
-            <button
-              :if={!@disabled and !@patch}
-              type="button"
-              popovertarget={"book-picker-#{colour}"}
-              aria-label={"#{colour} book: change"}
-              class="block cursor-pointer rounded-[14px] text-left transition-[translate,scale,box-shadow] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
-            >
-              <.book_tile colour={colour} set={book(@sets, colour)} players={@players} compact />
-            </button>
-            <.book_picker
-              :if={!@disabled and !@patch}
-              colour={colour}
-              chosen={book(@sets, colour)}
-              sets={book_sets(colour)}
-              players={@players}
-              alchemists={@alchemists}
-            />
-          <% end %>
+        <p class="text-sm text-ink-soft">Tap a book to pick another.</p>
+        <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          <.link
+            :for={colour <- book_colours()}
+            patch={@patch.({:book, colour})}
+            id={"book-link-#{colour}"}
+            aria-label={"#{colour} book: change"}
+            class="block rounded-[14px] text-left transition-[translate,scale,box-shadow] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
+          >
+            <.book_tile colour={colour} set={book(@sets, colour)} players={@players} compact />
+          </.link>
         </div>
-      </fieldset>
+      </div>
     </form>
     """
   end
@@ -276,28 +204,6 @@ defmodule QuacksWeb.SetupComponents do
         {if @id, do: Witches.card(@id).title, else: "Random"}
       </span>
     </span>
-    """
-  end
-
-  # The picker sheet of one penny colour: "Random" (dealt from the seed) or one of
-  # its 4 witch cards, as radio cards `witches[colour]`; a tap picks and closes.
-  attr :colour, :atom, required: true
-  attr :chosen, :atom, default: nil
-
-  defp witch_picker(assigns) do
-    ~H"""
-    <.sheet id={"witch-picker-#{@colour}"} label={"#{@colour} witch"}>
-      <h2 class="flex items-center gap-2 font-hand text-2xl font-bold text-ink capitalize">
-        <.piece_icon name={:witch} class="size-7 shrink-0" /> {@colour} witch
-      </h2>
-      <p class="text-sm text-ink-soft">Tap a witch to use her, or Random.</p>
-      <.witch_options
-        colour={@colour}
-        chosen={@chosen}
-        on_pick={JS.dispatch("quacks:close", to: "#witch-picker-#{@colour}")}
-        class="mt-3"
-      />
-    </.sheet>
     """
   end
 
@@ -443,38 +349,6 @@ defmodule QuacksWeb.SetupComponents do
         class={["switch shrink-0", !@small && "lg:col-start-2 lg:row-start-1"]}
       />
     </label>
-    """
-  end
-
-  # The picker sheet of one colour: a card (radio button) per book.
-  attr :colour, :atom, required: true
-  attr :chosen, :any, required: true
-  attr :sets, :list, required: true
-  attr :players, :integer, default: nil
-  attr :alchemists, :boolean, default: false
-
-  defp book_picker(assigns) do
-    assigns = assign(assigns, name: book_info(assigns.colour, hd(assigns.sets)).name)
-
-    ~H"""
-    <.sheet id={"book-picker-#{@colour}"} label={"#{@name} books"}>
-      <h2 class="flex items-center gap-2 font-hand text-2xl font-bold text-ink">
-        <.ingredient_icon colour={@colour} class={["size-8 shrink-0", book_ink(@colour)]} />
-        {@name}
-      </h2>
-      <p class="text-sm text-ink-soft">
-        <span class="capitalize">{@colour}</span>. Tap a book to use it.
-      </p>
-      <.book_options
-        colour={@colour}
-        chosen={@chosen}
-        sets={@sets}
-        players={@players}
-        alchemists={@alchemists}
-        on_pick={JS.dispatch("quacks:close", to: "#book-picker-#{@colour}")}
-        class="mt-3"
-      />
-    </.sheet>
     """
   end
 
@@ -683,7 +557,7 @@ defmodule QuacksWeb.SetupComponents do
   @colour_names ~w(gold teal violet coral lime rose sky slate)
 
   @doc """
-  Your seat's colour picker (configure screen and spell book): the 8 palette
+  Your seat's colour picker (waiting panel and spell book): the 8 palette
   colours, one tap sends `"colour"`; colours other seats have are struck through and
   cannot be picked. A tap submits `#rename-form` first, so a name typed just before
   is not lost.
@@ -774,19 +648,15 @@ defmodule QuacksWeb.SetupComponents do
   @doc """
   A random book per colour, as `parse_sets/2` returns them: uniform over the books
   the colour's picker offers (black I–III, orange I–II, the rest I–VI). Locoweed is
-  in play only with `alchemists?` (then I–VI, every one allowed); without it, no
-  locoweed. Not the engine, so the process's `:rand` is fine.
+  uniform over "no locoweed" and its books, with or without an expansion; a book
+  that needs an expansion (locoweed III needs The Alchemists) only when that
+  expansion is on. Not the engine, so the process's `:rand` is fine.
   """
   @spec random_sets(boolean) :: Chips.sets()
   def random_sets(alchemists?) do
     book_colours()
     |> Map.new(fn colour ->
-      sets =
-        if colour == :locoweed and not alchemists?,
-          do: [nil],
-          else:
-            Enum.filter(book_sets(colour), &(&1 && unavailable(colour, &1, alchemists?) == nil))
-
+      sets = Enum.filter(book_sets(colour), &(unavailable(colour, &1, alchemists?) == nil))
       {colour, Enum.at(sets, :rand.uniform(length(sets)) - 1)}
     end)
     |> Map.reject(&(&1 in [orange: 1, locoweed: nil]))
