@@ -49,8 +49,8 @@ defmodule Quacks.BlackStandingsTest do
     end)
   end
 
-  test "the default is the rulebook's neighbours" do
-    assert Game.default_rules().black_rule == :neighbours
+  test "the default is standings; the rulebook's neighbours is the other option" do
+    assert Game.default_rules().black_rule == :standings
     g = standing(new(4, :neighbours), [0, 10, 20, 30])
     assert Evaluation.targets(g, 0) == [3, 1]
   end

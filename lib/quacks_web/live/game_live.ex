@@ -282,7 +282,7 @@ defmodule QuacksWeb.GameLive do
         %{
           players: players,
           sets: parse_sets(form.("sets"), alchemists),
-          rules: parse_rules(form.("rules")),
+          rules: saved |> saved_rules() |> parse_rules(),
           witches: parse_witches(form.("witches"))
         },
         expansions(%{"expansion" => to_string(saved["expansion"] == true)}, alchemists)
@@ -912,6 +912,8 @@ defmodule QuacksWeb.GameLive do
     form = fn map -> Map.new(map || %{}, fn {key, value} -> {key, to_string(value)} end) end
 
     %{
+      # The config's version (`SetupComponents.saved_rules/1`).
+      v: 25,
       players: table.players,
       sets: form.(table.sets),
       rules: form.(table.rules),
@@ -1314,7 +1316,9 @@ defmodule QuacksWeb.GameLive do
                 aria-hidden="true"
                 data-role="pot-card"
               >
-                <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip />
+                <%!-- Round 25: the grown corner card has no flip; the card
+                     transition alone grows it (the shrink played backwards). --%>
+                <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip={!@card_grown} />
                 <p
                   :if={card_tap?(assigns)}
                   id={"card-caption-#{@game.round}-#{@card_grown}"}

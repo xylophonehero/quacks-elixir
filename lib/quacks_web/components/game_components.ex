@@ -2368,7 +2368,7 @@ defmodule QuacksWeb.GameComponents do
   defp rule_label({:fortune, false}), do: "no Fortune Teller cards"
   defp rule_label({:rats, false}), do: "no rats"
   defp rule_label({:black_solo, :droplet_ruby}), do: "solo black pays a ruby"
-  defp rule_label({:black_rule, :standings}), do: "black chips by standings"
+  defp rule_label({:black_rule, :neighbours}), do: "black chips by neighbours"
   defp rule_label({:die, :no_orange}), do: "die: ruby instead of orange"
   defp rule_label({:supply, :limited}), do: "limited chip supply"
   defp rule_label({:pot_side, :back}), do: "reverse pot side (test tubes)"

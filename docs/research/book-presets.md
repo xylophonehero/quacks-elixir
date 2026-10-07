@@ -1,6 +1,6 @@
 # Ingredient-book presets
 
-Goal: 6–8 one-tap book presets for the configure screen. Compiled 2026-10-07.
+Goal: 6–8 one-tap book presets for the configure screen. Compiled 2026-10-07; round 25 adds the BGG mixes below and replaces the round-22 proposal.
 ⚠️ = not verified against an official source, or a design choice of this note.
 
 ## Sources
@@ -47,7 +47,56 @@ Reddit and fan sites: searches found no named community mix.
   at random. Alchemists = random set 1–4 plus an Alchemists locoweed. This matches a "Random"
   action, not a fixed preset.
 
-## Proposed presets
+## Round 25: community mixes from the BoardGameGeek forums
+
+Nick (round 25): the home-made Herb Witches and Alchemists presets "don't add a lot".
+This round read the BGG threads that round 22 could not: `boardgamegeek.com` gives
+403 to WebFetch, but the site's own JSON API answers
+(`https://api.geekdo.com/api/articles?threadid=<id>`, read 2026-10-07). The thread
+lists came from `https://api.geekdo.com/api/forums/threads?forumid=<f>&objectid=244521&objecttype=thing`
+(Quacks: General 65, Strategy 67, Variants 69; also the Herb Witches 269259 and The
+Alchemists 316597 forums).
+
+| Id | URL | What it says |
+|---|---|---|
+| B1 | https://boardgamegeek.com/thread/2311359 ("Book combos to share?") | "My gaming groups and I have done several different setups and found the following to be the most effective: Blue Set 1, Yellow Set 3, Green Set 3, Purple Set 3, Red Set 1." Reasons: "Yellow 3 and Green 3 are very compatible", "Red 1 enables orange strategy", "Purple 3 rewards big for the later stages", "Blue 1 enables everything else". (Also a house rule: black from round 2; not used.) A 2026 reply adds Blue 1, Red 2, Yellow 2, Green 3, Purple 4 with no comment. |
+| B2 | https://boardgamegeek.com/thread/2227558/chosen-or-focused-ingredient-sets | Themed mixes. Opening post: "Ruby Heavy: Blue 3, Red 2, Green 1, Purple 1 + any Yellow" and "Chip size matters". A reply lists named mixes: "To Die Four" (d4 per colour), "Spoon Landing" (B3, any R, Y2/4, G3, P4), "I like big bags and I can not lie" (B2, R1, Y3, G2, P2), "High as a Kite" (B4, R2, Y4, G3, P3), "Cheap As Chips" (B3, R2, Y4, G1, P1), "I guess I am buying another Pumpkin" (B2, R1, Y2, G3, P2). Same reply: blue Set 1 fits in any mix, it is "ridiculously overpowered". |
+| B3 | https://boardgamegeek.com/thread/2589332 ("Possibly the most strategic and balanced setup in the game") | "Possibly the most balanced of any setup … highly synergetic books": Herb Witches pumpkin, green 5, red 2, blue 5, black 5, yellow 2, purple 4, no locoweed. Two players replied that they played it and liked it ("very good", "really fun"); one prefers black 2/3/4 and blue 1. |
+| B4 | https://boardgamegeek.com/thread/2163925/mix-sets-of-ingredients | (S7 above, now read in full.) Mixing works; "yet to run into a bad combination". |
+| B5 | https://boardgamegeek.com/thread/3251920 | (S9 above, now read.) Locoweed book "sum of white chips" (our locoweed 6) is "way too strong"; others compare it with blue Set 1. No recommended mix. |
+| B6 | https://boardgamegeek.com/thread/2335675 ("Is blue chip combo broken? (Set 1)") | Blue Set 1 dominates Set 1 games; orange + red and pure green are also strong. |
+
+No source recommends a mix for The Alchemists' locoweed books beyond S4 ("first with
+the base game only") and B5 (one book is too strong). So the app has no Alchemists
+preset now; the Random action and the locoweed page cover it.
+
+### The presets (round 25)
+
+Sets 1–4 stay (S1). The home-made Ruby hoard, Explosive, Alchemists and Herb
+Witches (Set 5) presets are gone; four sourced mixes replace them. Our book numbers:
+Herb Witches' "black 5" is our black 2 and its pumpkin is our orange 2
+(`lib/quacks/rules/books.ex`).
+
+| Id | Name | Blurb (the reason) | orange | green | blue | red | yellow | purple | black | Needs | Source |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| beginner | Beginner (Set 1) | The rulebook's first game. | 1 | 1 | 1 | 1 | 1 | 1 | 1 | – | S1 |
+| set2 | Set 2 | Safe pots, red held back, chips that grow your bag. | 1 | 2 | 2 | 2 | 2 | 2 | 1 | – | S1 |
+| set3 | Set 3 | Rubies on ruby spaces and a higher white limit. | 1 | 3 | 3 | 3 | 3 | 3 | 1 | – | S1 |
+| set4 | Set 4 | Pay rubies to move, chip upgrades, fast yellows. | 1 | 4 | 4 | 4 | 4 | 4 | 1 | – | S1 |
+| combo | Combo mix | Mandrakes raise the white limit, spiders reward exactly 7 white. | 1 | 3 | 1 | 1 | 3 | 3 | 1 | – | B1 |
+| big_bags | Big bags | Greens and purples that put more chips in your bag. | 1 | 2 | 2 | 1 | 3 | 2 | 1 | – | B2 ("I like big bags") |
+| ruby_heavy | Ruby heavy | Rubies from green, blue and purple chips. | 1 | 1 | 3 | 2 | 4 | 1 | 1 | – | B2 ("Ruby Heavy"; "Cheap As Chips" picks yellow 4) |
+| strategic | Strategic | Plan next round's first chips, double a move, VP for pumpkins. | 2 | 5 | 5 | 2 | 2 | 4 | 2 | :herb_witches | B3 |
+
+Judgement calls:
+- B1's house rule (black from round 2) is left out: the preset is books only.
+- "Ruby heavy": B2's opening post leaves yellow open; the reply's "Cheap As Chips" is
+  the same four books with yellow 4, so the preset takes yellow 4.
+- "Strategic" has no locoweed, as B3 says ("Don't play locoweed").
+- Not taken (fewer reasons given, or close to a taken mix): "Spoon Landing", "High as
+  a Kite", "I guess I am buying another Pumpkin", B1's 2026 reply.
+
+## Round 22 proposal (replaced in round 25)
 
 Presets 1–4 and 8 are official sets. Presets 5, 6 and 7 are **designed by this note** (no
 community source names them). Book effects: see `lib/quacks/rules/books.ex`.

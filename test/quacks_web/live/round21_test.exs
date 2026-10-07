@@ -42,8 +42,9 @@ defmodule QuacksWeb.Round21Test do
 
     assert ids == ~w(expansion alchemists rules-pot_side)
 
-    # Round 23: House rules and Ingredient books are rows on the New game page.
-    assert has_element?(view, "#page-players #to-rules.page-link")
+    # Round 23: Ingredient books is a row on the New game page; round 25: House
+    # rules is a row on the Expansions page.
+    assert has_element?(view, "#page-expansions #to-rules.page-link")
     assert has_element?(view, "#page-players #to-books.page-link")
   end
 
