@@ -246,12 +246,15 @@ defmodule QuacksWeb.Polish2Test do
     end
   end
 
-  describe "configure screen" do
-    test "Start game sits in a sticky bar with a summary of the setup" do
+  describe "waiting panel" do
+    test "Start game for the host once every seat is taken; the guest waits" do
       {:ok, id} = GameServer.start(2, {1, 2, 3})
       host = open(browser("host"), id)
+      bar = "#waiting-panel [data-role=start-bar]"
+      refute has_element?(host, "#{bar} [data-role=start-game]")
+      assert has_element?(host, "#{bar} [data-role=fill-bots]")
 
-      bar = "[data-role=start-bar].sticky"
+      guest = open(browser("guest"), id)
 
       assert has_element?(
                host,
@@ -259,24 +262,17 @@ defmodule QuacksWeb.Polish2Test do
                "Start game"
              )
 
-      assert has_element?(host, "#{bar} [data-role=setup-summary]", "2 players")
-
-      host |> form("#books", expansion: "true") |> render_change()
-      assert has_element?(host, "#{bar} [data-role=setup-summary]", "2 players · Herb Witches")
-
-      guest = open(browser("guest"), id)
       refute has_element?(guest, "#{bar} [data-role=start-game]")
       assert has_element?(guest, "#{bar} [data-role=waiting-for-host]")
     end
 
-    test "expansions are switch cards on top; books are compact tiles for the host" do
-      {:ok, id} = GameServer.start(2, {1, 2, 3})
-      host = open(browser("host"), id)
+    test "the spell book: expansions are switch cards; books are compact tiles" do
+      {:ok, host, _html} = live(browser("host"), ~p"/?step=books")
 
       for input <- ~w(expansion alchemists rules-pot_side) do
         assert has_element?(
                  host,
-                 "#books [data-role=toggle-card] input##{input}.switch[type=checkbox]"
+                 "[data-role=toggle-card] input##{input}.switch[type=checkbox]"
                )
       end
 

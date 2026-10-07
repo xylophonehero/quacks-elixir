@@ -36,45 +36,6 @@ defmodule QuacksWeb.QaFixes2Test do
     seat
   end
 
-  describe "N1: the Options section" do
-    test "the browser keeps its open state while the host steps" do
-      {:ok, id} = GameServer.start(2)
-      host = open(browser(token("host")), id)
-
-      details = "details#options-section[phx-mounted*=ignore_attrs][phx-mounted*=open]"
-      assert has_element?(host, details)
-
-      host
-      |> element("#options-section button[aria-label='Starting rubies: more']")
-      |> render_click()
-
-      assert has_element?(host, details)
-    end
-  end
-
-  describe "N2: host handover" do
-    test "the new host does not load its saved settings; the creator still may" do
-      {:ok, id} = GameServer.start(3)
-      bob = open(browser(token("bob")), id)
-      alice = open(browser(token("alice")), id)
-
-      assert has_element?(bob, "#config-memory[data-fresh]")
-
-      ref = Process.monitor(bob.pid)
-      GenServer.stop(bob.pid)
-      assert_receive {:DOWN, ^ref, :process, _pid, _reason}
-
-      assert render(alice) =~ "You are now the host."
-      assert has_element?(alice, "#config-memory")
-      refute has_element?(alice, "#config-memory[data-fresh]")
-
-      render_hook(alice, "load_config", %{"players" => 5, "expansion" => true})
-      {:ok, table} = GameServer.get(id)
-      assert table.max_players == 3
-      assert MapSet.size(table.expansions) == 0
-    end
-  end
-
   test "N3: a resume is one log line" do
     log = [{1, :resumed}, {1, :resume}, {1, :stopped}, {1, :stop}]
     html = render_component(&GameComponents.action_log/1, log: log, names: %{1 => "B"})

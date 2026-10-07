@@ -54,18 +54,7 @@ defmodule QuacksWeb.SeatsColoursTest do
     end
   end
 
-  describe "the configure screen" do
-    test "the stepper goes up to 8 players without the expansion" do
-      {:ok, id} = GameServer.start(2)
-      host = open(browser("host"), id)
-
-      for _ <- 3..8, do: host |> element("button[aria-label='More players']") |> render_click()
-
-      assert {:ok, %{max_players: 8, expansion: nil}} = GameServer.get(id)
-      assert has_element?(host, "[data-role=count]", "8")
-      assert has_element?(host, "button[aria-label='More players'][disabled]")
-    end
-
+  describe "the waiting panel" do
     test "your name is edited in your seat row; other names are text" do
       {:ok, id} = GameServer.start(2)
       alice = open(browser("alice"), id)

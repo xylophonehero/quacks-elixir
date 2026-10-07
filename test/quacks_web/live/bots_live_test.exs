@@ -1,7 +1,7 @@
 defmodule QuacksWeb.BotsLiveTest do
   @moduledoc """
-  Bots on the configure screen: the host adds a named bot to an empty seat row with
-  one tap, removes it with ×; joiners see bot rows read-only. In the game a bot wears a
+  Bots: the spell book seats them; the waiting panel fills the open seats ("Fill
+  with bots"). In the game a bot wears a
   "bot" badge.
   """
   use QuacksWeb.ConnCase, async: true
@@ -18,33 +18,18 @@ defmodule QuacksWeb.BotsLiveTest do
     view
   end
 
-  test "the host adds a bot to an empty seat, removes it, and starts with one" do
-    {:ok, id} = GameServer.start(3, {1, 2, 3})
+  test "the waiting panel: Fill with bots seats named bots and starts" do
+    # Round 26: the bots are picked in the spell book; the waiting panel only fills.
+    {:ok, id} = GameServer.create(%{players: 3}, "a", {1, 2, 3})
     host = open(browser("a"), id)
 
-    refute has_element?(host, "[data-seat='0'] [data-role='add-bot']")
+    refute has_element?(host, "[data-role='add-bot']")
+    refute has_element?(host, "button", "Start game")
+    assert has_element?(host, "[data-role='waiting-for-players']", "1 of 3 seated")
 
-    host |> element("[data-seat='2'] [data-role='add-bot']") |> render_click()
-    {:ok, %{names: %{2 => name}}} = GameServer.get(id)
-    assert name in Names.all()
-    assert has_element?(host, "[data-seat='2']", name)
-    assert has_element?(host, "[data-seat='2'] [data-role='bot-badge']")
-    refute has_element?(host, "[data-seat='2'] [data-role='add-bot']")
-    assert has_element?(host, "[data-role='waiting-for-players']", "2 of 3 seated")
-    refute has_element?(host, "[aria-label='Fewer players'][disabled]")
-
-    host |> element("[data-seat='1'] [data-role='add-bot']") |> render_click()
-    {:ok, %{names: %{1 => second}}} = GameServer.get(id)
-    assert second in Names.all() and second != name
-    assert has_element?(host, "[data-seat='1']", second)
-    assert has_element?(host, "[data-role='waiting-for-players']", "3 of 3 seated")
-    assert has_element?(host, "[aria-label='Fewer players'][disabled]")
-
-    host |> element("[data-seat='2'] [data-role='remove-bot']") |> render_click()
-    refute has_element?(host, "[data-seat='2'] [data-role='bot-badge']")
-    assert has_element?(host, "[data-role='waiting-for-players']", "2 of 3 seated")
-
-    host |> element("button", "Start game") |> render_click()
+    host |> element("#waiting-panel [data-role=fill-bots]") |> render_click()
+    {:ok, %{names: names, status: :playing}} = GameServer.get(id)
+    assert names[1] in Names.all() and names[2] in Names.all() and names[1] != names[2]
     assert has_element?(host, "[data-role='player-chip'][data-seat='1'] [data-role='bot-badge']")
     refute has_element?(host, "[data-role='player-chip'][data-seat='0'] [data-role='bot-badge']")
   end

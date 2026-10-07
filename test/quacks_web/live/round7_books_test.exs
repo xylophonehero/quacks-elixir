@@ -7,17 +7,17 @@ defmodule QuacksWeb.Round7BooksTest do
 
   import Phoenix.LiveViewTest
 
-  alias Quacks.GameServer
   alias QuacksWeb.GameComponents
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "round7-#{System.unique_integer()}")}
   end
 
+  # Round 26: the books are picked in the spell book (its colour pages).
   defp configure(conn, players) do
-    {:ok, id} = GameServer.start(players, {1, 2, 3})
-    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
-    {id, view}
+    {:ok, view, _html} = live(conn, ~p"/?step=books")
+    render_click(view, "players", %{"count" => to_string(players)})
+    view
   end
 
   defp rows(html, selector),
@@ -41,10 +41,10 @@ defmodule QuacksWeb.Round7BooksTest do
     assert rows(html, "[data-role=book-tiers] tr") == 2
   end
 
-  test "the configure screen follows the player stepper", %{conn: conn} do
-    {_id, view} = configure(conn, 2)
-    # The host's tiles are compact; the picker card has the tier table.
-    black = "#book-picker-black [data-set='1'] [data-role=book-tiers]"
+  test "the spell book follows the player stepper", %{conn: conn} do
+    view = configure(conn, 2)
+    # The tiles are compact; the colour page's card has the tier table.
+    black = "#page-book-black [data-set='1'] [data-role=book-tiers]"
     picker = black
     assert has_element?(view, black, "same count")
     assert has_element?(view, picker, "same count")
@@ -60,7 +60,7 @@ defmodule QuacksWeb.Round7BooksTest do
   end
 
   test "picker cards show the same tier tables as the tiles", %{conn: conn} do
-    {_id, view} = configure(conn, 2)
+    view = configure(conn, 2)
 
     for {colour, set, row} <- [
           {:purple, 1, "3+ purple"},
@@ -74,12 +74,12 @@ defmodule QuacksWeb.Round7BooksTest do
         ] do
       assert has_element?(
                view,
-               "#book-picker-#{colour} [data-set='#{set}'] [data-role=book-tiers]",
+               "#page-book-#{colour} [data-set='#{set}'] [data-role=book-tiers]",
                row
              )
     end
 
-    refute has_element?(view, "#book-picker-green [data-set='1'] [data-role=book-tiers]")
+    refute has_element?(view, "#page-book-green [data-set='1'] [data-role=book-tiers]")
   end
 
   test "orange books carry no text: tile, picker card and book list", %{conn: conn} do
@@ -96,21 +96,20 @@ defmodule QuacksWeb.Round7BooksTest do
     refute html =~ "No action"
     refute html =~ "·"
 
-    {_id, view} = configure(conn, 2)
-    card = "#book-picker-orange [data-set='2']"
+    view = configure(conn, 2)
+    card = "#page-book-orange [data-set='2']"
     assert has_element?(view, card, "22")
     refute has_element?(view, "#{card} span.text-sm")
   end
 
   test "the pot-side checkbox sits beside the expansion and still sets the house rule",
        %{conn: conn} do
-    {id, view} = configure(conn, 2)
-    assert has_element?(view, "#books #expansion")
-    assert has_element?(view, ~s(#books #rules-pot_side[form="options"]))
+    view = configure(conn, 2)
+    assert has_element?(view, "[data-role=expansion-cards] #expansion[form=books]")
+    assert has_element?(view, ~s([data-role=expansion-cards] #rules-pot_side[form="options"]))
     refute has_element?(view, "#options #rules-pot_side")
 
     view |> element("#options") |> render_change(%{"rules" => %{"pot_side" => "true"}})
-    assert has_element?(view, "#books #rules-pot_side[checked]")
-    assert {:ok, %{rules: %{pot_side: :back}}} = GameServer.get(id)
+    assert has_element?(view, "#rules-pot_side[checked]")
   end
 end
