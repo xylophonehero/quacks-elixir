@@ -1314,7 +1314,9 @@ defmodule QuacksWeb.GameLive do
                 aria-hidden="true"
                 data-role="pot-card"
               >
-                <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip />
+                <%!-- Round 25: the grown corner card has no flip; the card
+                     transition alone grows it (the shrink played backwards). --%>
+                <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip={!@card_grown} />
                 <p
                   :if={card_tap?(assigns)}
                   id={"card-caption-#{@game.round}-#{@card_grown}"}
