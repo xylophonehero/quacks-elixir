@@ -12,7 +12,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Quacks" />
-    <link rel="manifest" href={~p"/manifest.webmanifest"} />
+    <%!-- A plain path, not ~p: in prod ~p gives the digested name, which Plug.Static's
+         `only:` list does not match (404, so Android Chrome cannot install the app). --%>
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href={~p"/images/pwa/apple-touch-icon.png"} />
     <.live_title default="Quacks" phx-no-format>{assigns[:page_title]}</.live_title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -48,6 +48,27 @@ defmodule QuacksWeb.PwaTest do
              |> Enum.to_list()
   end
 
+  test "the manifest href in the root layout is the undigested path and answers 200",
+       %{conn: conn} do
+    html = conn |> get(~p"/") |> html_response(200)
+
+    [href] =
+      html
+      |> LazyHTML.from_document()
+      |> LazyHTML.query(~s(link[rel="manifest"]))
+      |> LazyHTML.attribute("href")
+
+    # A digested name (manifest-<hash>.webmanifest?vsn=d) is not in Plug.Static's
+    # `only:` list, so it would answer 404 in prod.
+    assert href == "/manifest.webmanifest"
+    assert Path.basename(href) in QuacksWeb.static_paths()
+
+    conn = get(build_conn(), href)
+    assert response(conn, 200)
+    assert [type] = get_resp_header(conn, "content-type")
+    assert type =~ "application/manifest+json"
+  end
+
   test "the lobby has the install button and the iOS hint, both hidden until app.js shows them",
        %{conn: conn} do
     conn = init_test_session(conn, player_token: "pwa-#{System.unique_integer()}")
