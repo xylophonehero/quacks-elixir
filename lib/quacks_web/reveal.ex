@@ -84,10 +84,20 @@ defmodule QuacksWeb.Reveal do
   the whole table, so the seat does not change them). Empty without a moment.
   """
   @spec slides(Game.t(), Game.seat()) :: [slide]
-  def slides(game, _seat) do
+  def slides(game, seat) do
     case moment(game) do
       {:card, round} ->
-        running([%{kind: :card, round: round, card: game.fortune_card}], now(game))
+        running(
+          [
+            %{
+              kind: :card,
+              round: round,
+              card: game.fortune_card,
+              outcomes: card_outcomes(game, seat)
+            }
+          ],
+          now(game)
+        )
 
       {:results, round} ->
         game |> results(round) |> running(before_results(game))
@@ -98,6 +108,25 @@ defmodule QuacksWeb.Reveal do
       nil ->
         []
     end
+  end
+
+  @doc """
+  Round 24: what this round's card did to `seat` when it came (its automatic part,
+  e.g. a droplet, VP, a ruby, drawn chips), oldest first: the `{:fortune, id,
+  outcome}` log entries since the card was drawn. Empty for a card that does
+  nothing by itself, and for a spectator.
+  """
+  @spec card_outcomes(Game.t(), Game.seat() | nil) :: [term]
+  def card_outcomes(_game, nil), do: []
+
+  def card_outcomes(game, seat) do
+    game.log
+    |> Enum.take_while(&(not match?({:fortune_drawn, _}, &1)))
+    |> Enum.flat_map(fn
+      {^seat, {:fortune, _id, outcome}} when outcome != :skip -> [outcome]
+      _entry -> []
+    end)
+    |> Enum.reverse()
   end
 
   @doc "How long `slide` stays in Auto mode, in ms, at speed `factor` (1, 1.6, 2.5)."

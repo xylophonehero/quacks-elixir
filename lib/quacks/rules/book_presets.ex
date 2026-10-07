@@ -1,23 +1,25 @@
 defmodule Quacks.Rules.BookPresets do
   @moduledoc """
   Ready-made sets of ingredient books ("presets") for the spell book's Ingredient
-  books page. Source and reasons: `docs/research/book-presets.md`. Sets 1–4 and the
-  Herb Witches' Set 5 are the rulebooks' own sets; Ruby hoard, Explosive and
-  Alchemists are mixes of our own design (no rulebook or community source names
-  one). "Random" is not a preset: the page rolls a random book per colour.
+  books page. Sources and reasons: `docs/research/book-presets.md`. Sets 1–4 are the
+  rulebook's own sets; the other four are mixes that players recommend on the
+  BoardGameGeek forums (round 25), each with its thread in the research note.
+  "Random" is not a preset: the page rolls a random book per colour.
 
   `sets` uses the books form's shape (`QuacksWeb.SetupComponents.parse_sets/2`):
   orange 1 and "no locoweed" are left out, black is always in. `expansions` are the
-  expansions a preset turns on.
+  expansions a preset turns on. `source` says where the mix comes from.
   """
 
-  @type id :: :beginner | :set2 | :set3 | :set4 | :rubies | :explosive | :alchemists | :herb
+  @type id ::
+          :beginner | :set2 | :set3 | :set4 | :combo | :big_bags | :ruby_heavy | :strategic
   @type preset :: %{
           id: id,
           name: String.t(),
           blurb: String.t(),
           sets: %{atom => 1..6},
-          expansions: [:herb_witches | :alchemists]
+          expansions: [:herb_witches | :alchemists],
+          source: String.t()
         }
 
   @base %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}
@@ -29,56 +31,68 @@ defmodule Quacks.Rules.BookPresets do
       name: "Beginner (Set 1)",
       blurb: "The rulebook's first game.",
       sets: @base,
-      expansions: []
+      expansions: [],
+      source: "Rulebook, Set 1"
     },
     %{
       id: :set2,
       name: "Set 2",
       blurb: "Safe pots, red held back, chips that grow your bag.",
       sets: @set.(2),
-      expansions: []
+      expansions: [],
+      source: "Rulebook, Set 2"
     },
     %{
       id: :set3,
       name: "Set 3",
       blurb: "Rubies on ruby spaces and a higher white limit.",
       sets: @set.(3),
-      expansions: []
+      expansions: [],
+      source: "Rulebook, Set 3"
     },
     %{
       id: :set4,
       name: "Set 4",
       blurb: "Pay rubies to move, chip upgrades, fast yellows.",
       sets: @set.(4),
-      expansions: []
+      expansions: [],
+      source: "Rulebook, Set 4"
     },
+    # BGG thread 2311359 ("the most effective" of several groups' setups).
     %{
-      id: :rubies,
-      name: "Ruby hoard",
-      blurb: "Many ways to collect rubies.",
-      sets: %{@base | blue: 3, purple: 2},
-      expansions: []
+      id: :combo,
+      name: "Combo mix",
+      blurb: "Mandrakes raise the white limit, spiders reward exactly 7 white.",
+      sets: %{green: 3, blue: 1, red: 1, yellow: 3, purple: 3, black: 1},
+      expansions: [],
+      source: "boardgamegeek.com/thread/2311359"
     },
+    # BGG thread 2227558 ("I like big bags and I can not lie").
     %{
-      id: :explosive,
-      name: "Explosive",
-      blurb: "Push your luck: whites help you, explosions hurt less.",
-      sets: %{green: 3, blue: 2, red: 4, yellow: 3, purple: 3, black: 1},
-      expansions: []
+      id: :big_bags,
+      name: "Big bags",
+      blurb: "Greens and purples that put more chips in your bag.",
+      sets: %{green: 2, blue: 2, red: 1, yellow: 3, purple: 2, black: 1},
+      expansions: [],
+      source: "boardgamegeek.com/thread/2227558"
     },
+    # BGG thread 2227558 ("Ruby Heavy", and "Cheap As Chips" with yellow 4).
     %{
-      id: :alchemists,
-      name: "Alchemists",
-      blurb: "Set 1 with the colour-counting locoweed.",
-      sets: Map.put(@base, :locoweed, 4),
-      expansions: [:alchemists]
+      id: :ruby_heavy,
+      name: "Ruby heavy",
+      blurb: "Rubies from green, blue and purple chips.",
+      sets: %{green: 1, blue: 3, red: 2, yellow: 4, purple: 1, black: 1},
+      expansions: [],
+      source: "boardgamegeek.com/thread/2227558"
     },
+    # BGG thread 2589332 ("possibly the most strategic and balanced setup").
     %{
-      id: :herb,
-      name: "Herb Witches (Set 5)",
-      blurb: "Set 5, its locoweed and the orange 6 pumpkin.",
-      sets: %{orange: 2, green: 5, blue: 5, red: 5, yellow: 5, purple: 5, black: 2, locoweed: 1},
-      expansions: [:herb_witches]
+      id: :strategic,
+      name: "Strategic",
+      blurb: "Plan next round's first chips, double a move, VP for pumpkins.",
+      sets: %{orange: 2, green: 5, blue: 5, red: 2, yellow: 2, purple: 4, black: 2},
+      expansions: [:herb_witches],
+      source: "boardgamegeek.com/thread/2589332"
     }
   ]
 

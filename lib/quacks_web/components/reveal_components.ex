@@ -19,6 +19,7 @@ defmodule QuacksWeb.RevealComponents do
     only: [
       book_info: 2,
       book_ink: 1,
+      card_outcome: 2,
       chip: 1,
       die: 1,
       die_face: 1,
@@ -168,16 +169,30 @@ defmodule QuacksWeb.RevealComponents do
 
   # Round 22: the card itself hovers over the pot (`GameLive`, `.pot-card`); the
   # sheet names it, and holds its text for screen readers (the page behind the
-  # modal sheet is inert).
+  # modal sheet is inert). Round 24: the sheet shows only after a tap, for a card
+  # that did something to this seat: the list says what (`Reveal.card_outcomes/2`).
   defp slide(%{slide: %{kind: :card}} = assigns) do
-    assigns = assign(assigns, info: Fortune.card(assigns.slide.card))
+    assigns =
+      assign(assigns,
+        info: Fortune.card(assigns.slide.card),
+        outcomes: Map.get(assigns.slide, :outcomes, [])
+      )
 
     ~H"""
     <div class="text-center" data-role="reveal-card-name">
       <h2 class="font-hand text-2xl leading-tight font-bold">{@info.name}</h2>
       <p class="sr-only">{@info.text}</p>
-      <p class="text-sm text-ink-soft" aria-hidden="true">
-        It stays in the pot's corner: tap it to read it again.
+      <ul :if={@outcomes != []} class="mt-2 space-y-1" data-role="card-outcomes">
+        <li
+          :for={outcome <- @outcomes}
+          class="mx-auto w-fit rounded-full bg-ink/10 px-3 py-1 text-base font-semibold"
+          data-role="card-outcome"
+        >
+          {card_outcome(outcome, @slide.card)}
+        </li>
+      </ul>
+      <p class="mt-2 text-sm text-ink-soft" aria-hidden="true">
+        It stays in the pot's corner: tap it to see it again.
       </p>
     </div>
     """

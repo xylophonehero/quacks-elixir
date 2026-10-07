@@ -631,7 +631,7 @@ defmodule QuacksWeb.SetupComponents do
           name="black_rule"
           legend="Black chips compare with"
           value={@rules.black_rule}
-          options={[neighbours: "neighbours", standings: "players ranked above"]}
+          options={[standings: "players ranked above (default)", neighbours: "neighbours (rulebook)"]}
         />
         <.radios
           name="die"
@@ -717,7 +717,7 @@ defmodule QuacksWeb.SetupComponents do
         aria-pressed={to_string(colour == @mine)}
         data-colour={colour}
         class={[
-          "hit-44 size-8 shrink-0 cursor-pointer rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
+          "hit-44 aspect-square max-w-8 min-w-0 flex-1 cursor-pointer rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
           palette_bg(colour),
           colour == @mine && "ring-2 ring-ink ring-offset-2 ring-offset-parchment-light"
         ]}
@@ -893,6 +893,26 @@ defmodule QuacksWeb.SetupComponents do
   end
 
   def step_rule(rules, _rule, _to), do: rules
+
+  @doc """
+  The house rules of a config the browser saved (`ConfigMemory`). A config saved
+  before round 25 (no `"v"`) holds `black_rule: "neighbours"`, the default then, not
+  a choice: it is dropped, so the new default (`:standings`) applies.
+
+      iex> QuacksWeb.SetupComponents.saved_rules(%{"rules" => %{"black_rule" => "neighbours", "rats" => "false"}})
+      %{"rats" => "false"}
+      iex> QuacksWeb.SetupComponents.saved_rules(%{"v" => 25, "rules" => %{"black_rule" => "neighbours"}})
+      %{"black_rule" => "neighbours"}
+  """
+  @spec saved_rules(map) :: map
+  def saved_rules(%{"v" => v, "rules" => rules}) when is_integer(v) and v >= 25 and is_map(rules),
+    do: rules
+
+  def saved_rules(%{"rules" => %{"black_rule" => "neighbours"} = rules}),
+    do: Map.delete(rules, "black_rule")
+
+  def saved_rules(%{"rules" => rules}) when is_map(rules), do: rules
+  def saved_rules(_saved), do: %{}
 
   @doc """
   The Options form's `%{"explode_above" => "9", "rats" => "false", ...}` as house

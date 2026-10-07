@@ -70,35 +70,26 @@ defmodule QuacksWeb.UiRound3Test do
     view = open(browser("solo"), id)
     {:ok, %{game: %{fortune_card: card}}} = GameServer.get(id)
 
-    # round 14: the card shows in the reveal overlay, one slide
-    assert has_element?(view, "dialog#reveal-card-1[phx-mounted] [data-kind=card]")
-
-    # round 22: the card hovers over the pot; the sheet names it
+    # round 22: the card hovers over the pot; round 24: no sheet, a tap goes on
     assert has_element?(
              view,
              "[data-role=pot-area] #pot-card-1 [data-role=fortune-card]",
              Fortune.card(card).name
            )
 
-    assert has_element?(
-             view,
-             "#reveal-card-1 [data-role=reveal-card-name]",
-             Fortune.card(card).name
-           )
-
-    assert has_element?(view, "#reveal-card-1 #reveal-next", "Continue")
-    refute has_element?(view, "#reveal-card-1 #reveal-skip")
-
-    # later renders keep the same overlay: it does not open again
-    view |> element("button", "Draw a chip") |> render_click()
-    assert count(render(view), "[data-role=reveal]") == 1
-
-    view |> element("#reveal-next") |> render_click()
     refute has_element?(view, "[data-role=reveal]")
+    assert has_element?(view, "#card-tap")
+
+    # later renders keep the same card: it does not open again
+    view |> element("button", "Draw a chip") |> render_click()
+    assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
+
+    view |> element("#card-tap") |> render_click()
+    refute has_element?(view, "#card-tap")
     to_shop_rest(view)
     assert has_element?(view, "li", "— Round 1 over —")
-    refute has_element?(view, "#reveal-card-1")
-    assert has_element?(view, "dialog#reveal-card-2[phx-mounted]")
+    refute has_element?(view, "#pot-card-1")
+    assert has_element?(view, "#pot-card-2 [data-role=card-caption]")
 
     {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, %{fortune: false})
     view = open(browser("solo2"), id)

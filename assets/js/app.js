@@ -393,6 +393,13 @@ document.addEventListener("click", async e => {
 const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true
 // `navigator.standalone` exists only on iOS/iPadOS WebKit (an iPad says "Macintosh").
 if (!standalone && "standalone" in navigator && navigator.maxTouchPoints > 1) installState("ios")
+// Round 24: Android Chrome may list "Install app" in its own menu and never fire the
+// prompt to the page. 3 s after load with no prompt, a Chromium browser outside the
+// installed app shows the menu hint; a later prompt turns it into the button.
+const chromium = !!navigator.userAgentData || /Android/.test(navigator.userAgent)
+setTimeout(() => {
+  if (!installFired && !standalone && chromium && !document.documentElement.dataset.install) installState("menu")
+}, 3000)
 
 // Full screen (round 21): Android Chrome may offer no install prompt, so the game
 // menu and the lobby's Games page have a toggle (`fullscreen_button/1`). Shown only
