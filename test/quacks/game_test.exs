@@ -744,6 +744,7 @@ defmodule Quacks.GameTest do
       fortune: boolean(),
       rats: boolean(),
       black_solo: member_of([:droplet, :droplet_ruby]),
+      black_rule: member_of([:neighbours, :standings]),
       die: member_of([:standard, :no_orange]),
       starting_rubies: integer(0..3),
       supply: member_of([:infinite, :limited]),

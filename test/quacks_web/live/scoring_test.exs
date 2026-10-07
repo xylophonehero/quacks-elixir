@@ -99,7 +99,7 @@ defmodule QuacksWeb.ScoringTest do
     refute has?(html, ".stat-tick[data-beat]")
   end
 
-  test "a scored round plays on the pot; Skip ends it" do
+  test "a scored round plays on the pot; the reveal overlay's end ends it" do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     {:ok, view, _html} = live(init_test_session(build_conn(), player_token: "solo"), ~p"/g/#{id}")
 
@@ -113,7 +113,7 @@ defmodule QuacksWeb.ScoringTest do
     assert length(query(html, "#pot-0-lg [data-role=ruby-flight]") |> Enum.to_list()) ==
              Enum.count(Replay.pot_effects(lines), &(&1.kind == :ruby))
 
-    assert has?(html, "#replay-skip") and has?(html, "#pot-0-lg[phx-hook=PotMotion]")
+    assert has?(html, "#reveal-next") and has?(html, "#pot-0-lg[phx-hook=PotMotion]")
 
     for %{kind: kind, beat: beat} <- Replay.updates(game, 0), kind in [:vp, :rubies] do
       assert has?(html, ~s(#stat-#{kind}[data-beat="#{beat}"]))
@@ -127,30 +127,30 @@ defmodule QuacksWeb.ScoringTest do
              ~s(#replay-start-#{game.round}[phx-mounted*=remove_class][phx-mounted*=replay-done])
            )
 
-    view |> element("#replay-skip") |> render_click()
+    render_hook(view, "reveal_close", %{})
     html = render(view)
     assert has?(html, "#players-row.replay-done")
     refute has?(html, "[data-role=ruby-flight], [data-role=vp-float], [data-role=replay-die]")
     refute has?(html, ".stat-tick[data-beat], [data-slide-beat]")
   end
 
-  test "PotMotion flies the rubies, skips on a pot tap, Space or Esc, and speeds up after two skips" do
+  test "PotMotion flies the rubies on the beat of the menu's speed (round 14: no skip keys)" do
     js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
     [_, hook] = String.split(js, "const PotMotion", parts: 2)
 
-    for text <-
-          ~w{flights() [data-role=ruby-flight] dataset.beat dataset.wait ratsIn() replay-skip Escape} do
+    for text <- ~w{flights() [data-role=ruby-flight] dataset.beat dataset.wait ratsIn() --beat-ms} do
       assert hook =~ text
     end
 
-    assert js =~ "quacks:skips"
-    assert js =~ "fastBeats"
+    refute js =~ "quacks:skips"
+    refute js =~ "replay-skip"
   end
 
-  test "the CSS: skip completes everything, faster beats, reduced motion is instant" do
+  test "the CSS: the end completes everything, the speed sets the beats, reduced motion is instant" do
     css = File.read!(Path.expand("../../../assets/css/app.css", __DIR__))
 
-    assert css =~ ":root[data-fast-beats]"
+    refute css =~ ":root[data-fast-beats]"
+    assert css =~ "--die-roll: calc(var(--beat-ms) * 1.5556ms)"
     assert css =~ "@keyframes vp-float"
     assert css =~ "@keyframes die-roll"
     assert css =~ ~s{:root:has(#players-row.replay-done) :is([data-role="ruby-flight"]}

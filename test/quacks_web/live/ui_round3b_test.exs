@@ -134,7 +134,8 @@ defmodule QuacksWeb.UiRound3bTest do
 
     replace_game(id, &(&1 |> H.put(round: 9) |> H.put(0, rubies: 3)))
     refute has_element?(alice, "dialog#decision-shop")
-    assert has_element?(alice, "#players-row[data-on-replay-end*=decision-rubies]")
+    assert has_element?(alice, "dialog#reveal-results-9")
+    assert has_element?(alice, "dialog#decision-rubies")
     alice |> element("dialog#decision-rubies button", "2 rubies → 1 VP") |> render_click()
     assert has_element?(alice, "li", "Spent 2 rubies: +1 VP")
   end
@@ -153,7 +154,10 @@ defmodule QuacksWeb.UiRound3bTest do
     replace_game(id, &H.put(&1, phase: :over))
 
     {:error, {:live_redirect, %{to: "/g/" <> new_id}}} =
-      alice |> element("#game-over button", "Play again") |> render_click()
+      alice
+      |> tap(&(&1 |> element("#reveal-skip") |> render_click()))
+      |> element("#reveal-final-9 button", "Play again")
+      |> render_click()
 
     assert {"/g/" <> ^new_id, _flash} = assert_redirect(bob)
     assert {:ok, %{status: :waiting, names: %{0 => _, 1 => _}}} = GameServer.get(new_id)

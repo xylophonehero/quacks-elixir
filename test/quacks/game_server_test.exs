@@ -512,6 +512,69 @@ defmodule Quacks.GameServerTest do
     end
   end
 
+  describe "create/3 (the spell book)" do
+    test "the host sits in seat 0 with name and colour; bots fill their seats" do
+      sets = %{green: 2, black: 1}
+
+      {:ok, id} =
+        GameServer.create(
+          %{players: 3, sets: sets, name: "  Ann  ", colour: 4, bots: [2, 7, 0], public: false},
+          "ann",
+          {1, 2, 3}
+        )
+
+      {:ok, table} = GameServer.get(id)
+      assert table.status == :waiting
+      assert table.names[0] == "Ann"
+      assert table.colours[0] == 4
+      assert Map.keys(table.bots) == [2]
+      assert table.creator == 0
+      assert table.sets == sets
+      refute table.public
+      assert table.seed == {1, 2, 3}
+      # A human joins seat 1; the host starts.
+      assert {:ok, 1} = GameServer.claim_seat(id, "bob", watch: false)
+      assert {:ok, %Game{}} = GameServer.begin(id, "ann")
+    end
+
+    test "no seat left for a human: the game begins at once" do
+      {:ok, id} = GameServer.create(%{players: 2, bots: [1]}, "ann")
+      assert {:ok, %{status: :playing, game: %Game{seats: [0, 1]}}} = GameServer.get(id)
+
+      {:ok, solo} = GameServer.create(%{players: 1}, "ann")
+      assert {:ok, %{status: :playing}} = GameServer.get(solo)
+    end
+
+    test "settings that make no game are refused" do
+      assert GameServer.create(%{players: 9}, "ann") == {:error, :invalid}
+    end
+  end
+
+  describe "public games and games/1" do
+    test "only public games and your own are listed; mine gives your seat" do
+      {:ok, open} = GameServer.create(%{players: 3}, "ann")
+      {:ok, hidden} = GameServer.create(%{players: 3, public: false}, "ann")
+
+      bob = Enum.map(GameServer.games("bob"), & &1.id)
+      assert open in bob
+      refute hidden in bob
+      refute hidden in Enum.map(GameServer.open_games(), & &1.id)
+
+      ann = Map.new(GameServer.games("ann"), &{&1.id, &1.mine})
+      assert %{^open => 0, ^hidden => 0} = ann
+
+      {:ok, _} = GameServer.configure(hidden, "ann", %{public: true})
+      assert hidden in Enum.map(GameServer.games("bob"), & &1.id)
+    end
+
+    test "a running game is listed for a watcher" do
+      {:ok, id} = GameServer.create(%{players: 2, bots: [1]}, "ann")
+
+      assert [%{status: :playing, mine: nil}] =
+               Enum.filter(GameServer.games("bob"), &(&1.id == id))
+    end
+  end
+
   defp bot_draws(game), do: Enum.count(game.log, &(&1 == {1, :draw}))
 
   defp send_ticks(pid, ticks),

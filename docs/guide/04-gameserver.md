@@ -79,7 +79,8 @@ gives back-pressure, because a page waits for each reply. `AGENTS.md` says the s
 the `creator` token, the bot fields (`bots`, `bot_rngs`, `bot_ticks`, `queued`),
 `auto_keep`, `seen`, `pages`, `debug` and the settings for `Session.new/3`.
 `table/1` turns it into the public view that pages read, without the tokens
-(`lib/quacks/game_server.ex:1023-1047`). Tokens never leave the process.
+(`lib/quacks/game_server.ex:1023-1047`). Tokens never go to a page; only the game
+file on disk has them ("Games on disk" below).
 
 The table fields that are not plain settings (type `table`,
 `lib/quacks/game_server.ex:84-116`):
@@ -454,10 +455,71 @@ sequenceDiagram
   Its pages get `{:error, :not_found}` on the next call (also when the server dies
   during the call: `call/2` catches the exit) and go back to the lobby with "This
   game has ended." (chapter 5). Other games run on.
-- A deploy restarts the node and every game is gone
-  (`lib/quacks/game_server.ex:67-68`). To survive that, the state to save is small:
-  `{seed, players, opts, actions}` plus the table. `Session.bundle/1` (chapter 3)
-  already writes exactly that, for bug reports.
+- A deploy restarts the node. The games come back from disk: see the next section.
+  A game that crashed stays on disk too, so the next boot brings it back.
+
+## Games on disk
+
+A deploy or a restart must not end the games. There is no database: each game
+writes one **game file**, `<GAMES_DIR>/<id>.json`. `Quacks.GameStore`
+(`lib/quacks/game_store.ex`) is plain functions, no process.
+
+- **What the file holds.** The bundle (`GameServer.bundle/1`: `Session.bundle/1`
+  plus `names` and `bots`, chapter 3) and a `"table"` key: the id, `status`
+  (`"waiting"` or `"playing"`), `max_players`, the seed, the settings
+  (`Session.encode_opts/1`), the player tokens (token -> seat), names, colours, bots
+  with their rng state, `seen`, the creator's token, `next_id` and `public` (a file
+  without it restores as public). A waiting table
+  has no bundle part, only `"table"`. The bundle part is the same as in a bug
+  report, so `mix quacks.replay` and `/debug/replay?bundle=` read a game file as
+  they read a report. A bug report does not get the tokens: only the file has them.
+- **Every change, once.** `handle_call/3` and `handle_info/2` are thin wrappers:
+  each message goes to `server_call/3` or `server_info/2`, and then `stored/2`
+  compares the old and the new `file_view/1` (the session's actions and the table
+  fields). When they differ, `schedule_write/1` sends `{:write, ref}` to the server
+  after 500 ms (`@write_delay`), unless a write is already pending. So a burst of
+  moves (a bot turn, a flushed plan) gives one write. A `:get` changes nothing and
+  writes nothing.
+- **Atomic.** `GameStore.write/3` writes `<id>.json.tmp` and then renames it. A
+  crash during the write leaves the old file. A write that fails is logged; the
+  game plays on in memory.
+- **Shutdown.** `init/1` traps exits, so a deploy's shutdown calls `terminate/2`,
+  which writes a pending change at once. A `kill -9` loses at most the last 500 ms.
+- **When the file goes.** The idle timeout (2 hours) deletes it. A finished game
+  keeps it, so a reload (also after a deploy) shows the podium, until every human
+  seat closed the final scoring (`ack/4` with `:final`); 1 hour after that
+  (`@finished_ttl`, `:expire`) the file goes and the server writes no more. Debug
+  tables never write a file (`store: nil`).
+- **Restore at boot.** `Quacks.GameStore` is a child of `Quacks.Application`,
+  after the Registry and the DynamicSupervisor and before the Endpoint. Its start
+  function runs `GameStore.restore/0` and returns `:ignore` (no process). For each
+  file it calls `GameServer.start_from_bundle(body, restore: true)`: the same id,
+  seats, tokens, names and settings, and the bots play on (`init/1` calls
+  `schedule_bots/1`). It logs `restored N games`. A file that does not load is
+  renamed `<id>.json.bad` and logged; the boot goes on. Because the Endpoint starts
+  after this child, no request comes before the games are back.
+- **Atoms.** The file names actions and settings as strings, and the decoder
+  takes only existing atoms (`String.to_existing_atom/1`). In dev a module loads
+  on first use, so at boot an atom like `:draw` may not exist yet. `restore/1`
+  loads every module of the app first. A release has them loaded already.
+- **Reconnect.** A browser keeps its `player_token` cookie. The restored table
+  has the same tokens, so a reload after a deploy lands in the same seat with no
+  rejoin prompt (`test/quacks_web/live/restore_live_test.exs`).
+- **What is not kept.** Pages and presence (every human seat is absent until its
+  page comes back), pending bot ticks and queued plans (the bots plan again), and
+  `auto_keep` (the Mandrake take-back ends with a restart).
+
+The directory: `config :quacks, :games_dir`, from `GAMES_DIR` in
+`config/runtime.exs`. Dev default `tmp/games` (git-ignored with `/tmp/`), prod
+default `/data/games`. Tests have none (the store is off); a test that needs one
+sets it with `Application.put_env/3` and is not async.
+
+On Fly, `fly.toml` mounts the volume `quacks_data` at `/data` and sets
+`GAMES_DIR`. Create the volume once per app:
+`fly volumes create quacks_data -a <app> -r ams -s 1 -y`. A volume belongs to one
+machine, so the app stays on one machine (it is on one already). Fly mounts the
+volume owned by root: `rel/overlays/bin/server` starts as root, gives
+`GAMES_DIR` to `nobody` and then runs the app as `nobody` (`setpriv`).
 
 ## Bug reports: `Quacks.BugReports`
 
@@ -521,7 +583,7 @@ would move the log labels into a core module that both call.
 
 ## Debug tables: a game from a bundle
 
-`GameServer.start_from_bundle/2` (`lib/quacks/game_server.ex:171-209`) builds a
+`GameServer.start_from_bundle/2` (`lib/quacks/game_server.ex:202-237`) builds a
 `:playing` table from a bundle. It calls `Session.from_bundle/2` with `at:` (how
 many actions to replay), gives the reporter's seat to the browser's token, names
 the seats and puts the bots back, then starts the server with
@@ -529,7 +591,7 @@ the seats and puts the bots back, then starts the server with
 
 - **Frozen bots.** A replay must stop where you put it. While `frozen` is true,
   `schedule_bots/1` returns at once (line 891), so the bots get no ticks and no
-  plans. `set_frozen/2` (lines 476-484) unfreezes them; then `acted/1` runs and the
+  plans (`frozen: false` starts them unfrozen). `set_frozen/2` unfreezes them; then `acted/1` runs and the
   bots play on from that point.
 - **Seek.** `seek/2` (lines 457-474) rebuilds the session at another action from
   the stored bundle, drops the pending ticks and plans, and broadcasts the game.

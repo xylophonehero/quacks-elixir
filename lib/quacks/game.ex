@@ -35,7 +35,9 @@ defmodule Quacks.Game do
   choice: `{:droplet, :pot}` (the pot droplet) or `{:droplet, :tube}` (one glass on the
   test-tube track, its bonus at once, `Quacks.Rules.TestTubes`), one action per move.
   While a seat has moves waiting, those two are its only actions (`phase/2` is
-  `:droplet_choice`), in any game phase. The shop adds `{:rubies, :tube}`.
+  `:droplet_choice`), in any game phase but the evaluation's choices (`:chip_choice`,
+  `:witch_choice`): there the moves wait for the shop, so the evaluation ends and is
+  logged first (round 18). The shop adds `{:rubies, :tube}`.
 
   The Alchemists (`expansions: [:alchemists]`, `docs/research/alchemists-essences.md`,
   `Quacks.Game.Essence`): 3 patients are dealt at `new/1` (`patients`) and every seat
@@ -69,6 +71,10 @@ defmodule Quacks.Game do
   alias Quacks.Rules.Witches, as: WitchCards
 
   @rounds 9
+
+  # Reverse pot side (round 18): in the evaluation's choice phases a seat's droplet
+  # moves wait; they come in the shop, after the round's results are logged.
+  @droplets_wait [:chip_choice, :witch_choice]
   # Rulebook §4: yellow enters the shop in round 2, purple in round 3.
   @from_round %{yellow: 2, purple: 3}
   # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
@@ -83,6 +89,7 @@ defmodule Quacks.Game do
     fortune: [true, false],
     rats: [true, false],
     black_solo: [:droplet, :droplet_ruby],
+    black_rule: [:neighbours, :standings],
     die: [:standard, :no_orange],
     starting_rubies: 0..3,
     supply: [:infinite, :limited],
@@ -95,6 +102,7 @@ defmodule Quacks.Game do
     fortune: true,
     rats: true,
     black_solo: :droplet,
+    black_rule: :neighbours,
     die: :standard,
     starting_rubies: 1,
     supply: :infinite,
@@ -291,7 +299,9 @@ defmodule Quacks.Game do
   @typedoc """
   House rules; the defaults (`default_rules/0`) are the rulebook game.
   `explode_above` is the white limit before chips and cards raise it, `black_solo`
-  the solo black payout (rulebook §6.2 suggests `:droplet_ruby`), `die: :no_orange`
+  the solo black payout (rulebook §6.2 suggests `:droplet_ruby`), `black_rule`
+  whom black book I compares with (`:neighbours`, the rulebook; `:standings`, ⚠️
+  unofficial: the players ranked above, see `Quacks.Game.Evaluation.targets/2`), `die: :no_orange`
   turns the orange face into a second ruby face (⚠️ unofficial). `supply: :infinite`
   (default) means the shop never runs out and `supply` is never counted down;
   `:limited` plays with the box's counts. `overflow: true` (default) puts chips past
@@ -304,6 +314,7 @@ defmodule Quacks.Game do
           fortune: boolean,
           rats: boolean,
           black_solo: :droplet | :droplet_ruby,
+          black_rule: :neighbours | :standings,
           die: :standard | :no_orange,
           starting_rubies: 0..3,
           supply: :infinite | :limited,
@@ -324,7 +335,8 @@ defmodule Quacks.Game do
   `rules: %{fortune: false}`. `expansions:` is a list (or `MapSet`) of
   `:herb_witches` and `:alchemists`; `expansion: :herb_witches` is the old alias (both
   may be given). The Herb Witches: the expansion chips in the supply (the books stay
-  as `sets:` says), 3 witches (`witches`, dealt from the seed) and 3 witch pennies per
+  as `sets:` says), 3 witches (`witches`, dealt from the seed; `witches:` picks one per colour,
+  e.g. `%{copper: :c3, silver: nil}`, nil or left out: dealt) and 3 witch pennies per
   player. The Alchemists: locoweed book III may be picked, 3 patients are dealt
   (`patients`) and the game starts in `:patient_choice` (round 1's card comes after).
   An unknown colour, set, rule or expansion raises `ArgumentError`.
@@ -336,7 +348,8 @@ defmodule Quacks.Game do
           rules: map,
           fortune: boolean,
           expansion: nil | :herb_witches,
-          expansions: Enumerable.t(expansion)
+          expansions: Enumerable.t(expansion),
+          witches: %{optional(WitchCards.colour()) => WitchCards.id() | nil} | nil
         ) :: t
   def new(opts) do
     seed = Keyword.fetch!(opts, :seed)
@@ -381,7 +394,7 @@ defmodule Quacks.Game do
       rules: rules,
       expansion: if(herb?, do: :herb_witches),
       expansions: expansions,
-      witches: if(herb?, do: WitchCards.deal(rng))
+      witches: if(herb?, do: rng |> WitchCards.deal() |> pick_witches(opts[:witches]))
     }
 
     game =
@@ -391,6 +404,28 @@ defmodule Quacks.Game do
 
     if MapSet.member?(expansions, :alchemists), do: Essence.setup(game), else: start_round(game)
   end
+
+  # The host's picks replace the dealt witch of their colour (nil: dealt). The deal
+  # itself runs first either way, so the game's random stream does not change.
+  defp pick_witches(dealt, nil), do: dealt
+
+  defp pick_witches(dealt, picks) when is_map(picks) do
+    Enum.reduce(picks, dealt, fn
+      {_colour, nil}, witches ->
+        witches
+
+      {colour, id}, witches when is_map_key(witches, colour) ->
+        if id in WitchCards.ids(colour),
+          do: Map.put(witches, colour, id),
+          else: raise(ArgumentError, "no #{colour} witch #{inspect(id)}")
+
+      {colour, _id}, _witches ->
+        raise ArgumentError, "unknown witch colour #{inspect(colour)}"
+    end)
+  end
+
+  defp pick_witches(_dealt, picks),
+    do: raise(ArgumentError, "witches must be a map, got #{inspect(picks)}")
 
   defp expansions!(opts) do
     list =
@@ -456,7 +491,7 @@ defmodule Quacks.Game do
   def phase(%__MODULE__{phase: phase, players: players}, seat)
       when phase != :over and is_map_key(players, seat) do
     case players[seat] do
-      %Player{droplet_moves: n} when n > 0 -> :droplet_choice
+      %Player{droplet_moves: n} when n > 0 and phase not in @droplets_wait -> :droplet_choice
       p when phase in [:potions, :essence, :shopping] -> p.phase
       _p -> phase
     end
@@ -497,11 +532,15 @@ defmodule Quacks.Game do
   def legal_actions(%__MODULE__{players: players}, seat) when not is_map_key(players, seat),
     do: []
 
-  # Reverse pot side: a waiting droplet move comes first, in any phase.
+  # Reverse pot side: a waiting droplet move comes first, in any phase but the
+  # evaluation's choices (round 18: they wait for the shop, after the reveal).
   def legal_actions(%__MODULE__{phase: phase, players: players} = g, seat) when phase != :over do
     case players[seat] do
-      %Player{droplet_moves: n} when n > 0 -> [{:droplet, :pot}, {:droplet, :tube}]
-      _p -> phase_actions(g, seat)
+      %Player{droplet_moves: n} when n > 0 and phase not in @droplets_wait ->
+        [{:droplet, :pot}, {:droplet, :tube}]
+
+      _p ->
+        phase_actions(g, seat)
     end
   end
 

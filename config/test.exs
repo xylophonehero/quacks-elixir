@@ -30,3 +30,6 @@ config :quacks, :github_req_options, plug: {Req.Test, Quacks.BugReports}
 config :quacks, :bug_reports, github_token: nil
 config :quacks, :bug_report_dir, Path.join(System.tmp_dir!(), "quacks-bug-reports-test")
 config :quacks, :debug_token, nil
+
+# The standings slide's settle tick (round 18): tests send it themselves.
+config :quacks, reveal_settle_ms: 60_000

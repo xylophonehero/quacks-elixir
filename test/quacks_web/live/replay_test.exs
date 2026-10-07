@@ -121,7 +121,7 @@ defmodule QuacksWeb.ReplayTest do
     assert Replay.last_beat(game()) == 6
   end
 
-  test "the name card has no update chips; the card with the last beat ends the replay" do
+  test "the name card has no update chips; its counters tick on their beats (round 14: no timer)" do
     game = game()
 
     html =
@@ -130,23 +130,22 @@ defmodule QuacksWeb.ReplayTest do
         seat: 0,
         name: "Ann",
         updates: Replay.updates(game, 0),
-        last: Replay.last_beat(game)
+        ticks: true
       )
 
     refute has?(html, "[data-role=update-chip]")
-    assert attr(html, "[data-role=replay-timer][data-replay-last]", "style") == ["--beat: 6"]
+    refute has?(html, "[data-role=replay-timer]")
+    assert has?(html, ".stat-tick")
 
-    # a card without the last beat has no timer
     html =
       render_component(&GameComponents.player_chip/1,
         game: game,
         seat: 0,
         name: "Ann",
-        updates: Replay.updates(game, 0),
-        last: 9
+        updates: Replay.updates(game, 0)
       )
 
-    refute has?(html, "[data-role=replay-timer]")
+    refute has?(html, ".stat-tick")
   end
 
   test "the player sheet lists the result lines with the die face and the totals" do
@@ -169,25 +168,25 @@ defmodule QuacksWeb.ReplayTest do
     for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
-    assert has_element?(view, "#players-row[data-on-replay-end*=seen]")
+    # round 14: the reveal overlay holds the replay open; its end ends it
+    assert has_element?(view, "dialog#reveal-results-1 [data-role=reveal-slide]")
     refute has_element?(view, "#players-row.replay-done")
-    assert has_element?(view, "#replay-skip[phx-click*=replay-done]")
-    assert has_element?(view, "[data-role=replay-timer][data-replay-last]")
+    refute has_element?(view, "[data-role=replay-timer]")
 
     html = render(view)
-
-    ["--beat: " <> last] = attr(html, "[data-role=replay-timer]", "style")
+    {:ok, %{game: game}} = GameServer.get(id)
+    last = Replay.last_beat(game)
 
     # every pot flash lands within the replay
     for beat <- attr(html, "#pot-0-lg [data-role=beat-ring]", "data-beat") do
-      assert String.to_integer(beat) <= String.to_integer(last)
+      assert String.to_integer(beat) <= last
     end
 
-    view |> element("#replay-skip") |> render_click()
+    view |> element("#reveal-skip") |> render_click()
+    view |> element("#reveal-next") |> render_click()
     assert has_element?(view, "#players-row.replay-done")
-    refute has_element?(view, "#players-row[data-on-replay-end]")
-    refute has_element?(view, "#replay-skip")
-    refute has_element?(view, "[data-role=replay-timer]")
+    refute has_element?(view, "dialog#reveal-results-1")
+    assert {:ok, %{seen: %{0 => %{results: 1}}}} = GameServer.get(id)
   end
 
   test "the CSS has the replay keyframes, the replay end and a reduced-motion fallback" do
@@ -195,10 +194,10 @@ defmodule QuacksWeb.ReplayTest do
 
     for name <- ~w(update-in beat-glow), do: assert(css =~ "@keyframes #{name}")
     assert css =~ "calc(var(--beat-lead) + var(--beat) * var(--beat-step))"
-    assert css =~ "#players-row.replay-done .replay-timer"
+    assert css =~ "--beat-step: calc(var(--beat-ms) * 1ms)"
+    refute css =~ ".replay-timer"
 
     [_, reduced] = String.split(css, "/* Reduced motion: fewer and gentler.", parts: 2)
-    assert reduced =~ ".replay-timer {"
     assert reduced =~ ~s([data-role="beat-ring"])
   end
 end

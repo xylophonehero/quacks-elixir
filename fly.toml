@@ -9,6 +9,13 @@ kill_signal = "SIGTERM"
 [env]
   PHX_HOST = "quacks.fly.dev"
   PORT = "8080"
+  GAMES_DIR = "/data/games"
+
+# Game files (`Quacks.GameStore`), so games survive a deploy. Create the volume once:
+# fly volumes create quacks_data -a <app> -r ams -s 1 -y
+[mounts]
+  source = "quacks_data"
+  destination = "/data"
 
 [http_service]
   internal_port = 8080

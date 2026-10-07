@@ -35,8 +35,10 @@ defmodule QuacksWeb.UiRound6Test do
     )
 
     refute has_element?(view, "dialog#decision-shop")
-    assert has_element?(view, "#players-row[data-on-replay-end*=decision-rubies]")
     assert has_element?(view, "dialog#decision-rubies [data-role=shop-rubies]")
+    # round 14: the reveal overlay's end opens it
+    render_hook(view, "reveal_close", %{})
+    assert_push_event(view, "quacks:open", %{to: "#decision-rubies"})
   end
 
   test "a seat with no coins to spend skips the shop too; with coins it shops" do
@@ -46,8 +48,9 @@ defmodule QuacksWeb.UiRound6Test do
     assert has_element?(view, "dialog#decision-rubies")
 
     replace_game(id, &H.put(&1, 0, coins: 10))
-    assert has_element?(view, "#players-row[data-on-replay-end*=decision-shop]")
     assert has_element?(view, "dialog#decision-shop #shop")
+    render_hook(view, "reveal_close", %{})
+    assert_push_event(view, "quacks:open", %{to: "#decision-shop"})
   end
 
   test "the crow skull offer: the chips are the buttons; Return all stays text" do
@@ -88,7 +91,7 @@ defmodule QuacksWeb.UiRound6Test do
     assert count(html, "button[data-role=chip-pick]") == 4
   end
 
-  test "toadstool Set 2: tap the chip to place it; keep and return under it" do
+  test "toadstool Set 2: one row per chip with Place, Keep and Return" do
     {id, view} = solo()
 
     replace_game(id, fn g ->
@@ -96,9 +99,20 @@ defmodule QuacksWeb.UiRound6Test do
     end)
 
     dialog = "dialog#decision-red_choice"
-    assert has_element?(view, "#{dialog} #{pick({:red, {:place, {:red, 2}}})}")
-    assert has_element?(view, "#{dialog} button[data-role=chip-side]", "Keep")
-    assert has_element?(view, "#{dialog} button[data-role=chip-side]", "Return")
+    row = "#{dialog} [data-role=red-row]#red-row-0"
+    assert has_element?(view, "#{row} [data-role=red-chip]")
+
+    for {kind, text} <- [place: "Place", keep: "Keep", return: "Return"] do
+      action = GameLive.encode({:red, {kind, {:red, 2}}})
+
+      assert has_element?(
+               view,
+               ~s(#{row} button[data-role=red-#{kind}][phx-value-action="#{action}"]),
+               text
+             )
+    end
+
+    refute has_element?(view, "#{dialog} [data-role=chip-side]")
     refute has_element?(view, "#{dialog} section[aria-label=Actions] button")
   end
 end

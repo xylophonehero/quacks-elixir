@@ -208,63 +208,80 @@ these assigns, the reply path and the broadcast path cannot disagree.
 - `terminate/2` frees the seat when a tab closes before the start
   (`lib/quacks_web/live/game_live.ex:484-488`).
 
-`LobbyLive` is the small version of the same pattern: subscribe to `"lobby"`, list
-`GameServer.open_games/0`, list again on `:games_changed`
-(`lib/quacks_web/live/lobby_live.ex:23-45`).
+`LobbyLive` (the **spell book**, round 17) is the small version of the same
+pattern: subscribe to `"lobby"`, list `GameServer.games/1` (public games and your
+own, waiting or playing), list again on `:games_changed`. The server broadcasts it
+when seats or games change and when a game's round changes (`stage/1` in
+`changed/2`), so the Games page's "Round 3 of 9" stays fresh.
+
+Unlike the configure screen, the book holds its settings in the page's own assigns:
+no game exists until Start. Each event (`"players"`, `"sets"`, `"rules"`,
+`"public"`, `"add_bot"`, `"preset"`, `"random_books"`, ...) changes an assign and pushes
+`"save_config"` to the `ConfigMemory` hook (localStorage, the same key the
+configure screen uses); on mount the hook sends `"load_config"` back. `"start"`
+builds one config map and calls `GameServer.create/3`, which seats you, your name
+and colour and the bots in one call, so a solo or all-bot game begins at once
+without a waiting room.
+
+Which page shows is the URL (round 19). Each page of the book is a step:
+`/` (Games), `?step=players`, `expansions`, `rules`, `books`, and
+`?step=book&colour=green` or `?step=witch&colour=copper` for one colour's cards.
+The links use `patch`, so `handle_params/3` sets `@step` and the browser keeps a
+history entry per page: its Back button turns back. Every page is always in the
+DOM; `visible/2` gives each section `hidden`/`flex` for a phone and
+`lg:hidden`/`lg:flex` for the open book (Games or Players on the left, Expansions
+or the deeper page on the right). So the forms keep all their fields when a page
+is hidden: the colour pages' radio cards stand outside `#books` and name it with
+`form="books"`.
+
+The Back arrow must not add a history entry when the page before is its parent.
+`handle_params/3` keeps `entry_depth`, the depth of the page the visit began on;
+on a deeper page `back/2` returns `JS.dispatch("quacks:back")` (app.js calls
+`history.back()`), else `JS.patch` to the parent. A pick on a colour page runs the
+same command, so it returns to the list with the pick applied.
 
 ## Acknowledgement events: `"seen"`
 
-Two things play once per round: the new fortune card and the round results (the
-update chips on the name cards, chapter 6). They must not play again on a reload.
-The page tells the server when the seat is done with one. `dialog_sheet` takes an
-`on_close` JS command; app.js runs it on the dialog's `close` event. For the card
-(`lib/quacks_web/live/game_live.ex:1440`):
+Three things play once: the new fortune card, the round results and (round 14)
+the final scoring. They must not play again on a reload. Since round 14 all three
+show in the reveal overlay (chapter 6), and the server ends it, so most acks start
+on the server: `close_reveal/1` calls `mark_seen/2`, which calls `GameServer.ack/4`
+(chapter 4) and keeps the same map in the `@seen` assign.
+
+The browser still sends `"seen"` in one place: the card dialog that holds a
+fortune choice runs `on_close` on its `close` event:
 
 ```heex
 on_close={JS.push("seen", value: %{kind: "card", round: @game.round})}
 ```
 
-For the results, `replay_end/3` (`lib/quacks_web/live/game_live.ex:2586-2597`)
-builds the same push. The last update chip, "Skip" or a first tap on a name card
-runs it:
+The handler accepts only the three known kinds, so `String.to_existing_atom/1`
+never makes an atom from user input. When the kind and round match the open
+overlay, it ends the overlay; otherwise it only acks:
 
 ```elixir
-js =
-  JS.add_class("replay-done", to: "#players-row")
-  |> JS.push("seen", value: %{kind: "results", round: game.round})
-```
+def handle_event("seen", %{"kind" => kind, "round" => round}, %{assigns: %{seat: seat}} = socket)
+    when is_integer(seat) and kind in ["card", "results", "final"] and is_integer(round) do
+  key = {String.to_existing_atom(kind), round}
 
-The handler checks the params and calls `GameServer.ack/4` (chapter 4), then keeps
-the same map in the `@seen` assign (`lib/quacks_web/live/game_live.ex:355-368`):
+  socket =
+    case socket.assigns.reveal do
+      %{key: ^key} -> close_reveal(socket)
+      _other -> socket |> mark_seen(key) |> auto_done()
+    end
 
-```elixir
-def handle_event(
-      "seen",
-      %{"kind" => kind, "round" => round},
-      %{assigns: %{seat: seat}} = socket
-    )
-    when is_integer(seat) and kind in ["card", "results"] and is_integer(round) do
-  kind = String.to_existing_atom(kind)
-  GameServer.ack(socket.assigns.id, seat, kind, round)
-  {:noreply, update(socket, :seen, &Map.put(&1, kind, round))}
+  {:noreply, socket}
 end
-
-def handle_event("seen", _params, socket), do: {:noreply, socket}
 ```
 
-- The guard accepts only the two known kinds, so `String.to_existing_atom/1` never
-  makes an atom from user input. Anything else falls to the no-op clause.
-- `mount/3` reads `seen` from the table. `seen?/3`
-  (`lib/quacks_web/live/game_live.ex:2572-2578`) then drives `auto_open` on the
-  card, and `replaying?/2` (lines 2583-2584) on the players row: a seen round
-  mounts with `replay-done`, so the update chips show at once and do not play
-  again.
-- A spectator's `seen` is `:all`: no card opens and no replay plays.
-- Order: the shop, the rubies step and a droplet move wait for the replay
-  (`waits_for_results?/3`, lines 2786-2787). `replay_end/3` then opens the waiting
-  decision with `JS.dispatch("quacks:modal", to: "#decision-...")`. A droplet or
-  patient choice at the start of a round waits for the new card the same way: the
-  card's `then_open` names the decision dialog.
+- `mount/3` reads `seen` from the table, and `open_reveal/1` opens the overlay only
+  for a moment that is not seen. `replaying?/2` drives the players row: a seen
+  round mounts with `replay-done`, so the counters show at once.
+- A spectator's `seen` is `:all`: no overlay, no replay.
+- Order: a decision dialog mounts with `auto_open={is_nil(@reveal)}`. When the
+  overlay ends, the server pushes `quacks:open` with the waiting dialog (the shop,
+  the rubies step, a droplet or patient choice, the game-over sheet), and app.js
+  opens it.
 
 ## When the game is gone: `:not_found`
 

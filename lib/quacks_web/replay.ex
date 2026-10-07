@@ -28,7 +28,8 @@ defmodule QuacksWeb.Replay do
           vp: non_neg_integer,
           rubies: non_neg_integer,
           face: term | nil,
-          marks: [mark]
+          marks: [mark],
+          book: {atom, pos_integer} | nil
         }
 
   @doc """
@@ -217,9 +218,14 @@ defmodule QuacksWeb.Replay do
       vp: vp,
       rubies: rubies,
       face: face(entry),
-      marks: marks
+      marks: marks,
+      book: book(entry)
     }
   end
+
+  # The book a line comes from (round 20: the reveal's evaluation slides), or nil.
+  defp book({:effect, {colour, set}, _detail}), do: {colour, set}
+  defp book(_entry), do: nil
 
   defp face({:bonus_die, face}), do: face
   defp face({:effect, {:green, _}, {:bonus_die, face}}), do: face

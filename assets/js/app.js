@@ -66,6 +66,55 @@ const NameMemory = {
   }
 }
 
+// The menu's reveal settings (round 14, `reveal_settings/1`): Step or Auto, and
+// the speed, kept in this browser like `quacks:config`. On mount and on every
+// change the hook sends them to the server, with reduced motion (Step only then).
+// The speed also sets `--beat-ms` on <html>, so the pot's CSS beats keep in step.
+const beatMs = {normal: 450, slow: 720, slower: 1125}
+const loadReveal = () => {
+  try { return JSON.parse(localStorage.getItem("quacks:reveal")) || {} } catch (_e) { return {} }
+}
+const setBeat = speed => document.documentElement.style.setProperty("--beat-ms", beatMs[speed] || beatMs.normal)
+setBeat(loadReveal().speed)
+const RevealSettings = {
+  mounted() {
+    const send = ({mode, speed}) => {
+      setBeat(speed)
+      this.pushEvent("reveal_settings", {mode, speed, reduced: reduced()})
+    }
+    this.el.addEventListener("change", () => {
+      const form = new FormData(this.el)
+      const settings = {mode: form.get("mode") || "step", speed: form.get("speed") || "normal"}
+      try { localStorage.setItem("quacks:reveal", JSON.stringify(settings)) } catch (_e) {}
+      setBeat(settings.speed)
+    })
+    const saved = loadReveal()
+    send({mode: saved.mode || "step", speed: saved.speed || "normal"})
+  }
+}
+
+// The menu's "App" line (round 14): which install rule fails on a phone that shows
+// no Install button. The worker, the display mode and whether Chrome fired
+// `beforeinstallprompt` on this page (`installFired`, set below).
+let installFired = false
+const AppStatus = {
+  mounted() {
+    this.show = () => this.render()
+    this.show()
+    window.addEventListener("quacks:install", this.show)
+    navigator.serviceWorker?.addEventListener("controllerchange", this.show)
+    document.getElementById("sheet-menu")?.addEventListener("toggle", this.show)
+  },
+  destroyed() { window.removeEventListener("quacks:install", this.show) },
+  async render() {
+    const reg = await navigator.serviceWorker?.getRegistration().catch(() => null)
+    const worker = reg?.active ? "active" : (reg?.installing || reg?.waiting) ? "installing" : "none"
+    const display = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true ? "standalone" : "browser"
+    const prompt = installFired || document.documentElement.dataset.install === "ready" ? "fired" : "not fired"
+    this.el.textContent = `App: worker: ${worker} · display: ${display} · install prompt: ${prompt}`
+  },
+}
+
 // The large pot's motion (docs/research/animations.md §3 B3, round 10). Every patch
 // already shows the final pot; this only plays WAAPI `transform`/`opacity` on top, so
 // it never holds up a tap. A new chip drops in on its own space (from 1.3× and a
@@ -84,15 +133,7 @@ const PotMotion = {
     this.snapshot()
     this.flown = new Set()
     this.flights()
-    // A tap on the pot, Space or Esc does what Skip does while the replay plays.
-    this.el.addEventListener("click", () => this.skip())
-    this.onKey = e => {
-      if ((e.key === "Escape" || e.key === " ") && !e.target.closest?.("input, textarea, select, button, a, dialog") &&
-          !document.querySelector("dialog:modal") && this.skip()) e.preventDefault()
-    }
-    window.addEventListener("keydown", this.onKey)
   },
-  destroyed() { window.removeEventListener("keydown", this.onKey) },
   beforeUpdate() { this.snapshot() },
   updated() {
     const chips = [...this.el.querySelectorAll("[data-role=pot-chip]")]
@@ -109,19 +150,14 @@ const PotMotion = {
     this.snapshot()
     this.flights()
   },
-  skip() {
-    const button = document.getElementById("replay-skip")
-    button?.click()
-    return !!button
-  },
   // The scoring sequence: each ruby the round paid waits on its piece (the droplet,
   // a chip, the scoring space) until its line's beat, lifts 12 px, then flies on an
   // arc to the ruby counter and fades there, 600 ms. The same beat formula as the
-  // CSS (`--beat-lead`, `--beat-step`). Each flight plays once (its id).
+  // CSS (`--beat-lead`, `--beat-step`, both from `--beat-ms`). Each flight plays once.
   flights() {
     const counter = document.getElementById("stat-rubies")
-    const root = getComputedStyle(document.documentElement)
-    const ms = name => parseFloat(root.getPropertyValue(name)) || 0
+    const step = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--beat-ms")) || 450
+    const ms = name => name === "--beat-step" ? step : step * 2 / 3
     this.el.querySelectorAll("[data-role=ruby-flight]").forEach(f => {
       if (this.flown.has(f.id) || reduced() || !counter) return
       this.flown.add(f.id)
@@ -197,14 +233,16 @@ const PotMotion = {
 }
 
 let vtNext = false, vtQueue = null
-window.addEventListener("phx:quacks:vt", () => { vtNext = true })
+// The event may name a transition type (round 22: `card`, the new card shrinks into
+// the pot's corner), for app.css `:active-view-transition-type()`.
+window.addEventListener("phx:quacks:vt", e => { vtNext = e.detail?.type || true })
 const queue = p => { vtQueue = p; p.then(() => { if (vtQueue === p) vtQueue = null }) }
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ConfigMemory, NameMemory, PotMotion},
+  hooks: {...colocatedHooks, AppStatus, ConfigMemory, NameMemory, PotMotion, RevealSettings},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
   // is in a field, on a control that Space/Enter already press, or whether a modal
   // dialog is open. The server decides from that; no key logic here.
@@ -224,12 +262,16 @@ const liveSocket = new LiveSocket("/live", Socket, {
     // still applies its patch, so a sheet never waits on the animation.
     onDocumentPatch(start) {
       const go = vtNext && document.startViewTransition && !reduced() && !document.hidden
+      const types = typeof vtNext === "string" ? [vtNext] : []
       vtNext = false
       if (vtQueue) return queue(vtQueue.then(start).catch(console.error))
       if (!go) return start()
       let done = false
       const once = () => { if (!done) { done = true; start() } }
-      const vt = document.startViewTransition(once)
+      // A browser without transition types (before Chrome 125) takes only a callback.
+      let vt
+      try { vt = document.startViewTransition(types.length ? {update: once, types} : once) }
+      catch { vt = document.startViewTransition(once) }
       vt.finished.catch(() => {})
       queue(vt.updateCallbackDone.catch(once))
     },
@@ -295,32 +337,34 @@ document.addEventListener("toggle", e => {
 // A choice inside a dialog (or popover sheet) closes it once it is sent.
 window.addEventListener("quacks:close", e =>
   e.target.matches("[popover]") ? e.target.hidePopover() : e.target.close?.())
-// Skip: after two skips (this browser) the replay beats run faster (app.css
-// `data-fast-beats`).
-const fastBeats = n => n >= 2 && (document.documentElement.dataset.fastBeats = "")
-try { fastBeats(+localStorage.getItem("quacks:skips")) } catch (_e) {}
-document.addEventListener("click", e => {
-  if (!e.target.closest?.("#replay-skip")) return
-  try {
-    const n = +localStorage.getItem("quacks:skips") + 1
-    localStorage.setItem("quacks:skips", n)
-    fastBeats(n)
-  } catch (_e) {}
-}, true)
-// The round results play on the name cards' counters; the card with the last beat
-// holds an invisible `.replay-timer` whose end ends the replay: the players row runs
-// its `data-on-replay-end` JS (`replay_end/3` in game_live.ex: seen, and the shop opens).
-document.addEventListener("animationend", e => {
-  // Only its last animation counts (a hold keeps the pot motion of that beat).
-  if (!e.target.matches?.("[data-replay-last]") ||
-      getComputedStyle(e.target).animationName.split(", ").pop() !== e.animationName) return
-  const row = e.target.closest("[data-on-replay-end]")
-  row && !row.classList.contains("replay-done") && liveSocket.execJS(row, row.dataset.onReplayEnd)
+// The spell book's Back arrow (lobby_live.ex `back/2`): the page before is its
+// parent page, so the browser's own history turns back.
+window.addEventListener("quacks:back", () => history.back())
+// The reveal overlay ended (round 14): the server names the dialog that waited
+// for it (the shop, a decision, the game-over sheet).
+window.addEventListener("phx:quacks:open", e => {
+  const d = document.querySelector(e.detail.to)
+  d && sideOpen(d)
+})
+// A tab that outlived a deploy (`QuacksWeb.StaticCheck`): reload, so the new
+// stylesheet comes with the new markup. At most once a minute, so a stale cache
+// cannot loop.
+window.addEventListener("phx:quacks:reload", () => {
+  let last = 0
+  try { last = Number(sessionStorage.getItem("quacks:reloaded") || 0) } catch (_e) {}
+  if (Date.now() - last < 60000) return
+  try { sessionStorage.setItem("quacks:reloaded", String(Date.now())) } catch (_e) {}
+  window.location.reload()
 })
 // The b hotkey (`hotkey` in game_live.ex): the server asks to toggle a popover sheet.
 window.addEventListener("phx:quacks:toggle", e => document.getElementById(e.detail.id)?.togglePopover())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
+// Share the result (round 22): the phone's share sheet, else copy text and link.
+window.addEventListener("quacks:share", ({detail: {text, url}}) => {
+  if (navigator.share) navigator.share({text, url}).catch(() => {})
+  else navigator.clipboard?.writeText(`${text} ${url}`)
+})
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()
@@ -330,10 +374,14 @@ liveSocket.connect()
 // can be installed: keep the event and show the lobby's `data-role=install` button.
 // iOS Safari has no prompt: outside the installed app, show the Share-menu hint.
 // The state is a data attribute on <html>, so LiveView patches do not reset it.
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {})
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js")
+  .then(() => window.dispatchEvent(new Event("quacks:install"))).catch(() => {})
 let installPrompt = null
 const installState = value => value ? document.documentElement.dataset.install = value : delete document.documentElement.dataset.install
-window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; installState("ready") })
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault(); installPrompt = e; installFired = true; installState("ready")
+  window.dispatchEvent(new Event("quacks:install"))
+})
 window.addEventListener("appinstalled", () => { installPrompt = null; installState(null) })
 document.addEventListener("click", async e => {
   if (!installPrompt || !e.target.closest("[data-role=install]")) return
@@ -345,6 +393,17 @@ document.addEventListener("click", async e => {
 const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true
 // `navigator.standalone` exists only on iOS/iPadOS WebKit (an iPad says "Macintosh").
 if (!standalone && "standalone" in navigator && navigator.maxTouchPoints > 1) installState("ios")
+
+// Full screen (round 21): Android Chrome may offer no install prompt, so the game
+// menu and the lobby's Games page have a toggle (`fullscreen_button/1`). Shown only
+// where the browser allows it and outside the installed app; the request must run
+// in the click.
+if (document.fullscreenEnabled && !standalone) document.documentElement.dataset.fullscreen = "ok"
+document.addEventListener("click", e => {
+  if (!e.target.closest("[data-role=fullscreen]")) return
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+  else document.documentElement.requestFullscreen({navigationUI: "hide"}).catch(() => {})
+})
 
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()

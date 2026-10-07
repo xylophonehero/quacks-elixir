@@ -50,6 +50,9 @@ defmodule QuacksWeb do
     quote do
       use Phoenix.LiveView
 
+      # An open tab that outlived a deploy reloads (round 18).
+      on_mount QuacksWeb.StaticCheck
+
       unquote(html_helpers())
     end
   end

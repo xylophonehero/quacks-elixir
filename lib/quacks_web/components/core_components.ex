@@ -320,6 +320,56 @@ defmodule QuacksWeb.CoreComponents do
   end
 
   @doc """
+  The Full screen toggle (round 21): app.js handles the click (`data-role="fullscreen"`)
+  and shows the button only where the browser allows full screen and the app is not
+  installed (`html[data-fullscreen]`); the icon and label follow `:fullscreen`
+  (`.when-fullscreen` / `.when-windowed` in app.css).
+
+  `variant={:icon}` is a round icon button (the lobby's Games page); the default is
+  a secondary button with a label (the game menu).
+  """
+  attr :id, :string, required: true
+  attr :variant, :atom, default: :button, values: [:button, :icon]
+  attr :class, :any, default: nil
+
+  def fullscreen_button(%{variant: :icon} = assigns) do
+    ~H"""
+    <button
+      type="button"
+      id={@id}
+      data-role="fullscreen"
+      class={[
+        "fullscreen-toggle grid size-11 shrink-0 cursor-pointer place-items-center rounded-full text-[#4f1a14]",
+        "transition-[background-color,scale] duration-150 ease-out hover:bg-ink/10 active:scale-90",
+        @class
+      ]}
+    >
+      <.icon name="hero-arrows-pointing-out" class="when-windowed size-6" />
+      <.icon name="hero-arrows-pointing-in" class="when-fullscreen size-6" />
+      <span class="when-windowed sr-only">Full screen</span>
+      <span class="when-fullscreen sr-only">Exit full screen</span>
+    </button>
+    """
+  end
+
+  def fullscreen_button(assigns) do
+    ~H"""
+    <.button
+      type="button"
+      id={@id}
+      data-role="fullscreen"
+      variant={:secondary}
+      class={["fullscreen-toggle", @class]}
+    >
+      <.icon name="hero-arrows-pointing-out" class="when-windowed size-4" />
+      <.icon name="hero-arrows-pointing-in" class="when-fullscreen size-4" />
+      <span class="when-windowed">Full screen</span>
+      <span class="when-fullscreen">Exit full screen</span>
+    </.button>
+    """
+  end
+
+  @doc """
   Renders an input with label and error messages.
 
   A `Phoenix.HTML.FormField` may be passed as argument,

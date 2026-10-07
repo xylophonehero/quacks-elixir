@@ -19,10 +19,11 @@ defmodule QuacksWeb.GameLive do
   The layout, top to bottom: the header ("You are" and your seat colour, which also
   runs along the top edge), your status, the players row (one name card per seat,
   solo too; a tap opens that player's sheet), the pot, and the bottom bar with only
-  Stop/Resume and Draw. Around the pot: the witches (top left), this round's fortune card (top
-  right), the flask (bottom left) and the bag (bottom right). The log, the share
-  link and the books are in the menu. A new fortune card shows in a small dialog
-  once per round.
+  Stop/Resume and Draw. Around the pot (round 22): this round's fortune card with the witches
+  below it (top left), the kept Toadstool chips (top right), the flask (bottom
+  left) and the bag (bottom right). The log, the share link and the books are in
+  the menu. A new fortune card hovers over the pot once per round, with a bottom
+  sheet under it.
 
   From 64rem the right column is the context space (layouts 1 and 2): the
   decision, only while one waits, as a non-modal panel (`dialog_sheet` with
@@ -41,22 +42,21 @@ defmodule QuacksWeb.GameLive do
   hook in app.js): each change is pushed as `"save_config"`, and a fresh configure
   screen sends them back once as `"load_config"`.
 
-  A new fortune card shows in one dialog; when it asks this seat a choice, the
-  choice is in the same dialog. The shop has two steps, each its own dialog: first
+  A new fortune card shows in the reveal overlay (below); when it asks this seat a
+  choice, the card and the choice are one dialog instead. The shop has two steps, each its own dialog: first
   your chips, the buy (one row of chip tiles per colour) and "Done"; then "Spend
   rubies" (the ruby options and witch calls) and "Keep rubies".
 
-  Round results (layout 1): no dialog. When the shop phase begins, each name card's
-  VP and ruby counters tick on their replay beats (`QuacksWeb.Replay.updates/2`), in
-  step with the marks on your pot (round 12: no update chips; the state badge says
-  stopped or exploded). The last beat's timer, "Skip" or a first tap on a card ends
-  the replay: the round counts as
-  seen (`"seen"`, `GameServer.ack/4`) and the shop opens (`replay_end/3`); a tap
-  opens the card's sheet with the result lines instead. A seat that can buy nothing
-  (it exploded and took the VP, or has too few coins) skips the buy and gets the
-  rubies step; with nothing to spend there either, its round ends by itself once the
-  replay played (`auto_done/2`). A buy or ruby spend that leaves nothing else to do
-  ends the round for this seat at once.
+  The reveal overlay (round 14, `QuacksWeb.Reveal`, `reveal_overlay/1`): the round's
+  card at its start, the evaluation when the shop phase begins and the final
+  scoring at the end, one slide at a time, per browser (`@reveal`). Next, Skip,
+  Enter, Space, Esc; Auto mode advances on a server timer. Under it each name
+  card's VP and ruby counters tick on their replay beats. Its end marks the moment
+  seen (`GameServer.ack/4`) and opens the waiting shop or decision. A seat that can
+  buy nothing (it exploded and took the VP, or has too few coins) skips the buy and
+  gets the rubies step; with nothing to spend there either, its round ends by
+  itself once the overlay ended (`auto_done/2`). A buy or ruby spend that leaves
+  nothing else to do ends the round for this seat at once.
 
   In every choice between chips (crow skull, toadstool, silver witch, fortune cards,
   chip actions) the chips themselves are the buttons (`chip_picks/1`); only options
@@ -104,14 +104,19 @@ defmodule QuacksWeb.GameLive do
 
   import QuacksWeb.AlchemistsComponents
   import QuacksWeb.BugReportComponents
+  import QuacksWeb.RevealComponents
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Fortune
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
-  alias QuacksWeb.Replay
+  alias QuacksWeb.{Replay, Reveal}
 
   # The colours with an ingredient book (white has none), for `offer_books/1`.
   @book_colours Chips.order() -- [:white]
+
+  # The standings slide's first render shows the old ranks this long (round 18; the
+  # tests set it long and send the tick themselves).
+  @settle_ms Application.compile_env(:quacks, :reveal_settle_ms, 300)
 
   @doc "Join game `id`: take a free seat, or watch when the game is full."
   @impl true
@@ -139,11 +144,17 @@ defmodule QuacksWeb.GameLive do
            seed: table.seed,
            copied: false,
            open_sheet: nil,
-           seen: seen(table, seat)
+           seen: seen(table, seat),
+           reveal: nil,
+           result_closed: false,
+           reveal_mode: :step,
+           reveal_speed: :normal,
+           reduced: false
          )
          |> new_report()
          |> assign_table(table)
-         |> put_game(table.game)}
+         |> put_game(table.game)
+         |> result_on_mount()}
 
       {:error, :not_found} ->
         {:ok,
@@ -174,6 +185,14 @@ defmodule QuacksWeb.GameLive do
   # open (`modal`). A key does something only when its action is legal for this
   # seat now; it goes through `play/3`, the same path as a tap on the button.
   # Esc needs no code: the browser closes the dialog or the books.
+  # While the reveal shows, Enter and Space are Next (a focused button presses
+  # itself); no other key acts.
+  def handle_event("hotkey", %{"key" => key} = params, %{assigns: %{reveal: %{}}} = socket) do
+    if key in ["Enter", " "] and params["control"] != true and params["typing"] != true,
+      do: {:noreply, next_slide(socket)},
+      else: {:noreply, socket}
+  end
+
   def handle_event("hotkey", %{"key" => key} = params, %{assigns: %{seat: seat}} = socket)
       when is_integer(seat) do
     case hotkey_action(key, params, socket.assigns) do
@@ -224,7 +243,11 @@ defmodule QuacksWeb.GameLive do
   def handle_event("sets", %{"sets" => params} = form, socket) when is_map(params) do
     # The Herb Witches change no book; without The Alchemists locoweed III falls back.
     alchemists = form["alchemists"] == "true"
-    config = %{sets: parse_sets(params, alchemists)} |> Map.merge(expansions(form, alchemists))
+
+    config =
+      %{sets: parse_sets(params, alchemists), witches: parse_witches(form["witches"])}
+      |> Map.merge(expansions(form, alchemists))
+
     {:noreply, configure(socket, config)}
   end
 
@@ -250,7 +273,8 @@ defmodule QuacksWeb.GameLive do
         %{
           players: players,
           sets: parse_sets(form.("sets"), alchemists),
-          rules: parse_rules(form.("rules"))
+          rules: parse_rules(form.("rules")),
+          witches: parse_witches(form.("witches"))
         },
         expansions(%{"expansion" => to_string(saved["expansion"] == true)}, alchemists)
       )
@@ -375,13 +399,68 @@ defmodule QuacksWeb.GameLive do
         %{"kind" => kind, "round" => round},
         %{assigns: %{seat: seat}} = socket
       )
-      when is_integer(seat) and kind in ["card", "results"] and is_integer(round) do
-    kind = String.to_existing_atom(kind)
-    GameServer.ack(socket.assigns.id, seat, kind, round)
-    {:noreply, socket |> update(:seen, &Map.put(&1, kind, round)) |> auto_done()}
+      when is_integer(seat) and kind in ["card", "results", "final"] and is_integer(round) do
+    key = {String.to_existing_atom(kind), round}
+
+    socket =
+      case socket.assigns.reveal do
+        %{key: ^key} -> close_reveal(socket)
+        _other -> socket |> mark_seen(key) |> auto_done()
+      end
+
+    {:noreply, socket}
   end
 
   def handle_event("seen", _params, socket), do: {:noreply, socket}
+
+  # The reveal overlay (`QuacksWeb.Reveal`, round 14): Next (a tap on the slide,
+  # Enter, Space) shows the next slide, the last one closes it; Skip jumps to the
+  # last slide; Esc or × close it. Closing marks the moment seen and opens what
+  # waited for it (the shop, a decision, the game-over sheet).
+  # Round 22: the game's last slide (the podium with Play again) stays; × or Esc
+  # close it, and "Show the result" opens it again.
+  def handle_event(
+        "reveal_next",
+        _params,
+        %{assigns: %{reveal: %{key: {:final, _}} = r}} = socket
+      )
+      when r.index == length(r.slides) - 1,
+      do: {:noreply, socket}
+
+  def handle_event("reveal_next", _params, %{assigns: %{reveal: %{}}} = socket),
+    do: {:noreply, next_slide(socket)}
+
+  def handle_event("show_result", _params, socket), do: {:noreply, open_result(socket)}
+
+  def handle_event("reveal_skip", _params, %{assigns: %{reveal: %{} = reveal}} = socket) do
+    last = length(reveal.slides) - 1
+
+    if reveal.index >= last,
+      do: {:noreply, close_reveal(socket)},
+      else: {:noreply, show_slide(socket, last)}
+  end
+
+  def handle_event("reveal_close", _params, %{assigns: %{reveal: %{}}} = socket),
+    do: {:noreply, close_reveal(socket)}
+
+  def handle_event(event, _params, socket)
+      when event in ["reveal_next", "reveal_skip", "reveal_close"],
+      do: {:noreply, socket}
+
+  # The menu's reveal settings, from this browser (`RevealSettings` in app.js: on
+  # mount with `reduced`, then on every change). Reduced motion: Step only.
+  def handle_event("reveal_settings", params, socket) do
+    reduced = Map.get(params, "reduced", socket.assigns.reduced) == true
+    mode = if params["mode"] == "auto" and not reduced, do: :auto, else: :step
+    speed = Enum.find(Reveal.speeds(), :normal, &(Atom.to_string(&1) == params["speed"]))
+
+    socket = assign(socket, reveal_mode: mode, reveal_speed: speed, reduced: reduced)
+
+    case socket.assigns.reveal do
+      %{index: index} -> {:noreply, show_slide(socket, index)}
+      nil -> {:noreply, socket}
+    end
+  end
 
   # A spectator takes back a seat that no page holds ("Rejoin as …"): the seat moves
   # to this browser's token (`GameServer.rejoin/4`) when the typed name matches.
@@ -513,6 +592,20 @@ defmodule QuacksWeb.GameLive do
     do: {:noreply, push_navigate(socket, to: ~p"/g/#{new_id}")}
 
   def handle_info(:uncopied, socket), do: {:noreply, assign(socket, copied: false)}
+
+  # Auto mode: the slide's time is up (a stale tick, from a slide left before, is
+  # ignored).
+  def handle_info({:reveal_tick, ref}, %{assigns: %{reveal: %{tick: ref}}} = socket),
+    do: {:noreply, next_slide(socket)}
+
+  def handle_info({:reveal_tick, _ref}, socket), do: {:noreply, socket}
+
+  # The standings slide (round 18): its first render shows the old ranks; this tick
+  # sets the new ones, and CSS glides the rows (a stale tick is ignored).
+  def handle_info({:reveal_settle, ref}, %{assigns: %{reveal: %{settle: ref} = reveal}} = socket),
+    do: {:noreply, assign(socket, reveal: %{reveal | settled: true, settle: nil})}
+
+  def handle_info({:reveal_settle, _ref}, socket), do: {:noreply, socket}
 
   # An info toast closes by itself (`info/3`), unless a newer one took its place.
   def handle_info({:clear_info, msg}, socket) do
@@ -736,6 +829,7 @@ defmodule QuacksWeb.GameLive do
       debug: table.debug,
       sets: table.sets || %{},
       rules: Map.merge(Game.default_rules(), table.rules || %{}),
+      witches: table.witches,
       expansion: :herb_witches in table.expansions,
       alchemists: :alchemists in table.expansions,
       # Nobody changed the books or options yet (see "load_config"). Only the
@@ -760,7 +854,9 @@ defmodule QuacksWeb.GameLive do
   defp configure(socket, config) do
     case GameServer.configure(socket.assigns.id, socket.assigns.token, config) do
       {:ok, table} ->
-        socket |> assign_table(table) |> push_event("save_config", saved_config(table))
+        socket
+        |> assign_table(table)
+        |> push_event("save_config", saved_config(table, socket.assigns.seat))
 
       {:error, :not_creator} ->
         put_flash(socket, :error, "Only the host can change the game.")
@@ -773,18 +869,23 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # The table's settings in the shape of the configure forms (strings), for the
-  # browser's memory; "load_config" reads them back through `parse_sets/1` and
+  # The table's settings in the shape of the configure forms (strings), and your
+  # seat's colour, for the browser's memory; "load_config" reads them back through `parse_sets/1` and
   # `parse_rules/1`.
-  defp saved_config(table) do
+  defp saved_config(table, seat) do
     form = fn map -> Map.new(map || %{}, fn {key, value} -> {key, to_string(value)} end) end
 
     %{
       players: table.players,
       sets: form.(table.sets),
       rules: form.(table.rules),
+      witches: form.(table.witches),
       expansion: :herb_witches in table.expansions,
-      alchemists: :alchemists in table.expansions
+      alchemists: :alchemists in table.expansions,
+      # The spell book's extras (`QuacksWeb.LobbyLive`).
+      public: table.public,
+      bots: table.bots |> Map.keys() |> Enum.sort(),
+      colour: table.colours[seat]
     }
   end
 
@@ -925,6 +1026,7 @@ defmodule QuacksWeb.GameLive do
           alchemists={@alchemists}
           pot_side={@rules.pot_side}
           players={@players}
+          witches={@witches}
           disabled={!@host}
         />
         <%!-- The browser owns `open`: a patch must not close it while the host steps. --%>
@@ -1014,8 +1116,6 @@ defmodule QuacksWeb.GameLive do
             </span>
           </p>
           <div class="ml-auto min-w-0"><.round_phase game={@game} seat={@seat || 0} /></div>
-          <%!-- Phones: the round's card waits here, not on the pot's rim. --%>
-          <.fortune_tile :if={@game.fortune_card} id={@game.fortune_card} compact class="lg:hidden" />
           <%!-- Below 80rem (no books column) the books open in a sheet: a drawer on
                the right from 48rem, so it never covers the pot. --%>
           <button
@@ -1068,7 +1168,6 @@ defmodule QuacksWeb.GameLive do
             ]}
             aria-label="Players"
             data-role="players-row"
-            data-on-replay-end={replaying?(@game, @seen) && replay_end(@game, @decision, true)}
           >
             <.player_chip
               :for={seat <- @game.seats}
@@ -1078,12 +1177,16 @@ defmodule QuacksWeb.GameLive do
               you={seat == @seat}
               bot={Map.has_key?(@bots, seat)}
               updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
-              last={replaying?(@game, @seen) && Replay.last_beat(@game)}
-              on_tap={
-                if replaying?(@game, @seen), do: replay_end(@game, @decision, false), else: %JS{}
-              }
+              ticks={replaying?(@game, @seen)}
             />
           </nav>
+          <%!-- Round 16: the rat track, a fixed height while the rats rule is on. --%>
+          <.rat_track
+            :if={@game.rules.rats and length(@game.seats) > 1}
+            game={@game}
+            seat={@seat}
+            names={@names}
+          />
         </div>
 
         <%!-- Only a spectator has a notice here; it does not change while watching. --%>
@@ -1106,6 +1209,7 @@ defmodule QuacksWeb.GameLive do
             game={@game}
             seat={@seat}
             beat={replay_marks(@game, @seat)[:essence]}
+            preview
           />
           <%!-- The pot is the largest square that fits (see `.pot-box` in app.css);
                its controls sit in the square's corners: witches top left, Skip top
@@ -1123,20 +1227,33 @@ defmodule QuacksWeb.GameLive do
                 beats={replay_marks(@game, @seat)}
                 effects={replay_effects(@game, @seat, @seen)}
               />
-              <%!-- Small enough for the free corner outside the round rim. --%>
-              <.sheet_button
-                :if={@game.witches}
-                for="sheet-witches"
-                class="absolute top-0 left-0 flex-col gap-0! rounded-2xl px-1.5! py-1 text-[10px] leading-tight lg:hidden"
-                data-role="witches-button"
+              <%!-- Round 22: the top left corner holds the round's card (a tap
+                   shows its text) and, below it, the witches. Small enough for the
+                   free corner outside the round rim. --%>
+              <div
+                :if={@game.fortune_card || @game.witches}
+                class="absolute top-0 left-0 flex flex-col items-start gap-1.5"
+                data-role="pot-corner"
               >
-                <span class="flex -space-x-1.5">
-                  <.piece_icon name={:penny} class="size-4 text-penny-silver" />
-                  <.piece_icon name={:penny} class="size-4 text-penny-copper" />
-                  <.piece_icon name={:penny} class="size-4 text-penny-gold" />
-                </span>
-                Witches
-              </.sheet_button>
+                <.fortune_tile
+                  :if={@game.fortune_card}
+                  id={@game.fortune_card}
+                  dom_id="corner-card"
+                />
+                <.sheet_button
+                  :if={@game.witches}
+                  for="sheet-witches"
+                  class="flex-col gap-0! rounded-2xl px-1.5! py-1 text-[10px] leading-tight lg:hidden"
+                  data-role="witches-button"
+                >
+                  <span class="flex -space-x-1.5">
+                    <.piece_icon name={:penny} class="size-4 text-penny-copper" />
+                    <.piece_icon name={:penny} class="size-4 text-penny-silver" />
+                    <.piece_icon name={:penny} class="size-4 text-penny-gold" />
+                  </span>
+                  Witches
+                </.sheet_button>
+              </div>
               <p
                 :if={stir?(@game)}
                 class="absolute top-0 left-1/2 -translate-x-1/2 rounded-full bg-gold px-3 py-0.5 text-sm font-bold whitespace-nowrap text-ink shadow-md"
@@ -1144,27 +1261,34 @@ defmodule QuacksWeb.GameLive do
               >
                 Stir! Everyone draws together.
               </p>
-              <button
-                :if={replaying?(@game, @seen)}
-                type="button"
-                id="replay-skip"
-                data-role="replay-skip"
-                phx-click={replay_end(@game, @decision, true)}
-                class="hit-44 absolute top-0 right-0 min-h-8 rounded-full bg-iron-dark/70 px-3 text-sm font-semibold text-parchment-dim underline underline-offset-2 transition-colors duration-150 hover:text-parchment"
-              >
-                Skip
-              </button>
-              <%!-- Red Set 2 chips and the overflow bowl hang over the pot's lower rim. --%>
+              <%!-- Round 22: a new card hovers over the pot, large, while the
+                   reveal's bottom sheet (or, on phones, the card's choice) shows;
+                   when that closes it shrinks into the corner card (a view
+                   transition, `card_vt/2`). Absolute and not tappable: the pot
+                   stays where it is. --%>
               <div
-                :if={(@me && @me.aside != []) || @game.players[@seat || 0].bowl != []}
-                class="absolute inset-x-12 bottom-0 flex items-end justify-center gap-2"
-                data-role="beside-pot"
+                :if={pot_card?(assigns)}
+                id={"pot-card-#{@game.round}"}
+                class={["pot-card", if(@reveal, do: "pot-card-reveal", else: "lg:hidden")]}
+                aria-hidden="true"
+                data-role="pot-card"
               >
-                <.aside :if={@me && @me.aside != []} chips={@me.aside} />
-                <.bowl
-                  :if={@game.players[@seat || 0].bowl != []}
-                  chips={@game.players[@seat || 0].bowl}
-                />
+                <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip />
+              </div>
+              <%!-- Round 22: the kept Toadstool chips (red Set 2) wait in the top
+                   right corner, a small pill outside the round rim. --%>
+              <.aside
+                :if={@me && @me.aside != []}
+                chips={@me.aside}
+                class="absolute top-0 right-0"
+              />
+              <%!-- The overflow bowl hangs over the pot's lower rim. --%>
+              <div
+                :if={@game.players[@seat || 0].bowl != []}
+                class="absolute inset-x-12 bottom-0 flex items-end justify-center gap-2"
+                data-role="bowl-strip"
+              >
+                <.bowl chips={@game.players[@seat || 0].bowl} />
               </div>
               <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
             </div>
@@ -1207,10 +1331,7 @@ defmodule QuacksWeb.GameLive do
             :if={@decision && @decision != :fortune_choice}
             id={"decision-#{@decision}"}
             label={phase_name(@decision)}
-            auto_open={
-              not waits_for_results?(@decision, @game, @seen) and
-                not waits_for_card?(@decision, @game, @seen)
-            }
+            auto_open={is_nil(@reveal)}
             focus_self={not primary_on_open?(@decision, @all_actions)}
             side={:panel}
           >
@@ -1294,15 +1415,13 @@ defmodule QuacksWeb.GameLive do
                 <.chip_picks actions={@all_actions} pool={@me.witch_offer} game={@game} me={@me} />
               </.blue_offer>
               <.witch_card :for={id <- witches_acting(@game, @all_actions)} id={id} />
-              <.blue_offer
+              <.red_rows
                 :if={@decision == :red_choice}
-                title="Toadstool chips beside the pot:"
-                hint="Tap a chip to place it after your last chip, or keep it for later, or return it to the bag."
-                label="Toadstool choice"
-                accent="border-ruby"
-              >
-                <.chip_picks actions={@all_actions} pool={@me.pending} game={@game} me={@me} />
-              </.blue_offer>
+                actions={@all_actions}
+                pool={@me.pending}
+                game={@game}
+                me={@me}
+              />
               <.chip_picks
                 :if={@decision not in [:blue_choice, :witch_offer, :red_choice]}
                 actions={@all_actions}
@@ -1330,81 +1449,68 @@ defmodule QuacksWeb.GameLive do
               </section>
             </div>
           </.dialog_sheet>
-          <%!-- The new card of the round, on top of everything. Its id names the round,
-               so it enters the page (and opens itself) once per round. When the card
-               asks this seat a choice, the choice is here too (one dialog, not two);
-               a choice sent closes it. --%>
+          <%!-- A card that asks this seat a choice: the card and the choice in one
+               dialog. It enters the page (and opens itself) when the choice comes, at
+               the round's start or later (Safety Procedure waits for every stop); a
+               choice sent closes it. A card without a choice shows in the reveal
+               overlay (round 14). --%>
           <.dialog_sheet
-            :if={@game.fortune_card && not Game.over?(@game)}
+            :if={@decision == :fortune_choice}
             id={"card-round-#{@game.round}"}
             label="New fortune teller card"
-            auto_open={@decision == :fortune_choice or not seen?(@seen, :card, @game)}
-            then_open={
-              if @decision not in [nil, :fortune_choice] and
-                   not waits_for_results?(@decision, @game, @seen),
-                 do: "decision-#{@decision}"
-            }
             on_close={JS.push("seen", value: %{kind: "card", round: @game.round})}
-            focus_self={
-              @decision == :fortune_choice and choice_variant(text_actions(@all_actions)) != :primary
-            }
-            side={if @decision == :fortune_choice, do: :panel, else: :hidden}
+            focus_self={choice_variant(text_actions(@all_actions)) != :primary}
+            side={:panel}
           >
             <div class="space-y-3" data-role="card-modal">
               <div class="flex items-center gap-1">
                 <h2 class="text-xl font-bold">Round {@game.round}: a new card</h2>
                 <.offer_books
-                  :if={@decision == :fortune_choice}
                   id="card-books"
                   game={@game}
                   offer={[@me.pending, @all_actions]}
                 />
               </div>
-              <.fortune_card id={@game.fortune_card} choice={@decision == :fortune_choice} flip />
-              <%= if @decision == :fortune_choice do %>
-                <%!-- The choice can come after the card was seen (Safety Procedure
-                     waits for every stop): it opens the dialog when it arrives. --%>
-                <span
-                  id={"card-choice-#{@game.round}"}
-                  class="hidden"
-                  phx-mounted={JS.dispatch("quacks:modal", to: "#card-round-#{@game.round}")}
-                />
-                <.fortune_offer :if={@me.pending != []} card={@game.fortune_card}>
-                  <.chip_picks
-                    actions={@all_actions}
-                    pool={@me.pending}
-                    game={@game}
-                    me={@me}
-                    click={card_click(@game)}
-                  />
-                </.fortune_offer>
+              <%!-- Phones: the card hovers over the pot instead (`pot_card?/1`). --%>
+              <div class={pot_card?(assigns) && "max-lg:hidden"}>
+                <.fortune_card id={@game.fortune_card} choice flip />
+              </div>
+              <.fortune_offer :if={@me.pending != []} card={@game.fortune_card}>
                 <.chip_picks
-                  :if={@me.pending == []}
                   actions={@all_actions}
+                  pool={@me.pending}
                   game={@game}
                   me={@me}
                   click={card_click(@game)}
                 />
-                <section class="flex flex-col gap-2 *:min-h-11" aria-label="Actions">
-                  <.button
-                    :for={action <- text_actions(@all_actions)}
-                    phx-click={card_click(@game)}
-                    phx-value-action={encode(action)}
-                    variant={choice_variant(text_actions(@all_actions))}
-                    autofocus={choice_variant(text_actions(@all_actions)) == :primary}
-                  >
-                    {action_label(action, @game, @me)}
-                  </.button>
-                </section>
-              <% else %>
-                <form method="dialog" class="flex *:min-h-11 *:flex-1">
-                  <.button variant={:primary} autofocus>OK</.button>
-                </form>
-              <% end %>
+              </.fortune_offer>
+              <.chip_picks
+                :if={@me.pending == []}
+                actions={@all_actions}
+                game={@game}
+                me={@me}
+                click={card_click(@game)}
+              />
+              <section class="flex flex-col gap-2 *:min-h-11" aria-label="Actions">
+                <.button
+                  :for={action <- text_actions(@all_actions)}
+                  phx-click={card_click(@game)}
+                  phx-value-action={encode(action)}
+                  variant={choice_variant(text_actions(@all_actions))}
+                  autofocus={choice_variant(text_actions(@all_actions)) == :primary}
+                >
+                  {action_label(action, @game, @me)}
+                </.button>
+              </section>
             </div>
           </.dialog_sheet>
           <.sheet :if={@game.witches} id="sheet-witches" label="Herb witches" inline_lg>
-            <section class="space-y-2" aria-label="Herb witches">
+            <%!-- The title row holds the × (it floats right), so it never squeezes the
+                 first card (round 14). --%>
+            <h2 class="min-h-8 font-hand text-2xl leading-8 font-bold" data-role="witches-title">
+              Herb witches
+            </h2>
+            <section class="clear-both space-y-2 pt-1" aria-label="Herb witches">
               <.witch_card
                 :for={{colour, id} <- witches(@game)}
                 id={id}
@@ -1532,11 +1638,7 @@ defmodule QuacksWeb.GameLive do
             variant={:primary}
             class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible lg:[body:has(dialog[open])_&]:hidden"
             data-role="decision-button"
-            phx-click={
-              if replaying?(@game, @seen),
-                do: replay_end(@game, @decision, true),
-                else: JS.dispatch("quacks:modal", to: decision_dialog(@decision, @game))
-            }
+            phx-click={JS.dispatch("quacks:modal", to: decision_dialog(@decision, @game))}
           >
             {back_label(@decision, @game)}
           </.button>
@@ -1544,7 +1646,8 @@ defmodule QuacksWeb.GameLive do
             :if={Game.over?(@game)}
             variant={:primary}
             class="min-h-12 w-full text-base"
-            phx-click={JS.dispatch("quacks:modal", to: "#game-over")}
+            phx-click="show_result"
+            data-role="show-result"
           >
             Show the result
           </.button>
@@ -1698,7 +1801,9 @@ defmodule QuacksWeb.GameLive do
             </.button>
             <.button navigate={~p"/"} variant={:secondary}>Lobby</.button>
             <.sheet_button for="sheet-books" variant={:secondary}>Books</.sheet_button>
+            <.fullscreen_button id="fullscreen-menu" />
           </div>
+          <.reveal_settings mode={@reveal_mode} speed={@reveal_speed} reduced={@reduced} />
           <p>
             Seed
             <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>
@@ -1712,6 +1817,16 @@ defmodule QuacksWeb.GameLive do
           </p>
           <.books sets={@game.sets} />
           <.house_rules rules={@game.rules} />
+          <%!-- Why the browser offers no Install (round 14): app.js fills the line. --%>
+          <p
+            id="app-status"
+            class="font-mono text-xs text-ink-soft"
+            phx-hook="AppStatus"
+            phx-update="ignore"
+            data-role="app-status"
+          >
+            App: worker: … · display: … · install prompt: …
+          </p>
           <.scrubber :if={@debug} debug={@debug} />
         </div>
       </.sheet>
@@ -1751,9 +1866,27 @@ defmodule QuacksWeb.GameLive do
         </div>
       </div>
 
-      <.dialog_sheet :if={Game.over?(@game)} id="game-over" label="Game over">
-        <.game_over game={@game} names={@names} players={@players} bots={@bots} seat={@seat} />
-      </.dialog_sheet>
+      <%!-- The round's reveals, one slide at a time (round 14). Last in the page, so
+           it stays on top when app.js opens the modals again (`remodal`). --%>
+      <.reveal_overlay
+        :if={@reveal}
+        reveal={@reveal}
+        names={@names}
+        seat={@seat}
+        auto_ms={reveal_ms(@reveal, @reveal_mode, @reveal_speed)}
+        close_label={close_label(@reveal, @decision, @skip_rubies)}
+      >
+        <:podium :if={Game.over?(@game)}>
+          <.game_over
+            game={@game}
+            names={@names}
+            players={@players}
+            bots={@bots}
+            seat={@seat}
+            share_url={url(~p"/g/#{@id}")}
+          />
+        </:podium>
+      </.reveal_overlay>
     </Layouts.app>
     """
   end
@@ -1811,55 +1944,6 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
-  @colour_names ~w(gold teal violet coral lime rose sky slate)
-
-  # Your seat's colour picker on the configure screen: the 8 palette colours, one tap
-  # sets yours; colours other seats have are struck through and cannot be picked.
-  # A tap sends the name field first, so a name typed just before is not lost.
-  attr :colours, :map, required: true
-  attr :seat, :integer, required: true
-
-  defp colour_picker(assigns) do
-    assigns =
-      assign(assigns,
-        mine: assigns.colours[assigns.seat],
-        taken: assigns.colours |> Map.delete(assigns.seat) |> Map.values(),
-        swatches: Enum.with_index(@colour_names, &{&2, &1})
-      )
-
-    ~H"""
-    <div
-      class="flex w-full gap-1.5 pt-0.5 pb-2"
-      role="group"
-      aria-label="Your colour"
-      data-role="colour-picker"
-    >
-      <button
-        :for={{colour, label} <- @swatches}
-        type="button"
-        phx-click={
-          JS.dispatch("submit", to: "#rename-form") |> JS.push("colour", value: %{colour: colour})
-        }
-        disabled={colour in @taken}
-        aria-label={if colour in @taken, do: "#{label} (taken)", else: label}
-        aria-pressed={to_string(colour == @mine)}
-        data-colour={colour}
-        class={[
-          "hit-44 size-8 shrink-0 cursor-pointer rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
-          palette_bg(colour),
-          colour == @mine && "ring-2 ring-ink ring-offset-2 ring-offset-parchment-light"
-        ]}
-      >
-        <span
-          :if={colour in @taken}
-          class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 -rotate-45 bg-ink"
-          aria-hidden="true"
-        />
-      </button>
-    </div>
-    """
-  end
-
   @doc """
   A "Copy link" button: it asks the browser to copy `url` (the `quacks:copy`
   listener in app.js) and tells the server, which shows "Copied" for 2 seconds.
@@ -1896,6 +1980,7 @@ defmodule QuacksWeb.GameLive do
   attr :players, :integer, required: true
   attr :bots, :map, default: %{}
   attr :seat, :integer, default: nil, doc: "this browser's seat, for \"You win!\""
+  attr :share_url, :string, default: nil, doc: "the game's link, for Share (round 22)"
 
   def game_over(assigns) do
     ranked = placed_ranking(assigns.game)
@@ -2011,16 +2096,50 @@ defmodule QuacksWeb.GameLive do
           </ul>
         </div>
       </div>
-      <div class="flex gap-2 *:min-h-12 *:flex-1">
-        <.button phx-click="lobby" variant={:secondary} data-role="return-to-lobby">
-          Return to lobby
-        </.button>
-        <.button phx-click="play_again" variant={:primary} data-role="play-again" autofocus>
+      <div class="grid grid-cols-2 gap-2 *:min-h-12" data-role="game-over-actions">
+        <.button
+          phx-click="play_again"
+          variant={:primary}
+          class="col-span-2 text-base"
+          data-role="play-again"
+          autofocus
+        >
           Play again
+        </.button>
+        <.button
+          phx-click="lobby"
+          variant={:secondary}
+          class={[!@share_url && "col-span-2"]}
+          data-role="return-to-lobby"
+        >
+          Back to lobby
+        </.button>
+        <.button
+          :if={@share_url}
+          phx-click={
+            JS.dispatch("quacks:share",
+              detail: %{text: share_text(@ranked, @names, @players), url: @share_url}
+            )
+          }
+          variant={:secondary}
+          data-role="share-result"
+        >
+          <.icon name="hero-share" class="size-4" /> Share
         </.button>
       </div>
     </section>
     """
+  end
+
+  # Round 22: what Share sends: the places and their VP, one line.
+  defp share_text([{seat, vp, _place}], names, 1),
+    do: "#{name(names, seat)} brewed #{vp} VP in Quacks."
+
+  defp share_text(ranked, names, _players) do
+    places =
+      Enum.map_join(ranked, ", ", fn {s, vp, place} -> "#{place}. #{name(names, s)} #{vp} VP" end)
+
+    "Quacks of Quedlinburg: #{places}."
   end
 
   # The ranking as `{seat, vp, place}`, best first; equal VP share a place.
@@ -2196,7 +2315,11 @@ defmodule QuacksWeb.GameLive do
               class="hidden rounded-lg bg-parchment-deep/60 px-2 py-1.5"
               data-role="shop-book"
             >
-              <.book_list books={row_books(row, @game)} players={map_size(@game.players)} />
+              <.book_list
+                books={row_books(row, @game)}
+                players={map_size(@game.players)}
+                rules={@game.rules}
+              />
             </div>
           </div>
         </form>
@@ -2367,7 +2490,7 @@ defmodule QuacksWeb.GameLive do
   attr :click, :any, default: "action", doc: "the `phx-click` of each chip"
 
   def chip_picks(assigns) do
-    picks = Enum.filter(assigns.actions, &(pick_chips(&1) != [] and not side_pick?(&1)))
+    picks = Enum.filter(assigns.actions, &(pick_chips(&1) != []))
 
     groups =
       case assigns.pool do
@@ -2379,15 +2502,14 @@ defmodule QuacksWeb.GameLive do
               picks
               |> Enum.filter(&(title.(&1) == t))
               |> Enum.sort_by(&chip_order/1)
-              |> Enum.map(&{pick_chips(&1), &1, []})
+              |> Enum.map(&{pick_chips(&1), &1})
 
             {t, tiles}
           end
 
         pool ->
           [
-            {nil,
-             for(chip <- pool, do: {[chip], pool_pick(picks, chip), sides(assigns.actions, chip)})}
+            {nil, for(chip <- pool, do: {[chip], pool_pick(picks, chip)})}
           ]
       end
 
@@ -2397,8 +2519,8 @@ defmodule QuacksWeb.GameLive do
       for {title, tiles} <- groups, tiles != [] do
         {title,
          for(
-           {chips, action, sides} <- tiles,
-           do: {chips, action, sides, action && over_limit(action, assigns.me, limit)}
+           {chips, action} <- tiles,
+           do: {chips, action, action && over_limit(action, assigns.me, limit)}
          )}
       end
 
@@ -2408,7 +2530,7 @@ defmodule QuacksWeb.GameLive do
     <div :for={{title, tiles} <- @groups} class="space-y-1" data-role="chip-picks">
       <p :if={title} class="text-sm font-semibold">{title}</p>
       <ul class="flex flex-wrap items-start gap-2">
-        <li :for={{chips, action, sides, over} <- tiles} class="flex flex-col items-center">
+        <li :for={{chips, action, over} <- tiles} class="flex flex-col items-center">
           <button
             :if={action}
             type="button"
@@ -2449,7 +2571,7 @@ defmodule QuacksWeb.GameLive do
             {if over == :explodes, do: "explodes!", else: "over #{@limit}, safe"}
           </span>
           <span
-            :if={(!over and @pool) && sides == [] && pick_verb(action)}
+            :if={(!over and @pool) && pick_verb(action)}
             class="mt-0.5 text-[11px] leading-4 font-semibold text-ink-soft"
             data-role="pick-verb"
           >
@@ -2464,24 +2586,72 @@ defmodule QuacksWeb.GameLive do
           >
             {chips |> List.last() |> elem(0)}
           </span>
-          <div :if={sides != []} class="flex">
-            <button
-              :for={side <- sides}
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  # Round 22: the Toadstool choice (red Set 2), one row per chip: the chip, then
+  # Place, Keep and Return as three equal buttons (they stack under the chip on a
+  # narrow phone). One line of help at the top.
+  attr :actions, :list, required: true
+  attr :pool, :list, required: true, doc: "the Toadstool chips that wait (`player.pending`)"
+  attr :game, Game, required: true
+  attr :me, Player, required: true
+
+  defp red_rows(assigns) do
+    ~H"""
+    <div
+      class="paper space-y-2 rounded-md border-l-4 border-ruby p-2 text-sm"
+      aria-label="Toadstool choice"
+      data-role="red-rows"
+    >
+      <p class="text-ink-soft">
+        Each Toadstool chip: place it now, keep it beside the pot for later, or return it to the bag.
+      </p>
+      <ul class="space-y-2">
+        <li
+          :for={{chip, i} <- Enum.with_index(@pool)}
+          id={"red-row-#{i}"}
+          class="flex flex-col gap-2 rounded-md bg-parchment-deep/50 p-2 min-[26rem]:flex-row min-[26rem]:items-center"
+          data-role="red-row"
+        >
+          <div class="flex shrink-0 items-center gap-2">
+            <.chip chip={chip} size={:lg} data-role="red-chip" />
+            <span class="font-hand text-lg font-bold min-[26rem]:hidden">
+              Toadstool {elem(chip, 1)}
+            </span>
+          </div>
+          <div class="grid flex-1 grid-cols-3 gap-2">
+            <.button
+              :for={{kind, label, hint} <- red_kinds()}
+              :if={{:red, {kind, chip}} in @actions}
               type="button"
-              phx-click={@click}
-              phx-value-action={encode(side)}
-              aria-label={action_label(side, @game, @me)}
-              data-role="chip-side"
-              class="min-h-11 px-1.5 text-xs font-semibold text-ink-soft underline underline-offset-2 hover:text-ink"
+              phx-click="action"
+              phx-value-action={encode({:red, {kind, chip}})}
+              variant={if kind == :place, do: :primary, else: :secondary}
+              autofocus={i == 0 and kind == :place}
+              aria-label={action_label({:red, {kind, chip}}, @game, @me)}
+              class="min-h-12 flex-col gap-0! px-1! leading-tight"
+              data-role={"red-#{kind}"}
             >
-              {side_text(side)}
-            </button>
+              <span class="font-bold">{label}</span>
+              <span class="text-[11px] font-normal opacity-80">{hint}</span>
+            </.button>
           </div>
         </li>
       </ul>
     </div>
     """
   end
+
+  defp red_kinds,
+    do: [
+      {:place, "Place", "after your last chip"},
+      {:keep, "Keep", "for later"},
+      {:return, "Return", "to the bag"}
+    ]
 
   # The chips an action shows as its control; [] for an action without a chip.
   defp pick_chips({:place, chip}), do: [chip]
@@ -2530,15 +2700,6 @@ defmodule QuacksWeb.GameLive do
       true -> nil
     end
   end
-
-  # The toadstool's keep and return: small buttons under their chip.
-  defp side_pick?({:red, {kind, _chip}}), do: kind in [:keep, :return]
-  defp side_pick?(_action), do: false
-
-  defp sides(actions, chip), do: for({:red, {k, ^chip}} = a <- actions, k != :place, do: a)
-
-  defp side_text({:red, {:keep, _chip}}), do: "Keep"
-  defp side_text({:red, {:return, _chip}}), do: "Return"
 
   defp pool_pick(picks, chip), do: Enum.find(picks, &(pick_chips(&1) == [chip]))
 
@@ -2605,7 +2766,7 @@ defmodule QuacksWeb.GameLive do
       </button>
       <.sheet id={@id} label="Ingredient books">
         <h2 class="mb-2 text-lg font-bold">Ingredient books</h2>
-        <.book_list books={@books} players={map_size(@game.players)} />
+        <.book_list books={@books} players={map_size(@game.players)} rules={@game.rules} />
       </.sheet>
     </span>
     """
@@ -2642,11 +2803,13 @@ defmodule QuacksWeb.GameLive do
       actions: [],
       skip_rubies: false,
       stop_slot: :stop,
-      essence_pick: nil
+      essence_pick: nil,
+      reveal: nil
     )
   end
 
   defp put_game(socket, game) do
+    was = pot_card?(socket.assigns)
     socket = mark_round_change(socket, game)
     seat = socket.assigns.seat
     me = if seat, do: game.players[seat]
@@ -2665,6 +2828,160 @@ defmodule QuacksWeb.GameLive do
       stop_slot: stop_slot(game, me),
       essence_pick: essence_pick(me, socket.assigns[:essence_pick])
     )
+    |> open_reveal()
+    |> card_vt(was)
+  end
+
+  # -- the reveal overlay (round 14) ----------------------------------------------------
+
+  # A seat that has not seen the game's moment gets its slides (`Reveal.slides/2`),
+  # from the first one: also after a reload. Taken once, so a bot's move does not
+  # change what the overlay shows. A fortune choice shows its card in its own
+  # dialog, so no overlay then. A spectator gets none.
+  defp open_reveal(%{assigns: %{seat: seat, game: game} = assigns} = socket)
+       when is_integer(seat) do
+    key = Reveal.moment(game)
+
+    case reveal_step(assigns, key) do
+      :keep -> socket
+      :drop -> assign(socket, reveal: nil)
+      :drop_seen -> socket |> assign(reveal: nil) |> mark_seen(key)
+      :open -> start_reveal(socket, key, Reveal.slides(game, seat))
+      :result -> open_result(socket)
+    end
+  end
+
+  # A spectator gets only the game's last slide.
+  defp open_reveal(%{assigns: %{game: game, reveal: nil, result_closed: false}} = socket) do
+    if Game.over?(game), do: open_result(socket), else: socket
+  end
+
+  defp open_reveal(socket), do: socket
+
+  # Round 22: a page that opens on a finished game (a reload, a rejoin) shows the
+  # game's last slide, also when the final scoring was not seen to its end.
+  defp result_on_mount(%{assigns: %{game: %Game{phase: :over}}} = socket), do: open_result(socket)
+  defp result_on_mount(socket), do: socket
+
+  # Round 22: the game's last slide (the podium and its actions), straight away: after
+  # a reload or rejoin of a finished game, and from "Show the result".
+  defp open_result(%{assigns: %{game: game}} = socket) do
+    case Reveal.slides(game, socket.assigns.seat) do
+      [] ->
+        socket
+
+      slides ->
+        socket
+        |> start_reveal(Reveal.moment(game), slides)
+        |> show_slide(length(slides) - 1)
+    end
+  end
+
+  # What the overlay does with the game's moment `key`.
+  defp reveal_step(_assigns, nil), do: :keep
+
+  # The choice dialog shows the card (also when the choice comes while the overlay
+  # shows it): it counts as seen.
+  defp reveal_step(%{decision: :fortune_choice} = assigns, {:card, _round} = key),
+    do: if(seen_key?(assigns.seen, key), do: :drop, else: :drop_seen)
+
+  defp reveal_step(%{reveal: %{key: key}}, key), do: :keep
+
+  # The final scoring seen: its last slide, once per page (until × closes it).
+  defp reveal_step(%{reveal: nil, result_closed: false} = assigns, {:final, _} = key),
+    do: if(seen_key?(assigns.seen, key), do: :result, else: :open)
+
+  defp reveal_step(assigns, key), do: if(seen_key?(assigns.seen, key), do: :drop, else: :open)
+
+  defp start_reveal(socket, _key, []), do: socket
+
+  defp start_reveal(socket, key, slides) do
+    socket
+    |> assign(
+      reveal: %{key: key, slides: slides, index: 0, tick: nil, settled: true, settle: nil}
+    )
+    |> show_slide(0)
+  end
+
+  defp seen_key?(seen, {kind, round}), do: seen?(seen, kind, %{round: round})
+
+  defp next_slide(%{assigns: %{reveal: %{index: index, slides: slides}}} = socket) do
+    if index + 1 < length(slides),
+      do: show_slide(socket, index + 1),
+      else: close_reveal(socket)
+  end
+
+  # Show slide `index`; in Auto mode its timer starts (`Process.send_after/3`, only
+  # on a live page). A new tick ref drops the pending one. The standings slide first
+  # shows the old ranks; 300 ms later the settle tick sets the new ones (round 18).
+  defp show_slide(%{assigns: %{reveal: reveal} = assigns} = socket, index) do
+    slide = Enum.at(reveal.slides, index)
+    # The game's last slide waits for Play again: no Auto timer there.
+    final_last? = match?({:final, _}, reveal.key) and index == length(reveal.slides) - 1
+
+    tick =
+      if assigns.reveal_mode == :auto and connected?(socket) and not final_last?,
+        do: make_ref()
+
+    settle = if slide.kind == :standings and connected?(socket), do: make_ref()
+
+    if tick do
+      ms = Reveal.duration(slide, Reveal.factor(assigns.reveal_speed))
+      Process.send_after(self(), {:reveal_tick, tick}, ms)
+    end
+
+    if settle, do: Process.send_after(self(), {:reveal_settle, settle}, @settle_ms)
+
+    assign(socket,
+      reveal: %{reveal | index: index, tick: tick, settled: is_nil(settle), settle: settle}
+    )
+  end
+
+  # Round 22: the new card hovers over the pot while its reveal shows, or while the
+  # card's choice waits with no chips drawn (Safety Procedure and Flea Market draw
+  # chips: there the pot matters, so the card stays in the dialog).
+  defp pot_card?(%{reveal: %{key: {:card, _}}, game: %Game{fortune_card: card}}) when card != nil,
+    do: true
+
+  defp pot_card?(%{decision: :fortune_choice, me: %Player{pending: []}, game: game}),
+    do: game.fortune_card != nil
+
+  defp pot_card?(_assigns), do: false
+
+  # The patch that takes the pot card away runs as a view transition of type `card`
+  # (app.js `quacks:vt`): the big card shrinks into the corner card (app.css).
+  defp card_vt(socket, true = _was) do
+    if pot_card?(socket.assigns),
+      do: socket,
+      else: push_event(socket, "quacks:vt", %{type: "card"}, dispatch: :before)
+  end
+
+  defp card_vt(socket, _was), do: socket
+
+  # The end of the reveal: the moment counts as seen (`GameServer.ack/4`), the
+  # pot's replay shows its end state, and what waited opens (app.js `quacks:open`).
+  defp close_reveal(%{assigns: %{reveal: %{key: key}}} = socket) do
+    was = pot_card?(socket.assigns)
+
+    socket
+    |> assign(reveal: nil, result_closed: match?({:final, _}, key))
+    |> card_vt(was)
+    |> mark_seen(key)
+    |> auto_done()
+    |> open_waiting()
+  end
+
+  defp mark_seen(%{assigns: %{seat: seat}} = socket, {kind, round}) when is_integer(seat) do
+    GameServer.ack(socket.assigns.id, seat, kind, round)
+    update(socket, :seen, &Map.put(&1, kind, round))
+  end
+
+  defp mark_seen(socket, _key), do: socket
+
+  defp open_waiting(%{assigns: %{game: game, decision: decision}} = socket) do
+    if decision && not Game.over?(game),
+      do: push_event(socket, "quacks:open", %{to: decision_dialog(decision, game)}),
+      else: socket
   end
 
   # This seat's decision, and whether it is a rubies step to skip (nothing to spend,
@@ -2719,18 +3036,19 @@ defmodule QuacksWeb.GameLive do
   # The update chips of the round still play (this seat has not seen them).
   defp replaying?(game, seen), do: results?(game) and not seen?(seen, :results, game)
 
-  # The end of the replay: the last update chip landed, Skip, or a first tap on a
-  # card. Every chip and pot mark shows at once, the round counts as seen
-  # (`GameServer.ack/4`) and, with `open?`, the decision that waited opens.
-  defp replay_end(game, decision, open?) do
-    js =
-      JS.add_class("replay-done", to: "#players-row")
-      |> JS.push("seen", value: %{kind: "results", round: game.round})
+  # Auto mode: the shown slide's time (the overlay's timer bar), else nil.
+  defp reveal_ms(%{slides: slides, index: index}, :auto, speed),
+    do: slides |> Enum.at(index) |> Reveal.duration(Reveal.factor(speed))
 
-    if open? and after_results?(decision),
-      do: JS.dispatch(js, "quacks:modal", to: "#decision-#{decision}"),
-      else: js
-  end
+  defp reveal_ms(_reveal, _mode, _speed), do: nil
+
+  # The last slide's button names what comes next.
+  defp close_label(%{key: {:card, _}}, _decision, _skip), do: "Continue"
+  defp close_label(_reveal, :shop, _skip), do: "To the shop"
+  defp close_label(_reveal, :rubies, _skip), do: "Spend rubies"
+  defp close_label(_reveal, :droplet_choice, _skip), do: "Move the droplet"
+  defp close_label(%{key: {:results, _}}, _decision, true), do: "Done"
+  defp close_label(_reveal, _decision, _skip), do: "Close"
 
   # The results panel's rows (64rem, while the replay plays): every seat's bonus
   # die, one after the other (Take a Chance), then this seat's own lines: the books
@@ -3078,19 +3396,6 @@ defmodule QuacksWeb.GameLive do
   defp primary_on_open?(decision, actions),
     do: choice_variant(dialog_buttons(actions, decision)) == :primary
 
-  # The decisions that wait while the round results show (they open on "OK").
-  defp after_results?(decision), do: decision in [:shop, :rubies, :droplet_choice]
-
-  defp waits_for_results?(decision, game, seen),
-    do: after_results?(decision) and results?(game) and not seen?(seen, :results, game)
-
-  # A decision at the start of a round waits for the round's new card: two sheets
-  # would stack. (Later decisions come after a draw, so the card was seen.)
-  defp waits_for_card?(decision, game, seen),
-    do:
-      decision in [:droplet_choice, :patient_choice] and game.fortune_card != nil and
-        not seen?(seen, :card, game)
-
   defp shop_action?({:buy, [_ | _]}), do: true
   defp shop_action?({:witch, :copper, _}), do: true
   defp shop_action?(_action), do: false
@@ -3118,7 +3423,8 @@ defmodule QuacksWeb.GameLive do
   defp witch?(_action), do: false
 
   # The witches in penny order: silver, copper, gold.
-  defp witches(game), do: for(c <- [:silver, :copper, :gold], do: {c, game.witches[c]})
+  # Copper, silver, gold: the order of the rulebook's pennies (round 14).
+  defp witches(game), do: for(c <- [:copper, :silver, :gold], do: {c, game.witches[c]})
 
   # The witches that `actions` can call, for the decision dialog.
   defp witches_acting(%{witches: nil}, _actions), do: []

@@ -91,10 +91,10 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     # shopping is simultaneous: both players get their own shop dialog
     assert has_element?(alice, "dialog#decision-shop")
     assert has_element?(bob, "dialog#decision-shop")
-    # both get the round results: the replay plays on the name cards (round 12: no
-    # update chips; one card holds the last beat's timer)
+    # both get the round results: each its own reveal overlay (round 14), and the
+    # replay plays on the name cards (round 12: no update chips)
     for view <- [alice, bob] do
-      assert has_element?(view, "#players-row[data-on-replay-end] [data-role=replay-timer]")
+      assert has_element?(view, "dialog#reveal-results-1 [data-role=reveal-slide]")
       refute has_element?(view, "[data-role=update-chip]")
     end
 

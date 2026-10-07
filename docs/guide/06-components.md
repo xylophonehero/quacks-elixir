@@ -59,6 +59,38 @@ Components do not change state: "Rendering only: nothing in here changes game st
 (`lib/quacks_web/components/game_components.ex:3-5`). A button in a component sends a
 `phx-click` to the LiveView that renders it.
 
+### One slot table, three views: the patient's glasses (round 15)
+
+`Quacks.Rules.Alchemists` keeps one list of terms per glass (chapter 7). Three
+components in `lib/quacks_web/components/alchemists_components.ex` draw that same
+data. No component keeps its own copy of a reward.
+
+- `slot_grid/1`: the patient card, 5 glasses per row, large glyphs.
+- `glass_rewards/1`: one column per flask space under the vials of `flask_strip/1`,
+  one icon wide. `mini/1` turns a term into `{glyph, number}`: `{:vp, 2}` is the VP
+  seal over "2", `{:buy, 6}` is a gold coin disc over "6", `{:swap, 1, 4}` is "⇄"
+  over "4". Passed glasses fade, the glass under the marker has a gold underline.
+- `patient_panel/1`: the patient block in the player sheet (`player_card/1`). It
+  shows the picture, name, essence, card text and the `:sm` flask strip, so you can
+  see the patient of each opponent. The name card has no second button: the whole
+  card already opens the sheet, and HTML does not allow a button in a button.
+
+The `:lg` strip sits on the dark iron bar and the `:sm` strip on parchment, so
+`mini_colour/2` takes the size and gives a light or a dark icon colour. Each
+`<li>` has a `title` and a `sr-only` text with the words of `slot_text/1`; the
+glyphs are `aria-hidden`. Tests find a glyph by `data-glyph` and a column by
+`data-space` (`test/quacks_web/live/alchemists_live_test.exs`).
+
+The essence marker moves only in the essence phase, so during brewing it shows the
+last round. With `preview` (only your own seat: the `:lg` strip and your own
+sheet), `flask_strip/1` adds a ghost marker labelled "now" at `preview_space/2`.
+That function calls `Quacks.Game.Essence.count/2`, the same count the essence phase
+uses, and drops the exploded neighbours, because they are not known until they
+stop. The ghost is absolute and one column wide like the real marker, so the strip
+height does not change. It is under the real marker in the DOM, so on the same
+space it shows as a dashed ring. Outside `:potions` it is `nil` and not rendered.
+It slides with `translate` (`.essence-ghost`); reduced motion turns that off.
+
 ## HEEx in five rules
 
 1. `{expr}` interpolates in attributes and text: `{face(@chip)}`.
@@ -147,10 +179,28 @@ that `then_open` names. A tap on the dimmed backdrop closes a modal sheet
 to the clipboard (line 297). A chip in the fortune card dialog sends its action and
 closes the dialog in one chain:
 `JS.push("action") |> JS.dispatch("quacks:close", to: "#card-round-#{game.round}")`
-(`card_click/1`, `lib/quacks_web/live/game_live.ex:2432-2434`). Three hooks have
+(`card_click/1`, `lib/quacks_web/live/game_live.ex:2432-2434`). Five hooks have
 state: `ConfigMemory` (`assets/js/app.js:43-53`) keeps the host's last settings in
-`localStorage`, `NameMemory` (lines 57-67) keeps your name, and `PotMotion`
-animates the pot (see "Motion" below).
+`localStorage` (round 14: also the herb witch picks), `NameMemory` keeps your name,
+`RevealSettings` keeps the reveal settings, `AppStatus` writes the menu's "App"
+line, and `PotMotion` animates the pot (see "Motion" below).
+
+**The witch pickers (round 14).** With The Herb Witches on, the configure screen's
+books form shows a tile per penny colour (copper, silver, gold). A tap opens a
+popover sheet with "Random" and the colour's four cards as radio cards
+(`witches[colour]`), the same pattern as the book pickers. `parse_witches/1`
+(`lib/quacks_web/components/setup_components.ex:273`) turns the form into
+`%{copper: :c3, silver: nil, gold: nil}`, which goes to `GameServer.configure/3`
+and on to `Game.new(witches: ...)`. The engine deals first and then replaces the
+picked colours (`pick_witches/2`, `lib/quacks/game.ex:399`), so the random stream
+stays the same. The witches sheet in the game has a title row now, so its × no
+longer squeezes the first card.
+
+**The App line (round 14).** The menu ends with
+`App: worker: active · display: browser · install prompt: fired`. `AppStatus`
+reads `navigator.serviceWorker.getRegistration()`, `matchMedia("(display-mode:
+standalone)")` and whether `beforeinstallprompt` fired. On a phone with no Install
+button it shows which of Chrome's rules fails.
 
 ## Layout: one dialog, every screen size
 
@@ -174,9 +224,9 @@ column flow (`assets/css/app.css:565-607`):
 }
 ```
 
-`side={:hidden}` is for the new fortune card: on wide screens the card is already
-on the page (`fortune_panel/1`), so the dialog counts as closed at once and hands
-over to the next one (`lib/quacks_web/live/game_live.ex:1443`). When the window
+`side={:hidden}` counts as closed at once on wide screens and hands over to the next
+dialog. The new fortune card used it until round 14; now a card without a choice
+shows in the reveal overlay, and the card dialog only holds a choice (as a panel). When the window
 crosses 64rem, app.js closes an open panel and opens it again in the other mode
 (`assets/js/app.js:256-259`). In React you would render a `<Sheet>` or a `<Panel>`
 from a `useMediaQuery` hook. Here the server sends one element, and the browser
@@ -193,7 +243,7 @@ header, players, notices, books, pot, context, bar.
 ```css
 .game-grid {
   display: grid;
-  height: 100dvh;
+  height: 100dvh; /* with width: 100% and overflow: clip, see "The viewport lock" */
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   grid-template-areas: "header" "players" "notices" "pot" "bar";
 }
@@ -210,7 +260,7 @@ header, players, notices, books, pot, context, bar.
 | Layout | Areas |
 |---|---|
 | Portrait, phone or tablet (< 64rem) | header, players, notices, pot, bar (one column) |
-| Landscape phone (`orientation: landscape` and `max-height: 30rem`) | the pot on the left, full height; header, players, notices, context, bar and the test tubes on the right |
+| Landscape phone (`orientation: landscape`, `max-height: 30rem` and `min-width: 35rem`) | the pot on the left, full height; header, players, notices, context, bar and the test tubes on the right |
 | 64rem | the pot column on the left; the context column on the right, the bar at its foot |
 | 80rem | the books column, then the pot, then the context column |
 
@@ -239,8 +289,39 @@ A landscape phone moves the test tubes out of the pot column: `.pot-column` beco
 `display: contents`, so its children are grid items and the tubes can take the
 `tubes` area. All sheets slide in from the right there, over the right column only.
 Tailwind gets a matching variant for small fixes:
-`@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem));`
-(`assets/css/app.css:21`), used as `phone-landscape:sr-only`.
+`@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem) and (min-width: 35rem));`
+(`assets/css/app.css:24`), used as `phone-landscape:sr-only`.
+
+**Never gate a layout on height alone (round 23).** A portrait phone is wider than
+tall whenever its layout viewport gets short: the on-screen keyboard where the
+browser resizes the layout (full screen, the installed app), split screen, a pop-up
+window. Before round 23, `(orientation: landscape) and (max-height: 30rem)` then
+matched at 392 px wide: the game got the landscape grid (pot on the left, the
+half-width Draw button) and the header ran past the right edge. Every landscape
+query also needs `min-width: 35rem` (no portrait phone is that wide; the smallest
+landscape phone is). The viewport meta says `interactive-widget=resizes-visual`, so
+the keyboard resizes only the visual viewport where the browser honours it.
+
+## The viewport lock (round 23)
+
+The app never scrolls as a page. The game root (`.game-grid`) and the lobby root
+(`.lobby-root`, the lobby's outer `<div>`) are `width: 100%; height: 100dvh;
+overflow: clip`, and `body` has `overscroll-behavior: none`. Three rules:
+
+- `overflow: clip`, not `hidden`. A `hidden` box is still a scroll container: focus
+  or `scrollIntoView` on a child past its edge scrolls it sideways, with no
+  scrollbar to scroll back. A `clip` box cannot scroll at all, and `position:
+  sticky` and `fixed` children keep working.
+- `width: 100%`, never `100vw` (it counts a desktop scrollbar). No `vw` or `vh` is
+  left in app.css; heights use `dvh`. A width over the pot is `%`, `min()` or
+  `clamp()` (the pot card is `min(64%, 15rem)` with `max-width: 100%`).
+- Only the designated areas scroll: the books column, sheets and dialogs, the Games
+  list, the book pages. Each has `overscroll-behavior: contain`.
+
+`test/quacks_web/live/round23_test.exs` checks the root classes and the CSS. In the
+browser: `document.documentElement.scrollWidth == innerWidth` and `scrollHeight ==
+innerHeight` on every screen (lobby pages, round start, brewing, evaluation, shop,
+podium) at 392x713 and 360x740.
 
 One trap: CSS written in `app.css` outside a layer beats every Tailwind utility.
 `.action-bar { display: grid }` made `lg:hidden` on the bar do nothing, so that
@@ -286,6 +367,53 @@ place.
 (`lib/quacks_web/components/game_components.ex`) lists the books in play in board
 order (`Chips.order/0`, chapter 7), left of the pot (`id="books-column"`,
 `data-area="books"`).
+
+### The rat track (round 16, equal steps since round 22)
+
+`rat_track/1` (`lib/quacks_web/components/game_components.ex`) is a slim strip
+under the name cards, inside the `players` area. It has a fixed height (`h-7`) and
+shows only while the rats rule is on with 2+ players, so it never comes and goes
+during a game and the pot below it does not move.
+
+Round 22 made it a track of *steps*, not a VP scale. The steps are the printed rat
+tails (`ScoringTrack.tails/0`) between the last player and the leader, read from the
+leader's side, so the leader is on the left:
+
+```elixir
+tails = for t <- Enum.reverse(ScoringTrack.tails()), low <= t and t < leader, do: t
+steps = length(tails) + 1
+# a seat's step is its rat count: 0 for the leader, one more past each tail
+step = ScoringTrack.rat_tails(vp, leader)
+```
+
+Every step is the same width: a dot sits at `(step + 0.5) / steps`, a tail at
+`(j + 1) / steps`, each as `left: calc(0.5rem + (100% - 1rem) * x)`. Under each rat
+glyph is the VP of its tail, so a player reads "below 12 I get this rat". Seats in
+one step stack, 7px apart (`data-step` on each dot). When a seat passes a tail its
+`left` changes, and a CSS `transition` on `left` slides the dot: no hook. The whole
+track is one `role="img"`; its `aria-label` names every seat's VP and rats, leader
+first.
+
+### The pot's corners (round 22)
+
+The pot is the largest square that fits (`.pot-square`), and the round cauldron
+leaves four free corners. Everything that comes and goes around the pot is
+`absolute` inside that square, so the pot never moves (the round 11 rule):
+
+| Corner | What | Markup |
+|---|---|---|
+| top left | the round's card, the witches below it | `[data-role=pot-corner]`: `fortune_tile/1` (`#corner-card`) and the witches button |
+| top right | the kept Toadstool chips (red Set 2) | `aside/1`, a pill of chips (`[data-role=beside-pot]`) |
+| bottom left | the flask | inside the SVG |
+| bottom right | the bag | `bag_button/1` |
+
+The corner card is a button with `popovertarget="sheet-fortune"`: a tap shows the
+card's text in the sheet, with no server event. It is on every layout; from 64rem
+the context column also shows the whole card. The header has no card tile any more.
+The Toadstool pill has no visible label; its `aria-label` names the chips.
+
+A new card hovers over the pot (`#pot-card-<round>`, `.pot-card`): see **Round 22**
+under the reveal overlay.
 
 ## Hotkeys
 
@@ -419,6 +547,57 @@ file name in `@files` (`lib/quacks_web/components/icons.ex:22-52`) and credit th
 author in `docs/CREDITS.md`. The file must be one filled silhouette on a 512
 viewBox, because `sprite/1` and `svg/1` set the viewBox and the fill.
 
+## The spell book: pages by URL, form-attribute fields (rounds 17 and 19)
+
+The lobby's book (`lib/quacks_web/live/lobby_live.ex`, `.spell-book` in app.css)
+is one `<section>` per page (`book_page/1` in the LiveView: the title with the
+ruled underline, the content). The server shows one page on a
+phone and two from 64rem with Tailwind's `hidden`/`flex` and `lg:` classes; the
+sections carry `.book-page-left` or `.book-page-right` for the open book's grid.
+A page that appears after a step turns in once (`page-turn`, only with
+`data-turned`, so the first paint never animates). There are no bookmarks.
+
+The pages split the forms: the expansion cards (Expansions page) belong to
+`#books`, the pot-side card to `#options`, and each colour page's radio cards
+(`SetupComponents.book_options/1`, `witch_options/1`) to `#books`. Each input
+names its form (`form="books"`), so the browser sends it with that form's change
+and LiveView's `phx-change` sees it. `books_form/1` takes `patch` (a function from
+`{:book | :witch, colour}` to a path): its tiles become links and it draws no
+picker sheets; the configure screen still uses the sheets.
+
+**The New game flow (round 23).** The New game page (`?step=players`) has the
+player count, the seats (name, colour), the Public switch, then three rows
+(`page_link/1`): House rules, Expansions and Ingredient books, each with a line on
+the current choice ("As in the rulebook" / "N changed", "Base game" / "Herb
+Witches · test tubes", the preset or Custom). Expansions, House rules and Ingredient
+books are children of New game; a colour or witch page is a child of Ingredient
+books. The Expansions page has only the three expansion rows.
+
+Every page of the flow ends in one bar, `flow_bar/1` (`#flow-bar`): the setup in a
+line ("3 players · 2 bots · Herb Witches · private") and whether Start opens the
+table or begins the game, then **Back** (secondary, `.flow-back`) and **Start**
+(primary, `#new-game`). The bar is the book spread's last grid row, outside the page
+that scrolls, so it never moves; on the Games page it is `hidden`. Back goes to the
+page's parent (the browser's history when the visit came from there). From 64rem
+the New game page is always open on the left and the bar sits under the right page;
+there Back from New game or Expansions goes to the Games page (`#flow-back-home`,
+`max-lg:hidden`). The row whose page is open on the right is marked (`data-open`).
+`.flow-back` is in `@layer components`, so `lg:hidden` on it wins.
+
+The book fills the locked lobby root: `.lobby-screen`, `.spell-book`,
+`.book-cover` and `.book-spread` are flex or grid boxes with `min-height: 0`, and
+each `.book-page` scrolls on its own. The Games page's foot (`.page-foot`, New game)
+stays at the bottom, and only `#games-scroll` scrolls: the games list, then the
+install button and the credits. On a phone on its side (`height < 32rem`,
+landscape, at least 35rem wide) the hero goes and the page becomes a grid: the room
+code over New game on the left, the list on the right. Below 64rem the
+expansion cards are a list of full-width rows (icon, title, blurb, switch); from
+64rem they are three cards.
+`.start-button` and `.flow-button` are ink buttons in the display font with a gold
+hairline inside. The presets row is a horizontal scroll of `.preset-card` buttons;
+`aria-pressed` marks the preset that matches the books
+(`Quacks.Rules.BookPresets.match/1`) or Random's last roll.
+
 ## Tailwind: full class names in maps
 
 Tailwind v4 scans the source for class names (`@source "../../lib/quacks_web"`,
@@ -477,6 +656,14 @@ in board order (`chip_order/1`, line 2416, from `Chips.sort_key/1`). Actions wit
 chip ("Return all", "Done") become text buttons (`text_actions/1`, line 2413). A new
 chip choice in the engine shows up as tappable chips with no new template, once
 `pick_chips/1` knows its shape.
+
+One choice has more than one verb per chip: the Toadstool (red Set 2) can place a
+chip, keep it beside the pot or return it to the bag. Round 22 gives it its own
+rows (`red_rows/1` in `game_live.ex`): one row per waiting chip, the chip large on
+the left, then three equal buttons, **Place** (primary, "after your last chip"),
+**Keep** ("for later") and **Return** ("to the bag"), each at least 48px tall. On a
+narrow phone (below 26rem) the buttons go under the chip. One line of help sits at
+the top.
 
 ## Motion: CSS first, one hook where CSS cannot
 
@@ -576,35 +763,35 @@ into a delay (`assets/css/app.css:981-994`):
 }
 ```
 
-The server decides the *order*; CSS decides the *speed* (`--beat-lead: 300ms` and
-`--beat-step: 450ms`, `assets/css/app.css:929-932`). The cards, the pot, the books
-and the counters use the same formula and arrive in the same patch (the shop phase
-begins), so they stay in step with no code that links them. After two skips this
-browser plays faster: app.js sets `data-fast-beats` on `<html>` and CSS changes the
-two variables (`assets/css/app.css:1034-1038`).
-
-**The end of the replay.** The card with the last beat holds an invisible
-`<span class="replay-timer" data-replay-last>` (round 12; before, the last update
-chip did this). Its only animation, `replay-hold`, starts on the last beat and runs
-1 second, so the replay stays open while that line's ruby flies. app.js listens for
-`animationend` on it (`assets/js/app.js:289-295`) and runs the players
-row's `data-on-replay-end` JS: `replay_end/3` (chapter 5) adds `replay-done` to
-`#players-row`, pushes `"seen"` and opens the shop. "Skip", a tap on a name card, a
-tap on the pot, Space or Esc do the same. One CSS rule per place then shows the end
-state at once, for example (`assets/css/app.css:1018-1021`):
+The server decides the *order*; CSS decides the *speed*. Since round 14 one plain
+number sets it: `--beat-ms` (450 at Normal speed). The lead, the step and the die
+roll follow it (`assets/css/app.css:1208`):
 
 ```css
-#players-row.replay-done .replay-timer {
-  animation-delay: 0s !important;
-  animation-duration: 1ms !important;
+:root {
+  --beat-ms: 450;
+  --beat-lead: calc(var(--beat-ms) * 0.6667ms);
+  --beat-step: calc(var(--beat-ms) * 1ms);
 }
 ```
 
-`replay-done` is a class that JS adds, and JS-added classes stick across patches.
-So a new round must clear it: a hidden `<i id={"replay-start-#{round}"}>` mounts
-once per round with `phx-mounted={JS.remove_class("replay-done", to: "#players-row")}`
-(`lib/quacks_web/live/game_live.ex:955-962`). Before this, every replay after the
-first started as done.
+The menu's Speed setting puts `--beat-ms` (450, 720 or 1125) on `<html>`
+(`RevealSettings` in app.js). The cards, the pot, the books and the counters use
+the same formula and arrive in the same patch (the shop phase begins), so they stay
+in step with no code that links them. `PotMotion` cannot read a `calc()` from a
+custom property (an unregistered property computes to its text), so it reads
+`--beat-ms` and does the sum itself.
+
+**The end of the replay.** Round 14 replaced the invisible `.replay-timer` (and the
+pot's Skip) with the **reveal overlay** (next section): the replay ends when the
+overlay ends. The server then marks the round seen, and its next render adds
+`replay-done` to `#players-row`. One CSS rule per place shows the end state at once,
+for example `:root:has(#players-row.replay-done) [data-role="beat-ring"]`.
+
+`replay-done` must start fresh each round. A hidden `<i id={"replay-start-#{round}"}>`
+mounts once per round with
+`phx-mounted={JS.remove_class("replay-done", to: "#players-row")}`, in case JS added
+the class.
 
 **Optimistic UI versus server beats.** In React you often show the result at once
 and let the server catch up (optimistic UI). Here it is the other way round. The
@@ -615,6 +802,224 @@ Framer Motion you would write `transition={{delay: i * 0.45}}` or
 `staggerChildren`; here `i` comes from the server as `--beat`. Because `Replay` is
 pure, `test/quacks_web/live/replay_test.exs:43-122` and
 `test/quacks_web/live/scoring_test.exs:45-60` test the order without a browser.
+
+### The reveal overlay: one slide at a time (round 14)
+
+The beats above are fast, and on a phone there was nothing to hold on to. The
+overlay shows the round's reveals as *slides*, one at a time, in a modal
+`<dialog>`: full screen on a phone (round 20), a bottom sheet on a tablet, centred from 64rem. The beats still play
+under it; they are secondary now.
+
+**Pure slides.** `QuacksWeb.Reveal` (`lib/quacks_web/reveal.ex`) has no state, like
+`Replay`. `moment/1` names what there is to reveal: `{:card, round}` at the round's
+start, `{:results, round}` in the shop phase, `{:final, 9}` at the game's end.
+`slides(game, seat)` builds the list from the `Replay` lines and the log, with no
+new engine data. Since round 20 the evaluation has one slide per scoring step (see
+**Round 20** below), then one `:results` slide and (round 18) one `:standings`
+slide; at the end `:final`, `:standings` and `:podium` (round 22). `test/quacks_web/reveal_test.exs` tests
+it without a browser.
+
+**Round 16: one results slide and a running strip.** The three closing slides
+(scoring space, "also this round", summary) were one slide too many on a phone.
+`results_slide/3` makes one row per seat in VP order (a tie to fewer rubies, then
+the lower seat): space, coins, the space's VP and ruby, the update chips of
+`Replay.updates/2`, the pot's chip counts, and the card, essence and witch lines
+(round 18 moved them to a closed "Details", below). Five players or more scroll inside the list
+(`max-h-[min(58dvh,30rem)]`), so Next stays under the thumb.
+
+Each slide also carries `gains` (`%{seat => {vp, rubies}}`) and `standings`, the
+running results after it. `running/2` is one `Enum.map_reduce/3` over the slides
+from a base (the VP before the round's results, `Replay.before/2`; for the final
+scoring the VP before the conversion). The component `strip/1` renders them as a
+row of chips with a fixed height (`h-7`), so the slide under it does not move; the
+slide's gain pops in on the same beat as the reward (`.reveal-gain`). The sum of
+the gains is the round's VP, so the strip on the results slide shows the real
+totals. No state in the LiveView: the strip is part of each slide.
+
+**Round 18: a table, then the standings.** On a phone the round-16 results grid
+fell to one column. The cause was not the layout: the tab had loaded the old
+`app.css` before a deploy, LiveView reconnected it to the new server, and the new
+markup used `grid-cols-[minmax(0,1fr)_2.5rem_...]`, a class with no rule in the old
+stylesheet. A `grid` with no `grid-template-columns` is one column. Two fixes:
+
+- `QuacksWeb.StaticCheck` (`lib/quacks_web/live/static_check.ex`), an `on_mount` in
+  every LiveView: when `static_changed?/1` says the tab's `phx-track-static` assets
+  are not the server's, it pushes `quacks:reload`, and app.js reloads the page (at
+  most once a minute). In React the same problem is a stale chunk after a deploy;
+  there you catch the failed `import()` and reload.
+- The results are a real `<table>` (`table-fixed`, a `<colgroup>` for the widths).
+  A table keeps its columns from the browser's own styles, so a missing utility
+  class costs a width, not the layout.
+
+The table had eight columns (seven since round 20, no space): rank, player (the name may wrap; the update chips sit
+small under it), space, coins, VP, ruby, the bonus die face (`die_face/1`, still) and
+the pot's green, black and purple chips (locoweed too with The Alchemists or a
+locoweed book). The card, essence and witch lines wait in a `<details>` under the
+table, closed.
+
+Then a **Standings** slide (`standings_slide/2` in `reveal.ex`): every seat's total
+VP and rubies, with `from_rank`/`rank` and the totals before and after the round.
+The rows glide from the old order to the new one, with no JS. This is FLIP (First,
+Last, Invert, Play) done by the server and CSS:
+
+```heex
+<div
+  :for={row <- @slide.rows}
+  id={"standings-row-#{row.seat}"}
+  class="standings-row"
+  style={"--rank: #{if @settled, do: row.rank, else: row.from_rank}"}
+>
+```
+
+```css
+.standings-row {
+  position: absolute;
+  top: 0;
+  transform: translateY(calc(var(--rank) * var(--row-h)));
+  transition: transform 700ms var(--ease-in-out);
+}
+```
+
+The rows stay in **seat order in the DOM**: LiveView never moves a node, it only
+patches one `style` attribute, and a changed `transform` is a CSS transition. If
+the server sorted the rows instead, the patch would move the nodes and nothing would
+animate (a JS FLIP would have to measure before and after the patch). The first
+render has the old ranks (`settled: false`); `show_slide/2` in `GameLive` sends
+itself `{:reveal_settle, ref}` after 300 ms, and that render has the new ranks. The
+totals use the card counters' ticker (`.stat-tick`: `--n` is a registered integer,
+so a new `--n` counts up). A stale settle message is ignored, like the Auto tick.
+With reduced motion there is no transition: the rows jump.
+
+**Round 20: one slide per scoring step, everyone at once.** A slide per (book,
+seat) made a 4-player round 10 slides long, and you never saw the table side by
+side. Now `results/2` in `reveal.ex` builds one slide per step, in this order:
+
+| Step | Slide | Rows show |
+|---|---|---|
+| Bonus die | `:die` (`die_slide/2`) | every roll (base die and book G6), faces side by side, a reward tag under each |
+| Black, green, purple | `:book` (`book_slide/5`) | the chips that count (small chips), black's targets ("vs" their dots and counts), the reward or "–" |
+| Any other book that paid | `:book` | the same; e.g. blue III–VI pay VP or rubies while brewing |
+| Scoring space | `:space` (`space_slide/3`) | coins (coin icon), VP, a ruby tag on each row that landed on a ruby |
+
+Each slide has a row for every seat, in the final VP order of the round, so a row
+does not jump between slides; a seat that did not score in the step is dimmed. A
+step where nobody scores has no slide (`nil`, then `Enum.reject/2`). To find the
+"other books", each `Replay` line now carries `book: {colour, set}` (from
+`{:effect, book, _}` log entries, nil otherwise). The results table then adds only
+the card, essence and witch lines (`gains`), so the strip ticks up step by step
+and its last value is the table's total. The rows are one function component,
+`step_rows/1`, with an inner block for the step's content and `:reward` and
+`:lines` slots (both take `:let={row}`).
+
+On a phone (`width < 40rem`) the overlay is the whole screen: `inset: 0`,
+`height: 100dvh`, no rounded top. The sheet's × is a flex item above the slide, so
+the slide container drops its `min-height: 100%` there; otherwise the bar with
+Next would sit 32px below the screen.
+
+The results table lost the Space column; the Coins header is the coin icon
+(`piece_icon name={:coin}`, our own `coin.svg`), and the die column stacks up to
+three faces, smaller as there are more (`die_size/1`: 20, 16, 12px), so a row
+stays two lines high.
+
+**Droplets last.** With the reverse pot side a droplet won in the evaluation waits in
+`droplet_moves`. In the shop `Game.phase/2` is `:droplet_choice`, and its dialog
+mounts with `auto_open={is_nil(@reveal)}`, so it already waited for the overlay;
+`close_reveal/1` opens it ("Move the droplet" on the last slide). Only the
+evaluation's own choices (`:chip_choice`, `:witch_choice`, books G2/G4/P2/P4 and the
+gold witches) asked for the droplet first. The engine now lets the moves wait in
+those two phases (`@droplets_wait` in `lib/quacks/game.ex`), so they come in the
+shop, after the reveal.
+
+**Per browser, on the server.** The LiveView keeps
+`reveal: %{key, slides, index, tick}` (`open_reveal/1`,
+`lib/quacks_web/live/game_live.ex:2739`). `put_game/2` calls it after every game
+update: a seat that has not seen the moment (`seen`, see **seen** in
+`docs/CONTEXT.md`) gets the slides from index 0. The list is taken once, so a bot's
+move does not change what the overlay shows; the game itself does not wait. A
+reload mid-reveal starts at the first slide. A spectator gets no overlay, except
+the game's last slide once the game is over (round 22).
+
+**Round 22: the new card over the pot.** A new card is no longer a slide in a
+full-screen overlay. `GameLive` puts the card (`fortune_card/1` with `flip`) in the
+pot square, absolute and not tappable, while `pot_card?/1` is true: the reveal of a
+`{:card, _}` moment, or (phones only) a card choice with no drawn chips. The overlay
+gets the class `reveal-card-sheet`: a bottom sheet at every width with the card's
+name and Continue, and a clear `::backdrop`, so the pot is not dimmed. The text is
+in the sheet as `sr-only`, because the page behind a modal is inert. While the big
+card shows, the corner card is `visibility: hidden`, so its place waits empty.
+
+When the sheet closes, `card_vt/2` pushes `quacks:vt` with `%{type: "card"}`
+(`dispatch: :before`). app.js starts that patch as a view transition with
+`types: ["card"]`, and only in such a transition the CSS gives the big card and the
+corner card one `view-transition-name`:
+
+```css
+html:active-view-transition-type(card) .pot-card,
+html:active-view-transition-type(card) .pot-square:not(:has(.pot-card)) #corner-card {
+  view-transition-name: fortune-card;
+}
+```
+
+The old snapshot is the big card, the new one the corner card, so the browser
+shrinks one into the other. A new round does not name them, so the old corner card
+does not fly into the new big card. Reduced motion: app.js runs no transition.
+
+**Round 22: the end in one flow.** `{:final, 9}` has three slides: `:final` (coins,
+rubies, pennies), `:standings` (from before the final scoring to the end) and
+`:podium`. The last one renders the overlay's `:podium` slot, which `GameLive`
+fills with `game_over/1`: the rising podium, the VP breakdown, Play again, Back to
+lobby and Share (`quacks:share` in app.js: the share sheet, else the clipboard).
+That slide has no bar and no tap-to-Next, Next does nothing there, and Auto mode
+starts no timer for it. × or Esc close it; "Show the result" opens it again
+(`show_result` → `open_result/1`). A page that mounts on a finished game, a
+reload, a rejoin or a spectator, opens straight on that slide
+(`result_on_mount/1`). There is no `#game-over` dialog any more.
+
+**Controls.** `reveal_overlay/1`
+(`lib/quacks_web/components/reveal_components.ex:35`) renders the slide and a bar:
+
+| Input | Event | Effect |
+|---|---|---|
+| Next, a tap on the slide | `reveal_next` | next slide; on the last one, the end (not on the game's last slide) |
+| Enter, Space (focus not on a button) | `hotkey` | as Next |
+| Skip | `reveal_skip` | the last slide |
+| Esc, × | the dialog's `close` → `reveal_close` | the end |
+
+The end (`close_reveal/1`, line 2796) acks the moment (`GameServer.ack/4`, now
+also `:final`), runs `auto_done/2` and pushes `quacks:open` with the dialog that
+waited: the shop or a decision. app.js opens it with the usual
+`sideOpen` (`assets/js/app.js:336`). Decision dialogs mount with
+`auto_open={is_nil(@reveal)}`, so nothing opens under the overlay. The overlay is
+the last element of the page, so `remodal` keeps it on top.
+
+A fortune card that asks this seat a choice keeps its own dialog (the card and the
+choice in one); the overlay skips that card and counts it as seen.
+
+**Step and Auto.** In Auto mode `show_slide/2` starts a server timer:
+
+```elixir
+tick = if assigns.reveal_mode == :auto and connected?(socket), do: make_ref()
+
+if tick do
+  ms = reveal.slides |> Enum.at(index) |> Reveal.duration(Reveal.factor(assigns.reveal_speed))
+  Process.send_after(self(), {:reveal_tick, tick}, ms)
+end
+```
+
+`handle_info({:reveal_tick, ref}, ...)` (line 580) only matches the current `tick`,
+so a tick from a slide that Next already left does nothing. This is the LiveView
+form of `clearTimeout`: you cannot cancel the message cheaply, so you make old
+messages harmless. In React you would keep the timer id in a `useRef` and clear it
+in the effect's cleanup.
+
+**The settings.** The menu has two segmented controls (`reveal_settings/1`):
+Reveal (Step or Auto) and Speed (Normal, Slow, Slower = 1×, 1.6×, 2.5×). They
+belong to the browser, not the game, so they live in `localStorage`
+(`quacks:reveal`), like the host's `quacks:config`. The `RevealSettings` hook
+(`assets/js/app.js:79`) sends them on mount with `reduced` (prefers-reduced-motion),
+and saves each change; the form's own `phx-change` tells the server. With reduced
+motion the server forces Step and runs no timer. app.js also sets `--beat-ms` before
+LiveView connects, so a reload plays the beats at the saved speed.
 
 ### `PotMotion`: animate on top of the patch
 
@@ -680,6 +1085,12 @@ other patch, the bots' too, goes in at once. While a transition waits for its
 snapshot, later patches queue behind it, so they stay in order. The CSS names only
 `.round-counter` and turns off the root crossfade (`assets/css/app.css:1162-1201`).
 
+Round 22 adds a second, named one: `quacks:vt` may carry a `type`, and app.js
+passes it as `startViewTransition({update, types})`. The `card` type shrinks the new
+card into the pot's corner (see the reveal overlay above); the CSS names the two
+cards only under `:active-view-transition-type(card)` and takes the round counter's
+name away there, so the counter does not roll.
+
 Why opt-in: during a view transition the page is a screenshot. On every patch,
 each bot move every 700 ms would flash, so `::view-transition` also lets taps
 through (`pointer-events: none`).
@@ -727,6 +1138,21 @@ fetch handler and nothing else, app.js registers it on load, and `sw.js` is in
 `QuacksWeb.static_paths/0` so `Plug.Static` serves it from `/`. In a React SPA the
 service worker comes with the template (for example Workbox); here the empty one is
 the whole story.
+
+**Full screen when there is no install (round 21).** Android Chrome does not always
+offer the install prompt, so the game menu and the lobby's Games page have a Full
+screen toggle (`CoreComponents.fullscreen_button/1`, `data-role="fullscreen"`). One
+click listener in app.js (`assets/js/app.js:386-395`) calls
+`document.documentElement.requestFullscreen()` or `document.exitFullscreen()`. The
+call must run inside the click (a user gesture), so a hook or a `push_event` from the
+server cannot do it. app.js sets `data-fullscreen="ok"` on `<html>` only when
+`document.fullscreenEnabled` is true and the app does not run installed (iPhone
+Safari has no Fullscreen API, and the installed app has no browser bar to remove);
+without it, CSS hides the toggle. The icon and the label follow the `:fullscreen`
+pseudo-class on `<html>` (`.when-windowed`, `.when-fullscreen` in app.css), so no
+JS keeps the state. Entering full screen closes open popovers (the menu sheet) as
+the Fullscreen spec says. The game grid uses `dvh`, so it fills the larger viewport
+with no change.
 
 ## State ownership, compared to React
 

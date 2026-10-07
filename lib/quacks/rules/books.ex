@@ -234,6 +234,35 @@ defmodule Quacks.Rules.Books do
     }
   end
 
+  # House rule `black_rule: :standings` (round 16): black book I compares with the
+  # players ranked above (`Quacks.Game.Evaluation.targets/2`).
+  @standings %{
+    {:black, 1} =>
+      {"Compare your black chips with the players ranked above you (see table).",
+       [
+         {"same count (1+)", "droplet +1", players: 2},
+         {"more", "droplet +1 · 1 ruby", players: 2},
+         {"more than 1 above you", "droplet +1", players: 3..8},
+         {"more than both", "droplet +1 · 1 ruby", players: 3..8},
+         {"last place: same (1+)", "droplet +1", players: 3..8},
+         {"last place: more", "droplet +1 · 1 ruby", players: 3..8},
+         {"the leader", "compares with 2nd and 3rd", players: 3..8},
+         {"1+ black", "droplet +1 (house rule: also 1 ruby)", players: 1}
+       ]}
+  }
+
+  @doc """
+  The book `{colour, set}` as `get/1`, with the house `rules` that change its text
+  (`black_rule: :standings` for black book I).
+  """
+  @spec get({Chips.colour(), 1..6}, map) :: book
+  def get(key, rules) do
+    case {rules, @standings[key]} do
+      {%{black_rule: :standings}, {text, tiers}} -> %{get(key) | text: text, tiers: tiers}
+      _other -> get(key)
+    end
+  end
+
   @doc """
   The `tiers` rows for a table of `players` (nil: every row), as `{label, text}`.
 

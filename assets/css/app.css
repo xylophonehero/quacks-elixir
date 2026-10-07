@@ -17,8 +17,11 @@
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
-/* A phone on its side (round 11): a short, wide screen. */
-@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem));
+/* A phone on its side (round 11): a short, wide screen. Round 23: and at least
+   35rem wide. A portrait phone whose layout viewport gets short (the keyboard in
+   full screen or in the installed app, split screen) is wider than tall too, and
+   without the width test it got the landscape grid at 392 px. */
+@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem) and (min-width: 35rem));
 
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
@@ -363,6 +366,23 @@ html:has([data-layout="full"]) {
   overscroll-behavior: none;
 }
 
+/* Round 23: the app is locked to the viewport. The game root (`.game-grid`) and the
+   lobby root (`.lobby-root`) are exactly the screen; `overflow: clip` (not
+   `hidden`: a clip box is no scroll container, so nothing can scroll it by script
+   or focus, and sticky and fixed children keep working). Only the designated
+   areas scroll: the books column, sheets and dialogs, the Games list, the book
+   pages. No viewport-width units anywhere (they count the scrollbar on a desktop). */
+body {
+  overscroll-behavior: none;
+}
+
+.game-grid,
+.lobby-root {
+  width: 100%;
+  height: 100dvh;
+  overflow: clip;
+}
+
 /* Sheets: info popovers (`sheet`) and decision dialogs (`dialog_sheet`). A bottom
    sheet on phones, a centred card on large screens. The browser does open, close,
    focus, Esc and the top layer; this CSS only places and moves them.
@@ -623,8 +643,6 @@ html:has([data-layout="full"]) {
    Phones and tablets (portrait): header, players, notices, pot, bar. */
 .game-grid {
   display: grid;
-  height: 100dvh;
-  overflow: hidden;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   grid-template-areas: "header" "players" "notices" "pot" "bar";
@@ -708,9 +726,9 @@ html:has([data-layout="full"]) {
 /* Landscape phones: the pot takes the full height on the left; header, name cards,
    the bar and the test tubes stack on the right. Sheets slide in over the right
    column only, so the pot stays in view. */
-@media (orientation: landscape) and (max-height: 30rem) {
+@media (orientation: landscape) and (max-height: 30rem) and (min-width: 35rem) {
   .game-grid {
-    grid-template-columns: min(100dvh, 50vw) minmax(0, 1fr);
+    grid-template-columns: min(100dvh, 50%) minmax(0, 1fr);
     grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
     grid-template-areas:
       "pot header"
@@ -753,7 +771,7 @@ html:has([data-layout="full"]) {
   .sheet {
     inset: 0 0 0 auto;
     margin: 0;
-    width: calc(100vw - min(100dvh, 50vw));
+    width: calc(100% - min(100dvh, 50%));
     max-width: none;
     height: 100dvh;
     max-height: 100dvh;
@@ -827,11 +845,11 @@ html:has([data-layout="full"]) {
 /* The books drawer (48–80rem, and landscape phones): it slides in from the right
    over the context column, never over the pot. A popover, so Esc and a tap
    outside close it. */
-@media (width >= 48rem), (orientation: landscape) and (max-height: 30rem) {
+@media (width >= 48rem), (orientation: landscape) and (max-height: 30rem) and (min-width: 35rem) {
   .sheet.sheet-drawer {
     inset: 0 0 0 auto;
     margin: 0;
-    width: min(24rem, 100vw);
+    width: min(24rem, 100%);
     max-width: none;
     height: 100dvh;
     max-height: 100dvh;
@@ -1197,13 +1215,22 @@ html:has([data-layout="full"]) {
   transition: translate 300ms var(--ease-in-out);
 }
 
+/* The ghost marker (the essence the pot reaches now) follows each draw. */
+.essence-ghost {
+  transition: translate 200ms var(--ease-out);
+}
+
 /* Motion, batch 2: the step-B replay (animations.md §3 B2; since layout 1 on the
    name cards). The server numbers each result line (`--beat`, `QuacksWeb.Replay`):
    the card counters and the pot marks of your own lines (`beat-ring`); both start on the same patch
    (the shop phase begins), so one delay formula keeps them in step. */
+/* `--beat-ms` is the beat step in ms, a plain number: the menu's Speed sets it on
+   <html> (app.js `RevealSettings`: 450, 720 or 1125), and the lead and the die roll
+   follow it. */
 :root {
-  --beat-lead: 300ms;
-  --beat-step: 450ms;
+  --beat-ms: 450;
+  --beat-lead: calc(var(--beat-ms) * 0.6667ms);
+  --beat-step: calc(var(--beat-ms) * 1ms);
 }
 
 /* The bonus die in the result lines: a strip of 7 frames that shows its last
@@ -1249,11 +1276,8 @@ html:has([data-layout="full"]) {
   animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
 }
 
-/* The replay's clock (round 12: the name cards have no update chips). The card
-   with the last beat holds an invisible timer; when its animation ends, a second
-   after the last beat, the replay ends (app.js), so the last line's pot motion (a
-   ruby flight, a VP tag) plays out first. `.replay-done` (Skip, a tap on a card)
-   ends it at once. */
+/* The replay ends when the reveal overlay closes (round 14); `.replay-done` then
+   shows every piece at its end state at once. */
 @keyframes update-in {
   from {
     opacity: 0;
@@ -1261,40 +1285,15 @@ html:has([data-layout="full"]) {
   }
 }
 
-@keyframes replay-hold {
-  to {
-    --replay-hold: 1;
-  }
-}
-
-.replay-timer {
-  position: absolute;
-  width: 0;
-  height: 0;
-  animation: replay-hold 1000ms linear both;
-  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
-}
-
-#players-row.replay-done .replay-timer {
-  animation-delay: 0s !important;
-  animation-duration: 1ms !important;
-}
-
 :root:has(#players-row.replay-done) [data-role="beat-ring"] {
   display: none;
 }
 
 /* The scoring sequence on the pot (`Replay.pot_effects/1`, game_components `pot/1`).
-   Same beats as the card counters, so a piece moves when its counter ticks. After
-   two skips (app.js) the beats run faster. */
+   Same beats as the card counters, so a piece moves when its counter ticks. The die
+   rolls for about 1.5 beats. */
 :root {
-  --die-roll: 700ms;
-}
-
-:root[data-fast-beats] {
-  --beat-lead: 200ms;
-  --beat-step: 250ms;
-  --die-roll: 420ms;
+  --die-roll: calc(var(--beat-ms) * 1.5556ms);
 }
 
 /* The droplet (and the rats after it) slide on the beat of their line, not when
@@ -1493,6 +1492,7 @@ html:has([data-layout="full"]) {
   .pot-lg [data-role="droplet"],
   .pot-lg [data-role="rat"],
   .essence-marker,
+  .essence-ghost,
   .stat-tick {
     transition: none;
   }
@@ -1524,14 +1524,8 @@ html:has([data-layout="full"]) {
     animation: fade-in 200ms ease 250ms both;
   }
 
-  /* The replay: over at once (a 1 ms timer, so its end still ends the replay
-     and opens the shop), no pot flashes. */
-  .replay-timer {
-    animation: replay-hold 1ms both !important;
-  }
-
+  /* The replay: no pot flashes. */
   [data-role="beat-ring"],
-  [data-role="replay-skip"],
   [data-role="vp-float"],
   [data-role="ruby-flight"] {
     display: none;
@@ -1857,6 +1851,439 @@ html:has([data-layout="full"]) {
   );
 }
 
+/* The lobby's spell book (rounds 17 and 19, `QuacksWeb.LobbyLive`): a leather cover
+   and ruled parchment pages, no bookmarks. The server shows one page at a time
+   below 64rem (`hidden` / `flex`), two side by side from 64rem (`lg:` classes);
+   `data-step` on the book says which page the URL names. */
+.book-cover {
+  position: relative;
+  border-radius: 18px;
+  padding: 10px;
+  background:
+    radial-gradient(ellipse at 30% 0%, rgb(255 210 160 / 0.14), transparent 55%),
+    repeating-radial-gradient(circle at 70% 60%, rgb(0 0 0 / 0.05) 0 2px, transparent 2px 5px),
+    linear-gradient(160deg, #7a2e22, #4f1a14 55%, #3a120e);
+  box-shadow:
+    inset 0 0 0 2px rgb(224 178 60 / 0.35),
+    inset 0 0 0 7px rgb(0 0 0 / 0.18),
+    0 18px 40px -12px rgb(0 0 0 / 0.75);
+}
+
+.book-spread {
+  display: grid;
+  position: relative;
+}
+
+.book-page {
+  position: relative;
+  min-width: 0;
+  border-radius: 10px;
+  padding: 0.75rem 1rem 1rem;
+  color: var(--color-ink);
+  background-color: var(--color-parchment-light);
+  background-image:
+    radial-gradient(circle at 12% 8%, rgb(255 255 255 / 0.45), transparent 40%),
+    radial-gradient(circle at 90% 96%, rgb(120 80 30 / 0.18), transparent 55%),
+    linear-gradient(var(--color-parchment-light), var(--color-parchment));
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.5) inset, 0 2px 6px rgb(0 0 0 / 0.35);
+  transform-origin: left center;
+}
+
+/* Round 23: the lobby root is the screen (see `.lobby-root` above). The hero takes
+   what it needs, the book the rest; inside the book each page scrolls on its own
+   (one on a phone, two side by side from 64rem), with its foot pinned at the bottom.
+   On the Games page only the list scrolls (with the install button and credits
+   after it), so New game stays in view. */
+.lobby-root {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+.lobby-screen,
+.spell-book,
+.book-cover {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.lobby-hero {
+  flex: none;
+}
+.book-spread {
+  flex: 1;
+  min-height: 0;
+}
+.book-page {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+#page-home {
+  overflow: hidden;
+}
+.games-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  margin-inline: -0.25rem;
+  padding: 0 0.25rem 0.75rem;
+}
+#page-home .page-foot {
+  position: static;
+  padding-bottom: 0.75rem;
+}
+
+/* A phone on its side: no hero, the book alone fills the screen (as on the other pages). */
+@media (width < 64rem) and (height < 32rem) and (orientation: landscape) and (min-width: 35rem) {
+  .lobby-screen[data-step="home"] .lobby-hero {
+    display: none;
+  }
+  .lobby-screen[data-step="home"] .spell-book {
+    margin-top: 0;
+  }
+  /* Two columns: the room code over New game on the left, the list on the right. */
+  .lobby-screen[data-step="home"] #page-home {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "head head" "code sub" "code list" "foot list";
+    column-gap: 1.5rem;
+  }
+  .lobby-screen[data-step="home"] #page-home > .book-heading {
+    grid-area: head;
+    margin-bottom: 0.5rem;
+  }
+  .lobby-screen[data-step="home"] #room-code-form {
+    grid-area: code;
+    align-self: start;
+    border-bottom: 0;
+  }
+  .lobby-screen[data-step="home"] #page-home > h3 {
+    grid-area: sub;
+    margin-top: 0;
+  }
+  .lobby-screen[data-step="home"] .games-scroll {
+    grid-area: list;
+  }
+  .lobby-screen[data-step="home"] .games-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lobby-screen[data-step="home"] .page-foot {
+    grid-area: foot;
+    margin: 0;
+    padding: 0 0 0.25rem;
+    border: 0;
+    box-shadow: none;
+    background: none;
+    backdrop-filter: none;
+  }
+}
+
+/* A page that comes into view after a step (not the first paint) turns in. */
+.spell-book[data-turned] .book-page {
+  animation: page-turn 260ms var(--ease-out);
+}
+
+@keyframes page-turn {
+  from {
+    opacity: 0;
+    transform: perspective(1400px) rotateY(-9deg);
+  }
+}
+
+.book-heading {
+  font-family: var(--font-hand);
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #4f1a14;
+  border-bottom: 2px solid rgb(79 26 20 / 0.55);
+  box-shadow: 0 3px 0 -1px rgb(79 26 20 / 0.25);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.book-subheading {
+  font-family: var(--font-hand);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #4f1a14;
+}
+
+/* A ruled line under a block, and seats written on ruled lines. */
+.book-rule {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgb(58 46 26 / 0.18);
+}
+.book-line {
+  border-bottom: 1px solid rgb(58 46 26 / 0.18);
+}
+
+.book-page h3 {
+  font-family: var(--font-hand);
+  font-size: 1.15rem;
+  color: #4f1a14;
+}
+
+/* A page's foot: the main button, pinned to the screen's bottom while the page
+   scrolls, with a ruled line above. */
+.page-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: auto -1rem -1rem;
+  padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+  border-top: 1px solid rgb(79 26 20 / 0.45);
+  box-shadow: 0 -3px 0 -2px rgb(79 26 20 / 0.25);
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(rgb(239 224 180 / 0.94), var(--color-parchment));
+  backdrop-filter: blur(4px);
+}
+.page-foot {
+  margin-top: auto;
+}
+
+/* Round 23: the New game flow's bar (`LobbyLive.flow_bar/1`), under every page of
+   the flow: the setup in a line, Back (secondary) and Start (primary). It is the
+   book spread's last row, outside the page that scrolls, so it never moves. The
+   page above it loses its lower corners: the bar is the page's foot. */
+.book-spread {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.flow-bar {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.6rem 1rem 0.75rem;
+  color: var(--color-ink);
+  border-top: 1px solid rgb(79 26 20 / 0.45);
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(var(--color-parchment-light), var(--color-parchment));
+  box-shadow:
+    inset 0 3px 0 -2px rgb(79 26 20 / 0.25),
+    0 2px 6px rgb(0 0 0 / 0.35);
+}
+.book-spread:has(> .flow-bar:not([hidden])) > .book-page {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.flow-bar[hidden] {
+  display: none;
+}
+.flow-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+}
+.flow-actions .start-button {
+  min-height: 3.25rem;
+  font-size: 1.5rem;
+}
+/* In the components layer, so `lg:hidden` and `max-lg:hidden` on it win. */
+@layer components {
+  .flow-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 3.25rem;
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: var(--font-hand);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-ink);
+    background: var(--color-parchment-light);
+    box-shadow: inset 0 0 0 1.5px rgb(58 46 26 / 0.45);
+    transition:
+      scale 150ms var(--ease-out),
+      background-color 150ms ease;
+  }
+  .flow-back:hover {
+    background: #fff8e2;
+  }
+  .flow-back:active {
+    scale: 0.97;
+  }
+}
+
+/* Start, New game, Next: ink on parchment, in the display font, a gold hairline
+   inside like a printed frame. */
+.start-button,
+.flow-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: var(--font-hand);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--color-parchment-light);
+  background: linear-gradient(#4a3a22, var(--color-ink) 60%, #2a2010);
+  box-shadow:
+    inset 0 0 0 3px var(--color-ink),
+    inset 0 0 0 4px rgb(224 178 60 / 0.55),
+    0 3px 8px rgb(58 46 26 / 0.35);
+  transition:
+    scale 150ms var(--ease-out),
+    filter 150ms ease;
+}
+.start-button {
+  min-height: 3.6rem;
+  font-size: 1.6rem;
+}
+.start-button:hover,
+.flow-button:hover {
+  filter: brightness(1.18);
+}
+.start-button:active,
+.flow-button:active {
+  scale: 0.98;
+}
+.start-button.phx-click-loading {
+  filter: brightness(0.9);
+}
+
+/* A row that opens another page (House rules, Ingredient books). */
+.page-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: var(--color-parchment-light);
+  box-shadow: inset 0 0 0 1px rgb(58 46 26 / 0.18);
+  transition:
+    scale 150ms var(--ease-out),
+    background-color 150ms ease;
+}
+.page-link:hover {
+  background: #fff8e2;
+}
+.page-link:active {
+  scale: 0.98;
+}
+
+/* A preset in the Ingredient books page's row. */
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 9rem;
+  height: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+  background: var(--color-parchment-light);
+  box-shadow: inset 0 0 0 1px rgb(58 46 26 / 0.18);
+  transition:
+    scale 150ms var(--ease-out),
+    box-shadow 150ms ease,
+    background-color 150ms ease;
+}
+.preset-card:hover {
+  background: #fff8e2;
+}
+.preset-card:active {
+  scale: 0.97;
+}
+.preset-card[aria-pressed="true"] {
+  background: rgb(63 155 110 / 0.15);
+  box-shadow: inset 0 0 0 2px rgb(45 107 78 / 0.7);
+}
+
+@media (width >= 64rem) {
+  .book-cover {
+    padding: 14px 16px 16px;
+  }
+  .book-spread {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+  .book-page {
+    padding: 1.5rem 2rem 1.5rem;
+  }
+  .book-page-left {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    border-radius: 10px 2px 2px 10px;
+    box-shadow:
+      inset -26px 0 30px -24px rgb(60 30 10 / 0.55),
+      0 2px 6px rgb(0 0 0 / 0.35);
+  }
+  .book-page-right {
+    grid-column: 2;
+    grid-row: 1;
+    border-radius: 2px 10px 10px 2px;
+    box-shadow:
+      inset 26px 0 30px -24px rgb(60 30 10 / 0.55),
+      0 2px 6px rgb(0 0 0 / 0.35);
+  }
+  /* The spine: a dark fold between the pages. */
+  .book-spread::after {
+    content: "";
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    left: calc(50% - 3px);
+    width: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #2a0d0a, #5a2018, #2a0d0a);
+    pointer-events: none;
+  }
+  /* The bar sits under the right page; the New game page runs the full height. */
+  .flow-bar {
+    grid-column: 2;
+    grid-row: 2;
+    padding: 0.75rem 2rem 1rem;
+    border-radius: 0 0 10px 2px;
+    box-shadow:
+      inset 26px 0 30px -24px rgb(60 30 10 / 0.55),
+      inset 0 3px 0 -2px rgb(79 26 20 / 0.25);
+  }
+  .book-spread:has(> .flow-bar:not([hidden])) > .book-page-left {
+    border-bottom-left-radius: 10px;
+  }
+  /* The row whose page is open on the right. */
+  .page-link[data-open] {
+    background: rgb(63 155 110 / 0.15);
+    box-shadow: inset 0 0 0 2px rgb(45 107 78 / 0.7);
+  }
+  .page-foot {
+    position: static;
+    margin: auto 0 0;
+    padding: 1rem 0 0;
+    border-radius: 0;
+    background: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spell-book[data-turned] .book-page {
+    animation: none;
+  }
+  .start-button,
+  .flow-button,
+  .flow-back,
+  .page-link,
+  .preset-card {
+    transition: none;
+  }
+}
+
 /* PWA (app.js sets the data attributes on <html>, which LiveView never patches). */
 .pwa-install,
 .pwa-ios-hint {
@@ -1869,11 +2296,295 @@ html[data-install="ios"] .pwa-ios-hint {
   display: block;
 }
 
+/* Full screen toggle (round 21, `fullscreen_button/1`): app.js sets
+   `data-fullscreen` where the browser allows it. The icon and label follow the
+   `:fullscreen` state of <html>. */
+html:not([data-fullscreen]) .fullscreen-toggle,
+:root:fullscreen .when-windowed,
+:root:not(:fullscreen) .when-fullscreen {
+  display: none;
+}
+
 /* The installed app: no browser bounce showing a white band past the table. */
 @media (display-mode: standalone) {
   html,
   body {
     background-color: var(--color-wood-dark);
     overscroll-behavior: none;
+  }
+}
+
+/* The reveal overlay (round 14, `RevealComponents.reveal_overlay/1`): a modal
+   sheet with one slide at a time. Its height stays put from slide to slide, so the
+   bar with Next does not jump under the thumb. Each slide is a new node: it slides
+   in once; its chips and rows follow one after the other, on the speed's beat. */
+.sheet.reveal-sheet {
+  min-height: min(34rem, 88dvh);
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet.reveal-sheet:not([open]) {
+  display: none;
+}
+
+.reveal-sheet > [data-role="reveal"] {
+  flex: 1;
+}
+
+@media (width >= 64rem) {
+  .sheet.reveal-sheet {
+    max-width: 34rem;
+    min-height: 32rem;
+  }
+}
+
+/* Round 20: on a phone the overlay is the whole screen, edge to edge (no gap above
+   the sheet, no rounded corners), so a row per seat fits on each step slide. */
+@media (width < 40rem) {
+  .sheet.reveal-sheet {
+    inset: 0;
+    height: 100dvh;
+    max-height: none;
+    min-height: 0;
+    border-top: 0;
+    border-radius: 0;
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  /* The close button is a flex item above it: the slide takes what is left, so the
+     bar with Next stays on screen. */
+  .reveal-sheet > [data-role="reveal"] {
+    min-height: 0;
+  }
+}
+
+/* Round 22: a new card. The card hovers over the pot (`.pot-card`), outside the
+   overlay; the overlay is only a bottom sheet with Continue, at every width, and
+   its backdrop is clear, so the pot above it is not dimmed. */
+.sheet.reveal-sheet.reveal-card-sheet {
+  inset: auto 0 0 0;
+  height: auto;
+  min-height: 0;
+  margin: 0 auto;
+  border: 0;
+  border-top: 4px solid var(--color-iron);
+  border-radius: 1rem 1rem 0 0;
+  padding-top: 1rem;
+}
+
+.sheet.reveal-card-sheet[open]::backdrop {
+  background-color: transparent;
+}
+
+@media (width >= 64rem) {
+  .sheet.reveal-sheet.reveal-card-sheet {
+    max-width: 30rem;
+    inset: auto 0 1rem 0;
+    border: 4px solid var(--color-iron);
+    border-radius: 1rem;
+  }
+}
+
+/* The card's choice (phones): the card hovers over the pot too, and the pot is
+   not dimmed behind the choice sheet. */
+@media (width < 64rem) {
+  body:has(.pot-card) .sheet[id^="card-round-"][open]::backdrop {
+    background-color: transparent;
+  }
+}
+
+/* The card over the pot: centred in the pot square, above the chips. Its own flip
+   (`.card-flip`) turns it over as it comes. */
+.pot-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 10;
+  width: min(64%, 15rem);
+  max-width: 100%;
+  translate: -50% -50%;
+  pointer-events: none;
+  filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.45));
+}
+
+/* Large screens: a bigger card, a little above the centre, clear of the sheet. */
+@media (width >= 64rem) {
+  .pot-card {
+    top: 40%;
+    width: min(40%, 18rem);
+  }
+}
+
+/* While the big card shows, its corner is empty: the card lands there. */
+.pot-square:has(.pot-card-reveal) #corner-card {
+  visibility: hidden;
+}
+
+@media (width < 64rem) {
+  .pot-square:has(.pot-card) #corner-card {
+    visibility: hidden;
+  }
+}
+
+.pot-card .card-flip {
+  max-width: none;
+}
+
+.pot-card .fortune-face {
+  max-width: none;
+}
+
+/* When the sheet closes, the big card shrinks into the corner card: a view
+   transition of type `card` (app.js `quacks:vt`), the two cards share a name.
+   Only in that transition, so a new round does not morph the old corner card. */
+html:active-view-transition-type(card) .pot-card,
+html:active-view-transition-type(card) .pot-square:not(:has(.pot-card)) #corner-card {
+  view-transition-name: fortune-card;
+}
+
+html:active-view-transition-type(card) .round-counter {
+  view-transition-name: none;
+}
+
+::view-transition-group(fortune-card) {
+  animation-duration: 450ms;
+  animation-timing-function: var(--ease-in-out);
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    translate: 1.25rem 0;
+  }
+}
+
+@keyframes reveal-pop {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
+}
+
+@keyframes reveal-rise {
+  from {
+    opacity: 0;
+    translate: 0 0.5rem;
+  }
+}
+
+@keyframes reveal-timer {
+  from {
+    scale: 0 1;
+  }
+}
+
+.reveal-slide {
+  animation: reveal-in 280ms var(--ease-out) both;
+}
+
+.reveal-chip {
+  animation: reveal-pop 320ms var(--ease-spring) both;
+  animation-delay: calc(150ms + var(--i) * var(--beat-ms) * 0.2ms);
+}
+
+.reveal-row {
+  animation: reveal-rise 260ms var(--ease-out) both;
+  animation-delay: calc(100ms + var(--i) * var(--beat-ms) * 0.2ms);
+}
+
+.reveal-after {
+  animation: fade-in 220ms var(--ease-out) both;
+  animation-delay: calc(var(--beat-ms) * 0.8ms);
+}
+
+/* Round 20: the bonus die slide, a small die per roll in each seat's row. Each die
+   rolls through its strip and lands on its row's beat, then its reward shows. */
+.reveal-dice .die {
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.25);
+  animation: die-land 260ms var(--ease-spring) both;
+  animation-delay: calc(100ms + var(--i) * var(--beat-ms) * 0.2ms + var(--die-roll));
+}
+
+.reveal-dice .die-strip {
+  animation: die-roll var(--die-roll) steps(7, jump-none) both;
+  animation-delay: calc(100ms + var(--i) * var(--beat-ms) * 0.2ms);
+}
+
+/* A step row's reward shows after its row, one row after the other. */
+.reveal-row .reveal-after {
+  animation-delay: calc(var(--beat-ms) * 0.8ms + var(--i) * var(--beat-ms) * 0.2ms);
+}
+
+[data-kind="die"] .reveal-row .reveal-after {
+  animation-delay: calc(250ms + var(--i) * var(--beat-ms) * 0.2ms + var(--die-roll));
+}
+
+.reveal-timer {
+  animation: reveal-timer var(--slide-ms) linear both;
+}
+
+/* The running results strip (round 16): this slide's gain pops in with the reward. */
+.reveal-gain {
+  animation: reveal-pop 320ms var(--ease-spring) both;
+  animation-delay: calc(var(--beat-ms) * 0.8ms);
+}
+
+/* The standings slide (round 18): FLIP without JS. The rows stay in seat order in
+   the DOM, absolutely placed; `--rank` (from the server) puts each in its slot. The
+   first render has the old ranks and totals, the server's settle tick the new ones:
+   `transform` glides each row to its new slot and `--n` (a registered integer,
+   `.stat-tick`) counts the totals up in the same 700 ms. */
+.standings {
+  --row-h: 2.5rem;
+  height: calc(var(--rows) * var(--row-h));
+}
+
+.standings-slot {
+  height: var(--row-h);
+  display: flex;
+  align-items: center;
+}
+
+.standings-row {
+  position: absolute;
+  top: 0;
+  left: 1.5rem;
+  right: 0;
+  height: var(--row-h);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  border-radius: 0.375rem;
+  background: color-mix(in oklab, var(--color-parchment-deep) 55%, var(--color-parchment-light));
+  border-bottom: 2px solid var(--color-parchment-light);
+  transform: translateY(calc(var(--rank) * var(--row-h)));
+  transition: transform 700ms var(--ease-in-out);
+}
+
+.standings .stat-tick {
+  transition-duration: 700ms;
+}
+
+/* Reduced motion: no slide, no pop, no roll; the die shows its face at once. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-slide {
+    animation: fade-in 150ms ease both;
+  }
+
+  .reveal-chip,
+  .reveal-row,
+  .reveal-after,
+  .reveal-dice .die,
+  .reveal-dice .die-strip,
+  .reveal-gain,
+  .reveal-timer {
+    animation: none;
+  }
+
+  .standings-row,
+  .standings .stat-tick {
+    transition: none;
   }
 }

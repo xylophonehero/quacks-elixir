@@ -115,9 +115,10 @@ defmodule QuacksWeb.UiRound4Test do
     assert has_element?(alice, "footer button[phx-click*='card-round-1']")
 
     alice |> element("#card-round-1 button", "No thanks") |> render_click()
-    # answered: the same dialog is a plain card again, without the "now"
-    assert has_element?(alice, "#card-round-1 form[method=dialog] button", "OK")
-    refute has_element?(alice, "#card-round-1", "resolve now")
+    # answered: the dialog goes, and the card counts as seen (round 14: no
+    # reveal overlay for it afterwards)
+    refute has_element?(alice, "#card-round-1")
+    refute has_element?(alice, "[data-role=reveal]")
   end
 
   test "the card band: blue is for this round, purple says nothing more" do
@@ -132,27 +133,32 @@ defmodule QuacksWeb.UiRound4Test do
              "resolve now"
   end
 
-  test "the update chips come first; the shop opens when they have played" do
+  test "the reveal overlay comes first; the shop opens when it closes" do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
     view = open(browser("solo"), id)
     to_shop(id)
     render(view)
 
-    # the chips play and hand over to the shop, which waits
-    assert has_element?(view, "#players-row[data-on-replay-end*=decision-shop]")
+    # the overlay shows and hands over to the shop, which waits
+    assert has_element?(view, "dialog#reveal-results-1")
+    assert has_element?(view, "#reveal-next")
     assert has_element?(view, "dialog#decision-shop #shop")
     refute has_element?(view, "dialog#decision-shop[phx-mounted*='quacks:modal']")
     # the footer still opens the shop at any time
     assert has_element?(view, "footer [data-role=decision-button]")
 
-    # a reload while shopping keeps the order
+    # a reload while the overlay shows starts it again at the first slide
+    view |> element("#reveal-next") |> render_click()
     view = open(browser("solo"), id)
-    assert has_element?(view, "#players-row[data-on-replay-end*=decision-shop]")
+    assert has_element?(view, "dialog#reveal-results-1 #reveal-slide-0")
     refute has_element?(view, "dialog#decision-shop[phx-mounted*='quacks:modal']")
 
-    # after Done there is no shop to hand over to
-    view |> element("#decision-shop [data-role=shop-done]") |> render_click()
-    refute has_element?(view, "#players-row[data-on-replay-end]")
+    # the last slide's button opens the shop
+    view |> element("#reveal-skip") |> render_click()
+    assert has_element?(view, "#reveal-next", "To the shop")
+    view |> element("#reveal-next") |> render_click()
+    refute has_element?(view, "[data-role=reveal]")
+    assert_push_event(view, "quacks:open", %{to: "#decision-shop"})
   end
 
   test "shop tiles: a tapped chip is outlined with a check, the others dim" do
