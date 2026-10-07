@@ -1913,7 +1913,6 @@ body {
 .book-spread {
   flex: 1;
   min-height: 0;
-  grid-template-rows: minmax(0, 1fr);
 }
 .book-page {
   min-height: 0;
@@ -2030,8 +2029,7 @@ body {
 
 /* A page's foot: the main button, pinned to the screen's bottom while the page
    scrolls, with a ruled line above. */
-.page-foot,
-.start-bar {
+.page-foot {
   position: sticky;
   bottom: 0;
   z-index: 5;
@@ -2046,10 +2044,70 @@ body {
 .page-foot {
   margin-top: auto;
 }
-.start-bar {
+
+/* Round 23: the New game flow's bar (`LobbyLive.flow_bar/1`), under every page of
+   the flow: the setup in a line, Back (secondary) and Start (primary). It is the
+   book spread's last row, outside the page that scrolls, so it never moves. The
+   page above it loses its lower corners: the bar is the page's foot. */
+.book-spread {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.flow-bar {
   display: grid;
-  gap: 0.6rem;
-  margin-top: auto;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.6rem 1rem 0.75rem;
+  color: var(--color-ink);
+  border-top: 1px solid rgb(79 26 20 / 0.45);
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(var(--color-parchment-light), var(--color-parchment));
+  box-shadow:
+    inset 0 3px 0 -2px rgb(79 26 20 / 0.25),
+    0 2px 6px rgb(0 0 0 / 0.35);
+}
+.book-spread:has(> .flow-bar:not([hidden])) > .book-page {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.flow-bar[hidden] {
+  display: none;
+}
+.flow-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+}
+.flow-actions .start-button {
+  min-height: 3.25rem;
+  font-size: 1.5rem;
+}
+/* In the components layer, so `lg:hidden` and `max-lg:hidden` on it win. */
+@layer components {
+  .flow-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 3.25rem;
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: var(--font-hand);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-ink);
+    background: var(--color-parchment-light);
+    box-shadow: inset 0 0 0 1.5px rgb(58 46 26 / 0.45);
+    transition:
+      scale 150ms var(--ease-out),
+      background-color 150ms ease;
+  }
+  .flow-back:hover {
+    background: #fff8e2;
+  }
+  .flow-back:active {
+    scale: 0.97;
+  }
 }
 
 /* Start, New game, Next: ink on parchment, in the display font, a gold hairline
@@ -2159,7 +2217,7 @@ body {
   }
   .book-page-left {
     grid-column: 1;
-    grid-row: 1;
+    grid-row: 1 / -1;
     border-radius: 10px 2px 2px 10px;
     box-shadow:
       inset -26px 0 30px -24px rgb(60 30 10 / 0.55),
@@ -2185,8 +2243,25 @@ body {
     background: linear-gradient(90deg, #2a0d0a, #5a2018, #2a0d0a);
     pointer-events: none;
   }
-  .page-foot,
-  .start-bar {
+  /* The bar sits under the right page; the New game page runs the full height. */
+  .flow-bar {
+    grid-column: 2;
+    grid-row: 2;
+    padding: 0.75rem 2rem 1rem;
+    border-radius: 0 0 10px 2px;
+    box-shadow:
+      inset 26px 0 30px -24px rgb(60 30 10 / 0.55),
+      inset 0 3px 0 -2px rgb(79 26 20 / 0.25);
+  }
+  .book-spread:has(> .flow-bar:not([hidden])) > .book-page-left {
+    border-bottom-left-radius: 10px;
+  }
+  /* The row whose page is open on the right. */
+  .page-link[data-open] {
+    background: rgb(63 155 110 / 0.15);
+    box-shadow: inset 0 0 0 2px rgb(45 107 78 / 0.7);
+  }
+  .page-foot {
     position: static;
     margin: auto 0 0;
     padding: 1rem 0 0;
@@ -2202,6 +2277,7 @@ body {
   }
   .start-button,
   .flow-button,
+  .flow-back,
   .page-link,
   .preset-card {
     transition: none;

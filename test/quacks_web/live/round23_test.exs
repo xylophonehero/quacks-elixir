@@ -62,4 +62,52 @@ defmodule QuacksWeb.Round23Test do
       assert has_element?(view, "#page-home #games-scroll + .page-foot #new-game-flow")
     end
   end
+
+  describe "the New game flow: Back and Start on every page" do
+    test "every page of the flow has the bar: the summary, Back, Start" do
+      for path <- ~w(/?step=players /?step=expansions /?step=rules /?step=books
+                     /?step=book&colour=green) do
+        {:ok, view, _html} = live(browser("r23-#{System.unique_integer()}"), path)
+        refute has_element?(view, "#flow-bar[hidden]"), path
+        assert has_element?(view, "#flow-bar [data-role=setup-summary]", "2 players"), path
+        assert has_element?(view, "#flow-bar #flow-back", "Back"), path
+        assert has_element?(view, "#flow-bar #new-game[phx-click=start]", "Start"), path
+      end
+
+      # The pages have no Back arrow of their own any more.
+      {:ok, view, _html} = live(browser("r23-#{System.unique_integer()}"), ~p"/?step=rules")
+      refute has_element?(view, ".book-heading [data-role=back]")
+    end
+
+    test "Back on New game goes to Games; from 64rem Expansions' Back goes there too" do
+      {:ok, view, _html} = live(browser("r23-#{System.unique_integer()}"), ~p"/?step=players")
+      view |> element("#flow-back") |> render_click()
+      assert_patch(view, ~p"/")
+
+      {:ok, view, _html} = live(browser("r23-#{System.unique_integer()}"), ~p"/?step=expansions")
+      assert has_element?(view, "#flow-back.lg\\:hidden")
+      assert has_element?(view, "#flow-back-home.max-lg\\:hidden[href='/']")
+      view |> element("#flow-back") |> render_click()
+      assert_patch(view, ~p"/?step=players")
+    end
+
+    test "the rows show the current choice; the open page's row is marked" do
+      {:ok, view, _html} = live(browser("r23-#{System.unique_integer()}"), ~p"/?step=expansions")
+      assert has_element?(view, "#to-expansions[data-open]", "Base game")
+      view |> form("#books", expansion: "true") |> render_change()
+      assert has_element?(view, "[data-role=expansions-summary]", "Herb Witches")
+      assert has_element?(view, "#flow-bar [data-role=setup-summary]", "2 players · Herb Witches")
+
+      view |> element("#options") |> render_change(%{"rules" => %{"explode_above" => "9"}})
+      assert has_element?(view, "[data-role=rules-summary]", "1 changed")
+    end
+
+    test "Start works from a colour page" do
+      {:ok, view, _html} =
+        live(browser("r23-#{System.unique_integer()}"), ~p"/?step=book&colour=green")
+
+      {:error, {:live_redirect, %{to: "/g/" <> _id}}} =
+        view |> element("#new-game") |> render_click()
+    end
+  end
 end
