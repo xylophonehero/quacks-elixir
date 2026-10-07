@@ -371,7 +371,7 @@ order (`Chips.order/0`, chapter 7), left of the pot (`id="books-column"`,
 ### The rat track (round 16, equal steps since round 22)
 
 `rat_track/1` (`lib/quacks_web/components/game_components.ex`) is a slim strip
-under the name cards, inside the `players` area. It has a fixed height (`h-7`) and
+under the name cards, inside the `players` area. It has a fixed height (`h-8` since round 24) and
 shows only while the rats rule is on with 2+ players, so it never comes and goes
 during a game and the pot below it does not move.
 
@@ -393,6 +393,10 @@ one step stack, 7px apart (`data-step` on each dot). When a seat passes a tail i
 `left` changes, and a CSS `transition` on `left` slides the dot: no hook. The whole
 track is one `role="img"`; its `aria-label` names every seat's VP and rats, leader
 first.
+
+Round 24 adds the leader's VP above the leader's dot (`data-role="leader-vp"`): one
+small bold number at the leader's step, `left` at `0.5 / steps`, so a tie for the
+lead shows it once over the stacked dots. The other dots keep their `title`.
 
 ### The pot's corners (round 22)
 
@@ -656,6 +660,24 @@ in board order (`chip_order/1`, line 2416, from `Chips.sort_key/1`). Actions wit
 chip ("Return all", "Done") become text buttons (`text_actions/1`, line 2413). A new
 chip choice in the engine shows up as tappable chips with no new template, once
 `pick_chips/1` knows its shape.
+
+**Round 24: the whole ladder.** A book with tiers (Ghost's breath II: trade 1, 2 or
+3 purple) listed only the rungs the player could take, so a player with 2 purple
+never saw what 3 would bring. `ladder/1` in `game_live.ex` now lists every rung of
+the open ladder choices in `me.chip_choices`, in order:
+
+| Choice | Rungs | A rung is off when |
+|---|---|---|
+| `{:purple_trade, tier}` (Ghost's breath II) | trade 1, 2, 3 | not in `legal_actions`: "needs 3 purple, you have 2" |
+| `{:ruby_move, greens}` (Garden spider IV) | pay 1, 2 rubies | too few greens on the last two spaces, or too few rubies |
+| `{:upgrade, tier}` (Ghost's breath IV) | the tiers above `tier`, from `Books.get({:purple, 4}).tiers` | always (the reachable swaps are chip picks) |
+
+A rung the player can take is the usual button; one they cannot is a greyed
+`role="button"` with `aria-disabled="true"` and the reason under its label. The
+legal rungs come from `legal_actions/2`, the off ones from the choice and the book
+data: the engine is not touched. The decision's own button list skips the ladder
+actions (`ladder_action?/1`), so no rung shows twice; "Done with chip actions"
+stays at the foot.
 
 One choice has more than one verb per chip: the Toadstool (red Set 2) can place a
 chip, keep it beside the pot or return it to the bag. Round 22 gives it its own
@@ -964,6 +986,49 @@ The old snapshot is the big card, the new one the corner card, so the browser
 shrinks one into the other. A new round does not name them, so the old corner card
 does not fly into the new big card. Reduced motion: app.js runs no transition.
 
+**Round 24: a tap before any sheet.** On a phone the round-22 bottom sheet covered
+the card's lower half before the player read it. Now the card first hovers alone:
+
+| Card | The tap (or Enter, Space, the Auto tick) |
+|---|---|
+| Does nothing by itself (most blue cards) | the card shrinks into the corner |
+| Did something to this seat (a droplet, VP, a ruby) | the result sheet: name, one pill per outcome, Continue |
+| Asks a choice | the card's choice dialog (`card-round-N`); the card stays over the pot until the choice |
+| Draws chips (Safety Procedure, Flea Market) | its dialog, with the card in it; the big card shrinks |
+
+The state is one flag on the reveal map: `held: true` while the card waits for the
+tap (`start_reveal/3` sets it for a `{:card, _}` moment). `reveal_overlay/1` renders
+only when `held` is false. `next_slide/1` has a clause for `held`: with outcomes and
+no choice it sets `held: false` and shows the same slide again (now in the sheet),
+else it ends the reveal, and `close_reveal/1` acks the card and pushes `quacks:open`
+for a waiting choice. The choice dialog mounts with `auto_open={is_nil(@reveal)}`,
+so it waits for the tap like every other decision. The old `reveal_step` clause
+that marked a choice card seen at once is gone: the card is seen when the player
+taps it.
+
+"What it did" is `Reveal.card_outcomes/2`: the `{seat, {:fortune, id, outcome}}`
+log entries since the newest `{:fortune_drawn, id}`. No new engine data; the text
+is `GameComponents.card_outcome/2`, the log's own wording.
+
+The tap target is one `<button id="card-tap">`, `fixed inset-0 z-40`, over the page
+and under the dialogs' top layer: a tap anywhere goes on, and the pot does not move.
+The big card stays `aria-hidden`; the button's `aria-label` reads the card's name
+and text. Under the card a "Tap to continue" caption (`.card-caption`) comes in once
+the card has turned (0.8 s: the round title and the flip play first) and fades 2 s
+later. It is hidden under `:active-view-transition-type(card)`, so the snapshot
+that shrinks is the card alone.
+
+**Round 24: the corner card grows back.** The corner card no longer opens the card
+sheet: it pushes `card_grow` (`fortune_tile/1` takes a `click` attr; without it the
+tile still opens `sheet-fortune`). `GameLive` sets `card_grown: true` and pushes
+`quacks:vt` with `type: "card"` before the patch. The same two CSS rules name the
+cards, in the other direction: the old snapshot is the corner card, the new one the
+big card, so the browser grows one into the other. A tap on `#card-tap` (or Enter,
+Space) shrinks it again, the same way. A new round clears the flag
+(`same_round?/2` in `put_game/2`). The text sheet is in the menu now, "Fortune
+teller" (`data-role="menu-fortune"`). From 64rem the context column still shows
+the card as before; the grown card shows there too (`pot-card-reveal`).
+
 **Round 22: the end in one flow.** `{:final, 9}` has three slides: `:final` (coins,
 rubies, pennies), `:standings` (from before the final scoring to the end) and
 `:podium`. The last one renders the overlay's `:podium` slot, which `GameLive`
@@ -993,7 +1058,8 @@ waited: the shop or a decision. app.js opens it with the usual
 the last element of the page, so `remodal` keeps it on top.
 
 A fortune card that asks this seat a choice keeps its own dialog (the card and the
-choice in one); the overlay skips that card and counts it as seen.
+choice in one). Since round 24 that dialog waits for the tap on the hovering card,
+and the card counts as seen at that tap (see **Round 24** above).
 
 **Step and Auto.** In Auto mode `show_slide/2` starts a server timer:
 
@@ -1125,7 +1191,14 @@ The game installs as an app with no browser bar (a PWA in standalone mode):
   installed. app.js keeps the event and sets `data-install="ready"` on `<html>`
   (`assets/js/app.js:302-319`); CSS then shows the lobby's `data-role=install`
   button (`assets/css/app.css:1584-1594`). iOS Safari has no prompt, so outside the
-  installed app it gets `data-install="ios"` and a Share-menu hint. The state is on
+  installed app it gets `data-install="ios"` and a Share-menu hint.
+- **The menu hint (round 24).** Android Chrome can list "Install app" in its own
+  menu and still never fire `beforeinstallprompt` to the page (the menu's App line
+  says `install prompt: not fired`). 3 s after load, when no prompt came, the app
+  does not run installed and the browser is Chromium (`navigator.userAgentData`, or
+  Android), app.js sets `data-install="menu"` and CSS shows "Install from your
+  browser menu: ⋮ → Install app" (`.pwa-menu-hint`). A prompt that comes later sets
+  `ready`, and the button takes its place. The state is on
   `<html>` because LiveView never patches that element, so no patch resets it.
 
 **Why the service worker caches nothing.** A service worker usually caches files so
