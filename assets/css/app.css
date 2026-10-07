@@ -17,8 +17,11 @@
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
-/* A phone on its side (round 11): a short, wide screen. */
-@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem));
+/* A phone on its side (round 11): a short, wide screen. Round 23: and at least
+   35rem wide. A portrait phone whose layout viewport gets short (the keyboard in
+   full screen or in the installed app, split screen) is wider than tall too, and
+   without the width test it got the landscape grid at 392 px. */
+@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem) and (min-width: 35rem));
 
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
@@ -363,6 +366,23 @@ html:has([data-layout="full"]) {
   overscroll-behavior: none;
 }
 
+/* Round 23: the app is locked to the viewport. The game root (`.game-grid`) and the
+   lobby root (`.lobby-root`) are exactly the screen; `overflow: clip` (not
+   `hidden`: a clip box is no scroll container, so nothing can scroll it by script
+   or focus, and sticky and fixed children keep working). Only the designated
+   areas scroll: the books column, sheets and dialogs, the Games list, the book
+   pages. No viewport-width units anywhere (they count the scrollbar on a desktop). */
+body {
+  overscroll-behavior: none;
+}
+
+.game-grid,
+.lobby-root {
+  width: 100%;
+  height: 100dvh;
+  overflow: clip;
+}
+
 /* Sheets: info popovers (`sheet`) and decision dialogs (`dialog_sheet`). A bottom
    sheet on phones, a centred card on large screens. The browser does open, close,
    focus, Esc and the top layer; this CSS only places and moves them.
@@ -623,8 +643,6 @@ html:has([data-layout="full"]) {
    Phones and tablets (portrait): header, players, notices, pot, bar. */
 .game-grid {
   display: grid;
-  height: 100dvh;
-  overflow: hidden;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   grid-template-areas: "header" "players" "notices" "pot" "bar";
@@ -708,9 +726,9 @@ html:has([data-layout="full"]) {
 /* Landscape phones: the pot takes the full height on the left; header, name cards,
    the bar and the test tubes stack on the right. Sheets slide in over the right
    column only, so the pot stays in view. */
-@media (orientation: landscape) and (max-height: 30rem) {
+@media (orientation: landscape) and (max-height: 30rem) and (min-width: 35rem) {
   .game-grid {
-    grid-template-columns: min(100dvh, 50vw) minmax(0, 1fr);
+    grid-template-columns: min(100dvh, 50%) minmax(0, 1fr);
     grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
     grid-template-areas:
       "pot header"
@@ -753,7 +771,7 @@ html:has([data-layout="full"]) {
   .sheet {
     inset: 0 0 0 auto;
     margin: 0;
-    width: calc(100vw - min(100dvh, 50vw));
+    width: calc(100% - min(100dvh, 50%));
     max-width: none;
     height: 100dvh;
     max-height: 100dvh;
@@ -827,11 +845,11 @@ html:has([data-layout="full"]) {
 /* The books drawer (48–80rem, and landscape phones): it slides in from the right
    over the context column, never over the pot. A popover, so Esc and a tap
    outside close it. */
-@media (width >= 48rem), (orientation: landscape) and (max-height: 30rem) {
+@media (width >= 48rem), (orientation: landscape) and (max-height: 30rem) and (min-width: 35rem) {
   .sheet.sheet-drawer {
     inset: 0 0 0 auto;
     margin: 0;
-    width: min(24rem, 100vw);
+    width: min(24rem, 100%);
     max-width: none;
     height: 100dvh;
     max-height: 100dvh;
@@ -1871,56 +1889,55 @@ html:has([data-layout="full"]) {
   transform-origin: left center;
 }
 
-/* Phones: a page fills the screen, so its foot (New game, Next, Start) sits low. */
-@media (width < 64rem) {
-  .book-page {
-    min-height: calc(100dvh - 2rem - 20px);
-  }
+/* Round 23: the lobby root is the screen (see `.lobby-root` above). The hero takes
+   what it needs, the book the rest; inside the book each page scrolls on its own
+   (one on a phone, two side by side from 64rem), with its foot pinned at the bottom.
+   On the Games page only the list scrolls (with the install button and credits
+   after it), so New game stays in view. */
+.lobby-root {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
-
-/* Phones, Games page (round 21): the hero and the book fill the screen exactly.
-   The book's page is a column: room code, "Games now", the list (it scrolls), and
-   New game at the foot. The screen's own padding keeps the cover's lower edge
-   clear of the home indicator, so the foot needs no safe-area padding of its own. */
-@media (width < 64rem) {
-  .lobby-screen[data-step="home"] {
-    display: flex;
-    flex-direction: column;
-    height: 100dvh;
-    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
-  }
-  .lobby-screen[data-step="home"] .spell-book,
-  .lobby-screen[data-step="home"] .book-cover {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-  }
-  .lobby-screen[data-step="home"] .book-spread {
-    flex: 1;
-    min-height: 0;
-    grid-template-rows: minmax(0, 1fr);
-  }
-  .lobby-screen[data-step="home"] #page-home {
-    min-height: 0;
-    overflow: hidden;
-  }
-  .lobby-screen[data-step="home"] .games-list {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-    margin-inline: -0.25rem;
-    padding: 0 0.25rem 0.75rem;
-  }
-  .lobby-screen[data-step="home"] .page-foot {
-    position: static;
-    padding-bottom: 0.75rem;
-  }
+.lobby-screen,
+.spell-book,
+.book-cover {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.lobby-hero {
+  flex: none;
+}
+.book-spread {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+.book-page {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+#page-home {
+  overflow: hidden;
+}
+.games-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  margin-inline: -0.25rem;
+  padding: 0 0.25rem 0.75rem;
+}
+#page-home .page-foot {
+  position: static;
+  padding-bottom: 0.75rem;
 }
 
 /* A phone on its side: no hero, the book alone fills the screen (as on the other pages). */
-@media (width < 64rem) and (height < 32rem) {
+@media (width < 64rem) and (height < 32rem) and (orientation: landscape) and (min-width: 35rem) {
   .lobby-screen[data-step="home"] .lobby-hero {
     display: none;
   }
@@ -1948,8 +1965,10 @@ html:has([data-layout="full"]) {
     grid-area: sub;
     margin-top: 0;
   }
-  .lobby-screen[data-step="home"] .games-list {
+  .lobby-screen[data-step="home"] .games-scroll {
     grid-area: list;
+  }
+  .lobby-screen[data-step="home"] .games-list {
     grid-template-columns: minmax(0, 1fr);
   }
   .lobby-screen[data-step="home"] .page-foot {
@@ -2307,6 +2326,7 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   left: 50%;
   z-index: 10;
   width: min(64%, 15rem);
+  max-width: 100%;
   translate: -50% -50%;
   pointer-events: none;
   filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.45));

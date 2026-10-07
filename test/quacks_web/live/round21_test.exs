@@ -55,7 +55,7 @@ defmodule QuacksWeb.Round21Test do
     assert has_element?(view, ".lobby-screen[data-step=home] [data-role=lobby-hero]")
     assert has_element?(view, ".lobby-screen[data-step=home] #spell-book #page-home")
     assert has_element?(view, "#page-home ul#games.games-list")
-    assert has_element?(view, "#page-home #games + .page-foot #new-game-flow")
+    assert has_element?(view, "#page-home #games-scroll + .page-foot #new-game-flow")
 
     # Another page: the screen's data-step follows the URL.
     {:ok, view, _html} = live(conn, ~p"/?step=players")

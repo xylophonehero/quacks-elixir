@@ -457,9 +457,9 @@ defmodule QuacksWeb.LobbyLive do
 
     ~H"""
     <Layouts.app flash={@flash} full>
-      <div class="mx-auto max-w-6xl px-3 pb-6 sm:px-6">
-        <%!-- Phones, Games page: the hero and the book fill the screen (app.css
-             `.lobby-screen`); the games list scrolls inside the page. --%>
+      <%!-- The lobby is exactly the screen (app.css `.lobby-root`, round 23): the hero
+           and the book fill it, and only a book page (or the Games list) scrolls. --%>
+      <div class="lobby-root mx-auto max-w-6xl px-3 sm:px-6">
         <div class="lobby-screen pt-4 lg:pt-6" data-step={@step}>
           <header
             class={[
@@ -552,39 +552,6 @@ defmodule QuacksWeb.LobbyLive do
         </div>
 
         <div id="config-memory" phx-hook="ConfigMemory" data-fresh hidden />
-
-        <div :if={@step == "home"} class="contents">
-          <%!-- Shown by app.js only: the install button after `beforeinstallprompt`, the
-               hint on iOS Safari outside the installed app (see `.pwa-install` in app.css). --%>
-          <div id="install-app" class="flex flex-col items-center gap-1 pt-6 text-center">
-            <button
-              type="button"
-              data-role="install"
-              class={[
-                "pwa-install min-h-11 cursor-pointer items-center gap-2 rounded-full px-4",
-                "text-sm font-semibold text-parchment-dim ring-1 ring-parchment-dim/40",
-                "transition-colors duration-150 hover:bg-parchment/10 hover:text-parchment"
-              ]}
-            >
-              <.icon name="hero-arrow-down-tray" class="size-4" /> Install app
-            </button>
-            <p data-role="install-hint" class="pwa-ios-hint text-xs text-parchment-dim">
-              Add to Home Screen from the Share menu.
-            </p>
-          </div>
-
-          <footer id="credits" class="pt-6 text-center text-xs text-parchment-dim">
-            Credits: icons by Lorc, Delapouite, Skoll, Cathelineau and DarkZaitzev from <a
-              href="https://game-icons.net"
-              class="underline hover:text-parchment"
-            >game-icons.net</a>,
-            <a
-              href="https://creativecommons.org/licenses/by/3.0/"
-              class="underline hover:text-parchment"
-            >CC BY 3.0</a>
-            (background removed, recoloured).
-          </footer>
-        </div>
       </div>
     </Layouts.app>
     """
@@ -621,22 +588,55 @@ defmodule QuacksWeb.LobbyLive do
       </form>
 
       <h3 class="book-subheading mt-3">Games now</h3>
-      <ul
-        id="games"
-        class={[
-          "games-list mt-2 grid content-start gap-2.5",
-          "sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"
-        ]}
-      >
-        <.game_card :for={game <- @games} game={game} />
-        <li
-          :if={@games == []}
-          class="col-span-full rounded-[14px] border border-dashed border-ink-soft/40 px-3 py-4 text-center text-sm text-ink-soft"
-          data-role="no-games"
+      <%!-- The list scrolls; the install button and the credits come after it. --%>
+      <div id="games-scroll" class="games-scroll mt-2">
+        <ul
+          id="games"
+          class={[
+            "games-list grid content-start gap-2.5",
+            "sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"
+          ]}
         >
-          No public games now: start one, or join with a room code.
-        </li>
-      </ul>
+          <.game_card :for={game <- @games} game={game} />
+          <li
+            :if={@games == []}
+            class="col-span-full rounded-[14px] border border-dashed border-ink-soft/40 px-3 py-4 text-center text-sm text-ink-soft"
+            data-role="no-games"
+          >
+            No public games now: start one, or join with a room code.
+          </li>
+        </ul>
+        <%!-- Shown by app.js only: the install button after `beforeinstallprompt`, the
+               hint on iOS Safari outside the installed app (see `.pwa-install` in app.css). --%>
+        <div id="install-app" class="flex flex-col items-center gap-1 pt-4 text-center">
+          <button
+            type="button"
+            data-role="install"
+            class={[
+              "pwa-install min-h-11 cursor-pointer items-center gap-2 rounded-full px-4",
+              "text-sm font-semibold text-ink-soft ring-1 ring-ink-soft/40",
+              "transition-colors duration-150 hover:bg-ink/10 hover:text-ink"
+            ]}
+          >
+            <.icon name="hero-arrow-down-tray" class="size-4" /> Install app
+          </button>
+          <p data-role="install-hint" class="pwa-ios-hint text-xs text-ink-soft">
+            Add to Home Screen from the Share menu.
+          </p>
+        </div>
+
+        <footer id="credits" class="pt-4 pb-2 text-center text-xs text-ink-soft">
+          Credits: icons by Lorc, Delapouite, Skoll, Cathelineau and DarkZaitzev from <a
+            href="https://game-icons.net"
+            class="underline hover:text-ink"
+          >game-icons.net</a>,
+          <a
+            href="https://creativecommons.org/licenses/by/3.0/"
+            class="underline hover:text-ink"
+          >CC BY 3.0</a>
+          (background removed, recoloured).
+        </footer>
+      </div>
 
       <%!-- Phones: pinned at the screen's foot while the list scrolls. --%>
       <div class="page-foot">
