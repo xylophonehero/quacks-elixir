@@ -15,9 +15,8 @@ defmodule QuacksWeb.Reveal do
     VP, ruby, die faces and pot chips; the other results in a closed "Details") and
     one standings slide (the totals; the rows glide from the old order to the new
     one);
-  - `{:final, 9}`: the game is over: the final coins, rubies and pennies, the
-    standings after them, then the podium (round 22: the last slide, with the
-    game-over actions; `GameLive` shows it again after a reload).
+  - `{:final, 9}`: the game is over: the final coins, rubies and pennies, then the
+    podium.
 
   `slides/2` builds the slide list of the game's moment; `GameLive` shows it in
   the overlay and keeps `%{key, slides, index}` per browser. Every slide carries
@@ -128,10 +127,7 @@ defmodule QuacksWeb.Reveal do
     steps = [die_slide(lines, order)] ++ books ++ other ++ [space_slide(game, lines, order)]
 
     Enum.reject(steps, &is_nil/1) ++
-      [
-        results_slide(game, lines, round, others),
-        standings_slide(game, round, before_results(game))
-      ]
+      [results_slide(game, lines, round, others), standings_slide(game, round)]
   end
 
   # The bonus die: every roll of the round (the base die and book G6's), a row per
@@ -330,7 +326,8 @@ defmodule QuacksWeb.Reveal do
   # and after the round's results, with its rank before (`from_rank`) and after
   # (`rank`, 0 is first). The rows stay in seat order: the overlay moves each row to
   # its rank with CSS, from the old rank to the new one.
-  defp standings_slide(game, round, before) do
+  defp standings_slide(game, round) do
+    before = before_results(game)
     totals = now(game)
     from_ranks = ranks(before)
     to_ranks = ranks(totals)
@@ -445,11 +442,6 @@ defmodule QuacksWeb.Reveal do
     places = for {seat, vp} <- ranked, do: {seat, vp, 1 + Enum.count(ranked, &(elem(&1, 1) > vp))}
 
     gains = Map.new(rows, &{&1.seat, {&1.coins_vp + &1.rubies_vp + &1.pennies_vp, 0}})
-    final = %{kind: :final, rows: rows, gains: gains}
-
-    # Round 22: the standings after the final scoring, then the podium.
-    standings = %{standings_slide(game, 9, before_final(game, [final])) | last: false}
-
-    [final, standings, %{kind: :podium, ranked: places}]
+    [%{kind: :final, rows: rows, gains: gains}, %{kind: :podium, ranked: places}]
   end
 end

@@ -94,14 +94,14 @@ defmodule QuacksWeb.Round14Test do
 
       assert has_element?(
                view,
-               "#reveal-card-1 #reveal-slide-0[data-kind=card] [data-role=reveal-card-name]"
+               "#reveal-card-1 #reveal-slide-0[data-kind=card] [data-role=fortune-card]"
              )
 
       view |> element("#reveal-next") |> render_click()
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
     end
 
-    test "the end of the game (round 22): final scoring, standings, podium with the actions" do
+    test "the end of the game: the final scoring and the podium, then the game-over sheet" do
       {id, view, _token} = solo_results()
       render_hook(view, "reveal_close", %{})
 
@@ -115,14 +115,14 @@ defmodule QuacksWeb.Round14Test do
       end)
 
       assert has_element?(view, "dialog#reveal-final-9 #reveal-slide-0[data-kind=final]")
-      refute has_element?(view, "dialog#game-over")
+      assert has_element?(view, "dialog#game-over")
+      refute has_element?(view, "dialog#game-over[phx-mounted*='quacks:modal']")
 
       view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-slide-1[data-kind=standings]")
+      assert has_element?(view, "#reveal-slide-1[data-kind=podium]", "You win!")
+      assert has_element?(view, "#reveal-next", "See the results")
       view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-slide-2[data-kind=podium] [data-role=game-over]")
-      assert has_element?(view, "#reveal-slide-2 [data-role=play-again]")
-      refute has_element?(view, "#reveal-next")
+      assert_push_event(view, "quacks:open", %{to: "#game-over"})
     end
 
     test "Enter and Space are Next; a focused button keeps its own key" do

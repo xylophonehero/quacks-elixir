@@ -69,10 +69,12 @@ defmodule QuacksWeb.MotionTest do
     {view, id} = mount()
     {:ok, %{game: %{fortune_card: card}}} = GameServer.get(id)
 
-    # round 22: over the pot, outside the overlay
-    assert has_element?(view, "#pot-card-1 #pot-card-flip .card-front [data-role=fortune-card]")
-    assert has_element?(view, "#pot-card-flip .card-back[aria-hidden=true]")
-    assert card
+    assert has_element?(
+             view,
+             "#reveal-card-1 #card-flip-#{card} .card-front [data-role=fortune-card]"
+           )
+
+    assert has_element?(view, "#card-flip-#{card} .card-back[aria-hidden=true]")
     refute has_element?(view, "#sheet-fortune [data-role=card-flip]")
   end
 

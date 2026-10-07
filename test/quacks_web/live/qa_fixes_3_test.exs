@@ -248,12 +248,16 @@ defmodule QuacksWeb.QaFixes3Test do
       assert css =~ "margin-top: calc((100cqh - 100cqmin) / 2);"
     end
 
-    test "G6/V4 (round 22): the card tile left the header for the pot's top left corner" do
+    test "G6/V4: on phones the card tile is in the header row, beside the books button" do
       {:ok, id} = GameServer.start(1, {1, 2, 3})
       view = open(browser(token("g6")), id)
 
-      refute has_element?(view, "header [data-role=fortune-tile]")
-      assert has_element?(view, "[data-role=pot-area] [data-role=pot-corner] #corner-card")
+      assert has_element?(
+               view,
+               "header [data-role=fortune-tile].lg\\:hidden + button[data-role=open-books]"
+             )
+
+      refute has_element?(view, "[data-role=pot-area] [data-role=fortune-tile]")
     end
 
     test "V1: the YOU pill does not shrink; the phase pill may" do

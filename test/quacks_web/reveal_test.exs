@@ -215,7 +215,7 @@ defmodule QuacksWeb.RevealTest do
     assert %{rows: [%{seat: 1}, %{seat: 0}]} = game |> Reveal.slides(0) |> Enum.at(-2)
   end
 
-  test "the end of the game: the final scoring, the standings, then the podium" do
+  test "the end of the game: the final scoring, then the podium" do
     game = Game.new(seed: {1, 2, 3}, players: 2)
     game = put_in(game.players[0].vp, 40)
     game = put_in(game.players[1].vp, 44)
@@ -229,20 +229,11 @@ defmodule QuacksWeb.RevealTest do
 
     game = %{game | log: log, phase: :over, round: 9}
 
-    assert [
-             %{kind: :final, rows: rows},
-             %{kind: :standings, last: false, rows: standings},
-             %{kind: :podium, ranked: ranked}
-           ] = Reveal.slides(game, 0)
+    assert [%{kind: :final, rows: rows}, %{kind: :podium, ranked: ranked}] =
+             Reveal.slides(game, 0)
 
     assert [%{seat: 0, coins: 4, coins_vp: 0}, %{seat: 1, rubies_vp: 1, pennies_vp: 2}] = rows
     assert ranked == [{1, 44, 1}, {0, 40, 2}]
-
-    # Round 22: the standings go from before the final scoring to the end.
-    assert [
-             %{seat: 0, from_vp: 40, vp: 40},
-             %{seat: 1, from_vp: 40, vp: 44, from_rank: 1, rank: 0}
-           ] = standings
   end
 
   test "Auto times scale with the speed" do

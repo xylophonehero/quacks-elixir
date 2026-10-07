@@ -91,7 +91,7 @@ defmodule QuacksWeb.UiRound6Test do
     assert count(html, "button[data-role=chip-pick]") == 4
   end
 
-  test "toadstool Set 2: one row per chip with Place, Keep and Return" do
+  test "toadstool Set 2: tap the chip to place it; keep and return under it" do
     {id, view} = solo()
 
     replace_game(id, fn g ->
@@ -99,20 +99,9 @@ defmodule QuacksWeb.UiRound6Test do
     end)
 
     dialog = "dialog#decision-red_choice"
-    row = "#{dialog} [data-role=red-row]#red-row-0"
-    assert has_element?(view, "#{row} [data-role=red-chip]")
-
-    for {kind, text} <- [place: "Place", keep: "Keep", return: "Return"] do
-      action = GameLive.encode({:red, {kind, {:red, 2}}})
-
-      assert has_element?(
-               view,
-               ~s(#{row} button[data-role=red-#{kind}][phx-value-action="#{action}"]),
-               text
-             )
-    end
-
-    refute has_element?(view, "#{dialog} [data-role=chip-side]")
+    assert has_element?(view, "#{dialog} #{pick({:red, {:place, {:red, 2}}})}")
+    assert has_element?(view, "#{dialog} button[data-role=chip-side]", "Keep")
+    assert has_element?(view, "#{dialog} button[data-role=chip-side]", "Return")
     refute has_element?(view, "#{dialog} section[aria-label=Actions] button")
   end
 end

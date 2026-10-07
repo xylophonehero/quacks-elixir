@@ -80,12 +80,10 @@ defmodule QuacksWeb.MotionB3Test do
     assert has_element?(view, "[data-role=round-counter]", "2 / 9")
   end
 
-  test "the CSS names the round counter and (round 22) the card; the hook is small and honours reduced motion" do
+  test "the CSS names the round counter only; the hook is small and honours reduced motion" do
     css = File.read!(Path.expand("../../../assets/css/app.css", __DIR__))
+    assert [_, _] = String.split(css, "view-transition-name:")
     assert css =~ "view-transition-name: round-counter"
-    # round 22: the card's name only while a `card` transition runs
-    assert css =~ "html:active-view-transition-type(card) .pot-card"
-    assert css =~ "view-transition-name: fortune-card"
 
     js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
     [_, hook] = String.split(js, "// The large pot's motion", parts: 2)

@@ -154,10 +154,7 @@ defmodule QuacksWeb.UiRound3bTest do
     replace_game(id, &H.put(&1, phase: :over))
 
     {:error, {:live_redirect, %{to: "/g/" <> new_id}}} =
-      alice
-      |> tap(&(&1 |> element("#reveal-skip") |> render_click()))
-      |> element("#reveal-final-9 button", "Play again")
-      |> render_click()
+      alice |> element("#game-over button", "Play again") |> render_click()
 
     assert {"/g/" <> ^new_id, _flash} = assert_redirect(bob)
     assert {:ok, %{status: :waiting, names: %{0 => _, 1 => _}}} = GameServer.get(new_id)

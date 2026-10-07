@@ -206,12 +206,7 @@ defmodule QuacksWeb.QaFixesTest do
     test "the witches button is a small tile in the pot's corner" do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{}, :herb_witches)
       view = open(browser("witch-#{System.unique_integer()}"), id)
-      # round 22: below the card, in the corner stack
-      assert has_element?(
-               view,
-               "[data-role=pot-corner].top-0.left-0 [data-role=witches-button].flex-col",
-               "Witches"
-             )
+      assert has_element?(view, "[data-role=witches-button].flex-col.top-0.left-0", "Witches")
     end
 
     # Round 11: no hint line (it moved the pot); the flask's SVG <title> says it.

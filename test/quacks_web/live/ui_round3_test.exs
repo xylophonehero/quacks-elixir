@@ -46,13 +46,10 @@ defmodule QuacksWeb.UiRound3Test do
     view = open(browser("solo"), id)
 
     assert has_element?(view, "[data-role=pot-area] [data-role=bag-button].right-0.bottom-0")
-    # round 22: the card in the pot's top left corner, the witches below it
-    refute has_element?(view, "header [data-role=fortune-tile]")
-
-    assert has_element?(
-             view,
-             "[data-role=pot-area] [data-role=pot-corner].top-0.left-0 #corner-card + [data-role=witches-button]"
-           )
+    # phones: the card tile sits in the header row (QA 3, G6), not on the pot's rim
+    assert has_element?(view, "header [data-role=fortune-tile].lg\\:hidden")
+    refute has_element?(view, "[data-role=pot-area] [data-role=fortune-tile]")
+    assert has_element?(view, "[data-role=pot-area] [data-role=witches-button].top-0.left-0")
 
     assert has_element?(
              view,
@@ -73,20 +70,13 @@ defmodule QuacksWeb.UiRound3Test do
     # round 14: the card shows in the reveal overlay, one slide
     assert has_element?(view, "dialog#reveal-card-1[phx-mounted] [data-kind=card]")
 
-    # round 22: the card hovers over the pot; the sheet names it
     assert has_element?(
              view,
-             "[data-role=pot-area] #pot-card-1 [data-role=fortune-card]",
+             "#reveal-card-1 [data-role=fortune-card]",
              Fortune.card(card).name
            )
 
-    assert has_element?(
-             view,
-             "#reveal-card-1 [data-role=reveal-card-name]",
-             Fortune.card(card).name
-           )
-
-    assert has_element?(view, "#reveal-card-1 #reveal-next", "Continue")
+    assert has_element?(view, "#reveal-card-1 #reveal-next", "Close")
     refute has_element?(view, "#reveal-card-1 #reveal-skip")
 
     # later renders keep the same overlay: it does not open again

@@ -337,52 +337,21 @@ place.
 order (`Chips.order/0`, chapter 7), left of the pot (`id="books-column"`,
 `data-area="books"`).
 
-### The rat track (round 16, equal steps since round 22)
+### The rat track (round 16)
 
-`rat_track/1` (`lib/quacks_web/components/game_components.ex`) is a slim strip
+`rat_track/1` (`lib/quacks_web/components/game_components.ex`) is a slim VP track
 under the name cards, inside the `players` area. It has a fixed height (`h-7`) and
 shows only while the rats rule is on with 2+ players, so it never comes and goes
 during a game and the pot below it does not move.
 
-Round 22 made it a track of *steps*, not a VP scale. The steps are the printed rat
-tails (`ScoringTrack.tails/0`) between the last player and the leader, read from the
-leader's side, so the leader is on the left:
-
-```elixir
-tails = for t <- Enum.reverse(ScoringTrack.tails()), low <= t and t < leader, do: t
-steps = length(tails) + 1
-# a seat's step is its rat count: 0 for the leader, one more past each tail
-step = ScoringTrack.rat_tails(vp, leader)
-```
-
-Every step is the same width: a dot sits at `(step + 0.5) / steps`, a tail at
-`(j + 1) / steps`, each as `left: calc(0.5rem + (100% - 1rem) * x)`. Under each rat
-glyph is the VP of its tail, so a player reads "below 12 I get this rat". Seats in
-one step stack, 7px apart (`data-step` on each dot). When a seat passes a tail its
-`left` changes, and a CSS `transition` on `left` slides the dot: no hook. The whole
-track is one `role="img"`; its `aria-label` names every seat's VP and rats, leader
-first.
-
-### The pot's corners (round 22)
-
-The pot is the largest square that fits (`.pot-square`), and the round cauldron
-leaves four free corners. Everything that comes and goes around the pot is
-`absolute` inside that square, so the pot never moves (the round 11 rule):
-
-| Corner | What | Markup |
-|---|---|---|
-| top left | the round's card, the witches below it | `[data-role=pot-corner]`: `fortune_tile/1` (`#corner-card`) and the witches button |
-| top right | the kept Toadstool chips (red Set 2) | `aside/1`, a pill of chips (`[data-role=beside-pot]`) |
-| bottom left | the flask | inside the SVG |
-| bottom right | the bag | `bag_button/1` |
-
-The corner card is a button with `popovertarget="sheet-fortune"`: a tap shows the
-card's text in the sheet, with no server event. It is on every layout; from 64rem
-the context column also shows the whole card. The header has no card tile any more.
-The Toadstool pill has no visible label; its `aria-label` names the chips.
-
-A new card hovers over the pot (`#pot-card-<round>`, `.pot-card`): see **Round 22**
-under the reveal overlay.
+The positions are plain arithmetic on the server: the lowest VP is 0, the leader's
+VP is 1, and each dot and each rat gets `left: calc(0.5rem + (100% - 1rem) * x)`.
+The rats are the printed tails (`ScoringTrack.tails/0`) between the last player
+and the leader; a seat gets the rats right of its dot, the same count as
+`ScoringTrack.rat_tails/2`. Dots on the same VP shift 7px apart. When VP change, the
+dot's `left` changes, and a CSS `transition` on `left` slides it: no hook needed.
+Only the leader's and your own dot have a number. The whole track is one
+`role="img"` with an `aria-label` that names every seat's VP and rats.
 
 ## Hotkeys
 
@@ -607,14 +576,6 @@ chip ("Return all", "Done") become text buttons (`text_actions/1`, line 2413). A
 chip choice in the engine shows up as tappable chips with no new template, once
 `pick_chips/1` knows its shape.
 
-One choice has more than one verb per chip: the Toadstool (red Set 2) can place a
-chip, keep it beside the pot or return it to the bag. Round 22 gives it its own
-rows (`red_rows/1` in `game_live.ex`): one row per waiting chip, the chip large on
-the left, then three equal buttons, **Place** (primary, "after your last chip"),
-**Keep** ("for later") and **Return** ("to the bag"), each at least 48px tall. On a
-narrow phone (below 26rem) the buttons go under the chip. One line of help sits at
-the top.
-
 ## Motion: CSS first, one hook where CSS cannot
 
 The motion design is in `docs/research/animations.md`. The code uses the lightest
@@ -766,7 +727,7 @@ start, `{:results, round}` in the shop phase, `{:final, 9}` at the game's end.
 `slides(game, seat)` builds the list from the `Replay` lines and the log, with no
 new engine data. Since round 20 the evaluation has one slide per scoring step (see
 **Round 20** below), then one `:results` slide and (round 18) one `:standings`
-slide; at the end `:final`, `:standings` and `:podium` (round 22). `test/quacks_web/reveal_test.exs` tests
+slide; at the end `:final` and `:podium`. `test/quacks_web/reveal_test.exs` tests
 it without a browser.
 
 **Round 16: one results slide and a running strip.** The three closing slides
@@ -886,58 +847,21 @@ shop, after the reveal.
 update: a seat that has not seen the moment (`seen`, see **seen** in
 `docs/CONTEXT.md`) gets the slides from index 0. The list is taken once, so a bot's
 move does not change what the overlay shows; the game itself does not wait. A
-reload mid-reveal starts at the first slide. A spectator gets no overlay, except
-the game's last slide once the game is over (round 22).
-
-**Round 22: the new card over the pot.** A new card is no longer a slide in a
-full-screen overlay. `GameLive` puts the card (`fortune_card/1` with `flip`) in the
-pot square, absolute and not tappable, while `pot_card?/1` is true: the reveal of a
-`{:card, _}` moment, or (phones only) a card choice with no drawn chips. The overlay
-gets the class `reveal-card-sheet`: a bottom sheet at every width with the card's
-name and Continue, and a clear `::backdrop`, so the pot is not dimmed. The text is
-in the sheet as `sr-only`, because the page behind a modal is inert. While the big
-card shows, the corner card is `visibility: hidden`, so its place waits empty.
-
-When the sheet closes, `card_vt/2` pushes `quacks:vt` with `%{type: "card"}`
-(`dispatch: :before`). app.js starts that patch as a view transition with
-`types: ["card"]`, and only in such a transition the CSS gives the big card and the
-corner card one `view-transition-name`:
-
-```css
-html:active-view-transition-type(card) .pot-card,
-html:active-view-transition-type(card) .pot-square:not(:has(.pot-card)) #corner-card {
-  view-transition-name: fortune-card;
-}
-```
-
-The old snapshot is the big card, the new one the corner card, so the browser
-shrinks one into the other. A new round does not name them, so the old corner card
-does not fly into the new big card. Reduced motion: app.js runs no transition.
-
-**Round 22: the end in one flow.** `{:final, 9}` has three slides: `:final` (coins,
-rubies, pennies), `:standings` (from before the final scoring to the end) and
-`:podium`. The last one renders the overlay's `:podium` slot, which `GameLive`
-fills with `game_over/1`: the rising podium, the VP breakdown, Play again, Back to
-lobby and Share (`quacks:share` in app.js: the share sheet, else the clipboard).
-That slide has no bar and no tap-to-Next, Next does nothing there, and Auto mode
-starts no timer for it. × or Esc close it; "Show the result" opens it again
-(`show_result` → `open_result/1`). A page that mounts on a finished game, a
-reload, a rejoin or a spectator, opens straight on that slide
-(`result_on_mount/1`). There is no `#game-over` dialog any more.
+reload mid-reveal starts at the first slide. A spectator gets no overlay.
 
 **Controls.** `reveal_overlay/1`
 (`lib/quacks_web/components/reveal_components.ex:35`) renders the slide and a bar:
 
 | Input | Event | Effect |
 |---|---|---|
-| Next, a tap on the slide | `reveal_next` | next slide; on the last one, the end (not on the game's last slide) |
+| Next, a tap on the slide | `reveal_next` | next slide; on the last one, the end |
 | Enter, Space (focus not on a button) | `hotkey` | as Next |
 | Skip | `reveal_skip` | the last slide |
 | Esc, × | the dialog's `close` → `reveal_close` | the end |
 
 The end (`close_reveal/1`, line 2796) acks the moment (`GameServer.ack/4`, now
 also `:final`), runs `auto_done/2` and pushes `quacks:open` with the dialog that
-waited: the shop or a decision. app.js opens it with the usual
+waited: the shop, a decision or `#game-over`. app.js opens it with the usual
 `sideOpen` (`assets/js/app.js:336`). Decision dialogs mount with
 `auto_open={is_nil(@reveal)}`, so nothing opens under the overlay. The overlay is
 the last element of the page, so `remodal` keeps it on top.
@@ -1034,12 +958,6 @@ At a new round the round counter rolls up to the next number. `mark_round_change
 other patch, the bots' too, goes in at once. While a transition waits for its
 snapshot, later patches queue behind it, so they stay in order. The CSS names only
 `.round-counter` and turns off the root crossfade (`assets/css/app.css:1162-1201`).
-
-Round 22 adds a second, named one: `quacks:vt` may carry a `type`, and app.js
-passes it as `startViewTransition({update, types})`. The `card` type shrinks the new
-card into the pot's corner (see the reveal overlay above); the CSS names the two
-cards only under `:active-view-transition-type(card)` and takes the round counter's
-name away there, so the counter does not roll.
 
 Why opt-in: during a view transition the page is a screenshot. On every patch,
 each bot move every 700 ms would flash, so `::view-transition` also lets taps

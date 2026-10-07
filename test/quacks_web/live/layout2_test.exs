@@ -125,7 +125,7 @@ defmodule QuacksWeb.Layout2Test do
         refute has_element?(view, "#{selector} [class*=line-clamp]")
       end
 
-      assert has_element?(view, "[data-role=pot-area] #corner-card[data-role=fortune-tile]")
+      assert has_element?(view, "[data-role=fortune-tile].lg\\:hidden")
     end
   end
 end
