@@ -2286,8 +2286,12 @@ body {
 
 /* PWA (app.js sets the data attributes on <html>, which LiveView never patches). */
 .pwa-install,
-.pwa-ios-hint {
+.pwa-ios-hint,
+.pwa-menu-hint {
   display: none;
+}
+html[data-install="menu"] .pwa-menu-hint {
+  display: block;
 }
 html[data-install="ready"] .pwa-install {
   display: inline-flex;

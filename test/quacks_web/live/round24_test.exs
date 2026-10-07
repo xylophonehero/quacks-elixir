@@ -231,4 +231,30 @@ defmodule QuacksWeb.Round24Test do
       assert has_element?(view, off, "needs 3 purple, you have 1")
     end
   end
+
+  describe "the install hint" do
+    test "the lobby has the browser-menu hint, hidden until app.js shows it" do
+      conn = browser("r24-install-#{System.unique_integer()}")
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(
+               view,
+               "#install-app .pwa-menu-hint[data-role=install-menu-hint]",
+               "Install from your browser menu: ⋮ → Install app"
+             )
+
+      assert has_element?(view, "#install-app .pwa-install[data-role=install]")
+      assert has_element?(view, "#install-app .pwa-ios-hint[data-role=install-hint]")
+    end
+
+    test "app.js shows it 3 s after load without a prompt; CSS keys it on data-install" do
+      js = File.read!("assets/js/app.js")
+      assert js =~ ~s{installState("menu")}
+      assert js =~ "}, 3000)"
+      assert js =~ "!installFired && !standalone"
+
+      css = File.read!("assets/css/app.css")
+      assert css =~ ~s{html[data-install="menu"] .pwa-menu-hint {\n  display: block;}
+    end
+  end
 end
