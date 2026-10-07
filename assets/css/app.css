@@ -2451,8 +2451,9 @@ html:active-view-transition-type(card) .round-counter {
   view-transition-name: none;
 }
 
-/* Round 24: "Tap to continue" under the big card; it fades after 2 s. Hidden in the
-   card transition, so the snapshot that shrinks is the card alone. */
+/* Round 24: "Tap to continue" under the big card. It comes once the card has turned
+   (0.8 s) and fades after 2 s. Hidden in the card transition, so the snapshot that
+   shrinks is the card alone. */
 .card-caption {
   position: absolute;
   top: 100%;
@@ -2465,7 +2466,15 @@ html:active-view-transition-type(card) .round-counter {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-parchment-light);
-  animation: card-caption-out 400ms ease-out 2s forwards;
+  animation:
+    card-caption-in 300ms ease-out 800ms both,
+    card-caption-out 400ms ease-out 2800ms forwards;
+}
+
+@keyframes card-caption-in {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes card-caption-out {

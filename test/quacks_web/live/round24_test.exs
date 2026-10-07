@@ -57,7 +57,8 @@ defmodule QuacksWeb.Round24Test do
 
     test "the caption fades after 2 s; it hides in the card transition" do
       css = File.read!("assets/css/app.css")
-      assert css =~ "animation: card-caption-out 400ms ease-out 2s forwards;"
+      assert css =~ "card-caption-in 300ms ease-out 800ms both,"
+      assert css =~ "card-caption-out 400ms ease-out 2800ms forwards;"
       assert css =~ "html:active-view-transition-type(card) .card-caption"
     end
   end
