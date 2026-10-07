@@ -15,7 +15,7 @@ defmodule QuacksWeb.Round24Test do
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
-  defp solo(rules \\ %{}) do
+  defp solo(rules) do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, rules)
     {:ok, view, _html} = live(browser("r24-#{System.unique_integer()}"), ~p"/g/#{id}")
     {id, view}

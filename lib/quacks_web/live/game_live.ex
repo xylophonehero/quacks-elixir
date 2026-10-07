@@ -2853,14 +2853,11 @@ defmodule QuacksWeb.GameLive do
     for k <- 1..2 do
       action = {:chip, {:pay_ruby_move, k}}
 
-      reason =
-        cond do
-          action in actions -> nil
-          k > greens -> "needs #{k} green chips on the last two spaces, you have #{greens}"
-          true -> "needs #{k} #{if k == 1, do: "ruby", else: "rubies"}, you have #{me.rubies}"
-        end
-
-      %{action: action, label: label.(action), reason: reason}
+      %{
+        action: action,
+        label: label.(action),
+        reason: ruby_reason(action in actions, k, greens, me)
+      }
     end
   end
 
@@ -2879,6 +2876,14 @@ defmodule QuacksWeb.GameLive do
   end
 
   defp rungs(_choice, _me, _purple, _actions, _label), do: []
+
+  defp ruby_reason(true = _legal, _k, _greens, _me), do: nil
+
+  defp ruby_reason(_legal, k, greens, _me) when k > greens,
+    do: "needs #{k} green chips on the last two spaces, you have #{greens}"
+
+  defp ruby_reason(_legal, k, _greens, me),
+    do: "needs #{k} #{if k == 1, do: "ruby", else: "rubies"}, you have #{me.rubies}"
 
   defp ladder_action?({:chip, {kind, _}}) when kind in [:purple_trade, :pay_ruby_move], do: true
   defp ladder_action?(_action), do: false
