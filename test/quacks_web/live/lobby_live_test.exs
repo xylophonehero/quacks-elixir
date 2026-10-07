@@ -41,7 +41,7 @@ defmodule QuacksWeb.LobbyLiveTest do
 
     assert has_element?(view, "#page-expansions #expansion[form=books]")
     assert has_element?(view, "#page-expansions #rules-pot_side[form=options]")
-    assert has_element?(view, "#page-expansions #to-rules", "Default rules")
+    assert has_element?(view, "#page-expansions #to-rules", "As in the rulebook")
     refute has_element?(view, "#page-expansions #to-books")
     # One bar for the flow, under the pages, hidden on the Games page.
     assert has_element?(view, "#flow-bar[hidden] #new-game", "Start")
@@ -362,14 +362,14 @@ defmodule QuacksWeb.LobbyLiveTest do
   test "the black chips by standings rule: an Options radio, the house-rules line and the book",
        %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/?seed=1,2,3")
-    # Round 25: standings is the default.
-    assert has_element?(view, "#rules-black_rule-standings[checked]")
+    # Round 27: neighbours (the rulebook) is the default again.
+    assert has_element?(view, "#rules-black_rule-neighbours[checked]")
 
     view
     |> element("#options")
-    |> render_change(%{"rules" => %{"black_rule" => "neighbours", "fortune" => "false"}})
+    |> render_change(%{"rules" => %{"black_rule" => "standings", "fortune" => "false"}})
 
-    assert has_element?(view, "#rules-black_rule-neighbours[checked]")
+    assert has_element?(view, "#rules-black_rule-standings[checked]")
 
     assert QuacksWeb.SetupComponents.parse_rules(%{"black_rule" => "standings"}).black_rule ==
              :standings
@@ -379,7 +379,7 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert Books.get({:black, 1}, %{black_rule: :neighbours}).text =~ "other players"
 
     view = start_solo(conn, view)
-    assert has_element?(view, "[data-role=house-rules]", "black chips by neighbours")
+    assert has_element?(view, "[data-role=house-rules]", "black chips by standings")
   end
 
   # The book each colour's tile shows now: "1".."6", or "off".

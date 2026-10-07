@@ -73,10 +73,14 @@ defmodule QuacksWeb.Round11Test do
       assert css =~ ~s{"books pot bar";}
     end
 
-    test "the name cards have two rows: no update chips (round 12)" do
+    test "the tiles have a fixed height: no update chips (round 12, round 27)" do
       {_id, view} = solo()
-      assert has_element?(view, "#players-row.grid-rows-\\[auto_2\\.125rem\\]")
-      assert has_element?(view, "[data-role=player-chip].row-span-2")
+      assert has_element?(view, "#players-row [data-role=player-chip].h-\\[3\\.25rem\\]")
+
+      assert has_element?(
+               view,
+               "[data-role=player-chip] [data-role=player-stats].h-3\\.5.overflow-hidden"
+             )
     end
   end
 

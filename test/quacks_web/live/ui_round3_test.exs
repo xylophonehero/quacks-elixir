@@ -117,16 +117,21 @@ defmodule QuacksWeb.UiRound3Test do
 
     assert has_element?(
              alice,
-             ~s([data-role=player-chip][data-seat="0"][data-you].ring-player-0),
+             ~s([data-role=player-chip][data-seat="0"][data-you].border-gold),
              "you"
            )
 
     refute has_element?(alice, ~s([data-role=player-chip][data-seat="1"][data-you]))
 
+    # Round 27: a brewing tile has no state badge (design B).
     assert has_element?(
              alice,
-             ~s([data-role=player-chip][data-seat="1"][popovertarget="sheet-player-1"] [data-role=player-state]),
-             "brewing"
+             ~s([data-role=player-chip][data-seat="1"][popovertarget="sheet-player-1"])
+           )
+
+    refute has_element?(
+             alice,
+             ~s([data-role=player-chip][data-seat="1"] [data-role=player-state])
            )
 
     sheet = ~s(#sheet-player-1[popover] article[data-seat="1"])

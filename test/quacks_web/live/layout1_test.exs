@@ -50,8 +50,10 @@ defmodule QuacksWeb.Layout1Test do
     test "the status is a graphic; its word is for screen readers only" do
       game = Game.new(seed: {1, 2, 3}, players: 2)
 
+      # Round 27: a brewing tile shows no badge (design B).
+      assert count(card(game, 1), "[data-role=player-state]") == 0
+
       for {fields, state} <- [
-            {[], "brewing"},
             {[phase: :stopped], "stopped"},
             {[exploded?: true], "exploded"}
           ] do
@@ -83,7 +85,7 @@ defmodule QuacksWeb.Layout1Test do
       assert count(card(game, 1), "[data-role=player-patient] [data-icon=ear_worm]") == 1
     end
 
-    test "more than 4 players: the row scrolls sideways instead of shrinking" do
+    test "more than 4 players: two rows of tiles (round 27), no sideways scroll" do
       {:ok, id} = GameServer.start(6, {1, 2, 3})
       token = "six-#{id}"
       {:ok, view, _html} = live(browser(token), ~p"/g/#{id}")
@@ -92,8 +94,8 @@ defmodule QuacksWeb.Layout1Test do
 
       html = render(view)
 
-      assert count(html, "#players-row.overflow-x-auto.grid-flow-col [data-role=player-chip]") ==
-               6
+      assert count(html, ~s(#players-row[data-columns="3"] [data-role=player-chip])) == 6
+      assert count(html, "#players-row.overflow-x-auto") == 0
     end
   end
 

@@ -181,7 +181,8 @@ closes the dialog in one chain:
 `JS.push("action") |> JS.dispatch("quacks:close", to: "#card-round-#{game.round}")`
 (`card_click/1`, `lib/quacks_web/live/game_live.ex:2432-2434`). Five hooks have
 state: `ConfigMemory` (`assets/js/app.js:43-53`) keeps the host's last settings in
-`localStorage` (round 14: also the herb witch picks), `NameMemory` keeps your name,
+`localStorage` (round 14: also the herb witch picks; round 27: the config carries
+`v: 27`, and an older one drops its `black_rule`, see `SetupComponents.saved_rules/1`), `NameMemory` keeps your name,
 `RevealSettings` keeps the reveal settings, `AppStatus` writes the menu's "App"
 line, and `PotMotion` animates the pot (see "Motion" below).
 
@@ -273,8 +274,8 @@ fixed:
   same time."), the rats line, the ring legend and the flask hint are gone. Stir,
   Skip, the Red Set 2 chips and the overflow bowl are `absolute` inside the pot
   square.
-- The name cards reserve their update-chip row (`grid-rows-[auto_2.125rem_2.25rem]`
-  on `#players-row`), so the round results do not make the row taller. A hidden
+- The player tiles have a fixed height (round 27, see "The player tiles" below), so
+  the round results do not make the row taller. A hidden
   element at the end of a `space-y-*` block still gets a margin on its neighbour, so
   the replay marker `<i id="replay-start-N">` is the first child of its block.
 - Phones: the bar has a fixed height (`.game-bar`, `--bar-h`). Its rare extras
@@ -367,6 +368,35 @@ place.
 (`lib/quacks_web/components/game_components.ex`) lists the books in play in board
 order (`Chips.order/0`, chapter 7), left of the pot (`id="books-column"`,
 `data-area="books"`).
+
+### The player tiles: a seat loop (round 27)
+
+The players row (`#players-row`, in the `players` area) holds one tile per seat,
+yours too (`player_chip/1`, design B of the opponents page). A tile is a button that
+opens the seat's sheet. It has three lines: the seat disc with the initial and the
+name; this round's **pot space** (the coins of the scoring space, large) and VP;
+rubies, the **black chips in the pot**, then the flask, rat tails, essence, test
+tube, patient or witch pennies while they fit. The last line is one line high and
+wraps into hidden overflow, so a tile never grows (`h-[3.25rem]`). Your tile has a
+gold border.
+
+The states are classes and absolute badges, so they never change the tile's size:
+
+- exploded: red stripes (`.tile-boom`, app.css) and a large red burst on the top
+  right corner (`player_state/1` with `tile`);
+- stopped: the tile fades (`opacity-55`) and the corner badge is a check;
+- brewing: no badge;
+- **round leader** (`round_leaders/1`, the bonus die rollers: the furthest pot this
+  round of the seats that did not explode, or whose explosion the silver witch took
+  away): a crown on the seat disc and a gold glow (`.tile-lead`). Nobody before the
+  first chip of the round, and nobody solo.
+
+The tiles never re-order. `seat_loop/1` gives each seat a row and a column
+(`grid-row`, `grid-column` inline): 2 to 4 seats one row in seat order; 5 to 8 two
+rows of `ceil(n / 2)` columns (`loop_columns/1`), and the second row runs
+backwards and ends under the first row's last tile, so the tiles form a loop and
+neighbours touch (8: `1 2 3 4 / 8 7 6 5`; 5: `1 2 3 / _ 5 4`). Nothing scrolls
+sideways: at 360 px eight tiles fit in two rows of four.
 
 ### The rat track (round 16, equal steps since round 22)
 
@@ -578,7 +608,7 @@ text. It sends `"patient"`; `parse_patient/2` turns any id that is not dealt int
 **The New game flow (round 23).** The New game page (`?step=players`) has the
 player count, the seats (name, colour), the Public switch, then three rows
 (`page_link/1`): House rules, Expansions and Ingredient books, each with a line on
-the current choice ("Default rules" / "N changed", "Base game" / "Herb
+the current choice ("As in the rulebook" / "N changed", "Base game" / "Herb
 Witches · test tubes", the preset or Custom). Expansions, House rules and Ingredient
 books are children of New game; a colour or witch page is a child of Ingredient
 books. The Expansions page has only the three expansion rows.

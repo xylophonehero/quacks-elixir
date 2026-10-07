@@ -273,7 +273,7 @@ When the last seat is done, `Evaluation.run/1` runs for all seats in turn order
   struct is free, because data is immutable.
 - Whom black book I compares with is one function, `Evaluation.targets/2`. It
   dispatches on the house rule `black_rule`: `:neighbours` (the rulebook) or
-  `:standings` (round 16, unofficial, the default since round 25: the players ranked directly above, from
+  `:standings` (round 16, unofficial, the default in rounds 25 and 26: the players ranked directly above, from
   `Evaluation.standings/1`; the leader takes ranks 2 and 3, the last player only the
   one above). The payoff (`black_payoff/2`) only sees a list of one or two counts,
   so it did not change. The reveal's black slide calls the same `targets/2`.

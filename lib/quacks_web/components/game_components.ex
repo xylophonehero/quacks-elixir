@@ -68,18 +68,6 @@ defmodule QuacksWeb.GameComponents do
     7 => "border-player-7"
   }
 
-  # Your own chip in the players row: a ring and a wash in your seat colour.
-  @seat_you %{
-    0 => "ring-player-0 bg-player-0/20",
-    1 => "ring-player-1 bg-player-1/20",
-    2 => "ring-player-2 bg-player-2/20",
-    3 => "ring-player-3 bg-player-3/20",
-    4 => "ring-player-4 bg-player-4/20",
-    5 => "ring-player-5 bg-player-5/20",
-    6 => "ring-player-6 bg-player-6/20",
-    7 => "ring-player-7 bg-player-7/20"
-  }
-
   # A ring in the seat colour (the "You" name pill).
   @seat_ring %{
     0 => "ring-player-0",
@@ -1668,33 +1656,49 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  One player in the players row (their name card), a button that opens the
-  player's detail sheet (`sheet-player-N`). Row 1: the seat disc with the initial,
-  the name (one line, a long one ends in an ellipsis), the BOT badge and the
-  status graphic (`player_state/1`). Row 2: VP, rubies, the flask, the rat tails
-  (one icon and a number), essence or test tube, and the patient or the witch
-  pennies. Your own card wears your seat colour as a ring. The two rows sit on the
-  players row's grid (`grid-rows-subgrid`), so they line up across the cards when
-  the counts differ. The round's results show on the state badge and as
-  counter ticks on the replay beats (`updates`, `QuacksWeb.Replay.updates/2`).
+  One player's tile in the players row (round 27, design B), a button that opens
+  the player's detail sheet (`sheet-player-N`). Line 1: the seat disc with the
+  initial, the name (one line, a long one ends in an ellipsis) and the bot icon.
+  Line 2: this round's pot space (its coins, large) and VP. Line 3: rubies, the
+  black chips in the pot, then the flask, rat tails, essence, test tube, patient or
+  witch pennies while they fit (the line wraps into hidden overflow, so the tile
+  never grows).
+
+  Badges, all absolute, so the tile never changes size: the state badge
+  (`player_state/1`) on the top right corner, a **crown** on the disc for the
+  round leader (`round_leaders/1`, the bonus die roller). States: exploded = red
+  stripes (`.tile-boom`), stopped = faded, leader = a gold glow (`.tile-lead`).
+  Your own tile has the gold border. `row` and `col` place the tile in the seat
+  loop (`seat_loop/1`). During the replay VP and rubies tick on their beats
+  (`updates`, `QuacksWeb.Replay.updates/2`).
   """
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :name, :string, required: true
   attr :you, :boolean, default: false
   attr :bot, :boolean, default: false
+  attr :lead, :boolean, default: false, doc: "the round leader: the crown"
+  attr :row, :integer, default: 1
+  attr :col, :integer, default: nil
   attr :updates, :list, default: [], doc: "the round's results, `Replay.updates/2`"
 
   attr :ticks, :boolean,
     default: false,
     doc: "while the replay runs: the counters tick on their beats"
 
+  slot :inner_block, doc: "extra badges on the tile (the evaluation on the tiles)"
+
   def player_chip(assigns) do
+    p = assigns.game.players[assigns.seat]
+    state = seat_state(assigns.game, assigns.seat)
+
     assigns =
       assign(assigns,
-        p: assigns.game.players[assigns.seat],
-        you_class: @seat_you[assigns.seat],
-        bg: @seat_bg[assigns.seat]
+        p: p,
+        bg: @seat_bg[assigns.seat],
+        state: state,
+        boom: p.exploded? and p.drawn != [],
+        stopped: state == "stopped"
       )
 
     ~H"""
@@ -1703,24 +1707,32 @@ defmodule QuacksWeb.GameComponents do
       popovertarget={"sheet-player-#{@seat}"}
       phx-click={JS.push("open_player", value: %{seat: @seat})}
       class={[
-        "row-span-2 grid min-h-11 w-full min-w-0 cursor-pointer grid-rows-subgrid rounded-lg px-1 py-1 text-left text-xs touch-manipulation sm:px-2",
-        "transition-[scale,background-color] duration-150 ease-out active:scale-[0.97]",
+        "player-tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center rounded-[9px] px-1.5 text-left touch-manipulation",
+        "transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97]",
         if(@you,
-          do: ["ring-2", @you_class],
-          else: "bg-iron-dark/80 ring-1 ring-iron hover:bg-iron-dark"
-        )
+          do: "border-2 border-gold bg-gold/15",
+          else: "border border-parchment/12 bg-black/25 hover:bg-black/35"
+        ),
+        @boom && "tile-boom",
+        @stopped && "opacity-55",
+        @lead && "tile-lead"
       ]}
+      style={"grid-row: #{@row}" <> if(@col, do: "; grid-column: #{@col}", else: "")}
       title={@name}
       data-seat={@seat}
       data-role="player-chip"
       data-you={@you && "true"}
+      data-lead={@lead && "true"}
+      data-boom={@boom && "true"}
+      data-stopped={@stopped && "true"}
+      data-row={@row}
+      data-col={@col}
     >
-      <span class="flex w-full min-w-0 items-center gap-1.5 sm:gap-2">
-        <%!-- The status sits on the disc, like a presence badge: it costs no width. --%>
-        <span class="relative mr-1 shrink-0">
+      <span class="flex w-full min-w-0 items-center gap-1">
+        <span class="relative shrink-0">
           <span
             class={[
-              "grid size-5 place-items-center rounded-full font-hand text-[13px] leading-none font-bold text-ink ring-1 ring-black/30 sm:size-6 sm:text-sm",
+              "grid size-4 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40",
               @bg
             ]}
             aria-hidden="true"
@@ -1728,13 +1740,20 @@ defmodule QuacksWeb.GameComponents do
           >
             {initial(@name)}
           </span>
-          <%!-- Beside the disc's lower right, clear of the initial. --%>
-          <.player_state game={@game} seat={@seat} class="absolute -right-2.5 -bottom-1.5" />
+          <span
+            :if={@lead}
+            class="absolute -top-3 left-1/2 -translate-x-1/2 drop-shadow-[0_0_3px_var(--color-gold)]"
+            title="Round leader: rolls the bonus die"
+            data-role="crown"
+          >
+            <.crown class="size-3.5" />
+            <span class="sr-only">round leader</span>
+          </span>
         </span>
         <%!-- One line: a long name ends in an ellipsis, the BOT badge stays whole
              beside it (round 14: "Wilhelmina" wrapped as "Wilhelmin / a"). --%>
         <span
-          class="flex min-w-0 items-center gap-1 text-xs leading-tight font-semibold sm:text-[13px]"
+          class="flex min-w-0 items-center gap-1 text-[11px] leading-tight font-semibold"
           data-role="player-name"
         >
           <span class="min-w-0 truncate" data-role="player-name-text">
@@ -1744,16 +1763,83 @@ defmodule QuacksWeb.GameComponents do
           <.bot_badge
             :if={@bot}
             compact={:phone}
-            class="shrink-0 bg-parchment/15 text-parchment-dim"
+            class="shrink-0 bg-transparent px-0! text-parchment-dim"
           />
         </span>
       </span>
       <.chip_stats game={@game} p={@p} ticks={@ticks && card_ticks(@game, @seat, @updates)} />
-      <%!-- No update chips (round 12): the state badge and the counters say it. The
-           reveal overlay ends the replay (round 14). --%>
+      <.player_state game={@game} seat={@seat} tile class="absolute -top-1.5 -right-1.5" />
+      {render_slot(@inner_block)}
     </button>
     """
   end
+
+  @doc "The crown of the round leader (the bonus die roller), in gold."
+  attr :class, :any, default: "size-3"
+
+  def crown(assigns) do
+    ~H"""
+    <svg viewBox="0 0 12 12" class={@class} aria-hidden="true" data-icon="crown">
+      <path
+        d="M1 9.5h10L10 3 7.6 6 6 2 4.4 6 2 3z"
+        fill="var(--color-gold)"
+        stroke="var(--color-wood-dark)"
+        stroke-width=".7"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
+
+  @doc """
+  The round leaders: the seats with the furthest pot this round among the seats
+  that did not explode (or whose explosion the silver witch took away), the seats
+  that roll the bonus die (`Quacks.Game.Evaluation`). Empty before anyone has
+  drawn a chip this round, and with one player.
+  """
+  @spec round_leaders(Game.t()) :: [Game.seat()]
+  def round_leaders(%Game{seats: [_]}), do: []
+
+  def round_leaders(%Game{seats: seats} = game) do
+    candidates =
+      Enum.filter(seats, fn seat ->
+        p = Game.player(game, seat)
+        not p.exploded? or p.explosion_choice == :witch
+      end)
+
+    if candidates == [] or Enum.all?(seats, &(Game.player(game, &1).drawn == [])) do
+      []
+    else
+      best = candidates |> Enum.map(&Game.scoring_index(game, &1)) |> Enum.max()
+      Enum.filter(candidates, &(Game.scoring_index(game, &1) == best))
+    end
+  end
+
+  @doc """
+  Where each seat's tile sits: `[{seat, row, col}]`, in seat order. The tiles form
+  a fixed loop and never re-order. 2 to 4 seats: one row. 5 to 8 seats: two rows of
+  `ceil(n / 2)` columns; the second row runs backwards and ends under the first
+  row's last tile, so neighbours touch (8: `1 2 3 4 / 8 7 6 5`; 5: `1 2 3 / _ 5 4`).
+
+      iex> QuacksWeb.GameComponents.seat_loop([0, 1, 2, 3, 4])
+      [{0, 1, 1}, {1, 1, 2}, {2, 1, 3}, {3, 2, 3}, {4, 2, 2}]
+  """
+  @spec seat_loop([Game.seat()]) :: [{Game.seat(), pos_integer, pos_integer}]
+  def seat_loop(seats) do
+    cols = loop_columns(length(seats))
+
+    seats
+    |> Enum.with_index()
+    |> Enum.map(fn
+      {seat, i} when i < cols -> {seat, 1, i + 1}
+      {seat, i} -> {seat, 2, 2 * cols - i}
+    end)
+  end
+
+  @doc "The players row's column count for `n` seats (`seat_loop/1`)."
+  @spec loop_columns(pos_integer) :: pos_integer
+  def loop_columns(n) when n <= 4, do: n
+  def loop_columns(n), do: div(n + 1, 2)
 
   # While the replay runs: on which beat the card's VP and rubies tick, and from what.
   defp card_ticks(game, seat, updates) do
@@ -1771,7 +1857,7 @@ defmodule QuacksWeb.GameComponents do
   attr :value, :integer, required: true
   attr :tick, :any, default: nil, doc: "`{beat, from}` while the replay runs"
 
-  # A count on a name card: a plain number, or during the replay a ticker that shows
+  # A count on a tile: a plain number, or during the replay a ticker that shows
   # the old value until its beat (the same CSS as the stats strip, `stat/1`).
   defp card_count(%{tick: {beat, from}} = assigns) do
     assigns = assign(assigns, beat: beat, from: from)
@@ -1792,33 +1878,53 @@ defmodule QuacksWeb.GameComponents do
   attr :p, Player, required: true
   attr :ticks, :any, default: nil, doc: "`%{vp: {beat, from}, rubies: {beat, from}}`"
 
-  # The name card's second row, icons and numbers: VP, rubies, the flask (full or
-  # empty), this round's rat tails (rats on: one icon and the count), essence (The
-  # Alchemists), the test tube (reverse pot side), then the patient or the witch
-  # pennies (spent ones dim).
+  # The tile's lines 2 and 3: the pot space (its coins, large) and VP; rubies, the
+  # black chips in the pot, then the flask (full or empty), this round's rat tails (rats
+  # on), essence (The Alchemists), the test tube (reverse pot side), the patient or
+  # the witch pennies (spent ones dim). One line high: what does not fit wraps into
+  # the hidden overflow, the sheet has it all.
   defp chip_stats(assigns) do
+    assigns =
+      assign(assigns,
+        index: Player.scoring_index(assigns.p),
+        black: Enum.count(Player.pot_chips(assigns.p), &match?({:black, _}, &1))
+      )
+
     ~H"""
     <span
-      class="flex w-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-4 font-semibold tabular-nums max-sm:gap-x-1"
-      data-role="player-stats"
+      class="flex h-[1.125rem] w-full min-w-0 items-end justify-between gap-1 font-hand leading-none font-bold tabular-nums"
+      data-role="player-score"
     >
-      <span class="flex items-center gap-px font-hand text-[15px] font-bold" data-role="player-vp">
-        <.piece_icon name={:vp} class="size-3.5 text-gold" /><.card_count
+      <b
+        class="text-lg leading-none text-parchment-light"
+        title="Pot space (coins)"
+        data-role="player-space"
+        data-index={@index}
+      >
+        {PotTrack.at(@index).coins}<span class="sr-only"> pot space</span>
+      </b>
+      <span class="flex items-center gap-px text-[15px] text-gold" title="VP" data-role="player-vp">
+        <.piece_icon name={:vp} class="size-3 text-gold" /><.card_count
           value={@p.vp}
           tick={@ticks && @ticks[:vp]}
         />
         <span class="sr-only">VP</span>
       </span>
-      <span
-        class="flex items-center gap-px font-hand text-[15px] font-bold"
-        title="Rubies"
-        data-role="player-rubies"
-      >
-        <.piece_icon name={:ruby} class="size-3 text-ruby-light" /><.card_count
+    </span>
+    <span
+      class="flex h-3.5 w-full min-w-0 flex-wrap items-center gap-x-1.5 overflow-hidden text-[11px] leading-3.5 font-semibold tabular-nums"
+      data-role="player-stats"
+    >
+      <span class="flex items-center gap-px" title="Rubies" data-role="player-rubies">
+        <.piece_icon name={:ruby} class="size-2.5 text-ruby-light" /><.card_count
           value={@p.rubies}
           tick={@ticks && @ticks[:rubies]}
         />
         <span class="sr-only">rubies</span>
+      </span>
+      <span class="flex items-center gap-0.5" title="Black chips in the pot" data-role="player-black">
+        <span class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver" aria-hidden="true" />{@black}
+        <span class="sr-only">black chips in the pot</span>
       </span>
       <span
         class="flex items-center"
@@ -1828,7 +1934,7 @@ defmodule QuacksWeb.GameComponents do
       >
         <.piece_icon
           name={:flask}
-          class={["size-3.5", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
+          class={["size-3", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
         />
         <span class="sr-only">flask {flask_word(@p.flask)}</span>
       </span>
@@ -1838,7 +1944,7 @@ defmodule QuacksWeb.GameComponents do
         title="Rat tails"
         data-role="player-rats"
       >
-        <.piece_icon name={:rat} class="size-3.5 text-parchment-dim" />{@p.rat_stone}
+        <.piece_icon name={:rat} class="size-3 text-parchment-dim" />{@p.rat_stone}
         <span class="sr-only">rat tails</span>
       </span>
       <span
@@ -1861,18 +1967,14 @@ defmodule QuacksWeb.GameComponents do
       </span>
       <span
         :if={@p.patient}
-        class="ml-auto grid size-4 place-items-center rounded-full bg-parchment text-ink"
+        class="grid size-4 place-items-center rounded-full bg-parchment text-ink"
         title={Alchemists.get(@p.patient).name}
         data-role="player-patient"
       >
         <.patient_icon id={@p.patient} class="size-3" />
         <span class="sr-only">patient {Alchemists.get(@p.patient).name}</span>
       </span>
-      <span
-        :if={@game.witches && !@p.patient}
-        class="ml-auto flex -space-x-1"
-        data-role="player-pennies"
-      >
+      <span :if={@game.witches && !@p.patient} class="flex -space-x-1" data-role="player-pennies">
         <.piece_icon
           :for={colour <- [:copper, :silver, :gold]}
           name={:penny}
@@ -1893,10 +1995,44 @@ defmodule QuacksWeb.GameComponents do
   # The status graphic (see `seat_state/2`): a steam wisp while brewing, a lid once
   # stopped, a burst after an explosion, three dots while choosing, a tick when
   # ready. No word on screen: the word is for screen readers only. Everyone shops at
-  # once, so the shop shows nothing.
+  # once, so the shop shows nothing. On a tile (`tile`, round 27, design B): nothing
+  # while brewing, a check once stopped and a large red burst after an explosion.
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :class, :any, default: nil
+  attr :tile, :boolean, default: false
+  attr :graphic, :atom, default: nil, doc: "a graphic in place of the state's own"
+
+  defp player_state(%{tile: true} = assigns) do
+    assigns = assign(assigns, state: seat_state(assigns.game, assigns.seat))
+
+    ~H"""
+    <span
+      :if={@state == "exploded"}
+      class={["grid size-5 shrink-0 place-items-center", @class]}
+      title={@state}
+      data-role="player-state"
+      data-state={@state}
+    >
+      <svg viewBox="0 0 24 24" class="size-5" aria-hidden="true">
+        <path
+          d="M12 1l2.6 6.2 6.4-2.6-2.9 6.1L24 13l-6.4 1.6 2 6.4-5.7-3.4L12 23l-1.9-5.4-5.7 3.4 2-6.4L0 13l5.9-2.3L3 4.6l6.4 2.6z"
+          fill="var(--color-ruby)"
+          stroke="#ffd25a"
+          stroke-width="1.2"
+        />
+      </svg>
+      <span class="sr-only">{@state}</span>
+    </span>
+    <.player_state
+      :if={@state not in ["exploded", "brewing"]}
+      game={@game}
+      seat={@seat}
+      class={@class}
+      graphic={if(@state == "stopped", do: :tick)}
+    />
+    """
+  end
 
   defp player_state(assigns) do
     assigns = assign(assigns, state: seat_state(assigns.game, assigns.seat))
@@ -1923,7 +2059,7 @@ defmodule QuacksWeb.GameComponents do
         stroke-linecap="round"
         stroke-linejoin="round"
       >
-        <%= case state_graphic(@state) do %>
+        <%= case @graphic || state_graphic(@state) do %>
           <% :steam -> %>
             <path d="M5 14c-1.6-1.8 1.6-2.7 0-4.5S6.6 6.8 5 5M8.5 13c-1.6-1.8 1.6-2.7 0-4.5S10.1 5.8 8.5 4M12 14c-1.6-1.8 1.6-2.7 0-4.5" />
           <% :lid -> %>
@@ -2368,7 +2504,7 @@ defmodule QuacksWeb.GameComponents do
   defp rule_label({:fortune, false}), do: "no Fortune Teller cards"
   defp rule_label({:rats, false}), do: "no rats"
   defp rule_label({:black_solo, :droplet_ruby}), do: "solo black pays a ruby"
-  defp rule_label({:black_rule, :neighbours}), do: "black chips by neighbours"
+  defp rule_label({:black_rule, :standings}), do: "black chips by standings"
   defp rule_label({:die, :no_orange}), do: "die: ruby instead of orange"
   defp rule_label({:supply, :limited}), do: "limited chip supply"
   defp rule_label({:pot_side, :back}), do: "reverse pot side (test tubes)"

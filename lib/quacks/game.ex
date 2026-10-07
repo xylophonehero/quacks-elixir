@@ -102,7 +102,7 @@ defmodule Quacks.Game do
     fortune: true,
     rats: true,
     black_solo: :droplet,
-    black_rule: :standings,
+    black_rule: :neighbours,
     die: :standard,
     starting_rubies: 1,
     supply: :infinite,
@@ -297,12 +297,12 @@ defmodule Quacks.Game do
         }
   @type expansion :: :herb_witches | :alchemists
   @typedoc """
-  House rules; the defaults (`default_rules/0`) are the rulebook game, except
-  `black_rule` (`:standings` by default since round 25).
+  House rules; the defaults (`default_rules/0`) are the rulebook game.
   `explode_above` is the white limit before chips and cards raise it, `black_solo`
   the solo black payout (rulebook §6.2 suggests `:droplet_ruby`), `black_rule`
-  whom black book I compares with (`:standings`, the default, ⚠️ unofficial: the
-  players ranked above; `:neighbours`, the rulebook; see `Quacks.Game.Evaluation.targets/2`), `die: :no_orange`
+  whom black book I compares with (`:neighbours`, the rulebook and the default
+  again since round 27; `:standings`, ⚠️ unofficial: the players ranked above; see
+  `Quacks.Game.Evaluation.targets/2`), `die: :no_orange`
   turns the orange face into a second ruby face (⚠️ unofficial). `supply: :infinite`
   (default) means the shop never runs out and `supply` is never counted down;
   `:limited` plays with the box's counts. `overflow: true` (default) puts chips past
