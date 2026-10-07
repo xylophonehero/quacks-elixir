@@ -346,14 +346,15 @@ defmodule QuacksWeb.LobbyLiveTest do
        %{conn: conn} do
     {:ok, id} = GameServer.start(3, {1, 2, 3})
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
-    assert has_element?(view, "#rules-black_rule-neighbours[checked]")
+    # Round 25: standings is the default.
+    assert has_element?(view, "#rules-black_rule-standings[checked]")
 
     view
     |> element("#options")
-    |> render_change(%{"rules" => %{"black_rule" => "standings", "fortune" => "false"}})
+    |> render_change(%{"rules" => %{"black_rule" => "neighbours", "fortune" => "false"}})
 
-    assert has_element?(view, "#rules-black_rule-standings[checked]")
-    assert {:ok, %{rules: %{black_rule: :standings}}} = GameServer.get(id)
+    assert has_element?(view, "#rules-black_rule-neighbours[checked]")
+    assert {:ok, %{rules: %{black_rule: :neighbours}}} = GameServer.get(id)
 
     assert QuacksWeb.SetupComponents.parse_rules(%{"black_rule" => "standings"}).black_rule ==
              :standings
@@ -364,7 +365,7 @@ defmodule QuacksWeb.LobbyLiveTest do
 
     render_click(view, "players", %{"count" => "1"})
     view |> element("button", "Start game") |> render_click()
-    assert has_element?(view, "[data-role=house-rules]", "black chips by standings")
+    assert has_element?(view, "[data-role=house-rules]", "black chips by neighbours")
   end
 
   # The book each colour's tile shows now: "1".."6", or "off".
