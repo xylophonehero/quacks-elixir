@@ -1139,6 +1139,21 @@ and saves each change; the form's own `phx-change` tells the server. With reduce
 motion the server forces Step and runs no timer. app.js also sets `--beat-ms` before
 LiveView connects, so a reload plays the beats at the saved speed.
 
+### The evaluation on the tiles (round 27, experimental branch)
+
+On the branch `round-27-eval` the menu's reveal settings have a third row,
+**Results**: Overlay (the default) or **On tiles** (`quacks:reveal` keeps `show`).
+On tiles, the results' reveal plays only its scoring steps (`TileReveal.slides/1`:
+the bonus die, the books, the scoring space) and no dialog opens. The same
+`%{slides, index}` state and Auto ticks run it; a step lasts 5 beats
+(`TileReveal.duration/1`, `--beat-ms`). A pill over the pot's top edge names the
+step (`tile_stage/1`) with Next (Step mode) and Skip. Each tile shows its seat's
+badge for the step (`tile_gains/1`: the book's ingredient, VP, rubies, droplet),
+which folds into the tile's counters; the counters show the running totals
+(`TileReveal.totals/3`) and count up from the old value (`.tile-count`). The die
+face stays by the crown until the next round; in the shop the bought chips and the
+droplet pushes show on the tile (`TileReveal.shop/2`, from the log).
+
 ### `PotMotion`: animate on top of the patch
 
 Some motion needs a path or a measured target: a ruby flies from a chip to the

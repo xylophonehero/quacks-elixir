@@ -841,6 +841,11 @@ defmodule QuacksWeb.RevealComponents do
   attr :speed, :atom, required: true, values: Reveal.speeds()
   attr :reduced, :boolean, default: false
 
+  attr :show, :atom,
+    default: :overlay,
+    values: [:overlay, :tiles],
+    doc: "round 27 (experimental): the results in the overlay, or played on the tiles"
+
   def reveal_settings(assigns) do
     ~H"""
     <form
@@ -863,6 +868,12 @@ defmodule QuacksWeb.RevealComponents do
         legend="Speed"
         value={@speed}
         options={[normal: "Normal", slow: "Slow", slower: "Slower"]}
+      />
+      <.segments
+        name="show"
+        legend="Results"
+        value={@show}
+        options={[overlay: "Overlay", tiles: "On tiles"]}
       />
     </form>
     """

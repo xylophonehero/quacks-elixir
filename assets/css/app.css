@@ -2646,3 +2646,50 @@ html:active-view-transition-type(card) .card-caption {
 .player-tile.tile-lead {
   box-shadow: 0 0 0 1.5px var(--color-gold), 0 0 10px rgb(224 178 60 / 0.45);
 }
+
+/* Round 27 (experimental, `TileRevealComponents`): the evaluation on the tiles. A
+   step's badge pops in, holds, then folds up into the tile's counters; a new
+   total pops; a die face, a bought chip or a droplet push pops in and stays. One
+   step is 5 beats (`TileReveal.duration/1`). */
+@keyframes tile-gain {
+  0% { opacity: 0; transform: translateY(6px) scale(0.6); }
+  12% { opacity: 1; transform: scale(1.08); }
+  20% { transform: none; }
+  72% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translate(20%, -22px) scale(0.5); }
+}
+.tile-gain {
+  animation: tile-gain calc(var(--beat-ms, 450) * 5ms) var(--ease-out, ease-out) both;
+}
+@keyframes tile-gain-stay {
+  0% { opacity: 0; transform: translateY(6px) scale(0.6); }
+  60% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: none; }
+}
+.tile-gain-stay { animation: tile-gain-stay calc(var(--beat-ms, 450) * 1ms) ease-out both; }
+@keyframes tile-gain-in {
+  0% { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+  60% { opacity: 1; transform: scale(1.15) rotate(4deg); }
+  100% { opacity: 1; transform: none; }
+}
+.tile-gain-in { animation: tile-gain-in calc(var(--beat-ms, 450) * 1.5ms) ease-out both; }
+/* A total counts from the step's old value (`--from`) to the new one (`--n`, the
+   `@property` of the stats strip) as the badge folds in, after 3.5 beats. */
+@keyframes tile-count {
+  from { --n: var(--from); }
+}
+@keyframes tile-pop {
+  50% { scale: 1.35; color: var(--color-parchment-light); text-shadow: 0 0 8px var(--color-gold); }
+}
+.tile-count {
+  display: inline-block;
+  counter-reset: n var(--n);
+  animation:
+    tile-count calc(var(--beat-ms, 450) * 1ms) ease-out calc(var(--beat-ms, 450) * 3.5ms) backwards,
+    tile-pop calc(var(--beat-ms, 450) * 1ms) ease-out calc(var(--beat-ms, 450) * 4ms);
+}
+.tile-count::after { content: counter(n); }
+@media (prefers-reduced-motion: reduce) {
+  .tile-gain, .tile-gain-stay, .tile-gain-in, .tile-count { animation: none; }
+  .tile-gain { opacity: 1; }
+}

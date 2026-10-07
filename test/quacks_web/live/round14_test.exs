@@ -197,7 +197,7 @@ defmodule QuacksWeb.Round14Test do
       js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
       assert js =~ ~s{localStorage.setItem("quacks:reveal"}
       assert js =~ ~s{style.setProperty("--beat-ms"}
-      assert js =~ ~S|this.pushEvent("reveal_settings", {mode, speed, reduced: reduced()})|
+      assert js =~ ~S|this.pushEvent("reveal_settings", {mode, speed, show, reduced: reduced()})|
     end
   end
 

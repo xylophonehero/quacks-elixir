@@ -102,11 +102,12 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.AlchemistsComponents
   import QuacksWeb.BugReportComponents
   import QuacksWeb.RevealComponents
+  import QuacksWeb.TileRevealComponents
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Fortune
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
-  alias QuacksWeb.{Replay, Reveal}
+  alias QuacksWeb.{Replay, Reveal, TileReveal}
 
   # The colours with an ingredient book (white has none), for `offer_books/1`.
   @book_colours Chips.order() -- [:white]
@@ -147,6 +148,7 @@ defmodule QuacksWeb.GameLive do
            result_closed: false,
            reveal_mode: :step,
            reveal_speed: :normal,
+           reveal_show: :overlay,
            reduced: false
          )
          |> new_report()
@@ -438,11 +440,23 @@ defmodule QuacksWeb.GameLive do
     mode = if params["mode"] == "auto" and not reduced, do: :auto, else: :step
     speed = Enum.find(Reveal.speeds(), :normal, &(Atom.to_string(&1) == params["speed"]))
 
-    socket = assign(socket, reveal_mode: mode, reveal_speed: speed, reduced: reduced)
+    show = if params["show"] == "tiles", do: :tiles, else: :overlay
+
+    socket =
+      assign(socket, reveal_mode: mode, reveal_speed: speed, reveal_show: show, reduced: reduced)
 
     case socket.assigns.reveal do
-      %{index: index} -> {:noreply, show_slide(socket, index)}
-      nil -> {:noreply, socket}
+      # Round 27: the settings come after mount, so the results' reveal starts again
+      # where the Results setting says (the overlay or the tiles).
+      %{key: {:results, _} = key} = reveal when reveal.tiles != (show == :tiles) ->
+        slides = Reveal.slides(socket.assigns.game, socket.assigns.seat)
+        {:noreply, socket |> assign(reveal: nil) |> start_reveal(key, slides)}
+
+      %{index: index} ->
+        {:noreply, show_slide(socket, index)}
+
+      nil ->
+        {:noreply, socket}
     end
   end
 
@@ -1064,8 +1078,17 @@ defmodule QuacksWeb.GameLive do
               row={row}
               col={col}
               updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
-              ticks={replaying?(@game, @seen)}
-            />
+              ticks={replaying?(@game, @seen) and not tiles_playing?(@reveal)}
+              totals={tiles_playing?(@reveal) && tile_totals(@game, @reveal)[seat]}
+            >
+              <.tile_gains
+                :if={@reveal_show == :tiles}
+                game={@game}
+                seat={seat}
+                reveal={@reveal}
+                mode={@reveal_mode}
+              />
+            </.player_chip>
           </nav>
           <%!-- Round 16: the rat track, a fixed height while the rats rule is on. --%>
           <.rat_track
@@ -1104,6 +1127,7 @@ defmodule QuacksWeb.GameLive do
                What comes and goes here is absolute, so the square never changes. --%>
           <div class="pot-box flex min-h-0 flex-1 items-start justify-center lg:items-center">
             <div class="pot-square pot-hearth relative" data-role="pot-area">
+              <.tile_stage :if={tiles_playing?(@reveal)} reveal={@reveal} mode={@reveal_mode} />
               <.pot
                 game={@game}
                 seat={@seat || 0}
@@ -1719,7 +1743,12 @@ defmodule QuacksWeb.GameLive do
             </.sheet_button>
             <.fullscreen_button id="fullscreen-menu" />
           </div>
-          <.reveal_settings mode={@reveal_mode} speed={@reveal_speed} reduced={@reduced} />
+          <.reveal_settings
+            mode={@reveal_mode}
+            speed={@reveal_speed}
+            show={@reveal_show}
+            reduced={@reduced}
+          />
           <p>
             Seed
             <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>
@@ -1796,7 +1825,7 @@ defmodule QuacksWeb.GameLive do
         data-role="card-tap"
       />
       <.reveal_overlay
-        :if={@reveal && not @reveal.held}
+        :if={@reveal && not @reveal.held && not @reveal[:tiles]}
         reveal={@reveal}
         names={@names}
         seat={@seat}
@@ -2911,11 +2940,19 @@ defmodule QuacksWeb.GameLive do
   defp start_reveal(socket, _key, []), do: socket
 
   defp start_reveal(socket, key, slides) do
+    # Round 27 (experimental): "On tiles" plays the results' scoring steps on the
+    # player tiles (`QuacksWeb.TileReveal`); no step to play, the overlay as before.
+    tiles =
+      if socket.assigns.reveal_show == :tiles and match?({:results, _}, key),
+        do: TileReveal.slides(slides),
+        else: []
+
     socket
     |> assign(
       reveal: %{
         key: key,
-        slides: slides,
+        slides: if(tiles == [], do: slides, else: tiles),
+        tiles: tiles != [],
         index: 0,
         tick: nil,
         settled: true,
@@ -2960,7 +2997,8 @@ defmodule QuacksWeb.GameLive do
     settle = if slide.kind == :standings and connected?(socket), do: make_ref()
 
     if tick do
-      ms = Reveal.duration(slide, Reveal.factor(assigns.reveal_speed))
+      ms = slide_ms(reveal, slide, assigns.reveal_speed)
+
       Process.send_after(self(), {:reveal_tick, tick}, ms)
     end
 
@@ -3096,6 +3134,24 @@ defmodule QuacksWeb.GameLive do
 
   # The update chips of the round still play (this seat has not seen them).
   defp replaying?(game, seen), do: results?(game) and not seen?(seen, :results, game)
+
+  # A slide's time in Auto mode; on the tiles a step is a few beats (round 27).
+  defp slide_ms(%{tiles: true}, _slide, speed), do: TileReveal.duration(speed)
+  defp slide_ms(_reveal, slide, speed), do: Reveal.duration(slide, Reveal.factor(speed))
+
+  # Round 27 (experimental): the evaluation plays on the tiles (`TileReveal`).
+  defp tiles_playing?(reveal), do: match?(%{tiles: true}, reveal)
+
+  # `{vp, rubies, vp_before, rubies_before}` per seat: after this step and before it.
+  defp tile_totals(game, %{slides: slides, index: index}) do
+    now = TileReveal.totals(game, slides, index)
+    before = TileReveal.totals(game, slides, index - 1)
+
+    Map.new(now, fn {s, {vp, rubies}} ->
+      {vp0, rubies0} = before[s]
+      {s, {vp, rubies, vp0, rubies0}}
+    end)
+  end
 
   # Auto mode: the shown slide's time (the overlay's timer bar), else nil.
   defp reveal_ms(%{slides: slides, index: index}, :auto, speed),

@@ -78,18 +78,18 @@ const setBeat = speed => document.documentElement.style.setProperty("--beat-ms",
 setBeat(loadReveal().speed)
 const RevealSettings = {
   mounted() {
-    const send = ({mode, speed}) => {
+    const send = ({mode, speed, show}) => {
       setBeat(speed)
-      this.pushEvent("reveal_settings", {mode, speed, reduced: reduced()})
+      this.pushEvent("reveal_settings", {mode, speed, show, reduced: reduced()})
     }
     this.el.addEventListener("change", () => {
       const form = new FormData(this.el)
-      const settings = {mode: form.get("mode") || "step", speed: form.get("speed") || "normal"}
+      const settings = {mode: form.get("mode") || "step", speed: form.get("speed") || "normal", show: form.get("show") || "overlay"}
       try { localStorage.setItem("quacks:reveal", JSON.stringify(settings)) } catch (_e) {}
       setBeat(settings.speed)
     })
     const saved = loadReveal()
-    send({mode: saved.mode || "step", speed: saved.speed || "normal"})
+    send({mode: saved.mode || "step", speed: saved.speed || "normal", show: saved.show || "overlay"})
   }
 }
 

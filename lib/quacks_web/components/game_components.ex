@@ -1686,6 +1686,11 @@ defmodule QuacksWeb.GameComponents do
     default: false,
     doc: "while the replay runs: the counters tick on their beats"
 
+  attr :totals, :any,
+    default: nil,
+    doc:
+      "`{vp, rubies, vp_before, rubies_before}` in place of the seat's own, while the evaluation plays on the tiles"
+
   slot :inner_block, doc: "extra badges on the tile (the evaluation on the tiles)"
 
   def player_chip(assigns) do
@@ -1767,7 +1772,13 @@ defmodule QuacksWeb.GameComponents do
           />
         </span>
       </span>
-      <.chip_stats game={@game} p={@p} ticks={@ticks && card_ticks(@game, @seat, @updates)} />
+      <.chip_stats
+        game={@game}
+        seat={@seat}
+        p={@p}
+        ticks={@ticks && card_ticks(@game, @seat, @updates)}
+        totals={@totals}
+      />
       <.player_state game={@game} seat={@seat} tile class="absolute -top-1.5 -right-1.5" />
       {render_slot(@inner_block)}
     </button>
@@ -1878,6 +1889,12 @@ defmodule QuacksWeb.GameComponents do
   attr :p, Player, required: true
   attr :ticks, :any, default: nil, doc: "`%{vp: {beat, from}, rubies: {beat, from}}`"
 
+  attr :totals, :any,
+    default: nil,
+    doc: "`{vp, rubies, vp_from, rubies_from}`, see `player_chip/1`"
+
+  attr :seat, :integer, default: nil
+
   # The tile's lines 2 and 3: the pot space (its coins, large) and VP; rubies, the
   # black chips in the pot, then the flask (full or empty), this round's rat tails (rats
   # on), essence (The Alchemists), the test tube (reverse pot side), the patient or
@@ -1887,7 +1904,8 @@ defmodule QuacksWeb.GameComponents do
     assigns =
       assign(assigns,
         index: Player.scoring_index(assigns.p),
-        black: Enum.count(Player.pot_chips(assigns.p), &match?({:black, _}, &1))
+        black: Enum.count(Player.pot_chips(assigns.p), &match?({:black, _}, &1)),
+        p_seat: assigns[:seat]
       )
 
     ~H"""
@@ -1905,9 +1923,15 @@ defmodule QuacksWeb.GameComponents do
       </b>
       <span class="flex items-center gap-px text-[15px] text-gold" title="VP" data-role="player-vp">
         <.piece_icon name={:vp} class="size-3 text-gold" /><.card_count
+          :if={!@totals}
           value={@p.vp}
           tick={@ticks && @ticks[:vp]}
-        />
+        /><span
+          :if={@totals}
+          id={"tile-vp-#{@p_seat}-#{elem(@totals, 0)}"}
+          class="tile-count"
+          style={"--n: #{elem(@totals, 0)}; --from: #{elem(@totals, 2)}"}
+        ><span class="sr-only">{elem(@totals, 0)}</span></span>
         <span class="sr-only">VP</span>
       </span>
     </span>
@@ -1917,9 +1941,15 @@ defmodule QuacksWeb.GameComponents do
     >
       <span class="flex items-center gap-px" title="Rubies" data-role="player-rubies">
         <.piece_icon name={:ruby} class="size-2.5 text-ruby-light" /><.card_count
+          :if={!@totals}
           value={@p.rubies}
           tick={@ticks && @ticks[:rubies]}
-        />
+        /><span
+          :if={@totals}
+          id={"tile-rubies-#{@p_seat}-#{elem(@totals, 1)}"}
+          class="tile-count"
+          style={"--n: #{elem(@totals, 1)}; --from: #{elem(@totals, 3)}"}
+        ><span class="sr-only">{elem(@totals, 1)}</span></span>
         <span class="sr-only">rubies</span>
       </span>
       <span class="flex items-center gap-0.5" title="Black chips in the pot" data-role="player-black">
