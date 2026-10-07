@@ -8,6 +8,7 @@ defmodule Quacks.PatientPicksTest do
 
   alias Quacks.{Game, GameServer, GameStore, Session}
   alias Quacks.Game.Essence
+  alias Quacks.Rules.Alchemists
 
   @seed {7, 8, 9}
 
@@ -59,7 +60,7 @@ defmodule Quacks.PatientPicksTest do
     end
 
     test "a patient that is not dealt, or a seat that is not there, raises" do
-      [missing | _] = Quacks.Rules.Alchemists.patients() -- Essence.dealt(@seed)
+      [missing | _] = Alchemists.patients() -- Essence.dealt(@seed)
       assert_raise ArgumentError, fn -> new(patients: %{0 => missing}) end
       assert_raise ArgumentError, fn -> new(patients: %{5 => :random}) end
     end
@@ -146,7 +147,7 @@ defmodule Quacks.PatientPicksTest do
 
       assert GameServer.pick_patient(id, 1, b) == :ok
       assert GameServer.pick_patient(id, 2, b) == {:error, :invalid}
-      missing = hd(Quacks.Rules.Alchemists.patients() -- table.patients)
+      missing = hd(Alchemists.patients() -- table.patients)
       assert GameServer.pick_patient(id, 1, missing) == {:error, :invalid}
 
       {:ok, game} = GameServer.begin(id, "ann")
@@ -155,7 +156,7 @@ defmodule Quacks.PatientPicksTest do
     end
 
     test "a pick for a patient the seed does not deal is Random" do
-      [missing | _] = Quacks.Rules.Alchemists.patients() -- Essence.dealt(@seed)
+      [missing | _] = Alchemists.patients() -- Essence.dealt(@seed)
 
       {:ok, id} =
         GameServer.create(
