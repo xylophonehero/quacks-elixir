@@ -717,7 +717,7 @@ defmodule QuacksWeb.SetupComponents do
         aria-pressed={to_string(colour == @mine)}
         data-colour={colour}
         class={[
-          "hit-44 size-8 shrink-0 cursor-pointer rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
+          "hit-44 aspect-square max-w-8 min-w-0 flex-1 cursor-pointer rounded-full shadow-[inset_0_0_0_1px_rgb(0_0_0/0.25)] transition-transform duration-150 ease-out active:scale-90 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100",
           palette_bg(colour),
           colour == @mine && "ring-2 ring-ink ring-offset-2 ring-offset-parchment-light"
         ]}

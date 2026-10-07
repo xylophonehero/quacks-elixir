@@ -12,11 +12,11 @@ defmodule QuacksWeb.LobbyLive do
     * `players` (`#page-players`): the player count, the seats (you, open seats,
       bots), your name and colour, the Public toggle; Next.
     * `expansions` (`#page-expansions`): The Herb Witches, The Alchemists and the
-      reverse pot side as three cards, the House rules and Ingredient books
-      buttons and the Start bar (`#new-game`).
+      reverse pot side as three cards, then the House rules row (`#to-rules`).
     * `rules` (`#page-rules`): the house rules.
-    * `books` (`#page-books`): the presets row (`Quacks.Rules.BookPresets`, plus
-      Random), the herb witch tiles and the book tiles. A tile opens its colour's
+    * `books` (`#page-books`): the herb witch tiles, the book tiles and, at the
+      foot, the presets row (`#presets-block`: `Quacks.Rules.BookPresets`, plus
+      Random). A tile opens its colour's
       page: `book` (`#page-book-green`, `?step=book&colour=green`) or `witch`
       (`#page-witch-copper`), the full cards; a pick goes back to `books`.
 
@@ -68,11 +68,12 @@ defmodule QuacksWeb.LobbyLive do
   @max_players 8
 
   # Each step's parent page and its depth in the book (home is the root). Round 23:
-  # the New game page opens Expansions, House rules and Ingredient books.
+  # the New game page opens Expansions and Ingredient books; round 25: Expansions
+  # opens House rules.
   @parents %{
     "players" => "home",
     "expansions" => "players",
-    "rules" => "players",
+    "rules" => "expansions",
     "books" => "players",
     "book" => "books",
     "witch" => "books"
@@ -81,7 +82,7 @@ defmodule QuacksWeb.LobbyLive do
     "home" => 0,
     "players" => 1,
     "expansions" => 2,
-    "rules" => 2,
+    "rules" => 3,
     "books" => 2,
     "book" => 3,
     "witch" => 3
@@ -752,22 +753,13 @@ defmodule QuacksWeb.LobbyLive do
 
       <nav class="mt-4 grid gap-2 pb-2" aria-label="More settings">
         <.page_link
-          id="to-rules"
-          step="rules"
-          icon="hero-scale"
-          title="House rules"
-          summary={rules_summary(@rules)}
-          summary_role="rules-summary"
-          open={@step == "rules"}
-        />
-        <.page_link
           id="to-expansions"
           step="expansions"
           icon="hero-puzzle-piece"
           title="Expansions"
           summary={expansions_summary(assigns)}
           summary_role="expansions-summary"
-          open={@step in ~w(players expansions)}
+          open={@step in ~w(players expansions rules)}
         />
         <.page_link
           id="to-books"
@@ -783,7 +775,8 @@ defmodule QuacksWeb.LobbyLive do
     """
   end
 
-  # The three expansion rows (Herb Witches, The Alchemists, the pot's back side).
+  # The three expansion rows (Herb Witches, The Alchemists, the pot's back side), then
+  # the House rules row.
   defp expansions_page(assigns) do
     ~H"""
     <.book_page
@@ -799,6 +792,19 @@ defmodule QuacksWeb.LobbyLive do
         pot_side={@rules.pot_side}
         heading={false}
       />
+      <%!-- Round 25: the House rules row lives here, under the expansions, not on
+           the New game page. --%>
+      <nav class="mt-4 grid gap-2" aria-label="House rules">
+        <.page_link
+          id="to-rules"
+          step="rules"
+          icon="hero-scale"
+          title="House rules"
+          summary={rules_summary(@rules)}
+          summary_role="rules-summary"
+          open={@step == "rules"}
+        />
+      </nav>
     </.book_page>
     """
   end
@@ -893,7 +899,8 @@ defmodule QuacksWeb.LobbyLive do
     """
   end
 
-  # The presets row, then the witch and book tiles; a tile opens its colour's page.
+  # The witch and book tiles (a tile opens its colour's page), then the presets row
+  # at the foot of the page (round 25).
   defp books_page(assigns) do
     assigns =
       assign(assigns,
@@ -909,17 +916,31 @@ defmodule QuacksWeb.LobbyLive do
       side={:right}
       title="Ingredient books"
     >
-      <div class="book-rule">
+      <div>
+        <.books_form
+          sets={@sets}
+          expansion={@expansion}
+          alchemists={@alchemists}
+          pot_side={@rules.pot_side}
+          players={@players}
+          witches={@witches}
+          expansion_cards={false}
+          heading={false}
+          patch={&tile_path/1}
+        />
+      </div>
+
+      <div id="presets-block" class="mt-4 border-t border-ink/15 pt-3" data-role="presets-block">
         <p class="text-sm">
           <span class="font-semibold">Preset:</span>
           <span data-role="preset-label">{preset_label(assigns)}</span>
         </p>
         <ul
           id="presets"
-          class="-mx-1 mt-2 flex snap-x gap-2 overflow-x-auto px-1 pb-1"
+          class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3"
           aria-label="Presets"
         >
-          <li :for={preset <- @presets} class="snap-start">
+          <li :for={preset <- @presets}>
             <button
               id={"preset-#{preset.id}"}
               type="button"
@@ -941,7 +962,7 @@ defmodule QuacksWeb.LobbyLive do
               </span>
             </button>
           </li>
-          <li class="snap-start">
+          <li>
             <button
               id="preset-random"
               type="button"
@@ -959,20 +980,6 @@ defmodule QuacksWeb.LobbyLive do
             </button>
           </li>
         </ul>
-      </div>
-
-      <div class="mt-3">
-        <.books_form
-          sets={@sets}
-          expansion={@expansion}
-          alchemists={@alchemists}
-          pot_side={@rules.pot_side}
-          players={@players}
-          witches={@witches}
-          expansion_cards={false}
-          heading={false}
-          patch={&tile_path/1}
-        />
       </div>
     </.book_page>
     """

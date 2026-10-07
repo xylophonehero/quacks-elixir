@@ -577,6 +577,17 @@ Witches · test tubes", the preset or Custom). Expansions, House rules and Ingre
 books are children of New game; a colour or witch page is a child of Ingredient
 books. The Expansions page has only the three expansion rows.
 
+**Round 25.** The House rules row moved to the Expansions page, under the three
+expansion rows ("hidden a bit"); House rules is now a child of Expansions (Back
+goes there) and New game has two rows. The presets moved to the foot of the
+Ingredient books page (`#presets-block`, below the colour rows), as a two-column
+grid (three from 40rem) instead of a horizontal scroll. The bar fits a 360 px
+phone: `.flow-bar` has one `minmax(0, 1fr)` column, so the summary line truncates
+with an ellipsis and Back + Start keep the bar's width (before, the grid's `auto`
+column took the summary's full width and pushed Start off the right edge).
+`.page-link` has `min-width: 0` for the same reason, and the colour swatches
+shrink (`flex-1 max-w-8`) so 8 fit.
+
 Every page of the flow ends in one bar, `flow_bar/1` (`#flow-bar`): the setup in a
 line ("3 players · 2 bots · Herb Witches · private") and whether Start opens the
 table or begins the game, then **Back** (secondary, `.flow-back`) and **Start**
@@ -598,7 +609,7 @@ code over New game on the left, the list on the right. Below 64rem the
 expansion cards are a list of full-width rows (icon, title, blurb, switch); from
 64rem they are three cards.
 `.start-button` and `.flow-button` are ink buttons in the display font with a gold
-hairline inside. The presets row is a horizontal scroll of `.preset-card` buttons;
+hairline inside. The presets are a grid of `.preset-card` buttons;
 `aria-pressed` marks the preset that matches the books
 (`Quacks.Rules.BookPresets.match/1`) or Random's last roll.
 
@@ -1028,6 +1039,11 @@ Space) shrinks it again, the same way. A new round clears the flag
 (`same_round?/2` in `put_game/2`). The text sheet is in the menu now, "Fortune
 teller" (`data-role="menu-fortune"`). From 64rem the context column still shows
 the card as before; the grown card shows there too (`pot-card-reveal`).
+
+**Round 25: grow back without the flip.** The big card over the pot renders with
+`flip` (`.card-flip`, the back turning to the front) only for a new card. The grown
+corner card renders the plain face (`flip={!@card_grown}`), so the card transition
+alone plays: the shrink run backwards, small to big over the pot.
 
 **Round 22: the end in one flow.** `{:final, 9}` has three slides: `:final` (coins,
 rubies, pennies), `:standings` (from before the final scoring to the end) and

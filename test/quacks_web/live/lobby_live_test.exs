@@ -24,16 +24,16 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert has_element?(view, "#page-home #new-game-flow[href='/?step=players']", "New game")
     assert has_element?(view, "#page-players.hidden")
 
-    # New game: count, seats, you, Public, then House rules, Expansions and
-    # Ingredient books, each with a line on the current choice.
+    # New game: count, seats, you, Public, then Expansions and Ingredient books,
+    # each with a line on the current choice. Round 25: no House rules row here.
     assert has_element?(view, "#page-players [data-role=count]", "2")
     assert has_element?(view, "#page-players #seat-name")
     assert has_element?(view, "#page-players [data-role=colour-picker]")
     assert has_element?(view, "#page-players #public[checked]")
-    assert has_element?(view, "#page-players #to-rules", "As in the rulebook")
+    refute has_element?(view, "#page-players #to-rules")
     assert has_element?(view, "#page-players #to-expansions", "Base game")
     assert has_element?(view, "#page-players #to-books", "Beginner (Set 1)")
-    # Expansions: the three rows only.
+    # Expansions: the three rows, then the House rules row (round 25).
     assert has_element?(
              view,
              "#page-expansions [data-role=expansion-cards] [data-role=toggle-card]"
@@ -41,7 +41,7 @@ defmodule QuacksWeb.LobbyLiveTest do
 
     assert has_element?(view, "#page-expansions #expansion[form=books]")
     assert has_element?(view, "#page-expansions #rules-pot_side[form=options]")
-    refute has_element?(view, "#page-expansions #to-rules")
+    assert has_element?(view, "#page-expansions #to-rules", "As in the rulebook")
     refute has_element?(view, "#page-expansions #to-books")
     # One bar for the flow, under the pages, hidden on the Games page.
     assert has_element?(view, "#flow-bar[hidden] #new-game", "Start")
@@ -71,7 +71,7 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert_patch(view, ~p"/?step=expansions")
     assert has_element?(view, "#page-expansions.flex")
 
-    {:ok, view, _html} = live(conn, ~p"/?step=players")
+    {:ok, view, _html} = live(conn, ~p"/?step=expansions")
     view |> element("#to-rules") |> render_click()
     assert_patch(view, ~p"/?step=rules")
     assert has_element?(view, "#page-rules.flex")
@@ -151,9 +151,10 @@ defmodule QuacksWeb.LobbyLiveTest do
     refute has_element?(view, "[data-role=preset][aria-pressed=true]")
 
     # A preset turns on the expansion it needs.
-    view |> element("#preset-alchemists") |> render_click()
-    assert has_element?(view, "#alchemists[checked]")
-    assert books(view)["locoweed"] == "4"
+    view |> element("#preset-strategic") |> render_click()
+    assert has_element?(view, "#expansion[checked]")
+    assert books(view)["green"] == "5"
+    assert books(view)["purple"] == "4"
 
     # The saved config brings the preset back.
     render_hook(view, "load_config", %{
