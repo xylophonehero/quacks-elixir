@@ -24,13 +24,16 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert has_element?(view, "#page-home #new-game-flow[href='/?step=players']", "New game")
     assert has_element?(view, "#page-players.hidden")
 
-    # Players: count, seats, you, Public, Next.
+    # New game: count, seats, you, Public, then House rules, Expansions and
+    # Ingredient books, each with a line on the current choice.
     assert has_element?(view, "#page-players [data-role=count]", "2")
     assert has_element?(view, "#page-players #seat-name")
     assert has_element?(view, "#page-players [data-role=colour-picker]")
     assert has_element?(view, "#page-players #public[checked]")
-    assert has_element?(view, "#page-players #to-expansions")
-    # Expansions: three cards, House rules, Ingredient books, Start.
+    assert has_element?(view, "#page-players #to-rules", "As in the rulebook")
+    assert has_element?(view, "#page-players #to-expansions", "Base game")
+    assert has_element?(view, "#page-players #to-books", "Beginner (Set 1)")
+    # Expansions: the three rows only.
     assert has_element?(
              view,
              "#page-expansions [data-role=expansion-cards] [data-role=toggle-card]"
@@ -38,9 +41,10 @@ defmodule QuacksWeb.LobbyLiveTest do
 
     assert has_element?(view, "#page-expansions #expansion[form=books]")
     assert has_element?(view, "#page-expansions #rules-pot_side[form=options]")
-    assert has_element?(view, "#page-expansions #to-rules", "As in the rulebook")
-    assert has_element?(view, "#page-expansions #to-books", "Beginner (Set 1)")
-    assert has_element?(view, "#page-expansions #new-game", "Start")
+    refute has_element?(view, "#page-expansions #to-rules")
+    refute has_element?(view, "#page-expansions #to-books")
+    # One bar for the flow, under the pages, hidden on the Games page.
+    assert has_element?(view, "#flow-bar[hidden] #new-game", "Start")
     assert has_element?(view, "#page-rules #options")
     # Books: presets, the tiles as links to the colour pages, no sheets.
     assert has_element?(view, "#page-books #preset-beginner[aria-pressed=true]")
@@ -53,7 +57,7 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert has_element?(view, "#spell-book[data-step=home]")
   end
 
-  test "New game is a flow of pages: Next, the two buttons, Back", %{conn: conn} do
+  test "New game is a flow of pages: the three rows, Back", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 
     view |> element("#new-game-flow") |> render_click()
@@ -61,22 +65,25 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert has_element?(view, "#page-players.flex")
     assert has_element?(view, "#page-home.hidden")
 
+    refute has_element?(view, "#flow-bar[hidden]")
+
     view |> element("#to-expansions") |> render_click()
     assert_patch(view, ~p"/?step=expansions")
     assert has_element?(view, "#page-expansions.flex")
 
+    {:ok, view, _html} = live(conn, ~p"/?step=players")
     view |> element("#to-rules") |> render_click()
     assert_patch(view, ~p"/?step=rules")
     assert has_element?(view, "#page-rules.flex")
 
-    # The visit began at home, so Back on a step is the browser's history.
-    assert view |> element("#page-rules [data-role=back]") |> render() =~ "quacks:back"
+    # The visit began on New game, so Back on a step is the browser's history.
+    assert view |> element("#flow-back") |> render() =~ "quacks:back"
 
-    # Opened at a deep step, Back patches to the parent page.
+    # Opened at a deep step, Back patches to the parent page: New game.
     {:ok, view, _html} = live(conn, ~p"/?step=books")
     assert has_element?(view, "#page-books.flex")
-    view |> element("#page-books [data-role=back]") |> render_click()
-    assert_patch(view, ~p"/?step=expansions")
+    view |> element("#flow-back") |> render_click()
+    assert_patch(view, ~p"/?step=players")
 
     # A bad step is home; a witch page without The Herb Witches is the books page.
     {:ok, view, _html} = live(conn, ~p"/?step=nope")

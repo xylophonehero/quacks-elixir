@@ -1235,7 +1235,7 @@ defmodule QuacksWeb.GameComponents do
       type="button"
       popovertarget="sheet-fortune"
       class={[
-        "paper card-portrait flex aspect-[5/7] w-12 rotate-3 flex-col items-center overflow-hidden rounded-md text-center touch-manipulation lg:w-20",
+        "paper card-portrait flex aspect-[5/7] w-12 max-w-full rotate-3 flex-col items-center overflow-hidden rounded-md text-center touch-manipulation lg:w-20",
         "transition-transform duration-100 ease-out active:scale-95",
         @class
       ]}

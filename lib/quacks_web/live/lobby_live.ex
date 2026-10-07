@@ -67,12 +67,13 @@ defmodule QuacksWeb.LobbyLive do
 
   @max_players 8
 
-  # Each step's parent page and its depth in the book (home is the root).
+  # Each step's parent page and its depth in the book (home is the root). Round 23:
+  # the New game page opens Expansions, House rules and Ingredient books.
   @parents %{
     "players" => "home",
     "expansions" => "players",
-    "rules" => "expansions",
-    "books" => "expansions",
+    "rules" => "players",
+    "books" => "players",
     "book" => "books",
     "witch" => "books"
   }
@@ -80,10 +81,10 @@ defmodule QuacksWeb.LobbyLive do
     "home" => 0,
     "players" => 1,
     "expansions" => 2,
-    "rules" => 3,
-    "books" => 3,
-    "book" => 4,
-    "witch" => 4
+    "rules" => 2,
+    "books" => 2,
+    "book" => 3,
+    "witch" => 3
   }
   # The round-17 `?page=` links.
   @old_pages %{"new" => "players", "books" => "books", "join" => "home"}
@@ -401,7 +402,6 @@ defmodule QuacksWeb.LobbyLive do
   attr :page, :any, required: true, doc: "`{step, colour}`"
   attr :side, :atom, required: true, values: [:left, :right]
   attr :title, :string, required: true
-  attr :back_class, :any, default: nil
   attr :class, :any, default: nil
   slot :title_icon
   slot :heading_end, doc: "at the heading's right end (the Games page's Full screen)"
@@ -426,20 +426,6 @@ defmodule QuacksWeb.LobbyLive do
       aria-labelledby={"#{@id}-title"}
     >
       <header class="book-heading flex items-center gap-2">
-        <button
-          :if={@step != "home"}
-          type="button"
-          phx-click={back(@a, @step)}
-          class={[
-            "-ml-2 grid size-11 shrink-0 cursor-pointer place-items-center rounded-full text-[#4f1a14]",
-            "transition-[background-color,scale] duration-150 ease-out hover:bg-ink/10 active:scale-90",
-            @back_class
-          ]}
-          aria-label="Back"
-          data-role="back"
-        >
-          <.icon name="hero-arrow-left" class="size-6" />
-        </button>
         {render_slot(@title_icon)}
         <h2 id={"#{@id}-title"} class="min-w-0 flex-1 truncate outline-none" tabindex="-1">
           {@title}
@@ -457,9 +443,9 @@ defmodule QuacksWeb.LobbyLive do
 
     ~H"""
     <Layouts.app flash={@flash} full>
-      <div class="mx-auto max-w-6xl px-3 pb-6 sm:px-6">
-        <%!-- Phones, Games page: the hero and the book fill the screen (app.css
-             `.lobby-screen`); the games list scrolls inside the page. --%>
+      <%!-- The lobby is exactly the screen (app.css `.lobby-root`, round 23): the hero
+           and the book fill it, and only a book page (or the Games list) scrolls. --%>
+      <div class="lobby-root mx-auto max-w-6xl px-3 sm:px-6">
         <div class="lobby-screen pt-4 lg:pt-6" data-step={@step}>
           <header
             class={[
@@ -546,45 +532,13 @@ defmodule QuacksWeb.LobbyLive do
                     />
                   </.book_page>
                 <% end %>
+                <.flow_bar a={assigns} />
               </div>
             </div>
           </div>
         </div>
 
         <div id="config-memory" phx-hook="ConfigMemory" data-fresh hidden />
-
-        <div :if={@step == "home"} class="contents">
-          <%!-- Shown by app.js only: the install button after `beforeinstallprompt`, the
-               hint on iOS Safari outside the installed app (see `.pwa-install` in app.css). --%>
-          <div id="install-app" class="flex flex-col items-center gap-1 pt-6 text-center">
-            <button
-              type="button"
-              data-role="install"
-              class={[
-                "pwa-install min-h-11 cursor-pointer items-center gap-2 rounded-full px-4",
-                "text-sm font-semibold text-parchment-dim ring-1 ring-parchment-dim/40",
-                "transition-colors duration-150 hover:bg-parchment/10 hover:text-parchment"
-              ]}
-            >
-              <.icon name="hero-arrow-down-tray" class="size-4" /> Install app
-            </button>
-            <p data-role="install-hint" class="pwa-ios-hint text-xs text-parchment-dim">
-              Add to Home Screen from the Share menu.
-            </p>
-          </div>
-
-          <footer id="credits" class="pt-6 text-center text-xs text-parchment-dim">
-            Credits: icons by Lorc, Delapouite, Skoll, Cathelineau and DarkZaitzev from <a
-              href="https://game-icons.net"
-              class="underline hover:text-parchment"
-            >game-icons.net</a>,
-            <a
-              href="https://creativecommons.org/licenses/by/3.0/"
-              class="underline hover:text-parchment"
-            >CC BY 3.0</a>
-            (background removed, recoloured).
-          </footer>
-        </div>
       </div>
     </Layouts.app>
     """
@@ -621,22 +575,55 @@ defmodule QuacksWeb.LobbyLive do
       </form>
 
       <h3 class="book-subheading mt-3">Games now</h3>
-      <ul
-        id="games"
-        class={[
-          "games-list mt-2 grid content-start gap-2.5",
-          "sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"
-        ]}
-      >
-        <.game_card :for={game <- @games} game={game} />
-        <li
-          :if={@games == []}
-          class="col-span-full rounded-[14px] border border-dashed border-ink-soft/40 px-3 py-4 text-center text-sm text-ink-soft"
-          data-role="no-games"
+      <%!-- The list scrolls; the install button and the credits come after it. --%>
+      <div id="games-scroll" class="games-scroll mt-2">
+        <ul
+          id="games"
+          class={[
+            "games-list grid content-start gap-2.5",
+            "sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"
+          ]}
         >
-          No public games now: start one, or join with a room code.
-        </li>
-      </ul>
+          <.game_card :for={game <- @games} game={game} />
+          <li
+            :if={@games == []}
+            class="col-span-full rounded-[14px] border border-dashed border-ink-soft/40 px-3 py-4 text-center text-sm text-ink-soft"
+            data-role="no-games"
+          >
+            No public games now: start one, or join with a room code.
+          </li>
+        </ul>
+        <%!-- Shown by app.js only: the install button after `beforeinstallprompt`, the
+               hint on iOS Safari outside the installed app (see `.pwa-install` in app.css). --%>
+        <div id="install-app" class="flex flex-col items-center gap-1 pt-4 text-center">
+          <button
+            type="button"
+            data-role="install"
+            class={[
+              "pwa-install min-h-11 cursor-pointer items-center gap-2 rounded-full px-4",
+              "text-sm font-semibold text-ink-soft ring-1 ring-ink-soft/40",
+              "transition-colors duration-150 hover:bg-ink/10 hover:text-ink"
+            ]}
+          >
+            <.icon name="hero-arrow-down-tray" class="size-4" /> Install app
+          </button>
+          <p data-role="install-hint" class="pwa-ios-hint text-xs text-ink-soft">
+            Add to Home Screen from the Share menu.
+          </p>
+        </div>
+
+        <footer id="credits" class="pt-4 pb-2 text-center text-xs text-ink-soft">
+          Credits: icons by Lorc, Delapouite, Skoll, Cathelineau and DarkZaitzev from <a
+            href="https://game-icons.net"
+            class="underline hover:text-ink"
+          >game-icons.net</a>,
+          <a
+            href="https://creativecommons.org/licenses/by/3.0/"
+            class="underline hover:text-ink"
+          >CC BY 3.0</a>
+          (background removed, recoloured).
+        </footer>
+      </div>
 
       <%!-- Phones: pinned at the screen's foot while the list scrolls. --%>
       <div class="page-foot">
@@ -758,20 +745,41 @@ defmodule QuacksWeb.LobbyLive do
         />
       </form>
 
-      <div class="page-foot lg:hidden">
-        <.link id="to-expansions" patch={page_path("expansions")} class="flow-button">
-          Next <.icon name="hero-arrow-right" class="size-5" />
-        </.link>
-      </div>
+      <nav class="mt-4 grid gap-2 pb-2" aria-label="More settings">
+        <.page_link
+          id="to-rules"
+          step="rules"
+          icon="hero-scale"
+          title="House rules"
+          summary={rules_summary(@rules)}
+          summary_role="rules-summary"
+          open={@step == "rules"}
+        />
+        <.page_link
+          id="to-expansions"
+          step="expansions"
+          icon="hero-puzzle-piece"
+          title="Expansions"
+          summary={expansions_summary(assigns)}
+          summary_role="expansions-summary"
+          open={@step in ~w(players expansions)}
+        />
+        <.page_link
+          id="to-books"
+          step="books"
+          icon="hero-book-open"
+          title="Ingredient books"
+          summary={preset_label(assigns)}
+          summary_role="books-summary"
+          open={@step in ~w(books book witch)}
+        />
+      </nav>
     </.book_page>
     """
   end
 
-  # The expansions, the two buttons to the house rules and books, Start.
+  # The three expansion rows (Herb Witches, The Alchemists, the pot's back side).
   defp expansions_page(assigns) do
-    changed = Enum.count(assigns.rules, fn {key, value} -> Game.default_rules()[key] != value end)
-    assigns = assign(assigns, changed: changed)
-
     ~H"""
     <.book_page
       a={assigns}
@@ -779,7 +787,6 @@ defmodule QuacksWeb.LobbyLive do
       page={{"expansions", nil}}
       side={:right}
       title="Expansions"
-      back_class="lg:hidden"
     >
       <.expansion_cards
         expansion={@expansion}
@@ -787,42 +794,89 @@ defmodule QuacksWeb.LobbyLive do
         pot_side={@rules.pot_side}
         heading={false}
       />
+    </.book_page>
+    """
+  end
 
-      <nav class="mt-4 mb-6 grid gap-2" aria-label="More settings">
-        <.link id="to-rules" patch={page_path("rules")} class="page-link" data-role="to-rules">
-          <.icon name="hero-scale" class="size-6 shrink-0 text-ink-soft" />
-          <span class="min-w-0 flex-1">
-            <span class="block font-hand text-lg leading-tight font-bold">House rules</span>
-            <span class="block text-xs text-ink-soft" data-role="rules-summary">
-              {if @changed == 0, do: "As in the rulebook", else: "#{@changed} changed"}
-            </span>
-          </span>
-          <.icon name="hero-chevron-right" class="size-5 shrink-0 text-ink-soft" />
-        </.link>
-        <.link id="to-books" patch={page_path("books")} class="page-link" data-role="to-books">
-          <.icon name="hero-book-open" class="size-6 shrink-0 text-ink-soft" />
-          <span class="min-w-0 flex-1">
-            <span class="block font-hand text-lg leading-tight font-bold">Ingredient books</span>
-            <span class="block text-xs text-ink-soft" data-role="books-summary">
-              {preset_label(assigns)}
-            </span>
-          </span>
-          <.icon name="hero-chevron-right" class="size-5 shrink-0 text-ink-soft" />
-        </.link>
-      </nav>
+  attr :id, :string, required: true
+  attr :step, :string, required: true
+  attr :icon, :string, required: true
+  attr :title, :string, required: true
+  attr :summary, :string, required: true
+  attr :summary_role, :string, required: true
+  attr :open, :boolean, default: false, doc: "its page is the one open on the right (64rem)"
 
-      <div class="start-bar" data-role="start-bar">
-        <p class="text-sm leading-snug text-ink-soft" data-role="setup-summary">
-          <span class="block font-semibold text-ink">{summary(assigns)}</span>
-          {if @open_seats > 0,
-            do: "Opens the table: #{waiting(@open_seats)}.",
-            else: "The game begins at once."}
-        </p>
+  # A row on the New game page that opens a page, with a line on the current choice.
+  defp page_link(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      patch={page_path(@step)}
+      class="page-link"
+      data-role={@id}
+      data-open={@open && "true"}
+    >
+      <.icon name={@icon} class="size-6 shrink-0 text-ink-soft" />
+      <span class="min-w-0 flex-1">
+        <span class="block font-hand text-lg leading-tight font-bold">{@title}</span>
+        <span class="block truncate text-xs text-ink-soft" data-role={@summary_role}>
+          {@summary}
+        </span>
+      </span>
+      <.icon name="hero-chevron-right" class="size-5 shrink-0 text-ink-soft" />
+    </.link>
+    """
+  end
+
+  attr :a, :map, required: true, doc: "the LiveView's assigns"
+
+  # Every page of the New game flow ends in this bar (round 23): the setup in one
+  # line, Back, Start (hidden on the Games page). Below the page on a phone, under the right page from 64rem.
+  # Back on the phone goes to the page's parent; from 64rem the New game page is
+  # always open on the left, so Back from it (or from Expansions beside it) goes
+  # to the Games page.
+  defp flow_bar(assigns) do
+    step = assigns.a.step
+    wide_home = step in ~w(players expansions)
+
+    assigns =
+      assign(assigns,
+        back: back(assigns.a, step),
+        wide_home: wide_home and step != "players"
+      )
+
+    ~H"""
+    <div id="flow-bar" class="flow-bar" data-role="start-bar" hidden={@a.step == "home"}>
+      <p class="text-sm leading-snug text-ink-soft" data-role="setup-summary">
+        <span class="block truncate font-semibold text-ink">{summary(@a)}</span>
+        {if @a.open_seats > 0,
+          do: "Opens the table: #{waiting(@a.open_seats)}.",
+          else: "The game begins at once."}
+      </p>
+      <div class="flow-actions">
+        <button
+          id="flow-back"
+          type="button"
+          phx-click={@back}
+          class={["flow-back", @wide_home && "lg:hidden"]}
+          data-role="back"
+        >
+          <.icon name="hero-arrow-left" class="size-5" /> Back
+        </button>
+        <.link
+          :if={@wide_home}
+          id="flow-back-home"
+          patch={page_path("home")}
+          class="flow-back max-lg:hidden"
+          data-role="back-home"
+        >
+          <.icon name="hero-arrow-left" class="size-5" /> Back
+        </.link>
         <button id="new-game" type="button" phx-click="start" class="start-button">
           <.piece_icon name={:cauldron} class="size-7 shrink-0" /> Start
         </button>
       </div>
-    </.book_page>
+    </div>
     """
   end
 
@@ -1028,6 +1082,30 @@ defmodule QuacksWeb.LobbyLive do
     ]
     |> Enum.filter(& &1)
     |> Enum.join(" · ")
+  end
+
+  # The House rules row's line.
+  defp rules_summary(rules) do
+    case Enum.count(rules, fn {key, value} -> Game.default_rules()[key] != value end) do
+      0 -> "As in the rulebook"
+      1 -> "1 changed"
+      n -> "#{n} changed"
+    end
+  end
+
+  # The Expansions row's line: the expansions and the pot side that are on.
+  defp expansions_summary(a) do
+    case Enum.filter(
+           [
+             a.expansion && "Herb Witches",
+             a.alchemists && "The Alchemists",
+             a.rules.pot_side == :back && "test tubes"
+           ],
+           & &1
+         ) do
+      [] -> "Base game"
+      on -> Enum.join(on, " · ")
+    end
   end
 
   # The expansions of a game, as badges: name and icon.

@@ -243,7 +243,7 @@ header, players, notices, books, pot, context, bar.
 ```css
 .game-grid {
   display: grid;
-  height: 100dvh;
+  height: 100dvh; /* with width: 100% and overflow: clip, see "The viewport lock" */
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   grid-template-areas: "header" "players" "notices" "pot" "bar";
 }
@@ -260,7 +260,7 @@ header, players, notices, books, pot, context, bar.
 | Layout | Areas |
 |---|---|
 | Portrait, phone or tablet (< 64rem) | header, players, notices, pot, bar (one column) |
-| Landscape phone (`orientation: landscape` and `max-height: 30rem`) | the pot on the left, full height; header, players, notices, context, bar and the test tubes on the right |
+| Landscape phone (`orientation: landscape`, `max-height: 30rem` and `min-width: 35rem`) | the pot on the left, full height; header, players, notices, context, bar and the test tubes on the right |
 | 64rem | the pot column on the left; the context column on the right, the bar at its foot |
 | 80rem | the books column, then the pot, then the context column |
 
@@ -289,8 +289,39 @@ A landscape phone moves the test tubes out of the pot column: `.pot-column` beco
 `display: contents`, so its children are grid items and the tubes can take the
 `tubes` area. All sheets slide in from the right there, over the right column only.
 Tailwind gets a matching variant for small fixes:
-`@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem));`
-(`assets/css/app.css:21`), used as `phone-landscape:sr-only`.
+`@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 30rem) and (min-width: 35rem));`
+(`assets/css/app.css:24`), used as `phone-landscape:sr-only`.
+
+**Never gate a layout on height alone (round 23).** A portrait phone is wider than
+tall whenever its layout viewport gets short: the on-screen keyboard where the
+browser resizes the layout (full screen, the installed app), split screen, a pop-up
+window. Before round 23, `(orientation: landscape) and (max-height: 30rem)` then
+matched at 392 px wide: the game got the landscape grid (pot on the left, the
+half-width Draw button) and the header ran past the right edge. Every landscape
+query also needs `min-width: 35rem` (no portrait phone is that wide; the smallest
+landscape phone is). The viewport meta says `interactive-widget=resizes-visual`, so
+the keyboard resizes only the visual viewport where the browser honours it.
+
+## The viewport lock (round 23)
+
+The app never scrolls as a page. The game root (`.game-grid`) and the lobby root
+(`.lobby-root`, the lobby's outer `<div>`) are `width: 100%; height: 100dvh;
+overflow: clip`, and `body` has `overscroll-behavior: none`. Three rules:
+
+- `overflow: clip`, not `hidden`. A `hidden` box is still a scroll container: focus
+  or `scrollIntoView` on a child past its edge scrolls it sideways, with no
+  scrollbar to scroll back. A `clip` box cannot scroll at all, and `position:
+  sticky` and `fixed` children keep working.
+- `width: 100%`, never `100vw` (it counts a desktop scrollbar). No `vw` or `vh` is
+  left in app.css; heights use `dvh`. A width over the pot is `%`, `min()` or
+  `clamp()` (the pot card is `min(64%, 15rem)` with `max-width: 100%`).
+- Only the designated areas scroll: the books column, sheets and dialogs, the Games
+  list, the book pages. Each has `overscroll-behavior: contain`.
+
+`test/quacks_web/live/round23_test.exs` checks the root classes and the CSS. In the
+browser: `document.documentElement.scrollWidth == innerWidth` and `scrollHeight ==
+innerHeight` on every screen (lobby pages, round start, brewing, evaluation, shop,
+podium) at 392x713 and 360x740.
 
 One trap: CSS written in `app.css` outside a layer beats every Tailwind utility.
 `.action-bar { display: grid }` made `lg:hidden` on the bar do nothing, so that
@@ -519,8 +550,8 @@ viewBox, because `sprite/1` and `svg/1` set the viewBox and the fill.
 ## The spell book: pages by URL, form-attribute fields (rounds 17 and 19)
 
 The lobby's book (`lib/quacks_web/live/lobby_live.ex`, `.spell-book` in app.css)
-is one `<section>` per page (`book_page/1` in the LiveView: a Back arrow, the
-title with the ruled underline, the content). The server shows one page on a
+is one `<section>` per page (`book_page/1` in the LiveView: the title with the
+ruled underline, the content). The server shows one page on a
 phone and two from 64rem with Tailwind's `hidden`/`flex` and `lg:` classes; the
 sections carry `.book-page-left` or `.book-page-right` for the open book's grid.
 A page that appears after a step turns in once (`page-turn`, only with
@@ -534,13 +565,32 @@ and LiveView's `phx-change` sees it. `books_form/1` takes `patch` (a function fr
 `{:book | :witch, colour}` to a path): its tiles become links and it draws no
 picker sheets; the configure screen still uses the sheets.
 
-A page's foot (`.page-foot` for New game and Next, `.start-bar` for Start) is
-sticky on a phone, so the main button stays at the bottom while the page scrolls.
-The Games page is different (round 21): on a phone, `.lobby-screen[data-step=home]`
-makes the hero and the book exactly `100dvh` high, with the safe-area padding below
-the cover. The page is a column, and only the games list (`.games-list`) scrolls.
-On a phone on its side (`height < 32rem`) the hero goes and the page becomes a grid:
-the room code over New game on the left, the list on the right. Below 64rem the
+**The New game flow (round 23).** The New game page (`?step=players`) has the
+player count, the seats (name, colour), the Public switch, then three rows
+(`page_link/1`): House rules, Expansions and Ingredient books, each with a line on
+the current choice ("As in the rulebook" / "N changed", "Base game" / "Herb
+Witches · test tubes", the preset or Custom). Expansions, House rules and Ingredient
+books are children of New game; a colour or witch page is a child of Ingredient
+books. The Expansions page has only the three expansion rows.
+
+Every page of the flow ends in one bar, `flow_bar/1` (`#flow-bar`): the setup in a
+line ("3 players · 2 bots · Herb Witches · private") and whether Start opens the
+table or begins the game, then **Back** (secondary, `.flow-back`) and **Start**
+(primary, `#new-game`). The bar is the book spread's last grid row, outside the page
+that scrolls, so it never moves; on the Games page it is `hidden`. Back goes to the
+page's parent (the browser's history when the visit came from there). From 64rem
+the New game page is always open on the left and the bar sits under the right page;
+there Back from New game or Expansions goes to the Games page (`#flow-back-home`,
+`max-lg:hidden`). The row whose page is open on the right is marked (`data-open`).
+`.flow-back` is in `@layer components`, so `lg:hidden` on it wins.
+
+The book fills the locked lobby root: `.lobby-screen`, `.spell-book`,
+`.book-cover` and `.book-spread` are flex or grid boxes with `min-height: 0`, and
+each `.book-page` scrolls on its own. The Games page's foot (`.page-foot`, New game)
+stays at the bottom, and only `#games-scroll` scrolls: the games list, then the
+install button and the credits. On a phone on its side (`height < 32rem`,
+landscape, at least 35rem wide) the hero goes and the page becomes a grid: the room
+code over New game on the left, the list on the right. Below 64rem the
 expansion cards are a list of full-width rows (icon, title, blurb, switch); from
 64rem they are three cards.
 `.start-button` and `.flow-button` are ink buttons in the display font with a gold
