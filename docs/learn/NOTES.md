@@ -12,3 +12,4 @@
 - Shared components in `assets/`: `course.css`, `progress.js` (localStorage, optional), `code.js` (excerpt + Elixir highlighter), `stepper.js` (step-through diagram), `quiz.js` (choice and type-the-answer items).
 - Quiz options in one question have the same word count; vary the correct position.
 - The hub (`index.html`) is published inside a skeleton: no doctype, html, head or body tags there. Every other page is a full document.
+- 2026-10-07: wants to keep going straight into the next lessons; enjoys seeing real repo code pattern-matched. Network settings for installing Elixir are parked (he is unsure how to change them); lessons must not depend on running Elixir.
