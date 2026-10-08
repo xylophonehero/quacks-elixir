@@ -39,7 +39,7 @@ defmodule QuacksWeb.Round18Test do
     %{game | log: @log, phase: :shopping}
   end
 
-  defp render_slide(slides, kind, settled \\ true) do
+  defp render_slide(slides, kind, settled) do
     index = Enum.find_index(slides, &(&1.kind == kind))
 
     render_component(&RevealComponents.reveal_overlay/1,
@@ -48,67 +48,6 @@ defmodule QuacksWeb.Round18Test do
       seat: 0
     )
     |> LazyHTML.from_fragment()
-  end
-
-  defp texts(doc, selector),
-    do: doc |> LazyHTML.query(selector) |> Enum.map(&String.trim(LazyHTML.text(&1)))
-
-  describe "the results table" do
-    test "a real table: rank, player, coins, VP, ruby, die, chips (round 20: no space)" do
-      doc = results_game() |> Reveal.slides(0) |> render_slide(:results)
-
-      assert doc |> LazyHTML.query("table[data-role=reveal-results] thead th") |> Enum.count() ==
-               7
-
-      # round 20: the coins column's header is the coin icon
-      assert doc |> LazyHTML.query(~s(thead th[title=Coins] [data-icon=coin])) |> Enum.count() ==
-               1
-
-      rows = LazyHTML.query(doc, "tbody tr[data-role=reveal-result]")
-      assert Enum.map(rows, &LazyHTML.attribute(&1, "data-seat")) == [["0"], ["1"]]
-
-      # seat 0 rolled the die (a 2 VP face); seat 1 did not
-      assert doc
-             |> LazyHTML.query(~s(tr[data-seat="0"] [data-role=die-face][data-face=vp2]))
-             |> Enum.count() == 1
-
-      assert texts(doc, ~s(tr[data-seat="1"] [data-role=reveal-die-cell])) == ["–"]
-
-      # the chips: green, black, purple counts
-      assert doc |> LazyHTML.query(~s(tr[data-seat="0"] [data-role=reveal-pot])) |> Enum.count() ==
-               1
-    end
-
-    test "the card line waits in a closed Details" do
-      doc = results_game() |> Reveal.slides(0) |> render_slide(:results)
-
-      assert [details] =
-               doc |> LazyHTML.query("details[data-role=reveal-details]") |> Enum.to_list()
-
-      assert LazyHTML.attribute(details, "open") == [nil] or
-               LazyHTML.attribute(details, "open") == []
-
-      assert texts(doc, "details [data-role=reveal-extra]") == [
-               QuacksWeb.GameComponents.label({:fortune, :b1, {:vp, 1}})
-             ]
-
-      # no text line in the table itself
-      assert doc |> LazyHTML.query("table [data-role=reveal-extra]") |> Enum.count() == 0
-    end
-
-    test "the locoweed column comes with The Alchemists" do
-      plain = results_game() |> Reveal.slides(0) |> Enum.find(&(&1.kind == :results))
-      assert plain.rows |> hd() |> Map.fetch!(:pot) |> Keyword.keys() == [:green, :black, :purple]
-
-      alchemists =
-        [expansions: [:alchemists]]
-        |> results_game()
-        |> Reveal.slides(0)
-        |> Enum.find(&(&1.kind == :results))
-
-      assert alchemists.rows |> hd() |> Map.fetch!(:pot) |> Keyword.keys() ==
-               [:green, :black, :purple, :locoweed]
-    end
   end
 
   describe "the standings" do

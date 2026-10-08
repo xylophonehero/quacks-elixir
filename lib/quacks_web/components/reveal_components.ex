@@ -22,7 +22,6 @@ defmodule QuacksWeb.RevealComponents do
       card_outcome: 2,
       chip: 1,
       die: 1,
-      die_face: 1,
       seat_bg: 1,
       seat_dot: 1
     ]
@@ -315,136 +314,6 @@ defmodule QuacksWeb.RevealComponents do
     """
   end
 
-  # Round 18: a real <table> (columns hold even without a utility class, see the
-  # guide), the rows in VP order. The name may wrap; the update chips sit small
-  # under it. The card, essence and witch lines wait in a closed "Details".
-  defp slide(%{slide: %{kind: :results}} = assigns) do
-    assigns =
-      assign(assigns,
-        colours: assigns.slide.rows |> List.first(%{pot: []}) |> Map.get(:pot) |> Keyword.keys(),
-        extras: for(row <- assigns.slide.rows, line <- row.extra, do: {row.seat, line})
-      )
-
-    ~H"""
-    <div class="space-y-2">
-      <h2 class="text-center font-hand text-3xl leading-tight font-bold">
-        Round {@slide.round} results
-      </h2>
-      <div class="max-h-[min(54dvh,30rem)] overflow-y-auto overscroll-contain">
-        <table
-          class="reveal-table w-full table-fixed border-collapse text-sm"
-          data-role="reveal-results"
-        >
-          <colgroup>
-            <col class="w-4" />
-            <col />
-            <col class="w-9" />
-            <col class="w-7" />
-            <col class="w-6" />
-            <col class="w-7" />
-            <col class={if length(@colours) > 3, do: "w-[6.5rem]", else: "w-20"} />
-          </colgroup>
-          <thead class="text-[10px] font-semibold tracking-tight text-ink-soft">
-            <tr>
-              <th scope="col"><span class="sr-only">Rank</span></th>
-              <th scope="col" class="text-left">Player</th>
-              <th scope="col" title="Coins">
-                <.piece_icon
-                  name={:coin}
-                  class="inline size-4 text-gold drop-shadow-[0_0_0.75px_#7a5a10]"
-                /><span class="sr-only">Coins</span>
-              </th>
-              <th scope="col" title="VP">
-                <.piece_icon name={:vp} class="inline size-4 text-gold" /><span class="sr-only">VP</span>
-              </th>
-              <th scope="col" title="Ruby">
-                <.piece_icon name={:ruby} class="inline size-3.5 text-ruby" /><span class="sr-only">Ruby</span>
-              </th>
-              <th scope="col" title="Bonus die">
-                <.piece_icon name={:die} class="inline size-4" /><span class="sr-only">Bonus die</span>
-              </th>
-              <th scope="col" title="Chips in the pot">
-                <span class="sr-only">Chips in the pot</span>
-                <span class="inline-flex gap-2" aria-hidden="true">
-                  <.ingredient_icon
-                    :for={c <- @colours}
-                    colour={c}
-                    class={["size-3.5", book_ink(c)]}
-                  />
-                </span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              :for={{row, i} <- Enum.with_index(@slide.rows)}
-              class="reveal-row border-t border-ink/10 align-top"
-              style={"--i: #{i}"}
-              data-seat={row.seat}
-              data-role="reveal-result"
-            >
-              <td class="py-1.5 font-hand text-base leading-5 text-ink-soft">{i + 1}</td>
-              <td class="py-1.5 pr-1 text-left">
-                <span class="flex items-start gap-1.5 leading-5 font-semibold">
-                  <.seat_dot seat={row.seat} class="mt-1" />
-                  <span class="min-w-0 break-words">{short_name(@names, row.seat, @seat)}</span>
-                </span>
-                <span :if={row.updates != []} class="mt-0.5 flex flex-wrap gap-0.5">
-                  <span
-                    :for={update <- row.updates}
-                    class={[
-                      "inline-flex items-center gap-0.5 rounded-full px-1 text-[10px] leading-4 font-bold",
-                      update_class(update.kind)
-                    ]}
-                    data-kind={update.kind}
-                  >
-                    <.piece_icon
-                      :if={update.kind in [:rubies, :droplet]}
-                      name={if update.kind == :rubies, do: :ruby, else: :droplet}
-                      class="size-2.5"
-                    />
-                    {short_update_text(update, row)}
-                  </span>
-                </span>
-              </td>
-              <td class="py-1.5 text-center leading-5 font-bold tabular-nums">{row.coins}</td>
-              <td class="py-1.5 text-center leading-5 font-bold tabular-nums">{row.vp}</td>
-              <td class="py-1.5 text-center leading-5">
-                <.piece_icon :if={row.ruby} name={:ruby} class="inline size-3.5 text-ruby" />
-                <span :if={!row.ruby} class="text-ink-soft">–</span>
-              </td>
-              <td class="py-1.5 text-center leading-5" data-role="reveal-die-cell">
-                <%!-- Up to three faces in a column, no taller than two lines. --%>
-                <span :if={row.die != []} class="inline-flex flex-col items-center gap-px">
-                  <.die_face :for={face <- row.die} face={face} class={die_size(length(row.die))} />
-                </span>
-                <span :if={row.die == []} class="text-ink-soft">–</span>
-              </td>
-              <td class="py-1.5 text-center leading-5">
-                <.pot_counts counts={row.pot} small />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <details :if={@extras != []} class="reveal-details mt-2 text-xs" data-role="reveal-details">
-          <summary class="cursor-pointer py-1 font-semibold text-ink-soft">
-            Details ({length(@extras)})
-          </summary>
-          <ul class="space-y-0.5 pb-1">
-            <li
-              :for={{s, line} <- @extras}
-              class="flex items-start gap-1.5 leading-snug"
-              data-role="reveal-extra"
-            >
-              <.seat_dot seat={s} class="mt-0.5" /><span>{line.text}</span>
-            </li>
-          </ul>
-        </details>
-      </div>
-    </div>
-    """
-  end
-
   # Round 18: the totals after the round. The rows stay in seat order in the DOM; each
   # row's `--rank` puts it in its slot (`transform`, app.css `.standings-row`). The
   # first render uses the old ranks and VP; the server's settle tick (GameLive,
@@ -612,38 +481,6 @@ defmodule QuacksWeb.RevealComponents do
     """
   end
 
-  # The black, green and purple chips in a pot: an icon and a number each.
-  attr :counts, :list, required: true, doc: "`[{colour, n}]`"
-  attr :class, :any, default: nil
-  attr :small, :boolean, default: false, doc: "the results table: tight, small icons"
-
-  defp pot_counts(assigns) do
-    ~H"""
-    <span
-      class={[
-        "inline-flex items-center gap-1.5 text-xs font-semibold tabular-nums",
-        @class
-      ]}
-      aria-label={Enum.map_join(@counts, ", ", fn {c, n} -> "#{n} #{c}" end)}
-      data-role="reveal-pot"
-    >
-      <span
-        :for={{colour, n} <- @counts}
-        class={[
-          "inline-flex items-center",
-          if(@small, do: "gap-px", else: "gap-0.5"),
-          n == 0 && "opacity-45"
-        ]}
-      >
-        <.ingredient_icon
-          colour={colour}
-          class={[if(@small, do: "size-3", else: "size-4"), book_ink(colour)]}
-        />{n}
-      </span>
-    </span>
-    """
-  end
-
   # A step slide's title: the step's icon in a parchment disc, then its name.
   slot :icon, required: true
   slot :inner_block, required: true
@@ -794,28 +631,6 @@ defmodule QuacksWeb.RevealComponents do
 
   defp icon(true), do: "size-3.5"
   defp icon(false), do: "size-5"
-
-  defp die_size(1), do: "size-5"
-  defp die_size(2), do: "size-4"
-  defp die_size(_n), do: "size-3"
-
-  defp update_class(:exploded), do: "bg-ruby/15 text-ruby"
-  defp update_class(:stopped), do: "bg-ink/10 text-ink-soft"
-  defp update_class(:vp), do: "bg-gold/60"
-  defp update_class(:rubies), do: "bg-ruby/15 text-ruby"
-  defp update_class(:droplet), do: "bg-droplet/20"
-
-  # An exploded seat's chip also says what it took.
-  defp update_text(%{kind: :exploded}, %{choice: choice}) when choice in [:vp, :buy],
-    do: "exploded: took the #{choice(choice)}"
-
-  defp update_text(update, _row), do: update.text
-
-  # The results table's chips are small: "exploded: coins".
-  defp short_update_text(%{kind: :exploded}, %{choice: choice}) when choice in [:vp, :buy],
-    do: "exploded: #{choice(choice)}"
-
-  defp short_update_text(update, row), do: update_text(update, row)
 
   defp choice(:vp), do: "VP"
   defp choice(:buy), do: "coins"
