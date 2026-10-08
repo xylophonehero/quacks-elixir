@@ -93,6 +93,60 @@ defmodule Quacks.Game.Fortune do
   def after_potions(%{fortune_card: :b2} = g), do: open_choices(g)
   def after_potions(g), do: Essence.run(g)
 
+  @doc """
+  Flea Market (P13) this round, from the log: for each seat that drew, `drew` (the 4
+  chips, in draw order), `traded` (the chip traded up, or nil), `got` (the next value
+  up, or the green 1 when no chip could be traded up; nil while choosing or after a
+  skip) and `choosing?`. An empty map when this round's card is not P13. The player
+  tiles and the card show it.
+  """
+  @spec flea_market(Game.t()) :: %{
+          Game.seat() => %{
+            drew: [Chips.chip()],
+            traded: Chips.chip() | nil,
+            got: Chips.chip() | nil,
+            choosing?: boolean
+          }
+        }
+  def flea_market(%{fortune_card: :p13} = g) do
+    g.log
+    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+    |> Enum.reverse()
+    |> Enum.reduce(%{}, fn
+      {seat, {:fortune, :p13, {:drew, chips}}}, acc ->
+        Map.put(acc, seat, %{drew: chips, traded: nil, got: nil})
+
+      {seat, {:fortune, :p13, {:upgrade, chip}}}, acc when is_map_key(acc, seat) ->
+        Map.update!(acc, seat, &%{&1 | traded: chip, got: @upgrade[chip]})
+
+      {seat, {:fortune, :p13, {:take, chip}}}, acc when is_map_key(acc, seat) ->
+        Map.update!(acc, seat, &%{&1 | got: chip})
+
+      _entry, acc ->
+        acc
+    end)
+    |> Map.new(fn {seat, flea} ->
+      {seat, Map.put(flea, :choosing?, Game.player(g, seat).phase == :fortune_choice)}
+    end)
+  end
+
+  def flea_market(_g), do: %{}
+
+  @doc """
+  Why Flea Market cannot trade `chip` up now, or nil when it can: `:white` (white is
+  not traded up), `:top` (no higher value of its colour), `:none_left` (the supply has
+  none of the next value, or its book is not out yet).
+  """
+  @spec flea_block(Game.t(), Chips.chip()) :: nil | :white | :top | :none_left
+  def flea_block(_g, {:white, _}), do: :white
+
+  def flea_block(g, chip) do
+    case @upgrade[chip] do
+      nil -> :top
+      up -> if Game.available?(g, up), do: nil, else: :none_left
+    end
+  end
+
   @doc "The card actions `seat` has right now."
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
   def legal_actions(%{phase: :fortune_choice} = g, seat) do

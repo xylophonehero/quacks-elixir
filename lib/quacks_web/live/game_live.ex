@@ -1168,6 +1168,12 @@ defmodule QuacksWeb.GameLive do
                 <%!-- Round 25: the grown corner card has no flip; the card
                      transition alone grows it (the shrink played backwards). --%>
                 <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip={!@card_grown} />
+                <.flea_market
+                  :if={@seat}
+                  id={"pot-card-flea-#{@game.round}"}
+                  game={@game}
+                  seat={@seat}
+                />
                 <p
                   :if={card_tap?(assigns)}
                   id={"card-caption-#{@game.round}-#{@card_grown}"}
@@ -1662,6 +1668,7 @@ defmodule QuacksWeb.GameLive do
       <.sheet :if={@game.fortune_card} id="sheet-fortune" label="Fortune teller card">
         <%!-- A wrapper: the sheet flattens a `.paper` child, and the card keeps its edge. --%>
         <div class="pt-8 pb-2"><.fortune_card id={@game.fortune_card} /></div>
+        <.flea_market :if={@seat} id="sheet-fortune-flea" game={@game} seat={@seat} />
       </.sheet>
       <.sheet
         :for={seat <- @game.seats}
@@ -2389,6 +2396,16 @@ defmodule QuacksWeb.GameLive do
   defp row_books([{colour, _value} | _], game),
     do: [{colour, Chips.set(game.expansion, game.sets, colour)}]
 
+  # Round 28: under a Flea Market chip that cannot go up, the reason.
+  defp blocked_reason(%Game{fortune_card: :p13} = game, [chip]) do
+    case Quacks.Game.Fortune.flea_block(game, chip) do
+      nil -> nil
+      reason -> flea_reason(reason)
+    end
+  end
+
+  defp blocked_reason(_game, _chips), do: nil
+
   @doc """
   The chips of a choice as its controls: each chip is a button that sends its
   action. With `pool` (the chips a crow skull, the silver witch, the toadstools or a
@@ -2471,9 +2488,16 @@ defmodule QuacksWeb.GameLive do
           <span
             :if={!action}
             class="inline-flex size-11 items-center justify-center opacity-40"
-            title="Not playable"
+            title={blocked_reason(@game, chips) || "Not playable"}
           >
             <.chip :for={chip <- chips} chip={chip} data-role="offer-chip" />
+          </span>
+          <span
+            :if={!action && blocked_reason(@game, chips)}
+            class="mt-0.5 w-14 text-center text-[11px] leading-4 font-semibold text-ink-soft"
+            data-role="pick-blocked"
+          >
+            {blocked_reason(@game, chips)}
           </span>
           <span
             :if={over}

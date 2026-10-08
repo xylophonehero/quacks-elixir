@@ -356,9 +356,7 @@ defmodule QuacksWeb.GameComponents do
         transform="translate(0 -1)"
       />
       <g
-        :for={
-          %{index: index, chip: chip, placed: placed, rings: rings, at: at} = space <- @track
-        }
+        :for={%{index: index, chip: chip, placed: placed, rings: rings, at: at} = space <- @track}
         :key={index}
         data-space={index}
         data-x={@size == :lg && elem(elem(positions(), index), 0)}
@@ -2686,6 +2684,77 @@ defmodule QuacksWeb.GameComponents do
     </.blue_offer>
     """
   end
+
+  @doc """
+  Round 28: what Flea Market (P13) did for `seat` this round, as chips: the 4 drawn
+  chips (the traded one ringed, the others dimmed with why they could not go up),
+  then the result. Nothing under another card, or while the seat still chooses (its
+  dialog shows the chips then). Data: `Quacks.Game.Fortune.flea_market/1`.
+  """
+  attr :game, Game, required: true
+  attr :seat, :integer, required: true
+  attr :id, :string, required: true
+
+  def flea_market(assigns) do
+    flea = Quacks.Game.Fortune.flea_market(assigns.game)[assigns.seat]
+    assigns = assign(assigns, flea: flea)
+
+    ~H"""
+    <div
+      :if={@flea && !@flea.choosing?}
+      id={@id}
+      class="paper space-y-1.5 rounded-md border-l-4 border-chip-purple p-2 text-sm"
+      aria-label="Flea Market"
+      data-role="flea-market"
+    >
+      <p class="font-semibold">Flea Market drew:</p>
+      <ul class="flex flex-wrap items-start gap-2">
+        <li
+          :for={{chip, i} <- Enum.with_index(@flea.drew)}
+          class="flex w-14 flex-col items-center text-center"
+          data-role="flea-chip"
+          data-traded={traded?(@flea, chip, i) && "true"}
+        >
+          <span class={[
+            "inline-flex size-11 items-center justify-center rounded-full",
+            if(traded?(@flea, chip, i), do: "ring-2 ring-gold", else: "opacity-40")
+          ]}>
+            <.chip chip={chip} />
+          </span>
+          <span class="mt-0.5 text-[11px] leading-4 font-semibold text-ink-soft">
+            {flea_note(@flea, @game, chip, i)}
+          </span>
+        </li>
+      </ul>
+      <p class="text-ink-soft" data-role="flea-result">{flea_result(@flea)}</p>
+    </div>
+    """
+  end
+
+  # The first copy of the traded chip is the one that went up.
+  defp traded?(%{traded: chip, drew: drew}, chip, i),
+    do: Enum.find_index(drew, &(&1 == chip)) == i
+
+  defp traded?(_flea, _chip, _i), do: false
+
+  defp flea_note(flea, game, chip, i) do
+    cond do
+      traded?(flea, chip, i) -> "traded up"
+      reason = Quacks.Game.Fortune.flea_block(game, chip) -> flea_reason(reason)
+      true -> "kept"
+    end
+  end
+
+  @doc "Why Flea Market cannot trade a chip up (`Fortune.flea_block/2`), in a few words."
+  def flea_reason(:white), do: "white stays"
+  def flea_reason(:top), do: "no higher value"
+  def flea_reason(:none_left), do: "none to trade for"
+
+  defp flea_result(%{traded: chip, got: got}) when chip != nil,
+    do: "Traded #{chip_name(chip)} for #{chip_name(got)}."
+
+  defp flea_result(%{got: {:green, 1}}), do: "None could go up: you took a green 1."
+  defp flea_result(_flea), do: "You kept them all."
 
   @doc """
   The Fortune Teller card of this round: a colour band (blue = a rule for the whole
