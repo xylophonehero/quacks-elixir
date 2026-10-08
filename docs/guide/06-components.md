@@ -1139,7 +1139,7 @@ and saves each change; the form's own `phx-change` tells the server. With reduce
 motion the server forces Step and runs no timer. app.js also sets `--beat-ms` before
 LiveView connects, so a reload plays the beats at the saved speed.
 
-### The evaluation on the tiles (round 27, experimental branch)
+### The evaluation on the tiles (round 27; see round 28 below)
 
 On the branch `round-27-eval` the menu's reveal settings have a third row,
 **Results**: Overlay (the default) or **On tiles** (`quacks:reveal` keeps `show`).
@@ -1153,6 +1153,46 @@ which folds into the tile's counters; the counters show the running totals
 (`TileReveal.totals/3`) and count up from the old value (`.tile-count`). The die
 face stays by the crown until the next round; in the shop the bought chips and the
 droplet pushes show on the tile (`TileReveal.shop/2`, from the log).
+
+### Round 28: the tiles are the evaluation on phones
+
+**Phones.** The `RevealSettings` hook (app.js) sends `phone: true` when the
+screen is under `sm` (40rem, `matchMedia`), and again when that changes. On a
+phone `GameLive` plays the results on the tiles whatever the Results choice says
+(`reveal_show` is the effect, `reveal_choice` the saved choice), and the menu
+hides the Results row (a hidden `phone` input keeps the form's own changes
+right). Larger screens keep the choice, the overlay by default. The server cannot
+read the width, so this is the one bit of JS; CSS alone cannot pick a server mode.
+
+**No results table.** `Reveal.slides/2` goes from the scoring steps to the
+standings, in both modes. The standings slide carries the gains that no step
+showed (cards, essence, witches), so the running totals end on the real totals.
+The player sheet keeps each seat's result lines.
+
+**A slimmer tile.** No name text: the seat disc has the initial (and a small bot
+icon); the name is the tile's `title` and an `sr-only` span. Top line: the disc,
+the die faces (`rolls`; on the die step they come in as the news goes), the pot
+space and the VP in `text-xl`. Bottom line (`#tile-line-N`): rubies, the droplet,
+the flask (full or used), the black chips in the pot only while black book I is in
+play (`black_counts?/1`; books II and III do not compare pot counts), then the
+extras while they fit. At 360 px with 4 columns the line holds about four items.
+
+**News on the bottom line (R2).** `TileReveal.news/3` gives a tile's news, or
+nil: the die faces on the die step, a book's ingredient and rewards, the space's
+VP and ruby, and the chips bought and the droplet pushes: in the shop, or the
+last shop as the next round begins (the bots' buys show only once the last human
+is done, `GameServer`). While the steps play the rat track follows the tiles'
+running VP (`rat_track/1`'s `vps`). The bottom
+line holds both the totals (`.tile-totals`) and the news (`.tile-news`); with
+news (`data-news`) CSS swaps the line to the news and back over 5 beats, the
+totals coming back as the step's counters count up. The line's id has the news
+key, so new news is a new element and the swap plays again. Nothing hangs outside
+the tile. While a step plays the droplet shows its running value
+(`TileReveal.droplets/3`).
+
+**Every VP on the rat track.** Each dot has its VP: one number for seats in a
+step with the same VP, the numbers of a step alternating above and below the line
+(`track-vp`; the leader's is `leader-vp`).
 
 ### `PotMotion`: animate on top of the patch
 

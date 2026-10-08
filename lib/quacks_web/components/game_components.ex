@@ -1702,8 +1702,8 @@ defmodule QuacksWeb.GameComponents do
   the seat disc has the initial (and a small bot icon), the full name is the
   tile's title and screen-reader text. Top line: the disc, this round's die faces
   (`rolls`), the pot space (its coins) and the VP, large. Bottom line
-  (`tile-line`): rubies, the droplet, the black chips in the pot (only while black
-  book I compares black chips, `black_counts?/1`), the flask (full or used), then
+  (`tile-line`): rubies, the droplet, the flask (full or used), the black chips in
+  the pot (only while black book I compares black chips, `black_counts?/1`), then
   rat tails, essence, test tube, patient or witch pennies while they fit (the line
   wraps into hidden overflow, so the tile never grows). With `news`
   (`QuacksWeb.TileReveal.news/3`) the bottom line swaps to the news and back.
@@ -1757,7 +1757,7 @@ defmodule QuacksWeb.GameComponents do
       popovertarget={"sheet-player-#{@seat}"}
       phx-click={JS.push("open_player", value: %{seat: @seat})}
       class={[
-        "player-tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1.5 text-left touch-manipulation",
+        "player-tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left touch-manipulation",
         "transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97]",
         if(@you,
           do: "border-2 border-gold bg-gold/15",
@@ -2014,8 +2014,8 @@ defmodule QuacksWeb.GameComponents do
   attr :ticks, :any, default: nil, doc: "`%{vp: {beat, from}, rubies: {beat, from}}`"
   attr :totals, :any, default: nil, doc: "see `player_chip/1`"
 
-  # The tile's bottom line: rubies, the droplet, the black chips in the pot (black
-  # book I only), the flask (full or used), this round's rat tails (rats on),
+  # The tile's bottom line: rubies, the droplet, the flask (full or used), the black
+  # chips in the pot (black book I only), this round's rat tails (rats on),
   # essence (The Alchemists), the test tube (reverse pot side), the patient or the
   # witch pennies (spent ones dim). One line high: what does not fit wraps into the
   # hidden overflow, the sheet has it all.
@@ -2028,7 +2028,7 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <span
-      class="tile-totals flex h-4 w-full min-w-0 flex-wrap items-center gap-x-1.5 overflow-hidden text-[12px] leading-4 font-semibold tabular-nums"
+      class="tile-totals flex h-4 w-full min-w-0 flex-wrap items-center gap-x-1 overflow-hidden text-[11px] leading-4 font-semibold tabular-nums"
       data-role="player-stats"
     >
       <span class="flex items-center gap-px" title="Rubies" data-role="player-rubies">
@@ -2045,17 +2045,8 @@ defmodule QuacksWeb.GameComponents do
         <span class="sr-only">rubies</span>
       </span>
       <span class="flex items-center gap-px" title="Droplet" data-role="player-droplet">
-        <.piece_icon name={:droplet} class="size-3 text-droplet" />{@droplet}
+        <.piece_icon name={:droplet} class="size-2.5 text-droplet" />{@droplet}
         <span class="sr-only">droplet</span>
-      </span>
-      <span
-        :if={black_counts?(@game)}
-        class="flex items-center gap-0.5"
-        title="Black chips in the pot"
-        data-role="player-black"
-      >
-        <span class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver" aria-hidden="true" />{@black}
-        <span class="sr-only">black chips in the pot</span>
       </span>
       <span
         class="flex items-center"
@@ -2068,6 +2059,15 @@ defmodule QuacksWeb.GameComponents do
           class={["size-3", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
         />
         <span class="sr-only">flask {flask_word(@p.flask)}</span>
+      </span>
+      <span
+        :if={black_counts?(@game)}
+        class="flex items-center gap-px"
+        title="Black chips in the pot"
+        data-role="player-black"
+      >
+        <span class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver" aria-hidden="true" />{@black}
+        <span class="sr-only">black chips in the pot</span>
       </span>
       <span
         :if={@game.rules.rats and @p.rat_stone > 0}
