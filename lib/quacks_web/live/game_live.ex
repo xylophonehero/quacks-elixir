@@ -2805,7 +2805,9 @@ defmodule QuacksWeb.GameLive do
     do: chip not in selected and {:buy, Enum.sort([chip | selected])} not in actions
 
   # `@game` is the game and `@me` this browser's player (nil when watching).
-  # Every state change empties the shop selection; it only means something in the shop.
+  # The shop selection stays while this seat's phase stays and the selection is still
+  # a legal buy (round 28: another seat's buy must not untick ours); it empties when
+  # this seat buys, leaves the shop or a new round starts.
   # `@decision` is the phase whose choice this seat must make now (shown in a
   # dialog), or nil. `@actions` are the brewing buttons of the bottom bar.
   # `@stop_slot` is the action of the bar's left slot: `:resume` while this seat is
@@ -2834,13 +2836,14 @@ defmodule QuacksWeb.GameLive do
     seat = socket.assigns.seat
     me = if seat, do: game.players[seat]
     actions = if seat && not Game.over?(game), do: Game.legal_actions(game, seat), else: []
-    {decision, skip_rubies} = decide(actions, seat && Game.phase(game, seat), me)
+    phase = seat && Game.phase(game, seat)
+    {decision, skip_rubies} = decide(actions, phase, me)
 
     socket
     |> assign(
       game: game,
       me: me,
-      selected: [],
+      selected: kept_selection(socket.assigns, game, phase, actions),
       decision: decision,
       all_actions: actions,
       actions: if(decision || skip_rubies, do: [], else: Enum.reject(actions, &witch?/1)),
@@ -2852,6 +2855,21 @@ defmodule QuacksWeb.GameLive do
     |> open_reveal()
     |> card_vt(was)
   end
+
+  defp kept_selection(
+         %{game: %Game{} = old, selected: [_ | _] = selected} = assigns,
+         game,
+         phase,
+         actions
+       ) do
+    same? =
+      old.round == game.round and Game.phase(old, assigns.seat) == phase and
+        old.players[assigns.seat] == game.players[assigns.seat]
+
+    if same? and {:buy, selected} in actions, do: selected, else: []
+  end
+
+  defp kept_selection(_assigns, _game, _phase, _actions), do: []
 
   # -- the reveal overlay (round 14) ----------------------------------------------------
 
