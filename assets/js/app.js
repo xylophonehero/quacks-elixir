@@ -76,21 +76,31 @@ const loadReveal = () => {
 }
 const setBeat = speed => document.documentElement.style.setProperty("--beat-ms", beatMs[speed] || beatMs.normal)
 setBeat(loadReveal().speed)
+// Round 28: on a phone (under Tailwind's `sm`, 40rem) the results always play on
+// the tiles; the server needs the width, so the hook sends it, and again when it
+// crosses `sm` (a turned phone).
+const phoneQuery = window.matchMedia("(max-width: 39.999rem)")
 const RevealSettings = {
   mounted() {
     const send = ({mode, speed, show}) => {
       setBeat(speed)
-      this.pushEvent("reveal_settings", {mode, speed, show, reduced: reduced()})
+      this.pushEvent("reveal_settings", {mode, speed, show, phone: phoneQuery.matches, reduced: reduced()})
+    }
+    const current = () => {
+      const saved = loadReveal()
+      return {mode: saved.mode || "step", speed: saved.speed || "normal", show: saved.show || "overlay"}
     }
     this.el.addEventListener("change", () => {
       const form = new FormData(this.el)
-      const settings = {mode: form.get("mode") || "step", speed: form.get("speed") || "normal", show: form.get("show") || "overlay"}
+      const settings = {mode: form.get("mode") || "step", speed: form.get("speed") || "normal", show: form.get("show") || current().show}
       try { localStorage.setItem("quacks:reveal", JSON.stringify(settings)) } catch (_e) {}
       setBeat(settings.speed)
     })
-    const saved = loadReveal()
-    send({mode: saved.mode || "step", speed: saved.speed || "normal", show: saved.show || "overlay"})
-  }
+    this.onPhone = () => send(current())
+    phoneQuery.addEventListener("change", this.onPhone)
+    send(current())
+  },
+  destroyed() { phoneQuery.removeEventListener("change", this.onPhone) }
 }
 
 // The menu's "App" line (round 14): which install rule fails on a phone that shows

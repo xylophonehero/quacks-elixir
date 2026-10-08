@@ -149,6 +149,8 @@ defmodule QuacksWeb.GameLive do
            reveal_mode: :step,
            reveal_speed: :normal,
            reveal_show: :overlay,
+           reveal_choice: :overlay,
+           phone: false,
            reduced: false
          )
          |> new_report()
@@ -440,10 +442,27 @@ defmodule QuacksWeb.GameLive do
     mode = if params["mode"] == "auto" and not reduced, do: :auto, else: :step
     speed = Enum.find(Reveal.speeds(), :normal, &(Atom.to_string(&1) == params["speed"]))
 
-    show = if params["show"] == "tiles", do: :tiles, else: :overlay
+    choice =
+      case params["show"] do
+        "tiles" -> :tiles
+        "overlay" -> :overlay
+        nil -> socket.assigns.reveal_choice
+        _other -> :overlay
+      end
+
+    # Round 28: phones always play the results on the tiles (no overlay).
+    phone = Map.get(params, "phone", socket.assigns.phone) in [true, "true"]
+    show = if phone, do: :tiles, else: choice
 
     socket =
-      assign(socket, reveal_mode: mode, reveal_speed: speed, reveal_show: show, reduced: reduced)
+      assign(socket,
+        reveal_mode: mode,
+        reveal_speed: speed,
+        reveal_show: show,
+        reveal_choice: choice,
+        phone: phone,
+        reduced: reduced
+      )
 
     case socket.assigns.reveal do
       # Round 27: the settings come after mount, so the results' reveal starts again
@@ -1740,7 +1759,8 @@ defmodule QuacksWeb.GameLive do
           <.reveal_settings
             mode={@reveal_mode}
             speed={@reveal_speed}
-            show={@reveal_show}
+            show={@reveal_choice}
+            phone={@phone}
             reduced={@reduced}
           />
           <p>

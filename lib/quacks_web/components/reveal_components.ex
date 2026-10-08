@@ -833,7 +833,8 @@ defmodule QuacksWeb.RevealComponents do
 
   @doc """
   The menu's reveal settings, a form (`#reveal-settings`, event
-  `"reveal_settings"`): Step or Auto, and the speed. `RevealSettings` (app.js)
+  `"reveal_settings"`): Step or Auto, the speed and (not on a phone) where the
+  results play. `RevealSettings` (app.js)
   keeps them in this browser and sends them on mount. With reduced motion only
   Step.
   """
@@ -844,7 +845,11 @@ defmodule QuacksWeb.RevealComponents do
   attr :show, :atom,
     default: :overlay,
     values: [:overlay, :tiles],
-    doc: "round 27 (experimental): the results in the overlay, or played on the tiles"
+    doc: "round 27: the results in the overlay, or played on the tiles"
+
+  attr :phone, :boolean,
+    default: false,
+    doc: "round 28: a phone always plays the results on the tiles; the Results choice hides"
 
   def reveal_settings(assigns) do
     ~H"""
@@ -869,12 +874,18 @@ defmodule QuacksWeb.RevealComponents do
         value={@speed}
         options={[normal: "Normal", slow: "Slow", slower: "Slower"]}
       />
-      <.segments
-        name="show"
-        legend="Results"
-        value={@show}
-        options={[overlay: "Overlay", tiles: "On tiles"]}
-      />
+      <input type="hidden" name="phone" value={to_string(@phone)} />
+      <div :if={!@phone} data-role="reveal-show">
+        <.segments
+          name="show"
+          legend="Results"
+          value={@show}
+          options={[overlay: "Overlay", tiles: "On tiles"]}
+        />
+      </div>
+      <p :if={@phone} class="text-xs text-ink-soft" data-role="reveal-show-phone">
+        Results: on the player tiles (phone).
+      </p>
     </form>
     """
   end
