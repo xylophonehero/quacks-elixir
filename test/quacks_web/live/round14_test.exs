@@ -41,7 +41,7 @@ defmodule QuacksWeb.Round14Test do
       {id, view, _token} = solo_results()
       assert has_element?(view, "dialog#reveal-results-1[phx-mounted*='quacks:modal']")
       assert has_element?(view, "#reveal-slide-0[data-kind=book]")
-      assert has_element?(view, "[data-role=reveal-count]", "1 / 5")
+      assert has_element?(view, "[data-role=reveal-count]", "1 / 4")
       assert has_element?(view, "#reveal-slide-0 [data-role=reveal-chips]")
 
       view |> element("#reveal-next") |> render_click()
@@ -50,13 +50,8 @@ defmodule QuacksWeb.Round14Test do
       view |> element("#reveal-stage") |> render_click()
       assert has_element?(view, "#reveal-slide-2[data-kind=space]")
       view |> element("#reveal-next") |> render_click()
-      # round 16: one results slide, and the running results on every slide
-      assert has_element?(view, "#reveal-slide-3[data-kind=results]", "Round 1 results")
-      assert has_element?(view, "[data-role=reveal-strip] [data-seat='0']")
-      assert has_element?(view, "#reveal-slide-3 [data-role=reveal-result][data-seat='0']")
-      # round 18: then the standings
-      view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-slide-4[data-kind=standings]")
+      # round 28: no results table; then the standings
+      assert has_element?(view, "#reveal-slide-3[data-kind=standings]")
       refute has_element?(view, "#reveal-skip")
       assert has_element?(view, "#reveal-next", "To the shop")
 
@@ -69,7 +64,7 @@ defmodule QuacksWeb.Round14Test do
     test "Skip jumps to the last slide; Esc (the dialog's close) ends it" do
       {_id, view, _token} = solo_results()
       view |> element("#reveal-skip") |> render_click()
-      assert has_element?(view, "#reveal-slide-4[data-kind=standings]")
+      assert has_element?(view, "#reveal-slide-3[data-kind=standings]")
 
       assert has_element?(view, "dialog#reveal-results-1[data-on-close*=reveal_close]")
       render_hook(view, "reveal_close", %{})
@@ -197,7 +192,9 @@ defmodule QuacksWeb.Round14Test do
       js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
       assert js =~ ~s{localStorage.setItem("quacks:reveal"}
       assert js =~ ~s{style.setProperty("--beat-ms"}
-      assert js =~ ~S|this.pushEvent("reveal_settings", {mode, speed, reduced: reduced()})|
+
+      assert js =~
+               ~S|this.pushEvent("reveal_settings", {mode, speed, show, phone: phoneQuery.matches, reduced: reduced()})|
     end
   end
 
@@ -307,9 +304,10 @@ defmodule QuacksWeb.Round14Test do
   end
 
   describe "name cards" do
-    test "keep the name on one line, cut with an ellipsis" do
+    test "show no name text (round 28): the initial, the name for screen readers" do
       {_id, view} = herb_solo()
-      assert has_element?(view, "[data-role=player-name] > [data-role=player-name-text].truncate")
+      assert has_element?(view, "[data-role=player-chip] > [data-role=player-name].sr-only")
+      refute has_element?(view, "[data-role=player-name-text]")
       refute render(view) =~ "wrap-anywhere"
     end
   end

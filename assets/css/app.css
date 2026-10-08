@@ -2646,3 +2646,54 @@ html:active-view-transition-type(card) .card-caption {
 .player-tile.tile-lead {
   box-shadow: 0 0 0 1.5px var(--color-gold), 0 0 10px rgb(224 178 60 / 0.45);
 }
+
+/* Round 28 (R2, `player_chip/1`): a tile's bottom line swaps to the news (a
+   step's gains, a die face, the chips bought) and back to the totals, inside the
+   tile. The news holds while the step's totals count up (3.5 beats), then the
+   totals come back. One step is 5 beats (`TileReveal.duration/1`). A new news
+   key gives the line a new id, so the swap plays again. */
+@keyframes tile-news {
+  0% { opacity: 0; transform: translateY(70%); }
+  8%, 70% { opacity: 1; transform: none; }
+  80%, 100% { opacity: 0; transform: translateY(-70%); }
+}
+@keyframes tile-totals {
+  0% { opacity: 1; transform: none; }
+  8%, 70% { opacity: 0; transform: translateY(-70%); }
+  80%, 100% { opacity: 1; transform: none; }
+}
+@keyframes tile-news-fade { 0%, 80%, 100% { opacity: 0; } 8%, 70% { opacity: 1; } }
+@keyframes tile-totals-fade { 0%, 80%, 100% { opacity: 1; } 8%, 70% { opacity: 0; } }
+@keyframes tile-die-late { 0%, 70% { opacity: 0; } 80%, 100% { opacity: 1; } }
+.player-tile [data-role="tile-die"][data-late] {
+  animation: tile-die-late calc(var(--beat-ms, 450) * 5ms) linear both;
+}
+.tile-line[data-news] .tile-news {
+  opacity: 0;
+  animation: tile-news calc(var(--beat-ms, 450) * 5ms) var(--ease-out, ease-out) both;
+}
+.tile-line[data-news] .tile-totals {
+  animation: tile-totals calc(var(--beat-ms, 450) * 5ms) var(--ease-out, ease-out) both;
+}
+/* A total counts from the step's old value (`--from`) to the new one (`--n`, the
+   `@property` of the stats strip) as the badge folds in, after 3.5 beats. */
+@keyframes tile-count {
+  from { --n: var(--from); }
+}
+@keyframes tile-pop {
+  50% { scale: 1.35; color: var(--color-parchment-light); text-shadow: 0 0 8px var(--color-gold); }
+}
+.tile-count {
+  display: inline-block;
+  counter-reset: n var(--n);
+  animation:
+    tile-count calc(var(--beat-ms, 450) * 1ms) ease-out calc(var(--beat-ms, 450) * 3.5ms) backwards,
+    tile-pop calc(var(--beat-ms, 450) * 1ms) ease-out calc(var(--beat-ms, 450) * 4ms);
+}
+.tile-count::after { content: counter(n); }
+@media (prefers-reduced-motion: reduce) {
+  .tile-count { animation: none; }
+  /* No motion: the line still swaps, as a plain fade. */
+  .tile-line[data-news] .tile-news { animation-name: tile-news-fade; }
+  .tile-line[data-news] .tile-totals { animation-name: tile-totals-fade; }
+}

@@ -11,9 +11,8 @@ defmodule QuacksWeb.Reveal do
     per scoring step with every seat on it, one row each in VP order: the bonus
     die (`:die`), the black, green and purple books and any other book that paid
     (`:book`), the scoring space (`:space`, with the ruby landings); a step nobody
-    scores in has no slide. Then one results slide (round 18: a compact table: coins,
-    VP, ruby, die faces and pot chips; the other results in a closed "Details") and
-    one standings slide (the totals; the rows glide from the old order to the new
+    scores in has no slide. Then one standings slide (round 28: no results table;
+    it carries the gains no step showed) (the totals; the rows glide from the old order to the new
     one);
   - `{:final, 9}`: the game is over: the final coins, rubies and pennies, the
     standings after them, then the podium (round 22: the last slide, with the
@@ -45,7 +44,6 @@ defmodule QuacksWeb.Reveal do
     die: 3200,
     book: 3400,
     space: 3000,
-    results: 5000,
     standings: 3500,
     final: 3500,
     podium: 5000
@@ -137,8 +135,8 @@ defmodule QuacksWeb.Reveal do
 
   # Round 20: one slide per scoring step, every seat on it (one row each, in VP
   # order): the bonus die, the black, green and purple books, any other book that
-  # paid, the scoring space; a step nobody scores in has no slide. Then the results
-  # table and the standings.
+  # paid, the scoring space; a step nobody scores in has no slide. Then the standings
+  # (round 28: no results table; the player sheet lists each seat's result lines).
   defp results(game, round) do
     lines = Map.new(game.seats, &{&1, Replay.beats(game, &1)})
     order = standings_of(now(game))
@@ -156,11 +154,20 @@ defmodule QuacksWeb.Reveal do
 
     steps = [die_slide(lines, order)] ++ books ++ other ++ [space_slide(game, lines, order)]
 
-    Enum.reject(steps, &is_nil/1) ++
-      [
-        results_slide(game, lines, round, others),
-        standings_slide(game, round, before_results(game))
-      ]
+    steps = Enum.reject(steps, &is_nil/1)
+    before = before_results(game)
+
+    # The standings carry what the steps did not show (cards, essence, witches, ...),
+    # so the running totals end on the seats' totals.
+    shown = Enum.reduce(Enum.flat_map(steps, &Map.to_list(&1.gains)), before, &add_gain/2)
+
+    rest =
+      Map.new(now(game), fn {s, {vp, rubies}} ->
+        {v, r} = shown[s]
+        {s, {max(vp - v, 0), max(rubies - r, 0)}}
+      end)
+
+    steps ++ [Map.put(standings_slide(game, round, before), :gains, rest)]
   end
 
   # The bonus die: every roll of the round (the base die and book G6's), a row per
@@ -277,20 +284,6 @@ defmodule QuacksWeb.Reveal do
     end
   end
 
-  # The chips of `colours` in `seat`'s pot this round.
-  defp pot_counts(game, seat, colours) do
-    chips = Game.pot_chips(game, seat)
-    for colour <- colours, do: {colour, Enum.count(chips, &match?({^colour, _}, &1))}
-  end
-
-  # The results table's chip columns: green, black, purple, and locoweed when it can
-  # be in a bag (The Alchemists, or a locoweed book).
-  defp table_colours(game) do
-    if Game.expansion?(game, :alchemists) or game.sets[:locoweed] != nil,
-      do: [:green, :black, :purple, :locoweed],
-      else: [:green, :black, :purple]
-  end
-
   # Black book I compares the black chips with `Evaluation.targets/2` (both
   # neighbours, or the players ranked above): `[{seat, count}]` of the targets, with
   # the standings before this round's results (`before`, `Replay.before/2`). Not
@@ -310,50 +303,6 @@ defmodule QuacksWeb.Reveal do
 
   defp blacks(game, seat),
     do: Enum.count(Game.player(game, seat).drawn, &match?({{:black, _}, _}, &1))
-
-  # The round's results in one slide (round 16, a table since round 18), one row per
-  # seat in VP order: the coins, the VP and ruby of the space, the bonus die faces,
-  # the update chips, the chips in its pot, and the other results (cards, essence,
-  # witches, ...) as lines for the "Details". Round 20: the steps before it showed
-  # the dice, the books (`others`: the other books that paid) and the space, so
-  # `gains` is only the other results.
-  defp results_slide(game, lines, round, others) do
-    colours = table_colours(game)
-
-    rows =
-      for s <- standings_of(now(game)) do
-        p = Game.player(game, s)
-        space = Enum.filter(lines[s], &(&1.kind == :space))
-
-        extra =
-          Enum.filter(
-            lines[s],
-            &(&1.kind in [:card, :essence, :other] and other_book(&1) not in others)
-          )
-
-        %{
-          seat: s,
-          coins: coins(p, Game.scoring_index(game, s)),
-          vp: sum(space, :vp),
-          ruby: Enum.any?(space, &(&1.rubies > 0)),
-          exploded: p.exploded?,
-          choice: p.explosion_choice,
-          updates: Replay.updates(game, s),
-          die: for(line <- lines[s], line.kind == :die, do: line.face),
-          pot: pot_counts(game, s, colours),
-          total: p.vp,
-          extra: for(line <- extra, do: Map.take(line, [:kind, :text, :vp, :rubies])),
-          gain: {sum(extra, :vp), sum(extra, :rubies)}
-        }
-      end
-
-    %{
-      kind: :results,
-      round: round,
-      rows: rows,
-      gains: Map.new(rows, &{&1.seat, &1.gain})
-    }
-  end
 
   # The standings after the round (round 18): every seat's total VP and rubies, before
   # and after the round's results, with its rank before (`from_rank`) and after

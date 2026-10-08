@@ -275,16 +275,13 @@ defmodule QuacksWeb.QaFixes3Test do
       {:ok, _} = GameServer.apply(id, 0, :stop)
       assert has_element?(view, "[data-role=player-chip] [data-role=player-state].-right-1\\.5")
 
+      # Round 28: the bot is a small icon on the seat disc, "bot" is in the name.
       assert has_element?(
                view,
-               "[data-role=player-name] [data-role=bot-badge] .hero-cpu-chip-micro.sm\\:hidden"
+               "[data-role=player-chip] [data-role=bot-badge].hero-cpu-chip-micro"
              )
 
-      assert has_element?(
-               view,
-               "[data-role=player-name] [data-role=bot-badge] .max-sm\\:sr-only",
-               "bot"
-             )
+      assert has_element?(view, "[data-role=player-chip] [data-role=player-name].sr-only", "bot")
     end
 
     # Round 11: the legend went; the name cards carry the colours.

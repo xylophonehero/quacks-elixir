@@ -46,9 +46,9 @@ defmodule QuacksWeb.Round20Test do
 
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
 
-  test "the steps: die, black, the space, then the table and the standings" do
+  test "the steps: die, black, the space, then the standings (round 28: no table)" do
     assert game() |> Reveal.slides(0) |> Enum.map(& &1.kind) ==
-             [:die, :book, :space, :results, :standings]
+             [:die, :book, :space, :standings]
   end
 
   test "the die slide: a row per seat, two dice side by side for seat 0" do
@@ -70,13 +70,6 @@ defmodule QuacksWeb.Round20Test do
     assert count(doc, ~s([data-seat="0"] [data-role=reveal-ruby-landing])) == 1
     assert count(doc, ~s([data-seat="1"] [data-role=reveal-ruby-landing])) == 0
     assert count(doc, "[data-role=reveal-coins] [data-icon=coin]") == 2
-  end
-
-  test "the table: no space column, a coin header, the die faces stacked small" do
-    doc = render_slide(:results)
-    refute doc |> LazyHTML.query("thead th") |> Enum.any?(&(LazyHTML.text(&1) =~ "Space"))
-    assert count(doc, "thead [data-icon=coin]") == 1
-    assert count(doc, ~s(tr[data-seat="0"] [data-role=die-face].size-4)) == 2
   end
 
   test "the overlay is full screen on phones" do

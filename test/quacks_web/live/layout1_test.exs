@@ -33,7 +33,9 @@ defmodule QuacksWeb.Layout1Test do
 
       assert text(html, ~s([data-role=seat-disc].bg-player-1)) == "L"
       assert text(html, "[data-role=player-name]") =~ "Lavinia"
-      assert text(html, "[data-role=player-name] [data-role=bot-badge]") == "bot"
+      # Round 28: the name is screen-reader text, the bot an icon on the disc.
+      assert text(html, "[data-role=player-name].sr-only") =~ "bot"
+      assert count(html, "[data-role=bot-badge].hero-cpu-chip-micro") == 1
       assert text(html, "[data-role=player-vp]") =~ "27"
       assert text(html, "[data-role=player-rubies]") =~ "2"
       assert count(html, ~s([data-role=player-flask][data-flask=full])) == 1

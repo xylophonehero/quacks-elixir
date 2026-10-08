@@ -786,18 +786,23 @@ defmodule QuacksWeb.GameComponents do
   (`ScoringTrack.tails/0`) between the last player and the leader, the leader on
   the left. Every seat's dot sits in the step of its rats
   (`ScoringTrack.rat_tails/2`: the leader's step has none, each tail to the right
-  adds one); seats in one step stack. Under each rat tail its VP; above the
-  leader's dot (round 24) the leader's VP, once for a tie. A fixed height; nothing
-  to tap.
+  adds one); seats in one step stack. Under each rat tail its VP. Since round 28
+  every seat's VP sits by its dot (`track-vp`, the leader's `leader-vp`): one
+  number for seats in a step with the same VP, the numbers of a step alternating
+  above and below the line so they do not collide. A fixed height; nothing to tap.
   """
   attr :game, :map, required: true
   attr :seat, :any, default: nil, doc: "this browser's seat, nil for a spectator"
   attr :names, :map, required: true
   attr :class, :any, default: nil
 
+  attr :vps, :any,
+    default: nil,
+    doc: "`%{seat => vp}` in place of the seats' VP (the evaluation on the tiles)"
+
   def rat_track(assigns) do
     game = assigns.game
-    vps = for s <- game.seats, do: {s, Game.player(game, s).vp}
+    vps = for s <- game.seats, do: {s, (assigns.vps || %{})[s] || Game.player(game, s).vp}
     {low, leader} = vps |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
 
     # The tails from the leader's side: a seat behind tail `t` (VP <= t) gets its rat.
@@ -823,6 +828,27 @@ defmodule QuacksWeb.GameComponents do
 
     rats = for {t, j} <- Enum.with_index(tails), do: %{vp: t, x: (j + 1) / steps}
 
+    # Round 28: every seat's VP by its dot. Seats in one step with the same VP share
+    # one number; the numbers of a step alternate above and below the line.
+    vp_labels =
+      dots
+      |> Enum.chunk_by(& &1.step)
+      |> Enum.flat_map(fn same ->
+        same
+        |> Enum.chunk_by(& &1.vp)
+        |> Enum.with_index()
+        |> Enum.map(fn {group, i} ->
+          %{
+            vp: hd(group).vp,
+            x: hd(group).x,
+            shift: Enum.sum(Enum.map(group, & &1.shift)) / length(group),
+            below: rem(i, 2) == 1,
+            leader: hd(group).vp == leader,
+            seats: Enum.map(group, & &1.seat)
+          }
+        end)
+      end)
+
     label =
       Enum.map_join(vps, "; ", fn {s, vp} ->
         n = ScoringTrack.rat_tails(vp, leader)
@@ -831,7 +857,14 @@ defmodule QuacksWeb.GameComponents do
       end)
 
     assigns =
-      assign(assigns, dots: dots, rats: rats, steps: steps, leader: leader, label: label)
+      assign(assigns,
+        dots: dots,
+        rats: rats,
+        vp_labels: vp_labels,
+        steps: steps,
+        leader: leader,
+        label: label
+      )
 
     ~H"""
     <div
@@ -878,12 +911,20 @@ defmodule QuacksWeb.GameComponents do
         ]} />
       </span>
       <span
-        class="absolute top-3.5 -translate-x-1/2 -translate-y-[calc(100%+0.4rem)] text-[10px] leading-none font-bold text-parchment tabular-nums"
-        style={"left: #{pos(0.5 / @steps)}"}
+        :for={l <- @vp_labels}
+        class={[
+          "absolute top-3.5 -translate-x-1/2 text-[10px] leading-none font-bold tabular-nums transition-[left] duration-500 ease-out motion-reduce:transition-none",
+          if(l.below, do: "translate-y-[0.4rem]", else: "-translate-y-[calc(100%+0.4rem)]"),
+          if(l.leader, do: "text-parchment-light", else: "text-parchment")
+        ]}
+        style={"left: calc(#{pos(l.x)} + #{Float.round(l.shift * 7.0, 2)}px)"}
         aria-hidden="true"
-        data-role="leader-vp"
+        data-role={if l.leader, do: "leader-vp", else: "track-vp"}
+        data-vp={l.vp}
+        data-seats={Enum.join(l.seats, " ")}
+        data-below={l.below && "true"}
       >
-        {@leader}
+        {l.vp}
       </span>
     </div>
     """
@@ -1687,13 +1728,16 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  One player's tile in the players row (round 27, design B), a button that opens
-  the player's detail sheet (`sheet-player-N`). Line 1: the seat disc with the
-  initial, the name (one line, a long one ends in an ellipsis) and the bot icon.
-  Line 2: this round's pot space (its coins, large) and VP. Line 3: rubies, the
-  black chips in the pot, then the flask, rat tails, essence, test tube, patient or
-  witch pennies while they fit (the line wraps into hidden overflow, so the tile
-  never grows).
+  One player's tile in the players row (round 27, design B; slimmer in round 28),
+  a button that opens the player's detail sheet (`sheet-player-N`). No name text:
+  the seat disc has the initial (and a small bot icon), the full name is the
+  tile's title and screen-reader text. Top line: the disc, this round's die faces
+  (`rolls`), the pot space (its coins) and the VP, large. Bottom line
+  (`tile-line`): rubies, the droplet, the flask (full or used), the black chips in
+  the pot (only while black book I compares black chips, `black_counts?/1`), then
+  rat tails, essence, test tube, patient or witch pennies while they fit (the line
+  wraps into hidden overflow, so the tile never grows). With `news`
+  (`QuacksWeb.TileReveal.news/3`) the bottom line swaps to the news and back.
 
   Badges, all absolute, so the tile never changes size: the state badge
   (`player_state/1`) on the top right corner, a **crown** on the disc for the
@@ -1717,7 +1761,13 @@ defmodule QuacksWeb.GameComponents do
     default: false,
     doc: "while the replay runs: the counters tick on their beats"
 
-  slot :inner_block, doc: "extra badges on the tile (the evaluation on the tiles)"
+  attr :totals, :any,
+    default: nil,
+    doc:
+      "`%{vp:, rubies:, droplet:, vp_from:, rubies_from:}` in place of the seat's own, while the evaluation plays on the tiles"
+
+  attr :news, :any, default: nil, doc: "`%{key:, items:}` for the bottom line, or nil"
+  attr :rolls, :list, default: [], doc: "this round's bonus die faces, by the disc"
 
   def player_chip(assigns) do
     p = assigns.game.players[assigns.seat]
@@ -1738,7 +1788,7 @@ defmodule QuacksWeb.GameComponents do
       popovertarget={"sheet-player-#{@seat}"}
       phx-click={JS.push("open_player", value: %{seat: @seat})}
       class={[
-        "player-tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center rounded-[9px] px-1.5 text-left touch-manipulation",
+        "player-tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation",
         "transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97]",
         if(@you,
           do: "border-2 border-gold bg-gold/15",
@@ -1759,11 +1809,17 @@ defmodule QuacksWeb.GameComponents do
       data-row={@row}
       data-col={@col}
     >
-      <span class="flex w-full min-w-0 items-center gap-1">
+      <span class="sr-only" data-role="player-name">
+        {@name}{if @you, do: " (you)"}{if @bot, do: ", bot"}
+      </span>
+      <%!-- Round 28: no name text (the initial in the disc; the name is the
+           tile's aria-label and title). Top line: the disc, the die faces this
+           round (tiles mode), the pot space and the VP, large. --%>
+      <span class="flex w-full min-w-0 items-center gap-1" data-role="tile-top">
         <span class="relative shrink-0">
           <span
             class={[
-              "grid size-4 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40",
+              "grid size-[18px] place-items-center rounded-full text-[11px] leading-none font-extrabold text-ink ring-1 ring-black/40",
               @bg
             ]}
             aria-hidden="true"
@@ -1780,27 +1836,55 @@ defmodule QuacksWeb.GameComponents do
             <.crown class="size-3.5" />
             <span class="sr-only">round leader</span>
           </span>
-        </span>
-        <%!-- One line: a long name ends in an ellipsis, the BOT badge stays whole
-             beside it (round 14: "Wilhelmina" wrapped as "Wilhelmin / a"). --%>
-        <span
-          class="flex min-w-0 items-center gap-1 text-[11px] leading-tight font-semibold"
-          data-role="player-name"
-        >
-          <span class="min-w-0 truncate" data-role="player-name-text">
-            {@name}<span :if={@you} class="sr-only"> (you)</span>
-          </span>
-          <%!-- Phones: the chip icon, so "Septimus BOT" does not wrap. --%>
-          <.bot_badge
+          <span
             :if={@bot}
-            compact={:phone}
-            class="shrink-0 bg-transparent px-0! text-parchment-dim"
+            class="hero-cpu-chip-micro absolute -right-1.5 -bottom-1 size-2.5 text-parchment-dim"
+            aria-hidden="true"
+            data-role="bot-badge"
           />
+          <%!-- The die faces sit by the crown, on the tile's top edge, so the top
+               line keeps its room. On the die step they come in as the news goes
+               (`data-late`). --%>
+          <span
+            :if={@rolls != []}
+            class="absolute -top-3 left-[calc(50%+0.4rem)] z-10 flex gap-px drop-shadow-[0_1px_2px_rgb(0_0_0/0.6)]"
+            data-role="tile-die"
+            data-late={@news && Enum.any?(@news.items, &match?({:die, _}, &1)) && "true"}
+          >
+            <.die_face :for={face <- @rolls} face={face} class="size-3.5" />
+          </span>
+        </span>
+        <.chip_score
+          p={@p}
+          seat={@seat}
+          ticks={@ticks && card_ticks(@game, @seat, @updates)}
+          totals={@totals}
+        />
+      </span>
+      <%!-- R2: the bottom line swaps to the step's news and back (app.css
+           `.tile-line`); a new `news.key` plays the swap again. --%>
+      <span
+        id={"tile-line-#{@seat}" <> if(@news, do: "-" <> @news.key, else: "")}
+        class="tile-line relative h-4 w-full min-w-0"
+        data-role="tile-line"
+        data-news={@news && "true"}
+      >
+        <.chip_stats
+          game={@game}
+          p={@p}
+          seat={@seat}
+          totals={@totals}
+          ticks={@ticks && card_ticks(@game, @seat, @updates)}
+        />
+        <span
+          :if={@news}
+          class="tile-news absolute inset-0 flex items-center gap-1 overflow-hidden text-[12px] leading-4 font-bold whitespace-nowrap tabular-nums"
+          data-role="tile-news"
+        >
+          <QuacksWeb.TileRevealComponents.tile_news items={@news.items} />
         </span>
       </span>
-      <.chip_stats game={@game} p={@p} ticks={@ticks && card_ticks(@game, @seat, @updates)} />
       <.player_state game={@game} seat={@seat} tile class="absolute -top-1.5 -right-1.5" />
-      {render_slot(@inner_block)}
     </button>
     """
   end
@@ -1905,57 +1989,97 @@ defmodule QuacksWeb.GameComponents do
 
   defp card_count(assigns), do: ~H"{@value}"
 
-  attr :game, Game, required: true
   attr :p, Player, required: true
+  attr :seat, :integer, required: true
   attr :ticks, :any, default: nil, doc: "`%{vp: {beat, from}, rubies: {beat, from}}`"
+  attr :totals, :any, default: nil, doc: "see `player_chip/1`"
 
-  # The tile's lines 2 and 3: the pot space (its coins, large) and VP; rubies, the
-  # black chips in the pot, then the flask (full or empty), this round's rat tails (rats
-  # on), essence (The Alchemists), the test tube (reverse pot side), the patient or
-  # the witch pennies (spent ones dim). One line high: what does not fit wraps into
-  # the hidden overflow, the sheet has it all.
-  defp chip_stats(assigns) do
-    assigns =
-      assign(assigns,
-        index: Player.scoring_index(assigns.p),
-        black: Enum.count(Player.pot_chips(assigns.p), &match?({:black, _}, &1))
-      )
+  # The tile's top line, right of the disc: the pot space (its coins) and the VP,
+  # large (round 28).
+  defp chip_score(assigns) do
+    assigns = assign(assigns, index: Player.scoring_index(assigns.p))
 
     ~H"""
     <span
-      class="flex h-[1.125rem] w-full min-w-0 items-end justify-between gap-1 font-hand leading-none font-bold tabular-nums"
+      class="flex min-w-0 flex-1 items-center justify-between gap-1 font-hand leading-none font-bold tabular-nums"
       data-role="player-score"
     >
       <b
-        class="text-lg leading-none text-parchment-light"
+        class="text-xl leading-none text-parchment-light"
         title="Pot space (coins)"
         data-role="player-space"
         data-index={@index}
       >
         {PotTrack.at(@index).coins}<span class="sr-only"> pot space</span>
       </b>
-      <span class="flex items-center gap-px text-[15px] text-gold" title="VP" data-role="player-vp">
-        <.piece_icon name={:vp} class="size-3 text-gold" /><.card_count
+      <span
+        class="flex items-center gap-px text-xl leading-none text-gold"
+        title="VP"
+        data-role="player-vp"
+      >
+        <.piece_icon name={:vp} class="size-3 shrink-0 text-gold" /><.card_count
+          :if={!@totals}
           value={@p.vp}
           tick={@ticks && @ticks[:vp]}
-        />
+        /><span
+          :if={@totals}
+          id={"tile-vp-#{@seat}-#{@totals.vp}"}
+          class="tile-count"
+          style={"--n: #{@totals.vp}; --from: #{@totals.vp_from}"}
+        ><span class="sr-only">{@totals.vp}</span></span>
         <span class="sr-only">VP</span>
       </span>
     </span>
+    """
+  end
+
+  @doc """
+  Whether the black chips in a pot matter at the table: black book I (the base
+  book) compares them, with the neighbours or (house rule) the standings. Black
+  books II and III (The Herb Witches) do not compare pot counts.
+  """
+  @spec black_counts?(Game.t()) :: boolean
+  def black_counts?(%Game{sets: sets}), do: Map.get(sets, :black, 1) == 1
+
+  attr :game, Game, required: true
+  attr :p, Player, required: true
+  attr :seat, :integer, required: true
+  attr :ticks, :any, default: nil, doc: "`%{vp: {beat, from}, rubies: {beat, from}}`"
+  attr :totals, :any, default: nil, doc: "see `player_chip/1`"
+
+  # The tile's bottom line: rubies, the droplet, the flask (full or used), the black
+  # chips in the pot (black book I only), this round's rat tails (rats on),
+  # essence (The Alchemists), the test tube (reverse pot side), the patient or the
+  # witch pennies (spent ones dim). One line high: what does not fit wraps into the
+  # hidden overflow, the sheet has it all.
+  defp chip_stats(assigns) do
+    assigns =
+      assign(assigns,
+        black: Enum.count(Player.pot_chips(assigns.p), &match?({:black, _}, &1)),
+        droplet: if(assigns.totals, do: assigns.totals.droplet, else: assigns.p.droplet)
+      )
+
+    ~H"""
     <span
-      class="flex h-3.5 w-full min-w-0 flex-wrap items-center gap-x-1.5 overflow-hidden text-[11px] leading-3.5 font-semibold tabular-nums"
+      class="tile-totals flex h-4 w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-[11px] leading-4 font-semibold tabular-nums"
       data-role="player-stats"
     >
       <span class="flex items-center gap-px" title="Rubies" data-role="player-rubies">
         <.piece_icon name={:ruby} class="size-2.5 text-ruby-light" /><.card_count
+          :if={!@totals}
           value={@p.rubies}
           tick={@ticks && @ticks[:rubies]}
-        />
+        /><span
+          :if={@totals}
+          id={"tile-rubies-#{@seat}-#{@totals.rubies}"}
+          class="tile-count"
+          style={"--n: #{@totals.rubies}; --from: #{@totals.rubies_from}"}
+        ><span class="sr-only">{@totals.rubies}</span></span>
         <span class="sr-only">rubies</span>
       </span>
-      <span class="flex items-center gap-0.5" title="Black chips in the pot" data-role="player-black">
-        <span class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver" aria-hidden="true" />{@black}
-        <span class="sr-only">black chips in the pot</span>
+      <span class="flex items-center gap-px" title="Droplet" data-role="player-droplet">
+        <.piece_icon name={:droplet} class="size-2.5 text-droplet" />{@droplet}
+        <span class="sr-only">droplet</span>
       </span>
       <span
         class="flex items-center"
@@ -1965,9 +2089,18 @@ defmodule QuacksWeb.GameComponents do
       >
         <.piece_icon
           name={:flask}
-          class={["size-3", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
+          class={["size-2.5", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
         />
         <span class="sr-only">flask {flask_word(@p.flask)}</span>
+      </span>
+      <span
+        :if={black_counts?(@game)}
+        class="flex items-center gap-px"
+        title="Black chips in the pot"
+        data-role="player-black"
+      >
+        <span class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver" aria-hidden="true" />{@black}
+        <span class="sr-only">black chips in the pot</span>
       </span>
       <span
         :if={@game.rules.rats and @p.rat_stone > 0}
