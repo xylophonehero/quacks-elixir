@@ -23,6 +23,8 @@ defmodule Quacks.Game.Fortune do
 
   # Rulebook §6.2: in solo these two are skipped and the next card is drawn.
   @solo_skip [:p7, :p9]
+  # The cards about the rats: the rats are placed before they resolve.
+  @rats_first [:p7, :p9]
   # Flea Market (P13): the next higher value of the same colour. ⚠️ White is not
   # traded up (a bigger white chip only hurts); orange, purple and black have no
   # higher value.
@@ -65,14 +67,22 @@ defmodule Quacks.Game.Fortune do
       else: Game.record(%{g | fortune_card: id}, {:fortune_drawn, id})
   end
 
-  @doc "Resolve a purple card before the potions phase (after the rats). Blue: nothing."
+  @doc """
+  Resolve the round's card, then place the rats (`Game.rats/1`): a purple card's
+  automatic part and its choices first, so the VP they give count for the rats.
+  Infestation and Good Start act on the rats, so the rats come first for them. Blue
+  (or no card): the rats at once.
+  """
   @spec resolve(Game.t()) :: Game.t()
-  def resolve(%{fortune_card: nil} = g), do: g
+  def resolve(%{fortune_card: id} = g) when id in @rats_first,
+    do: g |> Game.rats() |> auto(id) |> open_choices()
+
+  def resolve(%{fortune_card: nil} = g), do: Game.rats(g)
 
   def resolve(g) do
     if Cards.card(g.fortune_card).colour == :purple,
       do: g |> auto(g.fortune_card) |> open_choices(),
-      else: g
+      else: Game.rats(g)
   end
 
   @doc """
@@ -316,7 +326,8 @@ defmodule Quacks.Game.Fortune do
   end
 
   defp continue(%{fortune_card: :b2} = g), do: Essence.run(g)
-  defp continue(g), do: g
+  defp continue(%{fortune_card: id} = g) when id in @rats_first, do: g
+  defp continue(g), do: Game.rats(g)
 
   defp choices(%{fortune_card: id} = g, seat), do: choices(id, g, Game.player(g, seat), seat)
 
