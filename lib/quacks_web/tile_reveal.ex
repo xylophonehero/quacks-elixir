@@ -100,6 +100,70 @@ defmodule QuacksWeb.TileReveal do
     end)
   end
 
+  @doc """
+  Every seat's droplet position after the step `index` of `slides`: the droplet
+  now less the moves of the steps still to come (a die's droplet face, a book's
+  droplet move).
+  """
+  @spec droplets(Game.t(), [Reveal.slide()], integer) :: %{Game.seat() => non_neg_integer}
+  def droplets(game, slides, index) do
+    later = Enum.drop(slides, index + 1)
+
+    Map.new(game.seats, fn s ->
+      moves = later |> Enum.map(&droplet_moves(&1, s)) |> Enum.sum()
+      {s, max(Game.player(game, s).droplet - moves, 0)}
+    end)
+  end
+
+  defp droplet_moves(%{kind: :die, rows: rows}, seat) do
+    case Enum.find(rows, &(&1.seat == seat)) do
+      %{rolls: rolls} -> Enum.count(rolls, &(&1.face == :droplet))
+      _row -> 0
+    end
+  end
+
+  defp droplet_moves(%{kind: :book, rows: rows}, seat) do
+    case Enum.find(rows, &(&1.seat == seat)) do
+      %{scored: true, droplet: n} -> n
+      _row -> 0
+    end
+  end
+
+  defp droplet_moves(_slide, _seat), do: 0
+
+  @doc """
+  Round 28: the news on `seat`'s tile, for its bottom line (R2), or nil. While a
+  step plays (`reveal` with `tiles: true`): the die faces the seat rolled, or the
+  step's badges (`badges/2`). In the shop: the chips the seat bought and its
+  droplet pushes (`shop/2`). `key` changes with every new piece of news, so the
+  line plays its swap again.
+  """
+  @spec news(Game.t(), Game.seat(), map | nil) :: %{key: String.t(), items: [term]} | nil
+  def news(game, seat, %{tiles: true, slides: slides, index: index}) do
+    slide = Enum.at(slides, index)
+    items = step_news(slide, seat)
+    if items != [], do: %{key: "#{game.round}-#{index}", items: items}
+  end
+
+  def news(game, seat, _reveal) do
+    %{chips: chips, droplets: droplets} = shop(game, seat)
+
+    items =
+      Enum.map(chips, &{:bought, &1}) ++ if(droplets > 0, do: [{:droplet, droplets}], else: [])
+
+    if items != [],
+      do: %{key: "#{game.round}-shop-#{length(chips)}-#{droplets}", items: items}
+  end
+
+  defp step_news(%{kind: :die, rows: rows}, seat) do
+    case Enum.find(rows, &(&1.seat == seat)) do
+      %{rolls: rolls} -> for %{face: face} <- rolls, face != nil, do: {:die, face}
+      _row -> []
+    end
+  end
+
+  defp step_news(slide, seat), do: badges(slide, seat)
+
   @doc "The bonus die faces `seat` rolled this round (empty before the evaluation)."
   @spec rolls(Game.t(), Game.seat()) :: [term]
   def rolls(%Game{phase: :shopping} = game, seat) do

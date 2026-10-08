@@ -1,13 +1,11 @@
 defmodule QuacksWeb.TileRevealComponents do
   @moduledoc """
-  Round 27 (experimental, branch `round-27-eval`): the evaluation on the player
-  tiles (`QuacksWeb.TileReveal`). `tile_gains/1` goes inside a tile
-  (`GameComponents.player_chip/1`'s inner block): the die face by the crown, the
-  step's badge, the chips bought and the droplet pushes. `tile_stage/1` is the
-  small pill over the pot that names the step, with Next (Step mode) and Skip.
-  Everything is absolute, so neither the tiles nor the pot move. The badges pop in
-  and fold into the tile's counters on the beat (`--beat-ms`, app.css
-  `.tile-gain`).
+  The evaluation on the player tiles (`QuacksWeb.TileReveal`; round 27, the phone
+  default since round 28). `tile_news/1` fills a tile's bottom line while a step
+  plays and after a buy in the shop (`GameComponents.player_chip/1` swaps the line
+  to the news and back, app.css `.tile-line`). `tile_stage/1` is the small pill
+  over the pot that names the step, with Next (Step mode) and Skip. Nothing hangs
+  outside a tile, so neither the tiles nor the pot move.
   """
   use Phoenix.Component
 
@@ -16,86 +14,44 @@ defmodule QuacksWeb.TileRevealComponents do
 
   alias QuacksWeb.TileReveal
 
-  attr :game, :any, required: true
-  attr :seat, :integer, required: true
-  attr :reveal, :any, default: nil, doc: "the reveal state; `tiles: true` while the tiles play"
-  attr :mode, :atom, default: :auto, doc: "Auto: a badge folds into the counters; Step: it stays"
+  attr :items, :list, required: true, doc: "`QuacksWeb.TileReveal.news/3`'s items"
 
-  def tile_gains(assigns) do
-    reveal = assigns.reveal
-    playing? = match?(%{tiles: true}, reveal)
-    slide = if playing?, do: Enum.at(reveal.slides, reveal.index)
-
-    assigns =
-      assign(assigns,
-        slide: slide,
-        index: if(playing?, do: reveal.index, else: -1),
-        badges: if(slide, do: TileReveal.badges(slide, assigns.seat), else: []),
-        rolls: TileReveal.rolls(assigns.game, assigns.seat),
-        rolling?: match?(%{kind: :die}, slide),
-        shop:
-          if(playing?,
-            do: %{chips: [], droplets: 0},
-            else: TileReveal.shop(assigns.game, assigns.seat)
-          )
-      )
-
+  @doc """
+  Round 28 (R2): the news on a tile's bottom line (`GameComponents.player_chip/1`
+  draws the line and swaps it): die faces, a book's ingredient and its rewards,
+  the space's VP and ruby, the chips bought and the droplet pushes in the shop.
+  """
+  def tile_news(assigns) do
     ~H"""
-    <span
-      :if={@rolls != []}
-      id={"tile-die-#{@seat}-#{@game.round}"}
-      class={[
-        "absolute -top-2.5 left-5 z-10 flex gap-px drop-shadow-[0_1px_2px_rgb(0_0_0/0.6)]",
-        @rolling? && "tile-gain-in"
-      ]}
-      data-role="tile-die"
-    >
-      <.die_face :for={face <- @rolls} face={face} class="size-4" />
-    </span>
-    <span
-      :if={@badges != []}
-      id={"tile-gain-#{@seat}-#{@index}"}
-      class={[
-        "absolute -bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-parchment px-1.5 text-[10px] leading-4 font-bold whitespace-nowrap text-ink tabular-nums shadow-md ring-1 ring-black/30",
-        if(@mode == :auto, do: "tile-gain", else: "tile-gain-stay")
-      ]}
-      data-role="tile-gain"
-      data-kind={@slide.kind}
-    >
-      <.badge :for={badge <- @badges} badge={badge} />
-    </span>
-    <span
-      :if={@shop.chips != []}
-      class="absolute -right-1 -bottom-2 z-10 flex -space-x-1 drop-shadow-[0_1px_2px_rgb(0_0_0/0.6)]"
-      data-role="tile-bought"
-    >
-      <span
-        :for={{chip, n} <- Enum.with_index(@shop.chips)}
-        id={"tile-bought-#{@seat}-#{n}"}
-        class="tile-gain-in rounded-full ring-1 ring-black/40"
-      >
-        <.chip chip={chip} size={:xs} />
-      </span>
-    </span>
-    <span
-      :if={@shop.droplets > 0}
-      id={"tile-droplet-#{@seat}-#{@shop.droplets}"}
-      class="tile-gain-in absolute -bottom-2 -left-1 z-10 flex items-center rounded-full bg-parchment px-1 text-[10px] leading-4 font-bold text-ink shadow-md ring-1 ring-black/30"
-      title="Droplet pushed"
-      data-role="tile-droplet"
-    >
-      <.piece_icon name={:droplet} class="size-3 text-droplet" />+{@shop.droplets}
-    </span>
+    <.badge :for={item <- @items} badge={item} />
     """
   end
 
   attr :badge, :any, required: true
 
+  defp badge(%{badge: {:die, face}} = assigns) do
+    assigns = assign(assigns, face: face)
+
+    ~H"""
+    <.die_face face={@face} class="size-3.5" />
+    """
+  end
+
+  defp badge(%{badge: {:bought, chip}} = assigns) do
+    assigns = assign(assigns, chip: chip)
+
+    ~H"""
+    <span class="rounded-full ring-1 ring-black/40" data-gain="bought">
+      <.chip chip={@chip} size={:xs} />
+    </span>
+    """
+  end
+
   defp badge(%{badge: {:book, colour}} = assigns) do
     assigns = assign(assigns, colour: colour)
 
     ~H"""
-    <.ingredient_icon colour={@colour} class={["size-3", book_ink(@colour)]} />
+    <.ingredient_icon colour={@colour} class={["size-3.5", book_ink(@colour)]} />
     """
   end
 
@@ -114,7 +70,7 @@ defmodule QuacksWeb.TileRevealComponents do
 
     ~H"""
     <span class="flex items-center" data-gain="rubies">
-      <.piece_icon name={:ruby} class="size-2.5 text-ruby" />+{@n}
+      <.piece_icon name={:ruby} class="size-2.5 text-ruby-light" />+{@n}
     </span>
     """
   end
@@ -145,14 +101,14 @@ defmodule QuacksWeb.TileRevealComponents do
     """
   end
 
-  defp book_ink(:black), do: "text-ink"
+  defp book_ink(:black), do: "text-parchment-light"
   defp book_ink(:green), do: "text-chip-green"
   defp book_ink(:purple), do: "text-chip-purple"
   defp book_ink(:orange), do: "text-chip-orange"
   defp book_ink(:blue), do: "text-chip-blue"
   defp book_ink(:red), do: "text-chip-red"
-  defp book_ink(:yellow), do: "text-ink"
-  defp book_ink(_colour), do: "text-ink"
+  defp book_ink(:yellow), do: "text-chip-yellow"
+  defp book_ink(_colour), do: "text-parchment-light"
 
   attr :reveal, :map, required: true
   attr :mode, :atom, required: true, doc: "`:step` shows Next; `:auto` moves on by itself"

@@ -307,9 +307,10 @@ defmodule QuacksWeb.Round14Test do
   end
 
   describe "name cards" do
-    test "keep the name on one line, cut with an ellipsis" do
+    test "show no name text (round 28): the initial, the name for screen readers" do
       {_id, view} = herb_solo()
-      assert has_element?(view, "[data-role=player-name] > [data-role=player-name-text].truncate")
+      assert has_element?(view, "[data-role=player-chip] > [data-role=player-name].sr-only")
+      refute has_element?(view, "[data-role=player-name-text]")
       refute render(view) =~ "wrap-anywhere"
     end
   end
