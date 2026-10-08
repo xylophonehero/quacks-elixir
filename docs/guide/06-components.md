@@ -1171,11 +1171,17 @@ The player sheet keeps each seat's result lines.
 
 **A slimmer tile.** No name text: the seat disc has the initial (and a small bot
 icon); the name is the tile's `title` and an `sr-only` span. Top line: the disc,
-the die faces (`rolls`; on the die step they come in as the news goes), the pot
-space and the VP in `text-xl`. Bottom line (`#tile-line-N`): rubies, the droplet,
+the pot space and the VP in `text-xl`; the die faces (`rolls`) sit by the crown on
+the tile's top edge, so the top line keeps its room (on the die step they come in
+as the news goes). Bottom line (`#tile-line-N`): rubies, the droplet,
 the flask (full or used), the black chips in the pot only while black book I is in
 play (`black_counts?/1`; books II and III do not compare pot counts), then the
-extras while they fit. At 360 px with 4 columns the line holds about four items.
+extras while they fit. At 360 px with 4 columns the line holds the four main
+items (tighter padding under `sm`); the extras drop first.
+
+**Flea Market (P13).** Once a seat has chosen and the card is gone, its news line
+shows the chip it traded and the chip it got (`Quacks.Game.Fortune.flea_market/1`;
+`news/3` gives nil while a card is on screen).
 
 **News on the bottom line (R2).** `TileReveal.news/3` gives a tile's news, or
 nil: the die faces on the die step, a book's ingredient and rewards, the space's

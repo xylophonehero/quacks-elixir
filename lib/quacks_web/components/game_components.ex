@@ -1788,7 +1788,7 @@ defmodule QuacksWeb.GameComponents do
       popovertarget={"sheet-player-#{@seat}"}
       phx-click={JS.push("open_player", value: %{seat: @seat})}
       class={[
-        "player-tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left touch-manipulation",
+        "player-tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation",
         "transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97]",
         if(@you,
           do: "border-2 border-gold bg-gold/15",
@@ -1842,15 +1842,17 @@ defmodule QuacksWeb.GameComponents do
             aria-hidden="true"
             data-role="bot-badge"
           />
-        </span>
-        <%!-- On the die step the faces come in as the news goes (`data-late`). --%>
-        <span
-          :if={@rolls != []}
-          class="flex shrink-0 gap-px"
-          data-role="tile-die"
-          data-late={@news && Enum.any?(@news.items, &match?({:die, _}, &1)) && "true"}
-        >
-          <.die_face :for={face <- @rolls} face={face} class="size-3.5" />
+          <%!-- The die faces sit by the crown, on the tile's top edge, so the top
+               line keeps its room. On the die step they come in as the news goes
+               (`data-late`). --%>
+          <span
+            :if={@rolls != []}
+            class="absolute -top-3 left-[calc(50%+0.4rem)] z-10 flex gap-px drop-shadow-[0_1px_2px_rgb(0_0_0/0.6)]"
+            data-role="tile-die"
+            data-late={@news && Enum.any?(@news.items, &match?({:die, _}, &1)) && "true"}
+          >
+            <.die_face :for={face <- @rolls} face={face} class="size-3.5" />
+          </span>
         </span>
         <.chip_score
           p={@p}
@@ -2059,7 +2061,7 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <span
-      class="tile-totals flex h-4 w-full min-w-0 flex-wrap items-center gap-x-1 overflow-hidden text-[11px] leading-4 font-semibold tabular-nums"
+      class="tile-totals flex h-4 w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-[11px] leading-4 font-semibold tabular-nums"
       data-role="player-stats"
     >
       <span class="flex items-center gap-px" title="Rubies" data-role="player-rubies">
@@ -2087,7 +2089,7 @@ defmodule QuacksWeb.GameComponents do
       >
         <.piece_icon
           name={:flask}
-          class={["size-3", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
+          class={["size-2.5", if(@p.flask, do: "text-potion-light", else: "text-parchment-dim/50")]}
         />
         <span class="sr-only">flask {flask_word(@p.flask)}</span>
       </span>
