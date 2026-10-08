@@ -785,9 +785,10 @@ defmodule QuacksWeb.GameComponents do
   (`ScoringTrack.tails/0`) between the last player and the leader, the leader on
   the left. Every seat's dot sits in the step of its rats
   (`ScoringTrack.rat_tails/2`: the leader's step has none, each tail to the right
-  adds one); seats in one step stack. Under each rat tail its VP; above the
-  leader's dot (round 24) the leader's VP, once for a tie. A fixed height; nothing
-  to tap.
+  adds one); seats in one step stack. Under each rat tail its VP. Since round 28
+  every seat's VP sits by its dot (`track-vp`, the leader's `leader-vp`): one
+  number for seats in a step with the same VP, the numbers of a step alternating
+  above and below the line so they do not collide. A fixed height; nothing to tap.
   """
   attr :game, :map, required: true
   attr :seat, :any, default: nil, doc: "this browser's seat, nil for a spectator"
@@ -822,6 +823,27 @@ defmodule QuacksWeb.GameComponents do
 
     rats = for {t, j} <- Enum.with_index(tails), do: %{vp: t, x: (j + 1) / steps}
 
+    # Round 28: every seat's VP by its dot. Seats in one step with the same VP share
+    # one number; the numbers of a step alternate above and below the line.
+    vp_labels =
+      dots
+      |> Enum.chunk_by(& &1.step)
+      |> Enum.flat_map(fn same ->
+        same
+        |> Enum.chunk_by(& &1.vp)
+        |> Enum.with_index()
+        |> Enum.map(fn {group, i} ->
+          %{
+            vp: hd(group).vp,
+            x: hd(group).x,
+            shift: Enum.sum(Enum.map(group, & &1.shift)) / length(group),
+            below: rem(i, 2) == 1,
+            leader: hd(group).vp == leader,
+            seats: Enum.map(group, & &1.seat)
+          }
+        end)
+      end)
+
     label =
       Enum.map_join(vps, "; ", fn {s, vp} ->
         n = ScoringTrack.rat_tails(vp, leader)
@@ -830,7 +852,14 @@ defmodule QuacksWeb.GameComponents do
       end)
 
     assigns =
-      assign(assigns, dots: dots, rats: rats, steps: steps, leader: leader, label: label)
+      assign(assigns,
+        dots: dots,
+        rats: rats,
+        vp_labels: vp_labels,
+        steps: steps,
+        leader: leader,
+        label: label
+      )
 
     ~H"""
     <div
@@ -877,12 +906,20 @@ defmodule QuacksWeb.GameComponents do
         ]} />
       </span>
       <span
-        class="absolute top-3.5 -translate-x-1/2 -translate-y-[calc(100%+0.4rem)] text-[10px] leading-none font-bold text-parchment tabular-nums"
-        style={"left: #{pos(0.5 / @steps)}"}
+        :for={l <- @vp_labels}
+        class={[
+          "absolute top-3.5 -translate-x-1/2 text-[10px] leading-none font-bold tabular-nums transition-[left] duration-500 ease-out motion-reduce:transition-none",
+          if(l.below, do: "translate-y-[0.4rem]", else: "-translate-y-[calc(100%+0.4rem)]"),
+          if(l.leader, do: "text-parchment-light", else: "text-parchment")
+        ]}
+        style={"left: calc(#{pos(l.x)} + #{Float.round(l.shift * 7.0, 2)}px)"}
         aria-hidden="true"
-        data-role="leader-vp"
+        data-role={if l.leader, do: "leader-vp", else: "track-vp"}
+        data-vp={l.vp}
+        data-seats={Enum.join(l.seats, " ")}
+        data-below={l.below && "true"}
       >
-        {@leader}
+        {l.vp}
       </span>
     </div>
     """

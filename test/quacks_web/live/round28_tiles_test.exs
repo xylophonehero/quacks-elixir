@@ -138,4 +138,82 @@ defmodule QuacksWeb.Round28TilesTest do
       assert TileReveal.droplets(game, [die, book], 1)[0] == 3
     end
   end
+
+  describe "the rat track" do
+    defp track(vps) do
+      game = Game.new(seed: {1, 2, 3}, players: length(vps))
+
+      game =
+        vps
+        |> Enum.with_index()
+        |> Enum.reduce(game, fn {vp, s}, g -> put_in(g.players[s].vp, vp) end)
+
+      render_component(&QuacksWeb.GameComponents.rat_track/1, game: game, names: %{})
+      |> LazyHTML.from_fragment()
+    end
+
+    defp vps(html, selector) do
+      html |> LazyHTML.query(selector) |> Enum.map(&String.trim(LazyHTML.text(&1)))
+    end
+
+    test "shows every seat's VP by its dot, the leader's too" do
+      html = track([20, 14, 3, 9])
+      assert vps(html, "[data-role=leader-vp]") == ["20"]
+      assert Enum.sort(vps(html, "[data-role=track-vp]")) == ["14", "3", "9"]
+    end
+
+    test "seats in one step: one number per VP, alternating above and below" do
+      html = track([2, 2, 1, 0])
+      labels = vps(html, "[data-role=leader-vp], [data-role=track-vp]")
+      assert Enum.sort(labels) == ["0", "1", "2"]
+      assert html |> LazyHTML.query("[data-below]") |> Enum.count() == 1
+    end
+  end
+
+  describe "the tile" do
+    defp tile(game, opts \\ []) do
+      render_component(
+        &QuacksWeb.GameComponents.player_chip/1,
+        [game: game, seat: 1, name: "Wilhelmina"] ++ opts
+      )
+      |> LazyHTML.from_fragment()
+    end
+
+    defp has?(html, selector), do: Enum.count(LazyHTML.query(html, selector)) > 0
+
+    test "no name text: the initial in the disc, the name as title and for screen readers" do
+      html = tile(Game.new(seed: {1, 2, 3}, players: 2), bot: true)
+      assert html |> LazyHTML.query("[data-role=seat-disc]") |> LazyHTML.text() =~ "W"
+      assert has?(html, ~s([data-role=player-chip][title=Wilhelmina]))
+      assert has?(html, "[data-role=player-name].sr-only")
+      refute has?(html, "[data-role=player-name-text]")
+      # VP, rubies, droplet, flask, pot space; the numbers large.
+      for role <- ~w(player-vp player-rubies player-droplet player-flask player-space),
+          do: assert(has?(html, "[data-role=#{role}]"), role)
+
+      assert has?(html, "[data-role=player-space].text-xl")
+      assert has?(html, "[data-role=player-vp].text-xl")
+    end
+
+    test "black chips in the pot only with black book I (either black rule)" do
+      assert has?(tile(Game.new(seed: {1, 2, 3}, players: 2)), "[data-role=player-black]")
+
+      standings = Game.new(seed: {1, 2, 3}, players: 2, rules: %{black_rule: :standings})
+      assert has?(tile(standings), "[data-role=player-black]")
+
+      for set <- [2, 3] do
+        game =
+          Game.new(seed: {1, 2, 3}, players: 2, expansions: [:herb_witches], sets: %{black: set})
+
+        refute has?(tile(game), "[data-role=player-black]")
+      end
+    end
+
+    test "news swaps the bottom line; a new key gives the line a new id" do
+      game = Game.new(seed: {1, 2, 3}, players: 2)
+      html = tile(game, news: %{key: "1-2", items: [{:vp, 3}]})
+      assert has?(html, "#tile-line-1-1-2[data-news] [data-role=tile-news] [data-gain=vp]")
+      refute has?(tile(game), "[data-role=tile-line][data-news]")
+    end
+  end
 end
