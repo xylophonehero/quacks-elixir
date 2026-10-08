@@ -41,7 +41,7 @@ defmodule QuacksWeb.LobbyLiveTest do
 
     assert has_element?(view, "#page-expansions #expansion[form=books]")
     assert has_element?(view, "#page-expansions #rules-pot_side[form=options]")
-    assert has_element?(view, "#page-expansions #to-rules", "Default rules")
+    assert has_element?(view, "#page-expansions #to-rules", "As in the rulebook")
     refute has_element?(view, "#page-expansions #to-books")
     # One bar for the flow, under the pages, hidden on the Games page.
     assert has_element?(view, "#flow-bar[hidden] #new-game", "Start")
@@ -171,7 +171,7 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert has_element?(view, "#preset-set2[aria-pressed=true]")
   end
 
-  test "Start with an open seat opens the table at the configure screen", %{conn: conn} do
+  test "Start with an open seat opens the table at the waiting panel", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
     view |> element("#rename-form") |> render_change(%{"name" => "Ann"})
     render_click(view, "colour", %{"colour" => "3"})
@@ -191,8 +191,18 @@ defmodule QuacksWeb.LobbyLiveTest do
       view |> element("#new-game") |> render_click()
 
     {:ok, game_view, _html} = live(conn, to)
-    assert has_element?(game_view, "[data-role=waiting-for-players]", "2 of 3 seated")
-    assert has_element?(game_view, "button[phx-click=begin]", "Start game")
+
+    assert has_element?(
+             game_view,
+             "#waiting-panel [data-role=waiting-for-players]",
+             "2 of 3 seated"
+           )
+
+    # Round 26: no second copy of the settings, and no Start while a seat is open.
+    refute has_element?(game_view, "#books")
+    refute has_element?(game_view, "#options")
+    refute has_element?(game_view, "button[phx-click=begin]")
+    assert has_element?(game_view, "button[phx-click=fill_bots]", "Fill with bots")
     {:ok, table} = GameServer.get(id)
     assert table.names[0] == "Ann"
     assert table.colours[0] == 3
@@ -226,7 +236,7 @@ defmodule QuacksWeb.LobbyLiveTest do
       end
 
     for picked <- picks do
-      assert picked["locoweed"] == "off"
+      assert picked["locoweed"] in ~w(off 1 2 4 5 6)
       assert picked["black"] in ~w(1 2 3)
       assert picked["orange"] in ~w(1 2)
       assert picked["green"] in ~w(1 2 3 4 5 6)
@@ -237,7 +247,7 @@ defmodule QuacksWeb.LobbyLiveTest do
     # With The Alchemists locoweed is in play too.
     view |> element("#books") |> render_change(%{"alchemists" => "true", "sets" => %{}})
     view |> element("#preset-random") |> render_click()
-    assert books(view)["locoweed"] in ~w(1 2 3 4 5 6)
+    assert books(view)["locoweed"] in ~w(off 1 2 3 4 5 6)
     assert has_element?(view, "#preset-random[aria-pressed=true]")
 
     view |> element("#preset-beginner") |> render_click()
@@ -308,17 +318,23 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert render(view) =~ "No game has the room code"
   end
 
+  # Solo from the spell book: Start opens the game at once.
+  defp start_solo(conn, view) do
+    render_click(view, "players", %{"count" => "1"})
+    {:error, {:live_redirect, %{to: to}}} = view |> element("#new-game") |> render_click()
+    {:ok, view, _html} = live(conn, to)
+    view
+  end
+
   test "the host's Options set house rules for the game", %{conn: conn} do
     # A fixed seed: some random first fortunes open a choice, which hides the fuse.
-    {:ok, id} = GameServer.start(2, {1, 2, 3})
-    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+    {:ok, view, _html} = live(conn, ~p"/?seed=1,2,3")
 
     view
     |> element("#options")
     |> render_change(%{"rules" => %{"explode_above" => "9", "rats" => "false"}})
 
-    render_click(view, "players", %{"count" => "1"})
-    view |> element("button", "Start game") |> render_click()
+    view = start_solo(conn, view)
 
     assert has_element?(view, ~s(#fuse-meter[data-white="0"][data-limit="9"]), "0 / 9")
     assert has_element?(view, "[data-role=house-rules]", "explodes above 9 · no rats")
@@ -345,17 +361,15 @@ defmodule QuacksWeb.LobbyLiveTest do
 
   test "the black chips by standings rule: an Options radio, the house-rules line and the book",
        %{conn: conn} do
-    {:ok, id} = GameServer.start(3, {1, 2, 3})
-    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
-    # Round 25: standings is the default.
-    assert has_element?(view, "#rules-black_rule-standings[checked]")
+    {:ok, view, _html} = live(conn, ~p"/?seed=1,2,3")
+    # Round 27: neighbours (the rulebook) is the default again.
+    assert has_element?(view, "#rules-black_rule-neighbours[checked]")
 
     view
     |> element("#options")
-    |> render_change(%{"rules" => %{"black_rule" => "neighbours", "fortune" => "false"}})
+    |> render_change(%{"rules" => %{"black_rule" => "standings", "fortune" => "false"}})
 
-    assert has_element?(view, "#rules-black_rule-neighbours[checked]")
-    assert {:ok, %{rules: %{black_rule: :neighbours}}} = GameServer.get(id)
+    assert has_element?(view, "#rules-black_rule-standings[checked]")
 
     assert QuacksWeb.SetupComponents.parse_rules(%{"black_rule" => "standings"}).black_rule ==
              :standings
@@ -364,9 +378,8 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert book.text =~ "ranked above you"
     assert Books.get({:black, 1}, %{black_rule: :neighbours}).text =~ "other players"
 
-    render_click(view, "players", %{"count" => "1"})
-    view |> element("button", "Start game") |> render_click()
-    assert has_element?(view, "[data-role=house-rules]", "black chips by neighbours")
+    view = start_solo(conn, view)
+    assert has_element?(view, "[data-role=house-rules]", "black chips by standings")
   end
 
   # The book each colour's tile shows now: "1".."6", or "off".

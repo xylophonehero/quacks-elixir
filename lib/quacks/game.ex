@@ -102,7 +102,7 @@ defmodule Quacks.Game do
     fortune: true,
     rats: true,
     black_solo: :droplet,
-    black_rule: :standings,
+    black_rule: :neighbours,
     die: :standard,
     starting_rubies: 1,
     supply: :infinite,
@@ -297,12 +297,12 @@ defmodule Quacks.Game do
         }
   @type expansion :: :herb_witches | :alchemists
   @typedoc """
-  House rules; the defaults (`default_rules/0`) are the rulebook game, except
-  `black_rule` (`:standings` by default since round 25).
+  House rules; the defaults (`default_rules/0`) are the rulebook game.
   `explode_above` is the white limit before chips and cards raise it, `black_solo`
   the solo black payout (rulebook §6.2 suggests `:droplet_ruby`), `black_rule`
-  whom black book I compares with (`:standings`, the default, ⚠️ unofficial: the
-  players ranked above; `:neighbours`, the rulebook; see `Quacks.Game.Evaluation.targets/2`), `die: :no_orange`
+  whom black book I compares with (`:neighbours`, the rulebook and the default
+  again since round 27; `:standings`, ⚠️ unofficial: the players ranked above; see
+  `Quacks.Game.Evaluation.targets/2`), `die: :no_orange`
   turns the orange face into a second ruby face (⚠️ unofficial). `supply: :infinite`
   (default) means the shop never runs out and `supply` is never counted down;
   `:limited` plays with the box's counts. `overflow: true` (default) puts chips past
@@ -340,6 +340,8 @@ defmodule Quacks.Game do
   e.g. `%{copper: :c3, silver: nil}`, nil or left out: dealt) and 3 witch pennies per
   player. The Alchemists: locoweed book III may be picked, 3 patients are dealt
   (`patients`) and the game starts in `:patient_choice` (round 1's card comes after).
+  `patients:` picks patients before the game, e.g. `%{0 => :nervousness, 1 => :random}`
+  (`Quacks.Game.Essence.prepick/2`; only with The Alchemists, else ignored).
   An unknown colour, set, rule or expansion raises `ArgumentError`.
   """
   @spec new(
@@ -350,7 +352,8 @@ defmodule Quacks.Game do
           fortune: boolean,
           expansion: nil | :herb_witches,
           expansions: Enumerable.t(expansion),
-          witches: %{optional(WitchCards.colour()) => WitchCards.id() | nil} | nil
+          witches: %{optional(WitchCards.colour()) => WitchCards.id() | nil} | nil,
+          patients: %{optional(seat) => Alchemists.id() | :random} | nil
         ) :: t
   def new(opts) do
     seed = Keyword.fetch!(opts, :seed)
@@ -403,7 +406,9 @@ defmodule Quacks.Game do
         if MapSet.member?(expansions, x), do: record(g, {:expansion, x}), else: g
       end)
 
-    if MapSet.member?(expansions, :alchemists), do: Essence.setup(game), else: start_round(game)
+    if MapSet.member?(expansions, :alchemists),
+      do: game |> Essence.setup() |> Essence.prepick(opts[:patients]),
+      else: start_round(game)
   end
 
   # The host's picks replace the dealt witch of their colour (nil: dealt). The deal

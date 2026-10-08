@@ -199,16 +199,14 @@ defmodule QuacksWeb.Polish3Test do
 
   describe "options steppers" do
     test "− / + change a number house rule; the ends disable the button" do
-      {:ok, id} = GameServer.start(2, {1, 2, 3})
-      {:ok, view, _html} = live(browser("host-#{id}"), ~p"/g/#{id}")
+      {:ok, view, _html} = live(browser("host-steppers"), ~p"/?step=rules")
 
       assert has_element?(view, ~s(#options input[type=hidden]#rules-explode_above[value="7"]))
       view |> element("[data-rule=explode_above] button[phx-value-to='8']") |> render_click()
-      assert {:ok, %{rules: %{explode_above: 8}}} = GameServer.get(id)
       assert has_element?(view, "[data-rule=explode_above] [data-role=rule-value]", "8")
 
       view |> element("[data-rule=starting_rubies] button[phx-value-to='0']") |> render_click()
-      assert {:ok, %{rules: %{starting_rubies: 0}}} = GameServer.get(id)
+      assert has_element?(view, "[data-rule=starting_rubies] [data-role=rule-value]", "0")
       assert has_element?(view, "[data-rule=starting_rubies] button[phx-value-to='-1']:disabled")
     end
 

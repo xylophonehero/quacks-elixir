@@ -81,6 +81,7 @@ defmodule Quacks.GameServer do
 
   alias Quacks.{AI, Game, GameStore, Session}
   alias Quacks.AI.{Names, Profile}
+  alias Quacks.Game.Essence
 
   @idle_timeout :timer.hours(2)
   @rejoin_after_ms :timer.seconds(30)
@@ -98,6 +99,9 @@ defmodule Quacks.GameServer do
   (`max_players`) while `:waiting`. `creator` is the host's seat (see the moduledoc), `nil` with nobody seated.
   `sets`, `rules` and `expansion` are the options the game starts (or started) with;
   `expansions` is every expansion on (`expansion:` and `expansions:` together).
+  `patients` is The Alchemists' 3 dealt patients (from the seed; nil without the
+  expansion) and `patient_picks` each human seat's pick before the game (a patient
+  or `:random`; empty at a table not opened by `create/3`).
   `founder` is the seat of the browser that created the table (`nil` while it is not
   seated); only its saved settings may load into a fresh table. `absent` lists the
   human seats with no open page now; `rejoinable` those away for
@@ -126,6 +130,8 @@ defmodule Quacks.GameServer do
           sets: Quacks.Rules.Chips.sets(),
           rules: map,
           witches: %{optional(atom) => atom | nil},
+          patients: nil | [atom],
+          patient_picks: %{optional(Game.seat()) => atom},
           expansion: nil | :herb_witches,
           expansions: MapSet.t(Game.expansion()),
           debug: nil | %{at: non_neg_integer, total: non_neg_integer, frozen: boolean}
@@ -171,7 +177,9 @@ defmodule Quacks.GameServer do
   `witches`, `public`), the `name` and `colour` (0..7) of the browser with `token`,
   which takes seat 0 and is the host, and `bots`: the seats (1 and up) that get a
   bot. With no seat left for a human the game begins at once (solo, or every other
-  seat a bot). `{:error, :invalid}` when the settings make no game.
+  seat a bot). With The Alchemists, `patient` is the host's patient: one of the 3
+  that `seed` deals (`Quacks.Game.Essence.dealt/1`), else (or left out) `:random`.
+  `{:error, :invalid}` when the settings make no game.
   """
   @spec create(map, String.t(), {integer, integer, integer} | nil) ::
           {:ok, id} | {:error, :invalid}
@@ -187,10 +195,13 @@ defmodule Quacks.GameServer do
       |> Enum.sort()
       |> Enum.take(@max_bots)
 
+    seed = seed || random_seed()
+    opts = patient_opts(opts, seed, config[:patient])
+
     if valid?(players, opts) do
       start_server(%{
         max_players: players,
-        seed: seed || random_seed(),
+        seed: seed,
         opts: opts,
         tokens: %{token => 0},
         names: %{0 => clean_name(config[:name], 0)},
@@ -203,6 +214,21 @@ defmodule Quacks.GameServer do
     else
       {:error, :invalid}
     end
+  end
+
+  # The Alchemists (round 26): the host's patient (`:random` unless a dealt one).
+  # The `patients:` key also marks a spell book table, whose joiners get `:random`.
+  defp patient_opts(opts, seed, pick) do
+    if alchemists?(opts),
+      do: Keyword.put(opts, :patients, %{0 => dealt_pick(pick, seed)}),
+      else: opts
+  end
+
+  defp alchemists?(opts), do: :alchemists in List.wrap(opts[:expansions])
+
+  # `pick` when the game with `seed` deals it, else `:random`.
+  defp dealt_pick(pick, seed) do
+    if is_atom(pick) and pick in Essence.dealt(seed), do: pick, else: :random
   end
 
   # A game's `expansions` (a MapSet) or the old single `expansion`.
@@ -452,6 +478,23 @@ defmodule Quacks.GameServer do
   @spec play_again(id, String.t()) ::
           {:ok, id} | {:error, :not_over | :not_seated | :not_found}
   def play_again(id, token), do: call(id, {:play_again, token})
+
+  @doc """
+  The Alchemists (round 26): `seat`'s patient before the game, one of the 3 the
+  table's seed deals (the table's `patients`) or `:random`, while `:waiting`. Only
+  at a spell book table (`create/3`) and only for a human seat.
+  """
+  @spec pick_patient(id, Game.seat(), atom) ::
+          :ok | {:error, :invalid | :already_started | :not_found}
+  def pick_patient(id, seat, pick), do: call(id, {:pick_patient, seat, pick})
+
+  @doc """
+  The waiting panel's "Fill with bots" (host only): a bot in every free seat, and
+  the game begins at once. Replies like `begin/2`.
+  """
+  @spec fill_bots(id, String.t()) ::
+          {:ok, Game.t()} | {:error, :not_creator | :already_started | :not_found}
+  def fill_bots(id, token), do: call(id, {:fill_bots, token})
 
   @doc """
   The host puts a bot (profile `:balanced`) in the free `seat` (nil: the lowest free
@@ -740,6 +783,8 @@ defmodule Quacks.GameServer do
             creator: state.creator || token
         }
 
+        state = put_pick(state, free, :random)
+
         # Solo has nobody to wait for: the game begins with its only seat.
         state = if state.max_players == 1, do: begin_game(state), else: state
         state = mark_away(state)
@@ -793,6 +838,8 @@ defmodule Quacks.GameServer do
             names: Map.delete(state.names, seat),
             colours: Map.delete(state.colours, seat)
         }
+
+        state = drop_pick(state, seat)
 
         if token == host(%{state | tokens: Map.put(tokens, token, seat)}) and host(state),
           do: broadcast(state, {:host, state.id, tokens[host(state)]})
@@ -875,7 +922,7 @@ defmodule Quacks.GameServer do
           start_server(%{
             max_players: state.max_players,
             seed: random_seed(),
-            opts: state.opts,
+            opts: again_picks(state),
             tokens: state.tokens,
             names: state.names,
             colours: state.colours,
@@ -889,6 +936,44 @@ defmodule Quacks.GameServer do
         {:reply, {:ok, new_id}, %{state | next_id: new_id}, @idle_timeout}
     end
   end
+
+  defp server_call({:pick_patient, _seat, _pick}, _from, %{session: %Session{}} = state),
+    do: {:reply, {:error, :already_started}, state, @idle_timeout}
+
+  defp server_call({:pick_patient, seat, pick}, _from, state) do
+    cond do
+      not Keyword.has_key?(state.opts, :patients) or not alchemists?(state.opts) ->
+        {:reply, {:error, :invalid}, state, @idle_timeout}
+
+      not Map.has_key?(state.names, seat) or Map.has_key?(state.bots, seat) ->
+        {:reply, {:error, :invalid}, state, @idle_timeout}
+
+      pick != :random and pick not in Essence.dealt(state.seed) ->
+        {:reply, {:error, :invalid}, state, @idle_timeout}
+
+      true ->
+        state = put_pick(state, seat, pick)
+        broadcast_names(state)
+        {:reply, :ok, state, @idle_timeout}
+    end
+  end
+
+  defp server_call({:fill_bots, token}, _from, %{session: nil} = state) do
+    free = Enum.reject(0..(state.max_players - 1), &Map.has_key?(state.names, &1))
+
+    if token == host(state) do
+      state = state |> then(&Enum.reduce(free, &1, fn seat, st -> seat_bot(st, seat) end))
+      state = begin_game(state)
+      broadcast_names(state)
+      broadcast_lobby()
+      reply_game(state)
+    else
+      {:reply, {:error, :not_creator}, state, @idle_timeout}
+    end
+  end
+
+  defp server_call({:fill_bots, _token}, _from, state),
+    do: {:reply, {:error, :already_started}, state, @idle_timeout}
 
   defp server_call({:add_bot, token, seat}, _from, state) do
     free_seats = Enum.reject(0..(state.max_players - 1), &Map.has_key?(state.names, &1))
@@ -1192,6 +1277,20 @@ defmodule Quacks.GameServer do
     end)
   end
 
+  # Play again: a solo game has no waiting panel, so its patient is chosen in the
+  # game; at a table every human seat starts at "Random" again (a new seed deals
+  # new patients).
+  defp again_picks(%{opts: opts, max_players: 1}), do: Keyword.delete(opts, :patients)
+
+  defp again_picks(%{opts: opts} = state) do
+    if Keyword.has_key?(opts, :patients) do
+      humans = Map.values(state.tokens)
+      Keyword.put(opts, :patients, Map.new(humans, &{&1, :random}))
+    else
+      opts
+    end
+  end
+
   # A bot takes `seat`, with a name nobody at the table has.
   defp seat_bot(state, seat) do
     {name, name_rng} = Names.pick(Map.values(state.names), state.name_rng)
@@ -1222,16 +1321,49 @@ defmodule Quacks.GameServer do
       end)
 
     bots = Map.new(state.bots, fn {seat, profile} -> {renumber[seat], profile} end)
+    opts = renumber_picks(state, renumber)
 
     schedule_bots(%{
       state
-      | session: Session.new(state.seed, map_size(renumber), state.opts),
+      | opts: opts,
+        session: Session.new(state.seed, map_size(renumber), opts),
         tokens: Map.new(state.tokens, fn {token, seat} -> {token, renumber[seat]} end),
         names: names,
         colours: Map.new(state.colours, fn {seat, colour} -> {renumber[seat], colour} end),
         bots: bots,
         bot_rngs: Map.new(bots, fn {seat, _} -> {seat, AI.new_rng(state.seed, seat)} end)
     })
+  end
+
+  # The patient picks of a spell book table (round 26; no `patients:` key: none).
+  defp put_pick(%{opts: opts} = state, seat, pick) do
+    if Keyword.has_key?(opts, :patients),
+      do: %{state | opts: Keyword.update!(opts, :patients, &Map.put(&1, seat, pick))},
+      else: state
+  end
+
+  defp drop_pick(%{opts: opts} = state, seat) do
+    if Keyword.has_key?(opts, :patients),
+      do: %{state | opts: Keyword.update!(opts, :patients, &Map.delete(&1, seat))},
+      else: state
+  end
+
+  # The picks of the seated humans, on their new seats; a patient the seed does not
+  # deal becomes `:random`.
+  defp renumber_picks(%{opts: opts} = state, renumber) do
+    case opts[:patients] do
+      picks when is_map(picks) and map_size(picks) > 0 ->
+        picks =
+          for {seat, pick} <- picks,
+              Map.has_key?(renumber, seat) and not Map.has_key?(state.bots, seat),
+              into: %{},
+              do: {renumber[seat], dealt_pick(pick, state.seed)}
+
+        if alchemists?(opts), do: Keyword.put(opts, :patients, picks), else: opts
+
+      _none ->
+        opts
+    end
   end
 
   # A typed name: trimmed, at most 20 letters; empty is the seat's default name.
@@ -1251,9 +1383,13 @@ defmodule Quacks.GameServer do
   end
 
   # The settings make a game: the player count fits and `Game.new/1` accepts them.
+  # The patient picks are left out: they depend on the table's own seed.
   defp valid?(max, opts) do
     max in 1..8 and
-      match?(%Game{}, Game.new([seed: {1, 2, 3}, players: max] ++ opts))
+      match?(
+        %Game{},
+        Game.new([seed: {1, 2, 3}, players: max] ++ Keyword.delete(opts, :patients))
+      )
   rescue
     ArgumentError -> false
   end
@@ -1394,6 +1530,8 @@ defmodule Quacks.GameServer do
       sets: state.opts[:sets],
       rules: state.opts[:rules],
       witches: state.opts[:witches] || %{},
+      patients: if(alchemists?(state.opts), do: Essence.dealt(state.seed)),
+      patient_picks: state.opts[:patients] || %{},
       expansion: state.opts[:expansion],
       expansions:
         MapSet.new(

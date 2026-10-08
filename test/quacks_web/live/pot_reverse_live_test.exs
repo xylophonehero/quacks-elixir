@@ -23,16 +23,20 @@ defmodule QuacksWeb.PotReverseLiveTest do
   end
 
   test "the Options checkbox turns the reverse side on; the rack shows under the pot" do
-    {:ok, id} = GameServer.start(2)
-    view = browser("host") |> open(id)
+    conn = browser("host")
+    {:ok, view, _html} = live(conn, ~p"/?step=expansions")
     refute has_element?(view, "#rules-pot_side[checked]")
 
     view |> element("#options") |> render_change(%{"rules" => %{"pot_side" => "true"}})
     assert has_element?(view, "#rules-pot_side[checked]")
-    assert {:ok, %{rules: %{pot_side: :back}}} = GameServer.get(id)
 
     render_click(view, "players", %{"count" => "1"})
-    view |> element("button", "Start game") |> render_click()
+
+    {:error, {:live_redirect, %{to: "/g/" <> id = to}}} =
+      view |> element("#new-game") |> render_click()
+
+    assert {:ok, %{rules: %{pot_side: :back}}} = GameServer.get(id)
+    view = conn |> live(to) |> elem(1)
 
     assert has_element?(view, "[data-role=house-rules]", "reverse pot side (test tubes)")
     assert has_element?(view, ~s(svg[data-role=test-tubes][data-tube="0"]))

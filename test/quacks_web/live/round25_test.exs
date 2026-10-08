@@ -73,32 +73,36 @@ defmodule QuacksWeb.Round25Test do
     end
   end
 
-  test "a new game counts black chips by standings; neighbours is the other option" do
-    assert Quacks.Game.default_rules().black_rule == :standings
-    assert Quacks.Game.new(players: 3, seed: {1, 2, 3}).rules.black_rule == :standings
+  test "round 27: a new game counts black chips by neighbours again; standings is the other option" do
+    assert Quacks.Game.default_rules().black_rule == :neighbours
+    assert Quacks.Game.new(players: 3, seed: {1, 2, 3}).rules.black_rule == :neighbours
 
     view = lobby(~p"/?step=rules")
-    assert has_element?(view, "#rules-black_rule-standings[checked]")
-    assert has_element?(view, "#rules-black_rule-neighbours")
+    assert has_element?(view, "#rules-black_rule-neighbours[checked]")
+    assert has_element?(view, "#rules-black_rule-standings")
   end
 
-  test "a config saved before round 25 does not keep the old neighbours default" do
+  test "round 27: a config saved in rounds 25-26 does not keep the old standings default" do
     view = lobby(~p"/?step=rules")
 
-    render_hook(view, "load_config", %{"players" => 2, "rules" => %{"black_rule" => "neighbours"}})
-
-    assert has_element?(view, "#rules-black_rule-standings[checked]")
-
-    # A round-25 config keeps the choice and says its version.
     render_hook(view, "load_config", %{
       "v" => 25,
       "players" => 2,
-      "rules" => %{"black_rule" => "neighbours"}
+      "rules" => %{"black_rule" => "standings"}
     })
 
     assert has_element?(view, "#rules-black_rule-neighbours[checked]")
-    view |> element("#options") |> render_change(%{"rules" => %{"black_rule" => "standings"}})
-    assert_push_event(view, "save_config", %{v: 25, rules: %{black_rule: "standings"}})
+
+    # A round-27 config keeps the choice and says its version.
+    render_hook(view, "load_config", %{
+      "v" => 27,
+      "players" => 2,
+      "rules" => %{"black_rule" => "standings"}
+    })
+
+    assert has_element?(view, "#rules-black_rule-standings[checked]")
+    view |> element("#options") |> render_change(%{"rules" => %{"black_rule" => "neighbours"}})
+    assert_push_event(view, "save_config", %{v: 27, rules: %{black_rule: "neighbours"}})
   end
 
   describe "the corner card grows back" do

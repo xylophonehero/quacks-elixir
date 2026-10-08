@@ -8,17 +8,18 @@ defmodule QuacksWeb.GameLive do
   `Quacks.GameServer.apply/3`. The page itself knows no rules. A browser without a
   seat (the game is full) watches: it sees every pot and no buttons.
 
-  Before the game begins (`GameServer` status `:waiting`) the page is the configure
-  screen: the player count (a − / + stepper), the Ingredient books, the options
-  (`QuacksWeb.SetupComponents`), a link to share, one slot per seat and "Start game"
-  (`GameServer.begin/2`). Only the host (the creator) may change the settings; each
-  change goes through `GameServer.configure/3`, and the broadcast that follows makes
-  every waiting page read the table again, so the others see the settings read-only.
+  Before the game begins (`GameServer` status `:waiting`) the page is the waiting
+  panel (round 26; the settings were made in the spell book, `QuacksWeb.LobbyLive`):
+  one row per seat (name, colour, bot, host, "you" with your name field and colour
+  picker), with The Alchemists your patient ("Random" or one of the 3 dealt), the
+  link to share while a seat is open, and for the host "Start game" (every seat
+  taken, `GameServer.begin/2`) or "Fill with bots" (`GameServer.fill_bots/2`).
+  Every seat change is broadcast, so every waiting page reads the table again.
   Closing the page before the start frees the seat (`terminate/2`).
 
   The layout, top to bottom: the header ("You are" and your seat colour, which also
-  runs along the top edge), your status, the players row (one name card per seat,
-  solo too; a tap opens that player's sheet), the pot, and the bottom bar with only
+  runs along the top edge), your status, the players row (round 27: one tile per seat
+  in a fixed seat loop, solo too; a tap opens that player's sheet), the pot, and the bottom bar with only
   Stop/Resume and Draw. Around the pot (round 22): this round's fortune card with the witches
   below it (top left), the kept Toadstool chips (top right), the flask (bottom
   left) and the bag (bottom right). The log, the share link and the books are in
@@ -37,10 +38,6 @@ defmodule QuacksWeb.GameLive do
   backdrop or × closes one to look at the pot, and while a decision waits, one
   button ("Back to shop", "Back to choice") takes the place of Stop and Draw and
   opens it again.
-
-  The host's browser remembers the last settings (localStorage, the `ConfigMemory`
-  hook in app.js): each change is pushed as `"save_config"`, and a fresh configure
-  screen sends them back once as `"load_config"`.
 
   A new fortune card shows in the reveal overlay (below); when it asks this seat a
   choice, the card and the choice are one dialog instead. The shop has two steps, each its own dialog: first
@@ -241,75 +238,26 @@ defmodule QuacksWeb.GameLive do
     {:noreply, assign(socket, selected: selected)}
   end
 
-  # The configure screen (host only): the player count stepper and the two forms.
-  def handle_event("players", %{"count" => count}, socket) do
-    case Integer.parse(count) do
-      {players, ""} -> {:noreply, configure(socket, %{players: players})}
-      _ -> {:noreply, socket}
-    end
-  end
+  # The waiting panel (round 26): your patient (The Alchemists), Start, and the
+  # host's "Fill with bots" (a bot in every free seat, then the game begins).
+  def handle_event("patient", params, %{assigns: %{seat: seat}} = socket)
+      when is_integer(seat) do
+    pick = parse_patient(params["patient"], socket.assigns.patients || [])
 
-  def handle_event("sets", %{"sets" => params} = form, socket) when is_map(params) do
-    # The Herb Witches change no book; without The Alchemists locoweed III falls back.
-    alchemists = form["alchemists"] == "true"
-
-    config =
-      %{sets: parse_sets(params, alchemists), witches: parse_witches(form["witches"])}
-      |> Map.merge(expansions(form, alchemists))
-
-    {:noreply, configure(socket, config)}
-  end
-
-  def handle_event("rules", %{"rules" => params}, socket) when is_map(params),
-    do: {:noreply, configure(socket, %{rules: parse_rules(params)})}
-
-  def handle_event("rule_step", %{"rule" => rule, "to" => to}, socket),
-    do: {:noreply, configure(socket, %{rules: step_rule(socket.assigns.rules, rule, to)})}
-
-  # A fresh configure screen gets the host's last settings from the browser (the
-  # `ConfigMemory` hook in app.js). Bad or stale values fall back to the defaults.
-  def handle_event("load_config", saved, %{assigns: %{fresh: true}} = socket)
-      when is_map(saved) do
-    alchemists = saved["alchemists"] == true
-    form = fn key -> if is_map(saved[key]), do: saved[key], else: %{} end
-    players = if is_integer(saved["players"]), do: saved["players"], else: socket.assigns.players
-
-    players =
-      players |> min(8) |> max(max(map_size(socket.assigns.names), 1))
-
-    config =
-      Map.merge(
-        %{
-          players: players,
-          sets: parse_sets(form.("sets"), alchemists),
-          rules: saved |> saved_rules() |> parse_rules(),
-          witches: parse_witches(form.("witches"))
-        },
-        expansions(%{"expansion" => to_string(saved["expansion"] == true)}, alchemists)
-      )
-
-    case GameServer.configure(socket.assigns.id, socket.assigns.token, config) do
-      {:ok, table} -> {:noreply, assign_table(socket, table)}
+    case GameServer.pick_patient(socket.assigns.id, seat, pick) do
       {:error, :not_found} -> {:noreply, ended(socket)}
-      {:error, _} -> {:noreply, socket}
+      _ok_or_late -> {:noreply, socket}
     end
   end
 
-  def handle_event("load_config", _saved, socket), do: {:noreply, socket}
+  def handle_event("patient", _params, socket), do: {:noreply, socket}
 
-  # Bots (host only): "Add bot" on an empty seat row puts a named bot there at once;
-  # × empties the seat again.
-  def handle_event("add_bot", %{"seat" => seat}, socket) do
-    case GameServer.add_bot(socket.assigns.id, socket.assigns.token, String.to_integer(seat)) do
-      {:ok, _seat} -> {:noreply, socket}
+  def handle_event("fill_bots", _params, socket) do
+    case GameServer.fill_bots(socket.assigns.id, socket.assigns.token) do
+      {:ok, game} -> {:noreply, socket |> reseat() |> put_game(game)}
       {:error, :not_found} -> {:noreply, ended(socket)}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "That seat is not free now.")}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Only the host can start.")}
     end
-  end
-
-  def handle_event("remove_bot", %{"seat" => seat}, socket) do
-    GameServer.remove_bot(socket.assigns.id, socket.assigns.token, String.to_integer(seat))
-    {:noreply, socket}
   end
 
   def handle_event("begin", _params, socket) do
@@ -853,7 +801,8 @@ defmodule QuacksWeb.GameLive do
   defp exploded_next(_me), do: "Next: the evaluation, when everyone has stopped."
 
   # The table's seats and settings. `@players` is the seat count (while waiting: the
-  # count the host picked); `@sets`, `@rules` and `@expansion` feed the configure forms.
+  # count the host picked); `@sets` names the books for the shop. `@patients` is The
+  # Alchemists' deal (nil without it), `@patient_picks` each seat's pick so far.
   defp assign_table(socket, table) do
     assign(socket,
       players: table.players,
@@ -864,67 +813,9 @@ defmodule QuacksWeb.GameLive do
       rejoinable: table.rejoinable,
       debug: table.debug,
       sets: table.sets || %{},
-      rules: Map.merge(Game.default_rules(), table.rules || %{}),
-      witches: table.witches,
-      expansion: :herb_witches in table.expansions,
-      alchemists: :alchemists in table.expansions,
-      # Nobody changed the books or options yet (see "load_config"). Only the
-      # creator's saved settings may load: a handed-over table keeps its settings.
-      fresh:
-        is_integer(socket.assigns.seat) and socket.assigns.seat == table.founder and
-          table.sets in [nil, %{}] and table.rules in [nil, %{}] and
-          MapSet.size(table.expansions) == 0
+      patients: table.patients,
+      patient_picks: table.patient_picks
     )
-  end
-
-  # The configure form's two toggles as `GameServer.configure/3` options.
-  defp expansions(form, alchemists) do
-    %{
-      expansion: if(form["expansion"] == "true", do: :herb_witches),
-      expansions: if(alchemists, do: [:alchemists], else: [])
-    }
-  end
-
-  # Send the host's change to the server; the reply is the new table, which the
-  # browser keeps for the next game (see "load_config").
-  defp configure(socket, config) do
-    case GameServer.configure(socket.assigns.id, socket.assigns.token, config) do
-      {:ok, table} ->
-        socket
-        |> assign_table(table)
-        |> push_event("save_config", saved_config(table, socket.assigns.seat))
-
-      {:error, :not_creator} ->
-        put_flash(socket, :error, "Only the host can change the game.")
-
-      {:error, :not_found} ->
-        ended(socket)
-
-      {:error, _} ->
-        put_flash(socket, :error, "That setting is not possible now.")
-    end
-  end
-
-  # The table's settings in the shape of the configure forms (strings), and your
-  # seat's colour, for the browser's memory; "load_config" reads them back through `parse_sets/1` and
-  # `parse_rules/1`.
-  defp saved_config(table, seat) do
-    form = fn map -> Map.new(map || %{}, fn {key, value} -> {key, to_string(value)} end) end
-
-    %{
-      # The config's version (`SetupComponents.saved_rules/1`).
-      v: 25,
-      players: table.players,
-      sets: form.(table.sets),
-      rules: form.(table.rules),
-      witches: form.(table.witches),
-      expansion: :herb_witches in table.expansions,
-      alchemists: :alchemists in table.expansions,
-      # The spell book's extras (`QuacksWeb.LobbyLive`).
-      public: table.public,
-      bots: table.bots |> Map.keys() |> Enum.sort(),
-      colour: table.colours[seat]
-    }
   end
 
   # Phones: one screen, no page scroll. Rows: header, status, notices, the pot (takes
@@ -933,7 +824,11 @@ defmodule QuacksWeb.GameLive do
   # column where the bag, log and players sheets show in place.
   @impl true
   def render(%{game: nil} = assigns) do
-    assigns = assign(assigns, host: host?(assigns.seat, assigns.creator))
+    assigns =
+      assign(assigns,
+        host: host?(assigns.seat, assigns.creator),
+        full: map_size(assigns.names) >= assigns.players
+      )
 
     ~H"""
     <Layouts.app flash={@flash} style={seat_style(@colours)}>
@@ -945,42 +840,23 @@ defmodule QuacksWeb.GameLive do
         <.bug_report_button :if={@seat} n={@reports} class="-mr-2" />
       </div>
       <.bug_report_sheet :if={@seat} n={@reports} form={@report_form} error={@report_error} />
-      <div :if={@host} id="config-memory" phx-hook="ConfigMemory" data-fresh={@fresh} hidden />
-      <section class="paper space-y-3 rounded-lg p-3" aria-label="New game">
-        <h2 class="text-lg font-bold">New game</h2>
-        <p :if={!@host and @creator} class="text-sm text-ink-soft" data-role="read-only">
-          {name(@names, @creator)} sets the game up.
-        </p>
-        <div class="flex items-center gap-3" data-role="player-count">
-          <span class="font-semibold">Players</span>
-          <.button
-            phx-click="players"
-            phx-value-count={@players - 1}
-            disabled={!@host or @players <= max(map_size(@names), 1)}
-            aria-label="Fewer players"
-            variant={:secondary}
-            class="size-11 px-0 text-xl"
-          >
-            −
-          </.button>
-          <span class="w-6 text-center text-2xl font-bold tabular-nums" data-role="count">
-            {@players}
+      <%!-- Round 26: the settings were made in the spell book; this panel only seats
+           the players. --%>
+      <section
+        id="waiting-panel"
+        class="paper mx-auto max-w-md space-y-3 rounded-lg p-3"
+        aria-label="Waiting for players"
+      >
+        <div class="flex items-baseline justify-between gap-2">
+          <h2 class="text-lg font-bold">Waiting for players</h2>
+          <span class="text-sm font-semibold tabular-nums" data-role="waiting-for-players">
+            {map_size(@names)} of {@players} seated
           </span>
-          <.button
-            phx-click="players"
-            phx-value-count={@players + 1}
-            disabled={!@host or @players >= 8}
-            aria-label="More players"
-            variant={:secondary}
-            class="size-11 px-0 text-xl"
-          >
-            +
-          </.button>
         </div>
         <ol class="space-y-1" aria-label="Seats">
           <li
             :for={seat <- 0..(@players - 1)}
-            class="flex min-h-9 flex-wrap items-center gap-x-2 rounded-md bg-parchment-light px-2"
+            class="flex min-h-11 flex-wrap items-center gap-x-2 rounded-md bg-parchment-light px-2"
             data-seat={seat}
             data-role="seat-slot"
           >
@@ -1012,37 +888,13 @@ defmodule QuacksWeb.GameLive do
             </form>
             <span :if={@names[seat] && seat != @seat} class="font-semibold">{@names[seat]}</span>
             <.bot_badge :if={@bots[seat]} />
-            <span :if={!@names[seat]} class="text-ink-soft italic">empty</span>
+            <span :if={!@names[seat]} class="text-ink-soft italic">open seat</span>
             <span :if={@names[seat] && seat == @creator} class="text-xs text-ink-soft">host</span>
             <span :if={seat == @seat} class="ml-auto text-xs font-semibold">you</span>
             <.colour_picker :if={seat == @seat} colours={@colours} seat={seat} />
-            <button
-              :if={@host and @bots[seat]}
-              type="button"
-              phx-click="remove_bot"
-              phx-value-seat={seat}
-              aria-label={"Remove #{@names[seat]}"}
-              data-role="remove-bot"
-              class="-mr-1 ml-auto grid size-9 cursor-pointer place-items-center rounded-full text-ink-soft transition-[color,background-color,transform] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-90"
-            >
-              <.icon name="hero-x-mark" class="size-4" />
-            </button>
-            <button
-              :if={@host and !@names[seat]}
-              type="button"
-              phx-click="add_bot"
-              phx-value-seat={seat}
-              data-role="add-bot"
-              class="hit-44 -mr-1 ml-auto min-h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-ink-soft transition-[color,background-color,transform] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-95"
-            >
-              + Add bot
-            </button>
           </li>
         </ol>
-        <p class="rounded-md bg-droplet/25 px-2 py-1" data-role="waiting-for-players">
-          {map_size(@names)} of {@players} seated.
-        </p>
-        <div :if={@players > 1} class="space-y-1 text-sm">
+        <div :if={!@full} class="space-y-1 text-sm">
           <span class="font-semibold">Share this link to invite players</span>
           <div class="flex gap-2">
             <input
@@ -1056,52 +908,43 @@ defmodule QuacksWeb.GameLive do
             <.copy_link url={url(~p"/g/#{@id}")} copied={@copied} />
           </div>
         </div>
-      </section>
-      <section class="paper rounded-lg p-3" aria-label="Settings">
-        <.books_form
-          sets={@sets}
-          expansion={@expansion}
-          alchemists={@alchemists}
-          pot_side={@rules.pot_side}
-          players={@players}
-          witches={@witches}
-          disabled={!@host}
+        <.patient_picker
+          :if={@patients && @seat && Map.has_key?(@patient_picks, @seat)}
+          class="pt-1"
+          id="waiting-patient"
+          patients={@patients}
+          chosen={@patient_picks[@seat]}
         />
-        <%!-- The browser owns `open`: a patch must not close it while the host steps. --%>
-        <details
-          id="options-section"
-          class="mt-3"
-          open={!@host}
-          phx-mounted={JS.ignore_attributes("open")}
-        >
-          <summary class="cursor-pointer font-bold">Options</summary>
-          <div class="mt-2"><.options_form rules={@rules} disabled={!@host} /></div>
-        </details>
       </section>
       <.spectator_note :if={is_nil(@seat)} rejoinable={@rejoinable} names={@names} />
-      <%!-- Start stays in reach at the bottom while the settings scroll. --%>
+      <%!-- The action stays in reach at the bottom while the patients scroll. --%>
       <div
         :if={@seat}
-        class="sticky bottom-0 z-10 -mx-4 -mb-6 flex items-center gap-3 border-t-2 border-black/30 bg-wood-dark/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-10px_20px_-12px_rgb(0_0_0/0.7)] backdrop-blur-sm sm:-mx-6 sm:-mb-12 sm:rounded-t-xl sm:px-6"
+        class="sticky bottom-0 z-10 -mx-4 -mb-6 flex items-center justify-end gap-3 border-t-2 border-black/30 bg-wood-dark/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-10px_20px_-12px_rgb(0_0_0/0.7)] backdrop-blur-sm sm:-mx-6 sm:-mb-12 sm:rounded-t-xl sm:px-6"
         data-role="start-bar"
       >
-        <p class="min-w-0 flex-1 text-sm leading-snug text-parchment-dim" data-role="setup-summary">
-          {setup_summary(@players, @expansion, @alchemists, @rules)}
-        </p>
         <.button
-          :if={starter?(@seat, @creator)}
+          :if={@host and @full}
           phx-click="begin"
           variant={:primary}
-          class="min-h-12 shrink-0 px-6 text-base"
+          class="min-h-12 px-6 text-base"
           data-role="start-game"
         >
           Start game
         </.button>
-        <p
-          :if={!starter?(@seat, @creator)}
-          class="shrink-0 text-sm font-semibold"
-          data-role="waiting-for-host"
+        <p :if={@host and !@full} class="min-w-0 flex-1 text-sm leading-snug text-parchment-dim">
+          Share the link, or play the open seats with bots.
+        </p>
+        <.button
+          :if={@host and !@full}
+          phx-click="fill_bots"
+          variant={:primary}
+          class="min-h-12 shrink-0 px-5 text-base"
+          data-role="fill-bots"
         >
+          Fill with bots
+        </.button>
+        <p :if={!@host} class="min-w-0 flex-1 text-sm font-semibold" data-role="waiting-for-host">
           Waiting for {name(@names, @creator)} to start the game.
         </p>
       </div>
@@ -1194,26 +1037,32 @@ defmodule QuacksWeb.GameLive do
             phx-mounted={JS.remove_class("replay-done", to: "#players-row")}
           />
           <.status :if={@seat} game={@game} seat={@seat} beats={stat_beats(@game, @seat, @seen)} />
-          <%!-- Up to 4 cards share the row; with more it scrolls sideways. After the
-               brew each card's counters tick on the replay beats; the card with the
-               last beat ends the replay (`replay_end/3`, app.js). On phones the
-               counts row has two lines, so the row keeps its height. --%>
+          <%!-- Round 27: one tile per seat in a fixed seat loop (`seat_loop/1`):
+               one row up to 4 seats, two rows from 5, the second row backwards, so
+               neighbours touch. The tiles never re-order and have a fixed height.
+               After the brew each tile's counters tick on the replay beats; the
+               tile with the last beat ends the replay (`replay_end/3`, app.js). --%>
           <nav
             id="players-row"
             class={[
-              "-mx-2 grid snap-x auto-cols-[minmax(5.5rem,1fr)] grid-flow-col grid-rows-[auto_2.125rem] gap-1 overflow-x-auto px-2 py-0.5 [scrollbar-width:none] sm:auto-cols-[minmax(9rem,1fr)] sm:grid-rows-[auto_auto] phone-landscape:auto-cols-[minmax(5.5rem,1fr)]",
+              "-mx-2 grid gap-1 px-2 pt-1.5 pb-0.5",
               not replaying?(@game, @seen) && "replay-done"
             ]}
+            style={"grid-template-columns: repeat(#{loop_columns(length(@game.seats))}, minmax(0, 1fr))"}
             aria-label="Players"
             data-role="players-row"
+            data-columns={loop_columns(length(@game.seats))}
           >
             <.player_chip
-              :for={seat <- @game.seats}
+              :for={{seat, row, col} <- seat_loop(@game.seats)}
               game={@game}
               seat={seat}
               name={name(@names, seat)}
               you={seat == @seat}
               bot={Map.has_key?(@bots, seat)}
+              lead={seat in round_leaders(@game)}
+              row={row}
+              col={col}
               updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
               ticks={replaying?(@game, @seen)}
             />
@@ -2491,18 +2340,6 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
-  # The start bar's line: "3 players · Herb Witches · The Alchemists · test tubes".
-  defp setup_summary(players, herb_witches?, alchemists?, rules) do
-    [
-      if(players == 1, do: "Solo", else: "#{players} players"),
-      herb_witches? && "Herb Witches",
-      alchemists? && "The Alchemists",
-      rules.pot_side == :back && "test tubes"
-    ]
-    |> Enum.filter(& &1)
-    |> Enum.join(" · ")
-  end
-
   # The Buy button's Enter hint: from 64rem, and only when the shop bar is 24rem
   # wide (Done alone always has the room).
   defp shop_kbd, do: "hidden lg:@min-[24rem]/shop-bar:inline-block"
@@ -3473,8 +3310,6 @@ defmodule QuacksWeb.GameLive do
   defp shop_move?(_action), do: false
 
   # The host starts the game (with nobody hosting, any seated player may).
-  defp starter?(nil, _creator), do: false
-  defp starter?(seat, creator), do: creator in [nil, seat]
 
   # Only the creator (the host) changes the settings.
   defp host?(seat, creator), do: seat != nil and seat == creator

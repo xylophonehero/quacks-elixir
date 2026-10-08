@@ -471,6 +471,91 @@ defmodule QuacksWeb.AlchemistsComponents do
   defp count(n), do: "×#{n}"
 
   @doc """
+  The patient picker before the game (round 26; the spell book and the waiting
+  panel): "Random" and the 3 patients the table's seed deals, as radio cards in a
+  form `id` that sends `"patient"` with `%{"patient" => id | "random"}` on change.
+  """
+  attr :id, :string, required: true
+  attr :patients, :list, required: true, doc: "the 3 dealt patient ids"
+  attr :chosen, :atom, default: :random
+  attr :class, :any, default: nil
+
+  def patient_picker(assigns) do
+    ~H"""
+    <form
+      id={@id}
+      phx-change="patient"
+      class={["space-y-2", @class]}
+      data-role="patient-picker"
+      aria-label="Your patient"
+    >
+      <h3 class="font-bold">Your patient</h3>
+      <p class="text-sm text-ink-soft">
+        The game deals these 3; more than one player may treat the same patient.
+      </p>
+      <div class="grid gap-2" role="radiogroup" aria-label="Your patient">
+        <label
+          :for={id <- [:random | @patients]}
+          class="book-card group flex cursor-pointer items-start gap-2.5 rounded-[14px] bg-parchment-light p-2.5 text-ink has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-droplet"
+          data-role="patient-option"
+          data-patient={id}
+        >
+          <input
+            type="radio"
+            name="patient"
+            value={id}
+            checked={id == @chosen}
+            class="sr-only"
+          />
+          <span class="grid size-10 shrink-0 place-items-center rounded-full bg-parchment ring-1 ring-ink/15">
+            <.patient_icon :if={id != :random} id={id} class="size-7" />
+            <span :if={id == :random} class="font-hand text-2xl leading-none font-bold">?</span>
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="flex items-center gap-2">
+              <span class="min-w-0 flex-1 font-hand text-lg leading-tight font-bold">
+                {if id == :random, do: "Random", else: Alchemists.get(id).name}
+              </span>
+              <span class="book-check" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#3a2508"
+                  stroke-width="3.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              </span>
+            </span>
+            <span class="mt-0.5 line-clamp-3 block text-xs leading-snug text-pretty text-ink-soft">
+              {if id == :random,
+                do: "One of the 3, picked for you when the game starts.",
+                else: Alchemists.get(id).text}
+            </span>
+          </span>
+        </label>
+      </div>
+    </form>
+    """
+  end
+
+  @doc """
+  The patient pick as the picker sends it: a dealt id, else `:random`.
+
+      iex> QuacksWeb.AlchemistsComponents.parse_patient("ear_worm", [:ear_worm])
+      :ear_worm
+      iex> QuacksWeb.AlchemistsComponents.parse_patient("nope", [:ear_worm])
+      :random
+  """
+  @spec parse_patient(term, [atom]) :: atom
+  def parse_patient(value, patients) when is_binary(value),
+    do: Enum.find(patients, :random, &(Atom.to_string(&1) == value))
+
+  def parse_patient(_value, _patients), do: :random
+
+  @doc """
   The patient choice (game phase `:patient_choice`): the 3 dealt patients as cards;
   a tap sends that patient's encoded action. `picks` is `[{id, encoded}]`.
   """

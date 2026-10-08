@@ -19,27 +19,27 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
   end
 
   test "Sets 5–6 are offered with or without the toggle", %{conn: conn} do
-    {:ok, id} = GameServer.start(4)
-    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+    # Round 26: the books are picked in the spell book.
+    {:ok, view, _html} = live(conn, ~p"/?step=books")
 
     for colour <- ~w(green blue red yellow purple),
         do: assert(has_element?(view, "input[name='sets[#{colour}]'][value='6']"))
 
-    view |> form("#books", expansion: "true") |> render_change()
-
     view
-    |> form("#books", expansion: "true", sets: %{green: "5", black: "3", locoweed: "2"})
-    |> render_change()
+    |> element("#books")
+    |> render_change(%{
+      "expansion" => "true",
+      "sets" => %{"green" => "5", "black" => "3", "locoweed" => "2"}
+    })
 
     assert has_element?(view, "input[name='sets[green]'][value='6']")
     assert has_element?(view, "#books [data-book=black-3]", "Hawkmoth")
 
-    view |> element("button[aria-label='More players']") |> render_click()
-    assert {:ok, %{status: :waiting, game: nil, max_players: 5}} = GameServer.get(id)
-    assert has_element?(view, "[data-role=waiting-for-players]", "1 of 5 seated")
+    render_click(view, "players", %{"count" => "1"})
 
-    # the creator may start alone
-    view |> element("button", "Start game") |> render_click()
+    {:error, {:live_redirect, %{to: "/g/" <> id}}} =
+      view |> element("#new-game") |> render_click()
+
     {:ok, %{game: game, players: 1}} = GameServer.get(id)
     assert game.expansion == :herb_witches and game.seats == [0]
     assert %{green: 5, black: 3, locoweed: 2} = game.sets

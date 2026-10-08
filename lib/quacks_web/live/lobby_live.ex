@@ -34,10 +34,12 @@ defmodule QuacksWeb.LobbyLive do
   host turns pages. Each change goes to the browser's memory (`save_config`, the
   `ConfigMemory` hook), and the book opens with the last settings (`load_config`).
   Start creates the table (`Quacks.GameServer.create/3`) and goes to `/g/:id`: the
-  game itself when no seat is left for a human, else the configure screen, where
-  the others join by link or room code.
+  game itself when no seat is left for a human, else the waiting panel, where the
+  others join by link or room code.
 
-  `?seed=1,2,3` makes the games created here reproducible.
+  The page holds the table's seed from mount (`?seed=1,2,3` makes the games created
+  here reproducible), so with The Alchemists the Expansions page offers the 3
+  patients that seed deals: "Your patient" (round 26), Random by default.
   """
   use QuacksWeb, :live_view
 
@@ -63,7 +65,10 @@ defmodule QuacksWeb.LobbyLive do
       witch_options: 1
     ]
 
+  import QuacksWeb.AlchemistsComponents, only: [patient_picker: 1, parse_patient: 2]
+
   alias Quacks.{Game, GameServer}
+  alias Quacks.Game.Essence
   alias Quacks.Rules.BookPresets
 
   @max_players 8
@@ -100,7 +105,10 @@ defmodule QuacksWeb.LobbyLive do
      assign(socket,
        page_title: "Quacks",
        token: token,
-       seed: parse_seed(params["seed"]),
+       # The Alchemists deal their patients from the seed, so the book knows it now
+       # (round 26): the patient picker shows that deal.
+       seed: parse_seed(params["seed"]) || random_seed(),
+       patient: :random,
        games: GameServer.games(token),
        players: 2,
        bots: MapSet.new(),
@@ -266,6 +274,10 @@ defmodule QuacksWeb.LobbyLive do
 
   def handle_event("load_config", _saved, socket), do: {:noreply, socket}
 
+  # The Alchemists: your patient, one of the 3 the seed deals, or Random.
+  def handle_event("patient", params, socket),
+    do: {:noreply, assign(socket, patient: parse_patient(params["patient"], dealt(socket)))}
+
   # Start: the table is created now, set up as the book says.
   def handle_event("start", _params, socket) do
     a = socket.assigns
@@ -280,7 +292,8 @@ defmodule QuacksWeb.LobbyLive do
       rules: a.rules,
       witches: if(a.expansion, do: a.witches, else: %{}),
       expansion: if(a.expansion, do: :herb_witches),
-      expansions: if(a.alchemists, do: [:alchemists], else: [])
+      expansions: if(a.alchemists, do: [:alchemists], else: []),
+      patient: a.patient
     }
 
     case GameServer.create(config, a.token, a.seed) do
@@ -318,14 +331,14 @@ defmodule QuacksWeb.LobbyLive do
     push_event(socket, "save_config", saved_config(socket.assigns))
   end
 
-  # The settings in the shape `ConfigMemory` keeps (the configure screen's shape,
-  # plus `public`, `bots`, `colour` and `preset`).
+  # The settings in the shape `ConfigMemory` keeps (the books and options forms'
+  # shape, plus `public`, `bots`, `colour` and `preset`).
   defp saved_config(a) do
     form = fn map -> Map.new(map, fn {key, value} -> {key, to_string(value)} end) end
 
     %{
       # The config's version (`SetupComponents.saved_rules/1`).
-      v: 25,
+      v: 27,
       players: a.players,
       sets: form.(a.sets),
       rules: form.(a.rules),
@@ -795,6 +808,13 @@ defmodule QuacksWeb.LobbyLive do
         pot_side={@rules.pot_side}
         heading={false}
       />
+      <.patient_picker
+        :if={@alchemists}
+        id="lobby-patient"
+        patients={Essence.dealt(@seed)}
+        chosen={@patient}
+        class="mt-4"
+      />
       <%!-- Round 25: the House rules row lives here, under the expansions, not on
            the New game page. --%>
       <nav class="mt-4 grid gap-2" aria-label="House rules">
@@ -923,11 +943,8 @@ defmodule QuacksWeb.LobbyLive do
         <.books_form
           sets={@sets}
           expansion={@expansion}
-          alchemists={@alchemists}
-          pot_side={@rules.pot_side}
           players={@players}
           witches={@witches}
-          expansion_cards={false}
           heading={false}
           patch={&tile_path/1}
         />
@@ -1102,7 +1119,7 @@ defmodule QuacksWeb.LobbyLive do
   # The House rules row's line.
   defp rules_summary(rules) do
     case Enum.count(rules, fn {key, value} -> Game.default_rules()[key] != value end) do
-      0 -> "Default rules"
+      0 -> "As in the rulebook"
       1 -> "1 changed"
       n -> "#{n} changed"
     end
@@ -1132,6 +1149,12 @@ defmodule QuacksWeb.LobbyLive do
         MapSet.member?(game.expansions, key),
         do: {name, icon}
   end
+
+  defp dealt(socket), do: Essence.dealt(socket.assigns.seed)
+
+  # Not the engine: the process's `:rand` is fine.
+  defp random_seed,
+    do: {:rand.uniform(1_000_000), :rand.uniform(1_000_000), :rand.uniform(1_000_000)}
 
   @doc "Parse `\"1,2,3\"` into `{1, 2, 3}`; anything else is `nil` (a random seed)."
   @spec parse_seed(String.t() | nil) :: {integer, integer, integer} | nil

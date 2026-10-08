@@ -1,7 +1,7 @@
 defmodule QuacksWeb.BugReportComponents do
   @moduledoc """
   "Report a problem" (`Quacks.BugReports`): a bug button for the game header and
-  the configure screen, and the dialog with the form. The form sends `"report"`
+  the waiting panel, and the dialog with the form. The form sends `"report"`
   with `report[text]` and `report[browser]`, a JSON string app.js fills in on
   submit (user agent, viewport, `navigator.onLine`, the last console errors).
 

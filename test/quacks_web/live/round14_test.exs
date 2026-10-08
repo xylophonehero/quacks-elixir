@@ -203,11 +203,13 @@ defmodule QuacksWeb.Round14Test do
 
   describe "the herb witch pickers" do
     test "show with the expansion; a pick goes into the game and the browser's memory" do
-      {:ok, id} = GameServer.start(2)
-      {:ok, host, _html} = live(browser("r14-host-#{System.unique_integer()}"), ~p"/g/#{id}")
+      # Round 26: the witches are picked in the spell book (its witch pages).
+      {:ok, host, _html} =
+        live(browser("r14-host-#{System.unique_integer()}"), ~p"/?seed=1,2,3&step=books")
+
       refute has_element?(host, "[data-role=witch-pickers]")
 
-      host |> form("#books", expansion: "true") |> render_change()
+      host |> element("#books") |> render_change(%{"expansion" => "true", "sets" => %{}})
       assert has_element?(host, "[data-role=witch-tile][data-colour=copper]", "Random")
 
       tiles =
@@ -218,21 +220,24 @@ defmodule QuacksWeb.Round14Test do
         |> LazyHTML.attribute("data-colour")
 
       assert tiles == ~w(copper silver gold)
-      assert has_element?(host, "#witch-picker-silver [data-witch=s3]", "Two whites back")
+      assert has_element?(host, "#page-witch-silver [data-witch=s3]", "Two whites back")
 
       host
-      |> form("#books", expansion: "true", witches: %{copper: "c3", silver: "", gold: ""})
-      |> render_change()
-
-      assert {:ok, %{witches: %{copper: :c3, silver: nil, gold: nil}}} = GameServer.get(id)
-      assert has_element?(host, "[data-role=witch-tile][data-witch=c3]", "One free copy")
-
-      assert_push_event(host, "save_config", %{
-        expansion: true,
-        witches: %{copper: "c3", silver: "", gold: ""}
+      |> element("#books")
+      |> render_change(%{
+        "expansion" => "true",
+        "sets" => %{},
+        "witches" => %{"copper" => "c3", "silver" => "", "gold" => ""}
       })
 
-      host |> element("button", "Start game") |> render_click()
+      assert has_element?(host, "[data-role=witch-tile][data-witch=c3]", "One free copy")
+      assert_push_event(host, "save_config", %{expansion: true, witches: %{copper: "c3"}})
+
+      render_click(host, "players", %{"count" => "1"})
+
+      {:error, {:live_redirect, %{to: "/g/" <> id}}} =
+        host |> element("#new-game") |> render_click()
+
       {:ok, %{game: game}} = GameServer.get(id)
       assert game.witches.copper == :c3
     end
@@ -248,9 +253,8 @@ defmodule QuacksWeb.Round14Test do
              }
     end
 
-    test "a fresh screen takes the saved picks back" do
-      {:ok, id} = GameServer.start(2)
-      {:ok, host, _html} = live(browser("r14-fresh-#{System.unique_integer()}"), ~p"/g/#{id}")
+    test "a fresh spell book takes the saved picks back" do
+      {:ok, host, _html} = live(browser("r14-fresh-#{System.unique_integer()}"), ~p"/?step=books")
 
       render_hook(host, "load_config", %{
         "players" => 2,
@@ -258,8 +262,8 @@ defmodule QuacksWeb.Round14Test do
         "witches" => %{"gold" => "g2", "copper" => "nope"}
       })
 
-      assert {:ok, %{witches: %{gold: :g2, copper: nil}}} = GameServer.get(id)
       assert has_element?(host, "[data-role=witch-tile][data-witch=g2]", "Count the bag")
+      assert has_element?(host, "[data-role=witch-tile][data-colour=copper]", "Random")
     end
 
     test "a debug table from a bundle keeps the picks" do

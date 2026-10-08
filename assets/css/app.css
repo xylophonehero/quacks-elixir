@@ -2633,3 +2633,16 @@ html:active-view-transition-type(card) .card-caption {
     transition: none;
   }
 }
+
+/* Round 27: the players row's tiles (design B, `player_chip/1`). An exploded seat:
+   red stripes, a red border (yours stays gold), a grey disc and a red space. The
+   round leader (the bonus die roller): a gold glow. */
+.player-tile.tile-boom {
+  background: repeating-linear-gradient(135deg, rgb(216 50 43 / 0.35) 0 6px, rgb(216 50 43 / 0.2) 6px 12px);
+}
+.player-tile.tile-boom:not([data-you]) { border-color: var(--color-ruby); }
+.player-tile.tile-boom [data-role="seat-disc"] { filter: grayscale(0.7) brightness(0.8); }
+.player-tile.tile-boom [data-role="player-space"] { color: var(--color-ruby-light); }
+.player-tile.tile-lead {
+  box-shadow: 0 0 0 1.5px var(--color-gold), 0 0 10px rgb(224 178 60 / 0.45);
+}

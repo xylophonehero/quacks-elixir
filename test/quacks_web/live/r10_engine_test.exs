@@ -55,18 +55,21 @@ defmodule QuacksWeb.R10EngineTest do
 
   describe "item 3: the overflow bowl option" do
     test "the Herb Witches toggle leaves the overflow rule alone" do
-      {:ok, id} = GameServer.start(2)
-      host = open(browser("host-#{id}"), id)
+      conn = browser("host-overflow")
+      {:ok, host, _html} = live(conn, ~p"/?step=rules")
       refute render(host) =~ "Witch cards, overflow bowl"
 
       host |> element("#options") |> render_change(%{"rules" => %{"overflow" => "false"}})
       host |> element("#books") |> render_change(%{"sets" => %{}, "expansion" => "true"})
-      assert {:ok, %{rules: %{overflow: false}, expansion: :herb_witches}} = GameServer.get(id)
+      assert has_element?(host, "#options #rules-overflow")
+      refute has_element?(host, "#options #rules-overflow[checked]")
 
-      host |> element("#books") |> render_change(%{"sets" => %{}, "expansion" => "false"})
-      host |> element("#options") |> render_change(%{"rules" => %{"overflow" => "true"}})
-      assert {:ok, %{rules: %{overflow: true}, expansion: nil}} = GameServer.get(id)
-      assert has_element?(host, "#options-section #rules-overflow")
+      render_click(host, "players", %{"count" => "1"})
+
+      {:error, {:live_redirect, %{to: "/g/" <> id}}} =
+        host |> element("#new-game") |> render_click()
+
+      assert {:ok, %{rules: %{overflow: false}, expansion: :herb_witches}} = GameServer.get(id)
     end
   end
 

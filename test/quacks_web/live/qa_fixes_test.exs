@@ -107,9 +107,9 @@ defmodule QuacksWeb.QaFixesTest do
       host = open(browser("alice-#{System.unique_integer()}"), id)
       bob = open(browser("bob-#{System.unique_integer()}"), id)
 
-      assert has_element?(bob, "[data-role=read-only]")
-      refute has_element?(bob, "[data-role=add-bot]")
-      assert has_element?(bob, "button[aria-label='More players'][disabled]")
+      # Round 26: the waiting panel; only the host may fill the seats.
+      refute has_element?(bob, "[data-role=fill-bots]")
+      assert has_element?(bob, "[data-role=waiting-for-host]")
 
       # the host's page closes (its seat is freed in `terminate/2`)
       ref = Process.monitor(host.pid)
@@ -117,11 +117,9 @@ defmodule QuacksWeb.QaFixesTest do
       assert_receive {:DOWN, ^ref, :process, _pid, _reason}
 
       assert render(bob) =~ "You are now the host."
-      refute has_element?(bob, "[data-role=read-only]")
-      assert has_element?(bob, "[data-role=add-bot]")
-      refute has_element?(bob, "button[aria-label='More players'][disabled]")
+      assert has_element?(bob, "[data-role=fill-bots]")
       assert has_element?(bob, ~s([data-seat="1"]), "host")
-      assert has_element?(bob, "[data-role=start-game]")
+      refute has_element?(bob, "[data-role=waiting-for-host]")
     end
   end
 
