@@ -79,6 +79,8 @@ defmodule Quacks.GameServer do
 
   use GenServer, restart: :temporary
 
+  require Logger
+
   alias Quacks.{AI, Game, GameStore, Session}
   alias Quacks.AI.{Names, Profile}
   alias Quacks.Game.Essence
@@ -397,7 +399,7 @@ defmodule Quacks.GameServer do
   @doc "Apply `action` for `seat`. Returns the new game, or the engine's error."
   @spec apply(id, Game.seat(), Game.action()) ::
           {:ok, Game.t()} | {:error, :not_started | :not_found | term}
-  def apply(id, seat, action), do: call(id, {:apply, seat, action})
+  def apply(id, seat, action), do: call(id, {:apply, seat, action, System.monotonic_time()})
 
   @doc """
   Mandrake: `seat` keeps the white chip that the server put back in its bag
@@ -733,14 +735,20 @@ defmodule Quacks.GameServer do
     {:reply, :ok, state, @idle_timeout}
   end
 
-  defp server_call({:apply, _, _}, _from, %{session: nil} = state),
+  defp server_call({:apply, _, _, _}, _from, %{session: nil} = state),
     do: {:reply, {:error, :not_started}, state, @idle_timeout}
 
-  defp server_call({:apply, seat, action}, _from, state) do
-    case Session.apply(state.session, seat, action) do
-      {:ok, session} -> reply_game(acted(%{state | session: session}))
-      error -> {:reply, error, state, @idle_timeout}
-    end
+  defp server_call({:apply, seat, action, sent}, _from, state) do
+    {engine_us, result} = :timer.tc(Session, :apply, [state.session, seat, action])
+
+    reply =
+      case result do
+        {:ok, session} -> reply_game(acted(%{state | session: session}))
+        error -> {:reply, error, state, @idle_timeout}
+      end
+
+    log_action(state.id, seat, action, elem(result, 0), engine_us, sent)
+    reply
   end
 
   defp server_call({:keep_white, _seat}, _from, %{session: nil} = state),
@@ -1056,6 +1064,7 @@ defmodule Quacks.GameServer do
   # phase where a human decides, the bot plans instead (`schedule_bots/1`).
   defp server_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
        when :erlang.map_get(seat, ticks) == tick do
+    started = System.monotonic_time()
     state = %{state | bot_ticks: Map.delete(ticks, seat)}
     profile = Profile.get(state.bots[seat])
 
@@ -1065,9 +1074,10 @@ defmodule Quacks.GameServer do
            nil <- state.auto_keep,
            {action, rng} <-
              AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
-           {:ok, session} <- Session.apply(state.session, seat, action) do
+           {engine_us, {:ok, session}} <- :timer.tc(Session, :apply, [state.session, seat, action]) do
         state = acted(%{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)})
         broadcast(state, {:game, state.id, state.session.game})
+        log_action(state.id, seat, {:bot, action}, :ok, engine_us, started)
         state
       else
         _none_or_error -> schedule_bots(state)
@@ -1418,6 +1428,31 @@ defmodule Quacks.GameServer do
     do: Phoenix.PubSub.broadcast(Quacks.PubSub, topic(state.id), {:names, state.id, state.names})
 
   defp broadcast_lobby, do: Phoenix.PubSub.broadcast(Quacks.PubSub, @lobby_topic, :games_changed)
+
+  # -- timing (round 28) ---------------------------------------------------------------
+
+  # One line per applied action: `fly logs -a quacks | grep "action "`. `engine` is
+  # the time in `Session.apply/3` (the engine), `total` the time since the browser's
+  # process sent the call (the wait in this mailbox, the engine, the bots' plans and
+  # the broadcast). A bot's move counts from its tick. Slow ones (`@slow_ms`) log at
+  # `:info`, the rest at `:debug`.
+  @slow_ms 50
+  defp log_action(id, seat, action, result, engine_us, started) do
+    total_ms =
+      System.convert_time_unit(System.monotonic_time() - started, :native, :microsecond) / 1000
+
+    level = if total_ms >= @slow_ms, do: :info, else: :debug
+
+    Logger.log(level, fn ->
+      "action game=#{id} seat=#{seat} action=#{action_name(action)} result=#{result} " <>
+        "engine_ms=#{Float.round(engine_us / 1000, 2)} total_ms=#{Float.round(total_ms, 2)}"
+    end)
+  end
+
+  defp action_name({:bot, action}), do: "bot:" <> action_name(action)
+  defp action_name(action) when is_atom(action), do: Atom.to_string(action)
+  defp action_name(action) when is_tuple(action), do: action |> elem(0) |> action_name()
+  defp action_name(_action), do: "other"
 
   # -- the game file ------------------------------------------------------------------
 
