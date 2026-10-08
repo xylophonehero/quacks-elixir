@@ -249,16 +249,16 @@ defmodule QuacksWeb.GameComponents do
     assigns =
       assign(assigns,
         me: player,
-        chips_by_index: chips_by_index(player),
-        placed: placements(assigns.game.log, assigns.seat),
-        positions: @positions,
-        rings_by_index: rings |> Enum.sort() |> Enum.group_by(&elem(&1, 1), &elem(&1, 0)),
+        track:
+          track(
+            player,
+            placements(assigns.game.log, assigns.seat),
+            rings,
+            scoring,
+            assigns.beats
+          ),
         rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
-        scoring: scoring,
-        ring_index: scoring,
-        fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring))),
-        spaces: 0..PotTrack.last(),
-        groove: @groove
+        fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring)))
       )
 
     ~H"""
@@ -335,7 +335,7 @@ defmodule QuacksWeb.GameComponents do
       </g>
       <%!-- the spiral groove the spaces sit in --%>
       <polyline
-        points={@groove}
+        points={groove()}
         fill="none"
         stroke={if @me.exploded?, do: "#2f3820", else: "var(--color-potion-deep)"}
         stroke-opacity="0.7"
@@ -346,7 +346,7 @@ defmodule QuacksWeb.GameComponents do
       />
       <%!-- a thin highlight along the groove, so the spiral reads at a glance --%>
       <polyline
-        points={@groove}
+        points={groove()}
         fill="none"
         stroke="var(--color-potion-light)"
         stroke-opacity="0.35"
@@ -356,10 +356,13 @@ defmodule QuacksWeb.GameComponents do
         transform="translate(0 -1)"
       />
       <g
-        :for={index <- @spaces}
+        :for={
+          %{index: index, chip: chip, placed: placed, rings: rings, at: at} = space <- @track
+        }
+        :key={index}
         data-space={index}
-        data-x={@size == :lg && elem(elem(@positions, index), 0)}
-        data-y={@size == :lg && elem(elem(@positions, index), 1)}
+        data-x={@size == :lg && elem(elem(positions(), index), 0)}
+        data-y={@size == :lg && elem(elem(positions(), index), 1)}
         transform={translate(index)}
       >
         <title :if={@size == :lg}>{space_title(index)}</title>
@@ -370,7 +373,7 @@ defmodule QuacksWeb.GameComponents do
           stroke-width="2"
         />
         <circle
-          :if={@size == :lg and index == @scoring}
+          :if={@size == :lg and at == :next}
           r="22"
           fill="var(--color-gold)"
           fill-opacity="0.35"
@@ -378,8 +381,8 @@ defmodule QuacksWeb.GameComponents do
         />
         <g
           :if={@size == :lg}
-          opacity={if index < @scoring, do: "0.45"}
-          data-passed={index < @scoring && "true"}
+          opacity={if at == :passed, do: "0.45"}
+          data-passed={at == :passed && "true"}
         >
           <text
             dy="0.35em"
@@ -423,17 +426,17 @@ defmodule QuacksWeb.GameComponents do
           />
         </g>
         <.pot_chip
-          :if={Map.has_key?(@chips_by_index, index)}
-          chip={elem(@chips_by_index[index], 0)}
-          order={elem(@chips_by_index[index], 1)}
+          :if={chip}
+          chip={elem(chip, 0)}
+          order={elem(chip, 1)}
           seat={@seat}
           index={index}
-          placed={Map.get(@placed, index, 0)}
+          placed={placed}
           size={@size}
-          beat={@beats[index]}
+          beat={space.beat}
         />
-        <.scoring_ring :if={@rings_by_index[index]} seats={@rings_by_index[index]} />
-        <.beat_ring :if={index == @ring_index} beat={@beats[:ring]} r="32" />
+        <.scoring_ring :if={rings} seats={rings} />
+        <.beat_ring :if={at == :next} beat={space.ring_beat} r="32" />
       </g>
       <%!-- The droplet and the rats are full pieces, like chips: the droplet on its
            space, then one rat per rat tail on each space after it, so the first chip
@@ -1005,6 +1008,36 @@ defmodule QuacksWeb.GameComponents do
   # What a chip shows: its value. Locoweed has no printed value: an "L".
   defp face({:locoweed, _}), do: "L"
   defp face({_colour, value}), do: value
+
+  # Round 28: the track's fixed geometry comes from functions, not assigns. An assign
+  # set inside a function component counts as changed on every render, so each move
+  # re-sent all 54 spaces (about 7 KB per pot per move).
+  defp positions, do: @positions
+  defp groove, do: @groove
+
+  # One entry per space, holding all that the space shows: a `:key`ed comprehension
+  # over it re-sends only the spaces whose entry changed (round 28).
+  defp track(player, placed, rings, scoring, beats) do
+    chips = chips_by_index(player)
+    rings = rings |> Enum.sort() |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
+
+    for index <- 0..PotTrack.last() do
+      %{
+        index: index,
+        chip: chips[index],
+        placed: Map.get(placed, index, 0),
+        rings: rings[index],
+        beat: beats[index],
+        ring_beat: if(index == scoring, do: beats[:ring]),
+        at:
+          cond do
+            index < scoring -> :passed
+            index == scoring -> :next
+            true -> :ahead
+          end
+      }
+    end
+  end
 
   defp translate(index) do
     {x, y} = elem(@positions, index)
