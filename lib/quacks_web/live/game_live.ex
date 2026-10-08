@@ -1168,6 +1168,12 @@ defmodule QuacksWeb.GameLive do
                 <%!-- Round 25: the grown corner card has no flip; the card
                      transition alone grows it (the shrink played backwards). --%>
                 <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip={!@card_grown} />
+                <.flea_market
+                  :if={@seat}
+                  id={"pot-card-flea-#{@game.round}"}
+                  game={@game}
+                  seat={@seat}
+                />
                 <p
                   :if={card_tap?(assigns)}
                   id={"card-caption-#{@game.round}-#{@card_grown}"}
@@ -1662,6 +1668,7 @@ defmodule QuacksWeb.GameLive do
       <.sheet :if={@game.fortune_card} id="sheet-fortune" label="Fortune teller card">
         <%!-- A wrapper: the sheet flattens a `.paper` child, and the card keeps its edge. --%>
         <div class="pt-8 pb-2"><.fortune_card id={@game.fortune_card} /></div>
+        <.flea_market :if={@seat} id="sheet-fortune-flea" game={@game} seat={@seat} />
       </.sheet>
       <.sheet
         :for={seat <- @game.seats}
@@ -2389,6 +2396,16 @@ defmodule QuacksWeb.GameLive do
   defp row_books([{colour, _value} | _], game),
     do: [{colour, Chips.set(game.expansion, game.sets, colour)}]
 
+  # Round 28: under a Flea Market chip that cannot go up, the reason.
+  defp blocked_reason(%Game{fortune_card: :p13} = game, [chip]) do
+    case Quacks.Game.Fortune.flea_block(game, chip) do
+      nil -> nil
+      reason -> flea_reason(reason)
+    end
+  end
+
+  defp blocked_reason(_game, _chips), do: nil
+
   @doc """
   The chips of a choice as its controls: each chip is a button that sends its
   action. With `pool` (the chips a crow skull, the silver witch, the toadstools or a
@@ -2471,9 +2488,16 @@ defmodule QuacksWeb.GameLive do
           <span
             :if={!action}
             class="inline-flex size-11 items-center justify-center opacity-40"
-            title="Not playable"
+            title={blocked_reason(@game, chips) || "Not playable"}
           >
             <.chip :for={chip <- chips} chip={chip} data-role="offer-chip" />
+          </span>
+          <span
+            :if={!action && blocked_reason(@game, chips)}
+            class="mt-0.5 w-14 text-center text-[11px] leading-4 font-semibold text-ink-soft"
+            data-role="pick-blocked"
+          >
+            {blocked_reason(@game, chips)}
           </span>
           <span
             :if={over}
@@ -2805,7 +2829,9 @@ defmodule QuacksWeb.GameLive do
     do: chip not in selected and {:buy, Enum.sort([chip | selected])} not in actions
 
   # `@game` is the game and `@me` this browser's player (nil when watching).
-  # Every state change empties the shop selection; it only means something in the shop.
+  # The shop selection stays while this seat's phase stays and the selection is still
+  # a legal buy (round 28: another seat's buy must not untick ours); it empties when
+  # this seat buys, leaves the shop or a new round starts.
   # `@decision` is the phase whose choice this seat must make now (shown in a
   # dialog), or nil. `@actions` are the brewing buttons of the bottom bar.
   # `@stop_slot` is the action of the bar's left slot: `:resume` while this seat is
@@ -2834,13 +2860,14 @@ defmodule QuacksWeb.GameLive do
     seat = socket.assigns.seat
     me = if seat, do: game.players[seat]
     actions = if seat && not Game.over?(game), do: Game.legal_actions(game, seat), else: []
-    {decision, skip_rubies} = decide(actions, seat && Game.phase(game, seat), me)
+    phase = seat && Game.phase(game, seat)
+    {decision, skip_rubies} = decide(actions, phase, me)
 
     socket
     |> assign(
       game: game,
       me: me,
-      selected: [],
+      selected: kept_selection(socket.assigns, game, phase, actions),
       decision: decision,
       all_actions: actions,
       actions: if(decision || skip_rubies, do: [], else: Enum.reject(actions, &witch?/1)),
@@ -2852,6 +2879,21 @@ defmodule QuacksWeb.GameLive do
     |> open_reveal()
     |> card_vt(was)
   end
+
+  defp kept_selection(
+         %{game: %Game{} = old, selected: [_ | _] = selected} = assigns,
+         game,
+         phase,
+         actions
+       ) do
+    same? =
+      old.round == game.round and Game.phase(old, assigns.seat) == phase and
+        old.players[assigns.seat] == game.players[assigns.seat]
+
+    if same? and {:buy, selected} in actions, do: selected, else: []
+  end
+
+  defp kept_selection(_assigns, _game, _phase, _actions), do: []
 
   # -- the reveal overlay (round 14) ----------------------------------------------------
 

@@ -2,12 +2,21 @@ defmodule QuacksWeb.Telemetry do
   use Supervisor
   import Telemetry.Metrics
 
+  require Logger
+
   def start_link(arg) do
     Supervisor.start_link(__MODULE__, arg, name: __MODULE__)
   end
 
   @impl true
   def init(_arg) do
+    :telemetry.attach(
+      "quacks-live-event-timing",
+      [:phoenix, :live_view, :handle_event, :stop],
+      &__MODULE__.log_event/4,
+      nil
+    )
+
     children = [
       # Telemetry poller will execute the given period measurements
       # every 10_000ms. Learn more here: https://telemetry-metrics.hexdocs.pm
@@ -18,6 +27,25 @@ defmodule QuacksWeb.Telemetry do
 
     Supervisor.init(children, strategy: :one_for_one)
   end
+
+  @slow_ms 50
+
+  @doc """
+  One line per LiveView event (round 28): `live_event view=GameLive event=action
+  ms=1.2`, at `:info` from #{@slow_ms} ms, else `:debug`. The time is the server's
+  `handle_event` only (it includes the `GameServer` call), not the render or the network.
+  """
+  def log_event(_event, %{duration: duration}, %{socket: socket, event: event}, _config) do
+    ms = System.convert_time_unit(duration, :native, :microsecond) / 1000
+    level = if ms >= @slow_ms, do: :info, else: :debug
+
+    Logger.log(level, fn ->
+      view = socket.view |> Module.split() |> List.last()
+      "live_event view=#{view} event=#{event} ms=#{Float.round(ms, 2)}"
+    end)
+  end
+
+  def log_event(_event, _measurements, _metadata, _config), do: :ok
 
   def metrics do
     [

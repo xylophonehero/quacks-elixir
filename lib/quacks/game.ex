@@ -816,17 +816,21 @@ defmodule Quacks.Game do
     start_round(%{g | round: round, phase: :potions})
   end
 
-  # Rulebook §3 steps 1–2: the Fortune Teller card, the rats, then the purple card.
-  # The Alchemists: a rat-tail glass adds to the rats; Nervousness lays out its chips.
+  # Rulebook §3 steps 1–2: the Fortune Teller card, then the rats. A purple card's
+  # VP (its choices included) count for the rats, so `Fortune.resolve/1` places them
+  # once the card is through (`rats/1`); only the cards about the rats (Infestation,
+  # Good Start) find them placed first (round 28). Nervousness lays out its chips.
   @doc false
   def start_round(g) do
     g
     |> Fortune.draw()
-    |> place_rats()
-    |> Essence.rats()
     |> Fortune.resolve()
     |> Essence.display()
   end
+
+  @doc false
+  # The round's rats; The Alchemists: a rat-tail glass adds to them.
+  def rats(g), do: g |> place_rats() |> Essence.rats()
 
   # Rulebook §7: 5 coins or 2 rubies buy 1 VP, as often as you like. Whatever the seat
   # still has at its round-9 "Done" converts by itself.

@@ -615,3 +615,46 @@ passes them to `Session.new/3`, and `Game.new/1` applies each as that seat's
 (`Session.encode_opts/1`), and the session's bundle keeps them for replay. A play
 again resets them to Random (solo: no picks, the choice comes in the game).
 `valid?/2` checks the settings with seed `{1, 2, 3}`, so it leaves the picks out.
+
+## Action timing in the log (round 28)
+
+Each applied action writes one line from `GameServer` (`log_action/6`), and each
+LiveView event one line from `QuacksWeb.Telemetry.log_event/4` (a handler on
+`[:phoenix, :live_view, :handle_event, :stop]`):
+
+```
+action game=wjyliq seat=0 action=draw result=ok engine_ms=0.02 total_ms=0.41
+action game=wjyliq seat=1 action=bot:draw result=ok engine_ms=0.02 total_ms=0.30
+live_event view=GameLive event=action ms=0.62
+```
+
+- `engine_ms`: the time in `Session.apply/3` (the engine).
+- `total_ms`: for a human, from the moment the LiveView process sent the call
+  (`GameServer.apply/3` puts `System.monotonic_time/0` in the message) until the
+  reply: the wait in the game's mailbox, the engine, the bots' plans and the
+  broadcast. For a bot, from its tick.
+- `live_event ms`: the server's `handle_event`, with the `GameServer` call in it; not
+  the render, not the network.
+
+A line at 50 ms or more is `:info`; the rest are `:debug`, which prod does not
+print. So on prod only slow moves show:
+
+```
+fly logs -a quacks | grep -E "action |live_event"
+```
+
+### What a draw costs (measured 2026-10-09)
+
+Round 8 of a 2-player game, local dev machine: `Game.apply` 0.02 ms,
+`legal_actions` under 0.01 ms, `Odds.next_draw` under 0.01 ms, `handle_event` 0.15 to
+0.25 ms, one render 0.5 to 0.8 ms. In the browser (local) the reply comes 17 to 25
+ms after the click and the patch is in the DOM in the same frame. The server is not
+where a slow draw comes from.
+
+The size of the patch was the one large cost we could prove. Before round 28 a draw
+sent about 19 KB to the drawing tab and about 14 KB to every other tab for each
+other seat's move, because `pot/1` set the track's fixed geometry and the per-space
+data as assigns inside the component: a function component's own assigns count as
+changed on every render, so all 54 spaces went out each move. The pot now loops
+over `track/5` entries with `:key={index}`, and the geometry comes from functions:
+about 11 to 13 KB for the drawing tab, about 7 KB for the others.

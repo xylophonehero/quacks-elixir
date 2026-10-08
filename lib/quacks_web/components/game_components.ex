@@ -249,16 +249,16 @@ defmodule QuacksWeb.GameComponents do
     assigns =
       assign(assigns,
         me: player,
-        chips_by_index: chips_by_index(player),
-        placed: placements(assigns.game.log, assigns.seat),
-        positions: @positions,
-        rings_by_index: rings |> Enum.sort() |> Enum.group_by(&elem(&1, 1), &elem(&1, 0)),
+        track:
+          track(
+            player,
+            placements(assigns.game.log, assigns.seat),
+            rings,
+            scoring,
+            assigns.beats
+          ),
         rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
-        scoring: scoring,
-        ring_index: scoring,
-        fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring))),
-        spaces: 0..PotTrack.last(),
-        groove: @groove
+        fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring)))
       )
 
     ~H"""
@@ -335,7 +335,7 @@ defmodule QuacksWeb.GameComponents do
       </g>
       <%!-- the spiral groove the spaces sit in --%>
       <polyline
-        points={@groove}
+        points={groove()}
         fill="none"
         stroke={if @me.exploded?, do: "#2f3820", else: "var(--color-potion-deep)"}
         stroke-opacity="0.7"
@@ -346,7 +346,7 @@ defmodule QuacksWeb.GameComponents do
       />
       <%!-- a thin highlight along the groove, so the spiral reads at a glance --%>
       <polyline
-        points={@groove}
+        points={groove()}
         fill="none"
         stroke="var(--color-potion-light)"
         stroke-opacity="0.35"
@@ -356,10 +356,11 @@ defmodule QuacksWeb.GameComponents do
         transform="translate(0 -1)"
       />
       <g
-        :for={index <- @spaces}
+        :for={%{index: index, chip: chip, placed: placed, rings: rings, at: at} = space <- @track}
+        :key={index}
         data-space={index}
-        data-x={@size == :lg && elem(elem(@positions, index), 0)}
-        data-y={@size == :lg && elem(elem(@positions, index), 1)}
+        data-x={@size == :lg && elem(elem(positions(), index), 0)}
+        data-y={@size == :lg && elem(elem(positions(), index), 1)}
         transform={translate(index)}
       >
         <title :if={@size == :lg}>{space_title(index)}</title>
@@ -370,7 +371,7 @@ defmodule QuacksWeb.GameComponents do
           stroke-width="2"
         />
         <circle
-          :if={@size == :lg and index == @scoring}
+          :if={@size == :lg and at == :next}
           r="22"
           fill="var(--color-gold)"
           fill-opacity="0.35"
@@ -378,8 +379,8 @@ defmodule QuacksWeb.GameComponents do
         />
         <g
           :if={@size == :lg}
-          opacity={if index < @scoring, do: "0.45"}
-          data-passed={index < @scoring && "true"}
+          opacity={if at == :passed, do: "0.45"}
+          data-passed={at == :passed && "true"}
         >
           <text
             dy="0.35em"
@@ -423,17 +424,17 @@ defmodule QuacksWeb.GameComponents do
           />
         </g>
         <.pot_chip
-          :if={Map.has_key?(@chips_by_index, index)}
-          chip={elem(@chips_by_index[index], 0)}
-          order={elem(@chips_by_index[index], 1)}
+          :if={chip}
+          chip={elem(chip, 0)}
+          order={elem(chip, 1)}
           seat={@seat}
           index={index}
-          placed={Map.get(@placed, index, 0)}
+          placed={placed}
           size={@size}
-          beat={@beats[index]}
+          beat={space.beat}
         />
-        <.scoring_ring :if={@rings_by_index[index]} seats={@rings_by_index[index]} />
-        <.beat_ring :if={index == @ring_index} beat={@beats[:ring]} r="32" />
+        <.scoring_ring :if={rings} seats={rings} />
+        <.beat_ring :if={at == :next} beat={space.ring_beat} r="32" />
       </g>
       <%!-- The droplet and the rats are full pieces, like chips: the droplet on its
            space, then one rat per rat tail on each space after it, so the first chip
@@ -1005,6 +1006,36 @@ defmodule QuacksWeb.GameComponents do
   # What a chip shows: its value. Locoweed has no printed value: an "L".
   defp face({:locoweed, _}), do: "L"
   defp face({_colour, value}), do: value
+
+  # Round 28: the track's fixed geometry comes from functions, not assigns. An assign
+  # set inside a function component counts as changed on every render, so each move
+  # re-sent all 54 spaces (about 7 KB per pot per move).
+  defp positions, do: @positions
+  defp groove, do: @groove
+
+  # One entry per space, holding all that the space shows: a `:key`ed comprehension
+  # over it re-sends only the spaces whose entry changed (round 28).
+  defp track(player, placed, rings, scoring, beats) do
+    chips = chips_by_index(player)
+    rings = rings |> Enum.sort() |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
+
+    for index <- 0..PotTrack.last() do
+      %{
+        index: index,
+        chip: chips[index],
+        placed: Map.get(placed, index, 0),
+        rings: rings[index],
+        beat: beats[index],
+        ring_beat: if(index == scoring, do: beats[:ring]),
+        at:
+          cond do
+            index < scoring -> :passed
+            index == scoring -> :next
+            true -> :ahead
+          end
+      }
+    end
+  end
 
   defp translate(index) do
     {x, y} = elem(@positions, index)
@@ -2653,6 +2684,77 @@ defmodule QuacksWeb.GameComponents do
     </.blue_offer>
     """
   end
+
+  @doc """
+  Round 28: what Flea Market (P13) did for `seat` this round, as chips: the 4 drawn
+  chips (the traded one ringed, the others dimmed with why they could not go up),
+  then the result. Nothing under another card, or while the seat still chooses (its
+  dialog shows the chips then). Data: `Quacks.Game.Fortune.flea_market/1`.
+  """
+  attr :game, Game, required: true
+  attr :seat, :integer, required: true
+  attr :id, :string, required: true
+
+  def flea_market(assigns) do
+    flea = Quacks.Game.Fortune.flea_market(assigns.game)[assigns.seat]
+    assigns = assign(assigns, flea: flea)
+
+    ~H"""
+    <div
+      :if={@flea && !@flea.choosing?}
+      id={@id}
+      class="paper space-y-1.5 rounded-md border-l-4 border-chip-purple p-2 text-sm"
+      aria-label="Flea Market"
+      data-role="flea-market"
+    >
+      <p class="font-semibold">Flea Market drew:</p>
+      <ul class="flex flex-wrap items-start gap-2">
+        <li
+          :for={{chip, i} <- Enum.with_index(@flea.drew)}
+          class="flex w-14 flex-col items-center text-center"
+          data-role="flea-chip"
+          data-traded={traded?(@flea, chip, i) && "true"}
+        >
+          <span class={[
+            "inline-flex size-11 items-center justify-center rounded-full",
+            if(traded?(@flea, chip, i), do: "ring-2 ring-gold", else: "opacity-40")
+          ]}>
+            <.chip chip={chip} />
+          </span>
+          <span class="mt-0.5 text-[11px] leading-4 font-semibold text-ink-soft">
+            {flea_note(@flea, @game, chip, i)}
+          </span>
+        </li>
+      </ul>
+      <p class="text-ink-soft" data-role="flea-result">{flea_result(@flea)}</p>
+    </div>
+    """
+  end
+
+  # The first copy of the traded chip is the one that went up.
+  defp traded?(%{traded: chip, drew: drew}, chip, i),
+    do: Enum.find_index(drew, &(&1 == chip)) == i
+
+  defp traded?(_flea, _chip, _i), do: false
+
+  defp flea_note(flea, game, chip, i) do
+    cond do
+      traded?(flea, chip, i) -> "traded up"
+      reason = Quacks.Game.Fortune.flea_block(game, chip) -> flea_reason(reason)
+      true -> "kept"
+    end
+  end
+
+  @doc "Why Flea Market cannot trade a chip up (`Fortune.flea_block/2`), in a few words."
+  def flea_reason(:white), do: "white stays"
+  def flea_reason(:top), do: "no higher value"
+  def flea_reason(:none_left), do: "none to trade for"
+
+  defp flea_result(%{traded: chip, got: got}) when chip != nil,
+    do: "Traded #{chip_name(chip)} for #{chip_name(got)}."
+
+  defp flea_result(%{got: {:green, 1}}), do: "None could go up: you took a green 1."
+  defp flea_result(_flea), do: "You kept them all."
 
   @doc """
   The Fortune Teller card of this round: a colour band (blue = a rule for the whole
