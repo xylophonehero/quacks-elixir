@@ -1074,7 +1074,8 @@ defmodule Quacks.GameServer do
            nil <- state.auto_keep,
            {action, rng} <-
              AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
-           {engine_us, {:ok, session}} <- :timer.tc(Session, :apply, [state.session, seat, action]) do
+           {engine_us, {:ok, session}} <-
+             :timer.tc(Session, :apply, [state.session, seat, action]) do
         state = acted(%{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)})
         broadcast(state, {:game, state.id, state.session.game})
         log_action(state.id, seat, {:bot, action}, :ok, engine_us, started)
