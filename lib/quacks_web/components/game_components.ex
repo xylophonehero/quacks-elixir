@@ -795,9 +795,13 @@ defmodule QuacksWeb.GameComponents do
   attr :names, :map, required: true
   attr :class, :any, default: nil
 
+  attr :vps, :any,
+    default: nil,
+    doc: "`%{seat => vp}` in place of the seats' VP (the evaluation on the tiles)"
+
   def rat_track(assigns) do
     game = assigns.game
-    vps = for s <- game.seats, do: {s, Game.player(game, s).vp}
+    vps = for s <- game.seats, do: {s, (assigns.vps || %{})[s] || Game.player(game, s).vp}
     {low, leader} = vps |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
 
     # The tails from the leader's side: a seat behind tail `t` (VP <= t) gets its rat.
@@ -1808,7 +1812,13 @@ defmodule QuacksWeb.GameComponents do
             data-role="bot-badge"
           />
         </span>
-        <span :if={@rolls != []} class="flex shrink-0 gap-px" data-role="tile-die">
+        <%!-- On the die step the faces come in as the news goes (`data-late`). --%>
+        <span
+          :if={@rolls != []}
+          class="flex shrink-0 gap-px"
+          data-role="tile-die"
+          data-late={@news && Enum.any?(@news.items, &match?({:die, _}, &1)) && "true"}
+        >
           <.die_face :for={face <- @rolls} face={face} class="size-3.5" />
         </span>
         <.chip_score

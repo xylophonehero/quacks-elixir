@@ -1100,7 +1100,7 @@ defmodule QuacksWeb.GameLive do
               ticks={replaying?(@game, @seen) and not tiles_playing?(@reveal)}
               totals={tiles_playing?(@reveal) && tile_totals(@game, @reveal)[seat]}
               news={@reveal_show == :tiles && TileReveal.news(@game, seat, @reveal)}
-              rolls={if @reveal_show == :tiles, do: tile_rolls(@game, seat, @reveal), else: []}
+              rolls={if @reveal_show == :tiles, do: TileReveal.rolls(@game, seat), else: []}
             />
           </nav>
           <%!-- Round 16: the rat track, a fixed height while the rats rule is on. --%>
@@ -1109,6 +1109,7 @@ defmodule QuacksWeb.GameLive do
             game={@game}
             seat={@seat}
             names={@names}
+            vps={tiles_playing?(@reveal) && tile_vps(@game, @reveal)}
           />
         </div>
 
@@ -3169,15 +3170,9 @@ defmodule QuacksWeb.GameLive do
     end)
   end
 
-  # The die faces by the disc: from the step after the die (the die step shows them
-  # on the bottom line) until the next round.
-  defp tile_rolls(game, seat, %{tiles: true, slides: slides, index: index}) do
-    if match?(%{kind: :die}, Enum.at(slides, index)),
-      do: [],
-      else: TileReveal.rolls(game, seat)
-  end
-
-  defp tile_rolls(game, seat, _reveal), do: TileReveal.rolls(game, seat)
+  # The rat track follows the tiles' running VP while the steps play.
+  defp tile_vps(game, reveal),
+    do: Map.new(tile_totals(game, reveal), fn {s, totals} -> {s, totals.vp} end)
 
   # Auto mode: the shown slide's time (the overlay's timer bar), else nil.
   defp reveal_ms(%{slides: slides, index: index}, :auto, speed),

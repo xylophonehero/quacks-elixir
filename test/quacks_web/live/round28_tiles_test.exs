@@ -125,6 +125,11 @@ defmodule QuacksWeb.Round28TilesTest do
 
       shop = %{game | phase: :shopping, log: [{0, {:bought, [{:green, 1}]}}]}
       assert %{items: [{:bought, {:green, 1}}]} = TileReveal.news(shop, 0, nil)
+
+      # The bots buy once the last human is done: the next round shows the last shop.
+      next = %{shop | phase: :brewing, round: 4, log: [{:round_end, 3} | shop.log]}
+      assert %{items: [{:bought, {:green, 1}}], key: "3-shop-1-0"} = TileReveal.news(next, 0, nil)
+      assert TileReveal.news(%{next | log: [{:round_end, 4} | next.log]}, 0, nil) == nil
     end
 
     test "droplets/3: the droplet before the steps still to come" do

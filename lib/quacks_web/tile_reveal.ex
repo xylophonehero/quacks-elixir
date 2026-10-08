@@ -134,8 +134,8 @@ defmodule QuacksWeb.TileReveal do
   @doc """
   Round 28: the news on `seat`'s tile, for its bottom line (R2), or nil. While a
   step plays (`reveal` with `tiles: true`): the die faces the seat rolled, or the
-  step's badges (`badges/2`). In the shop: the chips the seat bought and its
-  droplet pushes (`shop/2`). `key` changes with every new piece of news, so the
+  step's badges (`badges/2`). Else the chips the seat bought and its droplet
+  pushes (`shop/2`: in the shop, or the last shop as the next round begins). `key` changes with every new piece of news, so the
   line plays its swap again.
   """
   @spec news(Game.t(), Game.seat(), map | nil) :: %{key: String.t(), items: [term]} | nil
@@ -151,8 +151,10 @@ defmodule QuacksWeb.TileReveal do
     items =
       Enum.map(chips, &{:bought, &1}) ++ if(droplets > 0, do: [{:droplet, droplets}], else: [])
 
+    round = if game.phase == :shopping, do: game.round, else: game.round - 1
+
     if items != [],
-      do: %{key: "#{game.round}-shop-#{length(chips)}-#{droplets}", items: items}
+      do: %{key: "#{round}-shop-#{length(chips)}-#{droplets}", items: items}
   end
 
   defp step_news(%{kind: :die, rows: rows}, seat) do
@@ -173,23 +175,34 @@ defmodule QuacksWeb.TileReveal do
   def rolls(_game, _seat), do: []
 
   @doc """
-  What `seat` did in this round's shop: the chips it bought (oldest first) and how
-  often it pushed the droplet with rubies. Empty outside the shop.
+  What `seat` did in the shop: the chips it bought (oldest first) and how often it
+  pushed the droplet with rubies. In the shop phase this round's shop so far; later
+  (round 28) the last round's shop, since the bots' buys show only once the last
+  human is done, as the next round begins. Empty in round 1 before the shop.
   """
   @spec shop(Game.t(), Game.seat()) :: %{
           chips: [Quacks.Rules.Chips.chip()],
           droplets: non_neg_integer
         }
-  def shop(%Game{phase: :shopping, log: log}, seat) do
-    round = Enum.take_while(log, &(not match?({:round_end, _}, &1)))
+  def shop(%Game{phase: :shopping, log: log}, seat),
+    do: shop_entries(Enum.take_while(log, &(not round_end?(&1))), seat)
 
+  def shop(%Game{log: log}, seat) do
+    log
+    |> Enum.drop_while(&(not round_end?(&1)))
+    |> Enum.drop(1)
+    |> Enum.take_while(&(not round_end?(&1)))
+    |> shop_entries(seat)
+  end
+
+  defp round_end?(entry), do: match?({:round_end, _}, entry)
+
+  defp shop_entries(round, seat) do
     %{
       chips: for({^seat, {:bought, chips}} <- Enum.reverse(round), chip <- chips, do: chip),
       droplets: Enum.count(round, &droplet?(&1, seat))
     }
   end
-
-  def shop(_game, _seat), do: %{chips: [], droplets: 0}
 
   defp droplet?({seat, {:rubies_spent, :droplet}}, seat), do: true
   defp droplet?({seat, {:rubies_spent, :droplet, _price}}, seat), do: true
