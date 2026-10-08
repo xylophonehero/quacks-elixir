@@ -23,6 +23,8 @@ defmodule Quacks.Game.Fortune do
 
   # Rulebook §6.2: in solo these two are skipped and the next card is drawn.
   @solo_skip [:p7, :p9]
+  # The cards about the rats: the rats are placed before they resolve.
+  @rats_first [:p7, :p9]
   # Flea Market (P13): the next higher value of the same colour. ⚠️ White is not
   # traded up (a bigger white chip only hurts); orange, purple and black have no
   # higher value.
@@ -65,14 +67,22 @@ defmodule Quacks.Game.Fortune do
       else: Game.record(%{g | fortune_card: id}, {:fortune_drawn, id})
   end
 
-  @doc "Resolve a purple card before the potions phase (after the rats). Blue: nothing."
+  @doc """
+  Resolve the round's card, then place the rats (`Game.rats/1`): a purple card's
+  automatic part and its choices first, so the VP they give count for the rats.
+  Infestation and Good Start act on the rats, so the rats come first for them. Blue
+  (or no card): the rats at once.
+  """
   @spec resolve(Game.t()) :: Game.t()
-  def resolve(%{fortune_card: nil} = g), do: g
+  def resolve(%{fortune_card: id} = g) when id in @rats_first,
+    do: g |> Game.rats() |> auto(id) |> open_choices()
+
+  def resolve(%{fortune_card: nil} = g), do: Game.rats(g)
 
   def resolve(g) do
     if Cards.card(g.fortune_card).colour == :purple,
       do: g |> auto(g.fortune_card) |> open_choices(),
-      else: g
+      else: Game.rats(g)
   end
 
   @doc """
@@ -82,6 +92,60 @@ defmodule Quacks.Game.Fortune do
   @spec after_potions(Game.t()) :: Game.t()
   def after_potions(%{fortune_card: :b2} = g), do: open_choices(g)
   def after_potions(g), do: Essence.run(g)
+
+  @doc """
+  Flea Market (P13) this round, from the log: for each seat that drew, `drew` (the 4
+  chips, in draw order), `traded` (the chip traded up, or nil), `got` (the next value
+  up, or the green 1 when no chip could be traded up; nil while choosing or after a
+  skip) and `choosing?`. An empty map when this round's card is not P13. The player
+  tiles and the card show it.
+  """
+  @spec flea_market(Game.t()) :: %{
+          Game.seat() => %{
+            drew: [Chips.chip()],
+            traded: Chips.chip() | nil,
+            got: Chips.chip() | nil,
+            choosing?: boolean
+          }
+        }
+  def flea_market(%{fortune_card: :p13} = g) do
+    g.log
+    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+    |> Enum.reverse()
+    |> Enum.reduce(%{}, fn
+      {seat, {:fortune, :p13, {:drew, chips}}}, acc ->
+        Map.put(acc, seat, %{drew: chips, traded: nil, got: nil})
+
+      {seat, {:fortune, :p13, {:upgrade, chip}}}, acc when is_map_key(acc, seat) ->
+        Map.update!(acc, seat, &%{&1 | traded: chip, got: @upgrade[chip]})
+
+      {seat, {:fortune, :p13, {:take, chip}}}, acc when is_map_key(acc, seat) ->
+        Map.update!(acc, seat, &%{&1 | got: chip})
+
+      _entry, acc ->
+        acc
+    end)
+    |> Map.new(fn {seat, flea} ->
+      {seat, Map.put(flea, :choosing?, Game.player(g, seat).phase == :fortune_choice)}
+    end)
+  end
+
+  def flea_market(_g), do: %{}
+
+  @doc """
+  Why Flea Market cannot trade `chip` up now, or nil when it can: `:white` (white is
+  not traded up), `:top` (no higher value of its colour), `:none_left` (the supply has
+  none of the next value, or its book is not out yet).
+  """
+  @spec flea_block(Game.t(), Chips.chip()) :: nil | :white | :top | :none_left
+  def flea_block(_g, {:white, _}), do: :white
+
+  def flea_block(g, chip) do
+    case @upgrade[chip] do
+      nil -> :top
+      up -> if Game.available?(g, up), do: nil, else: :none_left
+    end
+  end
 
   @doc "The card actions `seat` has right now."
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
@@ -316,7 +380,8 @@ defmodule Quacks.Game.Fortune do
   end
 
   defp continue(%{fortune_card: :b2} = g), do: Essence.run(g)
-  defp continue(g), do: g
+  defp continue(%{fortune_card: id} = g) when id in @rats_first, do: g
+  defp continue(g), do: Game.rats(g)
 
   defp choices(%{fortune_card: id} = g, seat), do: choices(id, g, Game.player(g, seat), seat)
 
