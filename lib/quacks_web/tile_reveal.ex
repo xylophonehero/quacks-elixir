@@ -13,6 +13,7 @@ defmodule QuacksWeb.TileReveal do
   """
 
   alias Quacks.Game
+  alias Quacks.Game.Fortune
   alias QuacksWeb.{Replay, Reveal}
 
   # The overlay's slides the tiles play; the results table and the standings are
@@ -165,7 +166,7 @@ defmodule QuacksWeb.TileReveal do
   # Round 28: Flea Market (P13): the chip `seat` traded and the chip it got, once
   # chosen (`Quacks.Game.Fortune.flea_market/1`).
   defp flea(game, seat) do
-    case Quacks.Game.Fortune.flea_market(game)[seat] do
+    case Fortune.flea_market(game)[seat] do
       %{choosing?: false, got: got, traded: traded} when got != nil -> [{:flea, traded, got}]
       _other -> []
     end

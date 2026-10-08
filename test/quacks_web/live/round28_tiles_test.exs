@@ -212,7 +212,7 @@ defmodule QuacksWeb.Round28TilesTest do
       |> LazyHTML.from_fragment()
     end
 
-    defp has?(html, selector), do: Enum.count(LazyHTML.query(html, selector)) > 0
+    defp has?(html, selector), do: not Enum.empty?(LazyHTML.query(html, selector))
 
     test "no name text: the initial in the disc, the name as title and for screen readers" do
       html = tile(Game.new(seed: {1, 2, 3}, players: 2), bot: true)

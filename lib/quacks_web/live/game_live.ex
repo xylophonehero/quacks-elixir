@@ -442,14 +442,7 @@ defmodule QuacksWeb.GameLive do
     mode = if params["mode"] == "auto" and not reduced, do: :auto, else: :step
     speed = Enum.find(Reveal.speeds(), :normal, &(Atom.to_string(&1) == params["speed"]))
 
-    choice =
-      case params["show"] do
-        "tiles" -> :tiles
-        "overlay" -> :overlay
-        nil -> socket.assigns.reveal_choice
-        _other -> :overlay
-      end
-
+    choice = reveal_choice(params["show"], socket.assigns.reveal_choice)
     # Round 28: phones always play the results on the tiles (no overlay).
     phone = Map.get(params, "phone", socket.assigns.phone) in [true, "true"]
     show = if phone, do: :tiles, else: choice
@@ -3211,6 +3204,11 @@ defmodule QuacksWeb.GameLive do
       {s, %{vp: vp, rubies: rubies, droplet: droplets[s], vp_from: vp0, rubies_from: rubies0}}
     end)
   end
+
+  # The Results choice from the settings; none sent (the phone form): keep it.
+  defp reveal_choice("tiles", _current), do: :tiles
+  defp reveal_choice(nil, current), do: current
+  defp reveal_choice(_show, _current), do: :overlay
 
   # The rat track follows the tiles' running VP while the steps play.
   defp tile_vps(game, reveal),
