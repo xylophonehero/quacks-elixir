@@ -145,16 +145,30 @@ defmodule QuacksWeb.TileReveal do
     if items != [], do: %{key: "#{game.round}-#{index}", items: items}
   end
 
+  # A card on screen (the overlay): its news waits until it is dismissed.
+  def news(_game, _seat, %{key: {:card, _}}), do: nil
+
   def news(game, seat, _reveal) do
     %{chips: chips, droplets: droplets} = shop(game, seat)
+    flea = flea(game, seat)
 
     items =
-      Enum.map(chips, &{:bought, &1}) ++ if(droplets > 0, do: [{:droplet, droplets}], else: [])
+      Enum.map(chips, &{:bought, &1}) ++
+        if(droplets > 0, do: [{:droplet, droplets}], else: []) ++ flea
 
     round = if game.phase == :shopping, do: game.round, else: game.round - 1
 
     if items != [],
-      do: %{key: "#{round}-shop-#{length(chips)}-#{droplets}", items: items}
+      do: %{key: "#{round}-shop-#{length(chips)}-#{droplets}-#{length(flea)}", items: items}
+  end
+
+  # Round 28: Flea Market (P13): the chip `seat` traded and the chip it got, once
+  # chosen (`Quacks.Game.Fortune.flea_market/1`).
+  defp flea(game, seat) do
+    case Quacks.Game.Fortune.flea_market(game)[seat] do
+      %{choosing?: false, got: got, traded: traded} when got != nil -> [{:flea, traded, got}]
+      _other -> []
+    end
   end
 
   defp step_news(%{kind: :die, rows: rows}, seat) do

@@ -128,8 +128,36 @@ defmodule QuacksWeb.Round28TilesTest do
 
       # The bots buy once the last human is done: the next round shows the last shop.
       next = %{shop | phase: :brewing, round: 4, log: [{:round_end, 3} | shop.log]}
-      assert %{items: [{:bought, {:green, 1}}], key: "3-shop-1-0"} = TileReveal.news(next, 0, nil)
+
+      assert %{items: [{:bought, {:green, 1}}], key: "3-shop-1-0-0"} =
+               TileReveal.news(next, 0, nil)
+
       assert TileReveal.news(%{next | log: [{:round_end, 4} | next.log]}, 0, nil) == nil
+    end
+
+    test "Flea Market: the chip traded and the chip got, once chosen and the card is gone" do
+      game = Game.new(seed: {1, 2, 3}, players: 2)
+
+      log = [
+        {0, {:fortune, :p13, {:upgrade, {:green, 1}}}},
+        {0, {:fortune, :p13, {:drew, [{:white, 1}, {:orange, 1}, {:white, 2}, {:green, 1}]}}}
+      ]
+
+      game = %{game | fortune_card: :p13, log: log ++ game.log, phase: :potions}
+      game = put_in(game.players[0].phase, :potions)
+
+      assert %{items: [{:flea, {:green, 1}, {:green, 2}}]} = TileReveal.news(game, 0, nil)
+      assert TileReveal.news(game, 0, %{key: {:card, 1}}) == nil
+
+      html =
+        render_component(&QuacksWeb.GameComponents.player_chip/1,
+          game: game,
+          seat: 0,
+          name: "Ann",
+          news: TileReveal.news(game, 0, nil)
+        )
+
+      assert html =~ ~s(data-gain="flea")
     end
 
     test "droplets/3: the droplet before the steps still to come" do

@@ -47,6 +47,21 @@ defmodule QuacksWeb.TileRevealComponents do
     """
   end
 
+  defp badge(%{badge: {:flea, traded, got}} = assigns) do
+    assigns = assign(assigns, traded: traded, got: got)
+
+    ~H"""
+    <span class="flex items-center gap-px" title="Flea Market" data-gain="flea">
+      <span :if={@traded} class="rounded-full opacity-60 ring-1 ring-black/40">
+        <.chip chip={@traded} size={:xs} />
+      </span>
+      <span :if={@traded} aria-hidden="true">→</span>
+      <span :if={!@traded}>+</span>
+      <span class="rounded-full ring-1 ring-black/40"><.chip chip={@got} size={:xs} /></span>
+    </span>
+    """
+  end
+
   defp badge(%{badge: {:book, colour}} = assigns) do
     assigns = assign(assigns, colour: colour)
 
