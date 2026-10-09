@@ -133,13 +133,15 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   One chip: a disc in the chip colour with the ingredient icon and the value in a
   parchment badge. `size={:xs}` is too small for the icon: it shows only the value.
+  Round 35 (item 8): a chip with no value (`{colour, nil}`, a result that is a
+  chip) has its icon in the centre and no badge.
 
   ## Examples
 
       <.chip chip={{:green, 2}} />
       <.chip chip={{:white, 1}} size={:sm} />
   """
-  attr :chip, :any, required: true, doc: "a `{colour, value}` tuple"
+  attr :chip, :any, required: true, doc: "a `{colour, value}` tuple (value nil: no badge)"
   attr :size, :atom, default: :md, values: [:xs, :sm, :md, :lg]
   attr :rest, :global
 
@@ -184,11 +186,11 @@ defmodule QuacksWeb.GameComponents do
         class={[
           "size-[58%]",
           @icon_class,
-          @colour != :locoweed && "-translate-x-[8%] -translate-y-[8%]"
+          @colour != :locoweed && @value != nil && "-translate-x-[8%] -translate-y-[8%]"
         ]}
       />
       <span
-        :if={@colour != :locoweed}
+        :if={@colour != :locoweed and @value != nil}
         class={[
           "absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink",
           @size == :sm && "-right-1 -bottom-1 size-4 text-tag ring-1",

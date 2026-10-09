@@ -18,10 +18,14 @@ defmodule QuacksWeb.TileReveal do
 
   # The overlay's slides the tiles play; the results table and the standings are
   # the tiles themselves.
-  @kinds [:die, :book, :space]
+  # Round 35: the standings slide too, as the last step ("Round scored").
+  @kinds [:die, :book, :space, :standings]
 
   # A step on the tiles lasts this many beats (`--beat-ms`, the Speed setting).
   @beats 5
+
+  # One roll of the bonus die in beats (app.css `--die-roll`).
+  @die_roll_beats 1.5556
 
   @type badge ::
           {:vp, pos_integer}
@@ -38,9 +42,20 @@ defmodule QuacksWeb.TileReveal do
   @spec slides([Reveal.slide()]) :: [Reveal.slide()]
   def slides(slides), do: Enum.filter(slides, &(&1.kind in @kinds))
 
-  @doc "How long a step stays on the tiles in Auto mode, in ms, at `speed`."
-  @spec duration(atom) :: pos_integer
-  def duration(speed), do: Reveal.beat_ms(speed) * @beats
+  @doc """
+  How long a step stays on the tiles in Auto mode, in ms, at `speed`. Round 35:
+  the die step waits for its dice to roll (app.css `.stage-die`: one roll of
+  `--die-roll`, 1.5556 beats, after the other per seat) before its beats start.
+  """
+  @spec duration(atom, Reveal.slide() | nil) :: pos_integer
+  def duration(speed, slide \\ nil)
+
+  def duration(speed, %{kind: :die, rows: rows}) do
+    rolls = rows |> Enum.map(&length(Map.get(&1, :rolls, []))) |> Enum.max(fn -> 0 end)
+    duration(speed) + round(Reveal.beat_ms(speed) * @die_roll_beats * rolls)
+  end
+
+  def duration(speed, _slide), do: Reveal.beat_ms(speed) * @beats
 
   @doc """
   The step's name for the stage pill: "Bonus die", "Black book", "Ruby space", ...
@@ -49,6 +64,135 @@ defmodule QuacksWeb.TileReveal do
   def label(%{kind: :die}), do: "Bonus die"
   def label(%{kind: :book, book: colour}), do: "#{String.capitalize(to_string(colour))} book"
   def label(%{kind: :space}), do: "Scoring space"
+  def label(%{kind: :standings}), do: "Round scored"
+
+  @typedoc """
+  One part of a results stage row (`stage_rows/2`): a reason or a result, drawn as
+  icons by `QuacksWeb.TileRevealComponents.results_stage/1`.
+  """
+  @type cell ::
+          {:count, non_neg_integer, atom}
+          | {:beats, [Game.seat()], :both | :some | :tie}
+          | {:chips, [Quacks.Rules.Chips.chip()]}
+          | {:text, String.t()}
+          | {:dice, [term]}
+          | {:chip, atom}
+          | {:vp | :rubies | :droplet | :coins, non_neg_integer}
+          | {:gain, integer}
+          | {:total, integer}
+          | {:rank, non_neg_integer}
+          | :choosing
+
+  @type stage_row :: %{
+          seat: Game.seat(),
+          why: [cell],
+          got: [cell],
+          none: boolean,
+          lead: boolean
+        }
+
+  @doc """
+  Round 35 (direction A): the results stage's rows for the step `slide`, one per
+  seat. The reason (`why`) and the result (`got`) are icons where possible. Seat
+  order; the "Round scored" step (`:standings`) sorts by rank, the leader first
+  (`lead`). A row with no result has `none: true` (it fades). `choosing` lists
+  the seats that still choose in this book (round 35 item 7): their result is
+  `:choosing`.
+  """
+  @spec stage_rows(Game.t(), Reveal.slide(), [Game.seat()]) :: [stage_row]
+  def stage_rows(game, slide, choosing \\ [])
+
+  # Equal VP share a place (and the lead).
+  def stage_rows(_game, %{kind: :standings, rows: rows}, _choosing) do
+    for r <- Enum.sort_by(rows, & &1.rank) do
+      place = Enum.count(rows, &(&1.vp > r.vp))
+
+      %{
+        seat: r.seat,
+        why: [{:rank, place}],
+        got: [{:gain, r.vp - r.from_vp}, {:total, r.vp}],
+        none: false,
+        lead: place == 0
+      }
+    end
+  end
+
+  def stage_rows(game, %{kind: :die, rows: rows}, _choosing) do
+    for s <- game.seats do
+      faces = rows |> row_of(s) |> Map.get(:rolls, []) |> Enum.map(& &1.face)
+
+      why =
+        cond do
+          faces != [] -> [{:text, "furthest"}]
+          Game.player(game, s).exploded? -> [{:text, "exploded"}]
+          true -> []
+        end
+
+      got = if faces == [], do: [], else: [{:dice, faces}]
+      %{seat: s, why: why, got: got, none: faces == [], lead: false}
+    end
+  end
+
+  def stage_rows(game, %{kind: :book, book: colour, rows: rows}, choosing) do
+    for s <- game.seats do
+      row = row_of(rows, s)
+      got = book_got(row, colour, s in choosing)
+      %{seat: s, why: book_why(row, colour), got: got, none: got == [], lead: false}
+    end
+  end
+
+  def stage_rows(game, %{kind: :space, rows: rows}, _choosing) do
+    for s <- game.seats do
+      row = row_of(rows, s)
+
+      got =
+        for {k, n} <- [coins: row[:coins], vp: row[:vp], rubies: row[:rubies]], n > 0, do: {k, n}
+
+      why = if row[:exploded], do: [{:text, "exploded"}], else: []
+      %{seat: s, why: why, got: got, none: got == [], lead: false}
+    end
+  end
+
+  def stage_rows(_game, _slide, _choosing), do: []
+
+  defp row_of(rows, seat), do: Enum.find(rows, %{}, &(&1.seat == seat))
+
+  # Black book I: the black count and whom it beats ("2 [black] > both").
+  defp book_why(%{chips: chips, compare: [_ | _] = targets, scored: scored}, :black) do
+    mine = length(chips)
+    beaten = for {t, n} <- targets, mine > n, do: t
+
+    beats =
+      cond do
+        beaten != [] and length(beaten) == length(targets) and length(targets) > 1 ->
+          [{:beats, beaten, :both}]
+
+        beaten != [] ->
+          [{:beats, beaten, :some}]
+
+        scored ->
+          [{:beats, Enum.map(targets, &elem(&1, 0)), :tie}]
+
+        true ->
+          []
+      end
+
+    [{:count, mine, :black} | beats]
+  end
+
+  defp book_why(%{chips: [_ | _] = chips}, _colour), do: [{:chips, chips}]
+  defp book_why(_row, _colour), do: []
+
+  defp book_got(_row, _colour, true), do: [:choosing]
+
+  defp book_got(%{scored: true} = row, colour, false) do
+    case rewards(row) do
+      [] -> [{:chip, colour}]
+      rewards -> rewards
+    end
+  end
+
+  defp book_got(_row, _colour, false), do: []
 
   @doc """
   What `seat` got in this step, as badges: the book's ingredient and its VP,

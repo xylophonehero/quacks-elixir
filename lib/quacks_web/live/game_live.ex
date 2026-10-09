@@ -1555,6 +1555,15 @@ defmodule QuacksWeb.GameLive do
           </div>
           <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
                the update chips stay on the cards until then. --%>
+          <%!-- Round 35: the results stage, over the step bar. --%>
+          <.results_stage
+            :if={tiles_playing?(@reveal) && tile_slide(@reveal)}
+            rows={TileReveal.stage_rows(@game, tile_slide(@reveal))}
+            slide={tile_slide(@reveal)}
+            index={@reveal.index}
+            names={@names}
+            seat={@seat}
+          />
           <%!-- Round 29: the results' steps on the tiles take the bar's place. --%>
           <.tile_stage
             :if={tiles_playing?(@reveal)}
@@ -3420,7 +3429,7 @@ defmodule QuacksWeb.GameLive do
       },
       card_grown: false
     )
-    |> show_slide(0)
+    |> show_slide(if(tiles == [], do: 0, else: 1))
   end
 
   defp seen_key?(seen, {kind, round}), do: seen?(seen, kind, %{round: round})
@@ -3438,9 +3447,9 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # Round 31: on the tiles the bar names the step that Next scores (`index`); the
-  # steps before it are scored. After the last one, one more state (`index` past
-  # the last step) shows every result with the close label.
+  # Round 35: on the tiles the step on show is `index - 1` (the results stage and
+  # the bar name it); the first step shows at once (index 1). On the last step
+  # ("Round scored") Next closes.
   defp next_slide(%{assigns: %{reveal: %{tiles: true, index: index, slides: slides}}} = socket) do
     if index < length(slides),
       do: show_slide(socket, index + 1),
@@ -3466,7 +3475,7 @@ defmodule QuacksWeb.GameLive do
     settle = if match?(%{kind: :standings}, slide) and connected?(socket), do: make_ref()
 
     if tick do
-      ms = slide_ms(reveal, slide, assigns.reveal_speed)
+      ms = slide_ms(%{reveal | index: index}, slide, assigns.reveal_speed)
 
       Process.send_after(self(), {:reveal_tick, tick}, ms)
     end
@@ -3655,7 +3664,11 @@ defmodule QuacksWeb.GameLive do
   defp replaying?(game, seen), do: results?(game) and not seen?(seen, :results, game)
 
   # A slide's time in Auto mode; on the tiles a step is a few beats (round 27).
-  defp slide_ms(%{tiles: true}, _slide, speed), do: TileReveal.duration(speed)
+  # Round 35: the step on show is `index - 1` (`show_slide/2` gets `index`); the die
+  # step waits for its dice to roll.
+  defp slide_ms(%{tiles: true, slides: slides, index: index}, _slide, speed),
+    do: TileReveal.duration(speed, Enum.at(slides, index - 1))
+
   defp slide_ms(_reveal, slide, speed), do: Reveal.duration(slide, Reveal.factor(speed))
 
   # Round 27 (experimental): the evaluation plays on the tiles (`TileReveal`).
@@ -3675,7 +3688,8 @@ defmodule QuacksWeb.GameLive do
 
   defp tile_rolls(game, seat, _reveal), do: TileReveal.rolls(game, seat)
 
-  defp die_step?(%{tiles: true} = reveal), do: match?(%{kind: :die}, tile_slide(reveal))
+  # Round 35: on the tiles the die rolls in the results stage, on its row.
+  defp die_step?(%{tiles: true}), do: false
   defp die_step?(_reveal), do: true
 
   # Your ruby total by the pot: while the steps play on the tiles, after the step shown.

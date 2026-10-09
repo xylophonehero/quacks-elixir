@@ -11,7 +11,7 @@ defmodule QuacksWeb.TileRevealComponents do
 
   import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
   import QuacksWeb.CoreComponents, only: [button: 1]
-  import QuacksWeb.GameComponents, only: [chip: 1, die_face: 1]
+  import QuacksWeb.GameComponents, only: [chip: 1, die: 1, die_face: 1, seat_bg: 1]
 
   alias Quacks.Rules.Fortune
   alias QuacksWeb.TileReveal
@@ -155,21 +155,26 @@ defmodule QuacksWeb.TileRevealComponents do
 
   attr :reveal, :map, required: true
   attr :mode, :atom, required: true, doc: "`:step` shows Next; `:auto` moves on by itself"
-  attr :close_label, :string, default: "Done", doc: "the button once every step is scored"
+  attr :close_label, :string, default: "Done", doc: "the button on the last step"
+  attr :waiting, :boolean, default: false, doc: "the next step waits for other players"
 
   @doc """
   The steps that play on the tiles, in the bar where Stop and Draw sit (round 29).
-  Round 31: the bar names the step that Next scores (`reveal.index`); nothing of
-  it shows before Next. Its picture is the book's chip, the die or the scoring
-  space's coin, crown or ruby (`step_icon/1`), then "Step N of M" small. Once
-  every step is scored it says so, and the button closes (`close_label`). It
-  keeps the bar's height (`min-h-12`), so the pot does not move.
+  Round 35: the bar names the step on show (`reveal.index - 1`, the step the
+  results stage shows), with its picture (`step_icon/1`) and "Step N of M" small.
+  On the last step ("Round scored") the button closes (`close_label`). While the
+  next step waits for other players (`waiting`), Next is off and says so. It keeps
+  the bar's height (`min-h-12`), so the pot does not move.
   """
   def tile_stage(assigns) do
+    %{slides: slides, index: index} = assigns.reveal
+    count = length(slides)
+
     assigns =
       assign(assigns,
-        slide: Enum.at(assigns.reveal.slides, assigns.reveal.index),
-        count: length(assigns.reveal.slides)
+        slide: if(index > 0, do: Enum.at(slides, index - 1)),
+        count: count,
+        last: index >= count
       )
 
     ~H"""
@@ -191,23 +196,16 @@ defmodule QuacksWeb.TileRevealComponents do
           <.step_icon slide={@slide} />
         </span>
         <span class="flex min-w-0 flex-col">
-          <span
-            class={["truncate font-semibold text-parchment", @slide && "sr-only"]}
-            data-role="tile-step"
-          >
-            {if @slide, do: TileReveal.label(@slide), else: "Round scored"}
+          <span class="truncate font-semibold text-parchment" data-role="tile-step">
+            {if @slide, do: TileReveal.label(@slide), else: "Round results"}
           </span>
           <span class="text-tag text-parchment-dim tabular-nums">
-            <%= if @slide do %>
-              Step {@reveal.index + 1} of {@count}
-            <% else %>
-              {@count} of {@count}
-            <% end %>
+            Step {max(@reveal.index, 1)} of {@count}
           </span>
         </span>
       </p>
       <.button
-        :if={@slide}
+        :if={!@last}
         type="button"
         phx-click="reveal_close"
         variant={:secondary}
@@ -217,20 +215,258 @@ defmodule QuacksWeb.TileRevealComponents do
         Skip
       </.button>
       <.button
-        :if={@mode == :step or !@slide}
+        :if={@mode == :step or @last or @waiting}
         type="button"
         phx-click="reveal_next"
         variant={:primary}
         class="w-2/5 shrink-0"
+        disabled={@waiting}
         data-role="tile-next"
       >
-        {if @slide, do: "Next", else: @close_label}
+        {cond do
+          @waiting -> "Waiting…"
+          @last -> @close_label
+          true -> "Next"
+        end}
       </.button>
     </section>
     """
   end
 
+  attr :rows, :list, required: true, doc: "`QuacksWeb.TileReveal.stage_rows/3`"
+  attr :slide, :map, required: true, doc: "the step on show"
+  attr :index, :integer, required: true, doc: "`reveal.index`: a new step gets new ids"
+  attr :names, :map, required: true
+  attr :seat, :integer, default: nil, doc: "this browser's seat"
+  attr :collapsed, :boolean, default: false, doc: "a decision needs the board: one line"
+
+  @doc """
+  Round 35 (direction A): the results stage, a parchment panel in the band above
+  the bar's buttons. One row per player for the step on show, in one column for
+  every player count: the colour disc and initial (and the short name when it
+  fits), the reason (`why`) and, at the row's end, the result (`got`), both as
+  icons where possible. A row with no result fades. The bonus die rolls at the end
+  of each roller's row. While a decision needs the pot or the test tubes
+  (`collapsed`), only the title line shows. It floats over the pot's lower band
+  (app.css `.results-stage`), so the pot never moves.
+  """
+  def results_stage(assigns) do
+    ~H"""
+    <section
+      id="results-stage"
+      class="results-stage"
+      aria-label="Step results"
+      data-role="results-stage"
+      data-kind={@slide.kind}
+      data-collapsed={@collapsed && "true"}
+    >
+      <header class="flex items-center gap-1.5 px-1 pb-0.5">
+        <span class="grid size-6 shrink-0 place-items-center [&_.chip-token]:size-6!">
+          <.step_icon slide={@slide} small />
+        </span>
+        <span class="font-hand text-lg leading-none font-bold" data-role="stage-title">
+          {TileReveal.label(@slide)}
+        </span>
+        <span class="ml-auto truncate text-xs text-ink-soft">{hint(@slide)}</span>
+      </header>
+      <ol :if={!@collapsed} class="space-y-0.5" data-role="stage-rows">
+        <li
+          :for={row <- @rows}
+          id={"stage-row-#{@index}-#{row.seat}"}
+          class={[
+            "stage-row flex min-h-7 items-center gap-1.5 rounded-md px-1 py-0.5",
+            row.none && "opacity-45",
+            row.lead && "bg-gold/35",
+            row.seat == @seat && "ring-1 ring-gold-deep/70"
+          ]}
+          data-role="stage-row"
+          data-seat={row.seat}
+          data-none={row.none && "true"}
+          data-lead={row.lead && "true"}
+        >
+          <span
+            class={[
+              "grid size-5 shrink-0 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40",
+              seat_bg(row.seat)
+            ]}
+            aria-hidden="true"
+            data-role="seat-disc"
+          >
+            {initial(name(@names, row.seat))}
+          </span>
+          <span
+            class="stage-name max-w-16 shrink-0 truncate text-xs font-semibold"
+            title={name(@names, row.seat)}
+          >
+            {name(@names, row.seat)}
+          </span>
+          <span class="flex min-w-0 flex-1 items-center gap-1 text-sm" data-role="stage-why">
+            <.cell :for={cell <- row.why} cell={cell} names={@names} />
+          </span>
+          <span
+            class="flex shrink-0 items-center gap-1.5 font-hand text-lg leading-none font-bold"
+            data-role="stage-got"
+          >
+            <.cell :for={{cell, i} <- Enum.with_index(row.got)} cell={cell} names={@names} i={i} />
+          </span>
+        </li>
+      </ol>
+    </section>
+    """
+  end
+
+  defp hint(%{kind: :die}), do: "furthest in the pot rolls"
+  defp hint(%{kind: :book, book: :black}), do: "more black than neighbours"
+  defp hint(%{kind: :space}), do: "coins · VP · ruby"
+  defp hint(%{kind: :standings}), do: "this round"
+  defp hint(_slide), do: nil
+
+  defp name(names, seat), do: Map.get(names || %{}, seat) || "Player #{seat + 1}"
+
+  defp initial(name),
+    do: name |> String.trim() |> String.first() |> Kernel.||("?") |> String.upcase()
+
+  attr :cell, :any, required: true
+  attr :names, :map, default: %{}
+  attr :i, :integer, default: 0
+
+  defp cell(%{cell: {:count, n, colour}} = assigns) do
+    assigns = assign(assigns, n: n, colour: colour)
+
+    ~H"""
+    <span class="flex items-center gap-0.5 font-semibold" data-cell="count">
+      {@n}<.chip chip={{@colour, nil}} size={:sm} />
+    </span>
+    """
+  end
+
+  defp cell(%{cell: {:beats, seats, how}} = assigns) do
+    assigns = assign(assigns, seats: seats, how: how)
+
+    ~H"""
+    <span class="flex items-center gap-0.5 text-xs font-semibold" data-cell="beats">
+      {if @how == :tie, do: "=", else: ">"}
+      <%= if @how == :both do %>
+        both
+      <% else %>
+        <span
+          :for={s <- @seats}
+          class={["size-2.5 rounded-full ring-1 ring-black/30", seat_bg(s)]}
+          title={name(@names, s)}
+        />
+      <% end %>
+    </span>
+    """
+  end
+
+  defp cell(%{cell: {:chips, chips}} = assigns) do
+    assigns = assign(assigns, chips: Enum.take(chips, 4), more: length(chips) > 4)
+
+    ~H"""
+    <span class="flex items-center gap-0.5" data-cell="chips">
+      <.chip :for={chip <- @chips} chip={chip} size={:xs} />
+      <span :if={@more} class="text-xs">…</span>
+    </span>
+    """
+  end
+
+  defp cell(%{cell: {:text, text}} = assigns) do
+    assigns = assign(assigns, text: text)
+
+    ~H"""
+    <span class="truncate text-xs text-ink-soft italic" data-cell="text">{@text}</span>
+    """
+  end
+
+  defp cell(%{cell: {:dice, faces}} = assigns) do
+    assigns = assign(assigns, faces: Enum.with_index(faces))
+
+    ~H"""
+    <span class="flex items-center gap-1" data-cell="dice">
+      <span :for={{face, n} <- @faces} class="stage-die" style={"--roll: #{n}"}>
+        <.die face={face} />
+      </span>
+    </span>
+    """
+  end
+
+  defp cell(%{cell: {:chip, colour}} = assigns) do
+    assigns = assign(assigns, colour: colour)
+
+    ~H"""
+    <span class="stage-got" data-cell="chip" style={"--got: #{@i}"}>
+      <.chip chip={{@colour, nil}} size={:sm} />
+    </span>
+    """
+  end
+
+  defp cell(%{cell: {kind, n}} = assigns) when kind in [:vp, :rubies, :droplet, :coins] do
+    assigns = assign(assigns, kind: kind, n: n)
+
+    ~H"""
+    <span class="stage-got flex items-center gap-px" data-cell={@kind} style={"--got: #{@i}"}>
+      <span :if={@kind != :coins}>+</span>{@n}<.piece_icon
+        name={piece_name(@kind)}
+        class={["size-4", piece_ink(@kind)]}
+      />
+    </span>
+    """
+  end
+
+  defp cell(%{cell: {:gain, n}} = assigns) do
+    assigns = assign(assigns, n: n)
+
+    ~H"""
+    <span class="flex items-center gap-px text-base text-ink-soft" data-cell="gain">
+      +{@n}<.piece_icon name={:vp} class="size-3.5 text-gold-deep" />
+    </span>
+    """
+  end
+
+  defp cell(%{cell: {:total, n}} = assigns) do
+    assigns = assign(assigns, n: n)
+
+    ~H"""
+    <span class="flex items-center gap-px" data-cell="total">
+      <span class="text-sm text-ink-soft">→</span>{@n}
+    </span>
+    """
+  end
+
+  defp cell(%{cell: {:rank, rank}} = assigns) do
+    assigns = assign(assigns, rank: rank)
+
+    ~H"""
+    <span class="flex items-center gap-1 text-xs font-semibold" data-cell="rank">
+      <.piece_icon :if={@rank == 0} name={:vp} class="size-4 text-gold-deep" />
+      {ordinal(@rank + 1)}
+    </span>
+    """
+  end
+
+  defp cell(%{cell: :choosing} = assigns) do
+    ~H"""
+    <span class="animate-pulse font-sans text-xs font-semibold text-ink-soft" data-cell="choosing">
+      choosing…
+    </span>
+    """
+  end
+
+  defp piece_name(:rubies), do: :ruby
+  defp piece_name(:coins), do: :coin
+  defp piece_name(kind), do: kind
+
+  defp piece_ink(:rubies), do: "text-ruby"
+  defp piece_ink(:droplet), do: "text-droplet"
+  defp piece_ink(_kind), do: "text-gold-deep"
+
+  defp ordinal(1), do: "1st"
+  defp ordinal(2), do: "2nd"
+  defp ordinal(3), do: "3rd"
+  defp ordinal(n), do: "#{n}th"
+
   attr :slide, :map, required: true
+  attr :small, :boolean, default: false
 
   # Round 31 (item 4): a book step is its chip (the value hidden); the die, the
   # coins, the VP and the rubies their piece icons.
@@ -238,8 +474,8 @@ defmodule QuacksWeb.TileRevealComponents do
     assigns = assign(assigns, colour: colour)
 
     ~H"""
-    <span class="contents [&_[data-role=chip-value]]:hidden" data-book={@colour}>
-      <.chip chip={{@colour, 1}} size={:md} />
+    <span class="contents" data-book={@colour}>
+      <.chip chip={{@colour, nil}} size={:md} />
     </span>
     """
   end
@@ -248,14 +484,21 @@ defmodule QuacksWeb.TileRevealComponents do
     assigns = assign(assigns, icon: piece(slide))
 
     ~H"""
-    <span class="grid size-9 place-items-center rounded-full bg-black/30 ring-1 ring-parchment/20">
-      <.piece_icon name={@icon} class={["size-6", ink(@icon)]} />
+    <span class={[
+      "grid place-items-center rounded-full ring-1",
+      if(@small,
+        do: "size-6 bg-ink/85 ring-black/30",
+        else: "size-9 bg-black/30 ring-parchment/20"
+      )
+    ]}>
+      <.piece_icon name={@icon} class={[if(@small, do: "size-4", else: "size-6"), ink(@icon)]} />
     </span>
     """
   end
 
   defp piece(%{kind: :die}), do: :die
   defp piece(%{kind: :space}), do: :coin
+  defp piece(%{kind: :standings}), do: :vp
   defp piece(_slide), do: :pot
 
   defp ink(:die), do: "text-parchment-light"
