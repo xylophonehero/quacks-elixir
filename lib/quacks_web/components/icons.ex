@@ -42,7 +42,7 @@ defmodule QuacksWeb.Icons do
     penny: "penny-1.svg",
     coin: "coin.svg",
     witch: "witch-1.svg",
-    explosion: "explosion-1.svg",
+    explosion: "boom.svg",
     pot: "pot-1.svg",
     nervousness: "patient-nervousness-2.svg",
     ear_worm: "patient-ear-worm-1.svg",
