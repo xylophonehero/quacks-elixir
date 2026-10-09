@@ -7,7 +7,7 @@ There are two lists of "what happened" in this codebase. They have different job
 | | `Session.actions` | `Game.log` |
 |---|---|---|
 | Holds | the input: `{seat, action}` pairs | the narration: actions *and* the events they caused |
-| Used for | replay, undo and the bug report bundle | the UI: the log sheet, the update chips, labels, bot lockstep, the bug report text |
+| Used for | replay, undo and the bug report bundle | the UI: the log sheet, the update chips, labels, the bug report text |
 | Lives in | `%Quacks.Session{}` | `%Quacks.Game{}` |
 | Order | newest first | newest first |
 
@@ -206,10 +206,6 @@ scoring space". The UI needs both.
 
 - **The essence preview.** `essence_parts/2` finds the newest `{:essence, reach,
   parts}` entry for this seat (`lib/quacks_web/live/game_live.ex:2681-2686`).
-
-- **Bot lockstep.** `GameServer.round_draws/1` counts `{seat, :draw}` entries since
-  the last round end, so a bot never draws more chips than the human who drew most
-  (`lib/quacks/game_server.ex:933-941`).
 
 ## Why "the log is the truth the UI reads"
 
