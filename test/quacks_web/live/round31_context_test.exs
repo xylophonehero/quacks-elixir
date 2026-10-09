@@ -8,8 +8,8 @@ defmodule QuacksWeb.Round31ContextTest do
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
 
-  alias Quacks.GameServer
   alias Quacks.GameHelpers, as: H
+  alias Quacks.GameServer
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
