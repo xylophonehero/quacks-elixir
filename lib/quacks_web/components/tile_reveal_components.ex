@@ -169,6 +169,7 @@ defmodule QuacksWeb.TileRevealComponents do
       aria-label="Round results"
       data-role="tile-stage"
       data-kind={@slide.kind}
+      data-part={@slide[:part]}
     >
       <p class="flex min-w-0 flex-1 flex-col justify-center leading-tight" aria-live="polite">
         <span class="truncate font-semibold text-parchment" data-role="tile-step">

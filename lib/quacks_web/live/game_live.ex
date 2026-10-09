@@ -1177,7 +1177,7 @@ defmodule QuacksWeb.GameLive do
             :if={@me && @me.patient}
             game={@game}
             seat={@seat}
-            beat={replay_marks(@game, @seat)[:essence]}
+            beat={replay_marks(@game, @seat, @reveal)[:essence]}
             preview
           />
           <%!-- The pot is the largest square that fits (see `.pot-box` in app.css);
@@ -1193,8 +1193,10 @@ defmodule QuacksWeb.GameLive do
                 rings={rings(@game)}
                 flask={@me && if(@me.flask, do: :full, else: :empty)}
                 flask_click={if :use_flask in @actions, do: encode(:use_flask)}
-                beats={replay_marks(@game, @seat)}
-                effects={replay_effects(@game, @seat, @seen)}
+                beats={replay_marks(@game, @seat, @reveal)}
+                effects={replay_effects(@game, @seat, @seen, @reveal)}
+                droplet={tiles_playing?(@reveal) && @me && tile_totals(@game, @reveal)[@seat].droplet}
+                fx_key={if tiles_playing?(@reveal), do: "s#{@reveal.index}-", else: ""}
               />
               <%!-- Round 29: your own explosion's beat (app.css `.boom`); the hook
                    buzzes the phone once (app.js `Boom`). --%>
@@ -1294,7 +1296,10 @@ defmodule QuacksWeb.GameLive do
                 class="absolute top-0 right-0 flex flex-col items-end gap-1.5"
                 data-role="pot-corner-right"
               >
-                <.ruby_badge rubies={@me.rubies} beats={stat_beats(@game, @seat, @seen)} />
+                <.ruby_badge
+                  rubies={ruby_total(@game, @me, @seat, @reveal)}
+                  beats={stat_beats(@game, @seat, @seen, @reveal)}
+                />
                 <.aside :if={@me.aside != []} chips={@me.aside} />
               </div>
               <%!-- The overflow bowl hangs over the pot's lower rim. --%>
@@ -1631,7 +1636,7 @@ defmodule QuacksWeb.GameLive do
             </section>
             <%!-- Phones: the bonus die (from 64rem it rolls in the results panel). --%>
             <.replay_die
-              :if={replaying?(@game, @seen)}
+              :if={replaying?(@game, @seen) and die_step?(@reveal)}
               lines={replay_die_lines(@game, @seat)}
               class="flex shadow-lg lg:hidden"
             />
@@ -3475,6 +3480,19 @@ defmodule QuacksWeb.GameLive do
   # Round 27 (experimental): the evaluation plays on the tiles (`TileReveal`).
   defp tiles_playing?(reveal), do: match?(%{tiles: true}, reveal)
 
+  # Round 31: the step on the tiles now, and whether the bonus die strip plays
+  # (not while a later step shows).
+  defp tile_slide(%{slides: slides, index: index}), do: Enum.at(slides, index)
+
+  defp die_step?(%{tiles: true} = reveal), do: match?(%{kind: :die}, tile_slide(reveal))
+  defp die_step?(_reveal), do: true
+
+  # Your ruby total by the pot: while the steps play on the tiles, after the step shown.
+  defp ruby_total(game, _me, seat, %{tiles: true} = reveal),
+    do: tile_totals(game, reveal)[seat].rubies
+
+  defp ruby_total(_game, me, _seat, _reveal), do: me.rubies
+
   # `{vp, rubies, vp_before, rubies_before}` per seat: after this step and before it.
   defp tile_totals(game, %{slides: slides, index: index}) do
     now = TileReveal.totals(game, slides, index)
@@ -3662,7 +3680,10 @@ defmodule QuacksWeb.GameLive do
   # While the replay plays (scoring sequence): the rubies and VP tags on the pot, the
   # bonus die beside it, and the beats the VP and ruby counters tick on (a ruby
   # counter when its last ruby lands, see app.css).
-  defp replay_effects(game, seat, seen) do
+  defp replay_effects(game, seat, _seen, %{tiles: true} = reveal),
+    do: game |> TileReveal.step_lines(seat || 0, tile_slide(reveal)) |> Replay.pot_effects()
+
+  defp replay_effects(game, seat, seen, _reveal) do
     if replaying?(game, seen),
       do: game |> Replay.beats(seat || 0) |> Replay.pot_effects(),
       else: []
@@ -3673,7 +3694,19 @@ defmodule QuacksWeb.GameLive do
 
   # With `:from`, the values the counters start from (`Replay.before/2`): on the tab
   # that ends the round the strip was never drawn with the old values.
-  defp stat_beats(game, seat, seen) do
+  # Round 31: while the steps play on the tiles, the ruby counter ticks with the
+  # step that brings rubies (beat 0 of the step, when its rubies land).
+  defp stat_beats(game, seat, _seen, %{tiles: true} = reveal) do
+    %{rubies_from: from} = tile_totals(game, reveal)[seat]
+    gains = Map.get(tile_slide(reveal), :gains, %{})
+
+    case gains[seat] do
+      {_vp, rubies} when rubies > 0 -> %{rubies: 0, from: %{rubies: from}}
+      _none -> %{}
+    end
+  end
+
+  defp stat_beats(game, seat, seen, _reveal) do
     if replaying?(game, seen),
       do:
         for(
@@ -3687,7 +3720,10 @@ defmodule QuacksWeb.GameLive do
 
   # While the round results show: what lights up on the pot on which replay beat
   # (the same beats as the dialog's lines, so both play in step).
-  defp replay_marks(game, seat) do
+  defp replay_marks(game, seat, %{tiles: true} = reveal),
+    do: TileReveal.marks(game, seat || 0, tile_slide(reveal))
+
+  defp replay_marks(game, seat, _reveal) do
     if results?(game), do: game |> Replay.beats(seat || 0) |> Replay.highlights(), else: %{}
   end
 

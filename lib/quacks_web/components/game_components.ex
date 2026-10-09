@@ -248,8 +248,15 @@ defmodule QuacksWeb.GameComponents do
     default: [],
     doc: "while the replay plays: `QuacksWeb.Replay.pot_effects/1` (flying rubies, VP tags)"
 
+  attr :droplet, :integer,
+    default: nil,
+    doc: "round 31: the droplet's space while the evaluation steps play (nil: the seat's own)"
+
+  attr :fx_key, :string, default: "", doc: "round 31: the step, so each step's effects play"
+
   def pot(assigns) do
     player = assigns.game.players[assigns.seat]
+    player = if assigns.droplet, do: %{player | droplet: assigns.droplet}, else: player
     scoring = Game.scoring_index(assigns.game, assigns.seat)
     rings = assigns.rings || %{assigns.seat => scoring}
 
@@ -512,7 +519,7 @@ defmodule QuacksWeb.GameComponents do
            counter (app.js `PotMotion`), a VP tag floats up (app.css `vp-float`). --%>
       <g
         :for={fx <- @fx}
-        id={"beat-fx-#{@seat}-#{@game.round}-#{fx.kind}-#{fx.beat}-#{fx.n}"}
+        id={"beat-fx-#{@seat}-#{@game.round}-#{@fx_key}#{fx.kind}-#{fx.beat}-#{fx.n}"}
         data-role={if fx.kind == :ruby, do: "ruby-flight", else: "vp-float"}
         data-beat={fx.beat}
         data-n={fx.n}

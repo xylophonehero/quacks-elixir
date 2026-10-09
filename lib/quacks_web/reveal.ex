@@ -276,6 +276,14 @@ defmodule QuacksWeb.Reveal do
 
   defp other_book_line?(line, colour), do: other_book(line) == colour
 
+  @doc """
+  Whether the replay `line` belongs to the book slide of `colour` (round 31: the
+  pot plays one step at a time on the tiles, `QuacksWeb.TileReveal.step_lines/3`).
+  """
+  @spec book_line?(Replay.line(), atom) :: boolean
+  def book_line?(line, colour) when colour in @books, do: line.kind == colour
+  def book_line?(line, colour), do: other_book_line?(line, colour)
+
   # The chips a book counted, oldest first: the chips its lines mark, else the book's
   # own rule (green: of the last two; the others: all of the colour in the pot).
   defp counted(game, seat, colour, marks) do
