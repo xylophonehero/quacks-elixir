@@ -157,7 +157,8 @@ defmodule QuacksWeb.GameLive do
            reveal_show: :overlay,
            reveal_choice: :overlay,
            phone: false,
-           reduced: false
+           reduced: false,
+           rubies_kept: nil
          )
          |> new_report()
          |> assign_table(table)
@@ -423,6 +424,21 @@ defmodule QuacksWeb.GameLive do
 
   def handle_event("reveal_close", _params, %{assigns: %{reveal: %{}}} = socket),
     do: {:noreply, close_reveal(socket)}
+
+  # Round 35 (item 5): "Keep" in the results' rubies step; the shop's rubies step
+  # after the buy is then skipped.
+  def handle_event(
+        "rubies_keep",
+        _params,
+        %{assigns: %{reveal: %{rubies: true} = reveal}} = socket
+      ) do
+    {:noreply,
+     socket
+     |> assign(rubies_kept: socket.assigns.game.round, reveal: %{reveal | rubies: false})
+     |> next_slide()}
+  end
+
+  def handle_event("rubies_keep", _params, socket), do: {:noreply, socket}
 
   def handle_event(event, _params, socket)
       when event in ["reveal_next", "reveal_skip", "reveal_close"],
@@ -1563,10 +1579,22 @@ defmodule QuacksWeb.GameLive do
             index={@reveal.index}
             names={@names}
             seat={@seat}
+            collapsed={tile_hold(assigns) != nil}
+            note={hold_note(tile_hold(assigns))}
+          />
+          <%!-- Round 35: a decision on the step on show takes the step bar's place. --%>
+          <.bar_choice
+            :if={tile_hold(assigns) == :rubies}
+            choice={:rubies}
+            actions={@all_actions}
+            game={@game}
+            me={@me}
+            seat={@seat}
+            keep
           />
           <%!-- Round 29: the results' steps on the tiles take the bar's place. --%>
           <.tile_stage
-            :if={tiles_playing?(@reveal)}
+            :if={tiles_playing?(@reveal) && tile_hold(assigns) == nil}
             reveal={@reveal}
             mode={@reveal_mode}
             close_label={close_label(@reveal, @decision, @skip_rubies)}
@@ -2251,6 +2279,10 @@ defmodule QuacksWeb.GameLive do
   attr :me, Player, required: true
   attr :seat, :integer, default: 0
 
+  attr :keep, :boolean,
+    default: false,
+    doc: "round 35: the results' rubies step, its Skip is \"Keep\" (`rubies_keep`)"
+
   def bar_choice(%{choice: :explosion_choice} = assigns) do
     space = PotTrack.at(Player.scoring_index(assigns.me))
     assigns = assign(assigns, space: space, final?: assigns.game.round == 9)
@@ -2309,6 +2341,15 @@ defmodule QuacksWeb.GameLive do
       data-role="bar-rubies"
     >
       <.button
+        :if={@keep}
+        phx-click="rubies_keep"
+        class="px-1!"
+        data-role="rubies-keep"
+      >
+        Keep
+      </.button>
+      <.button
+        :if={!@keep}
         phx-click="action"
         phx-value-action={encode(:end_round)}
         disabled={:end_round not in @actions}
@@ -3344,7 +3385,8 @@ defmodule QuacksWeb.GameLive do
     me = if seat, do: game.players[seat]
     actions = if seat && not Game.over?(game), do: Game.legal_actions(game, seat), else: []
     phase = seat && Game.phase(game, seat)
-    {decision, skip_rubies} = decide(actions, phase, me)
+    kept = socket.assigns[:rubies_kept] == game.round
+    {decision, skip_rubies} = decide(actions, phase, me, kept)
 
     socket
     |> assign(
@@ -3361,6 +3403,7 @@ defmodule QuacksWeb.GameLive do
       card_grown: socket.assigns[:card_grown] == true and same_round?(socket.assigns[:game], game)
     )
     |> open_reveal()
+    |> resume_reveal()
     |> card_vt(was)
   end
 
@@ -3425,7 +3468,8 @@ defmodule QuacksWeb.GameLive do
         tick: nil,
         settled: true,
         settle: nil,
-        held: match?({:card, _}, key)
+        held: match?({:card, _}, key),
+        rubies: false
       },
       card_grown: false
     )
@@ -3450,10 +3494,25 @@ defmodule QuacksWeb.GameLive do
   # Round 35: on the tiles the step on show is `index - 1` (the results stage and
   # the bar name it); the first step shows at once (index 1). On the last step
   # ("Round scored") Next closes.
-  defp next_slide(%{assigns: %{reveal: %{tiles: true, index: index, slides: slides}}} = socket) do
-    if index < length(slides),
-      do: show_slide(socket, index + 1),
-      else: close_reveal(socket)
+  # A decision on the step on show holds it (`tile_hold/1`). Round 35 (item 5):
+  # before "Round scored" this seat spends its rubies (`reveal.rubies`), when a
+  # ruby buys something.
+  defp next_slide(
+         %{assigns: %{reveal: %{tiles: true, index: index, slides: slides} = reveal}} = socket
+       ) do
+    cond do
+      index >= length(slides) ->
+        close_reveal(socket)
+
+      tile_hold(socket.assigns) != nil ->
+        assign(socket, reveal: %{reveal | tick: nil})
+
+      match?(%{kind: :standings}, Enum.at(slides, index)) and ruby_due?(socket.assigns) ->
+        assign(socket, reveal: %{reveal | rubies: true, tick: nil})
+
+      true ->
+        show_slide(socket, index + 1)
+    end
   end
 
   defp next_slide(%{assigns: %{reveal: %{index: index, slides: slides}}} = socket) do
@@ -3592,10 +3651,14 @@ defmodule QuacksWeb.GameLive do
 
   # This seat's decision, and whether it is a rubies step to skip (nothing to spend,
   # no witch to call).
-  defp decide(actions, phase, me) do
+  # Round 35: rubies kept in the results' rubies step (`kept`) skip the shop's
+  # rubies step after the buy, unless a witch can be called there.
+  defp decide(actions, phase, me, kept) do
+    step? = if kept, do: &witch?/1, else: &ruby_step_action?/1
+
     case decision(actions, phase, me) do
       :rubies ->
-        if Enum.any?(actions, &ruby_step_action?/1), do: {:rubies, false}, else: {nil, true}
+        if Enum.any?(actions, step?), do: {:rubies, false}, else: {nil, true}
 
       decision ->
         {decision, false}
@@ -3673,6 +3736,47 @@ defmodule QuacksWeb.GameLive do
 
   # Round 27 (experimental): the evaluation plays on the tiles (`TileReveal`).
   defp tiles_playing?(reveal), do: match?(%{tiles: true}, reveal)
+
+  # Round 35: the decision that holds the step on show, or nil: the rubies step
+  # before "Round scored" (item 5).
+  defp tile_hold(%{reveal: %{tiles: true, rubies: true}}), do: :rubies
+  defp tile_hold(_assigns), do: nil
+
+  # This seat may spend rubies before "Round scored": a ruby buys something now
+  # (not round 9: its rubies turn into VP by themselves) and it did not keep them.
+  defp ruby_due?(%{seat: seat, game: %Game{phase: :shopping, round: round}} = assigns)
+       when is_integer(seat) and round < 9 do
+    assigns.rubies_kept != round and
+      Enum.any?(assigns.all_actions, &match?({:rubies, use} when use != :vp, &1))
+  end
+
+  defp ruby_due?(_assigns), do: false
+
+  # The results stage's one line while a decision holds the step.
+  defp hold_note(:rubies), do: {"Spend rubies", "before the round is scored"}
+  defp hold_note(_hold), do: nil
+
+  # After a game update while the steps play on the tiles: a rubies step with
+  # nothing left to buy moves on to "Round scored"; in Auto a step whose hold
+  # ended gets its timer again.
+  defp resume_reveal(%{assigns: %{reveal: %{tiles: true, rubies: true} = reveal}} = socket) do
+    if ruby_due?(socket.assigns),
+      do: socket,
+      else:
+        socket
+        |> assign(rubies_kept: socket.assigns.game.round, reveal: %{reveal | rubies: false})
+        |> next_slide()
+  end
+
+  defp resume_reveal(
+         %{assigns: %{reveal: %{tiles: true, tick: nil, index: index}} = assigns} = socket
+       ) do
+    if reveal_mode(assigns.reveal, assigns) == :auto and tile_hold(assigns) == nil,
+      do: show_slide(socket, index),
+      else: socket
+  end
+
+  defp resume_reveal(socket), do: socket
 
   # Round 31: the step Next scored last (nil before the first), and whether the
   # bonus die strip plays (while the die step is the last scored).
@@ -3935,6 +4039,10 @@ defmodule QuacksWeb.GameLive do
   # else not while the round's beats still play: the update chips stay until they
   # are read (the "seen" event comes back here).
   defp auto_done(socket, acted? \\ false)
+
+  # Round 35: not while the steps play on the tiles (a ruby spent in the results'
+  # rubies step); `close_reveal/1` calls it again.
+  defp auto_done(%{assigns: %{reveal: %{tiles: true}}} = socket, _acted?), do: socket
 
   defp auto_done(
          %{assigns: %{skip_rubies: true, seat: seat, game: game} = assigns} = socket,

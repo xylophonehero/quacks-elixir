@@ -240,6 +240,10 @@ defmodule QuacksWeb.TileRevealComponents do
   attr :seat, :integer, default: nil, doc: "this browser's seat"
   attr :collapsed, :boolean, default: false, doc: "a decision needs the board: one line"
 
+  attr :note, :any,
+    default: nil,
+    doc: "`{title, hint}`: the decision, on the collapsed line in place of the step's"
+
   @doc """
   Round 35 (direction A): the results stage, a parchment panel in the band above
   the bar's buttons. One row per player for the step on show, in one column for
@@ -264,10 +268,15 @@ defmodule QuacksWeb.TileRevealComponents do
         <span class="grid size-6 shrink-0 place-items-center [&_.chip-token]:size-6!">
           <.step_icon slide={@slide} small />
         </span>
-        <span class="font-hand text-lg leading-none font-bold" data-role="stage-title">
-          {TileReveal.label(@slide)}
+        <span
+          class="font-hand text-lg leading-none font-bold whitespace-nowrap"
+          data-role="stage-title"
+        >
+          {if @collapsed && @note, do: elem(@note, 0), else: TileReveal.label(@slide)}
         </span>
-        <span class="ml-auto truncate text-xs text-ink-soft">{hint(@slide)}</span>
+        <span class="ml-auto truncate text-xs text-ink-soft" data-role="stage-hint">
+          {if @collapsed && @note, do: elem(@note, 1), else: hint(@slide)}
+        </span>
       </header>
       <ol :if={!@collapsed} class="space-y-0.5" data-role="stage-rows">
         <li

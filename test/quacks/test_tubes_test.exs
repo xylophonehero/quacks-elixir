@@ -150,7 +150,7 @@ defmodule Quacks.TestTubesTest do
   describe "rubies with 2 players (Nick's round 4, 6, 7)" do
     # Both seats stop with one black chip each: the Hawkmoth tie (1 = 1) moves each
     # droplet once, for free. Then: the droplet choice, the buy, the rubies (tube, then pot).
-    test "the free droplet move comes first, each ruby spend costs 2 once, the rubies come last" do
+    test "the free droplet move comes first, each ruby spend costs 2 once" do
       g =
         new(:back, 2)
         |> put(0,
@@ -170,7 +170,8 @@ defmodule Quacks.TestTubesTest do
       rubies = me(g).rubies
       g = apply!(g, 0, {:droplet, :pot})
       assert me(g).rubies == rubies
-      refute Enum.any?(Game.legal_actions(g, 0), &match?({:rubies, _}, &1))
+      # Round 35: the ruby uses are legal in the buy step too.
+      assert {:rubies, :tube} in Game.legal_actions(g, 0)
 
       g = apply!(g, 0, {:buy, []})
       assert {:rubies, :tube} in Game.legal_actions(g, 0)

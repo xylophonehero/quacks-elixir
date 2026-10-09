@@ -593,9 +593,11 @@ defmodule Quacks.Game do
       else: []
   end
 
-  # Two steps: first the buy (once, not in round 9), then the rubies and "Done". The
-  # rubies come last, never before the buy (`{:buy, []}` buys nothing). A seat whose
-  # coins buy nothing starts at the rubies ("buy nothing" stays legal). Witches in both.
+  # Two steps: first the buy (once, not in round 9), then the rubies and "Done"
+  # (`{:buy, []}` buys nothing). A seat whose coins buy nothing starts at the rubies
+  # ("buy nothing" stays legal). Witches in both. Round 35: the ruby uses are legal
+  # in the buy step too (rulebook F after E, but coins and rubies do not pay for each
+  # other's step): the page asks for them before the round's last results step.
   defp phase_actions(%__MODULE__{phase: :shopping} = g, seat) do
     case player(g, seat) do
       %Player{phase: :shop} = p ->
@@ -606,7 +608,8 @@ defmodule Quacks.Game do
           do:
             Enum.map(buys, &{:buy, &1}) ++
               ruby_actions(g, p) ++ Witches.legal_actions(g, seat) ++ [:end_round],
-          else: Enum.map(buys, &{:buy, &1}) ++ Witches.legal_actions(g, seat)
+          else:
+            Enum.map(buys, &{:buy, &1}) ++ ruby_actions(g, p) ++ Witches.legal_actions(g, seat)
 
       %Player{phase: :ready} ->
         []

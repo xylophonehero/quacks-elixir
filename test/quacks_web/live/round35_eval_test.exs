@@ -9,6 +9,7 @@ defmodule QuacksWeb.Round35EvalTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
+  alias Quacks.GameHelpers
   alias QuacksWeb.{Reveal, TileReveal}
 
   defp browser(token), do: init_test_session(build_conn(), player_token: token)
@@ -226,6 +227,64 @@ defmodule QuacksWeb.Round35EvalTest do
       %{reveal: %{tick: ref}} = :sys.get_state(view.pid).socket.assigns
       send(view.pid, {:reveal_tick, ref})
       assert has_element?(view, "#results-stage[data-kind=#{second.kind}]")
+    end
+  end
+
+  describe "item 5: rubies before Round scored" do
+    defp to_last_step(view, slides) do
+      for _ <- 2..(length(slides) - 1)//1, do: next(view)
+      view
+    end
+
+    test "Next before Round scored asks for the rubies; Keep moves on; no rubies step after the buy" do
+      {id, game, view} = duo()
+      GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, rubies: 4))
+      slides = game |> Reveal.slides(0) |> TileReveal.slides()
+      to_last_step(view, slides)
+      refute has_element?(view, "#results-stage[data-kind=standings]")
+
+      next(view)
+      assert has_element?(view, "#bar-rubies [data-role=rubies-keep]")
+      assert has_element?(view, "#results-stage[data-collapsed]")
+      refute has_element?(view, "[data-role=stage-row]")
+      refute has_element?(view, "#tile-stage")
+
+      # A spend keeps the step while a ruby still buys something.
+      view |> element("#bar-rubies [data-ruby=droplet]") |> render_click()
+      assert {:ok, %{game: game}} = GameServer.get(id)
+      assert Game.player(game, 0).rubies == 2
+      assert has_element?(view, "#bar-rubies")
+
+      view |> element("[data-role=rubies-keep]") |> render_click()
+      assert has_element?(view, "#results-stage[data-kind=standings]")
+      refute has_element?(view, "#bar-rubies")
+
+      # After the buy, no second rubies step: the round ends for this seat.
+      next(view)
+      render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+      refute has_element?(view, "#bar-rubies")
+      {:ok, %{game: game}} = GameServer.get(id)
+      assert game.round == 2 or Game.player(game, 0).phase == :ready
+    end
+
+    test "the last ruby spent moves on to Round scored by itself" do
+      {id, game, view} = duo()
+      GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, rubies: 2))
+      slides = game |> Reveal.slides(0) |> TileReveal.slides()
+      to_last_step(view, slides)
+      next(view)
+
+      view |> element("#bar-rubies [data-ruby=droplet]") |> render_click()
+      assert has_element?(view, "#results-stage[data-kind=standings]")
+    end
+
+    test "no ruby to spend: Next goes straight to Round scored" do
+      {id, game, view} = duo()
+      GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, rubies: 1))
+      slides = game |> Reveal.slides(0) |> TileReveal.slides()
+      to_last_step(view, slides)
+      next(view)
+      assert has_element?(view, "#results-stage[data-kind=standings]")
     end
   end
 
