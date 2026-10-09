@@ -1344,6 +1344,7 @@ defmodule QuacksWeb.GameLive do
           <%!-- A landscape phone moves the tubes to the right column (app.css). --%>
           <div :if={@game.rules.pot_side == :back} class="shrink-0 pt-1" data-area="tubes">
             <.test_tubes
+              id="tubes-main"
               tube={@game.players[@seat || 0].tube}
               class="mx-auto block h-auto w-full max-w-sm"
             />
@@ -1412,25 +1413,6 @@ defmodule QuacksWeb.GameLive do
                   offer={[@me.pending, @me.witch_offer, @all_actions]}
                 />
               </div>
-              <div :if={@decision == :droplet_choice} class="space-y-2" data-role="droplet-choice">
-                <%!-- First what caused the move (a black chip for the hawkmoth). --%>
-                <ul
-                  :if={(sources = droplet_sources(@game.log, @seat)) != []}
-                  class="space-y-1 text-sm text-ink-soft"
-                  data-role="droplet-sources"
-                >
-                  <li :for={{cause, text} <- sources} class="flex items-center gap-2">
-                    <.droplet_cause cause={cause} />{text}
-                  </li>
-                </ul>
-                <p class="text-sm">
-                  A free move (no rubies): move your pot droplet or your test-tube droplet.
-                  <span :if={@me.droplet_moves > 1} class="font-semibold">
-                    {@me.droplet_moves} moves to place.
-                  </span>
-                </p>
-                <.test_tubes tube={@me.tube} />
-              </div>
               <p
                 :if={hint = bonus_hint(@me.essence_pending)}
                 class="text-sm font-semibold"
@@ -1438,49 +1420,8 @@ defmodule QuacksWeb.GameLive do
               >
                 {hint}
               </p>
-              <.blue_offer
-                :if={@decision == :essence_offer}
-                title={offer_hint(@me.essence_pending)}
-                hint={"Your essence: #{@me.essence}"}
-                label="Patient offer"
-                accent="border-gold"
-              >
-                <.chip
-                  :if={chip = offer_chip(@me.essence_pending)}
-                  chip={chip}
-                  data-role="offer-chip"
-                />
-              </.blue_offer>
-              <.blue_offer :if={@decision == :blue_choice}>
-                <.chip_picks actions={@all_actions} pool={@me.pending} game={@game} me={@me} />
-              </.blue_offer>
-              <.blue_offer
-                :if={@decision == :witch_offer}
-                title="The silver witch drew:"
-                hint="Tap them one by one, in any order, or return the rest."
-                label="Silver witch offer"
-                accent="border-penny-silver"
-              >
-                <.chip_picks actions={@all_actions} pool={@me.witch_offer} game={@game} me={@me} />
-              </.blue_offer>
               <.witch_card :for={id <- witches_acting(@game, @all_actions)} id={id} />
-              <.red_rows
-                :if={@decision == :red_choice}
-                actions={@all_actions}
-                pool={@me.pending}
-                game={@game}
-                me={@me}
-              />
-              <.chip_picks
-                :if={@decision not in [:blue_choice, :witch_offer, :red_choice]}
-                actions={@all_actions}
-                game={@game}
-                me={@me}
-              />
-              <.ladder
-                :if={@decision == :chip_choice}
-                rungs={ladder(@me, @all_actions, @game)}
-              />
+              <.chip_picks actions={@all_actions} game={@game} me={@me} />
               <section
                 class={[
                   "gap-2 *:min-h-11",
@@ -1597,11 +1538,19 @@ defmodule QuacksWeb.GameLive do
                 <.icon name="hero-arrow-uturn-left" class="size-4" /> Forget a chip
               </.sheet_button>
             </section>
-            <%!-- Phones: the bonus die (from 64rem it rolls in the results panel). --%>
+          </div>
+          <%!-- Phones: the bonus die (from 64rem it rolls in the results panel).
+               Round 33: in the info row over the step bar, no overlay over the
+               test tubes. --%>
+          <div
+            :if={replaying?(@game, @seen) and die_step?(@reveal)}
+            id="info-die"
+            class="flex flex-col gap-1 lg:hidden"
+            data-role="info-row"
+          >
             <.replay_die
-              :if={replaying?(@game, @seen) and die_step?(@reveal)}
               lines={replay_die_lines(@game, @seat)}
-              class="flex shadow-lg lg:hidden"
+              class="flex min-h-9 bg-iron-dark/90 shadow-lg"
             />
           </div>
           <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
@@ -1646,8 +1595,9 @@ defmodule QuacksWeb.GameLive do
             share_url={url(~p"/g/#{@id}")}
           />
           <%!-- Round 29: one row, the white meter, then the reward and the risk as icons. --%>
+          <%!-- Round 33: a choice with an info row takes this row's place. --%>
           <div
-            :if={@seat && @game.phase == :potions}
+            :if={@seat && @game.phase == :potions && !info_choice?(@bar_choice)}
             class="flex min-w-0 items-center gap-2"
             data-role="fuse-row"
           >
@@ -1690,6 +1640,7 @@ defmodule QuacksWeb.GameLive do
             actions={@all_actions}
             game={@game}
             me={@me}
+            seat={@seat}
           />
           <section
             :if={@seat && not Game.over?(@game) && not results?(@game) && !@bar_choice}
@@ -2262,6 +2213,9 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
+  # Round 33 (sweep): the small choices that left their sheet for the bar.
+  @pick_choices [:yellow_choice, :blue_choice, :witch_offer, :red_choice, :essence_offer]
+
   @doc """
   Round 29: a choice in the bar, where Stop and Draw sit (`@bar_choice`), not a sheet.
   It keeps the bar's height (`min-h-12`), so the pot does not move.
@@ -2277,10 +2231,16 @@ defmodule QuacksWeb.GameLive do
   says why ("Flask full"). Round 31: it is the evaluation's last step, only when a
   ruby buys something; never in round 9 (the rubies turn into VP by themselves).
   """
-  attr :choice, :atom, required: true, values: [:explosion_choice, :rubies, :fortune_choice]
+  attr :choice, :atom,
+    required: true,
+    values:
+      [:explosion_choice, :rubies, :fortune_choice, :chip_choice, :droplet_choice] ++
+        @pick_choices
+
   attr :actions, :list, required: true
   attr :game, Game, required: true
   attr :me, Player, required: true
+  attr :seat, :integer, default: 0
 
   def bar_choice(%{choice: :explosion_choice} = assigns) do
     space = PotTrack.at(Player.scoring_index(assigns.me))
@@ -2378,39 +2338,497 @@ defmodule QuacksWeb.GameLive do
   def bar_choice(%{choice: :fortune_choice} = assigns) do
     card = assigns.game.fortune_card
     picks = Enum.filter(assigns.actions, &match?({:fortune, _}, &1))
-    assigns = assign(assigns, card: card, picks: picks, wide: length(picks) > 3)
+    assigns = assign(assigns, card: card, picks: picks)
 
     ~H"""
     <section
       id={"bar-card-#{@game.round}"}
-      class={[
-        "bar-choice relative z-50 flex gap-1.5 *:min-h-12 *:touch-manipulation",
-        if(@wide,
-          do: "-mx-1 overflow-x-auto px-1 pb-0.5 *:min-w-[5.5rem] *:flex-none",
-          else: "*:min-w-0 *:flex-1"
-        )
-      ]}
+      class="bar-choice relative z-50"
       aria-label={"#{Quacks.Rules.Fortune.card(@card).name}: choose one"}
       data-role="bar-card"
     >
-      <.button
-        :for={{:fortune, choice} = action <- @picks}
-        phx-click="action"
-        phx-value-action={encode(action)}
-        variant={if choice == :skip, do: :secondary, else: :primary}
-        class="flex-col gap-0! px-2! py-1! leading-tight"
-        aria-label={action_label(action, @game, @me)}
-        title={action_label(action, @game, @me)}
-        data-choice={card_choice_kind(choice)}
-      >
-        <span class="flex items-center gap-1 text-base whitespace-nowrap tabular-nums">
-          <.card_choice_icon choice={choice} />{card_choice_title(choice, @card)}
-        </span>
-        <span class="max-w-full truncate text-[11px] font-normal opacity-80">
-          {card_choice_hint(choice, @card, @me)}
-        </span>
-      </.button>
+      <.choice_grid count={length(@picks)}>
+        <.choice_button
+          :for={{:fortune, choice} = action <- @picks}
+          action={action}
+          variant={if choice == :skip, do: :secondary, else: :primary}
+          label={action_label(action, @game, @me)}
+          title={card_choice_title(choice, @card)}
+          hint={card_choice_hint(choice, @card, @me)}
+          data-choice={card_choice_kind(choice)}
+        >
+          <:icon><.card_choice_icon choice={choice} /></:icon>
+        </.choice_button>
+      </.choice_grid>
     </section>
+    """
+  end
+
+  def bar_choice(%{choice: :chip_choice} = assigns) do
+    %{actions: actions, game: game, me: me} = assigns
+    picks = actions |> Enum.filter(&(pick_chips(&1) != [])) |> Enum.sort_by(&chip_order/1)
+    rungs = ladder(me, actions, game)
+
+    items =
+      Enum.map(picks, &chip_item(&1, game, me)) ++
+        Enum.map(rungs, &rung_item(&1, game, me)) ++
+        for(
+          :chip_done <- actions,
+          do: %{
+            action: :chip_done,
+            label: action_label(:chip_done, game, me),
+            title: "Done",
+            hint: nil,
+            reason: nil,
+            icon: nil
+          }
+        )
+
+    titles =
+      Enum.uniq(
+        Enum.map(picks, &pick_title(&1, game.fortune_card)) ++ Enum.map(rungs, &rung_title/1)
+      )
+
+    assigns = assign(assigns, items: items, titles: titles)
+
+    ~H"""
+    <section
+      id={"bar-chip-actions-#{@game.round}"}
+      class="bar-choice flex flex-col gap-1.5"
+      aria-label="Chip actions"
+      data-role="bar-chip-actions"
+    >
+      <.info_row id="info-chip-actions">
+        <:icon><.piece_icon name={:book} class="size-5" /></:icon>
+        <span :for={title <- @titles} class="block truncate" data-role="info-title">{title}</span>
+      </.info_row>
+      <.choice_grid count={length(@items)}>
+        <.choice_button
+          :for={item <- @items}
+          action={if(item.reason, do: nil, else: item.action)}
+          variant={if item.action == :chip_done, do: :secondary, else: :primary}
+          label={if item.reason, do: "#{item.label}: #{item.reason}", else: item.label}
+          title={item.title}
+          hint={item.hint}
+          data-role={if item.reason, do: "ladder-rung-off", else: "chip-action"}
+        >
+          <:icon :if={item.icon}><.chip_item_icon icon={item.icon} /></:icon>
+        </.choice_button>
+      </.choice_grid>
+    </section>
+    """
+  end
+
+  def bar_choice(%{choice: :droplet_choice} = assigns) do
+    assigns = assign(assigns, sources: droplet_sources(assigns.game.log, assigns.seat))
+
+    ~H"""
+    <section
+      id="bar-droplet"
+      class="bar-choice flex flex-col gap-1.5"
+      aria-label="Droplet: move your pot droplet or your test-tube droplet"
+      data-role="bar-droplet"
+    >
+      <.info_row id="info-droplet">
+        <:icon :if={@sources != []}>
+          <span
+            :for={{cause, _text} <- @sources}
+            class="inline-flex scale-75 [&_.die]:size-7"
+            data-role="droplet-source"
+          >
+            <.droplet_cause cause={cause} />
+          </span>
+        </:icon>
+        <span class="block truncate" data-role="droplet-sources">
+          {if @sources == [],
+            do: "A free move",
+            else: Enum.map_join(@sources, " · ", &elem(&1, 1))}
+        </span>
+        <span class="block text-xs font-normal text-parchment-dim">
+          Move your pot droplet or your test-tube droplet{if @me.droplet_moves > 1,
+            do: " (#{@me.droplet_moves} moves)"}
+        </span>
+      </.info_row>
+      <.choice_grid count={2}>
+        <.choice_button
+          action={{:droplet, :pot}}
+          disabled={{:droplet, :pot} not in @actions}
+          label={action_label({:droplet, :pot}, @game, @me)}
+          title="Pot droplet"
+          hint="+1 space"
+          data-choice="pot"
+        >
+          <:icon><.piece_icon name={:pot} class="size-5" /></:icon>
+        </.choice_button>
+        <.choice_button
+          action={{:droplet, :tube}}
+          disabled={{:droplet, :tube} not in @actions}
+          label={action_label({:droplet, :tube}, @game, @me)}
+          title="Test tube"
+          hint={tube_hint(@me)}
+          data-choice="tube"
+        >
+          <:icon><.piece_icon name={:tube} class="size-5" /></:icon>
+        </.choice_button>
+      </.choice_grid>
+    </section>
+    """
+  end
+
+  # Round 33 (sweep): the other small choices of a turn, the same way: an info row
+  # and the options as buttons (`pick_spec/4`).
+  def bar_choice(%{choice: choice} = assigns) when choice in @pick_choices do
+    spec = pick_spec(choice, assigns.actions, assigns.game, assigns.me)
+    assigns = assign(assigns, spec: spec)
+
+    ~H"""
+    <section
+      id={"bar-pick-#{@choice}"}
+      class="bar-choice flex flex-col gap-1.5"
+      aria-label={phase_name(@choice)}
+      data-role="bar-pick"
+      data-choice={@choice}
+    >
+      <.info_row id={"info-#{@choice}"}>
+        <:icon :if={@spec.chip}><.chip chip={@spec.chip} size={:sm} /></:icon>
+        <span class="block truncate" data-role="info-title">{@spec.title}</span>
+        <span :if={@spec.text} class="block truncate text-xs font-normal text-parchment-dim">
+          {@spec.text}
+        </span>
+      </.info_row>
+      <.choice_grid count={length(@spec.items)}>
+        <.choice_button
+          :for={item <- @spec.items}
+          action={item.action}
+          variant={item[:variant] || :primary}
+          label={item.label}
+          title={item.title}
+          hint={item.hint}
+          data-role="pick-action"
+        >
+          <:icon :if={item.icon}><.chip_item_icon icon={item.icon} /></:icon>
+        </.choice_button>
+      </.choice_grid>
+    </section>
+    """
+  end
+
+  @doc """
+  Round 33: the buttons of a choice in the bar as a grid, never a sideways scroll:
+  up to 4 in one row, 5 to 8 in two rows (3 or 4 per row), all of one width. Two
+  rows only while choosing: the bar keeps its height and the second row rises over
+  the pot's lower band (`.game-bar` sets the buttons at its foot), so the pot never
+  moves. `data-rows` says how many rows.
+  """
+  attr :count, :integer, required: true
+  slot :inner_block, required: true
+
+  def choice_grid(assigns) do
+    assigns = assign(assigns, rows: if(assigns.count > 4, do: 2, else: 1))
+
+    ~H"""
+    <div
+      class={[
+        "grid gap-1.5 *:min-w-0 *:touch-manipulation",
+        if(@rows == 2, do: "*:min-h-11", else: "*:min-h-12"),
+        grid_cols(@count)
+      ]}
+      data-role="choice-grid"
+      data-rows={@rows}
+    >
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  defp grid_cols(n) when n <= 1, do: "grid-cols-1"
+  defp grid_cols(2), do: "grid-cols-2"
+  defp grid_cols(n) when n in [3, 5, 6], do: "grid-cols-3"
+  defp grid_cols(_n), do: "grid-cols-4"
+
+  @doc """
+  Round 33: one button of a bar choice: its picture (a chip, a piece) then a short
+  title on one line, and a hint line under it. The picture has its own box, so a
+  chip's value badge never covers the text. `action` nil or `disabled` greys it;
+  `label` is the full text (screen readers, the tooltip).
+  """
+  attr :action, :any, default: nil
+  attr :variant, :atom, default: :primary
+  attr :disabled, :boolean, default: false
+  attr :label, :string, required: true
+  attr :title, :string, required: true
+  attr :hint, :string, default: nil
+  attr :rest, :global
+  slot :icon
+
+  def choice_button(assigns) do
+    ~H"""
+    <.button
+      phx-click={@action && "action"}
+      phx-value-action={@action && encode(@action)}
+      disabled={@disabled or is_nil(@action)}
+      variant={@variant}
+      class="flex-col gap-0! px-1! py-1! leading-tight"
+      aria-label={@label}
+      title={@label}
+      data-choice-button
+      {@rest}
+    >
+      <span class="flex max-w-full items-center gap-1 text-sm font-bold tabular-nums">
+        <span
+          :if={@icon != []}
+          class="inline-flex shrink-0 items-center pr-1"
+          data-role="choice-icon"
+        >
+          {render_slot(@icon)}
+        </span>
+        <span class="truncate">{@title}</span>
+      </span>
+      <span :if={@hint} class="max-w-full truncate text-[11px] font-normal opacity-80">
+        {@hint}
+      </span>
+    </.button>
+    """
+  end
+
+  @doc """
+  Round 33: the info row, the bar's second context row. It sits where the white
+  track is while brewing (the fuse row), over the step's buttons: what the step is
+  (a chip, the die) and a short text. In the evaluation and the shop the white
+  track is not needed there.
+  """
+  attr :id, :string, default: nil
+  attr :rest, :global
+  slot :icon
+  slot :inner_block, required: true
+
+  def info_row(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      class="flex min-h-9 min-w-0 items-center gap-2 rounded-lg bg-iron-dark/90 px-2 py-1 text-sm leading-tight font-semibold text-parchment shadow-lg"
+      aria-live="polite"
+      data-role="info-row"
+      {@rest}
+    >
+      <span :if={@icon != []} class="flex shrink-0 items-center gap-1" data-role="info-icon">
+        {render_slot(@icon)}
+      </span>
+      <span class="min-w-0 flex-1">{render_slot(@inner_block)}</span>
+    </div>
+    """
+  end
+
+  # What the info row says and the buttons of a sweep choice (`@pick_choices`).
+  defp pick_spec(:yellow_choice, actions, game, me) do
+    %{
+      chip: {:white, 1},
+      title: "Mandrake: a white chip came after it",
+      text: "Put it back in the bag, or keep it in the pot",
+      items: Enum.map(actions, &text_item(&1, game, me))
+    }
+  end
+
+  defp pick_spec(:blue_choice, actions, game, me) do
+    %{
+      chip: {:blue, 1},
+      title: "Crow skull: place one in the pot",
+      text: "Or return them all to the bag",
+      items: pool_items(me.pending, actions, game, me, "Place")
+    }
+  end
+
+  defp pick_spec(:witch_offer, actions, game, me) do
+    %{
+      chip: nil,
+      title: "The silver witch drew:",
+      text: "Place them one by one, in any order, or return the rest",
+      items: pool_items(me.witch_offer, actions, game, me, "Place")
+    }
+  end
+
+  # The Toadstools one at a time: the first chip that waits, then the next.
+  defp pick_spec(:red_choice, actions, game, me) do
+    chip = Enum.find(me.pending, &Enum.any?(actions, fn a -> pick_chips(a) == [&1] end))
+    n = length(me.pending)
+
+    %{
+      chip: chip,
+      title: "Toadstool: #{chip && chip_name(chip)}#{if n > 1, do: " (#{n} waiting)"}",
+      text: "Place it now, keep it beside the pot, or return it to the bag",
+      items:
+        for(
+          kind <- [:place, :keep, :return],
+          action = {:red, {kind, chip}},
+          action in actions,
+          do: %{
+            action: action,
+            label: action_label(action, game, me),
+            title: red_title(kind),
+            hint: red_hint(kind),
+            icon: nil
+          }
+        )
+    }
+  end
+
+  defp pick_spec(:essence_offer, actions, game, me) do
+    %{
+      chip: offer_chip(me.essence_pending),
+      title: offer_hint(me.essence_pending) || "Patient offer",
+      text: "Your essence: #{me.essence}",
+      items: Enum.map(actions, &text_item(&1, game, me))
+    }
+  end
+
+  defp red_title(:place), do: "Place"
+  defp red_title(:keep), do: "Keep"
+  defp red_title(:return), do: "Return"
+  defp red_hint(:place), do: "After your last chip"
+  defp red_hint(:keep), do: "Beside the pot"
+  defp red_hint(:return), do: "To the bag"
+
+  # Every chip of a pool (duplicates too) as a button; one without an action is
+  # greyed. Then the text actions ("Return all").
+  defp pool_items(pool, actions, game, me, verb) do
+    picks = Enum.filter(actions, &(pick_chips(&1) != []))
+
+    chips =
+      for chip <- pool do
+        action = pool_pick(picks, chip)
+
+        %{
+          action: action,
+          label: if(action, do: action_label(action, game, me), else: chip_name(chip)),
+          title: verb,
+          hint: chip_name(chip),
+          icon: {:chips, [chip], false}
+        }
+      end
+
+    chips ++ Enum.map(text_actions(actions), &text_item(&1, game, me))
+  end
+
+  # An action without a chip as a bar button: its label after the book's name,
+  # the first part as the title and the rest as the hint ("Pay 1 ruby" / "move 3
+  # more"). "No"/"Pass" is the secondary one.
+  defp text_item(action, game, me) do
+    label = action_label(action, game, me)
+    rest = label |> String.split(": ", parts: 2) |> List.last()
+    {title, hint} = short_words(action, label, rest)
+
+    %{
+      action: action,
+      label: label,
+      title: title,
+      hint: hint,
+      icon: nil,
+      variant: if(action in [{:essence, :pass}, :keep], do: :secondary, else: :primary)
+    }
+  end
+
+  defp short_words(:return_white, _label, _rest), do: {"Back to bag", "The white chip"}
+  defp short_words(:keep, _label, _rest), do: {"Keep", "In the pot"}
+  defp short_words(:return_all, _label, _rest), do: {"Return all", "To the bag"}
+
+  defp short_words({:witch, :silver, :return_all}, _label, _rest),
+    do: {"Return the rest", "To the bag"}
+
+  # A patient offer: the cost is the title ("Spend 2 essence"), what it does the hint.
+  defp short_words({:essence, kind}, label, _rest) when kind != :pass do
+    case String.split(label, ": ", parts: 2) do
+      [cost, what] -> {cost, what}
+      [label] -> {label, nil}
+    end
+  end
+
+  defp short_words(_action, _label, rest) do
+    case String.split(rest, ", ", parts: 2) do
+      [title, hint] -> {String.capitalize(title, :ascii), hint}
+      [title] -> {String.capitalize(title, :ascii), nil}
+    end
+  end
+
+  defp tube_hint(%Player{tube: tube}) do
+    if tube < TestTubes.last(),
+      do: "Bonus: #{tube_bonus(TestTubes.bonus(tube + 1))}",
+      else: "Tubes full"
+  end
+
+  # Round 33: one chip action as a bar button: its chips, a verb, the chip's name.
+  defp chip_item(action, game, me) do
+    {title, hint} = chip_words(action)
+
+    %{
+      action: action,
+      label: action_label(action, game, me),
+      title: title,
+      hint: hint,
+      reason: nil,
+      icon: {:chips, pick_chips(action), upgrade?(action)}
+    }
+  end
+
+  defp chip_words({:chip, {:gain, chip}}), do: {"Take", chip_name(chip)}
+  defp chip_words({:chip, {:starter, chip}}), do: {"Start with", chip_name(chip)}
+  defp chip_words({:chip, {:buy, chips}}), do: {"Take", Enum.map_join(chips, " + ", &chip_name/1)}
+
+  defp chip_words({:chip, {:upgrade, from, to}}),
+    do: {"Swap", "#{chip_name(from)} → #{chip_name(to)}"}
+
+  defp chip_words({:chip, {:return, chip}}), do: {"Return", chip_name(chip)}
+  defp chip_words(_action), do: {"Take", nil}
+
+  # A ladder rung (`ladder/3`) as a bar button; a rung out of reach is greyed with
+  # its reason as the hint.
+  defp rung_item(%{action: action, label: label, reason: reason}, _game, _me) do
+    {title, hint, icon} = rung_words(action, label)
+
+    %{
+      action: action,
+      label: label,
+      title: title,
+      hint: if(reason, do: reason |> String.split(",") |> hd(), else: hint),
+      reason: reason,
+      icon: icon
+    }
+  end
+
+  defp rung_words({:chip, {:purple_trade, t}}, label),
+    do:
+      {"Trade #{t}", label |> String.split(" for ") |> List.last(),
+       {:chips, [{:purple, 1}], false}}
+
+  defp rung_words({:chip, {:pay_ruby_move, k}}, _label),
+    do: {"Pay #{k}", "droplet +#{k}", {:piece, :ruby}}
+
+  defp rung_words(nil, label),
+    do: {"Swap", label |> String.split(": ") |> List.last(), {:chips, [{:purple, 1}], false}}
+
+  defp rung_title(%{action: {:chip, {:purple_trade, _}}}), do: "Ghost's breath: trade purple"
+  defp rung_title(%{action: {:chip, {:pay_ruby_move, _}}}), do: "Garden spider: pay rubies"
+  defp rung_title(%{action: nil}), do: "Ghost's breath: swap"
+
+  attr :icon, :any, required: true
+
+  defp chip_item_icon(%{icon: {:piece, name}} = assigns) do
+    assigns = assign(assigns, name: name)
+
+    ~H"""
+    <.piece_icon name={@name} class="size-5" />
+    """
+  end
+
+  defp chip_item_icon(%{icon: {:chips, chips, arrow?}} = assigns) do
+    assigns = assign(assigns, chips: Enum.with_index(chips), arrow?: arrow?)
+
+    ~H"""
+    <span class="inline-flex items-center gap-0.5 pb-1">
+      <%= for {chip, i} <- @chips do %>
+        <.icon :if={i > 0 and @arrow?} name="hero-arrow-right" class="size-3" />
+        <.chip chip={chip} size={if length(@chips) > 1, do: :xs, else: :sm} />
+      <% end %>
+    </span>
     """
   end
 
@@ -2418,7 +2836,7 @@ defmodule QuacksWeb.GameLive do
 
   defp card_choice_icon(%{choice: {kind, _chip}} = assigns) when kind in [:take, :place],
     do: ~H"""
-    <span class="-my-1.5 inline-flex"><.chip chip={elem(@choice, 1)} size={:sm} /></span>
+    <span class="inline-flex pb-1"><.chip chip={elem(@choice, 1)} size={:sm} /></span>
     """
 
   defp card_choice_icon(%{choice: {:upgrade, chip}} = assigns) do
@@ -2694,67 +3112,6 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
-  # Round 22: the Toadstool choice (red Set 2), one row per chip: the chip, then
-  # Place, Keep and Return as three equal buttons (they stack under the chip on a
-  # narrow phone). One line of help at the top.
-  attr :actions, :list, required: true
-  attr :pool, :list, required: true, doc: "the Toadstool chips that wait (`player.pending`)"
-  attr :game, Game, required: true
-  attr :me, Player, required: true
-
-  defp red_rows(assigns) do
-    ~H"""
-    <div
-      class="paper space-y-2 rounded-md border-l-4 border-ruby p-2 text-sm"
-      aria-label="Toadstool choice"
-      data-role="red-rows"
-    >
-      <p class="text-ink-soft">
-        Each Toadstool chip: place it now, keep it beside the pot for later, or return it to the bag.
-      </p>
-      <ul class="space-y-2">
-        <li
-          :for={{chip, i} <- Enum.with_index(@pool)}
-          id={"red-row-#{i}"}
-          class="flex flex-col gap-2 rounded-md bg-parchment-deep/50 p-2 min-[26rem]:flex-row min-[26rem]:items-center"
-          data-role="red-row"
-        >
-          <div class="flex shrink-0 items-center gap-2">
-            <.chip chip={chip} size={:lg} data-role="red-chip" />
-            <span class="font-hand text-lg font-bold min-[26rem]:hidden">
-              Toadstool {elem(chip, 1)}
-            </span>
-          </div>
-          <div class="grid flex-1 grid-cols-3 gap-2">
-            <.button
-              :for={{kind, label, hint} <- red_kinds()}
-              :if={{:red, {kind, chip}} in @actions}
-              type="button"
-              phx-click="action"
-              phx-value-action={encode({:red, {kind, chip}})}
-              variant={if kind == :place, do: :primary, else: :secondary}
-              autofocus={i == 0 and kind == :place}
-              aria-label={action_label({:red, {kind, chip}}, @game, @me)}
-              class="min-h-12 flex-col gap-0! px-1! leading-tight"
-              data-role={"red-#{kind}"}
-            >
-              <span class="font-bold">{label}</span>
-              <span class="text-tag font-normal opacity-80">{hint}</span>
-            </.button>
-          </div>
-        </li>
-      </ul>
-    </div>
-    """
-  end
-
-  defp red_kinds,
-    do: [
-      {:place, "Place", "after your last chip"},
-      {:keep, "Keep", "for later"},
-      {:return, "Return", "to the bag"}
-    ]
-
   # The chips an action shows as its control; [] for an action without a chip.
   defp pick_chips({:place, chip}), do: [chip]
   defp pick_chips({:red, {_kind, chip}}), do: [chip]
@@ -2810,49 +3167,6 @@ defmodule QuacksWeb.GameLive do
 
   # The buttons of a choice that are not chips ("Return all", "Done", "3 rubies").
   defp text_actions(actions), do: Enum.filter(actions, &(pick_chips(&1) == []))
-
-  @doc """
-  Round 24: the chip actions of a ladder book with every rung, in order: Ghost's
-  breath II (trade 1, 2 or 3 purple), Garden spider IV (pay 1 or 2 rubies) and
-  Ghost's breath IV (the swaps of the tiers this pot does not reach). A rung the
-  player can take is a button; one they cannot is greyed, `aria-disabled`, with
-  its reason.
-  """
-  attr :rungs, :list, required: true, doc: "`ladder/2`: `%{action, label, reason}` maps"
-
-  def ladder(assigns) do
-    ~H"""
-    <section
-      :if={@rungs != []}
-      class="flex flex-col gap-2"
-      aria-label="Chip actions"
-      data-role="ladder"
-    >
-      <%= for rung <- @rungs do %>
-        <.button
-          :if={is_nil(rung.reason)}
-          phx-click="action"
-          phx-value-action={encode(rung.action)}
-          variant={:secondary}
-          class="min-h-11"
-          data-role="ladder-rung"
-        >
-          {rung.label}
-        </.button>
-        <div
-          :if={rung.reason}
-          class="flex min-h-11 cursor-not-allowed flex-col justify-center rounded-lg border border-dashed border-ink/30 px-3 py-1.5 text-sm text-ink/50"
-          role="button"
-          aria-disabled="true"
-          data-role="ladder-rung-off"
-        >
-          <span class="font-semibold">{rung.label}</span>
-          <span class="text-xs" data-role="ladder-reason">{rung.reason}</span>
-        </div>
-      <% end %>
-    </section>
-    """
-  end
 
   # The rungs of this seat's open ladder choices (`me.chip_choices`, the engine's
   # data); the legal ones come from `legal_actions/2`, the rest from the book.
@@ -3285,7 +3599,14 @@ defmodule QuacksWeb.GameLive do
   defp bar_choice(:rubies, actions), do: if(Enum.any?(actions, &witch?/1), do: nil, else: :rubies)
   # Round 31: the card's choice too (no sheet; the card stays over the pot).
   defp bar_choice(:fortune_choice, _actions), do: :fortune_choice
+  # Round 33: the chip actions and the droplet's free move too, with an info row.
+  defp bar_choice(:chip_choice, _actions), do: :chip_choice
+  defp bar_choice(:droplet_choice, _actions), do: :droplet_choice
+  defp bar_choice(choice, _actions) when choice in @pick_choices, do: choice
   defp bar_choice(_decision, _actions), do: nil
+
+  # Round 33: the bar choices with an info row (it takes the white track's row).
+  defp info_choice?(choice), do: choice in [:chip_choice, :droplet_choice | @pick_choices]
 
   defp stop_slot(game, %Player{phase: :stopped}), do: if(stir?(game), do: :stop, else: :resume)
   defp stop_slot(_game, _me), do: :stop

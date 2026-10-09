@@ -59,8 +59,8 @@ defmodule QuacksWeb.Round31ContextTest do
   describe "no full-height sheets (item 10)" do
     test "a decision opens over the pot, not as a bottom sheet" do
       {id, alice} = duo()
-      replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
-      assert has_element?(alice, "dialog#decision-blue_choice[data-pot=true][data-side=panel]")
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
+      assert has_element?(alice, "dialog#decision-shop[data-pot=true][data-side=panel]")
     end
 
     test "the shop opens over the pot; its purse and buttons sit in the bar" do

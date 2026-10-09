@@ -57,13 +57,15 @@ defmodule QuacksWeb.UiRound6Test do
     {id, view} = solo()
     replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
 
-    dialog = "dialog#decision-blue_choice"
-    assert has_element?(view, "#{dialog} #{pick({:place, {:red, 1}})}[aria-label]")
-    assert has_element?(view, "#{dialog} #{pick({:place, {:white, 1}})}")
-    assert has_element?(view, "#{dialog} section[aria-label=Actions] button", "return all")
-    refute has_element?(view, "#{dialog} section[aria-label=Actions] button", "place")
+    # Round 33: in the bar, the chips are buttons, then Return all.
+    bar = "#bar-pick-blue_choice"
+    refute has_element?(view, "dialog#decision-blue_choice")
+    place = &~s(#{bar} button[phx-value-action="#{GameLive.encode({:place, &1})}"])
+    assert has_element?(view, "#{place.({:red, 1})} .chip-token")
+    assert has_element?(view, place.({:white, 1}))
+    assert has_element?(view, "#{bar} button[aria-label^='Crow skull: return all']", "Return all")
 
-    view |> element("#{dialog} #{pick({:place, {:red, 1}})}") |> render_click()
+    view |> element(place.({:red, 1})) |> render_click()
     {:ok, %{game: game}} = GameServer.get(id)
     assert {:red, 1} in Game.pot_chips(game, 0)
   end
@@ -98,21 +100,14 @@ defmodule QuacksWeb.UiRound6Test do
       %{g | sets: Map.put(g.sets, :red, 2)} |> H.put(0, phase: :red_choice, pending: [{:red, 2}])
     end)
 
-    dialog = "dialog#decision-red_choice"
-    row = "#{dialog} [data-role=red-row]#red-row-0"
-    assert has_element?(view, "#{row} [data-role=red-chip]")
+    bar = "#bar-pick-red_choice"
+    assert has_element?(view, "#{bar} [data-role=info-row] [aria-label='red 2']")
 
     for {kind, text} <- [place: "Place", keep: "Keep", return: "Return"] do
       action = GameLive.encode({:red, {kind, {:red, 2}}})
-
-      assert has_element?(
-               view,
-               ~s(#{row} button[data-role=red-#{kind}][phx-value-action="#{action}"]),
-               text
-             )
+      assert has_element?(view, ~s(#{bar} button[phx-value-action="#{action}"]), text)
     end
 
-    refute has_element?(view, "#{dialog} [data-role=chip-side]")
-    refute has_element?(view, "#{dialog} section[aria-label=Actions] button")
+    refute has_element?(view, "dialog#decision-red_choice")
   end
 end

@@ -186,12 +186,14 @@ defmodule QuacksWeb.AlchemistsLiveTest do
       essence_pending: {:offers, [{:carrot, {:orange, 1}}]}
     )
 
-    assert has_element?(view, "[aria-label='Patient offer']", "Carrot nose: you drew a pumpkin.")
-    assert has_element?(view, "[aria-label='Patient offer'] [data-role=offer-chip]")
-    assert has_element?(view, "button", "No")
+    # Round 33: in the bar: the info row with the chip, the offer and No as buttons.
+    bar = "#bar-pick-essence_offer"
+    assert has_element?(view, "#{bar} [data-role=info-row]", "Carrot nose: you drew a pumpkin.")
+    assert has_element?(view, "#{bar} [data-role=info-icon] [aria-label='orange 1']")
+    assert has_element?(view, "#{bar} button", "No")
 
     view
-    |> element("button", "Spend 2 essence: pumpkin to the next ruby space")
+    |> element("#{bar} button[aria-label='Spend 2 essence: pumpkin to the next ruby space']")
     |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)

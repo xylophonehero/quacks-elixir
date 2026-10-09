@@ -148,14 +148,19 @@ defmodule QuacksWeb.BooksLiveTest do
       &Quacks.GameHelpers.force_draws(&1, [{:green, 1}, {:locoweed, 1}])
     )
 
-    assert has_element?(view, "[data-role=chip-picks]", "Locoweed: return one to your bag")
+    # Round 33: in the bar, the info row says what it is; the chips are the buttons.
+    assert has_element?(
+             view,
+             "[data-role=bar-chip-actions] [data-role=info-row]",
+             "Locoweed: return one to your bag"
+           )
 
     assert has_element?(
              view,
-             "[data-role=chip-pick][aria-label='Locoweed: return green 1 to the bag']"
+             "[data-role=chip-action][aria-label='Locoweed: return green 1 to the bag']"
            )
 
-    view |> element("[data-role=chip-pick][aria-label*='green 1']") |> render_click()
+    view |> element("[data-role=chip-action][aria-label*='green 1']") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
     assert [{{:locoweed, 1}, 2}] = game.players[0].drawn

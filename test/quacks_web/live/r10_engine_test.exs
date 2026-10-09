@@ -39,9 +39,10 @@ defmodule QuacksWeb.R10EngineTest do
       end)
 
       render_click(alice, "seen", %{"kind" => "results", "round" => 1})
-      assert has_element?(alice, "#decision-droplet_choice", "A free move (no rubies)")
-      assert has_element?(alice, "[data-role=droplet-sources] li", "Hawkmoth: droplet +1")
-      assert has_element?(alice, "[data-role=droplet-sources] li", "Bonus die")
+      # Round 33: the bar's info row names the causes; the moves are buttons.
+      assert has_element?(alice, "#bar-droplet [data-role=info-row]", "Move your pot droplet")
+      assert has_element?(alice, "[data-role=droplet-sources]", "Hawkmoth: droplet +1")
+      assert has_element?(alice, "[data-role=droplet-sources]", "Bonus die")
 
       # the droplet first, then the buy, then the rubies
       render_click(alice, "action", %{"action" => QuacksWeb.GameLive.encode({:droplet, :tube})})
