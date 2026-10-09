@@ -2966,7 +2966,22 @@ html:active-view-transition-type(card) .card-caption {
    an explosion shakes the tile once. */
 .tile-line[data-hold] .tile-news {
   opacity: 1;
-  animation: tile-news-in 300ms var(--ease-out, ease-out) both;
+  animation: tile-news-fade-in 200ms var(--ease-out, ease-out) both;
+}
+/* Round 31 (item 5): a draw. The line stays (its id holds for the brewing); the
+   chips enter again with the draw count in their ids: the new chip pops in at the
+   left, the older ones slide one place (18 px less the 4 px overlap) right. */
+.tile-draw[data-age="0"] {
+  animation: tile-draw-pop 280ms var(--ease-spring, ease-out) both;
+}
+.tile-draw:not([data-age="0"]) {
+  animation: tile-draw-slide 240ms var(--ease-out, ease-out) both;
+}
+@keyframes tile-draw-pop {
+  from { opacity: 0; scale: 0.4; }
+}
+@keyframes tile-draw-slide {
+  from { translate: -14px 0; }
 }
 .tile-line[data-hold] .tile-totals {
   animation: none;
@@ -3001,6 +3016,7 @@ html:active-view-transition-type(card) .card-caption {
 @media (prefers-reduced-motion: reduce) {
   .tile-line[data-hold] .tile-news { animation-name: tile-news-fade-in; }
   .tile-draw-glow,
+  .tile-draw,
   .tile-space,
   .player-tile.tile-boom { animation: none; }
 }

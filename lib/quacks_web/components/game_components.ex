@@ -1877,7 +1877,7 @@ defmodule QuacksWeb.GameComponents do
       <%!-- Round 31: while the round brews, the pot's black chips and white
            sum stay on the line's right end, beside the last draws. --%>
       <span
-        id={"tile-line-#{@seat}" <> if(@news, do: "-" <> @news.key, else: "")}
+        id={"tile-line-#{@seat}" <> if(@news, do: "-" <> (@news[:line] || @news.key), else: "")}
         class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]"
         data-role="tile-line"
         data-news={@news && "true"}

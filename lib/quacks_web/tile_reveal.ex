@@ -198,7 +198,7 @@ defmodule QuacksWeb.TileReveal do
   step's badges (`badges/2`). Else the chips the seat bought and its droplet
   pushes (`shop/2`: in the shop, or the last shop as the next round begins). `key` changes with every new piece of news, so the
   line plays its swap again. Round 29 (B2): while the round brews, the seat's
-  last draws (`{:drew, chip, age}`, newest first), with `hold: true` (the line stays on the news).
+  last draws (`{:drew, chip, age, id}`, newest first), with `hold: true` (the line stays on the news).
   """
   @spec news(Game.t(), Game.seat(), map | nil) ::
           %{required(:key) => String.t(), required(:items) => [term], optional(:hold) => true}
@@ -247,9 +247,20 @@ defmodule QuacksWeb.TileReveal do
           drawn
           |> Enum.take(tile_draws(game.seats))
           |> Enum.with_index()
-          |> Enum.map(fn {{chip, _space}, i} -> {:drew, chip, i} end)
+          |> Enum.map(fn {{chip, _space}, i} ->
+            {:drew, chip, i, "#{seat}-#{game.round}-#{length(drawn)}-#{i}"}
+          end)
 
-        %{key: "#{game.round}-draw-#{length(drawn)}", items: items, hold: true}
+        # Round 31 (item 5): `line` keeps the line's id for the whole brewing, so
+        # a draw does not play the line's entrance again; each chip's id carries
+        # the draw count, so the chips enter again: the new one pops in at the
+        # left, the older ones slide one place right (app.css `.tile-draw`).
+        %{
+          key: "#{game.round}-draw-#{length(drawn)}",
+          line: "#{game.round}-draw",
+          items: items,
+          hold: true
+        }
     end
   end
 

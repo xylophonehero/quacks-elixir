@@ -239,4 +239,37 @@ defmodule QuacksWeb.Round31EvalTest do
       assert q(html, "[data-role=tile-skip]") |> Enum.count() == 0
     end
   end
+
+  describe "item 5: a draw slides the tile's chips" do
+    defp drawn(game, n) do
+      chips = for v <- 1..n, do: {{:orange, v}, v}
+      update_in(game.players[1], &%{&1 | drawn: Enum.reverse(chips)})
+    end
+
+    defp line(game) do
+      html =
+        render_component(&QuacksWeb.GameComponents.player_chip/1,
+          game: game,
+          seat: 1,
+          name: "W",
+          news: TileReveal.news(game, 1, nil)
+        )
+        |> LazyHTML.from_fragment()
+
+      {html |> LazyHTML.query("[data-role=tile-line]") |> LazyHTML.attribute("id"),
+       html |> LazyHTML.query(".tile-draw") |> LazyHTML.attribute("id"),
+       html |> LazyHTML.query(".tile-draw") |> LazyHTML.attribute("data-age")}
+    end
+
+    test "the line keeps its id; the chips get new ids, the newest first" do
+      game = %{Game.new(seed: {1, 2, 3}, players: 2) | phase: :potions}
+      {line2, chips2, ages2} = line(drawn(game, 2))
+      {line3, chips3, ages3} = line(drawn(game, 3))
+
+      assert line2 == line3
+      assert ages2 == ["0", "1"]
+      assert ages3 == ["0", "1", "2"]
+      assert MapSet.disjoint?(MapSet.new(chips2), MapSet.new(chips3))
+    end
+  end
 end
