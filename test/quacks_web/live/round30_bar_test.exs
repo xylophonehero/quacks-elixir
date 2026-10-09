@@ -126,4 +126,28 @@ defmodule QuacksWeb.Round30BarTest do
       refute tile =~ "stroke=\"#ffd25a\""
     end
   end
+
+  describe "Continue opens a card's result" do
+    # Two players, round 2, Less is More (as in round30_cards_test.exs).
+    test "Less is More: Continue opens the result rows, like a tap on the card" do
+      {:ok, id} = GameServer.start(2, {1, 2, 3})
+      {:ok, alice, _html} = live(browser("alice-#{id}"), ~p"/g/#{id}")
+      {:ok, _bob, _html} = live(browser("bob-#{id}"), ~p"/g/#{id}")
+      {:ok, _} = GameServer.begin(id, "alice-#{id}")
+
+      replace_game(id, fn g ->
+        [a, b] = g.seats
+
+        g
+        |> Quacks.GameHelpers.put(a, bag: List.duplicate({:white, 1}, 5), drawn: [], pending: [])
+        |> Quacks.GameHelpers.put(b, bag: List.duplicate({:green, 2}, 5), drawn: [], pending: [])
+        |> Quacks.GameHelpers.put(fortune_deck: [:p8], round: 2)
+        |> Game.start_round()
+      end)
+
+      alice |> element("#card-continue") |> render_click()
+      assert has_element?(alice, "#reveal-card-reveals-2 [data-role=card-reveal-row]", "You")
+      refute has_element?(alice, "#card-continue")
+    end
+  end
 end
