@@ -129,6 +129,7 @@ defmodule Quacks.GameStoreTest do
     id = "botsxx"
     session = Session.new({1, 2, 3}, 2)
     {:ok, session} = Session.apply(session, 0, :draw)
+    {:ok, session} = Session.apply(session, 0, :stop)
 
     body =
       session
@@ -147,11 +148,10 @@ defmodule Quacks.GameStoreTest do
         creator: "ann"
       })
 
-    Phoenix.PubSub.subscribe(Quacks.PubSub, GameServer.topic(id))
     assert {:ok, ^id} = GameServer.start_from_bundle(body, restore: true)
-    # the bot (seat 1) has drawn fewer times than the human: it draws
-    assert_receive {:game, ^id, %Game{} = game}
-    assert Enum.count(game.log, &match?({1, :draw}, &1)) == 1
+    # the human has stopped: the restored bot (seat 1) brews in one go at once
+    {:ok, %{game: %Game{} = game}} = GameServer.get(id)
+    assert Enum.count(game.log, &match?({1, :draw}, &1)) >= 1
   end
 
   test "a file that does not load is renamed .bad and the rest restore", %{dir: dir} do

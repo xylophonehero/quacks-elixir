@@ -39,10 +39,12 @@ defmodule Quacks.GameServer do
   `:bot_delay` ms, 700 by default): the bot makes one action through
   `Quacks.Session`, every page hears it, and the next tick follows.
 
-  Lockstep: in the potions phase (rounds 1–8) a bot may `:draw` only while it has
-  drawn fewer times this round than the human seat that drew most. When no human
-  seat still brews, the cap is off. A capped bot gets no tick; the next human
-  action schedules it again.
+  Bot brews in one go (round 36): in the potions phase (rounds 1–8) a bot gets no
+  tick. While a human seat still draws, the bots wait and their tiles show
+  "brewing" with no chips. When the last human seat stops or explodes,
+  `brew_bots/1` plays every bot's whole brew at once, bot after bot in seat order,
+  through `Quacks.Session` (the log keeps each draw), and the pages hear one
+  `{:game, id, game}` for all of it. Round 9 (stir) keeps its ticks.
 
   Decisions revealed together: in the phases where every seat decides at the same
   time (`:fortune_choice`, `:chip_choice`, `:witch_choice`, `:shopping`), a bot
@@ -54,7 +56,8 @@ defmodule Quacks.GameServer do
   choice changes a bot's. With no human in the phase the plan goes at once. Each
   queued action is checked again when it is applied; at the first one that is no
   longer legal (a limited supply ran out), the rest is dropped and the bot decides
-  again with normal ticks. The draws of the potions phase are not queued (lockstep).
+  again with normal ticks. The draws of the potions phase are not queued: they are
+  brewed in one go (above).
 
   Mandrake (yellow 1) for humans: when a human seat must answer "put the white chip
   back?" (`:yellow_choice`), the server answers `:return_white` for it at once (the
@@ -1069,8 +1072,9 @@ defmodule Quacks.GameServer do
   end
 
   # A bot's turn to act: one action, then the next ticks. A tick that is not the
-  # seat's pending one is stale; a capped bot (a human resumed) waits; in a concurrent
-  # phase where a human decides, the bot plans instead (`schedule_bots/1`).
+  # seat's pending one is stale; in the potions phase (rounds 1-8) the bot brews in
+  # one go instead (`brew_bots/1`); in a concurrent phase where a human decides, the
+  # bot plans instead (`schedule_bots/1`).
   defp server_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
        when :erlang.map_get(seat, ticks) == tick do
     started = System.monotonic_time()
@@ -1078,7 +1082,7 @@ defmodule Quacks.GameServer do
     profile = Profile.get(state.bots[seat])
 
     state =
-      with false <- capped?(state, state.session.game, seat),
+      with false <- held?(state.session.game),
            false <- humans_deciding?(state, state.session.game),
            nil <- state.auto_keep,
            {action, rng} <-
@@ -1090,7 +1094,7 @@ defmodule Quacks.GameServer do
         log_action(state.id, seat, {:bot, action}, :ok, engine_us, started)
         state
       else
-        _none_or_error -> schedule_bots(state)
+        _none_or_error -> state |> schedule_bots() |> broadcast_changed(state)
       end
 
     {:noreply, state, @idle_timeout}
@@ -1242,14 +1246,16 @@ defmodule Quacks.GameServer do
     end)
   end
 
-  # Every bot seat that can act, is not capped and has no tick pending gets one. In
-  # a concurrent phase where a human still decides, a bot plans instead (no tick).
-  # While a human's Mandrake answer can be taken back, bots wait.
+  # Every bot seat that can act and has no tick pending gets one. In a concurrent
+  # phase where a human still decides, a bot plans instead (no tick). In the potions
+  # phase (rounds 1-8) the bots brew in one go (`brew_bots/1`), never by tick. While
+  # a human's Mandrake answer can be taken back, bots wait.
   defp schedule_bots(%{session: nil} = state), do: state
   defp schedule_bots(%{debug: %{frozen: true}} = state), do: state
   defp schedule_bots(%{auto_keep: {_seat, _before}} = state), do: state
 
   defp schedule_bots(state) do
+    state = brew_bots(state, System.monotonic_time())
     game = state.session.game
     delay = Application.get_env(:quacks, :bot_delay, 700)
     deciding? = humans_deciding?(state, game)
@@ -1258,7 +1264,7 @@ defmodule Quacks.GameServer do
     |> Map.keys()
     |> Enum.reject(&(Map.has_key?(state.bot_ticks, &1) or Map.has_key?(state.queued, &1)))
     |> Enum.filter(&(Game.phase(game, &1) != :stopped and Game.legal_actions(game, &1) != []))
-    |> Enum.reject(&capped?(state, game, &1))
+    |> Enum.reject(fn _seat -> held?(game) end)
     |> Enum.reduce(state, fn
       seat, state when deciding? ->
         plan(state, seat)
@@ -1270,31 +1276,71 @@ defmodule Quacks.GameServer do
     end)
   end
 
-  # Lockstep (see the moduledoc): may the bot at `seat` not draw now? Round 9 has
-  # its own lockstep (stir), so no cap there.
-  defp capped?(state, %Game{phase: :potions, round: round} = game, seat) when round < 9 do
-    humans = game.seats -- Map.keys(state.bots)
-    draws = round_draws(game)
+  # The potions phase of rounds 1-8: bots act only in `brew_bots/1`. Round 9 has its
+  # own lockstep (stir), so the bots tick there.
+  defp held?(%Game{phase: :potions, round: round}) when round < 9, do: true
+  defp held?(_game), do: false
 
-    :draw in Game.legal_actions(game, seat) and
-      Enum.any?(humans, &brewing?(Game.player(game, &1))) and
-      Map.get(draws, seat, 0) >= humans |> Enum.map(&Map.get(draws, &1, 0)) |> Enum.max()
+  # Round 36: once no human seat draws any more, every bot's whole brew in one go.
+  # The first bot (seat order) that has an action takes it through `Session.apply/3`,
+  # then again, until no bot acts: so bot 1 brews to its stop, then bot 2, and the
+  # last stop settles every stop (B1, B7, red chips beside the pot), where a bot may
+  # act once more. The caller broadcasts once. `@brew_budget` stops a runaway loop.
+  @brew_budget 500
+  defp brew_bots(state, started, budget \\ @brew_budget)
+  defp brew_bots(state, _started, 0), do: state
+
+  defp brew_bots(state, started, budget) do
+    game = state.session.game
+
+    with true <- held?(game),
+         false <- Enum.any?(game.seats -- Map.keys(state.bots), &drawing?(game, &1)),
+         {seat, action, rng, engine_us, session} <- next_brew(state) do
+      log_action(state.id, seat, {:bot, action}, :ok, engine_us, started)
+      state = %{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)}
+      brew_bots(state, started, budget - 1)
+    else
+      _no_brew -> state
+    end
   end
 
-  defp capped?(_state, _game, _seat), do: false
+  defp next_brew(state) do
+    game = state.session.game
 
-  defp brewing?(%{phase: phase}),
-    do:
-      phase in [:potions, :yellow_choice, :blue_choice, :red_choice, :chip_choice, :essence_offer]
-
-  # `:draw` actions per seat in this round's log (newest first, up to the last round end).
-  defp round_draws(game) do
-    game.log
-    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
-    |> Enum.frequencies_by(fn
-      {seat, :draw} -> seat
-      _other -> nil
+    state.bots
+    |> Map.keys()
+    |> Enum.sort()
+    |> Enum.find_value(fn seat ->
+      with {action, rng} <-
+             AI.decide(game, seat, Profile.get(state.bots[seat]), state.bot_rngs[seat]),
+           {engine_us, {:ok, session}} <-
+             :timer.tc(Session, :apply, [state.session, seat, action]) do
+        {seat, action, rng, engine_us, session}
+      else
+        _none_or_error -> nil
+      end
     end)
+  end
+
+  # The seat still draws (or decides about a chip it just drew). A stopped seat, an
+  # explosion, and the choices after the stop (red chips beside the pot, B7) are no
+  # longer drawing.
+  defp drawing?(game, seat),
+    do:
+      Game.player(game, seat).phase in [
+        :potions,
+        :yellow_choice,
+        :blue_choice,
+        :chip_choice,
+        :essence_offer
+      ]
+
+  # A bot tick that brewed for the bots changed the game: the pages hear it.
+  defp broadcast_changed(%{session: session} = state, %{session: session}), do: state
+
+  defp broadcast_changed(state, _old) do
+    broadcast(state, {:game, state.id, state.session.game})
+    state
   end
 
   # Play again: a solo game has no waiting panel, so its patient is chosen in the
