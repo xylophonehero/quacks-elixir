@@ -78,13 +78,19 @@ defmodule QuacksWeb.Round28Test do
     assert has_element?(view, "[data-role=chip-pick] [data-role=offer-chip]")
     assert has_element?(view, "[data-role=pick-blocked]", "white stays")
     assert has_element?(view, "[data-role=pick-blocked]", "no higher value")
-    refute has_element?(view, "#sheet-fortune-flea")
+    refute has_element?(view, "#sheet-fortune-reveals [data-role=flea-result]")
   end
 
-  test "Flea Market with nothing to trade up: all 4 chips, dimmed, and the green 1" do
+  test "Flea Market with nothing to trade up: all 4 chips, why, and the green 1" do
     view = flea_market(List.duplicate({:white, 1}, 4))
     refute has_element?(view, "[data-role=chip-pick]")
-    assert has_element?(view, "#sheet-fortune-flea [data-role=flea-chip]", "white stays")
-    assert has_element?(view, "#sheet-fortune-flea [data-role=flea-result]", "green 1")
+
+    assert has_element?(
+             view,
+             "#sheet-fortune-reveals [data-role=reveal-chip][title='white stays']"
+           )
+
+    assert has_element?(view, "#sheet-fortune-reveals [data-me] [data-gain=chip]")
+    assert has_element?(view, "#sheet-fortune-reveals [data-role=flea-result]", "green 1")
   end
 end

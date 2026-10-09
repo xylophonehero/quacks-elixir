@@ -190,24 +190,33 @@ defmodule QuacksWeb.TileReveal do
 
   defp shop_news(game, seat) do
     %{chips: chips, droplets: droplets} = shop(game, seat)
-    flea = flea(game, seat)
+    card = card_news(game, seat)
 
     items =
       Enum.map(chips, &{:bought, &1}) ++
-        if(droplets > 0, do: [{:droplet, droplets}], else: []) ++ flea
+        if(droplets > 0, do: [{:droplet, droplets}], else: []) ++ card
 
     round = if game.phase == :shopping, do: game.round, else: game.round - 1
 
     if items != [],
-      do: %{key: "#{round}-shop-#{length(chips)}-#{droplets}-#{length(flea)}", items: items}
+      do: %{key: "#{round}-shop-#{length(chips)}-#{droplets}-#{length(card)}", items: items}
   end
 
   # Round 28: Flea Market (P13): the chip `seat` traded and the chip it got, once
-  # chosen (`Quacks.Game.Fortune.flea_market/1`).
-  defp flea(game, seat) do
-    case Fortune.flea_market(game)[seat] do
-      %{choosing?: false, got: got, traded: traded} when got != nil -> [{:flea, traded, got}]
-      _other -> []
+  # chosen. Round 30: every card that draws chips per seat (Less is More too): the
+  # chip or ruby it gave (`Quacks.Game.Fortune.reveals/1`). B7's placed chip is a
+  # draw: the draw news shows it.
+  defp card_news(game, seat) do
+    case Fortune.reveals(game)[seat] do
+      %{choosing?: false, traded: traded, gains: gains} ->
+        Enum.flat_map(gains, fn
+          {:chip, chip} -> [{:card, game.fortune_card, traded, chip}]
+          {:rubies, n} -> [{:rubies, n}]
+          {:placed, _chip} -> []
+        end)
+
+      _other ->
+        []
     end
   end
 

@@ -26,6 +26,7 @@ defmodule QuacksWeb.RevealComponents do
       seat_dot: 1
     ]
 
+  import QuacksWeb.CardRevealComponents, only: [card_reveals: 1]
   alias Phoenix.LiveView.JS
   alias Quacks.Rules.Fortune
   alias QuacksWeb.Reveal
@@ -175,19 +176,36 @@ defmodule QuacksWeb.RevealComponents do
     assigns =
       assign(assigns,
         info: Fortune.card(assigns.slide.card),
-        outcomes: Map.get(assigns.slide, :outcomes, [])
+        outcomes: Map.get(assigns.slide, :outcomes, []),
+        reveals: Map.get(assigns.slide, :reveals, %{})
       )
 
     ~H"""
     <div class="text-center" data-role="reveal-card-name">
       <h2 class="font-hand text-2xl leading-tight font-bold">{@info.name}</h2>
       <p class="sr-only">{@info.text}</p>
-      <ul :if={@outcomes != []} class="mt-2 space-y-1" data-role="card-outcomes">
+      <.card_reveals
+        :if={@reveals != %{}}
+        id={"reveal-card-reveals-#{@slide.round}"}
+        card={@slide.card}
+        reveals={@reveals}
+        order={@slide.order}
+        seat={@seat}
+        names={@names}
+        class="mt-2"
+      />
+      <ul
+        :if={@outcomes != [] and @reveals == %{}}
+        class="mt-2 space-y-1"
+        data-role="card-outcomes"
+      >
         <li
           :for={outcome <- @outcomes}
-          class="mx-auto w-fit rounded-full bg-ink/10 px-3 py-1 text-base font-semibold"
+          class="mx-auto flex w-fit items-center gap-1.5 rounded-full bg-ink/10 px-3 py-1 text-base font-semibold"
           data-role="card-outcome"
         >
+          <%!-- Round 30: a chip the card gave shows as its chip image too. --%>
+          <.chip :if={match?({:take, _}, outcome)} chip={elem(outcome, 1)} size={:sm} />
           {card_outcome(outcome, @slide.card)}
         </li>
       </ul>

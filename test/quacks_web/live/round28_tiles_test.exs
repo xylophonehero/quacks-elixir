@@ -146,7 +146,7 @@ defmodule QuacksWeb.Round28TilesTest do
       game = %{game | fortune_card: :p13, log: log ++ game.log, phase: :potions}
       game = put_in(game.players[0].phase, :potions)
 
-      assert %{items: [{:flea, {:green, 1}, {:green, 2}}]} = TileReveal.news(game, 0, nil)
+      assert %{items: [{:card, :p13, {:green, 1}, {:green, 2}}]} = TileReveal.news(game, 0, nil)
       assert TileReveal.news(game, 0, %{key: {:card, 1}}) == nil
 
       html =
@@ -157,7 +157,7 @@ defmodule QuacksWeb.Round28TilesTest do
           news: TileReveal.news(game, 0, nil)
         )
 
-      assert html =~ ~s(data-gain="flea")
+      assert html =~ ~s(data-gain="card")
     end
 
     test "droplets/3: the droplet before the steps still to come" do
