@@ -41,6 +41,10 @@ defmodule Quacks.Game.Fortune do
     {:yellow, 2} => {:yellow, 4}
   }
 
+  @doc "Flea Market (P13): the chip `chip` trades up to, or nil."
+  @spec upgrade(Chips.chip()) :: Chips.chip() | nil
+  def upgrade(chip), do: Map.get(@upgrade, chip)
+
   @doc """
   The deck for `players`, shuffled with a jump of the game's `rng`: the deck comes
   from the seed but leaves the game's own random stream untouched, so a seed draws

@@ -70,14 +70,16 @@ defmodule QuacksWeb.UiRound3bTest do
     # seed 30,30,30 with 2 players deals a card with a choice for both seats
     {_id, alice, bob} = duo({30, 30, 30}, %{})
 
+    # Round 31: the choice is in each seat's bar, no dialog.
     for view <- [alice, bob] do
-      assert has_element?(view, "dialog#card-round-1[phx-mounted] [data-role=card-modal]")
+      assert has_element?(view, "#bar-card-1 [data-choice=skip]")
+      refute has_element?(view, "dialog#card-round-1")
     end
 
-    alice |> element("#card-round-1 button", "No thanks") |> render_click()
-    refute has_element?(alice, "#card-round-1 button", "No thanks")
+    alice |> element("#bar-card-1 [data-choice=skip]") |> render_click()
+    refute has_element?(alice, "#bar-card-1")
     refute has_element?(alice, "[data-role=turn]")
-    assert has_element?(bob, "#card-round-1 button", "No thanks")
+    assert has_element?(bob, "#bar-card-1 [data-choice=skip]")
     assert state(alice, 1) =~ "choosing"
   end
 

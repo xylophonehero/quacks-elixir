@@ -64,41 +64,37 @@ defmodule QuacksWeb.Round24Test do
   end
 
   describe "a card with a result or a choice" do
-    test "the tap opens the result sheet; Continue shrinks the card" do
+    # Round 31: no result sheet; the card shrinks and a toast says what it did.
+    test "the tap shrinks the card; a toast says what it did" do
       {_id, view} = new_card(:p2, [{0, {:fortune, :p2, :droplet}}])
 
-      refute has_element?(view, "dialog#reveal-card-1")
       view |> element("#card-tap") |> render_click()
-
-      assert has_element?(view, "dialog#reveal-card-1.reveal-card-sheet")
-      assert has_element?(view, "#reveal-card-1 [data-role=card-outcome]", "Droplet +1")
-      assert has_element?(view, "#pot-card-1")
-      refute has_element?(view, "#card-tap")
-
-      view |> element("#reveal-next") |> render_click()
       assert_push_event(view, "quacks:vt", %{type: "card"})
+      refute has_element?(view, "dialog#reveal-card-1")
       refute has_element?(view, "#pot-card-1")
+      assert has_element?(view, "#card-toast-1", "Drop It: Droplet +1")
     end
 
-    test "the tap opens the choice; the card stays over the pot until the choice" do
+    # Round 31: the choice is in the bar at once, the card over the pot.
+    test "the choice is in the bar; the card stays over the pot until the choice" do
       {id, view} = solo(%{fortune: false})
 
       replace_game(id, fn g ->
         g |> H.put(fortune_card: :p1, phase: :fortune_choice) |> Map.put(:phase, :fortune_choice)
       end)
 
-      assert has_element?(view, "dialog#card-round-1")
-      refute has_element?(view, "dialog#card-round-1[phx-mounted*='quacks:modal']")
-      assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
-
-      view |> element("#card-tap") |> render_click()
-      assert_push_event(view, "quacks:open", %{to: "#card-round-1"})
+      refute has_element?(view, "dialog#card-round-1")
+      refute has_element?(view, "#card-tap")
       assert has_element?(view, "#pot-card-1")
-      refute has_element?(view, "#pot-card-1 [data-role=card-caption]")
+      assert has_element?(view, "#bar-card-1 [data-choice=rubies]", "+3")
+
+      view |> element("#bar-card-1 [data-choice=rubies]") |> render_click()
+      assert_push_event(view, "quacks:vt", %{type: "card"})
+      refute has_element?(view, "#pot-card-1")
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
     end
 
-    test "a card that draws chips keeps its dialog after the tap, the card in it" do
+    test "a card that draws chips: the card stays over the pot, the trade in the bar" do
       {id, view} = solo(%{fortune: false})
 
       replace_game(id, fn g ->
@@ -108,10 +104,9 @@ defmodule QuacksWeb.Round24Test do
       end)
 
       assert has_element?(view, "#pot-card-1")
-      view |> element("#card-tap") |> render_click()
-      assert_push_event(view, "quacks:open", %{to: "#card-round-1"})
-      refute has_element?(view, "#pot-card-1")
-      assert has_element?(view, "#card-round-1 [data-role=fortune-card]")
+      refute has_element?(view, "#card-tap")
+      assert has_element?(view, "#bar-card-1 [data-choice=upgrade]")
+      assert has_element?(view, "#bar-card-1 [data-choice=skip]")
     end
   end
 

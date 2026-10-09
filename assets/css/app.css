@@ -2641,6 +2641,42 @@ html:active-view-transition-type(card) .round-counter {
     card-caption-out 400ms ease-out 2800ms forwards;
 }
 
+/* Round 31: what a card without a choice did, one line over the pot while the card
+   shrinks into the corner (`GameLive.card_toast/2`). It fades out by itself. */
+.card-toast {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  z-index: 30;
+  translate: -50% 0;
+  max-width: calc(100% - 2rem);
+  border-radius: 9999px;
+  background-color: rgb(0 0 0 / 0.7);
+  padding: 0.375rem 1rem;
+  text-align: center;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-parchment-light);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
+  pointer-events: none;
+  animation:
+    card-toast-in 250ms cubic-bezier(0.23, 1, 0.32, 1) 250ms both,
+    card-caption-out 400ms ease-out 2800ms forwards;
+}
+
+@keyframes card-toast-in {
+  from {
+    opacity: 0;
+    translate: -50% 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-toast {
+    animation: card-caption-out 400ms ease-out 2800ms forwards;
+  }
+}
+
 @keyframes card-caption-in {
   from {
     opacity: 0;
