@@ -179,7 +179,6 @@ defmodule QuacksWeb.TileRevealComponents do
       aria-label="Round results"
       data-role="tile-stage"
       data-kind={@slide && @slide.kind}
-      data-part={@slide && @slide[:part]}
       data-index={@reveal.index}
     >
       <p class="flex min-w-0 flex-1 items-center gap-2 leading-tight" aria-live="polite">
@@ -256,9 +255,7 @@ defmodule QuacksWeb.TileRevealComponents do
   end
 
   defp piece(%{kind: :die}), do: :die
-  defp piece(%{kind: :space, part: :coins}), do: :coin
-  defp piece(%{kind: :space, part: :vp}), do: :vp
-  defp piece(%{kind: :space, part: :rubies}), do: :ruby
+  defp piece(%{kind: :space}), do: :coin
   defp piece(_slide), do: :pot
 
   defp ink(:die), do: "text-parchment-light"

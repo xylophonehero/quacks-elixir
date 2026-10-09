@@ -32,29 +32,11 @@ defmodule QuacksWeb.TileReveal do
           | {:book, atom}
 
   @doc """
-  The overlay's slides that the tiles play (the scoring steps). Round 31: one
-  update per step, so the scoring space plays as up to three steps (`part`): its
-  coins, its VP, its rubies. A part nobody gets has no step.
+  The overlay's slides that the tiles play (the scoring steps). Round 35: the
+  scoring space is one step again (its coins, VP and ruby in one row each).
   """
   @spec slides([Reveal.slide()]) :: [Reveal.slide()]
-  def slides(slides),
-    do: slides |> Enum.filter(&(&1.kind in @kinds)) |> Enum.flat_map(&split/1)
-
-  defp split(%{kind: :space, rows: rows} = slide) do
-    [
-      part(slide, :coins, rows, &(&1.coins > 0), fn _row -> {0, 0} end),
-      part(slide, :vp, rows, &(&1.vp > 0), &{&1.vp, 0}),
-      part(slide, :rubies, rows, &(&1.rubies > 0), &{0, &1.rubies})
-    ]
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp split(slide), do: [slide]
-
-  defp part(slide, part, rows, pick, gain) do
-    if Enum.any?(rows, pick),
-      do: Map.merge(slide, %{part: part, gains: Map.new(rows, &{&1.seat, gain.(&1)})})
-  end
+  def slides(slides), do: Enum.filter(slides, &(&1.kind in @kinds))
 
   @doc "How long a step stays on the tiles in Auto mode, in ms, at `speed`."
   @spec duration(atom) :: pos_integer
@@ -66,9 +48,6 @@ defmodule QuacksWeb.TileReveal do
   @spec label(Reveal.slide()) :: String.t()
   def label(%{kind: :die}), do: "Bonus die"
   def label(%{kind: :book, book: colour}), do: "#{String.capitalize(to_string(colour))} book"
-  def label(%{kind: :space, part: :coins}), do: "Coins"
-  def label(%{kind: :space, part: :vp}), do: "Victory points"
-  def label(%{kind: :space, part: :rubies}), do: "Rubies"
   def label(%{kind: :space}), do: "Scoring space"
 
   @doc """
@@ -90,20 +69,16 @@ defmodule QuacksWeb.TileReveal do
     end
   end
 
-  def badges(%{kind: :space, rows: rows} = slide, seat) do
+  def badges(%{kind: :space, rows: rows}, seat) do
     case Enum.find(rows, &(&1.seat == seat)) do
       nil -> []
-      row -> space_badges(slide[:part], row)
+      row -> space_badges(row)
     end
   end
 
   def badges(_slide, _seat), do: []
 
-  defp space_badges(:coins, %{coins: n}) when n > 0, do: [{:coins, n}]
-  defp space_badges(:vp, %{vp: n}) when n > 0, do: [{:vp, n}]
-  defp space_badges(:rubies, %{rubies: n}) when n > 0, do: [{:rubies, n}]
-  defp space_badges(nil, row), do: row |> Map.put(:droplet, 0) |> rewards()
-  defp space_badges(_part, _row), do: []
+  defp space_badges(row), do: row |> Map.put(:droplet, 0) |> rewards()
 
   @doc """
   Round 31: the replay lines of `seat` (`Replay.beats/2`) that the step `slide`
@@ -120,19 +95,18 @@ defmodule QuacksWeb.TileReveal do
 
   defp step_line?(%{kind: :die}, line), do: line.kind == :die
   defp step_line?(%{kind: :book, book: colour}, line), do: Reveal.book_line?(line, colour)
-  defp step_line?(%{kind: :space, part: :vp}, line), do: line.kind == :space and line.vp > 0
-
-  defp step_line?(%{kind: :space, part: :rubies}, line),
-    do: line.kind == :space and line.rubies > 0
+  defp step_line?(%{kind: :space}, line), do: line.kind == :space
 
   defp step_line?(_slide, _line), do: false
 
   @doc """
   The pot marks the step lights up (`Replay.highlights/1` of `step_lines/3`); the
-  coins step lights the scoring space.
+  space step also lights the scoring space.
   """
   @spec marks(Game.t(), Game.seat(), Reveal.slide() | nil) :: %{Replay.mark() => integer}
-  def marks(_game, _seat, %{kind: :space, part: :coins}), do: %{ring: 0}
+  def marks(game, seat, %{kind: :space} = slide),
+    do: game |> step_lines(seat, slide) |> Replay.highlights() |> Map.put_new(:ring, 0)
+
   def marks(game, seat, slide), do: game |> step_lines(seat, slide) |> Replay.highlights()
 
   defp rewards(row) do
