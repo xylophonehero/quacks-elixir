@@ -96,6 +96,7 @@ defmodule QuacksWeb.GameLive do
   use QuacksWeb, :live_view
 
   import QuacksWeb.GameComponents
+  import QuacksWeb.CardRevealComponents
 
   import QuacksWeb.SetupComponents
 
@@ -1263,11 +1264,15 @@ defmodule QuacksWeb.GameLive do
                 <%!-- Round 25: the grown corner card has no flip; the card
                      transition alone grows it (the shrink played backwards). --%>
                 <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip={!@card_grown} />
-                <.flea_market
-                  :if={@seat}
-                  id={"pot-card-flea-#{@game.round}"}
-                  game={@game}
+                <.card_reveals
+                  id={"pot-card-reveals-#{@game.round}"}
+                  card={@game.fortune_card}
+                  reveals={Quacks.Game.Fortune.reveals(@game)}
+                  order={Game.turn_order(@game)}
                   seat={@seat}
+                  names={@names}
+                  game={@game}
+                  class="paper rounded-md border-l-4 border-chip-purple p-2"
                 />
                 <p
                   :if={card_tap?(assigns)}
@@ -1777,7 +1782,15 @@ defmodule QuacksWeb.GameLive do
       <.sheet :if={@game.fortune_card} id="sheet-fortune" label="Fortune teller card">
         <%!-- A wrapper: the sheet flattens a `.paper` child, and the card keeps its edge. --%>
         <div class="pt-8 pb-2"><.fortune_card id={@game.fortune_card} /></div>
-        <.flea_market :if={@seat} id="sheet-fortune-flea" game={@game} seat={@seat} />
+        <.card_reveals
+          id="sheet-fortune-reveals"
+          card={@game.fortune_card}
+          reveals={Quacks.Game.Fortune.reveals(@game)}
+          order={Game.turn_order(@game)}
+          seat={@seat}
+          names={@names}
+          game={@game}
+        />
       </.sheet>
       <.sheet
         :for={seat <- @game.seats}
@@ -3317,6 +3330,7 @@ defmodule QuacksWeb.GameLive do
 
   # The card's result: what it did to this seat (`Reveal`, the slide's `outcomes`).
   defp card_result?(%{slides: [%{outcomes: [_ | _]} | _]}), do: true
+  defp card_result?(%{slides: [%{reveals: reveals} | _]}) when map_size(reveals) > 0, do: true
   defp card_result?(_reveal), do: false
 
   # Round 24: the big card over the pot is tappable while a new card waits for its

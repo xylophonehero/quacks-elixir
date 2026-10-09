@@ -25,6 +25,8 @@ defmodule Quacks.Game.Fortune do
   @solo_skip [:p7, :p9]
   # The cards about the rats: the rats are placed before they resolve.
   @rats_first [:p7, :p9]
+  # Round 30: the cards that draw chips for each seat (`reveals/1`).
+  @reveal_cards [:p8, :p13, :b7]
   # Flea Market (P13): the next higher value of the same colour. ⚠️ White is not
   # traded up (a bigger white chip only hurts); orange, purple and black have no
   # higher value.
@@ -94,43 +96,74 @@ defmodule Quacks.Game.Fortune do
   def after_potions(g), do: Essence.run(g)
 
   @doc """
-  Flea Market (P13) this round, from the log: for each seat that drew, `drew` (the 4
-  chips, in draw order), `traded` (the chip traded up, or nil), `got` (the next value
-  up, or the green 1 when no chip could be traded up; nil while choosing or after a
-  skip) and `choosing?`. An empty map when this round's card is not P13. The player
-  tiles and the card show it.
+  Round 30: what this round's card drew for each seat and what it gave, from the log,
+  for the cards that draw chips per seat (`reveal_card?/1`: P8 Less is More, P13 Flea
+  Market, B7 Safety Procedure). Per seat that drew: `drew` (the chips, in draw order),
+  `number` (P8: their sum, else nil), `traded` (P13: the chip traded up, or nil),
+  `gains` (`{:chip, chip}` taken from the supply, `{:rubies, n}`, `{:placed, chip}`
+  put on the pot by B7), `best?` (P8: the lowest sum, which takes the blue 2) and
+  `choosing?` (the seat still chooses). An empty map under any other card. The card
+  sheet, the corner card and the player tiles show it.
   """
-  @spec flea_market(Game.t()) :: %{
+  @spec reveals(Game.t()) :: %{
           Game.seat() => %{
             drew: [Chips.chip()],
+            number: non_neg_integer | nil,
             traded: Chips.chip() | nil,
-            got: Chips.chip() | nil,
+            gains: [{:chip, Chips.chip()} | {:rubies, pos_integer} | {:placed, Chips.chip()}],
+            best?: boolean,
             choosing?: boolean
           }
         }
-  def flea_market(%{fortune_card: :p13} = g) do
-    g.log
-    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
-    |> Enum.reverse()
-    |> Enum.reduce(%{}, fn
-      {seat, {:fortune, :p13, {:drew, chips}}}, acc ->
-        Map.put(acc, seat, %{drew: chips, traded: nil, got: nil})
+  def reveals(%{fortune_card: id} = g) when id in @reveal_cards do
+    rows =
+      g.log
+      |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+      |> Enum.reverse()
+      |> Enum.reduce(%{}, &reveal_entry(&1, &2, id))
 
-      {seat, {:fortune, :p13, {:upgrade, chip}}}, acc when is_map_key(acc, seat) ->
-        Map.update!(acc, seat, &%{&1 | traded: chip, got: @upgrade[chip]})
+    low =
+      rows
+      |> Map.values()
+      |> Enum.map(& &1.number)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.min(fn -> nil end)
 
-      {seat, {:fortune, :p13, {:take, chip}}}, acc when is_map_key(acc, seat) ->
-        Map.update!(acc, seat, &%{&1 | got: chip})
-
-      _entry, acc ->
-        acc
-    end)
-    |> Map.new(fn {seat, flea} ->
-      {seat, Map.put(flea, :choosing?, Game.player(g, seat).phase == :fortune_choice)}
+    Map.new(rows, fn {seat, row} ->
+      {seat,
+       %{
+         row
+         | gains: Enum.reverse(row.gains),
+           best?: row.number != nil and row.number == low,
+           choosing?: Game.player(g, seat).phase == :fortune_choice
+       }}
     end)
   end
 
-  def flea_market(_g), do: %{}
+  def reveals(_g), do: %{}
+
+  @doc "Whether card `id` draws chips for each seat (`reveals/1` has rows for it)."
+  @spec reveal_card?(atom | nil) :: boolean
+  def reveal_card?(id), do: id in @reveal_cards
+
+  defp reveal_entry({seat, {:fortune, id, {:drew, chips}}}, acc, id) do
+    number = if id == :p8, do: chips |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+    row = %{drew: chips, number: number, traded: nil, gains: [], best?: false, choosing?: false}
+    Map.put(acc, seat, row)
+  end
+
+  defp reveal_entry({seat, {:fortune, id, outcome}}, acc, id) when is_map_key(acc, seat),
+    do: Map.update!(acc, seat, &reveal_outcome(&1, outcome))
+
+  defp reveal_entry(_entry, acc, _id), do: acc
+
+  defp reveal_outcome(row, {:upgrade, chip}),
+    do: %{row | traded: chip, gains: [{:chip, @upgrade[chip]} | row.gains]}
+
+  defp reveal_outcome(row, {:take, chip}), do: %{row | gains: [{:chip, chip} | row.gains]}
+  defp reveal_outcome(row, :ruby), do: %{row | gains: [{:rubies, 1} | row.gains]}
+  defp reveal_outcome(row, {:place, chip}), do: %{row | gains: [{:placed, chip} | row.gains]}
+  defp reveal_outcome(row, _outcome), do: row
 
   @doc """
   Why Flea Market cannot trade `chip` up now, or nil when it can: `:white` (white is
