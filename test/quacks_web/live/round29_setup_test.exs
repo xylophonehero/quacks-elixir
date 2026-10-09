@@ -114,4 +114,15 @@ defmodule QuacksWeb.Round29SetupTest do
       assert click =~ "/g/#{id}"
     end
   end
+
+  test "New game and Start are the gold primary; the cauldron stays on Start" do
+    css = File.read!("assets/css/app.css")
+    [rule] = Regex.run(~r/\.start-button,\n\.flow-button \{[^}]*\}/, css)
+    assert rule =~ "background: var(--color-gold)"
+    assert rule =~ "color: var(--color-ink)"
+
+    view = lobby(~p"/?step=players")
+    assert has_element?(view, "#new-game.start-button svg")
+    assert has_element?(view, "#new-game-flow.flow-button")
+  end
 end
