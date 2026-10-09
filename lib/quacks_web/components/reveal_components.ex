@@ -201,9 +201,11 @@ defmodule QuacksWeb.RevealComponents do
       >
         <li
           :for={outcome <- @outcomes}
-          class="mx-auto w-fit rounded-full bg-ink/10 px-3 py-1 text-base font-semibold"
+          class="mx-auto flex w-fit items-center gap-1.5 rounded-full bg-ink/10 px-3 py-1 text-base font-semibold"
           data-role="card-outcome"
         >
+          <%!-- Round 30: a chip the card gave shows as its chip image too. --%>
+          <.chip :if={match?({:take, _}, outcome)} chip={elem(outcome, 1)} size={:sm} />
           {card_outcome(outcome, @slide.card)}
         </li>
       </ul>

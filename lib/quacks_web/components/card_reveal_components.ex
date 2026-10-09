@@ -24,6 +24,7 @@ defmodule QuacksWeb.CardRevealComponents do
   attr :seat, :integer, default: nil, doc: "this browser's seat, or nil"
   attr :names, :map, required: true
   attr :game, :any, default: nil, doc: "the game, for the Flea Market notes"
+  attr :compact, :boolean, default: false, doc: "small chips, for the grown corner card"
   attr :class, :any, default: nil
 
   def card_reveals(assigns) do
@@ -52,6 +53,7 @@ defmodule QuacksWeb.CardRevealComponents do
           initial={initial(Map.get(@names, seat, "#{seat + 1}"))}
           card={@card}
           game={@game}
+          size={if(@compact, do: :xs, else: :sm)}
         />
       </ol>
       <p
@@ -72,12 +74,14 @@ defmodule QuacksWeb.CardRevealComponents do
   attr :initial, :string, required: true
   attr :card, :atom, required: true
   attr :game, :any, required: true
+  attr :size, :atom, required: true, doc: "the chip size, `:sm` or `:xs`"
 
   defp reveal_row(assigns) do
     ~H"""
     <li
       class={[
-        "flex min-h-9 items-center gap-1.5 rounded-md px-1.5 py-1",
+        "flex items-center gap-1.5 rounded-md px-1.5",
+        if(@size == :xs, do: "min-h-6 py-0.5", else: "min-h-9 py-1"),
         if(@row.best?, do: "bg-gold/30", else: "bg-parchment-deep/30"),
         @me && "ring-2 ring-gold"
       ]}
@@ -88,7 +92,8 @@ defmodule QuacksWeb.CardRevealComponents do
     >
       <span
         class={[
-          "grid size-6 shrink-0 place-items-center rounded-full text-xs leading-none font-extrabold text-ink ring-1 ring-black/40",
+          "grid shrink-0 place-items-center rounded-full leading-none font-extrabold text-ink ring-1 ring-black/40",
+          if(@size == :xs, do: "size-5 text-[10px]", else: "size-6 text-xs"),
           seat_bg(@seat)
         ]}
         title={@name}
@@ -110,7 +115,7 @@ defmodule QuacksWeb.CardRevealComponents do
           data-role="reveal-chip"
           data-traded={traded?(@row, chip, i) && "true"}
         >
-          <.chip chip={chip} size={:sm} />
+          <.chip chip={chip} size={@size} />
         </span>
         <span :if={@row.drew == []} class="text-xs text-ink-soft">no chips</span>
       </span>
@@ -135,7 +140,7 @@ defmodule QuacksWeb.CardRevealComponents do
           <% @row.gains == [] -> %>
             <span class="text-xs font-semibold text-ink-soft">{none(@card)}</span>
           <% true -> %>
-            <.gain :for={gain <- @row.gains} gain={gain} />
+            <.gain :for={gain <- @row.gains} gain={gain} size={@size} />
         <% end %>
       </span>
     </li>
@@ -143,6 +148,7 @@ defmodule QuacksWeb.CardRevealComponents do
   end
 
   attr :gain, :any, required: true
+  attr :size, :atom, default: :sm
 
   defp gain(%{gain: {:rubies, n}} = assigns) do
     assigns = assign(assigns, n: n)
@@ -159,7 +165,7 @@ defmodule QuacksWeb.CardRevealComponents do
 
     ~H"""
     <span class="flex items-center gap-0.5" data-gain="chip" title={"took " <> chip_name(@chip)}>
-      +<.chip chip={@chip} size={:sm} />
+      +<.chip chip={@chip} size={@size} />
     </span>
     """
   end
@@ -170,7 +176,7 @@ defmodule QuacksWeb.CardRevealComponents do
     ~H"""
     <span class="flex items-center gap-0.5" data-gain="placed" title={"placed " <> chip_name(@chip)}>
       <span class="text-xs">pot</span>
-      <.chip chip={@chip} size={:sm} />
+      <.chip chip={@chip} size={@size} />
     </span>
     """
   end

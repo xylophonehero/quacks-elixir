@@ -1264,7 +1264,10 @@ defmodule QuacksWeb.GameLive do
                 <%!-- Round 25: the grown corner card has no flip; the card
                      transition alone grows it (the shrink played backwards). --%>
                 <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip={!@card_grown} />
+                <%!-- Round 30: every player's chips under the grown card (the new
+                     card's own sheet shows them after its tap). --%>
                 <.card_reveals
+                  :if={@card_grown}
                   id={"pot-card-reveals-#{@game.round}"}
                   card={@game.fortune_card}
                   reveals={Quacks.Game.Fortune.reveals(@game)}
@@ -1272,6 +1275,7 @@ defmodule QuacksWeb.GameLive do
                   seat={@seat}
                   names={@names}
                   game={@game}
+                  compact
                   class="paper rounded-md border-l-4 border-chip-purple p-2"
                 />
                 <p
