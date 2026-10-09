@@ -13,6 +13,7 @@ defmodule QuacksWeb.TileRevealComponents do
   import QuacksWeb.CoreComponents, only: [button: 1]
   import QuacksWeb.GameComponents, only: [chip: 1, die_face: 1]
 
+  alias Quacks.Rules.Fortune
   alias QuacksWeb.TileReveal
 
   attr :items, :list, required: true, doc: "`QuacksWeb.TileReveal.news/3`'s items"
@@ -65,11 +66,14 @@ defmodule QuacksWeb.TileRevealComponents do
     """
   end
 
-  defp badge(%{badge: {:flea, traded, got}} = assigns) do
-    assigns = assign(assigns, traded: traded, got: got)
+  # Round 30: a chip from a card that draws chips (Flea Market: the traded chip
+  # first; Less is More: the blue 2).
+  defp badge(%{badge: {:card, card, traded, got}} = assigns) do
+    assigns =
+      assign(assigns, traded: traded, got: got, name: Fortune.card(card).name)
 
     ~H"""
-    <span class="flex items-center gap-px" title="Flea Market" data-gain="flea">
+    <span class="flex items-center gap-px" title={@name} data-gain="card">
       <span :if={@traded} class="rounded-full opacity-60 ring-1 ring-black/40">
         <.chip chip={@traded} size={:xs} />
       </span>

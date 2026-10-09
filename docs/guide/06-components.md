@@ -1219,9 +1219,20 @@ play (`black_counts?/1`; books II and III do not compare pot counts), then the
 extras while they fit. At 360 px with 4 columns the line holds the four main
 items (tighter padding under `sm`); the extras drop first.
 
-**Flea Market (P13).** Once a seat has chosen and the card is gone, its news line
-shows the chip it traded and the chip it got (`Quacks.Game.Fortune.flea_market/1`;
-`news/3` gives nil while a card is on screen).
+**Cards that draw chips (round 30).** Once a seat has chosen and the card is gone,
+its news line shows what the card gave it (`Quacks.Game.Fortune.reveals/1`): Flea
+Market the chip it traded and the chip it got, Less is More the blue 2 or the ruby
+(badge `{:card, id, traded, got}` or `{:rubies, 1}`). Safety Procedure's placed chip
+is a draw, so the draw news shows it. `news/3` gives nil while a card is on screen.
+
+**Card reveal rows (round 30).** `QuacksWeb.CardRevealComponents.card_reveals/1`
+shows `Fortune.reveals/1` as one row per player: the seat disc with the initial,
+the drawn chips (`:sm`; `compact` uses `:xs`), the sum (Less is More), and the
+result (a chip, a ruby, or the chip placed on the pot). Your row is first and has a
+gold ring; the best row (the lowest sum) has a gold fill. Three places use it: the
+new card's result sheet after the tap (the `:card` slide's `reveals`), the fortune
+sheet (`#sheet-fortune-reveals`) and the grown corner card (`compact`, only while
+grown). Your Flea Market chips have a title that says why a chip could not go up.
 
 **News on the bottom line (R2).** `TileReveal.news/3` gives a tile's news, or
 nil: the die faces on the die step, a book's ingredient and rewards, the space's

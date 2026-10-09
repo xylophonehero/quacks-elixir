@@ -142,6 +142,12 @@ Card outcomes (`{seat, {:fortune, id, outcome}}`):
 
 B4 logs nothing of its own: the second `{:bonus_die, face}` shows it.
 
+**Card reveal** (round 30): the per-seat result of a card that draws chips for each
+seat (P8, P13, B7; `Quacks.Game.Fortune.reveal_card?/1`), read from these outcomes by
+`Fortune.reveals/1`: the chips drawn, the key number (P8: the sum), the chip traded
+(P13), the gains (`{:chip, chip}`, `{:rubies, n}`, `{:placed, chip}`), `best?` (P8:
+the lowest sum) and `choosing?`. The UI shows it as one row per player.
+
 Chip effects (`{seat, {:effect, {colour, set}, detail}}`), logged after the chip's `{:drew, ...}` (or in step B):
 
 | Book | Detail | When |

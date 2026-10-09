@@ -26,7 +26,7 @@ defmodule QuacksWeb.Reveal do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.Evaluation
+  alias Quacks.Game.{Evaluation, Fortune}
   alias Quacks.Rules.PotTrack
   alias QuacksWeb.Replay
 
@@ -92,7 +92,9 @@ defmodule QuacksWeb.Reveal do
               kind: :card,
               round: round,
               card: game.fortune_card,
-              outcomes: card_outcomes(game, seat)
+              outcomes: card_outcomes(game, seat),
+              reveals: Fortune.reveals(game),
+              order: Game.turn_order(game)
             }
           ],
           now(game)
