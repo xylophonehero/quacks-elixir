@@ -75,9 +75,14 @@ defmodule QuacksWeb.Round28Test do
 
   test "Flea Market: the drawn chips are a picker; a chip that cannot go up says why" do
     view = flea_market([{:green, 1}, {:white, 1}, {:orange, 1}, {:red, 1}])
-    assert has_element?(view, "[data-role=chip-pick] [data-role=offer-chip]")
-    assert has_element?(view, "[data-role=pick-blocked]", "white stays")
-    assert has_element?(view, "[data-role=pick-blocked]", "no higher value")
+    # Round 31: the trades are bar buttons; the rows over the pot say why a chip stays.
+    assert has_element?(view, "[data-role=bar-card] [data-choice=upgrade]")
+
+    assert has_element?(
+             view,
+             "[id^=pot-card-reveals] [data-role=reveal-chip][title='white stays']"
+           )
+
     refute has_element?(view, "#sheet-fortune-reveals [data-role=flea-result]")
   end
 

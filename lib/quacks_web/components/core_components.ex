@@ -191,6 +191,10 @@ defmodule QuacksWeb.CoreComponents do
   counts as closed at once. app.js picks the mode when it opens.
 
   A tap on the dimmed backdrop closes a modal sheet (app.js), like its ×.
+
+  `pot` (round 31): below 64rem the dialog opens non-modal and covers the pot
+  column in place (app.css `.sheet[data-pot]`), so the header, the players and the
+  bar stay in view; no full-height sheet.
   """
   attr :id, :string, required: true
   attr :label, :string, required: true
@@ -203,6 +207,11 @@ defmodule QuacksWeb.CoreComponents do
     default: nil,
     values: [nil, :panel, :hidden],
     doc: "on screens ≥ 64rem: a non-modal panel in place (`:panel`) or not opened (`:hidden`)"
+
+  attr :pot, :boolean,
+    default: false,
+    doc:
+      "round 31: below 64rem it opens non-modal over the pot (`data-pot`), not as a bottom sheet"
 
   attr :focus_self, :boolean,
     default: false,
@@ -228,6 +237,7 @@ defmodule QuacksWeb.CoreComponents do
       data-then-open={@then_open}
       data-on-close={@on_close}
       data-side={@side}
+      data-pot={@pot && "true"}
     >
       <%!-- Chrome ignores `autofocus` on the <dialog> itself, so the focus starts here. --%>
       <span :if={@focus_self} tabindex="-1" autofocus data-role="focus-start" class="outline-none" />

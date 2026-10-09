@@ -36,7 +36,8 @@ defmodule QuacksWeb.Round30CardsTest do
     alice = less_is_more()
     alice |> element("#card-tap") |> render_click()
 
-    rows = "#reveal-card-reveals-2 [data-role=card-reveal-row]"
+    # Round 31: the rows show under the grown card over the pot.
+    rows = "#pot-card-reveals-2 [data-role=card-reveal-row]"
     assert has_element?(alice, rows, "You")
     assert has_element?(alice, "#{rows}:first-child[data-me][data-best]")
     assert has_element?(alice, "#{rows}[data-me] [data-role=reveal-number]", "5")

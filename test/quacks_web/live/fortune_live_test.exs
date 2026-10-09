@@ -32,23 +32,25 @@ defmodule QuacksWeb.FortuneLiveTest do
     {:ok, view, _html} = live_game(conn, {30, 30, 30})
     assert has_element?(view, "[data-role=fortune-card][data-colour=purple]", "Boomberry Cleanse")
     assert has_element?(view, "dd", "Fortune teller")
-    assert has_element?(view, "button[data-slot=draw][disabled]", "Draw")
+    # Round 31: the card's choice takes the place of Stop and Draw.
+    refute has_element?(view, "button[data-slot=draw]")
 
-    view |> element("button", "Score 4 VP") |> render_click()
+    view |> element("[data-role=bar-card] button[aria-label='Score 4 VP']") |> render_click()
 
     assert has_element?(view, "li", "Boomberry Cleanse: +4 VP")
-    refute has_element?(view, "button[data-slot=draw][disabled]")
+    assert has_element?(view, "button[data-slot=draw]:not([disabled])")
     assert has_element?(view, "dd", "Brewing")
   end
 
   test "P13 Flea Market shows the 4 drawn chips (seed 2,2,2)", %{conn: conn} do
     {:ok, view, _html} = live_game(conn, {2, 2, 2})
-    assert has_element?(view, "[aria-label='Fortune teller offer']", "Flea Market drew:")
-    assert view |> render() |> count("[data-role=offer-chip]") == 4
+    # Round 31: the drawn chips show in the rows over the pot, the trades in the bar.
+    mine = "[id^=pot-card-reveals] [data-me] [data-role=reveal-chip]"
+    assert view |> render() |> count(mine) == 4
 
     assert has_element?(
              view,
-             "button[data-role=chip-pick][aria-label='Trade green 1 for the next value up']"
+             "[data-role=bar-card] button[aria-label='Trade green 1 for the next value up']"
            )
   end
 
@@ -57,8 +59,8 @@ defmodule QuacksWeb.FortuneLiveTest do
     view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
-    assert has_element?(view, "[aria-label='Fortune teller offer']", "Safety Procedure drew:")
-    view |> element("button", "Safety Procedure: return all to the bag") |> render_click()
+    assert has_element?(view, "[data-role=bar-card] [data-choice=place]")
+    view |> element("[data-role=bar-card] [data-choice=return_all]") |> render_click()
     assert has_element?(view, "li", "Safety Procedure: returned all chips to the bag")
   end
 

@@ -158,18 +158,18 @@ defmodule QuacksWeb.Round22Test do
       assert has_element?(view, "[data-role=pot-area] #corner-card", name)
     end
 
-    test "a card's choice: on phones the card hovers over the pot, not in the sheet" do
+    # Round 31: on every screen the card hovers over the pot while its choice waits
+    # in the bar; there is no card dialog.
+    test "a card's choice: the card hovers over the pot, no sheet" do
       {id, view} = solo(%{})
 
       replace_game(id, fn g ->
         g |> H.put(fortune_card: :p1, phase: :fortune_choice) |> Map.put(:phase, :fortune_choice)
       end)
 
-      assert has_element?(view, "dialog#card-round-1")
-      view |> element("#card-tap") |> render_click()
-      # From 64rem the choice is a panel with the card; the pot card is for phones.
-      assert has_element?(view, "#pot-card-1.lg\\:hidden")
-      assert has_element?(view, "#card-round-1 .max-lg\\:hidden [data-role=fortune-card]")
+      refute has_element?(view, "dialog#card-round-1")
+      assert has_element?(view, "#pot-card-1.pot-card-reveal")
+      refute has_element?(view, "#pot-card-1.lg\\:hidden")
     end
 
     test "the CSS: a clear backdrop, the pot card absolute, reduced motion skips the shrink" do

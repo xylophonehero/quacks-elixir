@@ -57,7 +57,8 @@ defmodule QuacksWeb.UiRound4Test do
     assert game.sets.black == 3
   end
 
-  test "a card with a choice is one dialog: the card, its offer and the buttons" do
+  # Round 31: no dialog: the card hovers over the pot, its choices are the bar.
+  test "a card with a choice: the card over the pot, the choices in the bar" do
     # seed 30,30,30 with 2 players deals a purple card with a choice for both seats
     {:ok, id} = GameServer.start(2, {30, 30, 30})
     alice = open(browser("alice"), id)
@@ -65,27 +66,15 @@ defmodule QuacksWeb.UiRound4Test do
     alice |> element("button", "Start game") |> render_click()
 
     refute has_element?(alice, "#decision-fortune_choice")
-    assert has_element?(alice, "dialog#card-round-1 [data-role=fortune-card]")
+    refute has_element?(alice, "dialog#card-round-1")
+    assert has_element?(alice, "#pot-card-1 [data-role=fortune-card]")
+    assert has_element?(alice, "footer #bar-card-1 button", "No thanks")
+    refute has_element?(alice, "footer #card-continue")
 
-    assert has_element?(
-             alice,
-             "#card-round-1 [data-role=fortune-card]",
-             "Fortune teller · resolve now"
-           )
-
-    assert has_element?(alice, "#card-round-1 section[aria-label=Actions] button", "No thanks")
-    refute has_element?(alice, "#card-round-1 form[method=dialog] button", "OK")
-    # Round 30: while the card hovers, the footer has Continue (it opens the
-    # card's dialog) in place of the button that reopens the dialog
-    assert has_element?(alice, "footer #card-continue")
-    refute has_element?(alice, "footer button[phx-click*='card-round-1']")
-    alice |> element("#card-continue") |> render_click()
-    assert has_element?(alice, "footer button[phx-click*='card-round-1']")
-
-    alice |> element("#card-round-1 button", "No thanks") |> render_click()
-    # answered: the dialog goes, and the card counts as seen (round 14: no
-    # reveal overlay for it afterwards)
-    refute has_element?(alice, "#card-round-1")
+    alice |> element("#bar-card-1 button", "No thanks") |> render_click()
+    # answered: the bar goes, and the card counts as seen (no reveal afterwards)
+    refute has_element?(alice, "#bar-card-1")
+    refute has_element?(alice, "#pot-card-1")
     refute has_element?(alice, "[data-role=reveal]")
   end
 
