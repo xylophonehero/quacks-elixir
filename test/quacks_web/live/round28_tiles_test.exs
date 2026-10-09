@@ -224,8 +224,8 @@ defmodule QuacksWeb.Round28TilesTest do
       for role <- ~w(player-vp player-rubies player-droplet player-flask player-space),
           do: assert(has?(html, "[data-role=#{role}]"), role)
 
-      assert has?(html, "[data-role=player-space].text-xl")
-      assert has?(html, "[data-role=player-vp].text-xl")
+      assert has?(html, "[data-role=player-space].text-num")
+      assert has?(html, "[data-role=player-vp].text-num")
     end
 
     test "black chips in the pot only with black book I (either black rule)" do

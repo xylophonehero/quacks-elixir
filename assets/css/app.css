@@ -33,6 +33,20 @@
 @theme static {
   --font-hand: "Kalam", "Comic Sans MS", cursive;
 
+  /* Round 29 (B3): the game screen's type scale for numbers and labels, four
+     steps with a 13 px floor (`text-tag`, `text-label`, `text-num`, `text-big`).
+     Where space is tight, drop the label and keep the icon and the number.
+     The pot SVG uses the same sizes in its own units (`@pot_text` in
+     `game_components.ex`). */
+  --text-tag: 13px;
+  --text-tag--line-height: 16px;
+  --text-label: 15px;
+  --text-label--line-height: 20px;
+  --text-num: 18px;
+  --text-num--line-height: 22px;
+  --text-big: 24px;
+  --text-big--line-height: 28px;
+
   --color-potion-light: #6cc49a;
   --color-potion: #3f9b6e;
   --color-potion-deep: #2d6b4e;
@@ -2746,3 +2760,49 @@ html:active-view-transition-type(card) .card-caption {
   .boom { animation-name: boom-fade; }
   .bar-choice-late { animation-name: bar-choice-show; }
 }
+
+/* Round 29 (B2): while the round brews the bottom line holds the seat's last
+   draws (`data-hold`): the news comes in and stays, the totals stay hidden. The
+   newest chip glows once (`beat-glow`), the pot space pops when it changes, and
+   an explosion shakes the tile once. */
+.tile-line[data-hold] .tile-news {
+  opacity: 1;
+  animation: tile-news-in 300ms var(--ease-out, ease-out) both;
+}
+.tile-line[data-hold] .tile-totals {
+  animation: none;
+  opacity: 0;
+}
+@keyframes tile-news-in {
+  from { opacity: 0; transform: translateY(70%); }
+}
+.tile-draw-glow {
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 2px var(--color-gold), 0 0 8px var(--color-gold);
+  pointer-events: none;
+  opacity: 0;
+  animation: beat-glow 900ms var(--ease-out, ease-out) both;
+}
+.tile-space {
+  display: inline-block;
+  animation: tile-pop 450ms ease-out;
+}
+@keyframes tile-shake {
+  0%, 100% { translate: 0; }
+  20% { translate: -3px 0; }
+  40% { translate: 3px 0; }
+  60% { translate: -2px 0; }
+  80% { translate: 2px 0; }
+}
+.player-tile.tile-boom {
+  animation: tile-shake 380ms var(--ease-out, ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile-line[data-hold] .tile-news { animation-name: tile-news-fade-in; }
+  .tile-draw-glow,
+  .tile-space,
+  .player-tile.tile-boom { animation: none; }
+}
+@keyframes tile-news-fade-in { from { opacity: 0; } }

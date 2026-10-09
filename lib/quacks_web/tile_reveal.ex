@@ -137,9 +137,12 @@ defmodule QuacksWeb.TileReveal do
   step plays (`reveal` with `tiles: true`): the die faces the seat rolled, or the
   step's badges (`badges/2`). Else the chips the seat bought and its droplet
   pushes (`shop/2`: in the shop, or the last shop as the next round begins). `key` changes with every new piece of news, so the
-  line plays its swap again.
+  line plays its swap again. Round 29 (B2): while the round brews, the seat's
+  last draws (`{:drew, chip, age}`, newest first), with `hold: true` (the line stays on the news).
   """
-  @spec news(Game.t(), Game.seat(), map | nil) :: %{key: String.t(), items: [term]} | nil
+  @spec news(Game.t(), Game.seat(), map | nil) ::
+          %{required(:key) => String.t(), required(:items) => [term], optional(:hold) => true}
+          | nil
   def news(game, seat, %{tiles: true, slides: slides, index: index}) do
     slide = Enum.at(slides, index)
     items = step_news(slide, seat)
@@ -149,7 +152,43 @@ defmodule QuacksWeb.TileReveal do
   # A card on screen (the overlay): its news waits until it is dismissed.
   def news(_game, _seat, %{key: {:card, _}}), do: nil
 
-  def news(game, seat, _reveal) do
+  def news(%Game{phase: :potions} = game, seat, _reveal) do
+    draw_news(game, seat) || shop_news(game, seat)
+  end
+
+  def news(game, seat, _reveal), do: shop_news(game, seat)
+
+  # How many draws fit on a tile's line at 360 px, by the players row's columns
+  # (`GameComponents.loop_columns/1`): four columns 3, three 4, two 7, one 8.
+  defp tile_draws(seats) do
+    case QuacksWeb.GameComponents.loop_columns(length(seats)) do
+      4 -> 3
+      3 -> 4
+      2 -> 7
+      _ -> 8
+    end
+  end
+
+  # Round 29 (B2): while the seat brews, its last draws (newest first, as many as
+  # fit, `tile_draws/1`; the tile shows an explosion itself). `hold` keeps the line on the
+  # news (no swap back): the draws are the tile's latest update until the shop.
+  defp draw_news(game, seat) do
+    case Game.player(game, seat) do
+      %{drawn: []} ->
+        nil
+
+      %{drawn: drawn} ->
+        items =
+          drawn
+          |> Enum.take(tile_draws(game.seats))
+          |> Enum.with_index()
+          |> Enum.map(fn {{chip, _space}, i} -> {:drew, chip, i} end)
+
+        %{key: "#{game.round}-draw-#{length(drawn)}", items: items, hold: true}
+    end
+  end
+
+  defp shop_news(game, seat) do
     %{chips: chips, droplets: droplets} = shop(game, seat)
     flea = flea(game, seat)
 

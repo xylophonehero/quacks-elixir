@@ -79,7 +79,7 @@ defmodule QuacksWeb.Round11Test do
 
       assert has_element?(
                view,
-               "[data-role=player-chip] [data-role=player-stats].h-4.overflow-hidden"
+               "[data-role=player-chip] [data-role=player-stats].h-\\[18px\\].overflow-hidden"
              )
     end
   end

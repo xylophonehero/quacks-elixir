@@ -102,7 +102,7 @@ defmodule QuacksWeb.Round12Test do
     test "a ruby space has its gem on the lower left, mirroring the VP tag" do
       {_id, view} = solo()
       html = render(view)
-      assert html =~ ~s(x="-21.5")
+      assert html =~ ~s(x="-23")
       refute html =~ ~s(y="-27")
     end
   end
