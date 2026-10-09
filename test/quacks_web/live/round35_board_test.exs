@@ -137,4 +137,22 @@ defmodule QuacksWeb.Round35BoardTest do
              ]
     end
   end
+
+  describe "the patient badge" do
+    test "phones show the icon only; the name is in the tooltip" do
+      game =
+        Game.new(seed: {1, 2, 3}, players: 1) |> Quacks.GameHelpers.put(0, patient: :carrot_nose)
+
+      html =
+        render_component(&QuacksWeb.AlchemistsComponents.flask_strip/1, game: game, seat: 0)
+        |> LazyHTML.from_fragment()
+
+      badge = LazyHTML.query(html, "[data-role=patient-badge]")
+      assert LazyHTML.attribute(badge, "title") == ["Carrot nose"]
+      assert LazyHTML.attribute(badge, "aria-label") == ["Patient: Carrot nose"]
+      assert badge |> LazyHTML.query("[data-icon=carrot_nose]") |> Enum.count() == 1
+      [class] = badge |> LazyHTML.query("[data-role=patient-name]") |> LazyHTML.attribute("class")
+      assert "hidden" in String.split(class) and "sm:inline" in String.split(class)
+    end
+  end
 end
