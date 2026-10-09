@@ -256,6 +256,10 @@ defmodule QuacksWeb.GameComponents do
 
   attr :fx_key, :string, default: "", doc: "round 31: the step, so each step's effects play"
 
+  attr :bagged, :boolean,
+    default: false,
+    doc: "round 35: the round went to the shop, so the chips are back in the bag (none drawn)"
+
   def pot(assigns) do
     player = assigns.game.players[assigns.seat]
     player = if assigns.droplet, do: %{player | droplet: assigns.droplet}, else: player
@@ -267,7 +271,7 @@ defmodule QuacksWeb.GameComponents do
         me: player,
         track:
           track(
-            player,
+            if(assigns.bagged, do: %{player | drawn: []}, else: player),
             placements(assigns.game.log, assigns.seat),
             rings,
             scoring,
@@ -290,6 +294,7 @@ defmodule QuacksWeb.GameComponents do
       phx-hook={@size == :lg && "PotMotion"}
       data-round={@size == :lg && @game.round}
       data-mine={@size == :lg && @flask && "true"}
+      data-bagged={@bagged && "true"}
       data-slide-beat={@effects != [] && @beats[:droplet]}
       style={@effects != [] && @beats[:droplet] && "--slide-beat: #{@beats[:droplet]}"}
     >

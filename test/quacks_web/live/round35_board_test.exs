@@ -92,4 +92,32 @@ defmodule QuacksWeb.Round35BoardTest do
       assert Enum.map(rats, &LazyHTML.attribute(&1, "data-index")) == [["2"], ["3"]]
     end
   end
+
+  describe "chips back to the bag before the shop" do
+    alias Quacks.GameServer
+
+    test "the results keep the chips; closing them for the shop bags them" do
+      {:ok, id} = GameServer.start(1, {10, 11, 12})
+
+      {:ok, view, _html} =
+        live(init_test_session(build_conn(), player_token: "r35-bag"), ~p"/g/#{id}")
+
+      for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
+      view |> element("button", "Stop") |> render_click()
+
+      assert has_element?(view, "#pot-0-lg [data-role=pot-chip]")
+      refute has_element?(view, "#pot-0-lg[data-bagged]")
+
+      render_hook(view, "reveal_close", %{})
+      assert has_element?(view, "#pot-0-lg[data-bagged]")
+      refute has_element?(view, "#pot-0-lg [data-role=pot-chip]")
+      assert has_element?(view, "#decision-shop")
+    end
+
+    test "the hook flies the chips to the bag and the shop waits for them" do
+      js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
+      assert js =~ "toBag(gone)"
+      assert js =~ "bagUntil - performance.now()"
+    end
+  end
 end

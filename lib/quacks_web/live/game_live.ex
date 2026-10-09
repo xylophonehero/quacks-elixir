@@ -1179,6 +1179,7 @@ defmodule QuacksWeb.GameLive do
                 effects={replay_effects(@game, @seat, @seen, @reveal)}
                 droplet={tiles_playing?(@reveal) && @me && tile_totals(@game, @reveal)[@seat].droplet}
                 fx_key={if tiles_playing?(@reveal), do: "s#{@reveal.index}-", else: ""}
+                bagged={bagged?(assigns)}
               />
               <%!-- Round 31: the game's end lies over the pot: the score chart. --%>
               <QuacksWeb.FinalComponents.final_board
@@ -3653,6 +3654,14 @@ defmodule QuacksWeb.GameLive do
 
   # The round results show from the shop until the round ends (round 9 has no shop).
   defp results?(game), do: game.phase == :shopping
+
+  # Round 35: the round went to the shop (the results closed, this seat shops or is
+  # ready): the chips leave the pot for the bag.
+  defp bagged?(%{game: game, reveal: nil, me: %{phase: phase}, decision: decision} = assigns)
+       when phase in [:shop, :ready] and decision in [nil, :shop, :rubies],
+       do: results?(game) and not replaying?(game, assigns.seen)
+
+  defp bagged?(_assigns), do: false
 
   # The update chips of the round still play (this seat has not seen them).
   defp replaying?(game, seen), do: results?(game) and not seen?(seen, :results, game)
