@@ -78,8 +78,8 @@ defmodule QuacksWeb.GameLive do
   Hawkmoth); the rubies step comes after it and after the buy.
 
   Mandrake: the server answers "put the white chip back?" for a human seat at once
-  (`GameServer.keep_white/2`); a bar above the buttons offers "Keep the white chip
-  instead" until the next action of any seat. The rat tails of the round show under
+  (`GameServer.keep_white/2`); the white chip then hovers over the bag with a round
+  undo button that keeps it in the pot, until the next action of any seat. The rat tails of the round show under
   the players row while the round brews.
 
   With The Alchemists every seat first picks a patient (a dialog with 3 cards).
@@ -1324,6 +1324,28 @@ defmodule QuacksWeb.GameLive do
                 <.bowl chips={@game.players[@seat || 0].bowl} />
               </div>
               <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
+              <%!-- Mandrake: the white chip that went back hovers over the bag, with
+                   an undo button that keeps it in the pot (`keep_white`). --%>
+              <div
+                :if={white = keep_white?(@game, @seat, @bots) && returned_white(@game)}
+                class="absolute right-1.5 bottom-14 flex flex-col items-center gap-1"
+                data-role="mandrake-undo"
+              >
+                <button
+                  id="keep-white"
+                  type="button"
+                  phx-click="keep_white"
+                  class={[
+                    "paper grid size-11 touch-manipulation place-items-center rounded-full shadow-lg",
+                    "transition-transform duration-100 ease-out active:scale-90"
+                  ]}
+                  aria-label="Mandrake: the white chip went back in your bag. Keep it in the pot"
+                  title="Keep the white chip"
+                >
+                  <.icon name="hero-arrow-uturn-left" class="size-5" />
+                </button>
+                <span class="mandrake-bob"><.chip chip={white} /></span>
+              </div>
             </div>
           </div>
           <%!-- A landscape phone moves the tubes to the right column (app.css). --%>
@@ -1527,22 +1549,6 @@ defmodule QuacksWeb.GameLive do
              64rem it is the foot of the context column. --%>
         <footer class="game-bar" data-area="bar">
           <div class="game-tray">
-            <section
-              :if={keep_white?(@game, @seat, @bots)}
-              class="paper flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm shadow-lg"
-              aria-label="Mandrake"
-              data-role="mandrake-undo"
-            >
-              <span class="min-w-0 flex-1">Mandrake: the white chip went back in your bag.</span>
-              <.button
-                id="keep-white"
-                phx-click="keep_white"
-                variant={:secondary}
-                class="min-h-11 shrink-0"
-              >
-                Keep the white chip instead
-              </.button>
-            </section>
             <section
               :if={extra_actions(@actions) != []}
               class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation"
@@ -3867,6 +3873,9 @@ defmodule QuacksWeb.GameLive do
     do: match?([{^seat, {:returned, {:white, _}}}, {^seat, :return_white} | _], game.log)
 
   defp keep_white?(_game, _seat, _bots), do: false
+
+  # The white chip of the newest Mandrake answer (see `keep_white?/3`).
+  defp returned_white(%{log: [{_seat, {:returned, chip}} | _]}), do: chip
 
   # Why the waiting droplet moves came (reverse pot side): this seat's log events that
   # moved its droplet since its last droplet choice (or the round's start).

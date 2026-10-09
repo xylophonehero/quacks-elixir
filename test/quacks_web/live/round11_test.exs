@@ -212,7 +212,7 @@ defmodule QuacksWeb.Round11Test do
 
       assert has_element?(
                alice,
-               "[data-area=bar] .game-tray [data-role=mandrake-undo] #keep-white"
+               "[data-role=bag-button] ~ [data-role=mandrake-undo] #keep-white"
              )
 
       alice |> element("#keep-white") |> render_click()

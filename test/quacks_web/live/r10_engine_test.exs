@@ -88,7 +88,7 @@ defmodule QuacksWeb.R10EngineTest do
 
       alice |> element("button[data-slot=draw]") |> render_click()
       refute has_element?(alice, "#decision-yellow_choice")
-      assert has_element?(alice, "[data-role=mandrake-undo]", "went back in your bag")
+      assert has_element?(alice, "[data-role=mandrake-undo] #keep-white")
       refute has_element?(bob, "#keep-white")
 
       alice |> element("#keep-white") |> render_click()

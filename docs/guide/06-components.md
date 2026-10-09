@@ -276,8 +276,13 @@ fixed:
   element at the end of a `space-y-*` block still gets a margin on its neighbour, so
   the replay marker `<i id="replay-start-N">` is the first child of its block.
 - Phones: the bar has a fixed height (`.game-bar`, `--bar-h`). Its rare extras
-  (Mandrake, Ear worm, the patient's chips, the bonus die) are in `.game-tray`, which
+  (Ear worm, the patient's chips, the bonus die) are in `.game-tray`, which
   is `position: absolute; bottom: 100%`: it floats over the pot's lower band.
+- Mandrake (round 32): the white chip that went back floats over the bag
+  (`[data-role=mandrake-undo]`, `absolute` in the pot square, so no layout shift),
+  with a round undo button (`#keep-white`, `keep_white`) above it. The chip bobs
+  (`.mandrake-bob`, 4 px, 1.6 s); reduced motion: no bob. Drawing on keeps the
+  server's answer (the chip stays in the bag).
 - From 64rem the pot spans the bar's row too ("pot context" / "pot bar"). A taller
   bar takes room from the context column, never from the pot. Grid sizes an `auto`
   row only from the items that do not span a flexible row, so the pot does not
