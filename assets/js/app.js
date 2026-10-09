@@ -409,6 +409,14 @@ window.addEventListener("phx:quacks:reload", () => {
 // The b hotkey (`hotkey` in game_live.ex): the server asks to toggle a popover sheet.
 window.addEventListener("phx:quacks:toggle", e => document.getElementById(e.detail.id)?.togglePopover())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
+// Round 35: an opened block (the shop's book text) scrolls its sheet only as far
+// as needed to show all of it, once its 150 ms "in" transition has shown it (a
+// scroll during the transition stops short). Hidden again (closed): nothing.
+window.addEventListener("quacks:reveal", ({target}) => setTimeout(() => {
+  if (target.checkVisibility ? !target.checkVisibility() : target.offsetParent === null) return
+  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches
+  target.scrollIntoView({block: "nearest", behavior: smooth ? "smooth" : "auto"})
+}, 160))
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
 // Share the result (round 22) or the game's link (round 29, with a title): the
 // phone's share sheet, else copy text and link.

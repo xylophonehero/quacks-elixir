@@ -2034,7 +2034,8 @@ defmodule QuacksWeb.GameLive do
               <span class="text-tag text-ink-soft">
                 {elem(hd(row), 0)} · book {roman(Chips.set(@game.expansion, @sets, elem(hd(row), 0)))}
               </span>
-              <%!-- The book's text opens in place, under the row (not another sheet). --%>
+              <%!-- The book's text opens in place, under the row (not another sheet).
+                   Round 35: the sheet scrolls so all of it shows (`quacks:reveal`). --%>
               <button
                 type="button"
                 class="-my-2 ml-auto inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-soft transition-[color,scale] duration-150 ease-out hit-44 hover:text-ink active:scale-90 aria-expanded:text-ink"
@@ -2049,6 +2050,7 @@ defmodule QuacksWeb.GameLive do
                     out: {"transition-opacity duration-100 ease-out", "opacity-100", "opacity-0"}
                   )
                   |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+                  |> JS.dispatch("quacks:reveal", to: "#shop-book-#{i}")
                 }
                 data-role="book-info"
               >

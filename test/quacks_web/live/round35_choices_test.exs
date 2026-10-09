@@ -56,4 +56,16 @@ defmodule QuacksWeb.Round35ChoicesTest do
       refute has_element?(view, "[data-role=beside-pot].-space-x-1\\.5")
     end
   end
+
+  describe "item 3: the shop's book text scrolls into view" do
+    test "the info button asks the sheet to show the opened text" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, phase: :shop, coins: 10))
+
+      assert has_element?(
+               view,
+               "#decision-shop [data-role=book-info][phx-click*='quacks:reveal'][phx-click*='#shop-book-0']"
+             )
+    end
+  end
 end
