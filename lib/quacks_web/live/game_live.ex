@@ -929,8 +929,20 @@ defmodule QuacksWeb.GameLive do
             <.colour_picker :if={seat == @seat} colours={@colours} seat={seat} />
           </li>
         </ol>
-        <div :if={!@full} class="space-y-1 text-sm">
-          <span class="font-semibold">Share this link to invite players</span>
+        <%!-- Round 29: Share (the phone's share sheet) is the main button; where the
+             browser has no share sheet, Copy link stands in (app.css `.share-only`).
+             The room code is large, to read aloud. --%>
+        <div :if={!@full} id="invite" class="space-y-2 text-sm" data-role="invite">
+          <div class="text-center">
+            <span class="block text-xs font-semibold text-ink-soft">Room code</span>
+            <span
+              class="block font-hand text-4xl leading-tight font-bold tracking-[0.3em] text-ink"
+              data-role="room-code"
+              aria-label={"Room code " <> Enum.join(String.graphemes(@id), " ")}
+            >
+              {@id}
+            </span>
+          </div>
           <div class="flex gap-2">
             <input
               type="text"
@@ -940,7 +952,24 @@ defmodule QuacksWeb.GameLive do
               data-role="share-link"
               class="min-w-0 flex-1 rounded-md border border-ink-soft bg-parchment-light px-2 py-2 font-mono text-sm text-ink"
             />
-            <.copy_link url={url(~p"/g/#{@id}")} copied={@copied} />
+            <.button
+              id="share-game"
+              phx-click={
+                JS.dispatch("quacks:share",
+                  detail: %{
+                    title: "Quacks",
+                    text: "Join my Quacks game. Room code: #{@id}",
+                    url: url(~p"/g/#{@id}")
+                  }
+                )
+              }
+              variant={:primary}
+              class="share-only hit-44"
+              data-role="share-game"
+            >
+              <.icon name="hero-share" class="size-4" /> Share
+            </.button>
+            <.copy_link url={url(~p"/g/#{@id}")} copied={@copied} class="share-fallback" />
           </div>
         </div>
         <.patient_picker
@@ -1816,16 +1845,6 @@ defmodule QuacksWeb.GameLive do
           </p>
           <.books sets={@game.sets} />
           <.house_rules rules={@game.rules} />
-          <%!-- Why the browser offers no Install (round 14): app.js fills the line. --%>
-          <p
-            id="app-status"
-            class="font-mono text-xs text-ink-soft"
-            phx-hook="AppStatus"
-            phx-update="ignore"
-            data-role="app-status"
-          >
-            App: worker: … · display: … · install prompt: …
-          </p>
           <.scrubber :if={@debug} debug={@debug} />
         </div>
       </.sheet>
@@ -1960,13 +1979,14 @@ defmodule QuacksWeb.GameLive do
   """
   attr :url, :string, required: true
   attr :copied, :boolean, default: false
+  attr :class, :any, default: nil
 
   def copy_link(assigns) do
     ~H"""
     <.button
       phx-click={JS.dispatch("quacks:copy", detail: %{text: @url}) |> JS.push("copied")}
       variant={:secondary}
-      class="hit-44"
+      class={["hit-44", @class]}
       data-role="copy-link"
     >
       <.icon name={if @copied, do: "hero-check", else: "hero-link"} class="size-4" />

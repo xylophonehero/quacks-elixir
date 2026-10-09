@@ -272,7 +272,7 @@ defmodule QuacksWeb.Polish2Test do
       for input <- ~w(expansion alchemists rules-pot_side) do
         assert has_element?(
                  host,
-                 "[data-role=toggle-card] input##{input}.switch[type=checkbox]"
+                 "[data-role=expansion-row] input##{input}.switch[type=checkbox]"
                )
       end
 

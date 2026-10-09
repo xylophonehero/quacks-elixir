@@ -12,39 +12,23 @@ defmodule QuacksWeb.Round21Test do
     %{conn: init_test_session(conn, player_token: "r21-#{System.unique_integer()}")}
   end
 
-  test "the expansions are a list below 64rem and three cards from 64rem", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/?step=expansions")
+  test "the expansions are a list of rows (round 29: on New game)", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/?step=players")
 
-    # One column (a list) on phones; three columns only from `lg`.
-    assert has_element?(
-             view,
-             "#page-expansions [data-role=expansion-cards][class~='lg:grid-cols-3']"
-           )
-
-    refute has_element?(
-             view,
-             "#page-expansions [data-role=expansion-cards][class~='grid-cols-3']"
-           )
-
-    # A row: icon, title and blurb, the switch on the right.
-    assert has_element?(
-             view,
-             "#page-expansions [data-role=toggle-card][class~='max-lg:grid-cols-[auto_1fr_auto]']"
-           )
+    # A row: icon, title and line, Customise, the switch on the right.
+    assert has_element?(view, "#page-players [data-role=expansion-cards].grid")
+    assert has_element?(view, "#page-players #row-expansion[data-role=expansion-row]")
 
     ids =
       view
-      |> element("#page-expansions [data-role=expansion-cards]")
+      |> element("#page-players [data-role=expansion-cards]")
       |> render()
       |> LazyHTML.from_fragment()
       |> LazyHTML.query("input[type=checkbox]")
       |> LazyHTML.attribute("id")
 
     assert ids == ~w(expansion alchemists rules-pot_side)
-
-    # Round 23: Ingredient books is a row on the New game page; round 25: House
-    # rules is a row on the Expansions page.
-    assert has_element?(view, "#page-expansions #to-rules.page-link")
+    assert has_element?(view, "#page-players #to-rules.page-link")
     assert has_element?(view, "#page-players #to-books.page-link")
   end
 

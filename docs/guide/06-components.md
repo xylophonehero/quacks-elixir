@@ -183,11 +183,10 @@ closes the dialog in one chain:
 state: `ConfigMemory` (`assets/js/app.js:43-53`) keeps the host's last settings in
 `localStorage` (round 14: also the herb witch picks; round 27: the config carries
 `v: 27`, and an older one drops its `black_rule`, see `SetupComponents.saved_rules/1`), `NameMemory` keeps your name,
-`RevealSettings` keeps the reveal settings, `AppStatus` writes the menu's "App"
-line, and `PotMotion` animates the pot (see "Motion" below).
+`RevealSettings` keeps the reveal settings and `PotMotion` animates the pot (see "Motion" below).
 
 **The witch pickers (round 14).** With The Herb Witches on, the spell book's
-books form shows a tile per penny colour (copper, silver, gold). A tap opens the
+witches page (round 29: `witch_links/1`, the Herb Witches row's Customise) shows a tile per penny colour (copper, silver, gold). A tap opens the
 colour's page with "Random" and its four cards as radio cards
 (`witches[colour]`), the same pattern as the book pages. `parse_witches/1`
 (`lib/quacks_web/components/setup_components.ex:273`) turns the form into
@@ -197,11 +196,9 @@ picked colours (`pick_witches/2`, `lib/quacks/game.ex:399`), so the random strea
 stays the same. The witches sheet in the game has a title row now, so its × no
 longer squeezes the first card.
 
-**The App line (round 14).** The menu ends with
-`App: worker: active · display: browser · install prompt: fired`. `AppStatus`
-reads `navigator.serviceWorker.getRegistration()`, `matchMedia("(display-mode:
-standalone)")` and whether `beforeinstallprompt` fired. On a phone with no Install
-button it shows which of Chrome's rules fails.
+**The App line (round 14; removed in round 29).** The menu ended with a debug
+line on the service worker, the display mode and the install prompt. Nick asked
+for a quieter menu, so the line and its `AppStatus` hook are gone; the seed stays.
 
 ## Layout: one dialog, every screen size
 
@@ -591,8 +588,8 @@ sections carry `.book-page-left` or `.book-page-right` for the open book's grid.
 A page that appears after a step turns in once (`page-turn`, only with
 `data-turned`, so the first paint never animates). There are no bookmarks.
 
-The pages split the forms: the expansion cards (Expansions page) belong to
-`#books`, the pot-side card to `#options`, and each colour page's radio cards
+The pages split the forms: the expansion switches (New game's rows) belong to
+`#books`, the pot-side switch to `#options`, and each colour page's radio cards
 (`SetupComponents.book_options/1`, `witch_options/1`) to `#books`. Each input
 names its form (`form="books"`), so the browser sends it with that form's change
 and LiveView's `phx-change` sees it. `books_form/1` takes `patch` (a function from
@@ -623,6 +620,27 @@ with an ellipsis and Back + Start keep the bar's width (before, the grid's `auto
 column took the summary's full width and pushed Start off the right edge).
 `.page-link` has `min-width: 0` for the same reason, and the colour swatches
 shrink (`flex-1 max-w-8`) so 8 fit.
+
+**Round 29: one main page.** New game holds every setting as a row: the
+expansions (`SetupComponents.expansion_row/1`: icon, title, a line on the current
+choice, `customise_button/1`, the switch), then Ingredient books and House rules
+(`page_link/1` with a Customise pill), then Public. Customise is dim and not
+tappable while its expansion is off. A gold dot (`.changed-dot`) on Customise
+marks a change from the default: a witch picked, a patient picked, books that are
+not the Beginner preset, a house rule changed (the pot side has its own row, so
+`rules_summary/1` does not count it). Every other page (witches, patients, books,
+rules) is a child of New game; a witch page is a child of witches, a book page of
+books. From 64rem the right page next to New game is Ingredient books. The
+Alchemists' patients page keeps only "Your patient": the rulebook draws 3 patients
+from the bag at random, so the game has no "available patients" filter. Start and
+New game (`.start-button`, `.flow-button`) are the gold primary of Draw and Next.
+
+**Round 29: Share.** The waiting panel shows the room code large (Kalam,
+letter-spaced, to read aloud) and a **Share** button (`#share-game`, primary) that
+dispatches `quacks:share` with `{title, text, url}`; app.js calls
+`navigator.share`. app.js sets `data-share` on `<html>` when the browser has a
+share sheet; app.css hides Share without it (`.share-only`) and then shows Copy
+link as the gold main button (`.share-fallback`).
 
 Every page of the flow ends in one bar, `flow_bar/1` (`#flow-bar`): the setup in a
 line ("3 players · 2 bots · Herb Witches · private") and whether Start opens the

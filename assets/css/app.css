@@ -2127,8 +2127,9 @@ body {
   }
 }
 
-/* Start, New game, Next: ink on parchment, in the display font, a gold hairline
-   inside like a printed frame. */
+/* Start and New game: the gold primary of Draw, Next and Play again (round 29,
+   `button/1`'s `:primary`: gold, ink text, a soft shadow), in the display font.
+   Back stays the parchment secondary. */
 .start-button,
 .flow-button {
   display: flex;
@@ -2144,12 +2145,11 @@ body {
   font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  color: var(--color-parchment-light);
-  background: linear-gradient(#4a3a22, var(--color-ink) 60%, #2a2010);
+  color: var(--color-ink);
+  background: var(--color-gold);
   box-shadow:
-    inset 0 0 0 3px var(--color-ink),
-    inset 0 0 0 4px rgb(224 178 60 / 0.55),
-    0 3px 8px rgb(58 46 26 / 0.35);
+    0 4px 6px -1px rgb(0 0 0 / 0.25),
+    0 2px 4px -2px rgb(0 0 0 / 0.25);
   transition:
     scale 150ms var(--ease-out),
     filter 150ms ease;
@@ -2160,7 +2160,7 @@ body {
 }
 .start-button:hover,
 .flow-button:hover {
-  filter: brightness(1.18);
+  filter: brightness(1.1);
 }
 .start-button:active,
 .flow-button:active {
@@ -2191,6 +2191,47 @@ body {
 }
 .page-link:active {
   scale: 0.98;
+}
+
+/* Round 29: a New game row's Customise button, a small parchment pill; off (dim,
+   not tappable) while its expansion is off. The dot marks a changed setting. */
+.customise-button {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-parchment);
+  box-shadow: inset 0 0 0 1px rgb(58 46 26 / 0.35);
+  transition:
+    scale 150ms var(--ease-out),
+    background-color 150ms ease,
+    opacity 150ms ease;
+}
+.customise-button:hover {
+  background: #fff8e2;
+}
+.customise-button:active {
+  scale: 0.96;
+}
+.customise-button[aria-disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.changed-dot {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--color-gold);
+  box-shadow: 0 0 0 1.5px var(--color-ink);
 }
 
 /* A preset in the Ingredient books page's row. */
@@ -2298,6 +2339,7 @@ body {
   .flow-button,
   .flow-back,
   .page-link,
+  .customise-button,
   .preset-card {
     transition: none;
   }
@@ -2806,3 +2848,17 @@ html:active-view-transition-type(card) .card-caption {
   .player-tile.tile-boom { animation: none; }
 }
 @keyframes tile-news-fade-in { from { opacity: 0; } }
+
+/* Round 29: the waiting panel's Share shows only where the browser has a share
+   sheet (app.js sets `data-share` on <html>); else Copy link is the main button,
+   in the gold primary style. */
+html:not([data-share]) .share-only {
+  display: none;
+}
+html[data-share] .share-fallback {
+  display: none;
+}
+html:not([data-share]) .share-fallback {
+  background: var(--color-gold);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.25);
+}
