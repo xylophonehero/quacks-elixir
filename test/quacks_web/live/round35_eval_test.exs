@@ -207,6 +207,28 @@ defmodule QuacksWeb.Round35EvalTest do
     end
   end
 
+  describe "item 3: Auto is the default" do
+    # The setting lives in this browser (`RevealSettings` in app.js): with nothing
+    # saved it sends Auto; Step stays in the settings.
+    test "app.js sends Auto when nothing is saved" do
+      js = File.read!("assets/js/app.js")
+      assert js =~ ~S{saved.mode || "auto"}
+      assert js =~ ~S{form.get("mode") || "auto"}
+    end
+
+    test "Auto plays the die step, then moves on by itself" do
+      {_id, game, view} = duo()
+      tiles(view, "auto")
+      [first, second | _] = game |> Reveal.slides(0) |> TileReveal.slides()
+      assert has_element?(view, "#results-stage[data-kind=#{first.kind}]")
+      refute has_element?(view, "[data-role=tile-next]")
+
+      %{reveal: %{tick: ref}} = :sys.get_state(view.pid).socket.assigns
+      send(view.pid, {:reveal_tick, ref})
+      assert has_element?(view, "#results-stage[data-kind=#{second.kind}]")
+    end
+  end
+
   describe "item 8: a chip as a result" do
     test "a chip with no value has its icon in the centre and no badge" do
       html = render_component(&QuacksWeb.GameComponents.chip/1, chip: {:green, nil}, size: :sm)

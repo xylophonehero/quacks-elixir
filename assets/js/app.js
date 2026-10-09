@@ -90,11 +90,11 @@ const RevealSettings = {
     }
     const current = () => {
       const saved = loadReveal()
-      return {mode: saved.mode || "step", speed: saved.speed || "normal", show: saved.show || "overlay"}
+      return {mode: saved.mode || "auto", speed: saved.speed || "normal", show: saved.show || "overlay"}
     }
     this.el.addEventListener("change", () => {
       const form = new FormData(this.el)
-      const settings = {mode: form.get("mode") || "step", speed: form.get("speed") || "normal", show: form.get("show") || current().show}
+      const settings = {mode: form.get("mode") || "auto", speed: form.get("speed") || "normal", show: form.get("show") || current().show}
       try {
         localStorage.setItem("quacks:reveal", JSON.stringify(settings))
         localStorage.setItem("quacks:risk", form.get("risk") || "percent")
