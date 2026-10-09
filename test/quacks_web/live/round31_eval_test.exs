@@ -9,6 +9,7 @@ defmodule QuacksWeb.Round31EvalTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
+  alias Quacks.Game.Potions
   alias QuacksWeb.{Reveal, TileReveal}
 
   defp browser(token), do: init_test_session(build_conn(), player_token: token)
@@ -152,7 +153,7 @@ defmodule QuacksWeb.Round31EvalTest do
     test "while brewing a tile shows the black count and the white sum against the limit" do
       game = brewing(8)
       white = Game.white_sum(game, 1)
-      limit = Quacks.Game.Potions.explode_above(game, 1)
+      limit = Potions.explode_above(game, 1)
       html = tile(game)
 
       assert text(html, "[data-role=tile-white]") =~ "#{white}/#{limit}"
@@ -170,7 +171,7 @@ defmodule QuacksWeb.Round31EvalTest do
 
     test "the white sum turns amber one point before the limit and red at it" do
       game = brewing(2)
-      limit = Quacks.Game.Potions.explode_above(game, 1)
+      limit = Potions.explode_above(game, 1)
 
       level = fn white ->
         drawn = [{{:white, white}, 1}]
