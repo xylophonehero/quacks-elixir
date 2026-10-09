@@ -1,6 +1,6 @@
 defmodule QuacksWeb.Round34Test do
   @moduledoc """
-  Round 34 fixes: sticky sheet headers.
+  Round 34 fixes: sticky sheet headers, rat tails on the second lap of the track.
   """
   use QuacksWeb.ConnCase, async: true
 
@@ -41,6 +41,18 @@ defmodule QuacksWeb.Round34Test do
       assert css =~ ~r/\.sheet \.sheet-head \{\s*position: sticky;/
       assert css =~ ~r/\.sheet \.sheet-close \{\s*position: sticky;/
       assert css =~ ~r/\.book-heading \{\s*position: sticky;/
+    end
+  end
+
+  describe "rat tails after 50" do
+    test "the rat track counts the tails on the second lap" do
+      # Nick's round-scored screen: 51 / 39 / 68. 51..67: tails after 51, 54, 57,
+      # 60, 62, 64, 66 (7); 39..50: 40..48 (5) more, 12 rats, 13 steps.
+      view = trio([51, 39, 68])
+      assert has_element?(view, "#rat-track[data-steps='13']")
+      assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='2'][data-step='0']")
+      assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='0'][data-step='7']")
+      assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='1'][data-step='12']")
     end
   end
 end

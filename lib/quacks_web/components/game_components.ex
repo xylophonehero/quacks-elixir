@@ -842,7 +842,7 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   The rat track (round 16; equal steps since round 22): a slim strip between the
   name cards and the pot. Not to scale: one step per rat tail
-  (`ScoringTrack.tails/0`) between the last player and the leader, the leader on
+  (`ScoringTrack.tails_between/2`, on every lap) between the last player and the leader, the leader on
   the left. Every seat's dot sits in the step of its rats
   (`ScoringTrack.rat_tails/2`: the leader's step has none, each tail to the right
   adds one); seats in one step stack. Under each rat tail its VP. Since round 28
@@ -865,7 +865,7 @@ defmodule QuacksWeb.GameComponents do
     {low, leader} = vps |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
 
     # The tails from the leader's side: a seat behind tail `t` (VP <= t) gets its rat.
-    tails = for t <- Enum.reverse(ScoringTrack.tails()), low <= t and t < leader, do: t
+    tails = low |> ScoringTrack.tails_between(leader) |> Enum.reverse()
     steps = length(tails) + 1
 
     dots =
