@@ -42,7 +42,8 @@ defmodule QuacksWeb.RevealTest do
     game = Game.new(seed: {1, 2, 3})
     assert Reveal.moment(game) == {:card, 1}
     assert Reveal.moment(%{game | phase: :shopping}) == {:results, 1}
-    assert Reveal.moment(%{game | phase: :over, round: 9}) == {:final, 9}
+    # Round 31: the end is the score chart over the pot, no moment.
+    assert Reveal.moment(%{game | phase: :over, round: 9}) == nil
     assert Reveal.moment(Game.new(seed: {1, 2, 3}, rules: %{fortune: false})) == nil
   end
 
@@ -182,7 +183,7 @@ defmodule QuacksWeb.RevealTest do
     refute Enum.any?(slides, &(&1.kind == :standings))
   end
 
-  test "round 29: the end of the game is one final tally, then the podium" do
+  test "round 31: the final rows for the score chart, in final order" do
     game = Game.new(seed: {1, 2, 3}, players: 2)
     game = put_in(game.players[0].vp, 40)
     game = put_in(game.players[1].vp, 44)
@@ -196,18 +197,15 @@ defmodule QuacksWeb.RevealTest do
 
     game = %{game | log: log, phase: :over, round: 9}
 
-    assert [%{kind: :tally, rows: rows}, %{kind: :podium, ranked: ranked}] =
-             Reveal.slides(game, 0)
-
-    assert ranked == [{1, 44, 1}, {0, 40, 2}]
+    assert Reveal.slides(game, 0) == []
 
     # The rows start at the round-9 totals and end on the final ones, with the
     # parts that took them there (a part that gave nothing and counted nothing:
     # no part).
     assert [
-             %{seat: 0, from_vp: 40, vp: 40, from_rank: 0, rank: 1, parts: parts0},
-             %{seat: 1, from_vp: 40, vp: 44, from_rank: 1, rank: 0, parts: parts1}
-           ] = rows
+             %{seat: 1, from_vp: 40, vp: 44, place: 1, parts: parts1},
+             %{seat: 0, from_vp: 40, vp: 40, place: 2, parts: parts0}
+           ] = Reveal.final_rows(game)
 
     assert parts0 == [{:coins, 4, 0}, {:rubies, 1, 0}]
     assert parts1 == [{:coins, 7, 1}, {:rubies, 3, 1}, {:pennies, nil, 2}]

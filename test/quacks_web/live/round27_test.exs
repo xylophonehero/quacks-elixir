@@ -120,7 +120,8 @@ defmodule QuacksWeb.Round27Test do
       assert count(html, ~s([data-role=player-space][data-index="21"])) == 1
       assert text(html, "[data-role=player-vp]") =~ "14"
       assert text(html, "[data-role=player-rubies]") =~ "3"
-      assert text(html, "[data-role=player-black]") =~ "2"
+      # Round 31: while brewing the black count sits on the line's right end.
+      assert text(html, "[data-role=tile-black]") =~ "2"
       assert count(html, "[data-role=seat-disc].bg-player-1") == 1
     end
 

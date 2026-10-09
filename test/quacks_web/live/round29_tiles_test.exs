@@ -83,7 +83,8 @@ defmodule QuacksWeb.Round29TilesTest do
       assert Enum.map(items, &elem(&1, 1)) == expected
     end
 
-    test "news/3 with eight players (four columns): the last three draws" do
+    # Round 31: two draws, the line's right end holds the black and white counts.
+    test "news/3 with eight players (four columns): the last two draws" do
       g =
         Enum.reduce(1..4, Game.new(seed: {1, 2, 3}, players: 8), fn _, g ->
           {:ok, g} = Game.apply(g, 1, :draw)
@@ -91,7 +92,7 @@ defmodule QuacksWeb.Round29TilesTest do
         end)
 
       assert %{items: items} = TileReveal.news(g, 1, nil)
-      assert Enum.map(items, &elem(&1, 2)) == [0, 1, 2]
+      assert Enum.map(items, &elem(&1, 2)) == [0, 1]
     end
 
     test "an exploded tile gets the boom class (red stripes and the shake)" do

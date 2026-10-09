@@ -31,9 +31,30 @@ defmodule QuacksWeb.TileReveal do
           | {:chip, atom}
           | {:book, atom}
 
-  @doc "The overlay's slides that the tiles play (the scoring steps)."
+  @doc """
+  The overlay's slides that the tiles play (the scoring steps). Round 31: one
+  update per step, so the scoring space plays as up to three steps (`part`): its
+  coins, its VP, its rubies. A part nobody gets has no step.
+  """
   @spec slides([Reveal.slide()]) :: [Reveal.slide()]
-  def slides(slides), do: Enum.filter(slides, &(&1.kind in @kinds))
+  def slides(slides),
+    do: slides |> Enum.filter(&(&1.kind in @kinds)) |> Enum.flat_map(&split/1)
+
+  defp split(%{kind: :space, rows: rows} = slide) do
+    [
+      part(slide, :coins, rows, &(&1.coins > 0), fn _row -> {0, 0} end),
+      part(slide, :vp, rows, &(&1.vp > 0), &{&1.vp, 0}),
+      part(slide, :rubies, rows, &(&1.rubies > 0), &{0, &1.rubies})
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp split(slide), do: [slide]
+
+  defp part(slide, part, rows, pick, gain) do
+    if Enum.any?(rows, pick),
+      do: Map.merge(slide, %{part: part, gains: Map.new(rows, &{&1.seat, gain.(&1)})})
+  end
 
   @doc "How long a step stays on the tiles in Auto mode, in ms, at `speed`."
   @spec duration(atom) :: pos_integer
@@ -45,6 +66,9 @@ defmodule QuacksWeb.TileReveal do
   @spec label(Reveal.slide()) :: String.t()
   def label(%{kind: :die}), do: "Bonus die"
   def label(%{kind: :book, book: colour}), do: "#{String.capitalize(to_string(colour))} book"
+  def label(%{kind: :space, part: :coins}), do: "Coins"
+  def label(%{kind: :space, part: :vp}), do: "Victory points"
+  def label(%{kind: :space, part: :rubies}), do: "Rubies"
   def label(%{kind: :space}), do: "Scoring space"
 
   @doc """
@@ -66,14 +90,50 @@ defmodule QuacksWeb.TileReveal do
     end
   end
 
-  def badges(%{kind: :space, rows: rows}, seat) do
+  def badges(%{kind: :space, rows: rows} = slide, seat) do
     case Enum.find(rows, &(&1.seat == seat)) do
       nil -> []
-      row -> row |> Map.put(:droplet, 0) |> rewards()
+      row -> space_badges(slide[:part], row)
     end
   end
 
   def badges(_slide, _seat), do: []
+
+  defp space_badges(:coins, %{coins: n}) when n > 0, do: [{:coins, n}]
+  defp space_badges(:vp, %{vp: n}) when n > 0, do: [{:vp, n}]
+  defp space_badges(:rubies, %{rubies: n}) when n > 0, do: [{:rubies, n}]
+  defp space_badges(nil, row), do: row |> Map.put(:droplet, 0) |> rewards()
+  defp space_badges(_part, _row), do: []
+
+  @doc """
+  Round 31: the replay lines of `seat` (`Replay.beats/2`) that the step `slide`
+  shows, renumbered from beat 0, so the pot plays this step's update only (its
+  rubies fly, its VP floats, its marks light up) when the step comes. The coins
+  step has no line: the pot lights its scoring space (`marks/3`).
+  """
+  @spec step_lines(Game.t(), Game.seat(), Reveal.slide() | nil) :: [Replay.line()]
+  def step_lines(game, seat, slide) do
+    lines = game |> Replay.beats(seat) |> Enum.filter(&step_line?(slide, &1))
+    first = lines |> Enum.map(& &1.beat) |> Enum.min(fn -> 0 end)
+    Enum.map(lines, &%{&1 | beat: &1.beat - first})
+  end
+
+  defp step_line?(%{kind: :die}, line), do: line.kind == :die
+  defp step_line?(%{kind: :book, book: colour}, line), do: Reveal.book_line?(line, colour)
+  defp step_line?(%{kind: :space, part: :vp}, line), do: line.kind == :space and line.vp > 0
+
+  defp step_line?(%{kind: :space, part: :rubies}, line),
+    do: line.kind == :space and line.rubies > 0
+
+  defp step_line?(_slide, _line), do: false
+
+  @doc """
+  The pot marks the step lights up (`Replay.highlights/1` of `step_lines/3`); the
+  coins step lights the scoring space.
+  """
+  @spec marks(Game.t(), Game.seat(), Reveal.slide() | nil) :: %{Replay.mark() => integer}
+  def marks(_game, _seat, %{kind: :space, part: :coins}), do: %{ring: 0}
+  def marks(game, seat, slide), do: game |> step_lines(seat, slide) |> Replay.highlights()
 
   defp rewards(row) do
     for {kind, n} <- [vp: row.vp, rubies: row.rubies, droplet: row.droplet], n > 0, do: {kind, n}
@@ -94,7 +154,7 @@ defmodule QuacksWeb.TileReveal do
       end)
 
     slides
-    |> Enum.take(index + 1)
+    |> Enum.take(max(index + 1, 0))
     |> Enum.flat_map(&Map.to_list(Map.get(&1, :gains, %{})))
     |> Enum.reduce(base, fn {s, {vp, rubies}}, acc ->
       Map.update(acc, s, {vp, rubies}, fn {v, r} -> {v + vp, r + rubies} end)
@@ -138,13 +198,16 @@ defmodule QuacksWeb.TileReveal do
   step's badges (`badges/2`). Else the chips the seat bought and its droplet
   pushes (`shop/2`: in the shop, or the last shop as the next round begins). `key` changes with every new piece of news, so the
   line plays its swap again. Round 29 (B2): while the round brews, the seat's
-  last draws (`{:drew, chip, age}`, newest first), with `hold: true` (the line stays on the news).
+  last draws (`{:drew, chip, age, id}`, newest first), with `hold: true` (the line stays on the news).
   """
   @spec news(Game.t(), Game.seat(), map | nil) ::
           %{required(:key) => String.t(), required(:items) => [term], optional(:hold) => true}
           | nil
+  # Round 31: the news of the step Next scored last (`index` names the next one).
+  def news(_game, _seat, %{tiles: true, index: 0}), do: nil
+
   def news(game, seat, %{tiles: true, slides: slides, index: index}) do
-    slide = Enum.at(slides, index)
+    slide = Enum.at(slides, index - 1)
     items = step_news(slide, seat)
     if items != [], do: %{key: "#{game.round}-#{index}", items: items}
   end
@@ -159,10 +222,12 @@ defmodule QuacksWeb.TileReveal do
   def news(game, seat, _reveal), do: shop_news(game, seat)
 
   # How many draws fit on a tile's line at 360 px, by the players row's columns
-  # (`GameComponents.loop_columns/1`): four columns 3, three 4, two 7, one 8.
+  # (`GameComponents.loop_columns/1`): four columns 2, three 4, two 7, one 8.
+  # Round 31: the line's right end holds the black count and the white sum, and
+  # the draws overlap a little (`TileRevealComponents`).
   defp tile_draws(seats) do
     case QuacksWeb.GameComponents.loop_columns(length(seats)) do
-      4 -> 3
+      4 -> 2
       3 -> 4
       2 -> 7
       _ -> 8
@@ -182,9 +247,20 @@ defmodule QuacksWeb.TileReveal do
           drawn
           |> Enum.take(tile_draws(game.seats))
           |> Enum.with_index()
-          |> Enum.map(fn {{chip, _space}, i} -> {:drew, chip, i} end)
+          |> Enum.map(fn {{chip, _space}, i} ->
+            {:drew, chip, i, "#{seat}-#{game.round}-#{length(drawn)}-#{i}"}
+          end)
 
-        %{key: "#{game.round}-draw-#{length(drawn)}", items: items, hold: true}
+        # Round 31 (item 5): `line` keeps the line's id for the whole brewing, so
+        # a draw does not play the line's entrance again; each chip's id carries
+        # the draw count, so the chips enter again: the new one pops in at the
+        # left, the older ones slide one place right (app.css `.tile-draw`).
+        %{
+          key: "#{game.round}-draw-#{length(drawn)}",
+          line: "#{game.round}-draw",
+          items: items,
+          hold: true
+        }
     end
   end
 

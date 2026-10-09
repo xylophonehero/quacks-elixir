@@ -1738,61 +1738,6 @@ body {
   text-decoration: line-through;
 }
 
-/* Round 29 (F3): the game-over actions stick to the sheet's bottom edge. Only
-   while they cover content (`scroll-state(stuck)`) do they get a parchment
-   backing, so on a short page they sit on the paper itself. */
-.sticky-actions {
-  container-type: scroll-state;
-}
-
-@container scroll-state(stuck: bottom) {
-  .sticky-actions-bar {
-    margin-inline: -1rem;
-    padding: 0.75rem 1rem 0.25rem;
-    background: var(--color-parchment);
-    box-shadow: 0 -6px 12px -6px rgb(60 40 10 / 0.35);
-  }
-}
-
-/* Game over: the podium rises place by place (`--beat`: last place 0, the winner
-   last), then a gold shimmer crosses the title once. */
-.podium-step {
-  animation: podium-rise 420ms var(--ease-out) both;
-  animation-delay: calc(200ms + var(--beat) * 260ms);
-}
-
-.podium-step .podium-block {
-  transform-origin: bottom;
-  animation: podium-grow 420ms var(--ease-out) both;
-  animation-delay: inherit;
-}
-
-@keyframes podium-rise {
-  from {
-    opacity: 0;
-    translate: 0 16px;
-  }
-}
-
-@keyframes podium-grow {
-  from {
-    scale: 1 0.4;
-  }
-}
-
-.podium-win .podium-crown {
-  animation: crown-in 360ms var(--ease-out) both;
-  animation-delay: calc(400ms + var(--beat) * 260ms);
-}
-
-@keyframes crown-in {
-  from {
-    opacity: 0;
-    translate: 0 -10px;
-    scale: 0.85;
-  }
-}
-
 .win-shimmer {
   position: relative;
   overflow: hidden;
@@ -1920,12 +1865,6 @@ body {
   .switch::after,
   .segment {
     transition: none;
-  }
-
-  .podium-step,
-  .podium-step .podium-block,
-  .podium-win .podium-crown {
-    animation: fade-in 200ms ease both;
   }
 
   .win-shimmer::after,
@@ -2559,47 +2498,6 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   .reveal-sheet .standings {
     --row-h: 2.125rem;
   }
-
-  .reveal-sheet .standings.tally {
-    --row-h: 2.75rem;
-  }
-
-  /* The game-over screen: a lower podium, the actions side by side. */
-  .reveal-sheet [data-role="game-over"] {
-    margin-block: 0;
-  }
-
-  .reveal-sheet [data-role="game-over"] > :not(:last-child) {
-    margin-bottom: 0.5rem;
-  }
-
-  .reveal-sheet [data-role="game-over"] .podium-block.h-16 {
-    height: 2.5rem;
-  }
-
-  .reveal-sheet [data-role="game-over"] .podium-block.h-11 {
-    height: 1.75rem;
-  }
-
-  .reveal-sheet [data-role="game-over"] .podium-block.h-7 {
-    height: 1.25rem;
-  }
-
-  .reveal-sheet [data-role="game-over"] .podium-block {
-    padding-top: 0;
-    font-size: 1rem;
-    line-height: 1.25rem;
-  }
-
-  .reveal-sheet .sticky-actions-bar {
-    grid-template-columns: 1fr auto auto;
-  }
-
-  .reveal-sheet .sticky-actions-bar > * {
-    grid-column: auto;
-    min-height: 2.5rem;
-    white-space: nowrap;
-  }
 }
 
 /* Round 22: a new card. The card hovers over the pot (`.pot-card`), outside the
@@ -2885,26 +2783,6 @@ html:active-view-transition-type(card) .card-caption {
   transition-duration: 700ms;
 }
 
-/* Round 29 (F1): the final tally. Each row is two lines (name, final parts); the
-   parts pop in one after the other (`--i`), then the server's settle tick counts
-   the totals up and glides the rows like the standings. A tap settles at once. */
-.standings.tally {
-  --row-h: 3.5rem;
-}
-
-.tally .standings-row {
-  height: calc(var(--row-h) - 0.25rem);
-}
-
-.tally-part {
-  animation: reveal-pop 320ms var(--ease-spring) both;
-  animation-delay: calc(300ms + var(--i) * var(--beat-ms) * 0.35ms);
-}
-
-.tally[data-settled="true"] .tally-part {
-  animation: none;
-}
-
 /* Reduced motion: no slide, no pop, no roll; the die shows its face at once. */
 @media (prefers-reduced-motion: reduce) {
   .reveal-slide {
@@ -2925,8 +2803,46 @@ html:active-view-transition-type(card) .card-caption {
   .standings .stat-tick {
     transition: none;
   }
+}
 
-  .tally-part {
+/* Round 31 (item 9): the game's end over the pot (`FinalComponents`). The chart
+   rises in, its rows follow one after the other, then each total counts up from
+   the round-9 VP (`--from`) to the final VP (`--n`). */
+.final-board {
+  animation: final-in 380ms var(--ease-out) both;
+}
+
+.final-row {
+  animation: reveal-pop 320ms var(--ease-out) both;
+  animation-delay: calc(250ms + var(--i) * 70ms);
+}
+
+@keyframes final-in {
+  from {
+    opacity: 0;
+    scale: 0.92;
+  }
+}
+
+@keyframes final-count {
+  from {
+    --n: var(--from);
+  }
+}
+
+.final-count {
+  counter-reset: n var(--n);
+  animation: final-count 1200ms var(--ease-out) 900ms backwards;
+}
+
+.final-count::after {
+  content: counter(n);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .final-board,
+  .final-row,
+  .final-count {
     animation: none;
   }
 }
@@ -3050,7 +2966,22 @@ html:active-view-transition-type(card) .card-caption {
    an explosion shakes the tile once. */
 .tile-line[data-hold] .tile-news {
   opacity: 1;
-  animation: tile-news-in 300ms var(--ease-out, ease-out) both;
+  animation: tile-news-fade-in 200ms var(--ease-out, ease-out) both;
+}
+/* Round 31 (item 5): a draw. The line stays (its id holds for the brewing); the
+   chips enter again with the draw count in their ids: the new chip pops in at the
+   left, the older ones slide one place (18 px less the 4 px overlap) right. */
+.tile-draw[data-age="0"] {
+  animation: tile-draw-pop 280ms var(--ease-spring, ease-out) both;
+}
+.tile-draw:not([data-age="0"]) {
+  animation: tile-draw-slide 240ms var(--ease-out, ease-out) both;
+}
+@keyframes tile-draw-pop {
+  from { opacity: 0; scale: 0.4; }
+}
+@keyframes tile-draw-slide {
+  from { translate: -14px 0; }
 }
 .tile-line[data-hold] .tile-totals {
   animation: none;
@@ -3085,6 +3016,7 @@ html:active-view-transition-type(card) .card-caption {
 @media (prefers-reduced-motion: reduce) {
   .tile-line[data-hold] .tile-news { animation-name: tile-news-fade-in; }
   .tile-draw-glow,
+  .tile-draw,
   .tile-space,
   .player-tile.tile-boom { animation: none; }
 }

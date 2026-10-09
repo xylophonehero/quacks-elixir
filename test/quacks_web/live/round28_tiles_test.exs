@@ -116,12 +116,15 @@ defmodule QuacksWeb.Round28TilesTest do
         rows: [%{seat: 0, scored: true, vp: 0, rubies: 1, droplet: 1}]
       }
 
+      # Round 31: `index` names the step Next scores; the news is the scored one's.
       reveal = %{tiles: true, slides: [die, book], index: 0}
-      assert %{items: [{:die, :ruby}], key: "3-0"} = TileReveal.news(game, 0, reveal)
+      assert TileReveal.news(game, 0, reveal) == nil
+      reveal = %{reveal | index: 1}
+      assert %{items: [{:die, :ruby}], key: "3-1"} = TileReveal.news(game, 0, reveal)
       assert TileReveal.news(game, 1, reveal) == nil
 
-      assert %{items: [{:book, :black}, {:rubies, 1}, {:droplet, 1}], key: "3-1"} =
-               TileReveal.news(game, 0, %{reveal | index: 1})
+      assert %{items: [{:book, :black}, {:rubies, 1}, {:droplet, 1}], key: "3-2"} =
+               TileReveal.news(game, 0, %{reveal | index: 2})
 
       shop = %{game | phase: :shopping, log: [{0, {:bought, [{:green, 1}]}}]}
       assert %{items: [{:bought, {:green, 1}}]} = TileReveal.news(shop, 0, nil)
@@ -228,17 +231,19 @@ defmodule QuacksWeb.Round28TilesTest do
       assert has?(html, "[data-role=player-vp].text-num")
     end
 
+    # Round 31: out of the brewing (while brewing `tile-black` has the count).
     test "black chips in the pot only with black book I (either black rule)" do
-      assert has?(tile(Game.new(seed: {1, 2, 3}, players: 2)), "[data-role=player-black]")
+      shop = &%{&1 | phase: :shopping}
+      assert has?(tile(shop.(Game.new(seed: {1, 2, 3}, players: 2))), "[data-role=player-black]")
 
       standings = Game.new(seed: {1, 2, 3}, players: 2, rules: %{black_rule: :standings})
-      assert has?(tile(standings), "[data-role=player-black]")
+      assert has?(tile(shop.(standings)), "[data-role=player-black]")
 
       for set <- [2, 3] do
         game =
           Game.new(seed: {1, 2, 3}, players: 2, expansions: [:herb_witches], sets: %{black: set})
 
-        refute has?(tile(game), "[data-role=player-black]")
+        refute has?(tile(shop.(game)), "[data-role=player-black]")
       end
     end
 

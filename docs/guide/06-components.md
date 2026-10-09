@@ -1333,6 +1333,45 @@ bar) never moves:
 - **One explosion icon** (`explosion_icon/1`: the `:explosion` piece icon,
   `text-ruby`) is the bar's risk and an exploded tile's badge.
 
+### Round 31 (eval): one update per step, black and white on tiles, the end in place
+
+- **One update per step.** `TileReveal.slides/1` splits the scoring space into
+  up to three steps (`part`: `:coins`, `:vp`, `:rubies`), each with its own
+  `gains`. While a step shows, everything reads the totals after that step
+  (`tile_totals/2`): the tiles, the rat track, the pot's droplet (`pot/1`'s
+  `droplet` attr) and the ruby badge (`ruby_total/4`; it ticks on the rubies
+  step only, `stat_beats/4`). The pot plays only the shown step:
+  `TileReveal.step_lines/3` takes the step's `Replay` lines and renumbers them
+  from beat 0, so its ruby flights and VP tags play when the step comes; their
+  ids carry the step (`fx_key`), so `PotMotion` flies them once per step. The
+  coins step lights the scoring space (`TileReveal.marks/3`). The phone die
+  strip shows on the die step only. Server state is final already: this is
+  display only.
+- **Next scores the step the bar names.** On the tiles `reveal.index` is the
+  pending step: `tile_totals/2`, `tile_slide/1` (the step scored last),
+  `TileReveal.news/3` and `tile_rolls/3` (the die faces by the crown) read the
+  steps before it, so nothing of a step shows before its Next. After the last
+  step `next_slide/1` goes one past it: the bar says "Round scored" and its
+  button closes with the close label. The bar's picture (`step_icon/1`): a book
+  step is its chip (value hidden), the die and the space parts their pieces.
+- **A draw on the tile.** Draw news carries `line`, so the tile line keeps its id
+  while the round brews; the chips' ids carry the draw count, so they enter
+  again on each draw: `tile-draw-pop` for the new one at the left,
+  `tile-draw-slide` (14 px) for the older ones.
+- **Black and white on the tiles.** While the round brews (`:potions`), a tile's
+  bottom line ends in `tile_brew/1`: the black count and the white sum against
+  the limit ("4/7", `Potions.explode_above/2`; `data-level` safe / warn / danger,
+  like the fuse). The draws stay on the left; with 5 to 8 players (four columns)
+  two draws fit, and older draws tuck 4 px under the newer one. Out of brewing
+  the stats line has its black count again.
+- **The end in place.** No final slides and no game-over sheet. When the game is
+  over, `FinalComponents.final_board/1` lies over the pot (absolute in the pot
+  square, so the pot does not move): the title, then one row per seat from
+  `Reveal.final_rows/1`; each total counts up from the round-9 VP (`.final-count`,
+  a registered `--n` animated from `--from`). `final_actions/1` takes the
+  contextual button area: Lobby, a small Share, Play again. A reload or a
+  spectator sees the same; nothing is "seen" for it.
+
 ### Round 31: no full-height sheets; cards and decisions over the pot
 
 - **A card with no choice has no sheet.** `next_slide/1` on the held new card ends
