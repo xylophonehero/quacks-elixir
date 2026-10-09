@@ -157,12 +157,12 @@ defmodule QuacksWeb.Round33ContextTest do
       assert has_element?(view, "#{bar} button[aria-label^='Mandrake: keep']", "Keep")
     end
 
-    test "the crow skull: chip buttons in the bar, the white track gives way" do
+    test "the crow skull: chips in the bar (round 35: the white track stays)" do
       {id, view} = solo(%{})
       replace_game(id, &H.put(&1, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
 
-      assert has_element?(view, "footer #bar-pick-blue_choice [data-role=info-row]", "Crow skull")
-      refute has_element?(view, "[data-role=fuse-row]")
+      assert has_element?(view, "footer [data-role=bar-blue] [data-pool-chip]")
+      assert has_element?(view, "[data-role=fuse-row]")
       refute has_element?(view, "dialog#decision-blue_choice")
     end
 

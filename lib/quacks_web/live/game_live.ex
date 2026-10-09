@@ -2475,6 +2475,91 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
+  # Round 35: the crow skull's chips in the button row only (the white track stays
+  # over it). They come out of the bag one by one (`.FromBag`, WAAPI from the bag
+  # to their place, 140 ms apart); on a tap the chips not chosen go back into the
+  # bag while the row leaves (`phx-remove`, `.bar-to-bag`). Reduced motion: fades.
+  def bar_choice(%{choice: :blue_choice} = assigns) do
+    %{actions: actions, game: game, me: me} = assigns
+    picks = Enum.filter(actions, &(pick_chips(&1) != []))
+
+    chips =
+      for {chip, i} <- Enum.with_index(me.pending) do
+        action = pool_pick(picks, chip)
+
+        %{
+          id: i,
+          chip: chip,
+          action: action,
+          label: if(action, do: action_label(action, game, me), else: chip_name(chip))
+        }
+      end
+
+    assigns = assign(assigns, chips: chips, skip?: :return_all in actions)
+
+    ~H"""
+    <section
+      id={"bar-blue-#{@game.round}"}
+      phx-hook=".FromBag"
+      phx-remove={JS.transition("bar-to-bag", time: 520)}
+      class="bar-choice flex min-h-12 items-center gap-1.5"
+      aria-label="Crow skull: place one chip in the pot, or return them all to the bag"
+      data-role="bar-blue"
+    >
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".FromBag">
+        export default {
+          mounted() {
+            const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
+            const chips = [...this.el.querySelectorAll("[data-pool-chip]")]
+            const bag = () => document.querySelector("[data-role=bag-button]")
+            const away = c => {
+              const b = bag()
+              if (reduce || !b) return {opacity: 0}
+              const r = c.getBoundingClientRect(), s = b.getBoundingClientRect()
+              const dx = s.x + s.width / 2 - r.x - r.width / 2, dy = s.y + s.height / 2 - r.y - r.height / 2
+              return {translate: `${dx}px ${dy}px`, scale: 0.35, opacity: 0}
+            }
+            chips.forEach((c, i) => c.animate([away(c), {translate: "0 0", scale: 1, opacity: 1}],
+              {duration: reduce ? 200 : 420, delay: i * 140, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "backwards"}))
+            this.el.addEventListener("click", e => {
+              const hit = e.target.closest("[data-pool-chip]:not(:disabled), [data-role=blue-skip]")
+              if (!hit) return
+              if (hit.matches("[data-pool-chip]")) hit.animate([{opacity: 1}, {opacity: 0}], {duration: 220, fill: "forwards"})
+              chips.filter(c => c !== hit).forEach((c, i) => c.animate([{translate: "0 0", scale: 1, opacity: 1}, away(c)],
+                {duration: reduce ? 200 : 360, delay: i * 50, easing: "cubic-bezier(0.55, 0, 1, 0.45)", fill: "forwards"}))
+            })
+          }
+        }
+      </script>
+      <button
+        :for={c <- @chips}
+        id={"blue-chip-#{@game.round}-#{c.id}"}
+        type="button"
+        phx-click={c.action && "action"}
+        phx-value-action={c.action && encode(c.action)}
+        disabled={is_nil(c.action)}
+        class="pool-chip relative z-10 rounded-full touch-manipulation transition-transform duration-100 ease-out active:scale-95 disabled:opacity-40"
+        aria-label={c.label}
+        title={c.label}
+        data-pool-chip
+      >
+        <.chip chip={c.chip} size={:lg} />
+      </button>
+      <.button
+        :if={@skip?}
+        phx-click="action"
+        phx-value-action={encode(:return_all)}
+        variant={:secondary}
+        class="ml-auto min-h-12 touch-manipulation px-4"
+        aria-label={action_label(:return_all, @game, @me)}
+        data-role="blue-skip"
+      >
+        Skip
+      </.button>
+    </section>
+    """
+  end
+
   # Round 33 (sweep): the other small choices of a turn, the same way: an info row
   # and the options as buttons (`pick_spec/4`).
   def bar_choice(%{choice: choice} = assigns) when choice in @pick_choices do
@@ -3606,6 +3691,7 @@ defmodule QuacksWeb.GameLive do
   defp bar_choice(_decision, _actions), do: nil
 
   # Round 33: the bar choices with an info row (it takes the white track's row).
+  defp info_choice?(:blue_choice), do: false
   defp info_choice?(choice), do: choice in [:chip_choice, :droplet_choice | @pick_choices]
 
   defp stop_slot(game, %Player{phase: :stopped}), do: if(stir?(game), do: :stop, else: :resume)
