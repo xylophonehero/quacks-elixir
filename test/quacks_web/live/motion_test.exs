@@ -76,15 +76,14 @@ defmodule QuacksWeb.MotionTest do
     refute has_element?(view, "#sheet-fortune [data-role=card-flip]")
   end
 
-  test "VP and rubies tick: a stable counter and a pop keyed by the value" do
+  test "the ruby badge ticks: a stable counter and a pop keyed by the value" do
     {view, id} = mount()
     {:ok, %{game: game}} = GameServer.get(id)
     me = game.players[0]
 
-    assert has_element?(view, ~s(dd#stat-vp[style="--n: #{me.vp}"] #stat-vp-#{me.vp}))
     assert has_element?(view, ~s(dd#stat-rubies[style="--n: #{me.rubies}"]))
     assert has_element?(view, "#stat-rubies-#{me.rubies}[aria-hidden=true]")
-    assert has_element?(view, "dd#stat-vp .sr-only", "#{me.vp}")
+    assert has_element?(view, "dd#stat-rubies .sr-only", "#{me.rubies}")
   end
 
   test "the CSS has the motion keyframes and a reduced-motion fallback for them" do

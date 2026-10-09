@@ -1112,7 +1112,6 @@ defmodule QuacksWeb.GameLive do
             hidden
             phx-mounted={JS.remove_class("replay-done", to: "#players-row")}
           />
-          <.status :if={@seat} game={@game} seat={@seat} beats={stat_beats(@game, @seat, @seen)} />
           <%!-- Round 27: one tile per seat in a fixed seat loop (`seat_loop/1`):
                one row up to 4 seats, two rows from 5, the second row backwards, so
                neighbours touch. The tiles never re-order and have a fixed height.
@@ -1287,13 +1286,17 @@ defmodule QuacksWeb.GameLive do
                   Tap to continue
                 </p>
               </div>
-              <%!-- Round 22: the kept Toadstool chips (red Set 2) wait in the top
-                   right corner, a small pill outside the round rim. --%>
-              <.aside
-                :if={@me && @me.aside != []}
-                chips={@me.aside}
-                class="absolute top-0 right-0"
-              />
+              <%!-- Round 30: the top right corner holds your ruby total (the
+                   scoring's rubies fly to it) and, below it, the kept Toadstool
+                   chips (red Set 2, round 22), small pills outside the round rim. --%>
+              <div
+                :if={@me}
+                class="absolute top-0 right-0 flex flex-col items-end gap-1.5"
+                data-role="pot-corner-right"
+              >
+                <.ruby_badge rubies={@me.rubies} beats={stat_beats(@game, @seat, @seen)} />
+                <.aside :if={@me.aside != []} chips={@me.aside} />
+              </div>
               <%!-- The overflow bowl hangs over the pot's lower rim. --%>
               <div
                 :if={@game.players[@seat || 0].bowl != []}
@@ -1654,7 +1657,7 @@ defmodule QuacksWeb.GameLive do
                decision is a panel in the context column, and this shows only when
                that panel was closed. --%>
           <.button
-            :if={@decision && !@bar_choice && !tiles_playing?(@reveal)}
+            :if={@decision && !@bar_choice && !tiles_playing?(@reveal) && !card_continue?(assigns)}
             variant={:primary}
             class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible lg:[body:has(dialog[open])_&]:hidden"
             data-role="decision-button"
@@ -1695,6 +1698,21 @@ defmodule QuacksWeb.GameLive do
                while the game runs, only disabled; gone at game over and while
                everyone shops (the shop has its own buttons). From 64rem Draw is the
                large button on top, Stop and the flask under it. --%>
+          <%!-- Round 30: while the round's card waits over the pot, one Continue
+               takes the place of Stop and Draw (hidden, like for a decision). It
+               does what a tap on the card does (above the tap layer, `#card-tap`);
+               Enter too (`hotkey`). --%>
+          <.button
+            :if={card_continue?(assigns)}
+            id="card-continue"
+            variant={:primary}
+            class="relative z-50 min-h-12 w-full text-base touch-manipulation"
+            phx-click="card_tap"
+            data-role="card-continue"
+          >
+            Continue
+            <.kbd>Enter</.kbd>
+          </.button>
           <.bar_choice
             :if={@bar_choice && not Game.over?(@game) && !tiles_playing?(@reveal)}
             choice={@bar_choice}
@@ -1706,6 +1724,7 @@ defmodule QuacksWeb.GameLive do
             :if={@seat && not Game.over?(@game) && not results?(@game) && !@bar_choice}
             class={[
               "action-bar *:min-h-12 *:touch-manipulation",
+              card_continue?(assigns) && "hidden",
               @decision && "max-lg:hidden",
               @me && @me.exploded? && "lg:hidden"
             ]}
@@ -3342,6 +3361,14 @@ defmodule QuacksWeb.GameLive do
   defp card_tap?(%{reveal: %{held: true}}), do: true
   defp card_tap?(%{card_grown: grown}), do: grown
 
+  # Round 30: the contextual button area shows Continue while the card waits.
+  # A choice in the bar (the explosion's) keeps its place.
+  defp card_continue?(%{seat: seat, bar_choice: nil, game: %Game{fortune_card: card}} = assigns)
+       when is_integer(seat) and card != nil,
+       do: card_tap?(assigns)
+
+  defp card_continue?(_assigns), do: false
+
   # The tap layer reads the card for screen readers (the big card is aria-hidden).
   defp card_tap_label(id) do
     card = Quacks.Rules.Fortune.card(id)
@@ -3651,7 +3678,7 @@ defmodule QuacksWeb.GameLive do
       do:
         for(
           %{kind: kind, beat: beat} <- Replay.updates(game, seat),
-          kind in [:vp, :rubies],
+          kind == :rubies,
           into: %{from: Replay.before(game, seat)},
           do: {kind, beat}
         ),

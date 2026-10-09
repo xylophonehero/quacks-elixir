@@ -1078,7 +1078,8 @@ is `GameComponents.card_outcome/2`, the log's own wording.
 The tap target is one `<button id="card-tap">`, `fixed inset-0 z-40`, over the page
 and under the dialogs' top layer: a tap anywhere goes on, and the pot does not move.
 The big card stays `aria-hidden`; the button's `aria-label` reads the card's name
-and text. Under the card a "Tap to continue" caption (`.card-caption`) comes in once
+and text. Round 30: the bar shows one Continue that sends the same `card_tap`.
+Under the card a "Tap to continue" caption (`.card-caption`) comes in once
 the card has turned (0.8 s: the round title and the flip play first) and fades 2 s
 later. It is hidden under `:active-view-transition-type(card)`, so the snapshot
 that shrinks is the card alone.
@@ -1298,6 +1299,34 @@ bar) never moves:
   footer buttons hide while it plays.
 - **The shop** says **Skip** for "buy nothing". With chips ticked, Buy is the wide
   primary and Skip shrinks to a small secondary button.
+
+### Round 30: no stats strip; the bar and the pot
+
+- **No stats strip.** The parchment row over the tiles (`status/1`) is gone on every
+  screen: VP is on your tile and the rat track, the flask is drawn at the pot, the
+  coins to spend are in the shop sheet's footer (`shop-total`). The height goes to
+  the tiles and the pot. Measured at 392 px (8 players): the pot box stays at
+  16,284 360x360 through the card, brewing, stopped, the evaluation, the rubies
+  step, the shop and an explosion.
+- **The ruby badge** (`GameComponents.ruby_badge/1`) sits in the pot's top right
+  corner (`pot-corner-right`), the kept Toadstool chips under it. It keeps the id
+  `stat-rubies`, so `PotMotion` flies the scoring's rubies to it and it ticks on
+  their beat (`stat_beats/3`, rubies only now).
+- **Continue** (`#card-continue`) is the contextual button area while the round's
+  card waits over the pot (`card_continue?/1`: a held new card or a grown corner
+  card, no choice in the bar). It sends `card_tap`, so it does what a tap on the
+  card does (into the corner, or the result rows or the choice); Enter does the
+  same (`hotkey`). It sits above `#card-tap` (`z-50`). Stop and Draw stay in the
+  DOM with `hidden`, as for a decision.
+- **Fixed number widths.** Kalam (`font-hand`) has no tabular figures: its digits
+  are 5.4 to 10.6 px wide at 18 px with or without `tabular-nums`. Its numbers get
+  a box of two digits, `min-w-[1.2em]` (tile pot space, tile VP right-aligned, the
+  ruby badge). The bar's numbers are in the system font: `tabular-nums` and
+  `min-w-[2ch]` (coins, VP), `[4.5ch]` (percent), `[5ch]` ("3/14"). The reward row
+  always has the ruby slot (`data-ruby`, `opacity-25 grayscale` when the space
+  pays none). The rat track's numbers are absolute: they move no layout.
+- **One explosion icon** (`explosion_icon/1`: the `:explosion` piece icon,
+  `text-ruby`) is the bar's risk and an exploded tile's badge.
 
 ### `PotMotion`: animate on top of the patch
 

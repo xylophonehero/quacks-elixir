@@ -75,7 +75,11 @@ defmodule QuacksWeb.UiRound4Test do
 
     assert has_element?(alice, "#card-round-1 section[aria-label=Actions] button", "No thanks")
     refute has_element?(alice, "#card-round-1 form[method=dialog] button", "OK")
-    # the footer button opens the card's dialog
+    # Round 30: while the card hovers, the footer has Continue (it opens the
+    # card's dialog) in place of the button that reopens the dialog
+    assert has_element?(alice, "footer #card-continue")
+    refute has_element?(alice, "footer button[phx-click*='card-round-1']")
+    alice |> element("#card-continue") |> render_click()
     assert has_element?(alice, "footer button[phx-click*='card-round-1']")
 
     alice |> element("#card-round-1 button", "No thanks") |> render_click()

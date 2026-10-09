@@ -140,7 +140,7 @@ defmodule QuacksWeb.GameLiveTest do
     for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
     assert has_element?(view, "dd", "Shop")
-    assert has_element?(view, "[data-role=coins]", "7 coins to spend")
+    assert has_element?(view, ~s([data-role=shop-total][aria-label^="7 coins,"]))
     view
   end
 

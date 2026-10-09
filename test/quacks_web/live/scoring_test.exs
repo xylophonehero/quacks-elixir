@@ -91,11 +91,15 @@ defmodule QuacksWeb.ScoringTest do
              ~s([data-role=replay-die][style="--beat: 0"] [data-role=die][data-face=droplet])
            )
 
-    html = render_component(&GameComponents.status/1, game: game, beats: %{vp: 6, rubies: 5})
-    assert has?(html, ~s(#stat-vp[data-beat="6"]))
+    html =
+      render_component(&GameComponents.ruby_badge/1,
+        rubies: game.players[0].rubies,
+        beats: %{rubies: 5}
+      )
+
     assert has?(html, ~s(#stat-rubies[data-beat="5"]))
 
-    html = render_component(&GameComponents.status/1, game: game)
+    html = render_component(&GameComponents.ruby_badge/1, rubies: game.players[0].rubies)
     refute has?(html, ".stat-tick[data-beat]")
   end
 
@@ -115,7 +119,7 @@ defmodule QuacksWeb.ScoringTest do
 
     assert has?(html, "#reveal-next") and has?(html, "#pot-0-lg[phx-hook=PotMotion]")
 
-    for %{kind: kind, beat: beat} <- Replay.updates(game, 0), kind in [:vp, :rubies] do
+    for %{kind: kind, beat: beat} <- Replay.updates(game, 0), kind == :rubies do
       assert has?(html, ~s(#stat-#{kind}[data-beat="#{beat}"]))
     end
 

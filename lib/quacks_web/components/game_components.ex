@@ -1380,90 +1380,36 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  One seat's score and resources in one row of icons with numbers: VP (laurel),
-  rubies, the flask (full or empty glass), the essence with The Alchemists, and the
-  coins while it buys. Each pair is a `dt` (the word, for screen readers) and a
-  `dd`. A badge shows after an explosion. The white total is the fuse
-  (`fuse_meter/1`) above the action bar.
+  Round 30: your ruby total as a small badge by the pot (top right). The scoring
+  sequence's rubies fly to it (`PotMotion` in app.js, `#stat-rubies`) and it ticks
+  on their beat. Round 30 removed the stats strip over the tiles: VP is on your tile
+  and the rat track, the flask is drawn at the pot.
   """
-  attr :game, Game, required: true
-  attr :seat, :integer, default: 0
+  attr :rubies, :integer, required: true
 
   attr :beats, :map,
     default: %{},
-    doc: "while the replay plays: `%{vp: beat, rubies: beat}`, when each counter ticks"
+    doc: "while the replay plays: `%{rubies: beat, from: %{rubies: n}}`"
 
-  def status(assigns) do
-    assigns =
-      assign(assigns,
-        me: assigns.game.players[assigns.seat],
-        shop?: Game.phase(assigns.game, assigns.seat) == :shop,
-        alchemists?: Game.expansion?(assigns.game, :alchemists)
-      )
+  attr :class, :any, default: nil
 
+  def ruby_badge(assigns) do
     ~H"""
     <dl
-      class="paper flex min-h-10 flex-wrap items-center justify-around gap-x-3 gap-y-1 rounded-lg px-2 py-1"
-      data-role="stats"
+      class={[
+        "flex h-8 items-center gap-0.5 rounded-full bg-iron-dark/85 py-0.5 pr-2.5 pl-1.5 text-parchment-light shadow-md ring-1 ring-parchment/20",
+        @class
+      ]}
+      data-role="ruby-badge"
     >
       <.stat
-        label="VP"
-        value={@me.vp}
-        id="stat-vp"
-        icon={:vp}
-        beat={@beats[:vp]}
-        from={@beats[:vp] && get_in(@beats, [:from, :vp])}
-      />
-      <.stat
         label="Rubies"
-        value={@me.rubies}
+        value={@rubies}
         id="stat-rubies"
         icon={:ruby}
         beat={@beats[:rubies]}
         from={@beats[:rubies] && get_in(@beats, [:from, :rubies])}
       />
-      <div class="flex items-center gap-1" title={"Flask #{flask_word(@me.flask)}"}>
-        <dt class="flex">
-          <.piece_icon
-            name={:flask}
-            class={["size-6", if(@me.flask, do: "text-potion", else: "text-ink-soft/40")]}
-          />
-          <span class="sr-only">Flask</span>
-        </dt>
-        <dd class="text-tag font-semibold text-ink-soft" data-role="flask-state">
-          {flask_word(@me.flask)}
-        </dd>
-      </div>
-      <div :if={@alchemists?} class="flex items-center gap-1" title="Essence">
-        <dt class="flex">
-          <span class="size-4 rounded-full bg-potion ring-2 ring-potion-deep/60" aria-hidden="true" />
-          <span class="sr-only">Essence</span>
-        </dt>
-        <dd class="font-hand text-xl leading-none font-bold tabular-nums" data-role="stat-essence">
-          {@me.essence}
-        </dd>
-      </div>
-      <%!-- The id holds the value: a new value is a new node, so it pops. --%>
-      <div :if={@shop?} class="flex items-center gap-1" title="Coins to spend">
-        <dt class="flex">
-          <span class="book-coin text-xl" aria-hidden="true" /><span class="sr-only">Coins</span>
-        </dt>
-        <dd
-          id={"stat-coins-#{@me.coins}"}
-          class="stat-pop font-hand text-xl leading-none font-bold tabular-nums"
-          data-role="coins"
-        >
-          {@me.coins}<span class="sr-only"> coins to spend</span>
-        </dd>
-      </div>
-      <span
-        :if={@me.exploded?}
-        id="status-exploded"
-        class="rounded-md bg-ruby px-2 text-sm font-semibold text-white"
-        data-role="exploded"
-      >
-        {exploded_text(@me)}
-      </span>
     </dl>
     """
   end
@@ -1558,16 +1504,25 @@ defmodule QuacksWeb.GameComponents do
       <span class="flex items-center gap-2" data-role="next-reward">
         <span class="sr-only">Reward:</span>
         <span :if={!@final?} class="flex items-center gap-0.5" data-role="reward-coins">
-          <.piece_icon name={:coin} class="size-5 text-gold" />{@space.coins}
+          <.piece_icon name={:coin} class="size-5 text-gold" /><span class="min-w-[2ch] text-left">{@space.coins}</span>
           <span class="sr-only">
             {plural(@space.coins, "coin", "coins")}
           </span>
         </span>
         <span class="flex items-center gap-0.5 text-gold" data-role="reward-vp">
-          <.piece_icon name={:vp} class="size-5" />{@space.vp}<span class="sr-only"> VP</span>
+          <.piece_icon name={:vp} class="size-5" /><span class="min-w-[2ch] text-left">{@space.vp}</span><span class="sr-only"> VP</span>
         </span>
-        <span :if={@space.ruby?} class="flex items-center" data-role="reward-ruby">
-          <.piece_icon name={:ruby} class="size-5 text-ruby-light" /><span class="sr-only">ruby</span>
+        <%!-- Round 30: the ruby's slot is always there, dim when the space pays none,
+             so nothing moves when a ruby comes up. --%>
+        <span
+          class={["flex items-center", !@space.ruby? && "opacity-25 grayscale"]}
+          data-role="reward-ruby"
+          data-ruby={to_string(@space.ruby?)}
+        >
+          <.piece_icon name={:ruby} class="size-5 text-ruby-light" /><span
+            :if={@space.ruby?}
+            class="sr-only"
+          >ruby</span>
         </span>
       </span>
       <span
@@ -1578,12 +1533,12 @@ defmodule QuacksWeb.GameComponents do
         data-count={"#{@bad}/#{@bag}"}
         title={"Explosion risk of the next draw: #{@bad} of #{@bag} chips in the bag"}
       >
-        <.piece_icon name={:explosion} class="size-5 text-chip-orange" />
+        <.explosion_icon class="size-5" />
         <span class="sr-only">Explode:</span>
         <%= if @risk == :chips do %>
-          {@bad}/{@bag}
+          <span class="min-w-[5ch] text-left">{@bad}/{@bag}</span>
         <% else %>
-          {@explode}%
+          <span class="min-w-[4.5ch] text-left">{@explode}%</span>
         <% end %>
       </span>
     </p>
@@ -1658,17 +1613,14 @@ defmodule QuacksWeb.GameComponents do
   # word and the plain number.
   defp stat(assigns) do
     ~H"""
-    <div class="flex items-center gap-1" title={@label}>
+    <div class="flex items-center gap-0.5" title={@label}>
       <dt class="flex">
-        <.piece_icon
-          name={@icon}
-          class={["size-6", if(@icon == :ruby, do: "text-ruby", else: "text-gold drop-shadow-sm")]}
-        />
+        <.piece_icon name={@icon} class="size-5 text-ruby-light drop-shadow-sm" />
         <span class="sr-only">{@label}</span>
       </dt>
       <dd
         id={@id}
-        class="stat-tick font-hand text-xl leading-none font-bold tabular-nums"
+        class="stat-tick min-w-[1.2em] text-center font-hand text-num leading-none font-bold tabular-nums"
         style={"--n: #{@value}" <> beat_style(@beat, @from)}
         data-beat={@beat}
         data-from={@from}
@@ -1715,7 +1667,7 @@ defmodule QuacksWeb.GameComponents do
           class="rounded bg-ruby px-1.5 text-xs font-bold text-white"
           data-role="exploded-badge"
         >
-          Exploded
+          {exploded_text(@p)}
         </span>
       </header>
       <dl class="grid grid-cols-4 gap-1 text-center">
@@ -2057,7 +2009,7 @@ defmodule QuacksWeb.GameComponents do
     >
       <b
         id={"tile-space-#{@seat}-#{@index}"}
-        class="tile-space text-num leading-none text-parchment-light"
+        class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light"
         title="Pot space (coins)"
         data-role="player-space"
         data-index={@index}
@@ -2072,7 +2024,10 @@ defmodule QuacksWeb.GameComponents do
         title="VP"
         data-role="player-vp"
       >
-        <.piece_icon name={:vp} class="size-3 shrink-0 text-gold" /><.card_count
+        <.piece_icon name={:vp} class="size-3 shrink-0 text-gold" /><span
+          class="min-w-[1.2em] text-right"
+          data-role="vp-number"
+        ><.card_count
           :if={!@totals}
           value={@p.vp}
           tick={@ticks && @ticks[:vp]}
@@ -2081,7 +2036,7 @@ defmodule QuacksWeb.GameComponents do
           id={"tile-vp-#{@seat}-#{@totals.vp}"}
           class="tile-count"
           style={"--n: #{@totals.vp}; --from: #{@totals.vp_from}"}
-        ><span class="sr-only">{@totals.vp}</span></span>
+        ><span class="sr-only">{@totals.vp}</span></span></span>
         <span class="sr-only">VP</span>
       </span>
     </span>
@@ -2211,11 +2166,22 @@ defmodule QuacksWeb.GameComponents do
   defp penny_text(:copper), do: "text-penny-copper"
   defp penny_text(:gold), do: "text-penny-gold"
 
+  attr :class, :any, default: nil
+
+  # Round 30: "explosion" is one red icon, the same in the bar's risk and on an
+  # exploded tile.
+  defp explosion_icon(assigns) do
+    ~H"""
+    <.piece_icon name={:explosion} class={["text-ruby", @class]} />
+    """
+  end
+
   # The status graphic (see `seat_state/2`): a steam wisp while brewing, a lid once
   # stopped, a burst after an explosion, three dots while choosing, a tick when
   # ready. No word on screen: the word is for screen readers only. Everyone shops at
   # once, so the shop shows nothing. On a tile (`tile`, round 27, design B): nothing
-  # while brewing, a check once stopped and a large red burst after an explosion.
+  # while brewing, a check once stopped and the red explosion icon (round 30: the
+  # same as the bar's risk, `explosion_icon/1`) after an explosion.
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :class, :any, default: nil
@@ -2229,18 +2195,11 @@ defmodule QuacksWeb.GameComponents do
     <span
       :if={@state == "exploded"}
       class={["grid size-5 shrink-0 place-items-center", @class]}
-      title={@state}
+      title={exploded_text(@game.players[@seat])}
       data-role="player-state"
       data-state={@state}
     >
-      <svg viewBox="0 0 24 24" class="size-5" aria-hidden="true">
-        <path
-          d="M12 1l2.6 6.2 6.4-2.6-2.9 6.1L24 13l-6.4 1.6 2 6.4-5.7-3.4L12 23l-1.9-5.4-5.7 3.4 2-6.4L0 13l5.9-2.3L3 4.6l6.4 2.6z"
-          fill="var(--color-ruby)"
-          stroke="#ffd25a"
-          stroke-width="1.2"
-        />
-      </svg>
+      <.explosion_icon class="size-5 drop-shadow-[0_0_2px_rgb(0_0_0/0.9)]" />
       <span class="sr-only">{@state}</span>
     </span>
     <.player_state

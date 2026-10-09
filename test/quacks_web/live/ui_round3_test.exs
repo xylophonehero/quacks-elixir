@@ -61,7 +61,8 @@ defmodule QuacksWeb.UiRound3Test do
 
     html = render(view)
     # Stop, Draw, and the flask button (shown from 64rem only).
-    assert count(html, "footer.game-bar button") == 3
+    # Round 30: Continue shows while the round's card hovers.
+    assert count(html, "footer.game-bar button:not(#card-continue)") == 3
     assert count(html, "footer.game-bar [popovertarget]") == 0
   end
 

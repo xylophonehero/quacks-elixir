@@ -222,29 +222,15 @@ defmodule QuacksWeb.Polish2Test do
     end
   end
 
-  describe "stats strip" do
-    test "icons with numbers; the words are for screen readers" do
+  describe "round 30: no stats strip, rubies by the pot" do
+    test "the strip is gone; the ruby total is a badge in the pot's top right corner" do
       {_id, view} = solo({1, 2, 3})
-      stats = "[data-role=stats]"
 
-      assert has_element?(view, "#{stats} dt svg[data-icon=vp]")
-      assert has_element?(view, "#{stats} dt svg[data-icon=ruby]")
-      assert has_element?(view, "#{stats} dt svg[data-icon=flask]")
-      assert has_element?(view, "#{stats} dt .sr-only", "VP")
-      assert has_element?(view, "#{stats} dt .sr-only", "Rubies")
-      assert has_element?(view, "#{stats} [data-role=flask-state]", "full")
-      assert has_element?(view, "#{stats} dd#stat-vp.font-hand")
-      refute has_element?(view, "#{stats} [data-role=stat-essence]")
-    end
-
-    test "with The Alchemists the strip shows the essence" do
-      {id, view} = solo({1, 2, 3})
-
-      GameHelpers.replace_game(id, fn g ->
-        %{g | expansions: MapSet.new([:alchemists])}
-      end)
-
-      assert has_element?(view, "[data-role=stats] [data-role=stat-essence]", "0")
+      refute has_element?(view, "[data-role=stats]")
+      badge = "[data-role=pot-area] [data-role=pot-corner-right] [data-role=ruby-badge]"
+      assert has_element?(view, "#{badge} dt svg[data-icon=ruby]")
+      assert has_element?(view, "#{badge} dt .sr-only", "Rubies")
+      assert has_element?(view, "#{badge} dd#stat-rubies.font-hand.text-num.tabular-nums")
     end
   end
 
