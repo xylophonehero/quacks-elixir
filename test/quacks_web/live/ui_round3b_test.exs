@@ -83,7 +83,7 @@ defmodule QuacksWeb.UiRound3bTest do
     assert state(alice, 1) =~ "choosing"
   end
 
-  test "the shop: Done, no Buy nothing, no rubies; round 9 trades 2 rubies for 1 VP" do
+  test "the shop: Done, no Buy nothing, no rubies; round 9 turns rubies into VP by itself" do
     {id, alice, _bob} = duo()
     replace_game(id, &H.put(&1, 0, phase: :shop, rubies: 3, coins: 30))
 
@@ -96,10 +96,16 @@ defmodule QuacksWeb.UiRound3bTest do
     replace_game(id, &(&1 |> H.put(round: 9) |> H.put(0, rubies: 3)))
     refute has_element?(alice, "dialog#decision-shop")
     assert has_element?(alice, "dialog#reveal-results-9")
-    # Round 29: the rubies are in the bar.
-    assert has_element?(alice, "#bar-rubies button[data-ruby=vp]", "1 VP")
-    alice |> element("#bar-rubies button[data-ruby=vp]") |> render_click()
-    assert has_element?(alice, "li", "Spent 2 rubies: +1 VP")
+    # Round 31: no rubies step in round 9: the rubies turn into VP by themselves
+    # once the evaluation was seen.
+    refute has_element?(alice, "#bar-rubies")
+    {:ok, %{game: before}} = GameServer.get(id)
+    vp = before.players[0].vp
+    render_hook(alice, "reveal_close", %{})
+    {:ok, %{game: game}} = GameServer.get(id)
+    assert %{rubies: 1, vp: new_vp} = game.players[0]
+    # 30 coins: 6 VP; 3 rubies: 1 VP, 1 ruby kept.
+    assert new_vp == vp + 7
   end
 
   test "the overflow bowl shows under the pot in a base game once it has chips" do

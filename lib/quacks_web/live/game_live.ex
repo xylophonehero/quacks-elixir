@@ -2468,8 +2468,9 @@ defmodule QuacksWeb.GameLive do
 
   `:rubies`: Skip, then one button per ruby use, each "2" (the seat's
   `ruby_price`) and the ruby, then its icon: the test tube (reverse pot side only),
-  the flask, the pot (droplet +1). Round 9: 2 rubies buy 1 VP. A use that is not
-  possible now is disabled and says why ("Flask full").
+  the flask, the pot (droplet +1). A use that is not possible now is disabled and
+  says why ("Flask full"). Round 31: it is the evaluation's last step, only when a
+  ruby buys something; never in round 9 (the rubies turn into VP by themselves).
   """
   attr :choice, :atom, required: true, values: [:explosion_choice, :rubies, :fortune_choice]
   attr :actions, :list, required: true
@@ -2523,7 +2524,7 @@ defmodule QuacksWeb.GameLive do
     assigns =
       assign(assigns,
         uses: ruby_uses(assigns.game),
-        price: if(assigns.game.round == 9, do: 2, else: assigns.me.ruby_price)
+        price: assigns.me.ruby_price
       )
 
     ~H"""
@@ -2682,16 +2683,13 @@ defmodule QuacksWeb.GameLive do
   defp card_choice_hint(:return_all, _card, _me), do: "All to the bag"
   defp card_choice_hint(_choice, _card, _me), do: ""
 
-  # The ruby uses in the bar: round 9 only buys VP; the test tube is on the reverse
-  # pot side only.
-  defp ruby_uses(%Game{round: 9}), do: [:vp]
+  # The ruby uses in the bar: the test tube is on the reverse pot side only.
   defp ruby_uses(%Game{rules: %{pot_side: :back}}), do: [:tube, :flask, :droplet]
   defp ruby_uses(_game), do: [:flask, :droplet]
 
   defp ruby_icon(:tube), do: :tube
   defp ruby_icon(:flask), do: :flask
   defp ruby_icon(:droplet), do: :pot
-  defp ruby_icon(:vp), do: :vp
 
   # The small line on a ruby button: what it does, or why it cannot.
   defp ruby_why(use, me, actions) do
@@ -2706,7 +2704,6 @@ defmodule QuacksWeb.GameLive do
   defp ruby_what(:tube), do: "Test tube"
   defp ruby_what(:flask), do: "Refill flask"
   defp ruby_what(:droplet), do: "Droplet +1"
-  defp ruby_what(:vp), do: "1 VP"
 
   # The Buy button's Enter hint: from 64rem, and only when the shop bar is 24rem
   # wide (Done alone always has the room).
@@ -3524,6 +3521,10 @@ defmodule QuacksWeb.GameLive do
   defp stop_slot(game, %Player{phase: :stopped}), do: if(stir?(game), do: :stop, else: :resume)
   defp stop_slot(_game, _me), do: :stop
 
+  # Round 31: round 9's "2 rubies → 1 VP" is no step: whatever the seat keeps
+  # converts by itself at its "Done" (`Game` `final_conversion`), so the step only
+  # shows when a ruby buys something else (rounds 1 to 8: droplet, flask, tube).
+  defp ruby_step_action?({:rubies, :vp}), do: false
   defp ruby_step_action?({:rubies, _}), do: true
   defp ruby_step_action?(action), do: witch?(action)
 
