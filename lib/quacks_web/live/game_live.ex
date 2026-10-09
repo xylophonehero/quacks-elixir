@@ -1344,6 +1344,7 @@ defmodule QuacksWeb.GameLive do
           <%!-- A landscape phone moves the tubes to the right column (app.css). --%>
           <div :if={@game.rules.pot_side == :back} class="shrink-0 pt-1" data-area="tubes">
             <.test_tubes
+              id="tubes-main"
               tube={@game.players[@seat || 0].tube}
               class="mx-auto block h-auto w-full max-w-sm"
             />
@@ -1412,25 +1413,6 @@ defmodule QuacksWeb.GameLive do
                   offer={[@me.pending, @me.witch_offer, @all_actions]}
                 />
               </div>
-              <div :if={@decision == :droplet_choice} class="space-y-2" data-role="droplet-choice">
-                <%!-- First what caused the move (a black chip for the hawkmoth). --%>
-                <ul
-                  :if={(sources = droplet_sources(@game.log, @seat)) != []}
-                  class="space-y-1 text-sm text-ink-soft"
-                  data-role="droplet-sources"
-                >
-                  <li :for={{cause, text} <- sources} class="flex items-center gap-2">
-                    <.droplet_cause cause={cause} />{text}
-                  </li>
-                </ul>
-                <p class="text-sm">
-                  A free move (no rubies): move your pot droplet or your test-tube droplet.
-                  <span :if={@me.droplet_moves > 1} class="font-semibold">
-                    {@me.droplet_moves} moves to place.
-                  </span>
-                </p>
-                <.test_tubes tube={@me.tube} />
-              </div>
               <p
                 :if={hint = bonus_hint(@me.essence_pending)}
                 class="text-sm font-semibold"
@@ -1476,10 +1458,6 @@ defmodule QuacksWeb.GameLive do
                 actions={@all_actions}
                 game={@game}
                 me={@me}
-              />
-              <.ladder
-                :if={@decision == :chip_choice}
-                rungs={ladder(@me, @all_actions, @game)}
               />
               <section
                 class={[
@@ -3114,49 +3092,6 @@ defmodule QuacksWeb.GameLive do
 
   # The buttons of a choice that are not chips ("Return all", "Done", "3 rubies").
   defp text_actions(actions), do: Enum.filter(actions, &(pick_chips(&1) == []))
-
-  @doc """
-  Round 24: the chip actions of a ladder book with every rung, in order: Ghost's
-  breath II (trade 1, 2 or 3 purple), Garden spider IV (pay 1 or 2 rubies) and
-  Ghost's breath IV (the swaps of the tiers this pot does not reach). A rung the
-  player can take is a button; one they cannot is greyed, `aria-disabled`, with
-  its reason.
-  """
-  attr :rungs, :list, required: true, doc: "`ladder/2`: `%{action, label, reason}` maps"
-
-  def ladder(assigns) do
-    ~H"""
-    <section
-      :if={@rungs != []}
-      class="flex flex-col gap-2"
-      aria-label="Chip actions"
-      data-role="ladder"
-    >
-      <%= for rung <- @rungs do %>
-        <.button
-          :if={is_nil(rung.reason)}
-          phx-click="action"
-          phx-value-action={encode(rung.action)}
-          variant={:secondary}
-          class="min-h-11"
-          data-role="ladder-rung"
-        >
-          {rung.label}
-        </.button>
-        <div
-          :if={rung.reason}
-          class="flex min-h-11 cursor-not-allowed flex-col justify-center rounded-lg border border-dashed border-ink/30 px-3 py-1.5 text-sm text-ink/50"
-          role="button"
-          aria-disabled="true"
-          data-role="ladder-rung-off"
-        >
-          <span class="font-semibold">{rung.label}</span>
-          <span class="text-xs" data-role="ladder-reason">{rung.reason}</span>
-        </div>
-      <% end %>
-    </section>
-    """
-  end
 
   # The rungs of this seat's open ladder choices (`me.chip_choices`, the engine's
   # data); the legal ones come from `legal_actions/2`, the rest from the book.

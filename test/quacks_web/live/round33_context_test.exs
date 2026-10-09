@@ -124,4 +124,24 @@ defmodule QuacksWeb.Round33ContextTest do
       refute has_element?(view, "#bar-droplet")
     end
   end
+
+  describe "item 6: the test-tube droplet moves along the strip" do
+    test "the strip under the pot carries the hook and the glass it shows" do
+      {id, view} = solo(%{pot_side: :back})
+      hook = "#tubes-main[phx-hook='QuacksWeb.GameComponents.TubeDrop']"
+      assert has_element?(view, ~s(#{hook}[data-tube="0"]))
+
+      replace_game(id, &H.put(&1, droplet_moves: 1))
+      view |> element("#bar-droplet button[data-choice=tube]") |> render_click()
+      assert has_element?(view, ~s(#{hook}[data-tube="1"] [data-role=tube-droplet]))
+    end
+
+    test "the hook animates `translate` with WAAPI and does nothing with reduced motion" do
+      src = File.read!("lib/quacks_web/components/game_components.ex")
+      [hook] = Regex.run(~r/name=".TubeDrop">(.*?)<\/script>/s, src, capture: :all_but_first)
+      assert hook =~ "d.animate("
+      assert hook =~ "translate"
+      assert hook =~ ~s[matchMedia("(prefers-reduced-motion: reduce)").matches) return]
+    end
+  end
 end

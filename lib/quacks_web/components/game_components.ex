@@ -581,11 +581,34 @@ defmodule QuacksWeb.GameComponents do
   attr :tube, :integer, required: true, doc: "the player's `tube` (0..12)"
   attr :class, :any, default: "block h-auto w-full"
 
+  attr :id, :string,
+    required: true,
+    doc: "the hook's id: the droplet moves along the strip to its new glass (`.TubeDrop`)"
+
   def test_tubes(assigns) do
     assigns = assign(assigns, glasses: 0..TestTubes.last(), last: TestTubes.last())
 
     ~H"""
+    <%!-- Round 33: a move of the test-tube droplet (the hawkmoth's free move, the
+         rubies, a card) slides it from its old glass to the new one on a low arc
+         (WAAPI `translate`, 28 units a glass); reduced motion: it just sits there. --%>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".TubeDrop">
+      export default {
+        mounted() { this.tube = +this.el.dataset.tube },
+        updated() {
+          const from = this.tube, to = +this.el.dataset.tube
+          this.tube = to
+          const d = this.el.querySelector("[data-role=tube-droplet]")
+          if (!d || from === to || matchMedia("(prefers-reduced-motion: reduce)").matches) return
+          const dx = (from - to) * 28
+          d.animate([{translate: `${dx}px 0`}, {translate: `${dx / 2}px -9px`, offset: 0.5}, {translate: "0 0"}],
+            {duration: Math.min(320 + 60 * Math.abs(to - from), 700), easing: "cubic-bezier(0.65, 0, 0.35, 1)"})
+        }
+      }
+    </script>
     <svg
+      id={@id}
+      phx-hook=".TubeDrop"
       viewBox="0 -18 364 84"
       class={[@class, "select-none"]}
       role="img"
@@ -1709,6 +1732,7 @@ defmodule QuacksWeb.GameComponents do
       <.pot game={@game} seat={@seat} size={:sm} class="mx-auto block h-auto w-full max-w-64" />
       <.test_tubes
         :if={@game.rules.pot_side == :back}
+        id={"tubes-player-#{@seat}"}
         tube={@p.tube}
         class="mx-auto block h-auto w-full max-w-64"
       />
