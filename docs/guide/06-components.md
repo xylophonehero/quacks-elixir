@@ -1342,6 +1342,17 @@ bar) never moves:
   coins step lights the scoring space (`TileReveal.marks/3`). The phone die
   strip shows on the die step only. Server state is final already: this is
   display only.
+- **Next scores the step the bar names.** On the tiles `reveal.index` is the
+  pending step: `tile_totals/2`, `tile_slide/1` (the step scored last),
+  `TileReveal.news/3` and `tile_rolls/3` (the die faces by the crown) read the
+  steps before it, so nothing of a step shows before its Next. After the last
+  step `next_slide/1` goes one past it: the bar says "Round scored" and its
+  button closes with the close label. The bar's picture (`step_icon/1`): a book
+  step is its chip (value hidden), the die and the space parts their pieces.
+- **A draw on the tile.** Draw news carries `line`, so the tile line keeps its id
+  while the round brews; the chips' ids carry the draw count, so they enter
+  again on each draw: `tile-draw-pop` for the new one at the left,
+  `tile-draw-slide` (14 px) for the older ones.
 - **Black and white on the tiles.** While the round brews (`:potions`), a tile's
   bottom line ends in `tile_brew/1`: the black count and the white sum against
   the limit ("4/7", `Potions.explode_above/2`; `data-level` safe / warn / danger,
