@@ -3,7 +3,7 @@
 [Back to the guide](../GUIDE.md)
 
 A bot is a pure function. It reads the game, picks one action from
-`legal_actions/2` and gives it back. The GameServer (chapter 4) calls it on a timer
+`legal_actions/2` and gives it back. The GameServer (chapter 4) calls it on a timer (a brew: in one loop)
 and applies the action through `Session.apply/3`, as for a human click. This
 chapter is about the function.
 
@@ -220,13 +220,16 @@ The research measured the EV rule and the scored choices as a little stronger
 example `Profile.parse("balanced+ev+scored")`, in place of the atom. No decider
 code changes.
 
-**Brewing in lockstep.** In the potions phase a bot gets one tick per action, 700 ms
-apart. It may `:draw` only while it has drawn fewer chips this round than the human
-who drew most (`capped?/3`, `lib/quacks/game_server.ex:915-926`). So a bot brews
-draw for draw beside the humans and never runs ahead. The decider does not know
-about the cap: the server just does not ask it. When every human has stopped, the
-cap is off and the bot finishes at tick speed. Round 9 has no cap, because the
-stir already makes all seats draw together.
+**Brewing in one go (round 36).** In the potions phase of rounds 1–8 a bot gets
+no tick. While a human still draws it waits, and its tile shows "brewing". When
+the last human stops or explodes, the server calls `decide/4` and
+`Session.apply/3` in a loop (`brew_bots/2`, `lib/quacks/game_server.ex:1284-1335`):
+bot 1 to its stop, then bot 2, and every pot appears in one update. The decider
+does not know about this: it sees the same game it would see on a tick, with the
+humans' chips already drawn. It cannot be planned early on a copy, as the shop is,
+because each draw takes the next number from the shared `game.rng`; applied in
+order, the draws are the real ones. Round 9 keeps its ticks, because the stir
+already makes all seats draw together.
 
 **Choices in concurrent phases: plans.** In the fortune, chip, witch and shop
 phases every seat decides at the same time. There the server calls `decide/4` in a
