@@ -61,4 +61,41 @@ defmodule QuacksWeb.Round29BarTest do
       assert has_element?(view, "[data-role=shop-done].flex-none", "Skip")
     end
   end
+
+  describe "item 2: reward and risk beside the white meter" do
+    test "icons for coins, VP, ruby and the risk; the menu's Risk picks Percent, Chips or Off" do
+      {id, view} = solo()
+
+      # 6 white in the pot, limit 7: the 3-white of two chips explodes.
+      replace_game(id, fn g ->
+        H.put(g, 0,
+          drawn: [{{:white, 3}, 3}, {{:white, 3}, 1}],
+          bag: [{:white, 3}, {:orange, 1}],
+          starters: []
+        )
+      end)
+
+      row = "[data-role=fuse-row] > [data-role=reward-line]"
+      assert has_element?(view, "#{row} [data-role=reward-coins] use[href='#icon-coin']")
+      assert has_element?(view, "#{row} [data-role=reward-vp] use[href='#icon-vp']")
+      assert has_element?(view, "#{row} [data-role=explode-chance] use[href='#icon-explosion']")
+
+      # Default: Percent.
+      assert has_element?(view, "input#reveal-risk-percent[checked]")
+      assert has_element?(view, "[data-role=explode-chance]", "50%")
+
+      view |> element("#reveal-settings") |> render_change(%{"risk" => "chips"})
+      assert has_element?(view, "[data-role=explode-chance]", "1/2")
+      refute has_element?(view, "[data-role=explode-chance]", "%")
+
+      view |> element("#reveal-settings") |> render_change(%{"risk" => "off"})
+      refute has_element?(view, "[data-role=explode-chance]")
+      assert has_element?(view, "[data-role=reward-vp]")
+    end
+
+    test "app.js keeps the risk in this browser" do
+      js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
+      assert js =~ ~s{localStorage.setItem("quacks:risk"}
+    end
+  end
 end

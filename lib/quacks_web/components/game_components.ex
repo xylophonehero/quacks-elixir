@@ -1510,42 +1510,77 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc ~s"""
-  The line above the draw strip: what the scoring space pays ("Reward: 8 coins ·
-  0 VP · ruby") and, on the right, the chance that the next draw explodes
-  (`Quacks.AI.Odds.next_draw/2`, whole percent; 0% for a seat that stopped or
-  exploded). One fixed-height line, so a draw never moves the layout.
+  Beside the white meter (round 29: one row with it): what the scoring space pays,
+  as icons (coin and count, VP laurel and count, the ruby when the space has one),
+  then the risk that the next draw explodes (`risk`, the menu's Risk setting):
+  `:percent` "29%" (`Quacks.AI.Odds.next_draw/2`, whole percent), `:chips` "3/14"
+  (white chips in the bag that would explode the pot / chips in the bag,
+  `Quacks.AI.Odds.next_draw_count/2`), `:off` nothing. No risk for a seat that
+  stopped or exploded (0%, 0/N). Fixed height, so a draw never moves the layout.
   """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
+  attr :risk, :atom, default: :percent, values: [:off, :percent, :chips]
 
   def reward_line(assigns) do
+    {bad, bag} = explode_count(assigns.game, assigns.seat)
+
     assigns =
       assign(assigns,
         space: PotTrack.at(Game.scoring_index(assigns.game, assigns.seat)),
         final?: assigns.game.round == 9,
-        explode: explode_percent(assigns.game, assigns.seat)
+        explode: explode_percent(assigns.game, assigns.seat),
+        bad: bad,
+        bag: bag
       )
 
     # Round 9 has no shop: the line names the VP, not coins to spend.
     ~H"""
     <p
-      class="flex h-4 min-w-0 items-center justify-between gap-2 overflow-hidden text-xs leading-4 whitespace-nowrap text-parchment-dim"
+      class="flex h-7 shrink-0 items-center gap-2.5 text-sm leading-none font-semibold whitespace-nowrap tabular-nums text-parchment"
       data-role="reward-line"
     >
-      <span class="min-w-0 truncate" data-role="next-reward">
-        Reward:
-        <span :if={!@final?} class="font-semibold text-parchment">{@space.coins} {plural(
-          @space.coins,
-          "coin",
-          "coins"
-        )} ·</span>
-        <span class="font-semibold text-gold">{@space.vp} VP</span><span :if={@space.ruby?}> · <span class="font-semibold text-ruby-light">ruby</span></span>
+      <span class="flex items-center gap-2" data-role="next-reward">
+        <span class="sr-only">Reward:</span>
+        <span :if={!@final?} class="flex items-center gap-0.5" data-role="reward-coins">
+          <.piece_icon name={:coin} class="size-5 text-gold" />{@space.coins}
+          <span class="sr-only">
+            {plural(@space.coins, "coin", "coins")}
+          </span>
+        </span>
+        <span class="flex items-center gap-0.5 text-gold" data-role="reward-vp">
+          <.piece_icon name={:vp} class="size-5" />{@space.vp}<span class="sr-only"> VP</span>
+        </span>
+        <span :if={@space.ruby?} class="flex items-center" data-role="reward-ruby">
+          <.piece_icon name={:ruby} class="size-5 text-ruby-light" /><span class="sr-only">ruby</span>
+        </span>
       </span>
-      <span class="shrink-0" data-role="explode-chance" data-percent={@explode}>
-        Explode: <span class="font-semibold text-parchment tabular-nums">{@explode}%</span>
+      <span
+        :if={@risk != :off}
+        class="flex items-center gap-0.5 border-l border-parchment/25 pl-2.5"
+        data-role="explode-chance"
+        data-percent={@explode}
+        data-count={"#{@bad}/#{@bag}"}
+        title={"Explosion risk of the next draw: #{@bad} of #{@bag} chips in the bag"}
+      >
+        <.piece_icon name={:explosion} class="size-5 text-chip-orange" />
+        <span class="sr-only">Explode:</span>
+        <%= if @risk == :chips do %>
+          {@bad}/{@bag}
+        <% else %>
+          {@explode}%
+        <% end %>
       </span>
     </p>
     """
+  end
+
+  defp explode_count(game, seat) do
+    p = Game.player(game, seat)
+
+    if p.exploded? or p.phase in [:stopped, :done],
+      do: {0, length(p.bag)},
+      else: Odds.next_draw_count(game, seat)
   end
 
   defp explode_percent(game, seat) do

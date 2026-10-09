@@ -82,9 +82,11 @@ setBeat(loadReveal().speed)
 const phoneQuery = window.matchMedia("(max-width: 39.999rem)")
 const RevealSettings = {
   mounted() {
+    // Round 29: the risk beside the white meter (Off, Percent, Chips) in `quacks:risk`.
+    const loadRisk = () => { try { return localStorage.getItem("quacks:risk") || "percent" } catch (_e) { return "percent" } }
     const send = ({mode, speed, show}) => {
       setBeat(speed)
-      this.pushEvent("reveal_settings", {mode, speed, show, phone: phoneQuery.matches, reduced: reduced()})
+      this.pushEvent("reveal_settings", {mode, speed, show, risk: loadRisk(), phone: phoneQuery.matches, reduced: reduced()})
     }
     const current = () => {
       const saved = loadReveal()
@@ -93,7 +95,10 @@ const RevealSettings = {
     this.el.addEventListener("change", () => {
       const form = new FormData(this.el)
       const settings = {mode: form.get("mode") || "step", speed: form.get("speed") || "normal", show: form.get("show") || current().show}
-      try { localStorage.setItem("quacks:reveal", JSON.stringify(settings)) } catch (_e) {}
+      try {
+        localStorage.setItem("quacks:reveal", JSON.stringify(settings))
+        localStorage.setItem("quacks:risk", form.get("risk") || "percent")
+      } catch (_e) {}
       setBeat(settings.speed)
     })
     this.onPhone = () => send(current())

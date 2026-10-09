@@ -148,6 +148,7 @@ defmodule QuacksWeb.GameLive do
            result_closed: false,
            reveal_mode: :step,
            reveal_speed: :normal,
+           risk: :percent,
            reveal_show: :overlay,
            reveal_choice: :overlay,
            phone: false,
@@ -446,6 +447,13 @@ defmodule QuacksWeb.GameLive do
     # Round 28: phones always play the results on the tiles (no overlay).
     phone = Map.get(params, "phone", socket.assigns.phone) in [true, "true"]
     show = if phone, do: :tiles, else: choice
+    # Round 29: the risk shown beside the white meter (`quacks:risk` in this browser).
+    risk =
+      Enum.find(
+        [:off, :percent, :chips],
+        socket.assigns.risk,
+        &(Atom.to_string(&1) == params["risk"])
+      )
 
     socket =
       assign(socket,
@@ -453,6 +461,7 @@ defmodule QuacksWeb.GameLive do
         reveal_speed: speed,
         reveal_show: show,
         reveal_choice: choice,
+        risk: risk,
         phone: phone,
         reduced: reduced
       )
@@ -1596,9 +1605,14 @@ defmodule QuacksWeb.GameLive do
           >
             Show the result
           </.button>
-          <div :if={@seat && @game.phase == :potions} class="flex flex-col gap-1" data-role="fuse-row">
-            <.reward_line game={@game} seat={@seat} />
-            <div class="flex"><.fuse_meter game={@game} seat={@seat} /></div>
+          <%!-- Round 29: one row, the white meter, then the reward and the risk as icons. --%>
+          <div
+            :if={@seat && @game.phase == :potions}
+            class="flex min-w-0 items-center gap-2"
+            data-role="fuse-row"
+          >
+            <.fuse_meter game={@game} seat={@seat} />
+            <.reward_line game={@game} seat={@seat} risk={@risk} />
           </div>
           <%!-- From 64rem an exploded pot puts its result here, where Stop and Draw
                were, and says what comes next. --%>
@@ -1761,6 +1775,7 @@ defmodule QuacksWeb.GameLive do
             mode={@reveal_mode}
             speed={@reveal_speed}
             show={@reveal_choice}
+            risk={@risk}
             phone={@phone}
             reduced={@reduced}
           />

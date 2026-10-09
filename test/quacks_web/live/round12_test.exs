@@ -24,15 +24,12 @@ defmodule QuacksWeb.Round12Test do
     do: view |> element("#game") |> render_keydown(Map.put(meta, "key", key))
 
   describe "the reward line" do
-    test "sits above the draw strip and always names the VP" do
+    test "sits beside the white meter and always names the VP" do
       {_id, view} = solo()
 
-      assert has_element?(
-               view,
-               "[data-role=fuse-row] > [data-role=reward-line] + div #fuse-meter"
-             )
-
-      assert has_element?(view, "[data-role=reward-line].h-4 [data-role=next-reward]", "Reward:")
+      # Round 29: one row, the meter then the reward.
+      assert has_element?(view, "[data-role=fuse-row] > #fuse-meter + [data-role=reward-line]")
+      assert has_element?(view, "[data-role=reward-line].h-7 [data-role=next-reward]", "Reward:")
       assert has_element?(view, "[data-role=next-reward]", "0 VP")
     end
 

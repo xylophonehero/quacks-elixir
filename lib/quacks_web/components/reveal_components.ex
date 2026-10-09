@@ -648,8 +648,8 @@ defmodule QuacksWeb.RevealComponents do
 
   @doc """
   The menu's reveal settings, a form (`#reveal-settings`, event
-  `"reveal_settings"`): Step or Auto, the speed and (not on a phone) where the
-  results play. `RevealSettings` (app.js)
+  `"reveal_settings"`): Step or Auto, the speed, the risk beside the white meter
+  (round 29: Off, Percent or Chips) and (not on a phone) where the results play. `RevealSettings` (app.js)
   keeps them in this browser and sends them on mount. With reduced motion only
   Step.
   """
@@ -665,6 +665,11 @@ defmodule QuacksWeb.RevealComponents do
   attr :phone, :boolean,
     default: false,
     doc: "round 28: a phone always plays the results on the tiles; the Results choice hides"
+
+  attr :risk, :atom,
+    default: :percent,
+    values: [:off, :percent, :chips],
+    doc: "round 29: the explosion risk beside the white meter"
 
   def reveal_settings(assigns) do
     ~H"""
@@ -688,6 +693,12 @@ defmodule QuacksWeb.RevealComponents do
         legend="Speed"
         value={@speed}
         options={[normal: "Normal", slow: "Slow", slower: "Slower"]}
+      />
+      <.segments
+        name="risk"
+        legend="Risk"
+        value={@risk}
+        options={[off: "Off", percent: "Percent", chips: "Chips"]}
       />
       <input type="hidden" name="phone" value={to_string(@phone)} />
       <div :if={!@phone} data-role="reveal-show">
