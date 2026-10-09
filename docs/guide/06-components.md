@@ -276,8 +276,13 @@ fixed:
   element at the end of a `space-y-*` block still gets a margin on its neighbour, so
   the replay marker `<i id="replay-start-N">` is the first child of its block.
 - Phones: the bar has a fixed height (`.game-bar`, `--bar-h`). Its rare extras
-  (Mandrake, Ear worm, the patient's chips, the bonus die) are in `.game-tray`, which
+  (Ear worm, the patient's chips, the bonus die) are in `.game-tray`, which
   is `position: absolute; bottom: 100%`: it floats over the pot's lower band.
+- Mandrake (round 32): the white chip that went back floats over the bag
+  (`[data-role=mandrake-undo]`, `absolute` in the pot square, so no layout shift),
+  with a round undo button (`#keep-white`, `keep_white`) above it. The chip bobs
+  (`.mandrake-bob`, 4 px, 1.6 s); reduced motion: no bob. Drawing on keeps the
+  server's answer (the chip stays in the bag).
 - From 64rem the pot spans the bar's row too ("pot context" / "pot bar"). A taller
   bar takes room from the context column, never from the pot. Grid sizes an `auto`
   row only from the items that do not span a flexible row, so the pot does not
@@ -1431,6 +1436,14 @@ Play):
   flight. A chip that went away flies as a
   ghost to the flask or the bag (`ghost`, lines 181-196). At a new round the old
   chips fade and the new rats slide in from the droplet (`ratsIn`, lines 142-153).
+  Round 32: when your newest move paid rubies for the droplet, the server marks it
+  (`data-hop="rubies"`) and `hop` makes it jump from its old space (the snapshot's
+  `data-index`) to the new one on a low arc with a 1.3× lift, 520 ms, over the CSS
+  slide (a WAAPI `translate` beats the CSS transition). A flask that became full
+  fills: the brew rises 34 px inside the flask's clip group, 700 ms. If that spend
+  ends the round (nothing left to spend), the page waits 800 ms
+  (`done_after/2`, `:show_move_ms`, 0 in the tests) before it sends `:end_round`,
+  so the next round's card does not cover the move.
   Then `flights()` (lines 121-139) sends each new `[data-role=ruby-flight]` to the
   ruby counter, with the same delay formula as the CSS (it reads `--beat-lead` and
   `--beat-step` from `:root`). Each one is `el.animate(frames, opts)`, the Web

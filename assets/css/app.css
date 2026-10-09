@@ -3035,3 +3035,17 @@ html:not([data-share]) .share-fallback {
   background: var(--color-gold);
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.25);
 }
+
+/* Mandrake: the white chip that went back hovers over the bag. */
+@keyframes mandrake-bob {
+  50% {
+    translate: 0 -4px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mandrake-bob {
+    display: inline-flex;
+    animation: mandrake-bob 1.6s ease-in-out infinite;
+  }
+}
