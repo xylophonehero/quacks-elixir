@@ -147,10 +147,14 @@ const PotMotion = {
     const added = chips.filter(c => !this.chips.has(c.id))
     const gone = [...this.chips.values()].filter(c => !c.isConnected)
     const flask = this.full && !this.el.querySelector("[data-role=flask-brew]")
+    // Round 34: the same chip (its draw order) on a new space moved in the pot
+    // (green III): it flies from its old space, not from the bag.
+    const moved = gone.length === 1 && added.length === 1 && gone[0].dataset.order === added[0].dataset.order
     if (this.el.dataset.round !== this.round) {
       gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, null, i * 20))
       this.ratsIn()
     }
+    else if (moved) this.fly(added[0], this.pos(gone[0].dataset.index), 1, 40)
     else if (gone.length === 1 && added.length === 0)
       this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
     else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0])
@@ -238,11 +242,12 @@ const PotMotion = {
   // the bag small, flies on an arc above both ends and lands on its space with the
   // pop, 460 ms. Only your own pot (`data-mine`); reduced motion: no flight.
   // A copy flies in the top layer (`top`); the chip hides until it lands.
-  fly(chip) {
+  // A move in the pot passes its old space as `b`, full size (`s0`), a lower arc.
+  fly(chip, b = this.centre(this.bag()), s0 = 0.55, lift = 70) {
     if (reduced()) return
     chip.getAnimations().forEach(a => a.cancel())
-    const p = this.pos(chip.dataset.index), b = this.centre(this.bag())
-    const c = {x: (b.x + p.x) / 2, y: Math.min(b.y, p.y) - 70}
+    const p = this.pos(chip.dataset.index)
+    const c = {x: (b.x + p.x) / 2, y: Math.min(b.y, p.y) - lift}
     const arc = t => ({x: (1 - t) ** 2 * b.x + 2 * (1 - t) * t * c.x + t * t * p.x,
                        y: (1 - t) ** 2 * b.y + 2 * (1 - t) * t * c.y + t * t * p.y})
     const steps = [0, 0.2, 0.4, 0.6, 0.8, 1]
@@ -250,7 +255,7 @@ const PotMotion = {
     copy.removeAttribute("id")
     const hide = chip.animate([{opacity: 0}, {opacity: 0}], {duration: 460})
     copy.animate([
-      ...steps.map(t => ({transform: at(arc(t), p, 0.55 + 0.6 * t), opacity: t === 0 ? 0 : 1, offset: t * 0.8})),
+      ...steps.map(t => ({transform: at(arc(t), p, s0 + (1.15 - s0) * t), opacity: t || s0 === 1 ? 1 : 0, offset: t * 0.8})),
       {transform: at(p, p, 0.96), opacity: 1, offset: 0.9, easing: easing("--ease-spring")},
       {transform: at(p, p, 1), opacity: 1},
     ], {duration: 460, easing: "linear"}).finished.catch(() => {}).finally(() => { g.remove(); hide.cancel() })

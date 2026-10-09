@@ -1,14 +1,16 @@
 defmodule QuacksWeb.Round34Test do
   @moduledoc """
-  Round 34 fixes: sticky sheet headers, rat tails on the second lap of the track.
+  Round 34 fixes: sticky sheet headers, a chip that moves in the pot (green III)
+  flies from its old space, rat tails on the second lap of the track.
   """
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
 
+  alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias Quacks.GameServer
+  alias QuacksWeb.GameComponents
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -53,6 +55,33 @@ defmodule QuacksWeb.Round34Test do
       assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='2'][data-step='0']")
       assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='0'][data-step='7']")
       assert has_element?(view, "#rat-track [data-role=track-dot][data-seat='1'][data-step='12']")
+    end
+  end
+
+  describe "a chip that moves in the pot (green III)" do
+    defp pot_chips(game) do
+      render_component(&GameComponents.pot/1, game: game)
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("[data-role=pot-chip]")
+      |> Enum.map(fn n ->
+        {hd(LazyHTML.attribute(n, "id")), hd(LazyHTML.attribute(n, "data-order")),
+         hd(LazyHTML.attribute(n, "data-index"))}
+      end)
+    end
+
+    test "keeps its draw order on a new id at the new space: PotMotion flies it from there" do
+      game = Game.new(seed: {1, 2, 3})
+      drawn = [{{:green, 2}, 9}, {{:white, 3}, 7}, {{:white, 4}, 4}]
+      before = put_in(game.players[0].drawn, drawn)
+      moved = put_in(game.players[0].drawn, [{{:green, 2}, 11} | tl(drawn)])
+
+      [{old_id, order, "9"}] = pot_chips(before) -- pot_chips(moved)
+      [{new_id, ^order, "11"}] = pot_chips(moved) -- pot_chips(before)
+      assert old_id != new_id
+
+      js = File.read!("assets/js/app.js")
+      assert js =~ "gone[0].dataset.order === added[0].dataset.order"
+      assert js =~ "this.fly(added[0], this.pos(gone[0].dataset.index)"
     end
   end
 end
