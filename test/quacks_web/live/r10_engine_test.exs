@@ -81,7 +81,7 @@ defmodule QuacksWeb.R10EngineTest do
         H.put(g, 0, drawn: [{{:white, 1}, 1}], pot_index: 1, bag: [{:yellow, 1}])
       end)
 
-      alice |> element("button", "Draw a chip") |> render_click()
+      alice |> element("button[data-slot=draw]") |> render_click()
       refute has_element?(alice, "#decision-yellow_choice")
       assert has_element?(alice, "[data-role=mandrake-undo]", "went back in your bag")
       refute has_element?(bob, "#keep-white")
@@ -99,9 +99,9 @@ defmodule QuacksWeb.R10EngineTest do
         H.put(g, 0, drawn: [{{:white, 1}, 1}], pot_index: 1, bag: [{:yellow, 1}])
       end)
 
-      alice |> element("button", "Draw a chip") |> render_click()
+      alice |> element("button[data-slot=draw]") |> render_click()
       assert has_element?(alice, "#keep-white")
-      bob |> element("button", "Draw a chip") |> render_click()
+      bob |> element("button[data-slot=draw]") |> render_click()
       refute has_element?(alice, "#keep-white")
       assert GameServer.keep_white(id, 0) == {:error, :too_late}
     end

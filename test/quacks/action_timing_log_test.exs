@@ -22,7 +22,7 @@ defmodule Quacks.ActionTimingLogTest do
 
     log =
       capture_log([level: :debug], fn ->
-        view |> element("button", "Draw a chip") |> render_click()
+        view |> element("button[data-slot=draw]") |> render_click()
       end)
 
     assert log =~

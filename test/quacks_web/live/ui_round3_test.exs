@@ -28,7 +28,7 @@ defmodule QuacksWeb.UiRound3Test do
 
   # Seed 10,11,12 draws white 2, 3, 1: stop there for a shop with 7 coins.
   defp to_shop(view) do
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
     view
   end
@@ -81,7 +81,7 @@ defmodule QuacksWeb.UiRound3Test do
     assert has_element?(view, "#card-tap")
 
     # later renders keep the same card: it does not open again
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
 
     view |> element("#card-tap") |> render_click()
@@ -99,7 +99,7 @@ defmodule QuacksWeb.UiRound3Test do
 
   # The rest of `to_shop/1` after one draw, then "Done" (round over).
   defp to_shop_rest(view) do
-    for _ <- 1..2, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..2, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
     view |> element("[data-role=shop-done]") |> render_click()
   end

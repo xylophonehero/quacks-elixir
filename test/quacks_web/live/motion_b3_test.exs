@@ -58,9 +58,9 @@ defmodule QuacksWeb.MotionB3Test do
 
   test "a draw keeps the earlier chips' ids; a new chip is the only new id" do
     view = mount()
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     before = ids(render(view), "[data-role=pot-chip]")
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     later = ids(render(view), "[data-role=pot-chip]")
 
     assert length(later -- before) == 1
@@ -71,7 +71,7 @@ defmodule QuacksWeb.MotionB3Test do
     view = mount()
     assert has_element?(view, ".round-counter[data-role=round-counter]", "1 / 9")
 
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     refute_push_event(view, "quacks:vt", _)
     view |> element("button", "Stop") |> render_click()
     view |> element("[data-role=shop-done]") |> render_click()

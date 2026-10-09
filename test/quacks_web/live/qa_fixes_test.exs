@@ -45,7 +45,7 @@ defmodule QuacksWeb.QaFixesTest do
       {:ok, id} = GameServer.start(1, {10, 11, 12})
       token = "results-#{System.unique_integer()}"
       view = open(browser(token), id)
-      for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+      for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
       view |> element("button", "Stop") |> render_click()
 
       assert has_element?(view, "dialog#reveal-results-1")
@@ -175,7 +175,7 @@ defmodule QuacksWeb.QaFixesTest do
       view = open(browser("bar-#{System.unique_integer()}"), id)
       assert has_element?(view, "[data-role=action-bar]")
       assert has_element?(view, "aside[data-role=side-column]")
-      for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+      for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
       view |> element("button", "Stop") |> render_click()
       refute has_element?(view, "[data-role=action-bar]")
     end

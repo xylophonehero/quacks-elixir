@@ -82,8 +82,8 @@ defmodule QuacksWeb.Polish2Test do
                ~s(#{footer} [data-role=shop-total][aria-label="30 coins, 30 left after this buy"])
              )
 
-      assert has_element?(view, "#{footer} [data-role=shop-done]", "Done")
-      assert has_element?(view, "#{footer} button[data-role=shop-buy]:disabled", "Buy")
+      assert has_element?(view, "#{footer} [data-role=shop-done]", "Skip")
+      refute has_element?(view, "#{footer} [data-role=shop-buy]")
 
       render_change(view, "select", %{"chips" => [GameLive.encode({:orange, 1})]})
 

@@ -103,7 +103,7 @@ defmodule QuacksWeb.ScoringTest do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     {:ok, view, _html} = live(init_test_session(build_conn(), player_token: "solo"), ~p"/g/#{id}")
 
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)

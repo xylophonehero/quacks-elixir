@@ -49,7 +49,7 @@ defmodule QuacksWeb.UiRound3bTest do
     end
 
     assert state(alice, 0) =~ "deciding"
-    alice |> element("button", "Draw a chip") |> render_click()
+    alice |> element("button[data-slot=draw]") |> render_click()
 
     assert has_element?(alice, "button[data-slot=draw][disabled]")
     assert has_element?(alice, "button[data-slot=stop][disabled]")
@@ -87,7 +87,7 @@ defmodule QuacksWeb.UiRound3bTest do
 
     assert has_element?(alice, "dialog#decision-shop #shop")
     assert has_element?(alice, "dialog#decision-shop [data-role=shop-bag]")
-    assert has_element?(alice, "dialog#decision-shop [data-role=shop-done]", "Done")
+    assert has_element?(alice, "dialog#decision-shop [data-role=shop-done]", "Skip")
     refute has_element?(alice, "button", "Buy nothing")
     refute has_element?(alice, "dialog#decision-shop [data-role=shop-rubies]")
 

@@ -3862,7 +3862,7 @@ defmodule QuacksWeb.GameComponents do
   def phase_name(:witch_choice), do: "Gold witch"
   def phase_name(:witch_offer), do: "Silver witch"
   def phase_name(:red_choice), do: "Toadstool"
-  def phase_name(:stopped), do: "Stopped"
+  def phase_name(:stopped), do: "Waiting"
   def phase_name(:shop), do: "Shop"
   def phase_name(:rubies), do: "Spend rubies"
   def phase_name(:droplet_choice), do: "Droplet"

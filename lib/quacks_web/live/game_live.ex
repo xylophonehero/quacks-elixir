@@ -1655,7 +1655,7 @@ defmodule QuacksWeb.GameLive do
               variant={:primary}
               data-slot="draw"
             >
-              Draw a chip
+              Draw
               <.kbd>d</.kbd>
             </.button>
           </section>
@@ -2153,7 +2153,9 @@ defmodule QuacksWeb.GameLive do
   The engine decides what may be ticked: a box is disabled when adding its chip
   to the selection is not a legal buy. "Buy selected" sends `{:buy, selected}`.
 
-  The copper witches are here too. "Done" buys nothing (`{:buy, []}`).
+  The copper witches are here too. "Skip" buys nothing (`{:buy, []}`): with nothing
+  ticked it is the one button; with chips ticked it is a small secondary button
+  beside Buy (round 29: a mis-tap does not end the shop with nothing).
 
   `:rubies`, after the buy (or when there is nothing to buy): the ruby options
   (`{:rubies, _}`), other witch calls, and "Keep rubies" (`:end_round`). Both steps
@@ -2330,14 +2332,14 @@ defmodule QuacksWeb.GameLive do
           phx-value-action={encode({:buy, []})}
           variant={if @buying?, do: :secondary, else: :primary}
           autofocus={!@buying?}
-          class={["min-w-0", if(@buying?, do: "flex-none px-3", else: "flex-1")]}
+          class={["min-w-0", if(@selected != [], do: "flex-none px-3 text-sm", else: "flex-1")]}
           data-role="shop-done"
         >
-          Done
+          Skip
           <.kbd :if={!@buying?}>Enter</.kbd>
         </.button>
         <.button
-          :if={@buying?}
+          :if={@buying? and @selected != []}
           phx-click="action"
           phx-value-action={encode({:buy, @selected})}
           variant={:primary}

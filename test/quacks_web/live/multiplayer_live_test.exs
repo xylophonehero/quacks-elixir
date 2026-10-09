@@ -33,7 +33,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
 
     alice |> element("button", "Start game") |> render_click()
     assert {:ok, %{status: :playing}} = GameServer.get(id)
-    assert has_element?(bob, "button", "Draw a chip")
+    assert has_element?(bob, "button[data-slot=draw]", "Draw")
   end
 
   test "a page closed before the start frees its seat" do
@@ -61,8 +61,8 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "brewing")
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=player-state]), "brewing")
 
-    alice |> element("button", "Draw a chip") |> render_click()
-    bob |> element("button", "Draw a chip") |> render_click()
+    alice |> element("button[data-slot=draw]") |> render_click()
+    bob |> element("button[data-slot=draw]") |> render_click()
     # Alice's draw reached Bob's page through PubSub
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=pot-chip]))
     assert has_element?(bob, "li", ~r/^Player 1: Drew white \d/)
