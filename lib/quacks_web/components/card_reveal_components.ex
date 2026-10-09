@@ -2,7 +2,9 @@ defmodule QuacksWeb.CardRevealComponents do
   @moduledoc """
   Round 30: the result of a fortune card that draws chips for every player (P8 Less
   is More, P13 Flea Market, B7 Safety Procedure): one row per player with the seat
-  disc, the drawn chips, the key number (P8: the sum) and what the card gave. Data:
+  disc, the drawn chips, the key number (P8: the sum) and what the card gave.
+  Round 35: also a card that offers everyone a choice (Choices, Choices, Decisions,
+  Decisions…): per row what the player took, with icons (or "choosing…"). Data:
   `Quacks.Game.Fortune.reveals/1`. The card's result sheet, the fortune sheet and the
   grown corner card show it.
   """
@@ -103,7 +105,26 @@ defmodule QuacksWeb.CardRevealComponents do
         {@initial}
       </span>
       <span class="sr-only">{@name}:</span>
-      <span class="flex min-w-0 flex-1 flex-wrap items-center gap-0.5" data-role="reveal-chips">
+      <%!-- Round 35: a choice card draws nothing: what the seat took fills the row. --%>
+      <span
+        :if={Fortune.choice_card?(@card)}
+        class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 font-bold"
+        data-role="reveal-result"
+      >
+        <%= cond do %>
+          <% @row.choosing? -> %>
+            <span class="text-xs font-semibold text-ink-soft">choosing…</span>
+          <% @row.gains == [] -> %>
+            <span class="text-xs font-semibold text-ink-soft">passed</span>
+          <% true -> %>
+            <.gain :for={gain <- @row.gains} gain={gain} size={@size} />
+        <% end %>
+      </span>
+      <span
+        :if={!Fortune.choice_card?(@card)}
+        class="flex min-w-0 flex-1 flex-wrap items-center gap-0.5"
+        data-role="reveal-chips"
+      >
         <span
           :for={{chip, i} <- Enum.with_index(@row.drew)}
           class={[
@@ -131,6 +152,7 @@ defmodule QuacksWeb.CardRevealComponents do
         {@row.number}
       </span>
       <span
+        :if={!Fortune.choice_card?(@card)}
         class="flex w-14 shrink-0 items-center justify-end gap-0.5 font-bold"
         data-role="reveal-result"
       >
@@ -150,12 +172,40 @@ defmodule QuacksWeb.CardRevealComponents do
   attr :gain, :any, required: true
   attr :size, :atom, default: :sm
 
+  # One ruby is "+" and the gem; more (or a price) shows the number too.
   defp gain(%{gain: {:rubies, n}} = assigns) do
-    assigns = assign(assigns, n: n)
+    assigns = assign(assigns, n: n, text: count_text(n))
 
     ~H"""
-    <span class="flex items-center gap-0.5" data-gain="rubies">
-      +<.piece_icon name={:ruby} class="size-4 text-ruby" /><span class="sr-only">{@n} ruby</span>
+    <span class="flex items-center gap-0.5 tabular-nums" data-gain="rubies">
+      <span aria-hidden="true">{@text}</span><.piece_icon name={:ruby} class="size-4 text-ruby" /><span class="sr-only">{@n} ruby</span>
+    </span>
+    """
+  end
+
+  defp gain(%{gain: {kind, n}} = assigns) when kind in [:vp, :droplet, :rats] do
+    assigns = assign(assigns, kind: kind, n: n, text: count_text(n))
+
+    ~H"""
+    <span class="flex items-center gap-0.5 tabular-nums" data-gain={@kind}>
+      <span aria-hidden="true">{@text}</span><.piece_icon
+        name={if(@kind == :rats, do: :rat, else: @kind)}
+        class="size-4"
+      /><span class="sr-only">{@n} {@kind}</span>
+    </span>
+    """
+  end
+
+  defp gain(%{gain: {:removed, chip}} = assigns) do
+    assigns = assign(assigns, chip: chip)
+
+    ~H"""
+    <span
+      class="flex items-center gap-0.5"
+      data-gain="removed"
+      title={"removed " <> chip_name(@chip)}
+    >
+      −<.chip chip={@chip} size={@size} />
     </span>
     """
   end
@@ -184,7 +234,11 @@ defmodule QuacksWeb.CardRevealComponents do
   defp rule(:p8), do: "Lowest sum takes a blue 2. Everyone else takes a ruby."
   defp rule(:p13), do: "Each trades one chip up, or takes a green 1."
   defp rule(:b7), do: "Drawn on stopping: one may go on the pot."
-  defp rule(_card), do: nil
+  defp rule(card), do: if(Fortune.choice_card?(card), do: "What everyone took")
+
+  defp count_text(1), do: "+"
+  defp count_text(n) when n > 1, do: "+#{n}"
+  defp count_text(n), do: "−#{abs(n)}"
 
   defp none(:b7), do: "returned"
   defp none(_card), do: "kept"

@@ -61,4 +61,39 @@ defmodule Quacks.CardRevealsTest do
       refute Fortune.reveal_card?(nil)
     end
   end
+
+  describe "reveals/1 for the choice cards (round 35)" do
+    test "Choices, Choices: a row per seat, what it took, or choosing" do
+      g = new(3) |> put(fortune_card: :p1) |> Fortune.resolve()
+
+      assert Enum.all?(Fortune.reveals(g), fn {_seat, row} -> row.choosing? end)
+
+      {:ok, g} = Game.apply(g, 0, {:fortune, :rubies})
+      {:ok, g} = Game.apply(g, 1, {:fortune, {:take, {:black, 1}}})
+      rows = Fortune.reveals(g)
+
+      assert %{drew: [], gains: [{:rubies, 3}], choosing?: false} = rows[0]
+      assert %{gains: [{:chip, {:black, 1}}], choosing?: false} = rows[1]
+      assert %{gains: [], choosing?: true} = rows[2]
+      assert Fortune.choice_card?(:p1)
+      refute Fortune.reveal_card?(:p1)
+    end
+
+    test "Boomberry Cleanse and Decisions, Decisions: VP, the white chip, the droplet" do
+      g = new(2) |> put(fortune_card: :p6) |> Fortune.resolve()
+      {:ok, g} = Game.apply(g, 0, {:fortune, :vp})
+      {:ok, g} = Game.apply(g, 1, {:fortune, :remove_white})
+      assert %{0 => %{gains: [{:vp, 4}]}, 1 => %{gains: [{:removed, {:white, 1}}]}} =
+               Fortune.reveals(g)
+
+      g = new(1) |> put(fortune_card: :p11) |> Fortune.resolve()
+      {:ok, g} = Game.apply(g, 0, {:fortune, :droplet})
+      assert %{0 => %{gains: [{:droplet, 2}]}} = Fortune.reveals(g)
+    end
+
+    test "a card with nothing to choose has no rows" do
+      g = new(2) |> put(fortune_card: :p2) |> Fortune.resolve()
+      assert Fortune.reveals(g) == %{}
+    end
+  end
 end

@@ -86,9 +86,13 @@ defmodule QuacksWeb.Round24Test do
       refute has_element?(view, "dialog#card-round-1")
       refute has_element?(view, "#card-tap")
       assert has_element?(view, "#pot-card-1")
-      assert has_element?(view, "#bar-card-1 [data-choice=rubies]", "+3")
+      # Round 35: the ruby with its 3 in the chip row.
+      assert has_element?(view, "#bar-card-1 [data-choice=rubies]", "3")
 
       view |> element("#bar-card-1 [data-choice=rubies]") |> render_click()
+      # Round 35: the card stays, grown, with what everyone took; Continue shrinks it.
+      assert has_element?(view, "#pot-card-1 [data-role=card-reveals]")
+      view |> element("#card-continue") |> render_click()
       assert_push_event(view, "quacks:vt", %{type: "card"})
       refute has_element?(view, "#pot-card-1")
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)

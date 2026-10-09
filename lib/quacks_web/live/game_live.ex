@@ -1261,14 +1261,16 @@ defmodule QuacksWeb.GameLive do
                 <%!-- Round 30: every player's chips under the grown card. Round 31:
                      also while the card's choice waits in the bar (Flea Market), and
                      after the new card's tap (`next_slide/1` grows it). --%>
+                <%!-- Round 35: a choice card's rows once this seat has chosen. --%>
                 <.card_reveals
                   :if={
-                    (@card_grown or @decision == :fortune_choice) and
-                      Quacks.Game.Fortune.reveals(@game) != %{}
+                    (@card_grown or
+                       (@decision == :fortune_choice and Fortune.reveal_card?(@game.fortune_card))) and
+                      Fortune.reveals(@game) != %{}
                   }
                   id={"pot-card-reveals-#{@game.round}"}
                   card={@game.fortune_card}
-                  reveals={Quacks.Game.Fortune.reveals(@game)}
+                  reveals={Fortune.reveals(@game)}
                   order={Game.turn_order(@game)}
                   seat={@seat}
                   names={@names}
@@ -3484,7 +3486,9 @@ defmodule QuacksWeb.GameLive do
       skip_rubies: skip_rubies,
       stop_slot: stop_slot(game, me),
       essence_pick: essence_pick(me, socket.assigns[:essence_pick]),
-      card_grown: socket.assigns[:card_grown] == true and same_round?(socket.assigns[:game], game)
+      card_grown:
+        (socket.assigns[:card_grown] == true and same_round?(socket.assigns[:game], game)) or
+          chose_card?(socket.assigns, decision, game)
     )
     |> open_reveal()
     |> card_vt(was)
@@ -3762,6 +3766,15 @@ defmodule QuacksWeb.GameLive do
        do: push_event(socket, "quacks:vt", %{}, dispatch: :before)
 
   defp mark_round_change(socket, _game), do: socket
+
+  # Round 35: this seat just made the choice of a card that offers everyone one:
+  # the card grows over the pot with what everyone took (`Fortune.reveals/1`),
+  # live while the others still choose; a tap or Continue shrinks it.
+  defp chose_card?(%{decision: :fortune_choice, game: old}, decision, game)
+       when decision != :fortune_choice,
+       do: same_round?(old, game) and Fortune.choice_card?(game.fortune_card)
+
+  defp chose_card?(_assigns, _decision, _game), do: false
 
   defp same_round?(%Game{round: round}, %Game{round: round}), do: true
   defp same_round?(_old, _new), do: false

@@ -113,4 +113,43 @@ defmodule QuacksWeb.Round35ChoicesTest do
       assert game.players[0].rubies == 4
     end
   end
+
+  describe "item 6: what everyone took after an everyone-card" do
+    defp p1(g),
+      do:
+        %{g | phase: :fortune_choice, fortune_card: :p1}
+        |> Map.update!(:players, &Map.new(&1, fn {s, p} -> {s, %{p | phase: :fortune_choice}} end))
+
+    test "solo: after the choice the card grows with the row; Continue shrinks it" do
+      {id, view} = solo(%{})
+      replace_game(id, &p1/1)
+      refute has_element?(view, "[data-role=pot-card] [data-role=card-reveals]")
+
+      view |> element("[data-card=p1] button[data-choice=rubies]") |> render_click()
+
+      row = "[data-role=pot-card] [data-role=card-reveals][data-card=p1] [data-role=card-reveal-row]"
+      assert has_element?(view, "#{row}[data-me=true] [data-role=seat-disc]")
+      assert has_element?(view, "#{row} [data-gain=rubies]", "+3")
+      assert has_element?(view, "#card-continue")
+
+      view |> element("#card-continue") |> render_click()
+      refute has_element?(view, "[data-role=pot-card] [data-role=card-reveals]")
+    end
+
+    test "two players: the one who chose sees the other still choosing, then the take" do
+      {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, alice, _} = live(browser("r35-alice-#{id}"), ~p"/g/#{id}")
+      {:ok, bob, _} = live(browser("r35-bob-#{id}"), ~p"/g/#{id}")
+      alice |> element("button", "Start game") |> render_click()
+      replace_game(id, &p1/1)
+
+      alice |> element("[data-card=p1] button[data-choice=rubies]") |> render_click()
+      rows = "[data-role=pot-card] [data-role=card-reveal-row]"
+      assert has_element?(alice, "#{rows}[data-seat='1']", "choosing")
+
+      bob |> element("[data-card=p1] button[aria-label*='black 1']") |> render_click()
+      assert has_element?(alice, "#{rows}[data-seat='1'] [data-gain=chip] [aria-label='black 1']")
+      assert has_element?(bob, "#{rows}[data-seat='0'] [data-gain=rubies]", "+3")
+    end
+  end
 end
