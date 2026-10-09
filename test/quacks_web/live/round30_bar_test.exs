@@ -145,9 +145,13 @@ defmodule QuacksWeb.Round30BarTest do
         |> Game.start_round()
       end)
 
+      # Round 31: the rows show under the grown card over the pot, no sheet; the
+      # next Continue shrinks it.
       alice |> element("#card-continue") |> render_click()
-      assert has_element?(alice, "#reveal-card-reveals-2 [data-role=card-reveal-row]", "You")
-      refute has_element?(alice, "#card-continue")
+      assert has_element?(alice, "#pot-card-reveals-2 [data-role=card-reveal-row]", "You")
+      refute has_element?(alice, "dialog#reveal-card-2")
+      alice |> element("#card-continue") |> render_click()
+      refute has_element?(alice, "#pot-card-2")
     end
   end
 end

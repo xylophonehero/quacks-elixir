@@ -24,7 +24,6 @@ The files are in `priv/static/images/icons/`. The app shows this credit in the l
 | `test-tube-1.svg` | test tube glyph | corked-tube | Lorc |
 | `bag-1.svg` | bag glyph | swap-bag | Lorc |
 | `cauldron-2.svg` | cauldron glyph | cauldron | DarkZaitzev |
-| `explosion-1.svg` | explosion risk, explosion choice (round 29) | explosion-rays | Lorc |
 | `pot-1.svg` | ruby spend: pot droplet (round 29) | cauldron | Lorc |
 | `penny-1.svg` | witch pennies | two-coins | Delapouite |
 | `witch-1.svg` | herb witches | witch-flight | Lorc |
@@ -37,7 +36,7 @@ The files are in `priv/static/images/icons/`. The app shows this credit in the l
 | `patient-forgetfulness-1.svg` | Forgetfulness | brain-leak | Delapouite |
 | `patient-vampirism-2.svg` | Vampirism | fangs | Skoll |
 
-Our own icons, drawn for this project (same licence as the project; no attribution needed): `crow-skull.svg` (blue chip), `mandrake.svg` (yellow chip), `hawkmoth.svg` (black chip), `coin.svg` (coins, round 20). The paths are hand-written; reference pictures were used only to study the shapes (see `docs/research/art-assets.md`).
+Our own icons, drawn for this project (same licence as the project; no attribution needed): `crow-skull.svg` (blue chip), `mandrake.svg` (yellow chip), `hawkmoth.svg` (black chip), `coin.svg` (coins, round 20), `boom.svg` (explosion: a 💥-shaped burst in red, orange and yellow from fixed radii, round 31; it replaces Lorc's explosion-rays). The paths are hand-written; reference pictures were used only to study the shapes (see `docs/research/art-assets.md`).
 
 Our own SVG in the templates (no licence needed): the pot flask, the droplet on the pot, the bag beside the pot, the bonus die faces, the cauldron board and the test tubes.
 

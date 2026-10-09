@@ -149,23 +149,12 @@ defmodule QuacksWeb.Round29TilesTest do
       refute Enum.empty?(LazyHTML.query(doc, "[data-gain=drew] .text-tag"))
     end
 
-    test "no class below the floor in the pot; its SVG numbers are at least 13 px on a phone" do
+    # Round 31 (Nick): the pot's SVG numbers went back to their round 28 sizes
+    # (space 17, VP 12, chip badge 16 units), so only the classes keep the floor.
+    test "no class below the floor in the pot" do
       g = brewing_game()
       html = render_component(&QuacksWeb.GameComponents.pot/1, game: g, seat: 1)
       assert [] = Enum.filter(classes(html), &below_floor?/1)
-
-      # The pot is at least 328 px wide on a phone: 13 px is 13 * 536 / 328 units.
-      floor = 13 * 536 / 328 - 0.1
-
-      sizes =
-        html
-        |> LazyHTML.from_fragment()
-        |> LazyHTML.query("text[font-size]")
-        |> LazyHTML.attribute("font-size")
-        |> Enum.map(&elem(Float.parse(&1), 0))
-
-      assert sizes != []
-      assert Enum.all?(sizes, &(&1 >= floor)), inspect(Enum.uniq(sizes))
     end
   end
 end

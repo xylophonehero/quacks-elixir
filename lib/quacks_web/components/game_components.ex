@@ -286,6 +286,7 @@ defmodule QuacksWeb.GameComponents do
       data-exploded={to_string(@me.exploded?)}
       phx-hook={@size == :lg && "PotMotion"}
       data-round={@size == :lg && @game.round}
+      data-mine={@size == :lg && @flask && "true"}
       data-slide-beat={@effects != [] && @beats[:droplet]}
       style={@effects != [] && @beats[:droplet] && "--slide-beat: #{@beats[:droplet]}"}
     >
@@ -396,12 +397,12 @@ defmodule QuacksWeb.GameComponents do
           opacity={if at == :passed, do: "0.45"}
           data-passed={at == :passed && "true"}
         >
+          <%!-- Round 31 (Nick): back to the round 28 sizes: the round 29 type
+               floor made the board crowded. --%>
           <text
             dy="0.35em"
             text-anchor="middle"
-            x="-3"
-            y="-4"
-            font-size={pot_tag()}
+            font-size="17"
             font-weight="600"
             fill="var(--color-ink)"
             fill-opacity="0.75"
@@ -409,9 +410,9 @@ defmodule QuacksWeb.GameComponents do
           >
             {PotTrack.at(index).coins}
           </text>
-          <g :if={PotTrack.at(index).vp > 0} transform="translate(13 13)" data-role="vp-tag">
+          <g :if={PotTrack.at(index).vp > 0} transform="translate(14 14)" data-role="vp-tag">
             <circle
-              r="12.5"
+              r="9"
               fill={"url(#vp-gold-#{@seat})"}
               stroke="#7a5a10"
               stroke-width="1"
@@ -419,7 +420,7 @@ defmodule QuacksWeb.GameComponents do
             <text
               dy="0.35em"
               text-anchor="middle"
-              font-size={pot_tag()}
+              font-size="12"
               font-weight="700"
               fill="#3a2508"
             >
@@ -431,10 +432,10 @@ defmodule QuacksWeb.GameComponents do
           <.piece_icon
             :if={PotTrack.at(index).ruby?}
             name={:ruby}
-            x="-23"
-            y="5"
-            width="17"
-            height="17"
+            x="-21.5"
+            y="6.5"
+            width="15"
+            height="15"
             class="text-ruby"
             style="filter: drop-shadow(0 0 1px #4a0d0a)"
           />
@@ -983,7 +984,7 @@ defmodule QuacksWeb.GameComponents do
     {colour, value} = assigns.chip
     icon = if colour in @ink_icon_chips, do: "text-ink", else: "text-white"
     # The other players' pots are drawn small: a bigger badge keeps the value legible.
-    badge = if assigns.size == :lg, do: {9, 9, 12.5, @pot_tag}, else: {8, 8, 12.5, 20}
+    badge = if assigns.size == :lg, do: {9, 9, 10.5, 16}, else: {8, 8, 12.5, 20}
     assigns = assign(assigns, colour: colour, value: value, icon: icon, badge: badge)
 
     ~H"""
@@ -2248,7 +2249,7 @@ defmodule QuacksWeb.GameComponents do
   end
 
   # The status graphic (see `seat_state/2`): a steam wisp while brewing, a lid once
-  # stopped, a burst after an explosion, three dots while choosing, a tick when
+  # stopped, the 💥 explosion icon after an explosion, three dots while choosing, a tick when
   # ready. No word on screen: the word is for screen readers only. Everyone shops at
   # once, so the shop shows nothing. On a tile (`tile`, round 27, design B): nothing
   # while brewing, a check once stopped and the red explosion icon (round 30: the
@@ -2287,8 +2288,18 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, state: seat_state(assigns.game, assigns.seat))
 
     ~H"""
+    <%!-- Round 31: an explosion is the 💥 burst here too, not a star in a dot. --%>
     <span
-      :if={@state && @state not in ["shopping"]}
+      :if={@state == "exploded"}
+      class={["grid size-3.5 shrink-0 place-items-center sm:size-4", @class]}
+      title={@state}
+      data-role="player-state"
+      data-state={@state}
+    >
+      <.explosion_icon class="size-full drop-shadow-[0_0_1px_rgb(0_0_0/0.9)]" />
+    </span>
+    <span
+      :if={@state && @state not in ["shopping", "exploded"]}
       class={[
         "grid size-3.5 shrink-0 place-items-center rounded-full ring-[1.5px] ring-iron-dark sm:size-4",
         state_class(@state),
@@ -2318,12 +2329,6 @@ defmodule QuacksWeb.GameComponents do
               r="1.3"
               fill="currentColor"
             />
-          <% :burst -> %>
-            <path
-              d="M8 1.5l1.3 3.6 3.7-1.4-1.6 3.5 3.1 2-3.7.6.3 3.8L8 11.4 4.9 13.6l.3-3.8-3.7-.6 3.1-2L3 3.7l3.7 1.4z"
-              fill="currentColor"
-              stroke-width="0.8"
-            />
           <% :dots -> %>
             <circle cx="3.5" cy="8" r="1.3" fill="currentColor" stroke="none" /><circle
               cx="8"
@@ -2343,7 +2348,6 @@ defmodule QuacksWeb.GameComponents do
 
   defp state_graphic("brewing"), do: :steam
   defp state_graphic("stopped"), do: :lid
-  defp state_graphic("exploded"), do: :burst
   defp state_graphic(state) when state in ["ready", "chosen"], do: :tick
   defp state_graphic(_choosing), do: :dots
 

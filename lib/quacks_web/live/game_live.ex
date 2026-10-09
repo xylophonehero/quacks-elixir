@@ -146,6 +146,7 @@ defmodule QuacksWeb.GameLive do
            seen: seen(table, seat),
            reveal: nil,
            card_grown: false,
+           card_toast: nil,
            reveal_mode: :step,
            reveal_speed: :normal,
            risk: :percent,
@@ -763,7 +764,8 @@ defmodule QuacksWeb.GameLive do
   defp play(socket, seat, action) do
     case GameServer.apply(socket.assigns.id, seat, action) do
       {:ok, game} ->
-        {:noreply, socket |> put_game(game) |> auto_done(shop_move?(action))}
+        {:noreply,
+         socket |> put_game(game) |> close_card_reveal(action) |> auto_done(shop_move?(action))}
 
       {:error, {:illegal_action, action, _phase}} ->
         {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
@@ -1240,7 +1242,10 @@ defmodule QuacksWeb.GameLive do
                 id={"pot-card-#{@game.round}"}
                 class={[
                   "pot-card",
-                  if(@reveal || @card_grown, do: "pot-card-reveal", else: "lg:hidden")
+                  if(@reveal || @card_grown || @decision == :fortune_choice,
+                    do: "pot-card-reveal",
+                    else: "lg:hidden"
+                  )
                 ]}
                 aria-hidden="true"
                 data-role="pot-card"
@@ -1248,10 +1253,14 @@ defmodule QuacksWeb.GameLive do
                 <%!-- Round 25: the grown corner card has no flip; the card
                      transition alone grows it (the shrink played backwards). --%>
                 <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip={!@card_grown} />
-                <%!-- Round 30: every player's chips under the grown card (the new
-                     card's own sheet shows them after its tap). --%>
+                <%!-- Round 30: every player's chips under the grown card. Round 31:
+                     also while the card's choice waits in the bar (Flea Market), and
+                     after the new card's tap (`next_slide/1` grows it). --%>
                 <.card_reveals
-                  :if={@card_grown}
+                  :if={
+                    (@card_grown or @decision == :fortune_choice) and
+                      Quacks.Game.Fortune.reveals(@game) != %{}
+                  }
                   id={"pot-card-reveals-#{@game.round}"}
                   card={@game.fortune_card}
                   reveals={Quacks.Game.Fortune.reveals(@game)}
@@ -1271,6 +1280,15 @@ defmodule QuacksWeb.GameLive do
                   Tap to continue
                 </p>
               </div>
+              <p
+                :if={@card_toast && @card_toast.round == @game.round && !pot_card?(assigns)}
+                id={"card-toast-#{@card_toast.round}"}
+                class="card-toast"
+                role="status"
+                data-role="card-toast"
+              >
+                {@card_toast.text}
+              </p>
               <%!-- Round 30: the top right corner holds your ruby total (the
                    scoring's rubies fly to it) and, below it, the kept Toadstool
                    chips (red Set 2, round 22), small pills outside the round rim. --%>
@@ -1337,6 +1355,7 @@ defmodule QuacksWeb.GameLive do
             auto_open={is_nil(@reveal)}
             focus_self={not primary_on_open?(@decision, @all_actions)}
             side={:panel}
+            pot
           >
             <.shop
               :if={shop_step?(@decision)}
@@ -1457,63 +1476,13 @@ defmodule QuacksWeb.GameLive do
               </section>
             </div>
           </.dialog_sheet>
-          <%!-- A card that asks this seat a choice: the card and the choice in one
-               dialog. It enters the page (and opens itself) when the choice comes, at
-               the round's start or later (Safety Procedure waits for every stop); a
-               choice sent closes it. A card without a choice shows in the reveal
-               overlay (round 14). --%>
-          <.dialog_sheet
-            :if={@decision == :fortune_choice}
-            id={"card-round-#{@game.round}"}
-            label="New fortune teller card"
-            on_close={JS.push("seen", value: %{kind: "card", round: @game.round})}
-            auto_open={is_nil(@reveal)}
-            focus_self={choice_variant(text_actions(@all_actions)) != :primary}
-            side={:panel}
+          <.sheet
+            :if={@game.witches}
+            id="sheet-witches"
+            label="Herb witches"
+            class="sheet-pot"
+            inline_lg
           >
-            <div class="space-y-3" data-role="card-modal">
-              <div class="flex items-center gap-1">
-                <h2 class="text-xl font-bold">Round {@game.round}: a new card</h2>
-                <.offer_books
-                  id="card-books"
-                  game={@game}
-                  offer={[@me.pending, @all_actions]}
-                />
-              </div>
-              <%!-- Phones: the card hovers over the pot instead (`pot_card?/1`). --%>
-              <div class={pot_card?(assigns) && "max-lg:hidden"}>
-                <.fortune_card id={@game.fortune_card} choice flip />
-              </div>
-              <.fortune_offer :if={@me.pending != []} card={@game.fortune_card}>
-                <.chip_picks
-                  actions={@all_actions}
-                  pool={@me.pending}
-                  game={@game}
-                  me={@me}
-                  click={card_click(@game)}
-                />
-              </.fortune_offer>
-              <.chip_picks
-                :if={@me.pending == []}
-                actions={@all_actions}
-                game={@game}
-                me={@me}
-                click={card_click(@game)}
-              />
-              <section class="flex flex-col gap-2 *:min-h-11" aria-label="Actions">
-                <.button
-                  :for={action <- text_actions(@all_actions)}
-                  phx-click={card_click(@game)}
-                  phx-value-action={encode(action)}
-                  variant={choice_variant(text_actions(@all_actions))}
-                  autofocus={choice_variant(text_actions(@all_actions)) == :primary}
-                >
-                  {action_label(action, @game, @me)}
-                </.button>
-              </section>
-            </div>
-          </.dialog_sheet>
-          <.sheet :if={@game.witches} id="sheet-witches" label="Herb witches" inline_lg>
             <%!-- The title row holds the × (it floats right), so it never squeezes the
                  first card (round 14). --%>
             <h2 class="min-h-8 font-hand text-2xl leading-8 font-bold" data-role="witches-title">
@@ -1758,13 +1727,18 @@ defmodule QuacksWeb.GameLive do
       <.sheet id="sheet-log" label="Log">
         <.action_log log={@game.log} names={if @players > 1, do: @names} />
       </.sheet>
-      <.sheet :if={@me && @me.patient} id="sheet-patient" label="Patient">
+      <.sheet :if={@me && @me.patient} id="sheet-patient" label="Patient" class="sheet-pot">
         <.patient_card id={@me.patient} reached={if @me.essence > 0, do: @me.essence} />
         <p class="mt-2 text-sm font-semibold" data-role="patient-essence">
           Essence: {@me.essence}
         </p>
       </.sheet>
-      <.sheet :if={forgets(@actions) != []} id="sheet-forget" label="Forgetfulness">
+      <.sheet
+        :if={forgets(@actions) != []}
+        id="sheet-forget"
+        label="Forgetfulness"
+        class="sheet-pot"
+      >
         <h2 class="font-hand text-2xl font-bold">Forgetfulness</h2>
         <p class="text-sm text-ink-soft">
           Tap a chip in your pot to return it to the bag. It costs as much essence as its value. You have {@me.essence}.
@@ -1788,7 +1762,12 @@ defmodule QuacksWeb.GameLive do
       <.sheet :if={@me} id="sheet-bag" label="Bag">
         <.bag bag={@me.bag} />
       </.sheet>
-      <.sheet :if={@game.fortune_card} id="sheet-fortune" label="Fortune teller card">
+      <.sheet
+        :if={@game.fortune_card}
+        id="sheet-fortune"
+        label="Fortune teller card"
+        class="sheet-pot"
+      >
         <%!-- A wrapper: the sheet flattens a `.paper` child, and the card keeps its edge. --%>
         <div class="pt-8 pb-2"><.fortune_card id={@game.fortune_card} /></div>
         <.card_reveals
@@ -1805,6 +1784,7 @@ defmodule QuacksWeb.GameLive do
         :for={seat <- @game.seats}
         id={"sheet-player-#{seat}"}
         label={name(@names, seat)}
+        class="sheet-pot"
         data-on-hide={JS.push("close_player", value: %{seat: seat})}
       >
         <div :if={@open_sheet == seat} class="space-y-2">
@@ -2277,10 +2257,11 @@ defmodule QuacksWeb.GameLive do
 
   `:rubies`: Skip, then one button per ruby use, each "2" (the seat's
   `ruby_price`) and the ruby, then its icon: the test tube (reverse pot side only),
-  the flask, the pot (droplet +1). Round 9: 2 rubies buy 1 VP. A use that is not
-  possible now is disabled and says why ("Flask full").
+  the flask, the pot (droplet +1). A use that is not possible now is disabled and
+  says why ("Flask full"). Round 31: it is the evaluation's last step, only when a
+  ruby buys something; never in round 9 (the rubies turn into VP by themselves).
   """
-  attr :choice, :atom, required: true, values: [:explosion_choice, :rubies]
+  attr :choice, :atom, required: true, values: [:explosion_choice, :rubies, :fortune_choice]
   attr :actions, :list, required: true
   attr :game, Game, required: true
   attr :me, Player, required: true
@@ -2332,7 +2313,7 @@ defmodule QuacksWeb.GameLive do
     assigns =
       assign(assigns,
         uses: ruby_uses(assigns.game),
-        price: if(assigns.game.round == 9, do: 2, else: assigns.me.ruby_price)
+        price: assigns.me.ruby_price
       )
 
     ~H"""
@@ -2378,16 +2359,126 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
-  # The ruby uses in the bar: round 9 only buys VP; the test tube is on the reverse
-  # pot side only.
-  defp ruby_uses(%Game{round: 9}), do: [:vp]
+  def bar_choice(%{choice: :fortune_choice} = assigns) do
+    card = assigns.game.fortune_card
+    picks = Enum.filter(assigns.actions, &match?({:fortune, _}, &1))
+    assigns = assign(assigns, card: card, picks: picks, wide: length(picks) > 3)
+
+    ~H"""
+    <section
+      id={"bar-card-#{@game.round}"}
+      class={[
+        "bar-choice relative z-50 flex gap-1.5 *:min-h-12 *:touch-manipulation",
+        if(@wide,
+          do: "-mx-1 overflow-x-auto px-1 pb-0.5 *:min-w-[5.5rem] *:flex-none",
+          else: "*:min-w-0 *:flex-1"
+        )
+      ]}
+      aria-label={"#{Quacks.Rules.Fortune.card(@card).name}: choose one"}
+      data-role="bar-card"
+    >
+      <.button
+        :for={{:fortune, choice} = action <- @picks}
+        phx-click="action"
+        phx-value-action={encode(action)}
+        variant={if choice == :skip, do: :secondary, else: :primary}
+        class="flex-col gap-0! px-2! py-1! leading-tight"
+        aria-label={action_label(action, @game, @me)}
+        title={action_label(action, @game, @me)}
+        data-choice={card_choice_kind(choice)}
+      >
+        <span class="flex items-center gap-1 text-base whitespace-nowrap tabular-nums">
+          <.card_choice_icon choice={choice} />{card_choice_title(choice, @card)}
+        </span>
+        <span class="max-w-full truncate text-[11px] font-normal opacity-80">
+          {card_choice_hint(choice, @card, @me)}
+        </span>
+      </.button>
+    </section>
+    """
+  end
+
+  attr :choice, :any, required: true
+
+  defp card_choice_icon(%{choice: {kind, _chip}} = assigns) when kind in [:take, :place],
+    do: ~H"""
+    <span class="-my-1.5 inline-flex"><.chip chip={elem(@choice, 1)} size={:sm} /></span>
+    """
+
+  defp card_choice_icon(%{choice: {:upgrade, chip}} = assigns) do
+    assigns = assign(assigns, from: chip, to: Fortune.upgrade(chip))
+
+    ~H"""
+    <span class="inline-flex items-center gap-0.5">
+      <.chip chip={@from} size={:xs} /><.icon name="hero-arrow-right" class="size-3" /><.chip
+        :if={@to}
+        chip={@to}
+        size={:xs}
+      />
+    </span>
+    """
+  end
+
+  defp card_choice_icon(%{choice: choice} = assigns) do
+    assigns = assign(assigns, name: card_choice_piece(choice))
+
+    ~H"""
+    <.piece_icon :if={@name} name={@name} class="size-5" />
+    """
+  end
+
+  defp card_choice_piece(:droplet), do: :droplet
+  defp card_choice_piece(:rubies), do: :ruby
+  defp card_choice_piece(:vp), do: :vp
+  defp card_choice_piece({:rats_back, _n}), do: :rat
+  defp card_choice_piece(:remove_white), do: :bag
+  defp card_choice_piece(:return_all), do: :bag
+  defp card_choice_piece(_choice), do: nil
+
+  defp card_choice_kind({kind, _}), do: kind
+  defp card_choice_kind(kind), do: kind
+
+  # The big line on a card choice button: short, the hint says the rest.
+  defp card_choice_title({:take, _chip}, :p3), do: "Trade"
+  defp card_choice_title({:take, _chip}, _card), do: "Take"
+  defp card_choice_title({:upgrade, _chip}, _card), do: ""
+  defp card_choice_title(:droplet, :p11), do: "Droplet +2"
+  defp card_choice_title(:droplet, _card), do: "Droplet +1"
+  defp card_choice_title(:rubies, _card), do: "+3"
+  defp card_choice_title(:vp, :p6), do: "+4"
+  defp card_choice_title(:vp, _card), do: "VP"
+  defp card_choice_title(:remove_white, _card), do: "Remove"
+  defp card_choice_title({:rats_back, n}, _card), do: "Back #{n}"
+  defp card_choice_title(:skip, _card), do: "No thanks"
+  defp card_choice_title({:place, _chip}, _card), do: "Place"
+  defp card_choice_title(:return_all, _card), do: "Return all"
+  defp card_choice_title(_choice, _card), do: ""
+
+  # The small line under it.
+  defp card_choice_hint({:take, chip}, :p3, _me), do: "1 ruby: #{chip_name(chip)}"
+  defp card_choice_hint({:take, chip}, _card, _me), do: chip_name(chip)
+  defp card_choice_hint({:upgrade, _chip}, _card, _me), do: "Trade up"
+  defp card_choice_hint(:droplet, _card, _me), do: "Move your droplet"
+  defp card_choice_hint(:rubies, _card, _me), do: "Take 3 rubies"
+  defp card_choice_hint(:vp, :p10, _me), do: "1 per rat tail"
+  defp card_choice_hint(:vp, _card, _me), do: "Score now"
+  defp card_choice_hint(:remove_white, _card, _me), do: "A white 1 from the bag"
+
+  defp card_choice_hint({:rats_back, n}, _card, _me),
+    do: "+#{n} #{if n == 1, do: "ruby", else: "rubies"}"
+
+  defp card_choice_hint(:skip, _card, _me), do: "Keep as is"
+  defp card_choice_hint({:place, _chip}, _card, _me), do: "Safe, last in pot"
+  defp card_choice_hint(:return_all, _card, _me), do: "All to the bag"
+  defp card_choice_hint(_choice, _card, _me), do: ""
+
+  # The ruby uses in the bar: the test tube is on the reverse pot side only.
   defp ruby_uses(%Game{rules: %{pot_side: :back}}), do: [:tube, :flask, :droplet]
   defp ruby_uses(_game), do: [:flask, :droplet]
 
   defp ruby_icon(:tube), do: :tube
   defp ruby_icon(:flask), do: :flask
   defp ruby_icon(:droplet), do: :pot
-  defp ruby_icon(:vp), do: :vp
 
   # The small line on a ruby button: what it does, or why it cannot.
   defp ruby_why(use, me, actions) do
@@ -2402,7 +2493,6 @@ defmodule QuacksWeb.GameLive do
   defp ruby_what(:tube), do: "Test tube"
   defp ruby_what(:flask), do: "Refill flask"
   defp ruby_what(:droplet), do: "Droplet +1"
-  defp ruby_what(:vp), do: "1 VP"
 
   # The Buy button's Enter hint: from 64rem, and only when the shop bar is 24rem
   # wide (Done alone always has the room).
@@ -2827,10 +2917,6 @@ defmodule QuacksWeb.GameLive do
   defp pick_title({:essence, {:buy, _chip}}, _card), do: "Buy one"
   defp pick_title(_action, _card), do: nil
 
-  # A choice in the card's dialog sends its action and closes the dialog.
-  defp card_click(game),
-    do: JS.push("action") |> JS.dispatch("quacks:close", to: "#card-round-#{game.round}")
-
   @doc """
   An ⓘ button for a dialog that offers chips: it opens a sheet with the ingredient
   books of the colours in `offer` (any nesting of lists and tuples, e.g. the
@@ -3010,13 +3096,16 @@ defmodule QuacksWeb.GameLive do
   defp seen_key?(seen, {kind, round}), do: seen?(seen, kind, %{round: round})
 
   # Round 24: a new card first hovers over the pot with no sheet (`held`). Next (a
-  # tap, Enter, Space, the Auto tick) then opens its result sheet when the card did
-  # something to this seat, else it ends the reveal: the card shrinks into the corner,
-  # or the card's choice opens (`open_waiting/1`).
+  # tap, Enter, Space, the Auto tick) ends the reveal. Round 31: no result sheet. A
+  # card that drew chips for everyone stays over the pot, grown, with every player's
+  # row (a tap shrinks it); else it shrinks into the corner, and a short toast says
+  # what it did to this seat (`card_toast/2`).
   defp next_slide(%{assigns: %{reveal: %{held: true} = reveal} = assigns} = socket) do
-    if assigns.decision != :fortune_choice and card_result?(reveal),
-      do: socket |> assign(reveal: %{reveal | held: false}) |> show_slide(reveal.index),
-      else: close_reveal(socket)
+    cond do
+      assigns.decision == :fortune_choice -> close_reveal(socket)
+      card_rows?(reveal) -> socket |> assign(card_grown: true) |> close_reveal()
+      true -> socket |> card_toast(reveal) |> close_reveal()
+    end
   end
 
   defp next_slide(%{assigns: %{reveal: %{index: index, slides: slides}}} = socket) do
@@ -3062,8 +3151,7 @@ defmodule QuacksWeb.GameLive do
   defp pot_card?(%{card_grown: true, game: %Game{fortune_card: card}}) when card != nil,
     do: true
 
-  defp pot_card?(%{decision: :fortune_choice, me: %Player{pending: []}, game: game}),
-    do: game.fortune_card != nil
+  defp pot_card?(%{decision: :fortune_choice, game: game}), do: game.fortune_card != nil
 
   defp pot_card?(_assigns), do: false
 
@@ -3077,13 +3165,24 @@ defmodule QuacksWeb.GameLive do
 
   defp card_vt(socket, _was), do: socket
 
-  # The card's result: what it did to this seat (`Reveal`, the slide's `outcomes`).
-  defp card_result?(%{slides: [%{outcomes: [_ | _]} | _]}), do: true
-  defp card_result?(%{slides: [%{reveals: reveals} | _]}) when map_size(reveals) > 0, do: true
-  defp card_result?(_reveal), do: false
+  # Round 30: the cards that drew chips for every player (`Fortune.reveals/1`).
+  defp card_rows?(%{slides: [%{reveals: reveals} | _]}), do: map_size(reveals) > 0
+  defp card_rows?(_reveal), do: false
+
+  # Round 31: one line for what the card did to this seat (`Reveal`, the slide's
+  # `outcomes`), e.g. "Drop It: droplet +1". Nothing for a card that did nothing.
+  defp card_toast(socket, %{key: {:card, round}, slides: [%{outcomes: [_ | _]} = slide | _]}) do
+    name = Quacks.Rules.Fortune.card(slide.card).name
+    did = Enum.map_join(slide.outcomes, ", ", &card_outcome(&1, slide.card))
+    assign(socket, card_toast: %{round: round, text: "#{name}: #{did}"})
+  end
+
+  defp card_toast(socket, _reveal), do: socket
 
   # Round 24: the big card over the pot is tappable while a new card waits for its
   # tap, or while the grown corner card shows.
+  # Round 31: not while the card's choice waits in the bar (its buttons go on).
+  defp card_tap?(%{bar_choice: :fortune_choice}), do: false
   defp card_tap?(%{reveal: %{held: true}}), do: true
   defp card_tap?(%{card_grown: grown}), do: grown
 
@@ -3120,6 +3219,16 @@ defmodule QuacksWeb.GameLive do
     |> open_waiting()
   end
 
+  # Round 31: the card's choice is made in the bar while the new card still hovers
+  # (its reveal held): the choice ends the reveal, the card goes to the corner.
+  defp close_card_reveal(
+         %{assigns: %{reveal: %{key: {:card, _}, held: true}}} = socket,
+         {:fortune, _}
+       ),
+       do: close_reveal(socket)
+
+  defp close_card_reveal(socket, _action), do: socket
+
   defp mark_seen(%{assigns: %{seat: seat}} = socket, {kind, round}) when is_integer(seat) do
     GameServer.ack(socket.assigns.id, seat, kind, round)
     update(socket, :seen, &Map.put(&1, kind, round))
@@ -3149,11 +3258,17 @@ defmodule QuacksWeb.GameLive do
   # the explosion's, and the rubies step when no witch can be called there.
   defp bar_choice(:explosion_choice, _actions), do: :explosion_choice
   defp bar_choice(:rubies, actions), do: if(Enum.any?(actions, &witch?/1), do: nil, else: :rubies)
+  # Round 31: the card's choice too (no sheet; the card stays over the pot).
+  defp bar_choice(:fortune_choice, _actions), do: :fortune_choice
   defp bar_choice(_decision, _actions), do: nil
 
   defp stop_slot(game, %Player{phase: :stopped}), do: if(stir?(game), do: :stop, else: :resume)
   defp stop_slot(_game, _me), do: :stop
 
+  # Round 31: round 9's "2 rubies → 1 VP" is no step: whatever the seat keeps
+  # converts by itself at its "Done" (`Game` `final_conversion`), so the step only
+  # shows when a ruby buys something else (rounds 1 to 8: droplet, flask, tube).
+  defp ruby_step_action?({:rubies, :vp}), do: false
   defp ruby_step_action?({:rubies, _}), do: true
   defp ruby_step_action?(action), do: witch?(action)
 
@@ -3177,7 +3292,6 @@ defmodule QuacksWeb.GameLive do
   defp essence_pick(_me, _pick), do: nil
 
   # The dialog that holds this seat's decision (the fortune choice is in the card's).
-  defp decision_dialog(:fortune_choice, game), do: "#card-round-#{game.round}"
   defp decision_dialog(decision, _game), do: "#decision-#{decision}"
 
   # This seat closed the card (`:card`) or the round results (`:results`) of this round.
@@ -3602,8 +3716,6 @@ defmodule QuacksWeb.GameLive do
 
   defp back_label(:rubies, %Game{round: 9}), do: "Back to final scoring"
   defp back_label(decision, _game) when decision in [:shop, :rubies], do: "Back to shop"
-  # Round 29 (Q10): the card's choice opens after its reveal: "Continue".
-  defp back_label(:fortune_choice, _game), do: "Continue"
   defp back_label(_decision, _game), do: "Back to choice"
 
   # Whether a decision dialog opens with one enabled primary button (it takes the

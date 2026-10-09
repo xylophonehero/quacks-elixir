@@ -125,14 +125,14 @@ defmodule QuacksWeb.QaFixes3Test do
         g |> H.put(0, round: 9, phase: :shop, coins: 0, rubies: 3) |> H.put(1, rubies: 0)
       end)
 
-      render_hook(alice, "seen", %{"kind" => "results", "round" => 9})
       html = render(alice)
       assert html =~ "Final scoring"
       refute html =~ "Everyone shops"
+      render_hook(alice, "seen", %{"kind" => "results", "round" => 9})
       refute has_element?(alice, "[data-role=turn]")
-      # Round 29: the rubies are in the bar (no sheet, no back button).
+      # Round 31: no rubies step in round 9 (they turn into VP by themselves).
       refute has_element?(alice, "[data-role=decision-button]")
-      assert has_element?(alice, "#bar-rubies button[data-ruby=vp]", "1 VP")
+      refute has_element?(alice, "#bar-rubies")
     end
 
     test "brewing names the VP, not coins; the explosion's coins say they become VP" do
