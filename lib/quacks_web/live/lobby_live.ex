@@ -9,19 +9,25 @@ defmodule QuacksWeb.LobbyLive do
     * `home` (`#page-home`, no `?step=`): the room-code field and the games on this
       node (`Quacks.GameServer.games/1`) with Resume, Join or Watch, and the
       New game button.
-    * `players` (`#page-players`): the player count, the seats (you, open seats,
-      bots), your name and colour, the Public toggle; Next.
-    * `expansions` (`#page-expansions`): The Herb Witches, The Alchemists and the
-      reverse pot side as three cards, then the House rules row (`#to-rules`).
+    * `players` (`#page-players`, "New game", round 29: the one main page): the
+      player count, the seats (you, open seats, bots), your name and colour; then a
+      row per expansion with its switch and a Customise button (`expansion_row/1`),
+      the Ingredient books row, the House rules row and the Public switch. Each row
+      says the current choice, so a beginner just presses Start; a dot on Customise
+      marks a changed setting.
+    * `witches` (`#page-witches`): the herb witch tiles. A tile opens its colour's
+      page, `witch` (`#page-witch-copper`, `?step=witch&colour=copper`).
+    * `patients` (`#page-patients`): The Alchemists' "Your patient" (the seed deals
+      3, as the rulebook draws 3 from the bag; round 26).
     * `rules` (`#page-rules`): the house rules.
-    * `books` (`#page-books`): the herb witch tiles, the book tiles and, at the
-      foot, the presets row (`#presets-block`: `Quacks.Rules.BookPresets`, plus
-      Random). A tile opens its colour's
-      page: `book` (`#page-book-green`, `?step=book&colour=green`) or `witch`
-      (`#page-witch-copper`), the full cards; a pick goes back to `books`.
+    * `books` (`#page-books`): the book tiles and, at the foot, the presets row
+      (`#presets-block`: `Quacks.Rules.BookPresets`, plus Random). A tile opens
+      its colour's page, `book` (`#page-book-green`), the full cards; a pick goes
+      back.
 
   Below 64rem one page shows at a time. From 64rem the book lies open: home or
-  players on the left, expansions (or rules, books, a colour page) on the right.
+  players on the left, books (or rules, witches, patients, a colour page) on the
+  right.
   Every page is always in the DOM and the server hides the others with `hidden` /
   `lg:hidden` (`visible/2`), so the forms keep all their fields: the colour pages'
   radio cards belong to `#books` by their `form` attribute.
@@ -38,7 +44,7 @@ defmodule QuacksWeb.LobbyLive do
   others join by link or room code.
 
   The page holds the table's seed from mount (`?seed=1,2,3` makes the games created
-  here reproducible), so with The Alchemists the Expansions page offers the 3
+  here reproducible), so with The Alchemists the patients page offers the 3
   patients that seed deals: "Your patient" (round 26), Random by default.
   """
   use QuacksWeb, :live_view
@@ -53,7 +59,7 @@ defmodule QuacksWeb.LobbyLive do
       books_form: 1,
       colour_picker: 1,
       default_sets: 0,
-      expansion_cards: 1,
+      expansion_row: 1,
       options_form: 1,
       parse_books: 1,
       parse_rules: 1,
@@ -62,6 +68,7 @@ defmodule QuacksWeb.LobbyLive do
       step_rule: 3,
       switch_card: 1,
       witch_colours: 0,
+      witch_links: 1,
       witch_options: 1
     ]
 
@@ -69,31 +76,33 @@ defmodule QuacksWeb.LobbyLive do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Game.Essence
-  alias Quacks.Rules.BookPresets
+  alias Quacks.Rules.{Alchemists, BookPresets}
 
   @max_players 8
 
-  # Each step's parent page and its depth in the book (home is the root). Round 23:
-  # the New game page opens Expansions and Ingredient books; round 25: Expansions
-  # opens House rules.
+  # Each step's parent page and its depth in the book (home is the root). Round 29:
+  # the New game page opens every other page (the Customise buttons).
   @parents %{
     "players" => "home",
-    "expansions" => "players",
-    "rules" => "expansions",
+    "rules" => "players",
     "books" => "players",
+    "witches" => "players",
+    "patients" => "players",
     "book" => "books",
-    "witch" => "books"
+    "witch" => "witches"
   }
   @depth %{
     "home" => 0,
     "players" => 1,
-    "expansions" => 2,
-    "rules" => 3,
+    "rules" => 2,
     "books" => 2,
+    "witches" => 2,
+    "patients" => 2,
     "book" => 3,
     "witch" => 3
   }
-  # The round-17 `?page=` links.
+  # The round-17 `?page=` links, and the round-23 Expansions page (now the New game
+  # page's rows).
   @old_pages %{"new" => "players", "books" => "books", "join" => "home"}
 
   @impl true
@@ -153,16 +162,18 @@ defmodule QuacksWeb.LobbyLive do
 
   defp parse_step(%{"step" => "witch", "colour" => colour}, true) do
     case Enum.find(witch_colours(), &(Atom.to_string(&1) == colour)) do
-      nil -> {"books", nil}
+      nil -> {"witches", nil}
       colour -> {"witch", colour}
     end
   end
 
   defp parse_step(%{"step" => step}, _expansion)
-       when step in ~w(players expansions rules books),
+       when step in ~w(players rules books witches patients),
        do: {step, nil}
 
-  defp parse_step(%{"step" => step}, _expansion) when step in ~w(book witch), do: {"books", nil}
+  defp parse_step(%{"step" => "expansions"}, _expansion), do: {"players", nil}
+  defp parse_step(%{"step" => "book"}, _expansion), do: {"books", nil}
+  defp parse_step(%{"step" => "witch"}, _expansion), do: {"witches", nil}
   defp parse_step(%{"page" => page}, _expansion), do: {Map.get(@old_pages, page, "home"), nil}
   defp parse_step(_params, _expansion), do: {"home", nil}
 
@@ -201,7 +212,7 @@ defmodule QuacksWeb.LobbyLive do
   def handle_event("rule_step", %{"rule" => rule, "to" => to}, socket),
     do: {:noreply, change(socket, rules: step_rule(socket.assigns.rules, rule, to))}
 
-  # -- the Expansions and Ingredient books pages ------------------------------------
+  # -- the expansion switches and the Ingredient books pages ------------------------
 
   def handle_event("sets", form, socket) do
     books = parse_books(form)
@@ -408,7 +419,7 @@ defmodule QuacksWeb.LobbyLive do
   defp visible(a, {page, colour}) do
     here = {a.step, a.colour_page}
     left = if a.step == "home", do: "home", else: "players"
-    right = if a.step in ~w(home players expansions), do: "expansions", else: a.step
+    right = if a.step in ~w(home players), do: "books", else: a.step
 
     {here == {page, colour},
      page == left or (page == right and (colour == nil or colour == a.colour_page))}
@@ -500,8 +511,9 @@ defmodule QuacksWeb.LobbyLive do
               <div class="book-spread">
                 <.home_page {assigns} />
                 <.players_page {assigns} />
-                <.expansions_page {assigns} />
                 <.rules_page {assigns} />
+                <.witches_page {assigns} />
+                <.patients_page {assigns} />
                 <.books_page {assigns} />
                 <.book_page
                   :for={colour <- book_colours()}
@@ -751,7 +763,67 @@ defmodule QuacksWeb.LobbyLive do
         Open seats wait for players: they join with the link or the room code.
       </p>
 
-      <form id="table-form" phx-change="public" class="mt-4" aria-label="Table">
+      <%!-- Round 29: every setting on this one page, a row each with the current
+           choice written out, so a beginner just presses Start. --%>
+      <h3 class="book-subheading mt-4">Expansions</h3>
+      <div class="mt-2 grid gap-2" data-role="expansion-cards">
+        <.expansion_row
+          id="expansion"
+          name="expansion"
+          form="books"
+          checked={@expansion}
+          title="The Herb Witches"
+          text={witches_summary(assigns)}
+          icon={:witch}
+          customise={page_path("witches")}
+          changed={@expansion and Enum.any?(@witches, fn {_c, w} -> w end)}
+        />
+        <.expansion_row
+          id="alchemists"
+          name="alchemists"
+          form="books"
+          checked={@alchemists}
+          title="The Alchemists"
+          text={patient_summary(assigns)}
+          icon={:flask}
+          customise={page_path("patients")}
+          changed={@alchemists and @patient != :random}
+        />
+        <.expansion_row
+          id="rules-pot_side"
+          name="rules[pot_side]"
+          form="options"
+          checked={@rules.pot_side == :back}
+          title="Pot: reverse side"
+          text="Test tubes"
+          icon={:tube}
+        />
+      </div>
+
+      <nav class="mt-4 grid gap-2" aria-label="More settings">
+        <.page_link
+          id="to-books"
+          step="books"
+          icon="hero-book-open"
+          title="Ingredient books"
+          summary={preset_label(assigns)}
+          summary_role="books-summary"
+          changed={preset_id(assigns) != "beginner"}
+          open={@step in ~w(players books book)}
+        />
+        <.page_link
+          id="to-rules"
+          step="rules"
+          icon="hero-scale"
+          title="House rules"
+          summary={rules_summary(@rules)}
+          summary_role="rules-summary"
+          changed={rules_summary(@rules) != "As in the rulebook"}
+          open={@step == "rules"}
+        />
+      </nav>
+
+      <form id="table-form" phx-change="public" class="mt-4 pb-2" aria-label="Table">
         <.switch_card
           id="public"
           name="public"
@@ -766,68 +838,59 @@ defmodule QuacksWeb.LobbyLive do
           small
         />
       </form>
-
-      <nav class="mt-4 grid gap-2 pb-2" aria-label="More settings">
-        <.page_link
-          id="to-expansions"
-          step="expansions"
-          icon="hero-puzzle-piece"
-          title="Expansions"
-          summary={expansions_summary(assigns)}
-          summary_role="expansions-summary"
-          open={@step in ~w(players expansions rules)}
-        />
-        <.page_link
-          id="to-books"
-          step="books"
-          icon="hero-book-open"
-          title="Ingredient books"
-          summary={preset_label(assigns)}
-          summary_role="books-summary"
-          open={@step in ~w(books book witch)}
-        />
-      </nav>
     </.book_page>
     """
   end
 
-  # The three expansion rows (Herb Witches, The Alchemists, the pot's back side), then
-  # the House rules row.
-  defp expansions_page(assigns) do
+  # The Herb Witches' Customise page: a tile per penny colour.
+  defp witches_page(assigns) do
     ~H"""
     <.book_page
       a={assigns}
-      id="page-expansions"
-      page={{"expansions", nil}}
+      id="page-witches"
+      page={{"witches", nil}}
       side={:right}
-      title="Expansions"
+      title="Herb witches"
     >
-      <.expansion_cards
-        expansion={@expansion}
-        alchemists={@alchemists}
-        pot_side={@rules.pot_side}
-        heading={false}
-      />
+      <:title_icon>
+        <.piece_icon name={:witch} class="size-8 shrink-0" />
+      </:title_icon>
+      <%= if @expansion do %>
+        <p class="text-sm text-ink-soft">
+          Tap a witch to pick her card; Random deals one at the start.
+        </p>
+        <.witch_links witches={@witches} patch={&tile_path/1} />
+      <% else %>
+        <p class="text-sm text-ink-soft" data-role="expansion-off">
+          The Herb Witches are off. Turn them on in New game.
+        </p>
+      <% end %>
+    </.book_page>
+    """
+  end
+
+  # The Alchemists' Customise page: your patient, one of the 3 the seed deals.
+  defp patients_page(assigns) do
+    ~H"""
+    <.book_page
+      a={assigns}
+      id="page-patients"
+      page={{"patients", nil}}
+      side={:right}
+      title="Patients"
+    >
+      <:title_icon>
+        <.piece_icon name={:flask} class="size-8 shrink-0" />
+      </:title_icon>
       <.patient_picker
         :if={@alchemists}
         id="lobby-patient"
         patients={Essence.dealt(@seed)}
         chosen={@patient}
-        class="mt-4"
       />
-      <%!-- Round 25: the House rules row lives here, under the expansions, not on
-           the New game page. --%>
-      <nav class="mt-4 grid gap-2" aria-label="House rules">
-        <.page_link
-          id="to-rules"
-          step="rules"
-          icon="hero-scale"
-          title="House rules"
-          summary={rules_summary(@rules)}
-          summary_role="rules-summary"
-          open={@step == "rules"}
-        />
-      </nav>
+      <p :if={!@alchemists} class="text-sm text-ink-soft" data-role="expansion-off">
+        The Alchemists are off. Turn them on in New game.
+      </p>
     </.book_page>
     """
   end
@@ -839,8 +902,10 @@ defmodule QuacksWeb.LobbyLive do
   attr :summary, :string, required: true
   attr :summary_role, :string, required: true
   attr :open, :boolean, default: false, doc: "its page is the one open on the right (64rem)"
+  attr :changed, :boolean, default: false, doc: "a dot on Customise: not the default"
 
-  # A row on the New game page that opens a page, with a line on the current choice.
+  # A row on the New game page that opens a page, with a line on the current choice
+  # and a Customise pill (the whole row is the link).
   defp page_link(assigns) do
     ~H"""
     <.link
@@ -857,7 +922,10 @@ defmodule QuacksWeb.LobbyLive do
           {@summary}
         </span>
       </span>
-      <.icon name="hero-chevron-right" class="size-5 shrink-0 text-ink-soft" />
+      <span class="customise-button" aria-hidden="true">
+        Customise <span :if={@changed} class="changed-dot" data-role="changed-dot" />
+      </span>
+      <span :if={@changed} class="sr-only">(changed)</span>
     </.link>
     """
   end
@@ -867,11 +935,11 @@ defmodule QuacksWeb.LobbyLive do
   # Every page of the New game flow ends in this bar (round 23): the setup in one
   # line, Back, Start (hidden on the Games page). Below the page on a phone, under the right page from 64rem.
   # Back on the phone goes to the page's parent; from 64rem the New game page is
-  # always open on the left, so Back from it (or from Expansions beside it) goes
+  # always open on the left, so Back from it (or from the books page beside it) goes
   # to the Games page.
   defp flow_bar(assigns) do
     step = assigns.a.step
-    wide_home = step in ~w(players expansions)
+    wide_home = step in ~w(players books)
 
     assigns =
       assign(assigns,
@@ -942,9 +1010,7 @@ defmodule QuacksWeb.LobbyLive do
       <div>
         <.books_form
           sets={@sets}
-          expansion={@expansion}
           players={@players}
-          witches={@witches}
           heading={false}
           patch={&tile_path/1}
         />
@@ -1117,28 +1183,31 @@ defmodule QuacksWeb.LobbyLive do
   end
 
   # The House rules row's line.
+  # The pot side has its own row (round 29), so it does not count here.
   defp rules_summary(rules) do
-    case Enum.count(rules, fn {key, value} -> Game.default_rules()[key] != value end) do
+    case Enum.count(rules, fn {key, value} ->
+           key != :pot_side and Game.default_rules()[key] != value
+         end) do
       0 -> "As in the rulebook"
       1 -> "1 changed"
       n -> "#{n} changed"
     end
   end
 
-  # The Expansions row's line: the expansions and the pot side that are on.
-  defp expansions_summary(a) do
-    case Enum.filter(
-           [
-             a.expansion && "Herb Witches",
-             a.alchemists && "The Alchemists",
-             a.rules.pot_side == :back && "test tubes"
-           ],
-           & &1
-         ) do
-      [] -> "Base game"
-      on -> Enum.join(on, " · ")
+  # The Herb Witches row's line: off, or the witches picked.
+  defp witches_summary(%{expansion: false}), do: "Witch cards"
+
+  defp witches_summary(a) do
+    case Enum.count(a.witches, fn {_colour, witch} -> witch end) do
+      0 -> "Witches dealt at random"
+      n -> "#{n} of 3 witches picked"
     end
   end
+
+  # The Alchemists row's line: off, or your patient.
+  defp patient_summary(%{alchemists: false}), do: "Patients and essence"
+  defp patient_summary(%{patient: :random}), do: "Your patient: random"
+  defp patient_summary(a), do: "Your patient: #{Alchemists.get(a.patient).name}"
 
   # The expansions of a game, as badges: name and icon.
   defp expansion_badges(game) do

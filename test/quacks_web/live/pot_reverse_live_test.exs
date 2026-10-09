@@ -24,7 +24,7 @@ defmodule QuacksWeb.PotReverseLiveTest do
 
   test "the Options checkbox turns the reverse side on; the rack shows under the pot" do
     conn = browser("host")
-    {:ok, view, _html} = live(conn, ~p"/?step=expansions")
+    {:ok, view, _html} = live(conn, ~p"/?step=players")
     refute has_element?(view, "#rules-pot_side[checked]")
 
     view |> element("#options") |> render_change(%{"rules" => %{"pot_side" => "true"}})

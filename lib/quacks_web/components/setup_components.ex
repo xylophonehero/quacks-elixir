@@ -58,19 +58,41 @@ defmodule QuacksWeb.SetupComponents do
   }
 
   @doc """
-  The Ingredient books form of the spell book (`#books`, event `"sets"`): with The
-  Herb Witches a tile per penny colour, then one compact `book_tile` per colour
-  (icon, name, book seal). Each tile links to its colour's page (`patch`), where
-  `book_options/1` and `witch_options/1` draw the radio cards of this form. The
-  expansion toggles (`expansion_cards/1`) stand outside it and name it with `form=`.
+  The Herb Witches' tiles (round 29: the witches' Customise page): one tile per
+  penny colour, "Random" or a card. Each tile links to its colour's page (`patch`),
+  where `witch_options/1` draws the radio cards of `#books`.
   """
-  attr :sets, :map, required: true, doc: "the chosen books; colours left out use their default"
-  attr :expansion, :boolean, default: false, doc: "The Herb Witches"
-  attr :players, :integer, default: nil, doc: "the table size, see `book_tiers/1`"
-
   attr :witches, :map,
     default: %{},
     doc: "the herb witch picks, `%{copper: :c3}`; a colour left out or nil is dealt"
+
+  attr :patch, :any, required: true, doc: "a function `({:witch, colour} -> path)`"
+
+  def witch_links(assigns) do
+    ~H"""
+    <div class="grid grid-cols-3 gap-2" data-role="witch-pickers">
+      <.link
+        :for={colour <- witch_colours()}
+        patch={@patch.({:witch, colour})}
+        id={"witch-link-#{colour}"}
+        aria-label={"#{colour} witch: change"}
+        class="block rounded-lg text-left transition-[translate,scale] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
+      >
+        <.witch_tile colour={colour} id={@witches[colour]} />
+      </.link>
+    </div>
+    """
+  end
+
+  @doc """
+  The Ingredient books form of the spell book (`#books`, event `"sets"`): one
+  compact `book_tile` per colour (icon, name, book seal). Each tile links to its
+  colour's page (`patch`), where `book_options/1` draws the radio cards of this
+  form. The witch radio cards (`witch_options/1`) and the expansion switches of the
+  New game page also belong to this form by their `form=` attribute.
+  """
+  attr :sets, :map, required: true, doc: "the chosen books; colours left out use their default"
+  attr :players, :integer, default: nil, doc: "the table size, see `book_tiers/1`"
 
   attr :heading, :boolean, default: true, doc: "false: the page has its own heading"
 
@@ -82,21 +104,6 @@ defmodule QuacksWeb.SetupComponents do
     ~H"""
     <form id="books" phx-change="sets" aria-label="Ingredient books">
       <div class="space-y-2">
-        <%!-- The Herb Witches: one tile per penny colour, "Random" or a card. --%>
-        <div :if={@expansion} class="space-y-2" data-role="witch-pickers">
-          <h3 class="pt-1 font-bold">Herb witches</h3>
-          <div class="grid grid-cols-3 gap-2">
-            <.link
-              :for={colour <- witch_colours()}
-              patch={@patch.({:witch, colour})}
-              id={"witch-link-#{colour}"}
-              aria-label={"#{colour} witch: change"}
-              class="block rounded-lg text-left transition-[translate,scale] duration-150 ease-(--ease-out) hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transition-none"
-            >
-              <.witch_tile colour={colour} id={@witches[colour]} />
-            </.link>
-          </div>
-        </div>
         <h3 :if={@heading} class="pt-1 font-bold">Ingredient books</h3>
         <p class="text-sm text-ink-soft">Tap a book to pick another.</p>
         <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -116,59 +123,94 @@ defmodule QuacksWeb.SetupComponents do
   end
 
   @doc """
-  The expansion toggles: a list of full-width rows below 64rem, three cards of the
-  same size from 64rem: The Herb Witches and The
-  Alchemists (fields of `#books`) and the reverse pot side (a field of `#options`). Each input names its
-  form with `form=`, so the cards may stand outside both forms (the spell book's
-  left page); `books_form/1` shows them on top by default.
+  An expansion's row on the New game page (round 29): icon, title, a line on the
+  current choice, a Customise button (`customise`, a path; nil when the expansion
+  has nothing to customise) and the switch. The input names its form with `form=`
+  (`#books` or `#options`), so the row may stand outside the form. Customise is off
+  while the switch is off; a dot on it marks a changed setting (`changed`).
   """
-  attr :expansion, :boolean, default: false
-  attr :alchemists, :boolean, default: false
-  attr :pot_side, :atom, default: :front
-  attr :class, :any, default: nil
-  attr :heading, :boolean, default: true, doc: "false: the page has its own heading"
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :form, :string, required: true
+  attr :checked, :boolean, required: true
+  attr :title, :string, required: true
+  attr :text, :string, required: true
+  attr :icon, :atom, required: true, doc: "a piece icon"
+  attr :customise, :string, default: nil
+  attr :changed, :boolean, default: false
 
-  def expansion_cards(assigns) do
+  def expansion_row(assigns) do
     ~H"""
-    <div class={["space-y-2", @class]}>
-      <h3 :if={@heading} class="font-bold">Expansions</h3>
-      <%!-- Phones: a list, one row each (icon, title, blurb, switch); from 64rem: three cards. --%>
-      <div class="grid gap-2 lg:grid-cols-3" data-role="expansion-cards">
-        <.toggle_card
-          id="expansion"
-          name="expansion"
-          form="books"
-          checked={@expansion}
-          title="The Herb Witches"
-          text="Witch cards"
-          icon={:witch}
-        />
-        <.toggle_card
-          id="alchemists"
-          name="alchemists"
-          form="books"
-          checked={@alchemists}
-          title="The Alchemists"
-          text="Patients and essence"
-          icon={:flask}
-        />
-        <.toggle_card
-          id="rules-pot_side"
-          name="rules[pot_side]"
-          form="options"
-          checked={@pot_side == :back}
-          title="Pot: reverse side"
-          text="Test tubes"
-          icon={:tube}
-        />
-      </div>
+    <div
+      id={"row-#{@id}"}
+      class={[
+        "setup-row flex min-h-16 min-w-0 items-center gap-2 rounded-xl bg-parchment-light py-2 pr-2.5 pl-3 ring-1 ring-ink/15",
+        "transition-[box-shadow,background-color] duration-150 ease-out",
+        "has-checked:bg-potion/15 has-checked:ring-2 has-checked:ring-potion-deep/60"
+      ]}
+      data-role="expansion-row"
+    >
+      <label for={@id} class="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5">
+        <.piece_icon name={@icon} class="size-7 shrink-0 text-ink-soft" />
+        <span class="min-w-0">
+          <span class="block font-hand text-lg leading-tight font-bold max-sm:text-base">
+            {@title}
+          </span>
+          <span class="block truncate text-xs leading-snug text-ink-soft" data-role="row-summary">
+            {@text}
+          </span>
+        </span>
+      </label>
+      <.customise_button
+        :if={@customise}
+        id={"customise-#{@id}"}
+        patch={@customise}
+        changed={@changed}
+        disabled={!@checked}
+      />
+      <input type="hidden" name={@name} value="false" form={@form} />
+      <input
+        type="checkbox"
+        id={@id}
+        name={@name}
+        value="true"
+        checked={@checked}
+        form={@form}
+        class="switch shrink-0"
+      />
     </div>
     """
   end
 
   @doc """
-  An on/off card (see `expansion_cards/1`), for the spell book's other switches
-  (the Public toggle).
+  The Customise button of a New game row: it opens the row's page. A dot marks a
+  setting changed from the default.
+  """
+  attr :id, :string, required: true
+  attr :patch, :string, required: true
+  attr :changed, :boolean, default: false
+  attr :disabled, :boolean, default: false
+
+  def customise_button(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      patch={@patch}
+      class="customise-button"
+      aria-disabled={@disabled && "true"}
+      tabindex={@disabled && "-1"}
+      data-role="customise"
+    >
+      Customise
+      <span :if={@changed} class="changed-dot" data-role="changed-dot">
+        <span class="sr-only">(changed)</span>
+      </span>
+    </.link>
+    """
+  end
+
+  @doc """
+  An on/off card for the spell book's switches (the Public toggle).
   """
   attr :id, :string, required: true
   attr :name, :string, required: true

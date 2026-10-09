@@ -2179,6 +2179,47 @@ body {
   scale: 0.98;
 }
 
+/* Round 29: a New game row's Customise button, a small parchment pill; off (dim,
+   not tappable) while its expansion is off. The dot marks a changed setting. */
+.customise-button {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: var(--color-parchment);
+  box-shadow: inset 0 0 0 1px rgb(58 46 26 / 0.35);
+  transition:
+    scale 150ms var(--ease-out),
+    background-color 150ms ease,
+    opacity 150ms ease;
+}
+.customise-button:hover {
+  background: #fff8e2;
+}
+.customise-button:active {
+  scale: 0.96;
+}
+.customise-button[aria-disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.changed-dot {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--color-gold);
+  box-shadow: 0 0 0 1.5px var(--color-ink);
+}
+
 /* A preset in the Ingredient books page's row. */
 .preset-card {
   display: flex;
@@ -2284,6 +2325,7 @@ body {
   .flow-button,
   .flow-back,
   .page-link,
+  .customise-button,
   .preset-card {
     transition: none;
   }
