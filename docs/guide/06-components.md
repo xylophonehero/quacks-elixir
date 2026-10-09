@@ -1386,8 +1386,9 @@ bar) never moves:
   `bar_choice/1` with `choice: :fortune_choice` (`#bar-card-N`): one button per
   `{:fortune, choice}`, an icon (the chip, chip → chip for a Flea Market trade, or a
   piece icon) with a short title and a hint line (`card_choice_title/2`,
-  `card_choice_hint/3`), like the explosion's VP/coins pair. More than 3 options
-  scroll sideways in one row, so the bar keeps its height. The card stays over the
+  `card_choice_hint/3`), like the explosion's VP/coins pair. Round 33: the
+  buttons are a grid (`choice_grid/1`, `choice_button/1`), 5 to 8 options in two
+  rows, never a sideways scroll. The card stays over the
   pot (`pot_card?/1` is true for every `:fortune_choice`, on every screen) and
   shows the rows for the cards that drew chips; there is no `#card-tap` layer then
   (`card_tap?/1`). The choice sent closes the held reveal (`close_card_reveal/2`),
@@ -1409,6 +1410,42 @@ bar) never moves:
   is no step: the seat's "Done" converts what it keeps (`final_conversion`), so a
   round-9 seat with no witch to call ends its round after the evaluation
   (`auto_done/2`).
+
+### Round 33: the bar as the context area
+
+Nick's rule: use the bottom context area, not a modal. A turn's small choices are
+**bar choices** (`bar_choice/2` picks them, `bar_choice/1` renders them), in
+`lib/quacks_web/live/game_live.ex`:
+
+- **The grid.** `choice_grid/1` takes `count`: 1 to 4 buttons in one row, 5 or 6 in
+  rows of 3, 7 or 8 in rows of 4 (`grid_cols/1`), all one width; `data-rows` says
+  1 or 2. `choice_button/1` is one button: a picture in its own box (a chip, a
+  piece; the chip's value badge never covers the text), a short title, a hint line.
+  `action: nil` or `disabled` greys it. The bar keeps its fixed height
+  (`--bar-h`); `.game-bar` sets its content at its foot, so a second row (and the
+  info row) rises over the pot's lower band and the pot never moves.
+- **The info row.** `info_row/1` sits over the buttons, where the white track's
+  row is while brewing (`info_choice?/1` hides the fuse row). An icon slot and the
+  text: what the step is.
+- **Chip actions** (`:chip_choice`, also the locoweed's return while brewing): the
+  info row names the books (`pick_title/2`, `rung_title/1`); the picks are chip
+  buttons (`chip_item/3`), the ladder rungs follow (`rung_item/3`: a rung out of
+  reach is greyed, its reason the hint), then Done when `:chip_done` is legal.
+- **The droplet's free move** (`:droplet_choice`): the info row shows the cause
+  (the hawkmoth's chip, the die) and its line; the buttons are Pot droplet and Test
+  tube (the next glass's bonus). The test-tube strip stays where it is.
+- **The sweep** (`@pick_choices`, `pick_spec/4`): the Mandrake, the crow skull and
+  the silver witch (`pool_items/5`: every chip of the pool, greyed without an
+  action, then Return all), the Toadstools (the first chip that waits, Place / Keep
+  / Return) and the patient offer (`text_item/3`: the cost as the title).
+- **The bonus die** on phones is an info row (`#info-die`) over the step bar, not
+  in the tray over the test tubes.
+- **The test-tube droplet** moves: `test_tubes/1` takes a required `id` and the
+  colocated hook `.TubeDrop` (`Phoenix.LiveView.ColocatedHook`, in the component's
+  template). On `updated()` it compares `data-tube` with the last one and animates
+  the new droplet with WAAPI `translate` from the old glass (28 SVG units a glass)
+  on a low arc; reduced motion: nothing. It is not in `PotMotion`, whose size is
+  budgeted.
 
 ### `PotMotion`: animate on top of the patch
 
