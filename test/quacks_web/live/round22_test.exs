@@ -190,16 +190,22 @@ defmodule QuacksWeb.Round22Test do
           log: [{:round_end, 9}, {0, {:final_conversion, 7, 1, 2, 1}} | g.log]
       }
 
-    test "final scoring, standings, podium; the last slide holds the actions and stays" do
+    test "final tally, podium; the last slide holds the actions and stays" do
       {id, view} = solo()
       replace_game(id, &over/1)
 
-      assert has_element?(view, "#reveal-final-9 #reveal-slide-0[data-kind=final]")
+      # Round 29: one tally; it plays (unsettled), a tap finishes it at once, the
+      # next tap shows the podium.
+      tally = "#reveal-final-9 #reveal-slide-0[data-kind=tally]"
+      assert has_element?(view, "#{tally} [data-role=reveal-tally][data-settled=false]")
+      # Auto by default (the menu says Step): the timer runs; the tap pauses it.
+      assert has_element?(view, "#reveal-final-9 [data-role=reveal-timer]")
       view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-final-9 #reveal-slide-1[data-kind=standings]")
+      assert has_element?(view, "#{tally} [data-role=reveal-tally][data-settled=true]")
+      refute has_element?(view, "#reveal-final-9 [data-role=reveal-timer]")
       view |> element("#reveal-next") |> render_click()
 
-      last = "#reveal-final-9 #reveal-slide-2[data-kind=podium]"
+      last = "#reveal-final-9 #reveal-slide-1[data-kind=podium]"
       assert has_element?(view, "#{last} [data-role=game-over]")
 
       for role <- ~w(play-again return-to-lobby share-result),
@@ -226,7 +232,7 @@ defmodule QuacksWeb.Round22Test do
       assert has_element?(view, "#reveal-final-9 #reveal-slide-0")
 
       {:ok, again, _html} = live(browser(token), ~p"/g/#{id}")
-      assert has_element?(again, "#reveal-final-9 #reveal-slide-2 [data-role=play-again]")
+      assert has_element?(again, "#reveal-final-9 #reveal-slide-1 [data-role=play-again]")
     end
 
     test "a reload after the end shows the last slide" do
@@ -241,12 +247,12 @@ defmodule QuacksWeb.Round22Test do
 
       assert has_element?(
                again,
-               "#reveal-final-9 #reveal-slide-2[data-kind=podium] [data-role=play-again]"
+               "#reveal-final-9 #reveal-slide-1[data-kind=podium] [data-role=play-again]"
              )
 
       assert has_element?(
                again,
-               "#reveal-final-9 #reveal-slide-2[data-kind=podium] [data-role=play-again]"
+               "#reveal-final-9 #reveal-slide-1[data-kind=podium] [data-role=play-again]"
              )
 
       # A spectator gets the last slide too.

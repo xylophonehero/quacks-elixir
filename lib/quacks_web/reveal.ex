@@ -13,9 +13,10 @@ defmodule QuacksWeb.Reveal do
     (`:book`), the scoring space (`:space`, with the ruby landings); a step nobody
     scores in has no slide. Then one standings slide (round 28: no results table;
     it carries the gains no step showed) (the totals; the rows glide from the old order to the new
-    one);
-  - `{:final, 9}`: the game is over: the final coins, rubies and pennies, the
-    standings after them, then the podium (round 22: the last slide, with the
+    one). Round 29: round 9 has no standings slide;
+  - `{:final, 9}`: the game is over (round 29): one final tally (`:tally`, every
+    seat from its round-9 total: its coins, rubies and pennies → VP, then the new
+    totals and ranks), then the podium (round 22: the last slide, with the
     game-over actions; `GameLive` shows it again after a reload).
 
   `slides/2` builds the slide list of the game's moment; `GameLive` shows it in
@@ -45,7 +46,7 @@ defmodule QuacksWeb.Reveal do
     book: 3400,
     space: 3000,
     standings: 3500,
-    final: 3500,
+    tally: 4500,
     podium: 5000
   }
 
@@ -167,7 +168,11 @@ defmodule QuacksWeb.Reveal do
         {s, {max(vp - v, 0), max(rubies - r, 0)}}
       end)
 
-    steps ++ [Map.put(standings_slide(game, round, before), :gains, rest)]
+    # Round 29 (F1): round 9 has no standings slide; the final tally follows the
+    # round's last decisions.
+    if round == 9,
+      do: steps,
+      else: steps ++ [Map.put(standings_slide(game, round, before), :gains, rest)]
   end
 
   # The bonus die: every roll of the round (the base die and book G6's), a row per
@@ -350,13 +355,9 @@ defmodule QuacksWeb.Reveal do
     end)
   end
 
-  # Before the final scoring: the final slide's VP taken off.
-  defp before_final(game, [%{kind: :final, rows: rows} | _]) do
-    Map.new(rows, fn row ->
-      {row.seat, {row.vp - row.coins_vp - row.rubies_vp - row.pennies_vp, row.rubies}}
-    end)
-    |> then(&Map.merge(now(game), &1))
-  end
+  # Before the final scoring: the tally's rows start there.
+  defp before_final(_game, [%{kind: :tally, rows: rows} | _]),
+    do: Map.new(rows, &{&1.seat, {&1.from_vp, &1.from_rubies}})
 
   # Each slide gets `standings`: `[%{seat, vp, gain}]` after the slide, in VP order;
   # `gain` is the VP this slide added (0: nothing).
@@ -393,9 +394,12 @@ defmodule QuacksWeb.Reveal do
 
   # -- the final scoring ---------------------------------------------------------------
 
+  # Round 29 (F1): one tally after the round's last decisions. Each row starts at
+  # the seat's round-9 total; its final parts (coins, rubies, pennies → VP) pop in,
+  # then the totals count up and the rows glide to their new ranks. Then the podium.
   defp final(game) do
-    rows =
-      for s <- game.seats do
+    parts =
+      Map.new(game.seats, fn s ->
         {coins, coins_vp, rubies, rubies_vp} =
           Enum.find_value(game.log, {0, 0, 0, 0}, fn
             {^s, {:final_conversion, c, cvp, r, rvp}} -> {c, cvp, r, rvp}
@@ -408,26 +412,47 @@ defmodule QuacksWeb.Reveal do
             _entry -> nil
           end)
 
+        list =
+          Enum.reject(
+            [{:coins, coins, coins_vp}, {:rubies, rubies, rubies_vp}, {:pennies, nil, pennies}],
+            fn {_kind, n, vp} -> vp == 0 and n in [0, nil] end
+          )
+
+        {s, %{parts: list, vp: coins_vp + rubies_vp + pennies, rubies: rubies}}
+      end)
+
+    totals = now(game)
+
+    before =
+      Map.new(totals, fn {s, {vp, rubies}} ->
+        {s, {vp - parts[s].vp, rubies + parts[s].rubies}}
+      end)
+
+    from_ranks = ranks(before)
+    to_ranks = ranks(totals)
+
+    rows =
+      for s <- game.seats do
+        {from_vp, from_rubies} = before[s]
+        {vp, rubies} = totals[s]
+
         %{
           seat: s,
-          coins: coins,
-          coins_vp: coins_vp,
+          from_rank: from_ranks[s],
+          rank: to_ranks[s],
+          from_vp: from_vp,
+          vp: vp,
+          from_rubies: from_rubies,
           rubies: rubies,
-          rubies_vp: rubies_vp,
-          pennies_vp: pennies,
-          vp: Game.player(game, s).vp
+          parts: parts[s].parts
         }
       end
 
     ranked = game |> Game.score() |> Enum.sort_by(fn {seat, vp} -> {-vp, seat} end)
     places = for {seat, vp} <- ranked, do: {seat, vp, 1 + Enum.count(ranked, &(elem(&1, 1) > vp))}
 
-    gains = Map.new(rows, &{&1.seat, {&1.coins_vp + &1.rubies_vp + &1.pennies_vp, 0}})
-    final = %{kind: :final, rows: rows, gains: gains}
+    gains = Map.new(rows, &{&1.seat, {&1.vp - &1.from_vp, 0}})
 
-    # Round 22: the standings after the final scoring, then the podium.
-    standings = %{standings_slide(game, 9, before_final(game, [final])) | last: false}
-
-    [final, standings, %{kind: :podium, ranked: places}]
+    [%{kind: :tally, rows: rows, gains: gains}, %{kind: :podium, ranked: places}]
   end
 end

@@ -211,9 +211,8 @@ defmodule QuacksWeb.UiRound3Test do
 
     assert html =~ "Ann wins!"
     assert count(html, ~s([data-role=final-score][data-seat="0"][data-place="1"])) == 1
-    assert count(html, ~s([data-seat="0"] [data-role=buying-power])) == 1
-    assert html =~ ~r/Final coins and rubies\s*<span[^>]*>\+5</
-    assert html =~ ~r/Final coins and rubies\s*<span[^>]*>\+2</
+    # Round 29 (F3): no VP breakdown under the podium.
+    assert count(html, "[data-role=buying-power]") == 0
     assert count(html, "button[data-role=play-again][phx-click=play_again]:not([disabled])") == 1
     assert count(html, "button[data-role=return-to-lobby][phx-click=lobby]") == 1
 

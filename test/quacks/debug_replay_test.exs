@@ -43,6 +43,15 @@ defmodule Quacks.DebugReplayTest do
     assert game == replay_prefix(bundle, 1)
   end
 
+  test "the seat the browser takes is no bot (round 29)" do
+    bundle = bundle()
+    {:ok, id} = GameServer.start_from_bundle(bundle, token: "dev", seat: 1)
+    {:ok, table} = GameServer.get(id)
+
+    assert table.bots == %{}
+    assert {:ok, 1} = GameServer.claim_seat(id, "dev")
+  end
+
   test "frozen bots do not act until unfrozen" do
     bundle = bundle()
     # Seat 0 has drawn; the bot may draw now.

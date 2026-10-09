@@ -155,7 +155,9 @@ defmodule QuacksWeb.Layout1Test do
       view |> element("#card-tap") |> render_click()
       assert_push_event(view, "quacks:open", %{to: "#card-round-1"})
 
-      assert has_element?(view, "[data-role=decision-button]", "Back to choice")
+      # Round 29 (Q10): the card's choice button says "Continue".
+      assert has_element?(view, "[data-role=decision-button]", "Continue")
+      refute has_element?(view, "[data-role=decision-button]", "Back to choice")
     end
 
     test "while a decision waits, one button takes the place of Stop and Draw on phones" do

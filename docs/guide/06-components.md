@@ -1110,6 +1110,28 @@ starts no timer for it. × or Esc close it; "Show the result" opens it again
 reload, a rejoin or a spectator, opens straight on that slide
 (`result_on_mount/1`). There is no `#game-over` dialog any more.
 
+**Round 29: one final tally.** Round 9's results end on the last scoring step:
+no `:standings` slide, and with nothing left to decide the button says "Continue"
+(not "Done"). `{:final, 9}` now has two slides: `:tally` and `:podium`. The tally
+reuses the standings' CSS FLIP (`.standings`, `--rank`): every row starts at the
+seat's round-9 total and rank; its final parts (coins, rubies, pennies → VP,
+`parts: [{kind, count, vp}]`) pop in one after the other (`.tally-part`, `--i`);
+then the settle tick (`settle_ms/2`, after the last part) sets the new totals and
+ranks, so the counters count up (`.stat-tick`) and the rows glide. The final
+scoring plays in Auto mode for everyone (`reveal_mode/2`; reduced motion keeps
+Step). A tap on the tally while it plays settles it at once and pauses Auto
+(`paused: true`); the next tap shows the podium. The podium has no VP breakdown
+any more: this browser's place has a gold ring and "you" (`you_tag/1`), and the
+actions stick to the sheet's bottom edge (`.sticky-actions`; a parchment backing
+only while stuck, with the `scroll-state` container query).
+
+Two fixes of the same round: a `/debug/replay` seat taken by this browser is no
+bot any more (`GameServer.start_debug/2`; the podium said "You win!" over a
+bot's name), and the card's choice button (phones) says "Continue". From 64rem
+the card's result sheet sits in the right context column; on a phone on its side
+the overlay is the right column at the pot's height and its slides fit without a
+scroll (the landscape block after `.reveal-sheet` in app.css).
+
 **Controls.** `reveal_overlay/1`
 (`lib/quacks_web/components/reveal_components.ex:35`) renders the slide and a bar:
 
