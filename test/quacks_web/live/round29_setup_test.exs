@@ -8,6 +8,8 @@ defmodule QuacksWeb.Round29SetupTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.Game.Essence
+  alias Quacks.GameServer
+  alias Quacks.Rules.Alchemists
 
   defp lobby(path) do
     conn = init_test_session(build_conn(), player_token: "r29-#{System.unique_integer()}")
@@ -33,7 +35,7 @@ defmodule QuacksWeb.Round29SetupTest do
     test "Herb Witches: on, Customise opens the witches page; a pick puts a dot on the row" do
       view = lobby(~p"/?step=players")
       view |> element("#books") |> render_change(%{"expansion" => "true", "sets" => %{}})
-      assert has_element?(view, "#row-expansion", "Witches dealt at random")
+      assert has_element?(view, "#row-expansion", "Random witches")
       refute has_element?(view, "#customise-expansion[aria-disabled]")
 
       view |> element("#customise-expansion") |> render_click()
@@ -48,14 +50,14 @@ defmodule QuacksWeb.Round29SetupTest do
       |> element("#books")
       |> render_change(%{"expansion" => "true", "witches" => %{"copper" => "c1"}})
 
-      assert has_element?(view, "#row-expansion", "1 of 3 witches picked")
+      assert has_element?(view, "#row-expansion", "1 of 3 picked")
       assert has_element?(view, "#customise-expansion [data-role=changed-dot]")
     end
 
     test "Alchemists: Customise opens the patients page; your patient puts a dot" do
       view = lobby(~p"/?seed=1,2,3&step=players")
       view |> element("#books") |> render_change(%{"alchemists" => "true", "sets" => %{}})
-      assert has_element?(view, "#row-alchemists", "Your patient: random")
+      assert has_element?(view, "#row-alchemists", "Patient: random")
 
       view |> element("#customise-alchemists") |> render_click()
       assert_patch(view, ~p"/?step=patients")
@@ -64,7 +66,7 @@ defmodule QuacksWeb.Round29SetupTest do
       [a | _] = Essence.dealt({1, 2, 3})
       view |> element("#lobby-patient") |> render_change(%{"patient" => to_string(a)})
       assert has_element?(view, "#customise-alchemists [data-role=changed-dot]")
-      assert has_element?(view, "#row-alchemists", Quacks.Rules.Alchemists.get(a).name)
+      assert has_element?(view, "#row-alchemists", Alchemists.get(a).name)
     end
 
     test "books and house rules: a change puts a dot on the row" do
@@ -94,7 +96,7 @@ defmodule QuacksWeb.Round29SetupTest do
 
   describe "the waiting panel: Share and the room code" do
     test "Share is the primary button with title, text and link; Copy link is the fallback" do
-      {:ok, id} = Quacks.GameServer.start(2, {1, 2, 3})
+      {:ok, id} = GameServer.start(2, {1, 2, 3})
       view = lobby(~p"/g/#{id}")
 
       assert has_element?(view, "#invite [data-role=room-code].font-hand", id)

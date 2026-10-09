@@ -96,7 +96,7 @@ defmodule QuacksWeb.Round23Test do
       assert has_element?(view, "#to-books[data-open]", "Beginner")
       assert has_element?(view, "#row-expansion", "Witch cards")
       view |> form("#books", expansion: "true") |> render_change()
-      assert has_element?(view, "#row-expansion", "Witches dealt at random")
+      assert has_element?(view, "#row-expansion", "Random witches")
       assert has_element?(view, "#flow-bar [data-role=setup-summary]", "2 players · Herb Witches")
 
       view |> element("#options") |> render_change(%{"rules" => %{"explode_above" => "9"}})

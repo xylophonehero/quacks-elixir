@@ -859,7 +859,7 @@ defmodule QuacksWeb.LobbyLive do
         <p class="text-sm text-ink-soft">
           Tap a witch to pick her card; Random deals one at the start.
         </p>
-        <.witch_links witches={@witches} patch={&tile_path/1} />
+        <div class="mt-3"><.witch_links witches={@witches} patch={&tile_path/1} /></div>
       <% else %>
         <p class="text-sm text-ink-soft" data-role="expansion-off">
           The Herb Witches are off. Turn them on in New game.
@@ -1199,15 +1199,15 @@ defmodule QuacksWeb.LobbyLive do
 
   defp witches_summary(a) do
     case Enum.count(a.witches, fn {_colour, witch} -> witch end) do
-      0 -> "Witches dealt at random"
-      n -> "#{n} of 3 witches picked"
+      0 -> "Random witches"
+      n -> "#{n} of 3 picked"
     end
   end
 
   # The Alchemists row's line: off, or your patient.
   defp patient_summary(%{alchemists: false}), do: "Patients and essence"
-  defp patient_summary(%{patient: :random}), do: "Your patient: random"
-  defp patient_summary(a), do: "Your patient: #{Alchemists.get(a.patient).name}"
+  defp patient_summary(%{patient: :random}), do: "Patient: random"
+  defp patient_summary(a), do: "Patient: #{Alchemists.get(a.patient).name}"
 
   # The expansions of a game, as badges: name and icon.
   defp expansion_badges(game) do
