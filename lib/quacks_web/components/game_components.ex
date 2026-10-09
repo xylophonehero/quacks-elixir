@@ -219,6 +219,8 @@ defmodule QuacksWeb.GameComponents do
   (another player's pot) shows only the chips. In both, the droplet is a full blue
   piece on its space, each rat tail is a grey rat piece on its own space after it
   (`data-role="rat"`, in the `rat-stone` group), and placed chips sit on their spaces.
+  Round 35: the rats keep their spaces when the droplet moves after the first draw;
+  the droplet takes the first rat's space and that rat goes (`rat_spaces/1`).
 
   Scoring spaces (the space directly after the last chip) are rings in the seat
   colours. `rings` maps seat => scoring space; by default only this seat's ring
@@ -254,6 +256,10 @@ defmodule QuacksWeb.GameComponents do
 
   attr :fx_key, :string, default: "", doc: "round 31: the step, so each step's effects play"
 
+  attr :bagged, :boolean,
+    default: false,
+    doc: "round 35: the round went to the shop, so the chips are back in the bag (none drawn)"
+
   def pot(assigns) do
     player = assigns.game.players[assigns.seat]
     player = if assigns.droplet, do: %{player | droplet: assigns.droplet}, else: player
@@ -265,13 +271,13 @@ defmodule QuacksWeb.GameComponents do
         me: player,
         track:
           track(
-            player,
+            if(assigns.bagged, do: %{player | drawn: []}, else: player),
             placements(assigns.game.log, assigns.seat),
             rings,
             scoring,
             assigns.beats
           ),
-        rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
+        rats: rat_spaces(player),
         hop: ruby_hop?(assigns.game.log, assigns.seat),
         fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring)))
       )
@@ -288,6 +294,7 @@ defmodule QuacksWeb.GameComponents do
       phx-hook={@size == :lg && "PotMotion"}
       data-round={@size == :lg && @game.round}
       data-mine={@size == :lg && @flask && "true"}
+      data-bagged={@bagged && "true"}
       data-slide-beat={@effects != [] && @beats[:droplet]}
       style={@effects != [] && @beats[:droplet] && "--slide-beat: #{@beats[:droplet]}"}
     >
@@ -485,18 +492,18 @@ defmodule QuacksWeb.GameComponents do
         <.beat_ring beat={@beats[:droplet]} r="24" />
       </g>
       <g
-        :if={@rat_index}
+        :if={@rats != []}
         id={"rat-#{@seat}-#{@size}"}
         data-role="rat-stone"
-        data-index={@rat_index}
-        data-tails={@me.rat_stone}
+        data-index={List.last(@rats)}
+        data-tails={length(@rats)}
       >
         <g
-          :for={tail <- 1..@me.rat_stone//1}
-          id={"rat-#{@seat}-#{@size}-#{tail}"}
+          :for={space <- @rats}
+          id={"rat-#{@seat}-#{@size}-#{space}"}
           data-role="rat"
-          data-index={@me.droplet + tail}
-          style={translate_style(@me.droplet + tail)}
+          data-index={space}
+          style={translate_style(space)}
           aria-label="rat"
         >
           <g class="rat-pebble">
@@ -576,7 +583,8 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   The test-tube rack of the reverse pot side: glass 0 (the start) and the 12 bonus
   glasses, each with its bonus (a ruby, the VP, or the chip). The droplet sits above
-  the glass the player reached; glasses already paid are dimmed.
+  the glass the player reached; glasses already paid are dimmed. Round 35: the ruby
+  and the VP crown are the game's icons (no "VP" text), and the glasses are shorter.
   """
   attr :tube, :integer, required: true, doc: "the player's `tube` (0..12)"
   attr :class, :any, default: "block h-auto w-full"
@@ -609,15 +617,15 @@ defmodule QuacksWeb.GameComponents do
     <svg
       id={@id}
       phx-hook=".TubeDrop"
-      viewBox="0 -18 364 84"
+      viewBox="0 -18 364 72"
       class={[@class, "select-none"]}
       role="img"
       aria-label={"Test tubes: glass #{@tube} of #{@last}"}
       data-role="test-tubes"
       data-tube={@tube}
     >
-      <rect x="2" y="54" width="360" height="9" rx="3" fill="var(--color-wood)" />
-      <rect x="2" y="54" width="360" height="3" rx="1.5" fill="var(--color-wood-dark)" opacity="0.5" />
+      <rect x="2" y="44" width="360" height="8" rx="3" fill="var(--color-wood)" />
+      <rect x="2" y="44" width="360" height="3" rx="1.5" fill="var(--color-wood-dark)" opacity="0.5" />
       <g
         :for={glass <- @glasses}
         transform={"translate(#{14 + 28 * glass} 0)"}
@@ -630,8 +638,8 @@ defmodule QuacksWeb.GameComponents do
         <path
           d={
             if glass == 0,
-              do: "M-7 22 v20 a7 7 0 0 0 14 0 v-20",
-              else: "M-10 6 v38 a10 10 0 0 0 20 0 v-38"
+              do: "M-7 18 v14 a7 7 0 0 0 14 0 v-14",
+              else: "M-10 6 v28 a10 10 0 0 0 20 0 v-28"
           }
           fill="var(--color-parchment-light)"
           fill-opacity="0.85"
@@ -641,8 +649,8 @@ defmodule QuacksWeb.GameComponents do
         <line
           x1={if glass == 0, do: "-9", else: "-12"}
           x2={if glass == 0, do: "9", else: "12"}
-          y1={if glass == 0, do: "22", else: "6"}
-          y2={if glass == 0, do: "22", else: "6"}
+          y1={if glass == 0, do: "18", else: "6"}
+          y2={if glass == 0, do: "18", else: "6"}
           stroke="var(--color-iron)"
           stroke-width="3"
           stroke-linecap="round"
@@ -667,11 +675,15 @@ defmodule QuacksWeb.GameComponents do
 
   defp glass_bonus(%{bonus: :ruby} = assigns) do
     ~H"""
-    <path
-      d="M0 22 l7 5 -2.5 8 h-9 l-2.5 -8 z"
-      fill="var(--color-ruby)"
-      stroke="#7a1410"
-      stroke-width="1"
+    <.piece_icon
+      name={:ruby}
+      x="-8"
+      y="16"
+      width="16"
+      height="16"
+      class="text-ruby"
+      style="filter: drop-shadow(0 0 1px #4a0d0a)"
+      data-role="glass-ruby"
     />
     """
   end
@@ -680,11 +692,18 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, n: n)
 
     ~H"""
-    <text y="31" text-anchor="middle" font-size="15" font-weight="800" fill="var(--color-ink)">
+    <.piece_icon
+      name={:vp}
+      x="-7"
+      y="10"
+      width="14"
+      height="14"
+      class="text-gold"
+      style="filter: drop-shadow(0 0 1px #5a3d0a)"
+      data-role="glass-vp"
+    />
+    <text y="37" text-anchor="middle" font-size="13" font-weight="800" fill="var(--color-ink)">
       {@n}
-    </text>
-    <text y="42" text-anchor="middle" font-size="7" font-weight="700" fill="var(--color-ink-soft)">
-      VP
     </text>
     """
   end
@@ -695,13 +714,13 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <circle
-      cy="30"
+      cy="26"
       r="8"
       fill={"var(--color-chip-#{@colour})"}
       stroke="rgb(0 0 0 / 0.4)"
       stroke-width="1.5"
     />
-    <text y="33.5" text-anchor="middle" font-size="10" font-weight="700" fill={@ink}>
+    <text y="29.5" text-anchor="middle" font-size="10" font-weight="700" fill={@ink}>
       {@value}
     </text>
     """
@@ -839,6 +858,43 @@ defmodule QuacksWeb.GameComponents do
   @spec palette_bg(0..7) :: String.t()
   def palette_bg(colour), do: @palette_bg[colour]
 
+  # Round 35: a rat keeps its VP only in a small gap (1 or 2 rats) between two
+  # neighbouring seats, and not next to a step whose VP label sits below the line.
+  defp label_rats(rats, dots, vp_labels, steps) do
+    below = for l <- vp_labels, l.below, uniq: true, do: round(l.x * steps - 0.5)
+
+    big_gaps =
+      dots
+      |> Enum.map(& &1.step)
+      |> Enum.uniq()
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.filter(fn [a, b] -> b - a >= 3 end)
+
+    Enum.map(rats, fn rat ->
+      quiet? =
+        Enum.any?(big_gaps, fn [a, b] -> a <= rat.j and rat.j < b end) or
+          rat.j in below or (rat.j + 1) in below
+
+      Map.put(rat, :show_vp, not quiet?)
+    end)
+  end
+
+  @doc """
+  The pot spaces of a player's rat pebbles: the spaces after the droplet, at most
+  `rat_stone` of them, and never past `mods.rat_end` (the stone's space). Before the first draw
+  the start follows the droplet (`Game.move_droplet/3`); after it the rats stay put,
+  so a droplet move takes the first rat's space and that rat goes (round 35).
+  """
+  @spec rat_spaces(Player.t()) :: [non_neg_integer]
+  def rat_spaces(%Player{rat_stone: 0}), do: []
+
+  def rat_spaces(%Player{droplet: droplet, rat_stone: n, mods: mods, drawn: drawn}) do
+    rat_end = mods[:rat_end]
+
+    last = if drawn == [] or is_nil(rat_end), do: droplet + n, else: min(droplet + n, rat_end)
+    Enum.to_list((droplet + 1)..last//1)
+  end
+
   @doc """
   The rat track (round 16; equal steps since round 22): a slim strip between the
   name cards and the pot. Not to scale: one step per rat tail
@@ -848,7 +904,9 @@ defmodule QuacksWeb.GameComponents do
   adds one); seats in one step stack. Under each rat tail its VP. Since round 28
   every seat's VP sits by its dot (`track-vp`, the leader's `leader-vp`): one
   number for seats in a step with the same VP, the numbers of a step alternating
-  above and below the line so they do not collide. A fixed height; nothing to tap.
+  above and below the line so they do not collide. Since round 35 a rat shows its
+  VP only in a gap of 1 or 2 rats between neighbouring seats, and not next to a
+  step with a label below the line. A fixed height; nothing to tap.
   """
   attr :game, :map, required: true
   attr :seat, :any, default: nil, doc: "this browser's seat, nil for a spectator"
@@ -885,7 +943,7 @@ defmodule QuacksWeb.GameComponents do
             }
       end)
 
-    rats = for {t, j} <- Enum.with_index(tails), do: %{vp: t, x: (j + 1) / steps}
+    rats = for {t, j} <- Enum.with_index(tails), do: %{vp: t, x: (j + 1) / steps, j: j}
 
     # Round 28: every seat's VP by its dot. Seats in one step with the same VP share
     # one number; the numbers of a step alternate above and below the line.
@@ -907,6 +965,8 @@ defmodule QuacksWeb.GameComponents do
           }
         end)
       end)
+
+    rats = label_rats(rats, dots, vp_labels, steps)
 
     label =
       Enum.map_join(vps, "; ", fn {s, vp} ->
@@ -946,7 +1006,10 @@ defmodule QuacksWeb.GameComponents do
         data-vp={rat.vp}
       >
         <.piece_icon name={:rat} class="size-3" />
-        <span class="absolute top-full text-tag leading-none font-semibold tabular-nums">
+        <span
+          :if={rat.show_vp}
+          class="absolute top-full text-tag leading-none font-semibold tabular-nums"
+        >
           {rat.vp}
         </span>
       </span>

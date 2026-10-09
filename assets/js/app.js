@@ -129,6 +129,8 @@ let installFired = false
 // droplet. The scoring sequence's rubies fly to the ruby counter on their beats.
 // Round 31: your own draw flies from the bag to its space (`fly`).
 // Reduced motion: fades only, no flights.
+// Round 35: until when the chips fly to the bag, and the round they flew in.
+let bagUntil = 0, bagRound = null
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 const easing = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 const at = (p, o, s = 1) => `translate(${p.x - o.x}px, ${p.y - o.y}px) scale(${s})`
@@ -150,15 +152,18 @@ const PotMotion = {
     // Round 34: the same chip (its draw order) on a new space moved in the pot
     // (green III): it flies from its old space, not from the bag.
     const moved = gone.length === 1 && added.length === 1 && gone[0].dataset.order === added[0].dataset.order
-    if (this.el.dataset.round !== this.round) {
+    const newRound = this.el.dataset.round !== this.round
+    if (newRound) {
       gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, null, i * 20))
       this.ratsIn()
     }
+    else if (this.el.dataset.bagged && !this.bagged) this.toBag(gone)
     else if (moved) this.fly(added[0], this.pos(gone[0].dataset.index), 1, 40)
     else if (gone.length === 1 && added.length === 0)
       this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
     else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0])
     else if (added.length <= 2) added.forEach(c => this.land(c))
+    if (!newRound) this.ratsOut()
     this.hop(this.el.querySelector("[data-role=droplet]"))
     const brew = this.el.querySelector("[data-role=flask-brew]")
     if (brew && !this.full && !reduced())
@@ -203,6 +208,22 @@ const PotMotion = {
         {duration: 240, delay: 200 + i * 60, fill: "backwards", easing: easing("--ease-out")})
     })
   },
+  // Round 35: the round goes to the shop: every chip flies off the pot into the bag,
+  // first drawn first (staggered, top layer); the shop opens after (`bagUntil`).
+  toBag(gone) {
+    const n = gone.length, step = Math.min(60, 600 / Math.max(n, 1))
+    gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, this.centre(this.bag()), i * step))
+    if (n && !reduced()) bagUntil = performance.now() + 260 + n * step
+  },
+  // Round 35: the droplet took a rat's space (a move after the first draw). That
+  // rat fades out where it was as the droplet lands; the others stay put.
+  ratsOut() {
+    this.rats.forEach(rat => {
+      if (rat.isConnected) return
+      rat.style.translate = ""
+      this.ghost(rat, null, reduced() ? 0 : 300)
+    })
+  },
   // Round 32, rubies paid for the droplet (`data-hop`): it hops from its old space
   // to the new one on a low arc, 520 ms, over the CSS slide. A refill fills the flask.
   hop(d) {
@@ -215,8 +236,11 @@ const PotMotion = {
   snapshot() {
     this.drop = this.el.querySelector("[data-role=droplet]")?.dataset.index
     this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
+    this.rats = [...this.el.querySelectorAll("[data-role=rat]")]
     this.full = !!this.el.querySelector("[data-role=flask-brew]")
     this.round = this.el.dataset.round
+    this.bagged = !!this.el.dataset.bagged
+    if (this.bagged) bagRound = this.round
   },
   pos(i) { const g = this.el.querySelector(`[data-space="${i}"]`).dataset; return {x: +g.x, y: +g.y} },
   bag() { return document.querySelector("[data-role=bag-button]") },
@@ -345,6 +369,10 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 const wide = matchMedia("(min-width: 64rem)")
 const sideOpen = d => {
   if (d.open) return
+  // Round 35: the shop waits for the chips to fly into the bag.
+  const bagging = document.querySelector(".pot-lg[data-bagged]")
+  const wait = bagging && bagRound !== bagging.dataset.round ? 30 : bagUntil - performance.now()
+  if (wait > 0) return setTimeout(() => sideOpen(d), wait)
   // The books drawer stays open when a decision comes; the decision opens after it.
   const books = document.querySelector("#sheet-books:popover-open")
   if (books) return books.addEventListener("toggle", () => sideOpen(d), {once: true})
