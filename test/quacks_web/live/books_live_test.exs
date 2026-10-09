@@ -155,12 +155,12 @@ defmodule QuacksWeb.BooksLiveTest do
              "Locoweed: return one to your bag"
            )
 
-    assert has_element?(
-             view,
-             "[data-role=chip-action][aria-label='Locoweed: return green 1 to the bag']"
-           )
+    # Round 36: the chip in the pot is the tap (it glows).
+    target = "#pot-0-lg [data-role=pot-chip][data-target]"
+    assert has_element?(view, "#{target}[aria-label='Locoweed: return green 1 to the bag']")
+    assert has_element?(view, "[data-role=bar-chip-actions] [data-role=tap-pot]")
 
-    view |> element("[data-role=chip-action][aria-label*='green 1']") |> render_click()
+    view |> element("#{target}[aria-label*='green 1']") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
     assert [{{:locoweed, 1}, 2}] = game.players[0].drawn

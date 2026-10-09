@@ -258,6 +258,13 @@ defmodule QuacksWeb.GameComponents do
 
   attr :fx_key, :string, default: "", doc: "round 31: the step, so each step's effects play"
 
+  attr :targets, :map,
+    default: %{},
+    doc: """
+    round 36: `%{chip => %{event, value, label}}`, the pot chips a choice is about:
+    they glow and a tap (or Enter) sends `event` with `value` as `action`
+    """
+
   attr :bagged, :boolean,
     default: false,
     doc: "round 35: the round went to the shop, so the chips are back in the bag (none drawn)"
@@ -459,6 +466,7 @@ defmodule QuacksWeb.GameComponents do
           placed={placed}
           size={@size}
           beat={space.beat}
+          target={@size == :lg && @targets[elem(chip, 0)]}
         />
         <.scoring_ring :if={rings} seats={rings} />
         <.beat_ring :if={at == :next} beat={space.ring_beat} r="32" />
@@ -1081,6 +1089,10 @@ defmodule QuacksWeb.GameComponents do
   attr :size, :atom, required: true
   attr :beat, :integer, default: nil, doc: "the replay beat this chip lights up on"
 
+  attr :target, :map,
+    default: nil,
+    doc: "round 36: `%{event, value, label}` when a tap on this chip chooses it"
+
   defp pot_chip(assigns) do
     {colour, value} = assigns.chip
     icon = if colour in @ink_icon_chips, do: "text-ink", else: "text-white"
@@ -1094,8 +1106,17 @@ defmodule QuacksWeb.GameComponents do
       data-role="pot-chip"
       data-order={@order}
       data-index={@index}
-      aria-label={"#{@colour} #{@value}"}
+      aria-label={if @target, do: @target.label, else: "#{@colour} #{@value}"}
+      role={@target && "button"}
+      tabindex={@target && "0"}
+      class={@target && "pot-target"}
+      phx-click={@target && @target.event}
+      phx-keydown={@target && @target.event}
+      phx-key={@target && "Enter"}
+      phx-value-action={@target && @target.value}
+      data-target={@target && "true"}
     >
+      <circle :if={@target} r="27" class="pot-target-glow" data-role="target-glow" />
       <circle
         r="19"
         fill={"var(--color-chip-#{@colour})"}
