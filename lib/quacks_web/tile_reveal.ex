@@ -42,6 +42,71 @@ defmodule QuacksWeb.TileReveal do
   @spec slides([Reveal.slide()]) :: [Reveal.slide()]
   def slides(slides), do: Enum.filter(slides, &(&1.kind in @kinds))
 
+  # The evaluation's choice phases: the steps play on the tiles from then on.
+  @eval_phases [:chip_choice, :witch_choice]
+
+  @doc """
+  Round 35 (item 7): the steps to play now, from the round's result slides
+  (`Reveal.result_slides/1`). In the shop: `slides/1`. While the evaluation asks
+  its choices (`evaluating?/1`) the scoring space and "Round scored" are not
+  there yet, and a book whose choice a seat still makes has its step already
+  (no rows yet), in its place: die, black, green, purple, the other books.
+  """
+  @spec live(Game.t(), [Reveal.slide()]) :: [Reveal.slide()]
+  def live(game, slides) do
+    slides = slides(slides)
+
+    if evaluating?(game) do
+      slides = Enum.reject(slides, &(&1.kind in [:space, :standings]))
+      have = for %{kind: :book, book: c} <- slides, do: c
+
+      waiting =
+        for c <- [:green, :purple],
+            c not in have,
+            choosing(game, c) != [],
+            do: %{kind: :book, book: c, set: Map.get(game.sets, c, 1), rows: [], gains: %{}}
+
+      Enum.sort_by(slides ++ waiting, &rank/1)
+    else
+      slides
+    end
+  end
+
+  @doc "Whether the evaluation still asks its choices (the shop has not opened)."
+  @spec evaluating?(Game.t()) :: boolean
+  def evaluating?(%Game{phase: phase}), do: phase in @eval_phases
+
+  defp rank(%{kind: :die}), do: 0
+  defp rank(%{kind: :book, book: :black}), do: 1
+  defp rank(%{kind: :book, book: :green}), do: 2
+  defp rank(%{kind: :book, book: :purple}), do: 3
+  defp rank(%{kind: :book}), do: 4
+  defp rank(%{kind: :space}), do: 5
+  defp rank(_slide), do: 6
+
+  @doc "The seats that still choose in the book of `colour` (G2, G4, G5; P2, P4, P5)."
+  @spec choosing(Game.t(), atom) :: [Game.seat()]
+  def choosing(game, colour) do
+    for s <- game.seats,
+        p = Game.player(game, s),
+        p.phase == :chip_choice,
+        Enum.any?(p.chip_choices, &(choice_colour(&1) == colour)),
+        do: s
+  end
+
+  @doc "The book colour of a chip actions' choice or `{:chip, choice}` action, or nil."
+  @spec choice_colour(term) :: atom | nil
+  def choice_colour({:chip, choice}), do: choice_colour(choice)
+
+  def choice_colour({kind, _}) when kind in [:gain, :ruby_move, :pay_ruby_move, :starter],
+    do: :green
+
+  def choice_colour({kind, _}) when kind in [:purple_trade, :purple_buy, :buy, :upgrade],
+    do: :purple
+
+  def choice_colour({:upgrade, _, _}), do: :purple
+  def choice_colour(_choice), do: nil
+
   @doc """
   How long a step stays on the tiles in Auto mode, in ms, at `speed`. Round 35:
   the die step waits for its dice to roll (app.css `.stage-die`: one roll of
@@ -293,6 +358,11 @@ defmodule QuacksWeb.TileReveal do
       {s, max(Game.player(game, s).droplet - moves, 0)}
     end)
   end
+
+  @doc "The droplet moves the steps `slides` bring `seat` (die faces, book moves)."
+  @spec moves_in([Reveal.slide()], Game.seat()) :: non_neg_integer
+  def moves_in(slides, seat) when is_list(slides),
+    do: slides |> Enum.map(&droplet_moves(&1, seat)) |> Enum.sum()
 
   defp droplet_moves(%{kind: :die, rows: rows}, seat) do
     case Enum.find(rows, &(&1.seat == seat)) do

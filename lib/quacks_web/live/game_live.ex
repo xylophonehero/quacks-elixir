@@ -174,6 +174,13 @@ defmodule QuacksWeb.GameLive do
   def handle_event("action", %{"action" => encoded}, %{assigns: %{seat: seat}} = socket)
       when is_integer(seat) do
     case decode(encoded) do
+      # Round 35 (item 7): "Done" on a book's step moves on to the next book with a
+      # choice of this seat; on the last one it ends the choices.
+      {:ok, :chip_done} when socket.assigns.reveal != nil ->
+        if tile_hold(socket.assigns) == :chip_choice and later_choices?(socket.assigns),
+          do: {:noreply, show_slide(socket, socket.assigns.reveal.index + 1)},
+          else: play(socket, seat, :chip_done)
+
       {:ok, action} ->
         play(socket, seat, action)
 
@@ -478,14 +485,20 @@ defmodule QuacksWeb.GameLive do
       # Round 27: the settings come after mount, so the results' reveal starts again
       # where the Results setting says (the overlay or the tiles).
       %{key: {:results, _} = key} = reveal when reveal.tiles != (show == :tiles) ->
-        slides = Reveal.slides(socket.assigns.game, socket.assigns.seat)
-        {:noreply, socket |> assign(reveal: nil) |> start_reveal(key, slides)}
+        game = socket.assigns.game
+
+        if TileReveal.evaluating?(game),
+          do: {:noreply, assign(socket, reveal: nil)},
+          else:
+            {:noreply,
+             socket |> assign(reveal: nil) |> start_reveal(key, Reveal.result_slides(game))}
 
       %{index: index} ->
         {:noreply, show_slide(socket, index)}
 
+      # Round 35: on the tiles the results may begin now (the choices phase).
       nil ->
-        {:noreply, socket}
+        {:noreply, if(socket.assigns.game, do: open_reveal(socket), else: socket)}
     end
   end
 
@@ -1573,13 +1586,16 @@ defmodule QuacksWeb.GameLive do
                the update chips stay on the cards until then. --%>
           <%!-- Round 35: the results stage, over the step bar. --%>
           <.results_stage
-            :if={tiles_playing?(@reveal) && tile_slide(@reveal)}
-            rows={TileReveal.stage_rows(@game, tile_slide(@reveal))}
+            :if={
+              tiles_playing?(@reveal) && tile_slide(@reveal) &&
+                tile_hold(assigns) not in [:droplet_choice, :chip_choice]
+            }
+            rows={TileReveal.stage_rows(@game, tile_slide(@reveal), stage_choosing(@game, @reveal))}
             slide={tile_slide(@reveal)}
             index={@reveal.index}
             names={@names}
             seat={@seat}
-            collapsed={tile_hold(assigns) != nil}
+            collapsed={tile_hold(assigns) not in [nil, :waiting]}
             note={hold_note(tile_hold(assigns))}
           />
           <%!-- Round 35: a decision on the step on show takes the step bar's place. --%>
@@ -1592,9 +1608,26 @@ defmodule QuacksWeb.GameLive do
             seat={@seat}
             keep
           />
+          <.bar_choice
+            :if={tile_hold(assigns) == :chip_choice}
+            choice={:chip_choice}
+            actions={step_chip_actions(assigns) ++ [:chip_done]}
+            game={@game}
+            me={@me}
+            seat={@seat}
+          />
+          <.bar_choice
+            :if={tile_hold(assigns) == :droplet_choice}
+            choice={:droplet_choice}
+            actions={@all_actions}
+            game={@game}
+            me={@me}
+            seat={@seat}
+          />
           <%!-- Round 29: the results' steps on the tiles take the bar's place. --%>
           <.tile_stage
-            :if={tiles_playing?(@reveal) && tile_hold(assigns) == nil}
+            :if={tiles_playing?(@reveal) && tile_hold(assigns) in [nil, :waiting]}
+            waiting={tile_hold(assigns) == :waiting}
             reveal={@reveal}
             mode={@reveal_mode}
             close_label={close_label(@reveal, @decision, @skip_rubies)}
@@ -1616,7 +1649,10 @@ defmodule QuacksWeb.GameLive do
                decision is a panel in the context column, and this shows only when
                that panel was closed. --%>
           <.button
-            :if={@decision && !@bar_choice && !tiles_playing?(@reveal) && !card_continue?(assigns)}
+            :if={
+              @decision && !@bar_choice && !card_continue?(assigns) &&
+                (!tiles_playing?(@reveal) or other_decision?(assigns))
+            }
             variant={:primary}
             class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible lg:[body:has(dialog[open])_&]:hidden"
             data-role="decision-button"
@@ -3430,16 +3466,49 @@ defmodule QuacksWeb.GameLive do
   # dialog, so no overlay then. A spectator gets none.
   defp open_reveal(%{assigns: %{seat: seat, game: game} = assigns} = socket)
        when is_integer(seat) do
-    key = Reveal.moment(game)
+    key = reveal_key(game, assigns)
 
     case reveal_step(assigns, key) do
-      :keep -> socket
+      :keep -> refresh_tiles(socket)
       :drop -> assign(socket, reveal: nil)
-      :open -> start_reveal(socket, key, Reveal.slides(game, seat))
+      :open -> start_reveal(socket, key, reveal_slides(game, seat, key))
     end
   end
 
   defp open_reveal(socket), do: socket
+
+  # Round 35 (item 7): on the tiles the results begin with the chip actions'
+  # choices (each choice waits on its book's step); the overlay waits for the shop.
+  defp reveal_key(game, %{reveal_show: :tiles}) do
+    if TileReveal.evaluating?(game), do: {:results, game.round}, else: Reveal.moment(game)
+  end
+
+  defp reveal_key(game, _assigns), do: Reveal.moment(game)
+
+  defp reveal_slides(game, _seat, {:results, _}), do: Reveal.result_slides(game)
+  defp reveal_slides(game, seat, _key), do: Reveal.slides(game, seat)
+
+  # Round 35: while the steps play on the tiles they follow the game (a choice
+  # made, the shop opened); the step on show stays on show.
+  defp refresh_tiles(
+         %{assigns: %{reveal: %{tiles: true, key: {:results, _}} = reveal, game: game}} = socket
+       ) do
+    case TileReveal.live(game, Reveal.result_slides(game)) do
+      new when new in [[], reveal.slides] ->
+        socket
+
+      new ->
+        shown = Enum.at(reveal.slides, reveal.index - 1)
+        at = Enum.find_index(new, &(step_key(&1) == step_key(shown)))
+        index = if at, do: at + 1, else: min(reveal.index, length(new))
+        assign(socket, reveal: %{reveal | slides: new, index: max(index, 1)})
+    end
+  end
+
+  defp refresh_tiles(socket), do: socket
+
+  defp step_key(nil), do: nil
+  defp step_key(slide), do: {slide.kind, slide[:book]}
 
   # What the overlay does with the game's moment `key`.
   defp reveal_step(_assigns, nil), do: :keep
@@ -3455,9 +3524,16 @@ defmodule QuacksWeb.GameLive do
     # player tiles (`QuacksWeb.TileReveal`); no step to play, the overlay as before.
     tiles =
       if socket.assigns.reveal_show == :tiles and match?({:results, _}, key),
-        do: TileReveal.slides(slides),
+        do: TileReveal.live(socket.assigns.game, slides),
         else: []
 
+    # Nothing to play yet while the evaluation asks its choices: wait.
+    if tiles == [] and TileReveal.evaluating?(socket.assigns.game),
+      do: socket,
+      else: begin_reveal(socket, key, slides, tiles)
+  end
+
+  defp begin_reveal(socket, key, slides, tiles) do
     socket
     |> assign(
       reveal: %{
@@ -3501,11 +3577,11 @@ defmodule QuacksWeb.GameLive do
          %{assigns: %{reveal: %{tiles: true, index: index, slides: slides} = reveal}} = socket
        ) do
     cond do
-      index >= length(slides) ->
-        close_reveal(socket)
-
       tile_hold(socket.assigns) != nil ->
         assign(socket, reveal: %{reveal | tick: nil})
+
+      index >= length(slides) ->
+        close_reveal(socket)
 
       match?(%{kind: :standings}, Enum.at(slides, index)) and ruby_due?(socket.assigns) ->
         assign(socket, reveal: %{reveal | rubies: true, tick: nil})
@@ -3739,8 +3815,47 @@ defmodule QuacksWeb.GameLive do
 
   # Round 35: the decision that holds the step on show, or nil: the rubies step
   # before "Round scored" (item 5).
+  # Item 7: a chip actions' choice on its book's step, a free droplet move on the
+  # step that won it; `:waiting` while the next step waits for other players.
   defp tile_hold(%{reveal: %{tiles: true, rubies: true}}), do: :rubies
+
+  defp tile_hold(%{reveal: %{tiles: true} = reveal} = assigns) do
+    cond do
+      assigns.decision == :droplet_choice and droplet_due?(assigns) -> :droplet_choice
+      assigns.decision == :chip_choice and step_chip_actions(assigns) != [] -> :chip_choice
+      TileReveal.evaluating?(assigns.game) and reveal.index >= length(reveal.slides) -> :waiting
+      true -> nil
+    end
+  end
+
   defp tile_hold(_assigns), do: nil
+
+  # This seat's chip actions for the book on show.
+  defp step_chip_actions(%{reveal: reveal, all_actions: actions}) do
+    case tile_slide(reveal) do
+      %{kind: :book, book: colour} ->
+        Enum.filter(actions, &(TileReveal.choice_colour(&1) == colour))
+
+      _slide ->
+        []
+    end
+  end
+
+  # A chip actions' choice of this seat waits on a step after the one on show.
+  defp later_choices?(%{reveal: %{slides: slides, index: index}, all_actions: actions}) do
+    colours = actions |> Enum.map(&TileReveal.choice_colour/1) |> Enum.reject(&is_nil/1)
+
+    slides
+    |> Enum.drop(index)
+    |> Enum.any?(fn slide -> slide.kind == :book and slide[:book] in colours end)
+  end
+
+  # A free droplet move is due on the step on show: this seat has more moves
+  # waiting than the steps still to come bring.
+  defp droplet_due?(%{reveal: %{slides: slides, index: index}, game: game, seat: seat}) do
+    later = slides |> Enum.drop(index) |> TileReveal.moves_in(seat)
+    Game.player(game, seat).droplet_moves > later
+  end
 
   # This seat may spend rubies before "Round scored": a ruby buys something now
   # (not round 9: its rubies turn into VP by themselves) and it did not keep them.
@@ -3751,6 +3866,21 @@ defmodule QuacksWeb.GameLive do
   end
 
   defp ruby_due?(_assigns), do: false
+
+  # Round 35: the next step waits while this seat has a decision the steps do not
+  # ask (a gold witch): its button shows under the step bar.
+  defp other_decision?(assigns),
+    do:
+      tile_hold(assigns) == :waiting and
+        assigns.decision not in [nil, :chip_choice, :droplet_choice]
+
+  # The seats that still choose in the book on show (their row says so).
+  defp stage_choosing(game, reveal) do
+    case tile_slide(reveal) do
+      %{kind: :book, book: colour} -> TileReveal.choosing(game, colour)
+      _slide -> []
+    end
+  end
 
   # The results stage's one line while a decision holds the step.
   defp hold_note(:rubies), do: {"Spend rubies", "before the round is scored"}
@@ -3768,15 +3898,34 @@ defmodule QuacksWeb.GameLive do
         |> next_slide()
   end
 
-  defp resume_reveal(
-         %{assigns: %{reveal: %{tiles: true, tick: nil, index: index}} = assigns} = socket
-       ) do
+  defp resume_reveal(%{assigns: %{reveal: %{tiles: true}}} = socket),
+    do: socket |> end_choices() |> rearm()
+
+  defp resume_reveal(socket), do: socket
+
+  defp rearm(%{assigns: %{reveal: %{tiles: true, tick: nil, index: index}} = assigns} = socket) do
     if reveal_mode(assigns.reveal, assigns) == :auto and tile_hold(assigns) == nil,
       do: show_slide(socket, index),
       else: socket
   end
 
-  defp resume_reveal(socket), do: socket
+  defp rearm(socket), do: socket
+
+  # Item 7: a choice left only in a book step already passed ("Done" there) ends
+  # the seat's choices once no later step holds one.
+  defp end_choices(%{assigns: %{decision: :chip_choice, seat: seat} = assigns} = socket)
+       when is_integer(seat) do
+    if step_chip_actions(assigns) == [] and not later_choices?(assigns) do
+      case GameServer.apply(assigns.id, seat, :chip_done) do
+        {:ok, game} -> put_game(socket, game)
+        _error -> socket
+      end
+    else
+      socket
+    end
+  end
+
+  defp end_choices(socket), do: socket
 
   # Round 31: the step Next scored last (nil before the first), and whether the
   # bonus die strip plays (while the die step is the last scored).

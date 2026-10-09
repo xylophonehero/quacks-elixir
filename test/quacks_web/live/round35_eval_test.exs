@@ -288,6 +288,139 @@ defmodule QuacksWeb.Round35EvalTest do
     end
   end
 
+  describe "items 6 and 7: each choice on its own book step" do
+    # Seat 0 ends on a green 2 and a purple 1 (G2 and P2: choices) with one black
+    # chip more than seat 1 (the Hawkmoth: a free droplet move, reverse pot side).
+    defp choices_game(settings_first \\ true) do
+      sets = %{green: 2, purple: 2}
+      {:ok, id} = GameServer.start(2, {1, 2, 3}, sets, %{fortune: false, pot_side: :back})
+      {:ok, alice, _html} = live(browser("alice-#{id}"), ~p"/g/#{id}")
+      {:ok, _bob, _html} = live(browser("bob-#{id}"), ~p"/g/#{id}")
+      {:ok, _} = GameServer.begin(id, "alice-#{id}")
+      if settings_first, do: tiles(alice)
+
+      GameHelpers.replace_game(id, fn g ->
+        g
+        |> GameHelpers.put(0,
+          drawn: [{{:green, 2}, 12}, {{:purple, 1}, 11}, {{:black, 1}, 10}],
+          pot_index: 12
+        )
+        |> GameHelpers.put(1, drawn: [{{:orange, 1}, 5}], pot_index: 5)
+      end)
+
+      {:ok, _} = GameServer.apply(id, 1, :stop)
+      {:ok, game} = GameServer.apply(id, 0, :stop)
+      render(alice)
+      if !settings_first, do: tiles(alice, "auto")
+      {id, game, alice}
+    end
+
+    # The step on show (the panel hides while a choice waits on it).
+    defp shown(view) do
+      %{slides: slides, index: index} = :sys.get_state(view.pid).socket.assigns.reveal
+      slide = Enum.at(slides, index - 1)
+      {slide.kind, slide[:book]}
+    end
+
+    defp act(view, action),
+      do: render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode(action)})
+
+    # Next until the step with this kind (and book) shows; a free droplet move on
+    # the way goes to the pot.
+    defp until_book(view, colour) do
+      Enum.find(1..8, fn _ ->
+        cond do
+          shown(view) == {:book, colour} -> true
+          has_element?(view, "#bar-droplet") -> act(view, {:droplet, :pot}) && false
+          true -> next(view) && false
+        end
+      end)
+    end
+
+    test "the steps begin with the choices; the droplet, green and purple each on their step" do
+      {id, game, view} = choices_game()
+      assert game.phase == :chip_choice
+      assert has_element?(view, "#results-stage")
+      refute has_element?(view, "#results-stage[data-kind=space]")
+
+      # The die first; the Hawkmoth's droplet move on the black step (the panel
+      # hides, so the pot and the test tubes show).
+      assert has_element?(view, "#results-stage[data-kind=die]")
+      refute has_element?(view, "#bar-droplet")
+      next(view)
+      assert has_element?(view, "#bar-droplet")
+      refute has_element?(view, "#results-stage")
+      assert :sys.get_state(view.pid).socket.assigns.reveal.index == 2
+      act(view, {:droplet, :pot})
+
+      # Green: only the green book's chips; the purple trade waits for its step.
+      until_book(view, :green)
+      assert has_element?(view, "#bar-chip-actions-1")
+      refute has_element?(view, "#results-stage")
+      {:ok, %{game: game}} = GameServer.get(id)
+      legal = Game.legal_actions(game, 0)
+      greens = Enum.filter(legal, &(TileReveal.choice_colour(&1) == :green))
+      assert greens != [] and Enum.any?(legal, &(TileReveal.choice_colour(&1) == :purple))
+      refute render(view) =~ QuacksWeb.GameLive.encode({:chip, {:purple_trade, 1}})
+
+      # Done on green moves on to purple (the engine still waits for this seat).
+      act(view, :chip_done)
+
+      assert view |> element("#bar-chip-actions-1") |> render() =~
+               QuacksWeb.GameLive.encode({:chip, {:purple_trade, 1}})
+
+      assert {:ok, %{game: %{phase: :chip_choice}}} = GameServer.get(id)
+
+      # The purple choice ends the choices: the shop opens, the scoring space follows.
+      act(view, {:chip, {:purple_trade, 1}})
+      {:ok, %{game: game}} = GameServer.get(id)
+      assert game.phase == :shopping
+      next(view)
+      assert has_element?(view, "#results-stage[data-kind=space]")
+    end
+
+    test "the settings coming after the choices began still start the steps" do
+      {_id, _game, view} = choices_game(false)
+      assert has_element?(view, "#results-stage[data-kind=die]")
+    end
+
+    test "Auto never closes the steps while this seat's choice waits on the last one" do
+      {_id, _game, view} = choices_game(false)
+
+      tick = fn ->
+        send(view.pid, {:reveal_tick, :sys.get_state(view.pid).socket.assigns.reveal.tick})
+      end
+
+      # The die, then the black step's droplet move, then "Done" on green: purple is
+      # the last step while the choices wait.
+      tick.()
+      act(view, {:droplet, :pot})
+      tick.()
+      assert shown(view) == {:book, :green}
+      act(view, :chip_done)
+      assert shown(view) == {:book, :purple}
+
+      for _ <- 1..3 do
+        tick.()
+        render(view)
+      end
+
+      assert has_element?(view, "#bar-chip-actions-1")
+      assert %{reveal: %{tiles: true}} = :sys.get_state(view.pid).socket.assigns
+    end
+
+    test "live/2: while choosing, a book with a choice has its step, no space yet" do
+      {_id, game, _view} = choices_game()
+
+      kinds =
+        game |> TileReveal.live(Reveal.result_slides(game)) |> Enum.map(&{&1.kind, &1[:book]})
+
+      assert {:book, :green} in kinds and {:book, :purple} in kinds
+      refute Enum.any?(kinds, &(elem(&1, 0) in [:space, :standings]))
+      assert TileReveal.choosing(game, :green) == [0]
+    end
+  end
+
   describe "item 8: a chip as a result" do
     test "a chip with no value has its icon in the centre and no badge" do
       html = render_component(&QuacksWeb.GameComponents.chip/1, chip: {:green, nil}, size: :sm)

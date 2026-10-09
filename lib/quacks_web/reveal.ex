@@ -107,6 +107,14 @@ defmodule QuacksWeb.Reveal do
   end
 
   @doc """
+  Round 35: the round's result slides (as `slides/2` gives them in the shop), also
+  while the chip actions' choices wait: the page plays them on the tiles from
+  then on (`QuacksWeb.TileReveal.live/2`).
+  """
+  @spec result_slides(Game.t()) :: [slide]
+  def result_slides(game), do: game |> results(game.round) |> running(before_results(game))
+
+  @doc """
   Round 24: what this round's card did to `seat` when it came (its automatic part,
   e.g. a droplet, VP, a ruby, drawn chips), oldest first: the `{:fortune, id,
   outcome}` log entries since the card was drawn. Empty for a card that does
