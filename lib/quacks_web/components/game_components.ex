@@ -209,6 +209,9 @@ defmodule QuacksWeb.GameComponents do
   # A function, so the templates read it (an `@name` in HEEx is an assign).
   defp pot_tag, do: @pot_tag
 
+  # Round 31: the space number, the hero of the board: about 14.7 px on a 360 px phone.
+  defp pot_space_text, do: 24
+
   @doc """
   One seat's 54-space pot track, drawn as the board's cauldron: an inline SVG with
   the spaces on a spiral from the centre (space 0) out to the rim (space 53).
@@ -279,6 +282,7 @@ defmodule QuacksWeb.GameComponents do
       data-exploded={to_string(@me.exploded?)}
       phx-hook={@size == :lg && "PotMotion"}
       data-round={@size == :lg && @game.round}
+      data-mine={@size == :lg && @flask && "true"}
       data-slide-beat={@effects != [] && @beats[:droplet]}
       style={@effects != [] && @beats[:droplet] && "--slide-beat: #{@beats[:droplet]}"}
     >
@@ -302,11 +306,6 @@ defmodule QuacksWeb.GameComponents do
             offset="100%"
             stop-color={if @me.exploded?, do: "#3b4526", else: "var(--color-potion-deep)"}
           />
-        </radialGradient>
-        <radialGradient :if={@size == :lg} id={"vp-gold-#{@seat}"} cx="35%" cy="30%">
-          <stop offset="0%" stop-color="#fff1bf" />
-          <stop offset="50%" stop-color="var(--color-gold)" />
-          <stop offset="100%" stop-color="#a97d17" />
         </radialGradient>
         <radialGradient id={"drop-#{@seat}-#{@size}"} cx="35%" cy="55%" r="70%">
           <stop offset="0%" stop-color="#7fb0ff" />
@@ -389,45 +388,34 @@ defmodule QuacksWeb.GameComponents do
           opacity={if at == :passed, do: "0.45"}
           data-passed={at == :passed && "true"}
         >
+          <%!-- Round 31: the space number is the hero, centred on the space in the
+               body font with lining tabular figures (no hand offsets). The VP crown
+               sits on the rim radially outward and the ruby radially inward, so
+               neither covers the number. --%>
           <text
-            dy="0.35em"
             text-anchor="middle"
-            x="-3"
-            y="-4"
-            font-size={pot_tag()}
-            font-weight="600"
+            dominant-baseline="central"
+            font-size={pot_space_text()}
+            font-weight="700"
             fill="var(--color-ink)"
-            fill-opacity="0.75"
-            class="tabular-nums"
+            fill-opacity="0.8"
+            class="font-sans lining-nums tabular-nums"
+            data-role="space-number"
           >
             {PotTrack.at(index).coins}
           </text>
-          <g :if={PotTrack.at(index).vp > 0} transform="translate(13 13)" data-role="vp-tag">
-            <circle
-              r="12.5"
-              fill={"url(#vp-gold-#{@seat})"}
-              stroke="#7a5a10"
-              stroke-width="1"
-            />
-            <text
-              dy="0.35em"
-              text-anchor="middle"
-              font-size={pot_tag()}
-              font-weight="700"
-              fill="#3a2508"
-            >
-              {PotTrack.at(index).vp}
-            </text>
-          </g>
-          <%!-- Lower left, mirroring the VP tag: inside a scoring ring it stays in
-               view (round 12; it sat on the top edge, under the ring). --%>
+          <.vp_crown
+            :if={PotTrack.at(index).vp > 0}
+            vp={PotTrack.at(index).vp}
+            at={rim(index, :vp)}
+          />
           <.piece_icon
             :if={PotTrack.at(index).ruby?}
             name={:ruby}
-            x="-23"
-            y="5"
-            width="17"
-            height="17"
+            x={elem(rim(index, :ruby), 0) - 7}
+            y={elem(rim(index, :ruby), 1) - 7}
+            width="14"
+            height="14"
             class="text-ruby"
             style="filter: drop-shadow(0 0 1px #4a0d0a)"
           />
@@ -1101,11 +1089,77 @@ defmodule QuacksWeb.GameComponents do
   # Where a scoring effect starts, in pot units: its chip's space, the droplet, or
   # the scoring space's own ruby (for a ruby) or VP seal (for a VP tag).
   defp fx_at(%{at: :droplet}, droplet, _ring), do: elem(@positions, droplet)
-  defp fx_at(%{at: :ring, kind: kind}, _droplet, ring), do: offset(elem(@positions, ring), kind)
+  defp fx_at(%{at: :ring, kind: kind}, _droplet, ring), do: offset(ring, kind)
   defp fx_at(%{at: index}, _droplet, _ring), do: elem(@positions, index)
 
-  defp offset({x, y}, :ruby), do: {x + 15, y - 20}
-  defp offset({x, y}, :vp), do: {x + 14, y + 14}
+  defp offset(index, kind) do
+    {x, y} = elem(@positions, index)
+    {dx, dy} = rim(index, kind)
+    {x + dx, y + dy}
+  end
+
+  # Round 31: a space's VP crown sits radially outward of its number, its ruby
+  # radially inward, each just clear of the number: the distance is the sum of both
+  # marks' radii along that direction, each mark taken as an ellipse (a box would
+  # push diagonal marks onto the next turn). Half-sizes in pot units (a digit of
+  # the 24-unit number is about 13.4 wide).
+  defp rim(index, kind) do
+    {x, y} = elem(@positions, index)
+    space = PotTrack.at(index)
+    number = {6.7 * length(Integer.digits(space.coins)), 8.5}
+    {mark, sign} = if kind == :vp, do: {vp_crown_half(space.vp), 1}, else: {{7, 7}, -1}
+
+    case :math.sqrt(x * x + y * y) do
+      +0.0 ->
+        {0.0, 0.0}
+
+      len ->
+        {ux, uy} = {x / len, y / len}
+        d = sign * (extent(number, ux, uy) + extent(mark, ux, uy) + 0.5)
+        {Float.round(ux * d, 1), Float.round(uy * d, 1)}
+    end
+  end
+
+  defp extent({hw, hh}, ux, uy), do: 1 / :math.sqrt(:math.pow(ux / hw, 2) + :math.pow(uy / hh, 2))
+
+  defp vp_crown_half(vp) when vp >= 10, do: {9, 10}
+  defp vp_crown_half(_vp), do: {6.5, 10}
+
+  attr :vp, :integer, required: true
+  attr :at, :any, required: true, doc: "`{x, y}` in the space's units"
+
+  # Round 31: a small crown over the VP on a purple tag, not a gold seal: gold is
+  # only for coins. 20 units high, the round-29 seal was 25 wide with a 21-unit number.
+  defp vp_crown(assigns) do
+    assigns = assign(assigns, :hw, elem(vp_crown_half(assigns.vp), 0))
+
+    ~H"""
+    <g transform={"translate(#{elem(@at, 0)} #{elem(@at, 1)})"} data-role="vp-tag">
+      <rect
+        x={-@hw}
+        y="-10"
+        width={2 * @hw}
+        height="20"
+        rx="4"
+        fill="#3b1d78"
+        stroke="var(--color-parchment-light)"
+        stroke-width="1"
+      />
+      <path d="M-4 -3h8l-.8-5.4-2 2.4-1.2-3.4-1.2 3.4-2-2.4z" fill="#e9d8ff" />
+      <text
+        y="3.6"
+        text-anchor="middle"
+        dominant-baseline="central"
+        font-size="13"
+        font-weight="700"
+        fill="var(--color-parchment-light)"
+        class="font-sans lining-nums tabular-nums"
+      >
+        {@vp}
+      </text>
+    </g>
+    """
+  end
 
   # The same place as a CSS `translate`, so a change can transition (SVG user units = px).
   defp translate_style(index) do
@@ -2177,7 +2231,7 @@ defmodule QuacksWeb.GameComponents do
   end
 
   # The status graphic (see `seat_state/2`): a steam wisp while brewing, a lid once
-  # stopped, a burst after an explosion, three dots while choosing, a tick when
+  # stopped, the 💥 explosion icon after an explosion, three dots while choosing, a tick when
   # ready. No word on screen: the word is for screen readers only. Everyone shops at
   # once, so the shop shows nothing. On a tile (`tile`, round 27, design B): nothing
   # while brewing, a check once stopped and the red explosion icon (round 30: the
@@ -2216,8 +2270,18 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, state: seat_state(assigns.game, assigns.seat))
 
     ~H"""
+    <%!-- Round 31: an explosion is the 💥 burst here too, not a star in a dot. --%>
     <span
-      :if={@state && @state not in ["shopping"]}
+      :if={@state == "exploded"}
+      class={["grid size-3.5 shrink-0 place-items-center sm:size-4", @class]}
+      title={@state}
+      data-role="player-state"
+      data-state={@state}
+    >
+      <.explosion_icon class="size-full drop-shadow-[0_0_1px_rgb(0_0_0/0.9)]" />
+    </span>
+    <span
+      :if={@state && @state not in ["shopping", "exploded"]}
       class={[
         "grid size-3.5 shrink-0 place-items-center rounded-full ring-[1.5px] ring-iron-dark sm:size-4",
         state_class(@state),
@@ -2247,12 +2311,6 @@ defmodule QuacksWeb.GameComponents do
               r="1.3"
               fill="currentColor"
             />
-          <% :burst -> %>
-            <path
-              d="M8 1.5l1.3 3.6 3.7-1.4-1.6 3.5 3.1 2-3.7.6.3 3.8L8 11.4 4.9 13.6l.3-3.8-3.7-.6 3.1-2L3 3.7l3.7 1.4z"
-              fill="currentColor"
-              stroke-width="0.8"
-            />
           <% :dots -> %>
             <circle cx="3.5" cy="8" r="1.3" fill="currentColor" stroke="none" /><circle
               cx="8"
@@ -2272,7 +2330,6 @@ defmodule QuacksWeb.GameComponents do
 
   defp state_graphic("brewing"), do: :steam
   defp state_graphic("stopped"), do: :lid
-  defp state_graphic("exploded"), do: :burst
   defp state_graphic(state) when state in ["ready", "chosen"], do: :tick
   defp state_graphic(_choosing), do: :dots
 

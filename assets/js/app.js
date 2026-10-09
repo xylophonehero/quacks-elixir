@@ -127,6 +127,7 @@ let installFired = false
 // little above, then the pop); a chip that leaves flies as a ghost to the flask (or
 // the bag); at a new round the old chips fade and the new rats slide in from the
 // droplet. The scoring sequence's rubies fly to the ruby counter on their beats.
+// Round 31: your own draw flies from the bag to its space (`fly`).
 // Reduced motion: fades only, no flights.
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 const easing = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -152,6 +153,7 @@ const PotMotion = {
     }
     else if (gone.length === 1 && added.length === 0)
       this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
+    else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0])
     else if (added.length <= 2) added.forEach(c => this.land(c))
     this.snapshot()
     this.flights()
@@ -217,6 +219,23 @@ const PotMotion = {
       {transform: "translate(0px, 0px) scale(1.06)", opacity: 1, offset: 0.75, easing: easing("--ease-spring")},
       {transform: "translate(0px, 0px) scale(1)", opacity: 1},
     ], {duration: 350})
+  },
+  // Round 31, a draw (the mirror of `ghost` to the bag): the new chip comes out of
+  // the bag small, flies on an arc above both ends and lands on its space with the
+  // pop, 460 ms. Only your own pot (`data-mine`); reduced motion: no flight.
+  fly(chip) {
+    if (reduced()) return
+    chip.getAnimations().forEach(a => a.cancel())
+    const p = this.pos(chip.dataset.index), b = this.centre(this.bag())
+    const c = {x: (b.x + p.x) / 2, y: Math.min(b.y, p.y) - 70}
+    const arc = t => ({x: (1 - t) ** 2 * b.x + 2 * (1 - t) * t * c.x + t * t * p.x,
+                       y: (1 - t) ** 2 * b.y + 2 * (1 - t) * t * c.y + t * t * p.y})
+    const steps = [0, 0.2, 0.4, 0.6, 0.8, 1]
+    chip.animate([
+      ...steps.map(t => ({transform: at(arc(t), p, 0.55 + 0.6 * t), opacity: t === 0 ? 0 : 1, offset: t * 0.8})),
+      {transform: at(p, p, 0.96), opacity: 1, offset: 0.9, easing: easing("--ease-spring")},
+      {transform: at(p, p, 1), opacity: 1},
+    ], {duration: 460, easing: "linear"})
   },
   // A chip that left, put back where it was (out of LiveView's way) to fly to
   // `target`, or, without one, to fade out after `delay` ms.
