@@ -331,7 +331,8 @@ const sideOpen = d => {
   if (books) return books.addEventListener("toggle", () => sideOpen(d), {once: true})
   const side = wide.matches && d.dataset.side
   if (side === "hidden") return closed(d)
-  side ? d.show() : d.showModal()
+  // Round 31: a `data-pot` dialog covers the pot in place, non-modal, on phones too.
+  side || d.dataset.pot ? d.show() : d.showModal()
 }
 // A closed dialog may run its `on_close` JS and hand over to the next one
 // (`then_open` on `dialog_sheet`).
@@ -348,7 +349,7 @@ const moving = new WeakSet()
 // taps on its lower part (round 13). Open the modals again, in page order, so the
 // last one (the new card) stays on top.
 function remodal() {
-  const modals = [...document.querySelectorAll("dialog[open]")].filter(d => !(wide.matches && d.dataset.side))
+  const modals = [...document.querySelectorAll("dialog[open]")].filter(d => !(wide.matches && d.dataset.side) && !d.dataset.pot)
   if (modals.every(d => d.matches(":modal"))) return
   modals.forEach(d => { moving.add(d); d.close(); d.showModal() })
 }

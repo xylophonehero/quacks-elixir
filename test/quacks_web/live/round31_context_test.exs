@@ -55,4 +55,34 @@ defmodule QuacksWeb.Round31ContextTest do
     {:ok, %{game: game}} = GameServer.get(id)
     assert %{rubies: 0, phase: :ready} = game.players[0]
   end
+
+  describe "no full-height sheets (item 10)" do
+    test "a decision opens over the pot, not as a bottom sheet" do
+      {id, alice} = duo()
+      replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
+      assert has_element?(alice, "dialog#decision-blue_choice[data-pot=true][data-side=panel]")
+    end
+
+    test "the shop opens over the pot; its purse and buttons sit in the bar" do
+      {id, alice} = duo()
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 15))
+      assert has_element?(alice, "dialog#decision-shop[data-pot=true] [data-role=shop-footer]")
+      css = File.read!("assets/css/app.css")
+      assert css =~ ~s(.sheet[data-pot][open] [data-role="shop-footer"] {\n    position: fixed;)
+    end
+
+    test "the player sheets cover the pot, not the screen" do
+      {_id, alice} = duo()
+      assert has_element?(alice, "#sheet-player-0.sheet-pot[popover]")
+      assert has_element?(alice, "#sheet-player-1.sheet-pot[popover]")
+    end
+
+    test "the CSS anchors the overlay to the pot column; app.js opens it non-modal" do
+      css = File.read!("assets/css/app.css")
+      assert css =~ ~s([data-area="pot"] {\n  anchor-name: --pot-area;)
+      assert css =~ "position-anchor: --pot-area;"
+      js = File.read!("assets/js/app.js")
+      assert js =~ "side || d.dataset.pot ? d.show() : d.showModal()"
+    end
+  end
 end

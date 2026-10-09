@@ -468,6 +468,75 @@ body {
   }
 }
 
+/* Round 31: no full-height sheets in the game. Below 64rem a decision opens
+   non-modal over the pot column, in place (`dialog_sheet` with `pot`): the header,
+   the players and the bar stay in view. Anchored to the pot column where the
+   browser can; else a fixed box between the players row and the bar. */
+[data-area="pot"] {
+  anchor-name: --pot-area;
+}
+
+@media (width < 64rem) {
+  .sheet[data-pot],
+  .sheet.sheet-pot {
+    inset: 8.5rem 0.5rem 6rem;
+    width: auto;
+    max-width: 40rem;
+    height: auto;
+    max-height: none;
+    margin: 0 auto;
+    z-index: 30;
+    border-top: 0;
+    border-radius: 1rem;
+    border: 3px solid var(--color-iron);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+    translate: none;
+    transition:
+      opacity 200ms var(--ease-out),
+      overlay 200ms allow-discrete,
+      display 200ms allow-discrete;
+  }
+
+  .sheet[data-pot]:not([open]),
+  .sheet.sheet-pot:not(:popover-open) {
+    opacity: 0;
+    translate: none;
+  }
+
+  /* A sheet over the pot dims nothing: the page around it stays as it is. */
+  .sheet.sheet-pot::backdrop {
+    background-color: transparent;
+  }
+
+  /* The shop's purse and buttons go where the bar's buttons are (the bar hides
+     its own while a decision is open): context buttons, not the sheet's foot. */
+  .sheet[data-pot][open] [data-role="shop-footer"] {
+    position: fixed;
+    inset: auto 0 0 0;
+    margin: 0;
+    padding: 0.5rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+    border-top: 3px solid var(--color-iron);
+    border-radius: 1rem 1rem 0 0;
+  }
+
+  @supports (anchor-name: --a) {
+    .sheet[data-pot],
+    .sheet.sheet-pot {
+      position-anchor: --pot-area;
+      inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
+      margin: 0.25rem 0.5rem;
+    }
+  }
+
+  @starting-style {
+    .sheet[data-pot][open],
+    .sheet.sheet-pot:popover-open {
+      opacity: 0;
+      translate: none;
+    }
+  }
+}
+
 /* A tap target of at least 44 × 44 px (WCAG 2.5.5) around a smaller control: an
    invisible ::after, centred on it, takes the taps; the control keeps its size. */
 @utility hit-44 {

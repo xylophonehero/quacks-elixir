@@ -1367,6 +1367,7 @@ defmodule QuacksWeb.GameLive do
             auto_open={is_nil(@reveal)}
             focus_self={not primary_on_open?(@decision, @all_actions)}
             side={:panel}
+            pot
           >
             <.shop
               :if={shop_step?(@decision)}
@@ -1487,7 +1488,13 @@ defmodule QuacksWeb.GameLive do
               </section>
             </div>
           </.dialog_sheet>
-          <.sheet :if={@game.witches} id="sheet-witches" label="Herb witches" inline_lg>
+          <.sheet
+            :if={@game.witches}
+            id="sheet-witches"
+            label="Herb witches"
+            class="sheet-pot"
+            inline_lg
+          >
             <%!-- The title row holds the × (it floats right), so it never squeezes the
                  first card (round 14). --%>
             <h2 class="min-h-8 font-hand text-2xl leading-8 font-bold" data-role="witches-title">
@@ -1734,13 +1741,18 @@ defmodule QuacksWeb.GameLive do
       <.sheet id="sheet-log" label="Log">
         <.action_log log={@game.log} names={if @players > 1, do: @names} />
       </.sheet>
-      <.sheet :if={@me && @me.patient} id="sheet-patient" label="Patient">
+      <.sheet :if={@me && @me.patient} id="sheet-patient" label="Patient" class="sheet-pot">
         <.patient_card id={@me.patient} reached={if @me.essence > 0, do: @me.essence} />
         <p class="mt-2 text-sm font-semibold" data-role="patient-essence">
           Essence: {@me.essence}
         </p>
       </.sheet>
-      <.sheet :if={forgets(@actions) != []} id="sheet-forget" label="Forgetfulness">
+      <.sheet
+        :if={forgets(@actions) != []}
+        id="sheet-forget"
+        label="Forgetfulness"
+        class="sheet-pot"
+      >
         <h2 class="font-hand text-2xl font-bold">Forgetfulness</h2>
         <p class="text-sm text-ink-soft">
           Tap a chip in your pot to return it to the bag. It costs as much essence as its value. You have {@me.essence}.
@@ -1764,7 +1776,12 @@ defmodule QuacksWeb.GameLive do
       <.sheet :if={@me} id="sheet-bag" label="Bag">
         <.bag bag={@me.bag} />
       </.sheet>
-      <.sheet :if={@game.fortune_card} id="sheet-fortune" label="Fortune teller card">
+      <.sheet
+        :if={@game.fortune_card}
+        id="sheet-fortune"
+        label="Fortune teller card"
+        class="sheet-pot"
+      >
         <%!-- A wrapper: the sheet flattens a `.paper` child, and the card keeps its edge. --%>
         <div class="pt-8 pb-2"><.fortune_card id={@game.fortune_card} /></div>
         <.card_reveals
@@ -1781,6 +1798,7 @@ defmodule QuacksWeb.GameLive do
         :for={seat <- @game.seats}
         id={"sheet-player-#{seat}"}
         label={name(@names, seat)}
+        class="sheet-pot"
         data-on-hide={JS.push("close_player", value: %{seat: seat})}
       >
         <div :if={@open_sheet == seat} class="space-y-2">
