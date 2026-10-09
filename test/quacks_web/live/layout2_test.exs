@@ -94,9 +94,9 @@ defmodule QuacksWeb.Layout2Test do
       assert has_element?(view, "#sheet-books [data-role=books-in-play]")
 
       # A decision coming does not close the drawer: the dialog waits for it.
-      replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
       assert has_element?(view, "#sheet-books.sheet-drawer")
-      assert has_element?(view, "dialog#decision-blue_choice")
+      assert has_element?(view, "dialog#decision-shop")
 
       css = File.read!(Path.expand("../../../assets/css/app.css", __DIR__))
       assert css =~ "@media (width >= 48rem), (orientation: landscape) and (max-height: 30rem)"

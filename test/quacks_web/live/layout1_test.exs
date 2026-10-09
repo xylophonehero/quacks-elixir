@@ -160,14 +160,10 @@ defmodule QuacksWeb.Layout1Test do
       {:ok, view, _html} = live(browser("back-#{id}"), ~p"/g/#{id}")
       assert has_element?(view, "[data-role=action-bar]:not(.max-lg\\:hidden)")
 
+      # Round 33: the crow skull is a bar choice: it takes the bar, no sheet.
       replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
-      assert has_element?(view, "[data-role=action-bar].max-lg\\:hidden")
-
-      assert has_element?(
-               view,
-               "[data-role=decision-button][phx-click*='decision-blue_choice']",
-               "Back to choice"
-             )
+      refute has_element?(view, "[data-role=action-bar]")
+      assert has_element?(view, "footer #bar-pick-blue_choice")
 
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
       assert has_element?(view, "[data-role=decision-button]", "Back to shop")

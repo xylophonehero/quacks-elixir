@@ -144,4 +144,32 @@ defmodule QuacksWeb.Round33ContextTest do
       assert hook =~ ~s[matchMedia("(prefers-reduced-motion: reduce)").matches) return]
     end
   end
+
+  describe "item 7: the sweep" do
+    test "the Mandrake's choice is in the bar: Back to bag and Keep" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, phase: :yellow_choice))
+
+      bar = "footer #bar-pick-yellow_choice"
+      refute has_element?(view, "dialog#decision-yellow_choice")
+      assert has_element?(view, "#{bar} [data-role=info-row]", "Mandrake")
+      assert has_element?(view, "#{bar} button[aria-label^='Mandrake: put']", "Back to bag")
+      assert has_element?(view, "#{bar} button[aria-label^='Mandrake: keep']", "Keep")
+    end
+
+    test "the crow skull: chip buttons in the bar, the white track gives way" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
+
+      assert has_element?(view, "footer #bar-pick-blue_choice [data-role=info-row]", "Crow skull")
+      refute has_element?(view, "[data-role=fuse-row]")
+      refute has_element?(view, "dialog#decision-blue_choice")
+    end
+
+    test "the shop, the patient and the essence space keep their sheet" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, phase: :shop, coins: 10))
+      assert has_element?(view, "dialog#decision-shop")
+    end
+  end
 end

@@ -67,8 +67,18 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     refute has_element?(view, "section[aria-label=Actions] button", "witch")
 
     view |> element("#sheet-witches [data-witch=s2] button", "Call") |> render_click()
-    assert has_element?(view, "[aria-label='Silver witch offer']", "The silver witch drew:")
-    assert has_element?(view, "button", "Silver witch: return the rest to the bag")
+
+    assert has_element?(
+             view,
+             "#bar-pick-witch_offer [data-role=info-row]",
+             "The silver witch drew:"
+           )
+
+    assert has_element?(
+             view,
+             "#bar-pick-witch_offer button[aria-label='Silver witch: return the rest to the bag']"
+           )
+
     assert has_element?(view, "[data-witch=s2]", "penny spent")
     assert has_element?(view, "li", "Draw 6 chips: drew 6 chips")
   end

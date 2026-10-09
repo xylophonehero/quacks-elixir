@@ -28,34 +28,38 @@ defmodule QuacksWeb.Round22Test do
   end
 
   describe "the Toadstool rows" do
-    test "one row per chip, three buttons each, one line of help" do
+    # Round 33: in the bar, one chip at a time: the info row names it, then
+    # Place, Keep and Return as three equal buttons.
+    test "one chip at a time, three buttons, one line of help" do
       {id, view} = solo()
       red_choice(id, [{:red, 1}, {:red, 2}])
 
-      rows = "dialog#decision-red_choice [data-role=red-rows]"
-      assert has_element?(view, "#{rows} #red-row-0 [data-role=red-chip][aria-label='red 1']")
-      assert has_element?(view, "#{rows} #red-row-1 [data-role=red-chip][aria-label='red 2']")
+      bar = "#bar-pick-red_choice"
+      refute has_element?(view, "dialog#decision-red_choice")
+      assert has_element?(view, "#{bar} [data-role=info-row] [aria-label='red 1']")
+      assert has_element?(view, "#{bar} [data-role=info-row]", "(2 waiting)")
+      assert has_element?(view, "#{bar} [data-role=info-row]", "Place it now")
+      assert has_element?(view, "#{bar} [data-role=choice-grid].grid-cols-3")
 
-      for i <- 0..1, kind <- ~w(place keep return) do
-        assert has_element?(view, "#{rows} #red-row-#{i} button[data-role=red-#{kind}]")
+      for {kind, text} <- [place: "Place", keep: "Keep", return: "Return"] do
+        action = QuacksWeb.GameLive.encode({:red, {kind, {:red, 1}}})
+        assert has_element?(view, ~s(#{bar} button[phx-value-action="#{action}"]), text)
       end
 
-      # Place is the primary button; the three share the row equally.
-      assert has_element?(view, "#{rows} #red-row-0 .grid-cols-3 button[data-role=red-place]")
+      view
+      |> element("#{bar} button[aria-label='Toadstool: return red 1 to the bag']")
+      |> render_click()
 
-      assert has_element?(
-               view,
-               "#{rows} #red-row-0 button[data-role=red-keep][class~='min-h-12']"
-             )
-
-      refute has_element?(view, "#{rows} [data-role=chip-pick]")
+      assert has_element?(view, "#{bar} [data-role=info-row] [aria-label='red 2']")
     end
 
     test "Keep puts the chip beside the pot" do
       {id, view} = solo()
       red_choice(id, [{:red, 2}])
 
-      view |> element("#red-row-0 button[data-role=red-keep]") |> render_click()
+      view
+      |> element("#bar-pick-red_choice button[aria-label^='Toadstool: keep']")
+      |> render_click()
 
       assert has_element?(
                view,
