@@ -116,12 +116,15 @@ defmodule QuacksWeb.Round28TilesTest do
         rows: [%{seat: 0, scored: true, vp: 0, rubies: 1, droplet: 1}]
       }
 
+      # Round 31: `index` names the step Next scores; the news is the scored one's.
       reveal = %{tiles: true, slides: [die, book], index: 0}
-      assert %{items: [{:die, :ruby}], key: "3-0"} = TileReveal.news(game, 0, reveal)
+      assert TileReveal.news(game, 0, reveal) == nil
+      reveal = %{reveal | index: 1}
+      assert %{items: [{:die, :ruby}], key: "3-1"} = TileReveal.news(game, 0, reveal)
       assert TileReveal.news(game, 1, reveal) == nil
 
-      assert %{items: [{:book, :black}, {:rubies, 1}, {:droplet, 1}], key: "3-1"} =
-               TileReveal.news(game, 0, %{reveal | index: 1})
+      assert %{items: [{:book, :black}, {:rubies, 1}, {:droplet, 1}], key: "3-2"} =
+               TileReveal.news(game, 0, %{reveal | index: 2})
 
       shop = %{game | phase: :shopping, log: [{0, {:bought, [{:green, 1}]}}]}
       assert %{items: [{:bought, {:green, 1}}]} = TileReveal.news(shop, 0, nil)

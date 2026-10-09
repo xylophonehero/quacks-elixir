@@ -154,11 +154,15 @@ defmodule QuacksWeb.TileRevealComponents do
 
   attr :reveal, :map, required: true
   attr :mode, :atom, required: true, doc: "`:step` shows Next; `:auto` moves on by itself"
+  attr :close_label, :string, default: "Done", doc: "the button once every step is scored"
 
   @doc """
-  The step that plays on the tiles. Round 29: in the bar, where Stop and Draw sit
-  (not over the pot): the step's name and number, then Skip and Next (Step mode).
-  It keeps the bar's height (`min-h-12`), so the pot does not move.
+  The steps that play on the tiles, in the bar where Stop and Draw sit (round 29).
+  Round 31: the bar names the step that Next scores (`reveal.index`); nothing of
+  it shows before Next. Its picture is the book's chip, the die or the scoring
+  space's coin, crown or ruby (`step_icon/1`), then "Step N of M" small. Once
+  every step is scored it says so, and the button closes (`close_label`). It
+  keeps the bar's height (`min-h-12`), so the pot does not move.
   """
   def tile_stage(assigns) do
     assigns =
@@ -173,18 +177,37 @@ defmodule QuacksWeb.TileRevealComponents do
       class="flex min-h-12 items-center gap-2 *:min-h-12 *:touch-manipulation"
       aria-label="Round results"
       data-role="tile-stage"
-      data-kind={@slide.kind}
-      data-part={@slide[:part]}
+      data-kind={@slide && @slide.kind}
+      data-part={@slide && @slide[:part]}
+      data-index={@reveal.index}
     >
-      <p class="flex min-w-0 flex-1 flex-col justify-center leading-tight" aria-live="polite">
-        <span class="truncate font-semibold text-parchment" data-role="tile-step">
-          {TileReveal.label(@slide)}
+      <p class="flex min-w-0 flex-1 items-center gap-2 leading-tight" aria-live="polite">
+        <span
+          :if={@slide}
+          id={"tile-step-icon-#{@reveal.index}"}
+          class="tile-step-icon grid size-9 shrink-0 place-items-center"
+          data-role="tile-step-icon"
+        >
+          <.step_icon slide={@slide} />
         </span>
-        <span class="text-tag text-parchment-dim tabular-nums">
-          Step {@reveal.index + 1} of {@count}
+        <span class="flex min-w-0 flex-col">
+          <span
+            class={["truncate font-semibold text-parchment", @slide && "sr-only"]}
+            data-role="tile-step"
+          >
+            {if @slide, do: TileReveal.label(@slide), else: "Round scored"}
+          </span>
+          <span class="text-tag text-parchment-dim tabular-nums">
+            <%= if @slide do %>
+              Step {@reveal.index + 1} of {@count}
+            <% else %>
+              {@count} of {@count}
+            <% end %>
+          </span>
         </span>
       </p>
       <.button
+        :if={@slide}
         type="button"
         phx-click="reveal_close"
         variant={:secondary}
@@ -194,16 +217,51 @@ defmodule QuacksWeb.TileRevealComponents do
         Skip
       </.button>
       <.button
-        :if={@mode == :step}
+        :if={@mode == :step or !@slide}
         type="button"
         phx-click="reveal_next"
         variant={:primary}
         class="w-2/5 shrink-0"
         data-role="tile-next"
       >
-        Next
+        {if @slide, do: "Next", else: @close_label}
       </.button>
     </section>
     """
   end
+
+  attr :slide, :map, required: true
+
+  # Round 31 (item 4): a book step is its chip (the value hidden); the die, the
+  # coins, the VP and the rubies their piece icons.
+  defp step_icon(%{slide: %{kind: :book, book: colour}} = assigns) do
+    assigns = assign(assigns, colour: colour)
+
+    ~H"""
+    <span class="contents [&_[data-role=chip-value]]:hidden" data-book={@colour}>
+      <.chip chip={{@colour, 1}} size={:md} />
+    </span>
+    """
+  end
+
+  defp step_icon(%{slide: slide} = assigns) do
+    assigns = assign(assigns, icon: piece(slide))
+
+    ~H"""
+    <span class="grid size-9 place-items-center rounded-full bg-black/30 ring-1 ring-parchment/20">
+      <.piece_icon name={@icon} class={["size-6", ink(@icon)]} />
+    </span>
+    """
+  end
+
+  defp piece(%{kind: :die}), do: :die
+  defp piece(%{kind: :space, part: :coins}), do: :coin
+  defp piece(%{kind: :space, part: :vp}), do: :vp
+  defp piece(%{kind: :space, part: :rubies}), do: :ruby
+  defp piece(_slide), do: :pot
+
+  defp ink(:die), do: "text-parchment-light"
+  defp ink(:ruby), do: "text-ruby-light"
+  defp ink(:pot), do: "text-parchment-light"
+  defp ink(_gold), do: "text-gold"
 end

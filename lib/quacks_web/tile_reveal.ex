@@ -154,7 +154,7 @@ defmodule QuacksWeb.TileReveal do
       end)
 
     slides
-    |> Enum.take(index + 1)
+    |> Enum.take(max(index + 1, 0))
     |> Enum.flat_map(&Map.to_list(Map.get(&1, :gains, %{})))
     |> Enum.reduce(base, fn {s, {vp, rubies}}, acc ->
       Map.update(acc, s, {vp, rubies}, fn {v, r} -> {v + vp, r + rubies} end)
@@ -203,8 +203,11 @@ defmodule QuacksWeb.TileReveal do
   @spec news(Game.t(), Game.seat(), map | nil) ::
           %{required(:key) => String.t(), required(:items) => [term], optional(:hold) => true}
           | nil
+  # Round 31: the news of the step Next scored last (`index` names the next one).
+  def news(_game, _seat, %{tiles: true, index: 0}), do: nil
+
   def news(game, seat, %{tiles: true, slides: slides, index: index}) do
-    slide = Enum.at(slides, index)
+    slide = Enum.at(slides, index - 1)
     items = step_news(slide, seat)
     if items != [], do: %{key: "#{game.round}-#{index}", items: items}
   end

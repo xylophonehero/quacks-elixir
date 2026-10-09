@@ -106,22 +106,26 @@ defmodule QuacksWeb.Round31EvalTest do
 
     {before, _} = TileReveal.totals(game, slides, index - 1)[seat]
 
-    next_until(view, TileReveal.label(Enum.at(slides, index - 1)))
+    # The bar names the VP step: it is not scored yet.
+    next_until(view, "Victory points")
     assert has_element?(view, "#tile-vp-#{seat}-#{before}")
     refute has_element?(view, "#tile-vp-#{seat}-#{before + gain}")
-    # The pot plays this step's own update only: no VP tag before the VP step.
+    # The pot plays the scored step's own update only: no VP tag yet.
     refute has_element?(view, "[data-role=vp-float]")
+    refute has_element?(view, "#tile-stage [data-role=tile-step-icon] [data-book]")
 
+    # Next scores it.
     view |> element("[data-role=tile-next]") |> render_click()
-    assert step_label(view) == "Victory points"
+    refute step_label(view) == "Victory points"
     assert has_element?(view, "#tile-vp-#{seat}-#{before + gain}")
   end
 
   test "the pot's droplet and the ruby counter follow the steps" do
     {game, view} = duo_on_tiles()
     slides = game |> Reveal.slides(0) |> TileReveal.slides()
-    droplets = TileReveal.droplets(game, slides, 0)
-    {_vp, rubies} = TileReveal.totals(game, slides, 0)[0]
+    # Nothing is scored before the first Next.
+    droplets = TileReveal.droplets(game, slides, -1)
+    {_vp, rubies} = TileReveal.totals(game, slides, -1)[0]
 
     assert has_element?(view, ".pot-lg [data-role=droplet][data-index='#{droplets[0]}']")
     assert view |> element("#stat-rubies .sr-only") |> render() =~ ">#{rubies}<"
@@ -189,6 +193,50 @@ defmodule QuacksWeb.Round31EvalTest do
       game = update_in(game.players[0], &%{&1 | drawn: chips})
       assert %{items: items} = TileReveal.news(game, 0, nil)
       assert length(items) == 2
+    end
+  end
+
+  describe "item 4: the bar names the step with its picture" do
+    defp stage(slides, index, mode \\ :step) do
+      render_component(&QuacksWeb.TileRevealComponents.tile_stage/1,
+        reveal: %{slides: slides, index: index},
+        mode: mode,
+        close_label: "To the shop"
+      )
+      |> LazyHTML.from_fragment()
+    end
+
+    defp q(html, sel), do: LazyHTML.query(html, sel)
+
+    test "a book step shows its chip; the die and the space parts their pieces" do
+      book = %{kind: :book, book: :purple, rows: []}
+      die = %{kind: :die, rows: []}
+      vp = %{kind: :space, part: :vp, rows: []}
+      slides = [die, book, vp]
+
+      html = stage(slides, 1)
+
+      assert q(html, "[data-role=tile-step-icon] [data-book=purple] [data-chip-icon=purple]")
+             |> Enum.count() == 1
+
+      # The name stays for screen readers; "Step 2 of 3" stays small.
+      assert q(html, "[data-role=tile-step].sr-only") |> LazyHTML.text() =~ "Purple book"
+      assert LazyHTML.text(html) =~ "Step 2 of 3"
+
+      assert q(
+               stage(slides, 0),
+               "[data-role=tile-step-icon] [data-icon=die], [data-role=tile-step-icon] svg"
+             )
+             |> Enum.count() >= 1
+
+      assert q(stage(slides, 0), "[data-book]") |> Enum.count() == 0
+    end
+
+    test "once every step is scored the button closes, also in Auto" do
+      slides = [%{kind: :die, rows: []}]
+      html = stage(slides, 1, :auto)
+      assert q(html, "[data-role=tile-next]") |> LazyHTML.text() =~ "To the shop"
+      assert q(html, "[data-role=tile-skip]") |> Enum.count() == 0
     end
   end
 end

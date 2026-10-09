@@ -1122,7 +1122,7 @@ defmodule QuacksWeb.GameLive do
                 (@reveal_show == :tiles or @game.phase == :potions) &&
                   TileReveal.news(@game, seat, @reveal)
               }
-              rolls={if @reveal_show == :tiles, do: TileReveal.rolls(@game, seat), else: []}
+              rolls={if @reveal_show == :tiles, do: tile_rolls(@game, seat, @reveal), else: []}
             />
           </nav>
           <%!-- Round 16: the rat track, a fixed height while the rats rule is on. --%>
@@ -1596,7 +1596,12 @@ defmodule QuacksWeb.GameLive do
           <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
                the update chips stay on the cards until then. --%>
           <%!-- Round 29: the results' steps on the tiles take the bar's place. --%>
-          <.tile_stage :if={tiles_playing?(@reveal)} reveal={@reveal} mode={@reveal_mode} />
+          <.tile_stage
+            :if={tiles_playing?(@reveal)}
+            reveal={@reveal}
+            mode={@reveal_mode}
+            close_label={close_label(@reveal, @decision, @skip_rubies)}
+          />
           <.button
             :if={@skip_rubies && !tiles_playing?(@reveal)}
             variant={:primary}
@@ -3108,6 +3113,15 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
+  # Round 31: on the tiles the bar names the step that Next scores (`index`); the
+  # steps before it are scored. After the last one, one more state (`index` past
+  # the last step) shows every result with the close label.
+  defp next_slide(%{assigns: %{reveal: %{tiles: true, index: index, slides: slides}}} = socket) do
+    if index < length(slides),
+      do: show_slide(socket, index + 1),
+      else: close_reveal(socket)
+  end
+
   defp next_slide(%{assigns: %{reveal: %{index: index, slides: slides}}} = socket) do
     if index + 1 < length(slides),
       do: show_slide(socket, index + 1),
@@ -3124,7 +3138,7 @@ defmodule QuacksWeb.GameLive do
       if reveal_mode(reveal, assigns) == :auto and connected?(socket),
         do: make_ref()
 
-    settle = if slide.kind == :standings and connected?(socket), do: make_ref()
+    settle = if match?(%{kind: :standings}, slide) and connected?(socket), do: make_ref()
 
     if tick do
       ms = slide_ms(reveal, slide, assigns.reveal_speed)
@@ -3315,9 +3329,19 @@ defmodule QuacksWeb.GameLive do
   # Round 27 (experimental): the evaluation plays on the tiles (`TileReveal`).
   defp tiles_playing?(reveal), do: match?(%{tiles: true}, reveal)
 
-  # Round 31: the step on the tiles now, and whether the bonus die strip plays
-  # (not while a later step shows).
-  defp tile_slide(%{slides: slides, index: index}), do: Enum.at(slides, index)
+  # Round 31: the step Next scored last (nil before the first), and whether the
+  # bonus die strip plays (while the die step is the last scored).
+  defp tile_slide(%{index: 0}), do: nil
+  defp tile_slide(%{slides: slides, index: index}), do: Enum.at(slides, index - 1)
+
+  # The die faces by the crown wait until the die step is scored.
+  defp tile_rolls(game, seat, %{tiles: true, slides: slides, index: index}) do
+    if slides |> Enum.take(index) |> Enum.any?(&(&1.kind == :die)),
+      do: TileReveal.rolls(game, seat),
+      else: []
+  end
+
+  defp tile_rolls(game, seat, _reveal), do: TileReveal.rolls(game, seat)
 
   defp die_step?(%{tiles: true} = reveal), do: match?(%{kind: :die}, tile_slide(reveal))
   defp die_step?(_reveal), do: true
@@ -3328,12 +3352,13 @@ defmodule QuacksWeb.GameLive do
 
   defp ruby_total(_game, me, _seat, _reveal), do: me.rubies
 
-  # `{vp, rubies, vp_before, rubies_before}` per seat: after this step and before it.
+  # `{vp, rubies, vp_before, rubies_before}` per seat: after the last scored step
+  # and before it (round 31: the step the bar names is not scored yet).
   defp tile_totals(game, %{slides: slides, index: index}) do
-    now = TileReveal.totals(game, slides, index)
-    before = TileReveal.totals(game, slides, index - 1)
+    now = TileReveal.totals(game, slides, index - 1)
+    before = TileReveal.totals(game, slides, index - 2)
 
-    droplets = TileReveal.droplets(game, slides, index)
+    droplets = TileReveal.droplets(game, slides, index - 1)
 
     Map.new(now, fn {s, {vp, rubies}} ->
       {vp0, rubies0} = before[s]
@@ -3529,7 +3554,7 @@ defmodule QuacksWeb.GameLive do
   # step that brings rubies (beat 0 of the step, when its rubies land).
   defp stat_beats(game, seat, _seen, %{tiles: true} = reveal) do
     %{rubies_from: from} = tile_totals(game, reveal)[seat]
-    gains = Map.get(tile_slide(reveal), :gains, %{})
+    gains = Map.get(tile_slide(reveal) || %{}, :gains, %{})
 
     case gains[seat] do
       {_vp, rubies} when rubies > 0 -> %{rubies: 0, from: %{rubies: from}}
