@@ -1358,7 +1358,12 @@ Play):
   (lines 154-158): the chip ids, the flask, the round.
 - **Last.** LiveView applies the patch. The DOM now shows the final pot.
 - **Invert and play.** `updated()` (lines 97-111) compares. A chip with a new id
-  drops in on its space (`land`, lines 169-178). A chip that went away flies as a
+  drops in on its space (`land`, lines 169-178). Round 31: when one chip is new and
+  the pot is your own (`data-mine`, set when the pot has your flask), `fly` takes it
+  out of the bag instead: it starts small at the bag, follows a quadratic arc above
+  both ends (six sampled keyframes) and lands on its space with the pop, 460 ms.
+  It mirrors the ghost that flies a returned chip to the bag. Reduced motion: no
+  flight. A chip that went away flies as a
   ghost to the flask or the bag (`ghost`, lines 181-196). At a new round the old
   chips fade and the new rats slide in from the droplet (`ratsIn`, lines 142-153).
   Then `flights()` (lines 121-139) sends each new `[data-role=ruby-flight]` to the

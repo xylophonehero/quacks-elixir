@@ -282,6 +282,7 @@ defmodule QuacksWeb.GameComponents do
       data-exploded={to_string(@me.exploded?)}
       phx-hook={@size == :lg && "PotMotion"}
       data-round={@size == :lg && @game.round}
+      data-mine={@size == :lg && @flask && "true"}
       data-slide-beat={@effects != [] && @beats[:droplet]}
       style={@effects != [] && @beats[:droplet] && "--slide-beat: #{@beats[:droplet]}"}
     >
