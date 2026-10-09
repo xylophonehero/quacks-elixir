@@ -13,6 +13,7 @@ defmodule QuacksWeb.TileRevealComponents do
   import QuacksWeb.CoreComponents, only: [button: 1]
   import QuacksWeb.GameComponents, only: [chip: 1, die_face: 1]
 
+  alias Quacks.Rules.Fortune
   alias QuacksWeb.TileReveal
 
   attr :items, :list, required: true, doc: "`QuacksWeb.TileReveal.news/3`'s items"
@@ -69,7 +70,7 @@ defmodule QuacksWeb.TileRevealComponents do
   # first; Less is More: the blue 2).
   defp badge(%{badge: {:card, card, traded, got}} = assigns) do
     assigns =
-      assign(assigns, traded: traded, got: got, name: Quacks.Rules.Fortune.card(card).name)
+      assign(assigns, traded: traded, got: got, name: Fortune.card(card).name)
 
     ~H"""
     <span class="flex items-center gap-px" title={@name} data-gain="card">
