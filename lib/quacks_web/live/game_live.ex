@@ -1648,7 +1648,7 @@ defmodule QuacksWeb.GameLive do
                decision is a panel in the context column, and this shows only when
                that panel was closed. --%>
           <.button
-            :if={@decision && !@bar_choice && !tiles_playing?(@reveal)}
+            :if={@decision && !@bar_choice && !tiles_playing?(@reveal) && !card_continue?(assigns)}
             variant={:primary}
             class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible lg:[body:has(dialog[open])_&]:hidden"
             data-role="decision-button"
@@ -1689,6 +1689,21 @@ defmodule QuacksWeb.GameLive do
                while the game runs, only disabled; gone at game over and while
                everyone shops (the shop has its own buttons). From 64rem Draw is the
                large button on top, Stop and the flask under it. --%>
+          <%!-- Round 30: while the round's card waits over the pot, one Continue
+               takes the place of Stop and Draw (hidden, like for a decision). It
+               does what a tap on the card does (above the tap layer, `#card-tap`);
+               Enter too (`hotkey`). --%>
+          <.button
+            :if={card_continue?(assigns)}
+            id="card-continue"
+            variant={:primary}
+            class="relative z-50 min-h-12 w-full text-base touch-manipulation"
+            phx-click="card_tap"
+            data-role="card-continue"
+          >
+            Continue
+            <.kbd>Enter</.kbd>
+          </.button>
           <.bar_choice
             :if={@bar_choice && not Game.over?(@game) && !tiles_playing?(@reveal)}
             choice={@bar_choice}
@@ -1700,6 +1715,7 @@ defmodule QuacksWeb.GameLive do
             :if={@seat && not Game.over?(@game) && not results?(@game) && !@bar_choice}
             class={[
               "action-bar *:min-h-12 *:touch-manipulation",
+              card_continue?(assigns) && "hidden",
               @decision && "max-lg:hidden",
               @me && @me.exploded? && "lg:hidden"
             ]}
@@ -3326,6 +3342,14 @@ defmodule QuacksWeb.GameLive do
   # tap, or while the grown corner card shows.
   defp card_tap?(%{reveal: %{held: true}}), do: true
   defp card_tap?(%{card_grown: grown}), do: grown
+
+  # Round 30: the contextual button area shows Continue while the card waits.
+  # A choice in the bar (the explosion's) keeps its place.
+  defp card_continue?(%{seat: seat, bar_choice: nil, game: %Game{fortune_card: card}} = assigns)
+       when is_integer(seat) and card != nil,
+       do: card_tap?(assigns)
+
+  defp card_continue?(_assigns), do: false
 
   # The tap layer reads the card for screen readers (the big card is aria-hidden).
   defp card_tap_label(id) do
