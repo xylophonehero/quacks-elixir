@@ -241,7 +241,8 @@ defmodule QuacksWeb.CoreComponents do
     >
       <%!-- Chrome ignores `autofocus` on the <dialog> itself, so the focus starts here. --%>
       <span :if={@focus_self} tabindex="-1" autofocus data-role="focus-start" class="outline-none" />
-      <form method="dialog">
+      <%!-- `contents`: the × sticks to the dialog, not to a form of no height. --%>
+      <form method="dialog" class="contents">
         <button class="sheet-close" aria-label="Close">
           <.icon name="hero-x-mark" class="size-5" />
         </button>

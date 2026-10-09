@@ -74,7 +74,8 @@ defmodule QuacksWeb.MotionB3Test do
     for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     refute_push_event(view, "quacks:vt", _)
     view |> element("button", "Stop") |> render_click()
-    view |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
 
     assert_push_event(view, "quacks:vt", %{})
     assert has_element?(view, "[data-role=round-counter]", "2 / 9")
@@ -92,8 +93,9 @@ defmodule QuacksWeb.MotionB3Test do
     [hook, _] = String.split(hook, "const csrfToken", parts: 2)
     # the scoring sequence (ruby flights, skip keys, rats in) grew it from 6 000;
     # round 31's draw flight in the top layer to 9 000; round 32's droplet hop and
-    # flask fill to 9 500
-    assert byte_size(hook) < 9_500
+    # flask fill to 9 500; round 34's move in the pot (green III) to 10 000; round
+    # 35's rat that the droplet takes and the chips to the bag to 11 500
+    assert byte_size(hook) < 11_500
     assert hook =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
     assert js =~ "!reduced()"
   end

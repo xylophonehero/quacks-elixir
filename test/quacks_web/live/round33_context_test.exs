@@ -23,19 +23,16 @@ defmodule QuacksWeb.Round33ContextTest do
   end
 
   describe "item 1: the choices in two rows" do
-    test "Choices, Choices: five buttons in two rows of three, no scroll" do
+    test "Choices, Choices: one row of chips (round 35), no scroll" do
       {id, view} = solo(%{})
 
       replace_game(id, fn g ->
         %{g | phase: :fortune_choice, fortune_card: :p1} |> H.put(0, phase: :fortune_choice)
       end)
 
-      grid = "#bar-card-1 [data-role=choice-grid][data-rows='2'].grid-cols-3"
-      assert has_element?(view, grid)
+      refute has_element?(view, "#bar-card-1 [data-role=choice-grid]")
       refute has_element?(view, "#bar-card-1 .overflow-x-auto")
-      assert has_element?(view, "#{grid} button[data-choice=take]", "black 1")
-      # The chip has its own box, so its value badge never covers the text.
-      assert has_element?(view, "#{grid} button [data-role=choice-icon] .chip-token")
+      assert has_element?(view, "#bar-card-1 button[data-choice=take] .chip-token")
     end
 
     test "the grid: up to 4 in one row, 5 to 8 in two rows" do
@@ -157,12 +154,12 @@ defmodule QuacksWeb.Round33ContextTest do
       assert has_element?(view, "#{bar} button[aria-label^='Mandrake: keep']", "Keep")
     end
 
-    test "the crow skull: chip buttons in the bar, the white track gives way" do
+    test "the crow skull: chips in the bar (round 35: the white track stays)" do
       {id, view} = solo(%{})
       replace_game(id, &H.put(&1, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
 
-      assert has_element?(view, "footer #bar-pick-blue_choice [data-role=info-row]", "Crow skull")
-      refute has_element?(view, "[data-role=fuse-row]")
+      assert has_element?(view, "footer [data-role=bar-blue] [data-pool-chip]")
+      assert has_element?(view, "[data-role=fuse-row]")
       refute has_element?(view, "dialog#decision-blue_choice")
     end
 

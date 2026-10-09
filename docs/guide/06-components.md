@@ -1303,7 +1303,8 @@ bar) never moves:
   number, Skip and Next, in the footer instead of a pill over the pot. The other
   footer buttons hide while it plays.
 - **The shop** says **Skip** for "buy nothing". With chips ticked, Buy is the wide
-  primary and Skip shrinks to a small secondary button.
+  primary and Skip shrinks to a small secondary button. (Round 35: Skip is gone;
+  see below.)
 
 ### Round 30: no stats strip; the bar and the pot
 
@@ -1488,6 +1489,41 @@ passed step ends by itself (`end_choices/1`). At the end of the steps while
 others still choose, Next says "Waiting…". The panel hides while the droplet or
 a chip choice is asked, so the pot and the test tubes show.
 
+### Round 35: choices in the bottom row, the shop always buys
+
+- **The crow skull** (`bar_choice/1`, `:blue_choice`) is one row, in the button row
+  only: the drawn chips (`:lg`, each a button, greyed without an action) and Skip
+  (`:return_all`). The fuse row (the white track) stays over it
+  (`info_choice?(:blue_choice)` is false). The colocated hook `.FromBag` animates
+  with WAAPI: on `mounted()` each chip flies out of the bag button
+  (`[data-role=bag-button]`) to its place, 140 ms apart; on a tap the chips not
+  chosen fly back into the bag and the chosen one fades. To let them land, the row
+  has `phx-remove={JS.transition("bar-to-bag", time: 520)}`: `.bar-to-bag` takes it
+  out of the flow (absolute, over the bar's foot, no pointer events), so Stop and
+  Draw take their place at once. Reduced motion: fades only.
+- **Choices, Choices** (P1, `:fortune_choice` with `fortune_card: :p1`) is one row
+  of the black chip, the 2-chips and the ruby with "3" inside
+  (`data-role=ruby-count`); no info row, no grid. Other card choices keep the grid.
+- **What everyone took.** `Fortune.reveals/1` also has rows for the cards that
+  offer every seat a choice (`Fortune.choice_card?/1`: P1, P3, P6, P9, P10, P11,
+  B2). When this seat leaves `:fortune_choice` (`chose_card?/3` in `put_game/2`),
+  the card grows over the pot (`card_grown`) with `card_reveals compact`: one row
+  per player, the disc and initial, then what it took with icons (`+3` ruby, `+4`
+  VP, `+2` droplet, a chip, `−` the white chip, `−n` rat), "passed", or
+  "choosing…" while that player still chooses (it updates live). Continue or a tap
+  shrinks it. The new card's slide and the result tiles keep rows for the draw
+  cards only (`Fortune.reveal_card?/1`).
+- **The Toadstools beside the pot** (`aside/1`) stack in a column with a small gap,
+  so each value badge shows.
+- **The shop** has no Skip: a player always buys a chip (a UI rule; the engine
+  still takes `{:buy, []}` and the bots are unchanged). Buy is the one button,
+  disabled until a chip is ticked. Only when no chip is affordable and the shop
+  still shows (a copper witch keeps it open; else the buy step is skipped) does
+  **Nothing to buy** (`data-role=shop-done`) take its place.
+- **The shop's book text** opens in place and dispatches `quacks:reveal` to it;
+  app.js waits for the 150 ms "in" transition, then `scrollIntoView({block:
+  "nearest"})` scrolls the sheet just enough to show all of it.
+
 ### `PotMotion`: animate on top of the patch
 
 Some motion needs a path or a measured target: a ruby flies from a chip to the
@@ -1640,6 +1676,31 @@ pseudo-class on `<html>` (`.when-windowed`, `.when-fullscreen` in app.css), so n
 JS keeps the state. Entering full screen closes open popovers (the menu sheet) as
 the Fullscreen spec says. The game grid uses `dvh`, so it fills the larger viewport
 with no change.
+
+### Round 35 (board): rat labels, rats in the pot, chips to the bag, tubes, patient
+
+- **Rat track labels.** Every seat's VP sits at its dot (round 28). A rat keeps its
+  VP only in a gap of 1 or 2 rats between neighbouring occupied steps; in a gap of
+  3 or more the rats show without numbers, and a rat next to a step whose VP label
+  sits below the line drops its number too, so no two labels collide. The tails
+  come from `ScoringTrack.tails_between/2`, so they repeat after 50.
+- **Rats in the pot.** `rat_spaces/1` gives the rat pebbles' spaces: after the
+  droplet, at most `rat_stone`, never past `Player.mods.rat_end` (set by the round's first
+  chip). A droplet move after the first draw takes the first rat's space and that
+  rat goes; the rest stay. Each rat's id names its space (`rat-SEAT-SIZE-SPACE`), so
+  `PotMotion.ratsOut/0` fades exactly the rat the droplet took.
+- **Chips to the bag before the shop.** `pot`'s `bagged` (game_live `bagged?/1`:
+  shopping, the results closed, the seat shops or is ready) renders no chips and
+  sets `data-bagged`. `PotMotion.toBag/1` sends every chip that left, first drawn
+  first, to the bag button as a ghost in the `pot-fx` top layer (stagger
+  `min(60, 600 / n)` ms, 260 ms each; reduced motion: fade). `sideOpen` waits for
+  `bagUntil`, so the shop opens after the last chip lands.
+- **Test tubes.** The ruby glass uses `piece_icon :ruby`, a VP glass the `:vp` crown
+  over its number (no "VP" text). The glasses are 10 units shorter (viewBox
+  `0 -18 364 72`) and the main rack is `max-w-xs`: about 63px tall, was 89px.
+- **Patient badge.** Below 40rem the badge is its icon only (`hidden sm:inline` on
+  the name), then the essence rack; the name stays in `title`, `aria-label` and
+  the patient sheet.
 
 ## State ownership, compared to React
 

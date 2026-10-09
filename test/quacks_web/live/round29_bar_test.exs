@@ -45,20 +45,20 @@ defmodule QuacksWeb.Round29BarTest do
     end
   end
 
-  describe "item 7: the shop's Skip" do
-    test "nothing ticked: Skip is the one button; ticked: Buy and a small Skip" do
+  describe "item 7: the shop's Skip (round 35: gone, a chip is always bought)" do
+    test "nothing ticked: Buy is the one button, disabled; ticked: Buy" do
       {id, view} = solo()
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 20))
 
-      assert has_element?(view, "[data-role=shop-done].flex-1", "Skip")
-      refute has_element?(view, "[data-role=shop-buy]")
+      assert has_element?(view, "[data-role=shop-buy].flex-1:disabled", "Buy")
+      refute has_element?(view, "[data-role=shop-done]")
 
       view
       |> element("#shop")
       |> render_change(%{"chips" => [GameLive.encode({:orange, 1})]})
 
       assert has_element?(view, "[data-role=shop-buy]:not(:disabled)", "Buy 1")
-      assert has_element?(view, "[data-role=shop-done].flex-none", "Skip")
+      refute has_element?(view, "[data-role=shop-done]")
     end
   end
 

@@ -129,6 +129,8 @@ let installFired = false
 // droplet. The scoring sequence's rubies fly to the ruby counter on their beats.
 // Round 31: your own draw flies from the bag to its space (`fly`).
 // Reduced motion: fades only, no flights.
+// Round 35: until when the chips fly to the bag, and the round they flew in.
+let bagUntil = 0, bagRound = null
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 const easing = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 const at = (p, o, s = 1) => `translate(${p.x - o.x}px, ${p.y - o.y}px) scale(${s})`
@@ -147,14 +149,21 @@ const PotMotion = {
     const added = chips.filter(c => !this.chips.has(c.id))
     const gone = [...this.chips.values()].filter(c => !c.isConnected)
     const flask = this.full && !this.el.querySelector("[data-role=flask-brew]")
-    if (this.el.dataset.round !== this.round) {
+    // Round 34: the same chip (its draw order) on a new space moved in the pot
+    // (green III): it flies from its old space, not from the bag.
+    const moved = gone.length === 1 && added.length === 1 && gone[0].dataset.order === added[0].dataset.order
+    const newRound = this.el.dataset.round !== this.round
+    if (newRound) {
       gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, null, i * 20))
       this.ratsIn()
     }
+    else if (this.el.dataset.bagged && !this.bagged) this.toBag(gone)
+    else if (moved) this.fly(added[0], this.pos(gone[0].dataset.index), 1, 40)
     else if (gone.length === 1 && added.length === 0)
       this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
     else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0])
     else if (added.length <= 2) added.forEach(c => this.land(c))
+    if (!newRound) this.ratsOut()
     this.hop(this.el.querySelector("[data-role=droplet]"))
     const brew = this.el.querySelector("[data-role=flask-brew]")
     if (brew && !this.full && !reduced())
@@ -199,6 +208,22 @@ const PotMotion = {
         {duration: 240, delay: 200 + i * 60, fill: "backwards", easing: easing("--ease-out")})
     })
   },
+  // Round 35: the round goes to the shop: every chip flies off the pot into the bag,
+  // first drawn first (staggered, top layer); the shop opens after (`bagUntil`).
+  toBag(gone) {
+    const n = gone.length, step = Math.min(60, 600 / Math.max(n, 1))
+    gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, this.centre(this.bag()), i * step))
+    if (n && !reduced()) bagUntil = performance.now() + 260 + n * step
+  },
+  // Round 35: the droplet took a rat's space (a move after the first draw). That
+  // rat fades out where it was as the droplet lands; the others stay put.
+  ratsOut() {
+    this.rats.forEach(rat => {
+      if (rat.isConnected) return
+      rat.style.translate = ""
+      this.ghost(rat, null, reduced() ? 0 : 300)
+    })
+  },
   // Round 32, rubies paid for the droplet (`data-hop`): it hops from its old space
   // to the new one on a low arc, 520 ms, over the CSS slide. A refill fills the flask.
   hop(d) {
@@ -211,8 +236,11 @@ const PotMotion = {
   snapshot() {
     this.drop = this.el.querySelector("[data-role=droplet]")?.dataset.index
     this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
+    this.rats = [...this.el.querySelectorAll("[data-role=rat]")]
     this.full = !!this.el.querySelector("[data-role=flask-brew]")
     this.round = this.el.dataset.round
+    this.bagged = !!this.el.dataset.bagged
+    if (this.bagged) bagRound = this.round
   },
   pos(i) { const g = this.el.querySelector(`[data-space="${i}"]`).dataset; return {x: +g.x, y: +g.y} },
   bag() { return document.querySelector("[data-role=bag-button]") },
@@ -238,11 +266,12 @@ const PotMotion = {
   // the bag small, flies on an arc above both ends and lands on its space with the
   // pop, 460 ms. Only your own pot (`data-mine`); reduced motion: no flight.
   // A copy flies in the top layer (`top`); the chip hides until it lands.
-  fly(chip) {
+  // A move in the pot passes its old space as `b`, full size (`s0`), a lower arc.
+  fly(chip, b = this.centre(this.bag()), s0 = 0.55, lift = 70) {
     if (reduced()) return
     chip.getAnimations().forEach(a => a.cancel())
-    const p = this.pos(chip.dataset.index), b = this.centre(this.bag())
-    const c = {x: (b.x + p.x) / 2, y: Math.min(b.y, p.y) - 70}
+    const p = this.pos(chip.dataset.index)
+    const c = {x: (b.x + p.x) / 2, y: Math.min(b.y, p.y) - lift}
     const arc = t => ({x: (1 - t) ** 2 * b.x + 2 * (1 - t) * t * c.x + t * t * p.x,
                        y: (1 - t) ** 2 * b.y + 2 * (1 - t) * t * c.y + t * t * p.y})
     const steps = [0, 0.2, 0.4, 0.6, 0.8, 1]
@@ -250,7 +279,7 @@ const PotMotion = {
     copy.removeAttribute("id")
     const hide = chip.animate([{opacity: 0}, {opacity: 0}], {duration: 460})
     copy.animate([
-      ...steps.map(t => ({transform: at(arc(t), p, 0.55 + 0.6 * t), opacity: t === 0 ? 0 : 1, offset: t * 0.8})),
+      ...steps.map(t => ({transform: at(arc(t), p, s0 + (1.15 - s0) * t), opacity: t || s0 === 1 ? 1 : 0, offset: t * 0.8})),
       {transform: at(p, p, 0.96), opacity: 1, offset: 0.9, easing: easing("--ease-spring")},
       {transform: at(p, p, 1), opacity: 1},
     ], {duration: 460, easing: "linear"}).finished.catch(() => {}).finally(() => { g.remove(); hide.cancel() })
@@ -340,6 +369,10 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 const wide = matchMedia("(min-width: 64rem)")
 const sideOpen = d => {
   if (d.open) return
+  // Round 35: the shop waits for the chips to fly into the bag.
+  const bagging = document.querySelector(".pot-lg[data-bagged]")
+  const wait = bagging && bagRound !== bagging.dataset.round ? 30 : bagUntil - performance.now()
+  if (wait > 0) return setTimeout(() => sideOpen(d), wait)
   // The books drawer stays open when a decision comes; the decision opens after it.
   const books = document.querySelector("#sheet-books:popover-open")
   if (books) return books.addEventListener("toggle", () => sideOpen(d), {once: true})
@@ -409,6 +442,14 @@ window.addEventListener("phx:quacks:reload", () => {
 // The b hotkey (`hotkey` in game_live.ex): the server asks to toggle a popover sheet.
 window.addEventListener("phx:quacks:toggle", e => document.getElementById(e.detail.id)?.togglePopover())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
+// Round 35: an opened block (the shop's book text) scrolls its sheet only as far
+// as needed to show all of it, once its 150 ms "in" transition has shown it (a
+// scroll during the transition stops short). Hidden again (closed): nothing.
+window.addEventListener("quacks:reveal", ({target}) => setTimeout(() => {
+  if (target.checkVisibility ? !target.checkVisibility() : target.offsetParent === null) return
+  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches
+  target.scrollIntoView({block: "nearest", behavior: smooth ? "smooth" : "auto"})
+}, 160))
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
 // Share the result (round 22) or the game's link (round 29, with a title): the
 // phone's share sheet, else copy text and link.

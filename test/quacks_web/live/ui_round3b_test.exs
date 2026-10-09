@@ -89,7 +89,9 @@ defmodule QuacksWeb.UiRound3bTest do
 
     assert has_element?(alice, "dialog#decision-shop #shop")
     assert has_element?(alice, "dialog#decision-shop [data-role=shop-bag]")
-    assert has_element?(alice, "dialog#decision-shop [data-role=shop-done]", "Skip")
+    # Round 35: no Skip in the shop; Buy waits for a chip.
+    assert has_element?(alice, "dialog#decision-shop [data-role=shop-buy]:disabled", "Buy")
+    refute has_element?(alice, "dialog#decision-shop [data-role=shop-done]")
     refute has_element?(alice, "button", "Buy nothing")
     refute has_element?(alice, "dialog#decision-shop [data-role=shop-rubies]")
 
