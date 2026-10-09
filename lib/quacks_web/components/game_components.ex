@@ -842,7 +842,7 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   The rat track (round 16; equal steps since round 22): a slim strip between the
   name cards and the pot. Not to scale: one step per rat tail
-  (`ScoringTrack.tails/0`) between the last player and the leader, the leader on
+  (`ScoringTrack.tails_between/2`, on every lap) between the last player and the leader, the leader on
   the left. Every seat's dot sits in the step of its rats
   (`ScoringTrack.rat_tails/2`: the leader's step has none, each tail to the right
   adds one); seats in one step stack. Under each rat tail its VP. Since round 28
@@ -865,7 +865,7 @@ defmodule QuacksWeb.GameComponents do
     {low, leader} = vps |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
 
     # The tails from the leader's side: a seat behind tail `t` (VP <= t) gets its rat.
-    tails = for t <- Enum.reverse(ScoringTrack.tails()), low <= t and t < leader, do: t
+    tails = low |> ScoringTrack.tails_between(leader) |> Enum.reverse()
     steps = length(tails) + 1
 
     dots =
@@ -1195,7 +1195,7 @@ defmodule QuacksWeb.GameComponents do
   def bag(assigns) do
     ~H"""
     <div class="paper rounded-lg p-3">
-      <h2 class="text-lg font-bold">Bag ({length(@bag)} chips)</h2>
+      <h2 class="sheet-head text-lg font-bold">Bag ({length(@bag)} chips)</h2>
       <.chip_counts chips={@bag} size={:md} />
     </div>
     """
@@ -1701,7 +1701,7 @@ defmodule QuacksWeb.GameComponents do
       data-seat={@seat}
       data-role="player-card"
     >
-      <header class="flex flex-wrap items-center gap-1.5 pr-8">
+      <header class="sheet-head flex flex-wrap items-center gap-1.5 pr-8">
         <.seat_dot seat={@seat} />
         <span class="font-hand text-lg font-bold" data-role="player-name">{@name}</span>
         <span :if={@you} class="text-xs font-semibold text-ink-soft">you</span>
@@ -3133,7 +3133,7 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <div class="paper rounded-lg p-3">
-      <h2 class="text-lg font-bold">Log</h2>
+      <h2 class="sheet-head text-lg font-bold">Log</h2>
       <ol class="mt-1 space-y-1 text-sm" aria-label="Recent actions">
         <li :for={{seat, line} <- @entries} class="flex items-baseline gap-1.5">
           <.seat_dot :if={seat} seat={seat} />

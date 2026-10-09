@@ -564,7 +564,7 @@ defmodule QuacksWeb.AlchemistsComponents do
   def patient_picks(assigns) do
     ~H"""
     <section class="space-y-3" data-role="patient-choice">
-      <h2 class="text-xl font-bold">Choose your patient</h2>
+      <h2 class="sheet-head text-xl font-bold">Choose your patient</h2>
       <p class="text-sm text-ink-soft">
         Each round you collect essence. Your marker moves along the patient's card, and you get the bonus under the marker. Tap a patient to take it.
       </p>
@@ -607,7 +607,7 @@ defmodule QuacksWeb.AlchemistsComponents do
 
     ~H"""
     <section class="space-y-3" data-role="essence-choice">
-      <h2 class="text-xl font-bold">Essence: you reach space {@reach}</h2>
+      <h2 class="sheet-head text-xl font-bold">Essence: you reach space {@reach}</h2>
       <ul :if={@parts} class="flex flex-wrap gap-1.5 text-xs" data-role="essence-parts">
         <li :for={part <- parts_text(@parts)} class="rounded-full bg-ink/10 px-2 py-0.5 font-semibold">
           {part}

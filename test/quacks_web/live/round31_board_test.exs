@@ -37,7 +37,7 @@ defmodule QuacksWeb.Round31BoardTest do
       js = File.read!("assets/js/app.js")
 
       assert js =~ "this.el.dataset.mine && this.bag()) this.fly(added[0])"
-      assert js =~ ~r/fly\(chip\) \{\n\s+if \(reduced\(\)\) return/
+      assert js =~ ~r/fly\(chip[^{]*\{\n\s+if \(reduced\(\)\) return/
     end
   end
 end
