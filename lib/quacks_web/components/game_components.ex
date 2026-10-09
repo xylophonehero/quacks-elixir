@@ -265,6 +265,7 @@ defmodule QuacksWeb.GameComponents do
             assigns.beats
           ),
         rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
+        hop: ruby_hop?(assigns.game.log, assigns.seat),
         fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring)))
       )
 
@@ -449,11 +450,13 @@ defmodule QuacksWeb.GameComponents do
       <%!-- The droplet and the rats are full pieces, like chips: the droplet on its
            space, then one rat per rat tail on each space after it, so the first chip
            lands after the last rat. Fixed ids: when the droplet moves, only `translate`
-           changes and CSS slides them. --%>
+           changes and CSS slides them. `data-hop`: this seat's newest move paid rubies
+           for the droplet, so `PotMotion` hops it (round 32). --%>
       <g
         id={"droplet-#{@seat}-#{@size}"}
         data-role="droplet"
         data-index={@me.droplet}
+        data-hop={@hop && "rubies"}
         style={translate_style(@me.droplet)}
         aria-label="droplet"
       >
@@ -702,6 +705,15 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
+  # This seat's newest log entry is a ruby spend on the droplet (2 rubies, or 1 with
+  # the gold witch G4).
+  defp ruby_hop?(log, seat) do
+    Enum.find(log, &match?({^seat, _}, &1)) in [
+      {seat, {:rubies_spent, :droplet}},
+      {seat, {:rubies_spent, :droplet, 1}}
+    ]
+  end
+
   # The flask, in the free corner to the lower left of the cauldron (the page puts
   # the bag in the lower right and the fortune card in the upper right). Parchment when
   # full, grey when empty. Usable: it glows and is a button (click or Enter).
@@ -749,13 +761,14 @@ defmodule QuacksWeb.GameComponents do
         fill={if @full, do: "#dfe6e2", else: "#7d8288"}
         fill-opacity={if @full, do: "0.55", else: "1"}
       />
-      <path
-        :if={@full}
-        clip-path={"url(#flask-body-#{@uid})"}
-        d="M-30 -8 q7.5 -4 15 0 t15 0 t15 0 t15 0 V30 H-30 Z"
-        fill={"url(#flask-brew-#{@uid})"}
-        data-role="flask-brew"
-      />
+      <%!-- The clip sits on a group, so `PotMotion` can raise the brew inside it. --%>
+      <g :if={@full} clip-path={"url(#flask-body-#{@uid})"}>
+        <path
+          d="M-30 -8 q7.5 -4 15 0 t15 0 t15 0 t15 0 V30 H-30 Z"
+          fill={"url(#flask-brew-#{@uid})"}
+          data-role="flask-brew"
+        />
+      </g>
       <path
         d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z"
         fill="none"

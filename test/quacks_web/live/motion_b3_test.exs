@@ -91,8 +91,9 @@ defmodule QuacksWeb.MotionB3Test do
     [_, hook] = String.split(js, "// The large pot's motion", parts: 2)
     [hook, _] = String.split(hook, "const csrfToken", parts: 2)
     # the scoring sequence (ruby flights, skip keys, rats in) grew it from 6 000;
-    # round 31's draw flight in the top layer to 9 000
-    assert byte_size(hook) < 9_000
+    # round 31's draw flight in the top layer to 9 000; round 32's droplet hop and
+    # flask fill to 9 500
+    assert byte_size(hook) < 9_500
     assert hook =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
     assert js =~ "!reduced()"
   end

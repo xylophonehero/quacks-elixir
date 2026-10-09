@@ -78,8 +78,8 @@ defmodule QuacksWeb.GameLive do
   Hawkmoth); the rubies step comes after it and after the buy.
 
   Mandrake: the server answers "put the white chip back?" for a human seat at once
-  (`GameServer.keep_white/2`); a bar above the buttons offers "Keep the white chip
-  instead" until the next action of any seat. The rat tails of the round show under
+  (`GameServer.keep_white/2`); the white chip then hovers over the bag with a round
+  undo button that keeps it in the pot, until the next action of any seat. The rat tails of the round show under
   the players row while the round brews.
 
   With The Alchemists every seat first picks a patient (a dialog with 3 cards).
@@ -116,6 +116,10 @@ defmodule QuacksWeb.GameLive do
   # The standings slide's first render shows the old ranks this long (round 18; the
   # tests set it long and send the tick themselves).
   @settle_ms Application.compile_env(:quacks, :reveal_settle_ms, 300)
+
+  # A paid droplet move or flask refill shows on the pot this long before the round
+  # ends by itself (round 32, `done_after/2`; 0 in the tests: at once).
+  @show_move_ms Application.compile_env(:quacks, :show_move_ms, 800)
 
   @doc "Join game `id`: take a free seat, or watch when the game is full."
   @impl true
@@ -623,6 +627,8 @@ defmodule QuacksWeb.GameLive do
   def handle_info({:play_again, _id, new_id}, socket),
     do: {:noreply, push_navigate(socket, to: ~p"/g/#{new_id}")}
 
+  def handle_info(:auto_done, socket), do: {:noreply, auto_done(socket, true)}
+
   def handle_info(:uncopied, socket), do: {:noreply, assign(socket, copied: false)}
 
   # Auto mode: the slide's time is up (a stale tick, from a slide left before, is
@@ -789,8 +795,7 @@ defmodule QuacksWeb.GameLive do
   defp play(socket, seat, action) do
     case GameServer.apply(socket.assigns.id, seat, action) do
       {:ok, game} ->
-        {:noreply,
-         socket |> put_game(game) |> close_card_reveal(action) |> auto_done(shop_move?(action))}
+        {:noreply, socket |> put_game(game) |> close_card_reveal(action) |> done_after(action)}
 
       {:error, {:illegal_action, action, _phase}} ->
         {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
@@ -1324,6 +1329,28 @@ defmodule QuacksWeb.GameLive do
                 <.bowl chips={@game.players[@seat || 0].bowl} />
               </div>
               <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
+              <%!-- Mandrake: the white chip that went back hovers over the bag, with
+                   an undo button that keeps it in the pot (`keep_white`). --%>
+              <div
+                :if={white = keep_white?(@game, @seat, @bots) && returned_white(@game)}
+                class="absolute right-1.5 bottom-14 flex flex-col items-center gap-1"
+                data-role="mandrake-undo"
+              >
+                <button
+                  id="keep-white"
+                  type="button"
+                  phx-click="keep_white"
+                  class={[
+                    "paper grid size-11 touch-manipulation place-items-center rounded-full shadow-lg",
+                    "transition-transform duration-100 ease-out active:scale-90"
+                  ]}
+                  aria-label="Mandrake: the white chip went back in your bag. Keep it in the pot"
+                  title="Keep the white chip"
+                >
+                  <.icon name="hero-arrow-uturn-left" class="size-5" />
+                </button>
+                <span class="mandrake-bob"><.chip chip={white} /></span>
+              </div>
             </div>
           </div>
           <%!-- A landscape phone moves the tubes to the right column (app.css). --%>
@@ -1527,22 +1554,6 @@ defmodule QuacksWeb.GameLive do
              64rem it is the foot of the context column. --%>
         <footer class="game-bar" data-area="bar">
           <div class="game-tray">
-            <section
-              :if={keep_white?(@game, @seat, @bots)}
-              class="paper flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm shadow-lg"
-              aria-label="Mandrake"
-              data-role="mandrake-undo"
-            >
-              <span class="min-w-0 flex-1">Mandrake: the white chip went back in your bag.</span>
-              <.button
-                id="keep-white"
-                phx-click="keep_white"
-                variant={:secondary}
-                class="min-h-11 shrink-0"
-              >
-                Keep the white chip instead
-              </.button>
-            </section>
             <section
               :if={extra_actions(@actions) != []}
               class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation"
@@ -3827,6 +3838,17 @@ defmodule QuacksWeb.GameLive do
 
   defp auto_done(socket, _acted?), do: socket
 
+  # Round 32: rubies paid for the droplet or the flask end the round only after the
+  # pot showed the move (`PotMotion` hop, 520 ms; flask fill, 700 ms), so the next
+  # round's card does not cover it.
+  defp done_after(%{assigns: %{skip_rubies: true}} = socket, {:rubies, what})
+       when what in [:droplet, :flask] and @show_move_ms > 0 do
+    Process.send_after(self(), :auto_done, @show_move_ms)
+    socket
+  end
+
+  defp done_after(socket, action), do: auto_done(socket, shop_move?(action))
+
   defp shop_move?({kind, _what}), do: kind in [:buy, :rubies]
   defp shop_move?(_action), do: false
 
@@ -3867,6 +3889,9 @@ defmodule QuacksWeb.GameLive do
     do: match?([{^seat, {:returned, {:white, _}}}, {^seat, :return_white} | _], game.log)
 
   defp keep_white?(_game, _seat, _bots), do: false
+
+  # The white chip of the newest Mandrake answer (see `keep_white?/3`).
+  defp returned_white(%{log: [{_seat, {:returned, chip}} | _]}), do: chip
 
   # Why the waiting droplet moves came (reverse pot side): this seat's log events that
   # moved its droplet since its last droplet choice (or the round's start).
