@@ -9,14 +9,15 @@ defmodule QuacksWeb.Round36UiTest do
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
 
+  alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
 
   doctest QuacksWeb.GameComponents, import: true, only: [loop_start: 3]
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
-  defp solo(sets \\ %{}) do
-    {:ok, id} = GameServer.start(1, {10, 11, 12}, sets, %{fortune: false})
+  defp solo(sets \\ %{}, expansion \\ nil) do
+    {:ok, id} = GameServer.start(1, {10, 11, 12}, sets, %{fortune: false}, expansion)
     {:ok, view, _html} = live(browser("r36-#{System.unique_integer()}"), ~p"/g/#{id}")
     {id, view}
   end
@@ -80,6 +81,36 @@ defmodule QuacksWeb.Round36UiTest do
 
       assert has_element?(view, "#pot-0-lg [data-role=next-space]")
       assert has_element?(view, "#pot-0-lg [data-role=scoring-ring][data-seat='0']")
+    end
+  end
+
+  describe "item 5: Mandrake V's peeked chip over the bag" do
+    defp log(g, entries), do: %{g | log: Enum.reverse(entries) ++ g.log}
+
+    test "the peeked chip shows over the bag until the next draw" do
+      {id, view} = solo(%{yellow: 5}, :herb_witches)
+      refute has_element?(view, "[data-role=peek-chip]")
+
+      replace_game(id, fn g ->
+        g
+        |> H.put(drawn: [{{:yellow, 1}, 3}], pot_index: 3)
+        |> log([
+          {0, {:drew, {:yellow, 1}, 1}},
+          {0, {:effect, {:yellow, 5}, {:peek, {:green, 2}}}}
+        ])
+      end)
+
+      assert has_element?(view, "[data-role=pot-area] [data-role=peek-chip][data-chip='green 2']")
+      assert has_element?(view, "[data-role=peek-chip].peek-rise .chip-token")
+
+      replace_game(id, &log(&1, [{0, {:drew, {:orange, 1}, 4}}]))
+      refute has_element?(view, "[data-role=peek-chip]")
+    end
+
+    test "rises out of the bag; reduced motion: a fade" do
+      css = File.read!("assets/css/app.css")
+      assert css =~ "@keyframes peek-rise"
+      assert css =~ ~r/no-preference\) \{\n  \.peek-rise \{\n    animation: peek-rise/
     end
   end
 end

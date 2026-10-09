@@ -3154,6 +3154,32 @@ html:not([data-share]) .share-fallback {
   }
 }
 
+/* Round 36: Mandrake V's peeked chip comes up out of the bag and stays over it
+   (with the bob) until your next draw. Reduced motion: it fades in. */
+@keyframes peek-rise {
+  from {
+    opacity: 0;
+    translate: 0 28px;
+    scale: 0.5;
+  }
+}
+
+@keyframes peek-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.peek-rise {
+  animation: peek-fade 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .peek-rise {
+    animation: peek-rise 420ms var(--ease-out) both;
+  }
+}
+
 /* Round 35: the crow skull's row leaves after a tap. It floats over the bar's
    foot (out of the flow, so Stop and Draw take their place at once) while the
    chips not chosen fly back into the bag (`.FromBag`); the chosen chip and the

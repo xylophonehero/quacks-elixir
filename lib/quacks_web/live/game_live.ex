@@ -1372,6 +1372,22 @@ defmodule QuacksWeb.GameLive do
                 </button>
                 <span class="mandrake-bob"><.chip chip={white} /></span>
               </div>
+              <%!-- Round 36: Mandrake V peeked at one more chip (it moved the
+                   chip on by its value and went back): that chip over the bag,
+                   until your next draw. --%>
+              <div
+                :if={peek = @me && @game.phase == :potions && peeked(@game.log, @seat)}
+                id={"peek-#{@game.round}-#{length(@me.drawn)}"}
+                class="peek-rise pointer-events-none absolute right-1.5 bottom-14 flex flex-col items-center"
+                role="status"
+                aria-label={"Mandrake: peeked at #{chip_name(peek)}, back in the bag"}
+                title={"Peeked at #{chip_name(peek)}, back in the bag"}
+                data-role="peek-chip"
+                data-chip={chip_name(peek)}
+              >
+                <span class="mandrake-bob"><.chip chip={peek} /></span>
+                <.icon name="hero-arrow-down" class="size-4 text-parchment drop-shadow" />
+              </div>
             </div>
           </div>
           <%!-- A landscape phone moves the tubes to the right column (app.css). --%>
@@ -4421,6 +4437,19 @@ defmodule QuacksWeb.GameLive do
     do: match?([{^seat, {:returned, {:white, _}}}, {^seat, :return_white} | _], game.log)
 
   defp keep_white?(_game, _seat, _bots), do: false
+
+  # Round 36: the chip Mandrake V peeked at on this seat's newest draw, if it did.
+  defp peeked(log, seat) when is_integer(seat) do
+    log
+    |> Stream.filter(&match?({^seat, _}, &1))
+    |> Stream.take_while(&(not match?({_, {:drew, _, _}}, &1)))
+    |> Enum.find_value(fn
+      {_, {:effect, {:yellow, 5}, {:peek, chip}}} -> chip
+      _entry -> nil
+    end)
+  end
+
+  defp peeked(_log, _seat), do: nil
 
   # The white chip of the newest Mandrake answer (see `keep_white?/3`).
   defp returned_white(%{log: [{_seat, {:returned, chip}} | _]}), do: chip
