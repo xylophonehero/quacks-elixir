@@ -283,6 +283,30 @@ const PotMotion = {
       {transform: at(p, p, 0.96), opacity: 1, offset: 0.9, easing: easing("--ease-spring")},
       {transform: at(p, p, 1), opacity: 1},
     ], {duration: 460, easing: "linear"}).finished.catch(() => {}).finally(() => { g.remove(); hide.cancel() })
+    if (s0 !== 1) this.scoringPulse(460)
+  },
+  // Round 36: the new scoring space (the gold space and this seat's ring) waits
+  // for the chip to land (`after` ms), then pops and sends out one ring, 600 ms.
+  // Only after a draw's flight, so reduced motion has no pulse.
+  scoringPulse(after) {
+    const seat = this.el.id.split("-")[1]
+    const marks = [...this.el.querySelectorAll(`[data-role=next-space], [data-role=scoring-ring][data-seat="${seat}"]`)]
+    if (marks.length === 0) return
+    marks.forEach(m => {
+      m.getAnimations().forEach(a => a.cancel())
+      m.animate([{opacity: 0}, {opacity: 0}], {duration: after})
+      m.animate([{scale: 0.6, opacity: 0}, {scale: 1.25, opacity: 1, offset: 0.45}, {scale: 1, opacity: 1}],
+        {duration: 600, delay: after, easing: easing("--ease-out"), fill: "backwards"})
+    })
+    const ring = marks.find(m => m.matches("[data-role=scoring-ring]"))
+    if (!ring) return
+    const ping = ring.cloneNode()
+    ping.removeAttribute("data-role")
+    ping.setAttribute("aria-hidden", "true")
+    ring.after(ping)
+    ping.animate([{scale: 1, opacity: 0.9}, {scale: 1.7, opacity: 0}],
+      {duration: 600, delay: after + 120, easing: easing("--ease-out"), fill: "both"})
+      .finished.catch(() => {}).finally(() => ping.remove())
   },
   // `el` at space `p` in the top `pot-fx` layer: SVG paints in DOM order, so a
   // flight there passes over the later spaces.

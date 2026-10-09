@@ -62,4 +62,24 @@ defmodule QuacksWeb.Round36UiTest do
              )
     end
   end
+
+  describe "item 6: the scoring space pulses when the chip lands" do
+    test "the draw's flight hides the gold space and the ring, then pops them" do
+      js = File.read!("assets/js/app.js")
+
+      assert js =~ "if (s0 !== 1) this.scoringPulse(460)"
+      assert js =~ ~s([data-role=next-space], [data-role=scoring-ring][data-seat=)
+      assert js =~ "delay: after"
+      # Reduced motion: `fly` returns before the flight, so no pulse.
+      assert js =~ "lift = 70) {\n    if (reduced()) return"
+    end
+
+    test "the pot marks its scoring space and this seat's ring" do
+      {_id, view} = solo()
+      view |> element("[data-role=action-bar] button", "Draw") |> render_click()
+
+      assert has_element?(view, "#pot-0-lg [data-role=next-space]")
+      assert has_element?(view, "#pot-0-lg [data-role=scoring-ring][data-seat='0']")
+    end
+  end
 end
