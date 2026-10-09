@@ -1600,6 +1600,31 @@ JS keeps the state. Entering full screen closes open popovers (the menu sheet) a
 the Fullscreen spec says. The game grid uses `dvh`, so it fills the larger viewport
 with no change.
 
+### Round 35 (board): rat labels, rats in the pot, chips to the bag, tubes, patient
+
+- **Rat track labels.** Every seat's VP sits at its dot (round 28). A rat keeps its
+  VP only in a gap of 1 or 2 rats between neighbouring occupied steps; in a gap of
+  3 or more the rats show without numbers, and a rat next to a step whose VP label
+  sits below the line drops its number too, so no two labels collide. The tails
+  come from `ScoringTrack.tails_between/2`, so they repeat after 50.
+- **Rats in the pot.** `rat_spaces/1` gives the rat pebbles' spaces: after the
+  droplet, at most `rat_stone`, never past `Player.rat_end` (set by the round's first
+  chip). A droplet move after the first draw takes the first rat's space and that
+  rat goes; the rest stay. Each rat's id names its space (`rat-SEAT-SIZE-SPACE`), so
+  `PotMotion.ratsOut/0` fades exactly the rat the droplet took.
+- **Chips to the bag before the shop.** `pot`'s `bagged` (game_live `bagged?/1`:
+  shopping, the results closed, the seat shops or is ready) renders no chips and
+  sets `data-bagged`. `PotMotion.toBag/1` sends every chip that left, first drawn
+  first, to the bag button as a ghost in the `pot-fx` top layer (stagger
+  `min(60, 600 / n)` ms, 260 ms each; reduced motion: fade). `sideOpen` waits for
+  `bagUntil`, so the shop opens after the last chip lands.
+- **Test tubes.** The ruby glass uses `piece_icon :ruby`, a VP glass the `:vp` crown
+  over its number (no "VP" text). The glasses are 10 units shorter (viewBox
+  `0 -18 364 72`) and the main rack is `max-w-xs`: about 63px tall, was 89px.
+- **Patient badge.** Below 40rem the badge is its icon only (`hidden sm:inline` on
+  the name), then the essence rack; the name stays in `title`, `aria-label` and
+  the patient sheet.
+
 ## State ownership, compared to React
 
 | Question | React app | This app |
