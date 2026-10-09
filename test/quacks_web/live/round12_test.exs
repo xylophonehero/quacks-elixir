@@ -97,4 +97,13 @@ defmodule QuacksWeb.Round12Test do
       refute has_element?(view, "[data-role=shop-buy]")
     end
   end
+
+  describe "the pot" do
+    test "a ruby space has its gem on the lower left, mirroring the VP tag" do
+      {_id, view} = solo()
+      html = render(view)
+      assert html =~ ~s(x="-21.5")
+      refute html =~ ~s(y="-27")
+    end
+  end
 end
