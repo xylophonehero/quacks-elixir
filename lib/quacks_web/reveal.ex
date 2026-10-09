@@ -92,7 +92,8 @@ defmodule QuacksWeb.Reveal do
               card: game.fortune_card,
               outcomes: card_outcomes(game, seat),
               # Round 35: a choice card's rows wait for the choices (the grown card).
-              reveals: if(Fortune.reveal_card?(game.fortune_card), do: Fortune.reveals(game), else: %{}),
+              reveals:
+                if(Fortune.reveal_card?(game.fortune_card), do: Fortune.reveals(game), else: %{}),
               order: Game.turn_order(game)
             }
           ],

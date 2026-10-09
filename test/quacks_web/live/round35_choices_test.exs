@@ -118,7 +118,10 @@ defmodule QuacksWeb.Round35ChoicesTest do
     defp p1(g),
       do:
         %{g | phase: :fortune_choice, fortune_card: :p1}
-        |> Map.update!(:players, &Map.new(&1, fn {s, p} -> {s, %{p | phase: :fortune_choice}} end))
+        |> Map.update!(
+          :players,
+          &Map.new(&1, fn {s, p} -> {s, %{p | phase: :fortune_choice}} end)
+        )
 
     test "solo: after the choice the card grows with the row; Continue shrinks it" do
       {id, view} = solo(%{})
@@ -127,7 +130,9 @@ defmodule QuacksWeb.Round35ChoicesTest do
 
       view |> element("[data-card=p1] button[data-choice=rubies]") |> render_click()
 
-      row = "[data-role=pot-card] [data-role=card-reveals][data-card=p1] [data-role=card-reveal-row]"
+      row =
+        "[data-role=pot-card] [data-role=card-reveals][data-card=p1] [data-role=card-reveal-row]"
+
       assert has_element?(view, "#{row}[data-me=true] [data-role=seat-disc]")
       assert has_element?(view, "#{row} [data-gain=rubies]", "+3")
       assert has_element?(view, "#card-continue")

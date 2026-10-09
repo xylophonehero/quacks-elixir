@@ -83,6 +83,7 @@ defmodule Quacks.CardRevealsTest do
       g = new(2) |> put(fortune_card: :p6) |> Fortune.resolve()
       {:ok, g} = Game.apply(g, 0, {:fortune, :vp})
       {:ok, g} = Game.apply(g, 1, {:fortune, :remove_white})
+
       assert %{0 => %{gains: [{:vp, 4}]}, 1 => %{gains: [{:removed, {:white, 1}}]}} =
                Fortune.reveals(g)
 
