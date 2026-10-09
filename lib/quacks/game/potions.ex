@@ -543,6 +543,13 @@ defmodule Quacks.Game.Potions do
     Enum.reduce(effects, g, fn {book, detail}, g -> Game.effect(g, seat, book, detail) end)
   end
 
+  # Round 35: the first chip in the pot fixes the rat stone's space; a later droplet
+  # move does not move it (rulebook §3 step 2).
+  defp fix_rats(%{drawn: [], rat_stone: n} = p) when n > 0,
+    do: %{p | rat_end: Player.start_index(p)}
+
+  defp fix_rats(p), do: p
+
   # The chip lands on `index` (clamped to the last space) and becomes the newest chip.
   # With `overflow` and a chip already on the last space, it goes in the bowl.
   defp put_on_pot(g, seat, chip, index) do
@@ -554,7 +561,10 @@ defmodule Quacks.Game.Potions do
       index = min(index, PotTrack.last())
 
       g
-      |> Game.update_player(seat, &%{&1 | drawn: [{chip, index} | &1.drawn], pot_index: index})
+      |> Game.update_player(
+        seat,
+        &%{fix_rats(&1) | drawn: [{chip, index} | &1.drawn], pot_index: index}
+      )
       |> Game.record(seat, {:drew, chip, index})
     end
   end

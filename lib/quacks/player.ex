@@ -3,6 +3,10 @@ defmodule Quacks.Player do
   One seat at the table: the bag, the pot, the resources and the player's own state
   inside the potions phase. `Quacks.Game` keeps one per seat in `players`.
 
+  `rat_stone` is how far the rat stone moved past the droplet at round start;
+  `rat_end` is its space once the round's first chip is in the pot (nil before), so
+  a later droplet move does not move it.
+
   `phase` is the player's own state while the game is in `:potions` or `:shopping`,
   and marks the seats that still answer in the concurrent choice phases
   (`:fortune_choice`, `:chip_choice`, `:witch_choice`).
@@ -56,6 +60,7 @@ defmodule Quacks.Player do
             exploded?: false,
             explosion_choice: nil,
             rat_stone: 0,
+            rat_end: nil,
             phase: :potions,
             done?: false,
             fortune_used?: false,
@@ -109,6 +114,7 @@ defmodule Quacks.Player do
           exploded?: boolean,
           explosion_choice: nil | :vp | :buy | :witch,
           rat_stone: non_neg_integer,
+          rat_end: non_neg_integer | nil,
           phase: phase,
           done?: boolean,
           fortune_used?: boolean,
@@ -213,6 +219,7 @@ defmodule Quacks.Player do
         exploded?: false,
         explosion_choice: nil,
         rat_stone: 0,
+        rat_end: nil,
         pot_index: p.droplet,
         witch_offer: [],
         ruby_price: 2,

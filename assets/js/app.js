@@ -150,7 +150,8 @@ const PotMotion = {
     // Round 34: the same chip (its draw order) on a new space moved in the pot
     // (green III): it flies from its old space, not from the bag.
     const moved = gone.length === 1 && added.length === 1 && gone[0].dataset.order === added[0].dataset.order
-    if (this.el.dataset.round !== this.round) {
+    const newRound = this.el.dataset.round !== this.round
+    if (newRound) {
       gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, null, i * 20))
       this.ratsIn()
     }
@@ -159,6 +160,7 @@ const PotMotion = {
       this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
     else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0])
     else if (added.length <= 2) added.forEach(c => this.land(c))
+    if (!newRound) this.ratsOut()
     this.hop(this.el.querySelector("[data-role=droplet]"))
     const brew = this.el.querySelector("[data-role=flask-brew]")
     if (brew && !this.full && !reduced())
@@ -203,6 +205,15 @@ const PotMotion = {
         {duration: 240, delay: 200 + i * 60, fill: "backwards", easing: easing("--ease-out")})
     })
   },
+  // Round 35: the droplet took a rat's space (a move after the first draw). That
+  // rat fades out where it was as the droplet lands; the others stay put.
+  ratsOut() {
+    this.rats.forEach(rat => {
+      if (rat.isConnected) return
+      rat.style.translate = ""
+      this.ghost(rat, null, reduced() ? 0 : 300)
+    })
+  },
   // Round 32, rubies paid for the droplet (`data-hop`): it hops from its old space
   // to the new one on a low arc, 520 ms, over the CSS slide. A refill fills the flask.
   hop(d) {
@@ -215,6 +226,7 @@ const PotMotion = {
   snapshot() {
     this.drop = this.el.querySelector("[data-role=droplet]")?.dataset.index
     this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
+    this.rats = [...this.el.querySelectorAll("[data-role=rat]")]
     this.full = !!this.el.querySelector("[data-role=flask-brew]")
     this.round = this.el.dataset.round
   },

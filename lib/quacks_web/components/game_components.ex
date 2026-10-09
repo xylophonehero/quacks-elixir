@@ -219,6 +219,8 @@ defmodule QuacksWeb.GameComponents do
   (another player's pot) shows only the chips. In both, the droplet is a full blue
   piece on its space, each rat tail is a grey rat piece on its own space after it
   (`data-role="rat"`, in the `rat-stone` group), and placed chips sit on their spaces.
+  Round 35: the rats keep their spaces when the droplet moves after the first draw;
+  the droplet takes the first rat's space and that rat goes (`rat_spaces/1`).
 
   Scoring spaces (the space directly after the last chip) are rings in the seat
   colours. `rings` maps seat => scoring space; by default only this seat's ring
@@ -271,7 +273,7 @@ defmodule QuacksWeb.GameComponents do
             scoring,
             assigns.beats
           ),
-        rat_index: if(player.rat_stone > 0, do: Player.start_index(player)),
+        rats: rat_spaces(player),
         hop: ruby_hop?(assigns.game.log, assigns.seat),
         fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring)))
       )
@@ -485,18 +487,18 @@ defmodule QuacksWeb.GameComponents do
         <.beat_ring beat={@beats[:droplet]} r="24" />
       </g>
       <g
-        :if={@rat_index}
+        :if={@rats != []}
         id={"rat-#{@seat}-#{@size}"}
         data-role="rat-stone"
-        data-index={@rat_index}
-        data-tails={@me.rat_stone}
+        data-index={List.last(@rats)}
+        data-tails={length(@rats)}
       >
         <g
-          :for={tail <- 1..@me.rat_stone//1}
-          id={"rat-#{@seat}-#{@size}-#{tail}"}
+          :for={space <- @rats}
+          id={"rat-#{@seat}-#{@size}-#{space}"}
           data-role="rat"
-          data-index={@me.droplet + tail}
-          style={translate_style(@me.droplet + tail)}
+          data-index={space}
+          style={translate_style(space)}
           aria-label="rat"
         >
           <g class="rat-pebble">
@@ -840,6 +842,20 @@ defmodule QuacksWeb.GameComponents do
   def palette_bg(colour), do: @palette_bg[colour]
 
   @doc """
+  The pot spaces of a player's rat pebbles: the spaces after the droplet, at most
+  `rat_stone` of them, and never past `rat_end` (the stone's space). Before the first draw
+  the start follows the droplet (`Game.move_droplet/3`); after it the rats stay put,
+  so a droplet move takes the first rat's space and that rat goes (round 35).
+  """
+  @spec rat_spaces(Player.t()) :: [non_neg_integer]
+  def rat_spaces(%Player{rat_stone: 0}), do: []
+
+  def rat_spaces(%Player{droplet: droplet, rat_stone: n, rat_end: rat_end, drawn: drawn}) do
+    last = if drawn == [] or is_nil(rat_end), do: droplet + n, else: min(droplet + n, rat_end)
+    Enum.to_list((droplet + 1)..last//1)
+  end
+
+  @doc """
   The rat track (round 16; equal steps since round 22): a slim strip between the
   name cards and the pot. Not to scale: one step per rat tail
   (`ScoringTrack.tails_between/2`, on every lap) between the last player and the leader, the leader on
@@ -924,7 +940,7 @@ defmodule QuacksWeb.GameComponents do
       Enum.map(rats, fn rat ->
         quiet? =
           Enum.any?(big_gaps, fn [a, b] -> a <= rat.j and rat.j < b end) or
-            rat.j in below or rat.j + 1 in below
+            rat.j in below or (rat.j + 1) in below
 
         Map.put(rat, :show_vp, not quiet?)
       end)
