@@ -105,6 +105,14 @@ defmodule QuacksWeb.Round36UiTest do
 
       replace_game(id, &log(&1, [{0, {:drew, {:orange, 1}, 4}}]))
       refute has_element?(view, "[data-role=peek-chip]")
+
+      # A new round: last round's peek is gone before the first draw.
+      replace_game(
+        id,
+        &log(&1, [{0, {:effect, {:yellow, 5}, {:peek, {:red, 1}}}}, {:round_end, 1}])
+      )
+
+      refute has_element?(view, "[data-role=peek-chip]")
     end
 
     test "rises out of the bag; reduced motion: a fade" do
@@ -245,6 +253,28 @@ defmodule QuacksWeb.Round36UiTest do
       refute has_element?(view, "dialog#decision-essence_bonus")
       view |> element("#pot-0-lg [data-index='3'][data-target]") |> render_click()
       assert logged?(id, &match?({0, {:essence, {:swap, {:green, 1}}}}, &1))
+    end
+  end
+
+  describe "item 7: an everyone-card's results in the results stage" do
+    test "the rows sit in the parchment panel over the bar, not under the card" do
+      {id, view} = solo()
+
+      replace_game(id, fn g ->
+        %{g | phase: :fortune_choice, fortune_card: :p1}
+        |> Map.update!(
+          :players,
+          &Map.new(&1, fn {s, p} -> {s, %{p | phase: :fortune_choice}} end)
+        )
+      end)
+
+      view |> element("[data-card=p1] button[data-choice=rubies]") |> render_click()
+
+      stage = "section#card-stage-1.results-stage[data-role=card-stage]"
+      assert has_element?(view, "#{stage} [data-role=stage-title]", "Choices, Choices")
+      assert has_element?(view, "#{stage} [data-role=card-reveal-row][data-me=true]", "You")
+      assert has_element?(view, "#{stage} [data-role=reveal-result] [data-gain=rubies]")
+      refute has_element?(view, "[data-role=pot-card] [data-role=card-reveals]")
     end
   end
 end

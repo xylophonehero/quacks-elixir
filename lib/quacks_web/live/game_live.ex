@@ -1307,23 +1307,8 @@ defmodule QuacksWeb.GameLive do
                 <%!-- Round 30: every player's chips under the grown card. Round 31:
                      also while the card's choice waits in the bar (Flea Market), and
                      after the new card's tap (`next_slide/1` grows it). --%>
-                <%!-- Round 35: a choice card's rows once this seat has chosen. --%>
-                <.card_reveals
-                  :if={
-                    (@card_grown or
-                       (@decision == :fortune_choice and Fortune.reveal_card?(@game.fortune_card))) and
-                      Fortune.reveals(@game) != %{}
-                  }
-                  id={"pot-card-reveals-#{@game.round}"}
-                  card={@game.fortune_card}
-                  reveals={Fortune.reveals(@game)}
-                  order={Game.turn_order(@game)}
-                  seat={@seat}
-                  names={@names}
-                  game={@game}
-                  compact
-                  class="paper rounded-md border-l-4 border-chip-purple p-2"
-                />
+                <%!-- Round 36: the everyone-card rows are in the results stage
+                     (`card_stage/1`, over the bar), not under the card. --%>
                 <p
                   :if={card_tap?(assigns)}
                   id={"card-caption-#{@game.round}-#{@card_grown}"}
@@ -1632,6 +1617,18 @@ defmodule QuacksWeb.GameLive do
           </div>
           <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
                the update chips stay on the cards until then. --%>
+          <%!-- Round 36: an everyone-card's results (Round 30 grown card, round
+               35 choice card) in the results stage, over the bar. --%>
+          <.card_stage
+            :if={card_stage?(assigns)}
+            id={"card-stage-#{@game.round}"}
+            card={@game.fortune_card}
+            reveals={Fortune.reveals(@game)}
+            order={Game.turn_order(@game)}
+            seat={@seat}
+            names={@names}
+            game={@game}
+          />
           <%!-- Round 35: the results stage, over the step bar. --%>
           <.results_stage
             :if={
@@ -4791,6 +4788,16 @@ defmodule QuacksWeb.GameLive do
 
   defp keep_white?(_game, _seat, _bots), do: false
 
+  # Round 36: the everyone-card's rows show in the results stage while the card is
+  # grown over the pot, or while its choice waits (once a seat chose).
+  defp card_stage?(%{game: %Game{fortune_card: card} = game} = assigns) when card != nil do
+    (assigns.card_grown or
+       (assigns.decision == :fortune_choice and Fortune.reveal_card?(card))) and
+      not tiles_playing?(assigns.reveal) and Fortune.reveals(game) != %{}
+  end
+
+  defp card_stage?(_assigns), do: false
+
   # Round 36: Ghost's breath V's buys while its choice is open in the bar.
   defp purple_buys(assigns),
     do: assigns |> pot_choice_actions() |> Enum.filter(&match?({:chip, {:buy, [_ | _]}}, &1))
@@ -4830,13 +4837,14 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # Round 36: the chip Mandrake V peeked at on this seat's newest draw, if it did.
+  # Round 36: the chip Mandrake V peeked at on this seat's newest draw this round.
   defp peeked(log, seat) when is_integer(seat) do
     log
-    |> Stream.filter(&match?({^seat, _}, &1))
-    |> Stream.take_while(&(not match?({_, {:drew, _, _}}, &1)))
+    |> Stream.take_while(
+      &(not match?({^seat, {:drew, _, _}}, &1) and not match?({:round_end, _}, &1))
+    )
     |> Enum.find_value(fn
-      {_, {:effect, {:yellow, 5}, {:peek, chip}}} -> chip
+      {^seat, {:effect, {:yellow, 5}, {:peek, chip}}} -> chip
       _entry -> nil
     end)
   end

@@ -126,19 +126,19 @@ defmodule QuacksWeb.Round35ChoicesTest do
     test "solo: after the choice the card grows with the row; Continue shrinks it" do
       {id, view} = solo(%{})
       replace_game(id, &p1/1)
-      refute has_element?(view, "[data-role=pot-card] [data-role=card-reveals]")
+      refute has_element?(view, "[data-role=card-stage]")
 
       view |> element("[data-card=p1] button[data-choice=rubies]") |> render_click()
 
-      row =
-        "[data-role=pot-card] [data-role=card-reveals][data-card=p1] [data-role=card-reveal-row]"
+      # Round 36: the rows are in the results stage, not under the card.
+      row = "[data-role=card-stage][data-card=p1] [data-role=card-reveal-row]"
 
       assert has_element?(view, "#{row}[data-me=true] [data-role=seat-disc]")
       assert has_element?(view, "#{row} [data-gain=rubies]", "+3")
       assert has_element?(view, "#card-continue")
 
       view |> element("#card-continue") |> render_click()
-      refute has_element?(view, "[data-role=pot-card] [data-role=card-reveals]")
+      refute has_element?(view, "[data-role=card-stage]")
     end
 
     test "two players: the one who chose sees the other still choosing, then the take" do
@@ -149,7 +149,7 @@ defmodule QuacksWeb.Round35ChoicesTest do
       replace_game(id, &p1/1)
 
       alice |> element("[data-card=p1] button[data-choice=rubies]") |> render_click()
-      rows = "[data-role=pot-card] [data-role=card-reveal-row]"
+      rows = "[data-role=card-stage] [data-role=card-reveal-row]"
       assert has_element?(alice, "#{rows}[data-seat='1']", "choosing")
 
       bob |> element("[data-card=p1] button[aria-label*='black 1']") |> render_click()

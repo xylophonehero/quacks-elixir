@@ -80,7 +80,7 @@ defmodule QuacksWeb.Round28Test do
 
     assert has_element?(
              view,
-             "[id^=pot-card-reveals] [data-role=reveal-chip][title='white stays']"
+             "[id^=card-stage] [data-role=reveal-chip][title='white stays']"
            )
 
     refute has_element?(view, "#sheet-fortune-reveals [data-role=flea-result]")

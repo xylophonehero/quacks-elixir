@@ -91,7 +91,7 @@ defmodule QuacksWeb.Round24Test do
 
       view |> element("#bar-card-1 [data-choice=rubies]") |> render_click()
       # Round 35: the card stays, grown, with what everyone took; Continue shrinks it.
-      assert has_element?(view, "#pot-card-1 [data-role=card-reveals]")
+      assert has_element?(view, "#card-stage-1[data-role=card-stage]")
       view |> element("#card-continue") |> render_click()
       assert_push_event(view, "quacks:vt", %{type: "card"})
       refute has_element?(view, "#pot-card-1")
