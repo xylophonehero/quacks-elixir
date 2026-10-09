@@ -37,6 +37,23 @@ defmodule QuacksWeb.TileRevealComponents do
     """
   end
 
+  # Round 29 (B2): a draw while the round brews. The newest (`age` 0) glows
+  # once (`beat-glow`); the older ones are dimmer.
+  defp badge(%{badge: {:drew, chip, age}} = assigns) do
+    assigns = assign(assigns, chip: chip, age: age)
+
+    ~H"""
+    <span
+      class={["relative shrink-0 rounded-full ring-1 ring-black/40", @age > 0 && "opacity-70"]}
+      data-gain="drew"
+      data-age={@age}
+    >
+      <.chip chip={@chip} size={:xs} />
+      <span :if={@age == 0} class="tile-draw-glow" aria-hidden="true"></span>
+    </span>
+    """
+  end
+
   defp badge(%{badge: {:bought, chip}} = assigns) do
     assigns = assign(assigns, chip: chip)
 
@@ -139,7 +156,7 @@ defmodule QuacksWeb.TileRevealComponents do
     ~H"""
     <div
       id="tile-stage"
-      class="absolute top-0 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-iron-dark/90 py-1 pr-1 pl-3 text-xs font-semibold whitespace-nowrap text-parchment shadow-lg ring-1 ring-gold/40"
+      class="absolute top-0 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-iron-dark/90 py-1 pr-1 pl-3 text-tag font-semibold whitespace-nowrap text-parchment shadow-lg ring-1 ring-gold/40"
       data-role="tile-stage"
       data-kind={@slide.kind}
       aria-live="polite"

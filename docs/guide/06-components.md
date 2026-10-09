@@ -1196,6 +1196,22 @@ key, so new news is a new element and the swap plays again. Nothing hangs outsid
 the tile. While a step plays the droplet shows its running value
 (`TileReveal.droplets/3`).
 
+**The last draws while the round brews (round 29, B2).** In the `:potions`
+phase `news/3` gives the seat's last draws (`{:drew, chip, age}`, newest first,
+straight from `player.drawn`) with `hold: true`, whatever the Results choice
+says. How many depends on the tile's width (`tile_draws/1`: 3 with four columns,
+up to 7 with two). `data-hold` keeps the line on the news (no swap back); the key
+is the draw count, so each draw slides in again. The newest chip glows once
+(`.tile-draw-glow`, `beat-glow`), the pot space pops when it changes (its id has
+the space), and an exploded tile shakes once (`.tile-boom`).
+
+**The type scale (round 29, B3).** Four tokens in `app.css` `@theme`: `text-tag`
+13 px (the floor), `text-label` 15, `text-num` 18, `text-big` 24. Numbers and
+labels on the game screen use them, never less than `text-tag`; where space is
+tight, drop the label and keep the icon and the number. The pot SVG has its own
+units: `@pot_tag` is 13 px at the smallest phone pot (328 px wide), so the
+coins, the VP seals and the chip values are at least 13 px there.
+
 **Every VP on the rat track.** Each dot has its VP: one number for seats in a
 step with the same VP, the numbers of a step alternating above and below the line
 (`track-vp`; the leader's is `leader-vp`).

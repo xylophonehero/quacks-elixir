@@ -1009,7 +1009,7 @@ defmodule QuacksWeb.GameLive do
             class="flex max-w-[7rem] shrink-0 flex-col items-start gap-0.5 sm:max-w-[10rem]"
             data-role="you-are"
           >
-            <span class="pl-1 text-[10px] leading-none font-bold tracking-wide text-parchment-dim uppercase">
+            <span class="pl-1 text-tag leading-none font-bold tracking-wide text-parchment-dim uppercase">
               You
             </span>
             <span
@@ -1034,7 +1034,7 @@ defmodule QuacksWeb.GameLive do
           >
             <.icon name="hero-book-open" class="size-6" />
             <span
-              class="absolute top-0.5 right-0 min-w-4 rounded-full bg-parchment px-1 text-[10px] leading-4 font-bold text-ink tabular-nums"
+              class="absolute top-0.5 right-0 min-w-[18px] rounded-full bg-parchment px-1 text-tag leading-[18px] font-bold text-ink tabular-nums"
               aria-hidden="true"
               data-role="books-count"
             >
@@ -1092,7 +1092,10 @@ defmodule QuacksWeb.GameLive do
               updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
               ticks={replaying?(@game, @seen) and not tiles_playing?(@reveal)}
               totals={tiles_playing?(@reveal) && tile_totals(@game, @reveal)[seat]}
-              news={@reveal_show == :tiles && TileReveal.news(@game, seat, @reveal)}
+              news={
+                (@reveal_show == :tiles or @game.phase == :potions) &&
+                  TileReveal.news(@game, seat, @reveal)
+              }
               rolls={if @reveal_show == :tiles, do: TileReveal.rolls(@game, seat), else: []}
             />
           </nav>
@@ -2191,7 +2194,7 @@ defmodule QuacksWeb.GameLive do
     <section :if={@step == :shop} class="space-y-2" aria-label="Shop">
       <h2 class="text-xl font-bold">Shop</h2>
       <div class="rounded-md bg-parchment-deep/60 px-2 py-1" data-role="shop-bag">
-        <h3 class="text-xs font-semibold text-ink-soft">Your chips: {length(@owned)}</h3>
+        <h3 class="text-tag font-semibold text-ink-soft">Your chips: {length(@owned)}</h3>
         <.chip_counts chips={@owned} />
       </div>
       <div :if={@buying?} class="space-y-2">
@@ -2202,7 +2205,7 @@ defmodule QuacksWeb.GameLive do
               <span class="font-hand text-[15px] leading-tight font-bold">
                 {Books.get({elem(hd(row), 0), 1}).name}
               </span>
-              <span class="text-[11px] text-ink-soft">
+              <span class="text-tag text-ink-soft">
                 {elem(hd(row), 0)} · book {roman(Chips.set(@game.expansion, @sets, elem(hd(row), 0)))}
               </span>
               <%!-- The book's text opens in place, under the row (not another sheet). --%>
@@ -2531,7 +2534,7 @@ defmodule QuacksWeb.GameLive do
           </span>
           <span
             :if={!action && blocked_reason(@game, chips)}
-            class="mt-0.5 w-14 text-center text-[11px] leading-4 font-semibold text-ink-soft"
+            class="mt-0.5 w-16 text-center text-tag leading-4 font-semibold text-ink-soft"
             data-role="pick-blocked"
           >
             {blocked_reason(@game, chips)}
@@ -2539,7 +2542,7 @@ defmodule QuacksWeb.GameLive do
           <span
             :if={over}
             class={[
-              "mt-0.5 rounded-full px-1.5 text-[11px] leading-4 font-bold",
+              "mt-0.5 rounded-full px-1.5 text-tag leading-4 font-bold",
               if(over == :explodes, do: "bg-ruby text-white", else: "bg-gold text-ink")
             ]}
             data-role="explode-warning"
@@ -2548,7 +2551,7 @@ defmodule QuacksWeb.GameLive do
           </span>
           <span
             :if={(!over and @pool) && pick_verb(action)}
-            class="mt-0.5 text-[11px] leading-4 font-semibold text-ink-soft"
+            class="mt-0.5 text-tag leading-4 font-semibold text-ink-soft"
             data-role="pick-verb"
           >
             {pick_verb(action)}
@@ -2557,7 +2560,7 @@ defmodule QuacksWeb.GameLive do
                word under the chip, so a pick does not read as only its value. --%>
           <span
             :if={action && !@pool && !over}
-            class="mt-0.5 text-[11px] leading-4 font-semibold text-ink-soft"
+            class="mt-0.5 text-tag leading-4 font-semibold text-ink-soft"
             data-role="pick-colour"
           >
             {chips |> List.last() |> elem(0)}
@@ -2613,7 +2616,7 @@ defmodule QuacksWeb.GameLive do
               data-role={"red-#{kind}"}
             >
               <span class="font-bold">{label}</span>
-              <span class="text-[11px] font-normal opacity-80">{hint}</span>
+              <span class="text-tag font-normal opacity-80">{hint}</span>
             </.button>
           </div>
         </li>

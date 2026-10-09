@@ -158,7 +158,7 @@ defmodule QuacksWeb.GameComponents do
     <span
       :if={@size == :xs}
       class={[
-        "inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums",
+        "inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums",
         @colour_class
       ]}
       aria-label={"#{@colour} #{@value}"}
@@ -191,8 +191,8 @@ defmodule QuacksWeb.GameComponents do
         :if={@colour != :locoweed}
         class={[
           "absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink",
-          @size == :sm && "-right-1 -bottom-1 size-3.5 text-[9px] ring-1",
-          @size == :md && "-right-1 -bottom-1 size-[18px] text-[11px] ring-2"
+          @size == :sm && "-right-1 -bottom-1 size-4 text-tag ring-1",
+          @size == :md && "-right-1 -bottom-1 size-[18px] text-tag ring-2"
         ]}
         data-role="chip-value"
       >
@@ -201,6 +201,13 @@ defmodule QuacksWeb.GameComponents do
     </span>
     """
   end
+
+  # Round 29 (B3): the pot's numbers in SVG units. On a phone the pot is at least
+  # 328 px wide (360 x 780), so 13 px (`--text-tag`, the floor) is 21.2 units.
+  @pot_tag Float.round(13 * 536 / 328, 1)
+
+  # A function, so the templates read it (an `@name` in HEEx is an assign).
+  defp pot_tag, do: @pot_tag
 
   @doc """
   One seat's 54-space pot track, drawn as the board's cauldron: an inline SVG with
@@ -385,7 +392,9 @@ defmodule QuacksWeb.GameComponents do
           <text
             dy="0.35em"
             text-anchor="middle"
-            font-size="17"
+            x="-3"
+            y="-4"
+            font-size={pot_tag()}
             font-weight="600"
             fill="var(--color-ink)"
             fill-opacity="0.75"
@@ -393,9 +402,9 @@ defmodule QuacksWeb.GameComponents do
           >
             {PotTrack.at(index).coins}
           </text>
-          <g :if={PotTrack.at(index).vp > 0} transform="translate(14 14)" data-role="vp-tag">
+          <g :if={PotTrack.at(index).vp > 0} transform="translate(13 13)" data-role="vp-tag">
             <circle
-              r="9"
+              r="12.5"
               fill={"url(#vp-gold-#{@seat})"}
               stroke="#7a5a10"
               stroke-width="1"
@@ -403,7 +412,7 @@ defmodule QuacksWeb.GameComponents do
             <text
               dy="0.35em"
               text-anchor="middle"
-              font-size="12"
+              font-size={pot_tag()}
               font-weight="700"
               fill="#3a2508"
             >
@@ -415,10 +424,10 @@ defmodule QuacksWeb.GameComponents do
           <.piece_icon
             :if={PotTrack.at(index).ruby?}
             name={:ruby}
-            x="-21.5"
-            y="6.5"
-            width="15"
-            height="15"
+            x="-23"
+            y="5"
+            width="17"
+            height="17"
             class="text-ruby"
             style="filter: drop-shadow(0 0 1px #4a0d0a)"
           />
@@ -527,15 +536,21 @@ defmodule QuacksWeb.GameComponents do
           />
           <g :if={fx.kind == :vp} transform="translate(0 -26)">
             <rect
-              x="-27"
-              y="-11"
-              width="54"
-              height="22"
-              rx="11"
+              x="-36"
+              y="-14"
+              width="72"
+              height="28"
+              rx="14"
               fill="var(--color-gold)"
               stroke="#7a5a10"
             />
-            <text dy="0.35em" text-anchor="middle" font-size="14" font-weight="700" fill="#3a2508">
+            <text
+              dy="0.35em"
+              text-anchor="middle"
+              font-size={pot_tag()}
+              font-weight="700"
+              fill="#3a2508"
+            >
               {fx.text}
             </text>
           </g>
@@ -887,7 +902,7 @@ defmodule QuacksWeb.GameComponents do
         data-vp={rat.vp}
       >
         <.piece_icon name={:rat} class="size-3" />
-        <span class="absolute top-full text-[9px] leading-none font-semibold tabular-nums">
+        <span class="absolute top-full text-tag leading-none font-semibold tabular-nums">
           {rat.vp}
         </span>
       </span>
@@ -913,7 +928,7 @@ defmodule QuacksWeb.GameComponents do
       <span
         :for={l <- @vp_labels}
         class={[
-          "absolute top-3.5 -translate-x-1/2 text-[10px] leading-none font-bold tabular-nums transition-[left] duration-500 ease-out motion-reduce:transition-none",
+          "absolute top-3.5 -translate-x-1/2 text-tag leading-none font-bold tabular-nums transition-[left] duration-500 ease-out motion-reduce:transition-none",
           if(l.below, do: "translate-y-[0.4rem]", else: "-translate-y-[calc(100%+0.4rem)]"),
           if(l.leader, do: "text-parchment-light", else: "text-parchment")
         ]}
@@ -961,7 +976,7 @@ defmodule QuacksWeb.GameComponents do
     {colour, value} = assigns.chip
     icon = if colour in @ink_icon_chips, do: "text-ink", else: "text-white"
     # The other players' pots are drawn small: a bigger badge keeps the value legible.
-    badge = if assigns.size == :lg, do: {9, 9, 10.5, 16}, else: {8, 8, 12.5, 20}
+    badge = if assigns.size == :lg, do: {9, 9, 12.5, @pot_tag}, else: {8, 8, 12.5, 20}
     assigns = assign(assigns, colour: colour, value: value, icon: icon, badge: badge)
 
     ~H"""
@@ -1356,7 +1371,7 @@ defmodule QuacksWeb.GameComponents do
       </div>
       <div>
         <dt class="sr-only">Phase</dt>
-        <dd class="block max-w-[7.5rem] truncate rounded-full bg-parchment/15 px-2 py-0.5 font-semibold max-sm:text-xs sm:max-w-none">
+        <dd class="block max-w-[7.5rem] truncate rounded-full bg-parchment/15 px-2 py-0.5 font-semibold max-sm:text-tag sm:max-w-none">
           {round_phase_name(@game, Game.phase(@game, @seat))}
         </dd>
       </div>
@@ -1415,7 +1430,7 @@ defmodule QuacksWeb.GameComponents do
           />
           <span class="sr-only">Flask</span>
         </dt>
-        <dd class="text-xs font-semibold text-ink-soft" data-role="flask-state">
+        <dd class="text-tag font-semibold text-ink-soft" data-role="flask-state">
           {flask_word(@me.flask)}
         </dd>
       </div>
@@ -1585,7 +1600,7 @@ defmodule QuacksWeb.GameComponents do
 
   defp stat_label(assigns) do
     ~H"""
-    <dt class="flex items-center gap-1 text-xs leading-tight text-ink-soft">
+    <dt class="flex items-center gap-1 text-tag leading-tight text-ink-soft">
       <.piece_icon
         :if={@icon}
         name={@icon}
@@ -1709,7 +1724,7 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <span
       class={[
-        "inline-flex items-center rounded px-1 text-[10px] leading-4 font-bold uppercase tracking-wide",
+        "inline-flex items-center rounded px-1 text-tag leading-4 font-bold uppercase tracking-wide",
         @class
       ]}
       title="bot"
@@ -1815,11 +1830,11 @@ defmodule QuacksWeb.GameComponents do
       <%!-- Round 28: no name text (the initial in the disc; the name is the
            tile's aria-label and title). Top line: the disc, the die faces this
            round (tiles mode), the pot space and the VP, large. --%>
-      <span class="flex w-full min-w-0 items-center gap-1" data-role="tile-top">
+      <span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
         <span class="relative shrink-0">
           <span
             class={[
-              "grid size-[18px] place-items-center rounded-full text-[11px] leading-none font-extrabold text-ink ring-1 ring-black/40",
+              "grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40",
               @bg
             ]}
             aria-hidden="true"
@@ -1865,9 +1880,10 @@ defmodule QuacksWeb.GameComponents do
            `.tile-line`); a new `news.key` plays the swap again. --%>
       <span
         id={"tile-line-#{@seat}" <> if(@news, do: "-" <> @news.key, else: "")}
-        class="tile-line relative h-4 w-full min-w-0"
+        class="tile-line relative h-[18px] w-full min-w-0"
         data-role="tile-line"
         data-news={@news && "true"}
+        data-hold={@news && @news[:hold] && "true"}
       >
         <.chip_stats
           game={@game}
@@ -1878,7 +1894,7 @@ defmodule QuacksWeb.GameComponents do
         />
         <span
           :if={@news}
-          class="tile-news absolute inset-0 flex items-center gap-1 overflow-hidden text-[12px] leading-4 font-bold whitespace-nowrap tabular-nums"
+          class="tile-news absolute inset-0 flex items-center gap-1 overflow-hidden text-tag font-bold whitespace-nowrap tabular-nums"
           data-role="tile-news"
         >
           <QuacksWeb.TileRevealComponents.tile_news items={@news.items} />
@@ -2001,11 +2017,12 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <span
-      class="flex min-w-0 flex-1 items-center justify-between gap-1 font-hand leading-none font-bold tabular-nums"
+      class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums"
       data-role="player-score"
     >
       <b
-        class="text-xl leading-none text-parchment-light"
+        id={"tile-space-#{@seat}-#{@index}"}
+        class="tile-space text-num leading-none text-parchment-light"
         title="Pot space (coins)"
         data-role="player-space"
         data-index={@index}
@@ -2013,7 +2030,10 @@ defmodule QuacksWeb.GameComponents do
         {PotTrack.at(@index).coins}<span class="sr-only"> pot space</span>
       </b>
       <span
-        class="flex items-center gap-px text-xl leading-none text-gold"
+        class={[
+          "flex items-center gap-px text-num leading-none tracking-tight text-gold",
+          @p.vp >= 100 && "max-sm:text-label"
+        ]}
         title="VP"
         data-role="player-vp"
       >
@@ -2061,7 +2081,7 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <span
-      class="tile-totals flex h-4 w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-[11px] leading-4 font-semibold tabular-nums"
+      class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums"
       data-role="player-stats"
     >
       <span class="flex items-center gap-px" title="Rubies" data-role="player-rubies">
