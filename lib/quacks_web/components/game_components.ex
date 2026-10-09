@@ -1504,16 +1504,25 @@ defmodule QuacksWeb.GameComponents do
       <span class="flex items-center gap-2" data-role="next-reward">
         <span class="sr-only">Reward:</span>
         <span :if={!@final?} class="flex items-center gap-0.5" data-role="reward-coins">
-          <.piece_icon name={:coin} class="size-5 text-gold" />{@space.coins}
+          <.piece_icon name={:coin} class="size-5 text-gold" /><span class="min-w-[2ch] text-left">{@space.coins}</span>
           <span class="sr-only">
             {plural(@space.coins, "coin", "coins")}
           </span>
         </span>
         <span class="flex items-center gap-0.5 text-gold" data-role="reward-vp">
-          <.piece_icon name={:vp} class="size-5" />{@space.vp}<span class="sr-only"> VP</span>
+          <.piece_icon name={:vp} class="size-5" /><span class="min-w-[2ch] text-left">{@space.vp}</span><span class="sr-only"> VP</span>
         </span>
-        <span :if={@space.ruby?} class="flex items-center" data-role="reward-ruby">
-          <.piece_icon name={:ruby} class="size-5 text-ruby-light" /><span class="sr-only">ruby</span>
+        <%!-- Round 30: the ruby's slot is always there, dim when the space pays none,
+             so nothing moves when a ruby comes up. --%>
+        <span
+          class={["flex items-center", !@space.ruby? && "opacity-25 grayscale"]}
+          data-role="reward-ruby"
+          data-ruby={to_string(@space.ruby?)}
+        >
+          <.piece_icon name={:ruby} class="size-5 text-ruby-light" /><span
+            :if={@space.ruby?}
+            class="sr-only"
+          >ruby</span>
         </span>
       </span>
       <span
@@ -1527,9 +1536,9 @@ defmodule QuacksWeb.GameComponents do
         <.piece_icon name={:explosion} class="size-5 text-chip-orange" />
         <span class="sr-only">Explode:</span>
         <%= if @risk == :chips do %>
-          {@bad}/{@bag}
+          <span class="min-w-[5ch] text-left">{@bad}/{@bag}</span>
         <% else %>
-          {@explode}%
+          <span class="min-w-[4.5ch] text-left">{@explode}%</span>
         <% end %>
       </span>
     </p>
@@ -1611,7 +1620,7 @@ defmodule QuacksWeb.GameComponents do
       </dt>
       <dd
         id={@id}
-        class="stat-tick min-w-[2ch] text-center font-hand text-num leading-none font-bold tabular-nums"
+        class="stat-tick min-w-[1.2em] text-center font-hand text-num leading-none font-bold tabular-nums"
         style={"--n: #{@value}" <> beat_style(@beat, @from)}
         data-beat={@beat}
         data-from={@from}
@@ -2000,7 +2009,7 @@ defmodule QuacksWeb.GameComponents do
     >
       <b
         id={"tile-space-#{@seat}-#{@index}"}
-        class="tile-space text-num leading-none text-parchment-light"
+        class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light"
         title="Pot space (coins)"
         data-role="player-space"
         data-index={@index}
@@ -2015,7 +2024,10 @@ defmodule QuacksWeb.GameComponents do
         title="VP"
         data-role="player-vp"
       >
-        <.piece_icon name={:vp} class="size-3 shrink-0 text-gold" /><.card_count
+        <.piece_icon name={:vp} class="size-3 shrink-0 text-gold" /><span
+          class="min-w-[1.2em] text-right"
+          data-role="vp-number"
+        ><.card_count
           :if={!@totals}
           value={@p.vp}
           tick={@ticks && @ticks[:vp]}
@@ -2024,7 +2036,7 @@ defmodule QuacksWeb.GameComponents do
           id={"tile-vp-#{@seat}-#{@totals.vp}"}
           class="tile-count"
           style={"--n: #{@totals.vp}; --from: #{@totals.vp_from}"}
-        ><span class="sr-only">{@totals.vp}</span></span>
+        ><span class="sr-only">{@totals.vp}</span></span></span>
         <span class="sr-only">VP</span>
       </span>
     </span>

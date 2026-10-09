@@ -9,7 +9,9 @@ defmodule QuacksWeb.Round30BarTest do
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
 
-  alias Quacks.GameServer
+  alias Quacks.{Game, GameServer}
+  alias Quacks.Rules.PotTrack
+  alias QuacksWeb.GameComponents
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -61,6 +63,51 @@ defmodule QuacksWeb.Round30BarTest do
       render_hook(view, "hotkey", %{"key" => "Enter", "typing" => false})
       refute has_element?(view, "#card-continue")
       refute has_element?(view, "[data-role=action-bar].hidden")
+    end
+  end
+
+  describe "the reward row keeps its slots" do
+    # A game whose scoring space pays a ruby, or not, by moving the droplet.
+    defp game_with_ruby(ruby?) do
+      g = Game.new(seed: {1, 2, 3}, fortune: false)
+
+      Enum.find_value(0..20, fn d ->
+        g = Quacks.GameHelpers.put(g, pot_index: d)
+        if PotTrack.at(Game.scoring_index(g, 0)).ruby? == ruby?, do: g
+      end)
+    end
+
+    test "the ruby slot is always there: dim without a ruby, lit with one" do
+      without = render_component(&GameComponents.reward_line/1, game: game_with_ruby(false))
+      with = render_component(&GameComponents.reward_line/1, game: game_with_ruby(true))
+
+      assert without =~ ~r/data-role="reward-ruby" data-ruby="false"/
+      assert without =~ "opacity-25"
+      refute without =~ ">ruby<"
+      assert with =~ ~r/data-role="reward-ruby" data-ruby="true"/
+      assert with =~ ">ruby<"
+    end
+
+    test "the numbers have fixed widths" do
+      html = render_component(&GameComponents.reward_line/1, game: game_with_ruby(false))
+      assert html =~ "tabular-nums"
+      assert html =~ ~s(<span class="min-w-[2ch] text-left">)
+      assert html =~ ~s(class="min-w-[4.5ch] text-left")
+
+      chips =
+        render_component(&GameComponents.reward_line/1, game: game_with_ruby(false), risk: :chips)
+
+      assert chips =~ ~s(class="min-w-[5ch] text-left")
+    end
+
+    test "the tile's pot space and VP and the ruby badge reserve two digits" do
+      g = game_with_ruby(false)
+      tile = render_component(&GameComponents.player_chip/1, game: g, seat: 0, name: "A")
+      assert tile =~ ~r/class="tile-space min-w-\[1.2em\]/
+      assert tile =~ ~r/class="min-w-\[1.2em\] text-right"\s+data-role="vp-number"/
+
+      badge = render_component(&GameComponents.ruby_badge/1, rubies: 3)
+      assert badge =~ "min-w-[1.2em]"
     end
   end
 end
