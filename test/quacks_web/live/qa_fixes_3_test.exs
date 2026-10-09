@@ -266,9 +266,11 @@ defmodule QuacksWeb.QaFixes3Test do
     end
 
     test "V2/V3: the state badge sits beside the initial; a bot is an icon on phones" do
-      {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, id} = GameServer.start(3, {1, 2, 3}, %{}, %{fortune: false})
       alice = token("alice")
       view = open(browser(alice), id)
+      # Round 36: a second human still brews, so the bot has not brewed yet.
+      {:ok, 1} = GameServer.claim_seat(id, "bob")
       {:ok, _} = GameServer.add_bot(id, alice)
       view |> element("button", "Start game") |> render_click()
 

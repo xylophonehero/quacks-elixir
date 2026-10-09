@@ -65,10 +65,14 @@ defmodule Quacks.DebugReplayTest do
     refute_receive {:game, ^id, _}, 50
     {:ok, %{game: ^after_draw}} = GameServer.get(id)
 
+    # Unfrozen, the bot brews in one go once the human stops (round 36).
     :ok = GameServer.set_frozen(id, false)
     assert_receive {:game, ^id, _}
+    {:ok, _} = GameServer.apply(id, 0, :stop)
     assert_receive {:game, ^id, %Game{} = game}, 500
-    assert length(game.log) > length(after_draw.log)
+
+    assert Enum.count(game.log, &match?({1, :draw}, &1)) >
+             Enum.count(after_draw.log, &match?({1, :draw}, &1))
   end
 
   test "a normal table is not a debug table; a bad bundle is refused" do
