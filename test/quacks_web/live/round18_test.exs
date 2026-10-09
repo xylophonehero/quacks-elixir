@@ -127,8 +127,8 @@ defmodule QuacksWeb.Round18Test do
       {_id, view} = solo_shop(droplet_moves: 1)
 
       assert has_element?(view, "#reveal-slide-0")
-      assert has_element?(view, "dialog#decision-droplet_choice")
-      refute has_element?(view, "dialog#decision-droplet_choice[phx-mounted*='quacks:modal']")
+      # Round 33: the choice is in the bar (no dialog), under the reveal.
+      refute has_element?(view, "dialog#decision-droplet_choice")
 
       view |> element("#reveal-skip") |> render_click()
       assert has_element?(view, "[data-role=reveal-slide][data-kind=standings]")
@@ -136,7 +136,7 @@ defmodule QuacksWeb.Round18Test do
       view |> element("#reveal-next") |> render_click()
 
       refute has_element?(view, "[data-role=reveal]")
-      assert_push_event(view, "quacks:open", %{to: "#decision-droplet_choice"})
+      assert has_element?(view, "#bar-droplet button[data-choice=tube]")
     end
   end
 

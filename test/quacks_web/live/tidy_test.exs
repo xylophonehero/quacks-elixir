@@ -92,11 +92,11 @@ defmodule QuacksWeb.TidyTest do
     alice |> element("button", "Start game") |> render_click()
     replace_game(id, &H.put(&1, 0, droplet_moves: 1))
 
-    assert has_element?(alice, "dialog#decision-droplet_choice")
-    refute has_element?(alice, "dialog#decision-droplet_choice[phx-mounted*='quacks:modal']")
+    # Round 33: the droplet choice is in the bar; it waits for the card too.
+    refute has_element?(alice, "dialog#decision-droplet_choice")
     assert has_element?(alice, "#pot-card-1 [data-role=card-caption]")
     alice |> element("#card-tap") |> render_click()
-    assert_push_event(alice, "quacks:open", %{to: "#decision-droplet_choice"})
+    assert has_element?(alice, "#bar-droplet button[data-choice=pot]")
   end
 
   test "G6: the card tile is small on phones" do

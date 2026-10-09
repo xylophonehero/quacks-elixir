@@ -59,14 +59,16 @@ defmodule QuacksWeb.PotReverseLiveTest do
     {id, view} = solo_back()
     replace_game(id, &H.put(&1, droplet_moves: 1))
 
-    assert has_element?(view, "dialog#decision-droplet_choice [data-role=droplet-choice]")
-    assert has_element?(view, "#decision-droplet_choice button", "Pot droplet +1")
+    # Round 33: no sheet: the info row and two buttons in the bar.
+    refute has_element?(view, "dialog#decision-droplet_choice")
+    assert has_element?(view, "#bar-droplet [data-role=info-row]", "A free move")
+    assert has_element?(view, "#bar-droplet button[aria-label='Pot droplet +1']", "Pot droplet")
 
     view
-    |> element("#decision-droplet_choice button", "Test tube (bonus: 1 ruby)")
+    |> element("#bar-droplet button[aria-label='Test tube (bonus: 1 ruby)']", "Bonus: 1 ruby")
     |> render_click()
 
-    refute has_element?(view, "#decision-droplet_choice")
+    refute has_element?(view, "#bar-droplet")
     assert has_element?(view, ~s(svg[data-role=test-tubes][data-tube="1"]))
     assert has_element?(view, ~s([data-role=glass][data-filled="true"]))
     assert {:ok, %{game: game}} = GameServer.get(id)

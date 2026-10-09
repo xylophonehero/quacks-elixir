@@ -233,7 +233,7 @@ defmodule QuacksWeb.Round11Test do
 
       assert has_element?(
                view,
-               "[data-role=droplet-choice] [data-role=droplet-sources] [data-role=droplet-cause][aria-label='black 1']"
+               "#bar-droplet [data-role=info-row] [data-role=droplet-cause][aria-label='black 1']"
              )
     end
   end
