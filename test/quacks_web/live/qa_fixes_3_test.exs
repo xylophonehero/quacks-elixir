@@ -179,7 +179,9 @@ defmodule QuacksWeb.QaFixes3Test do
              "[data-role=side-column] > [data-role=results-panel].lg\\:block [data-role=result-row][data-kind=die] [data-role=die]"
            )
 
-    assert has_element?(view, ".game-tray [data-role=replay-die].lg\\:hidden")
+    # Round 33: phones show it in the bar's info row, not in the tray.
+    assert has_element?(view, "footer #info-die.lg\\:hidden [data-role=replay-die]")
+    refute has_element?(view, ".game-tray [data-role=replay-die]")
     refute has_element?(view, "[data-role=replay-die-corner]")
 
     assert view

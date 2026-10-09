@@ -1597,11 +1597,19 @@ defmodule QuacksWeb.GameLive do
                 <.icon name="hero-arrow-uturn-left" class="size-4" /> Forget a chip
               </.sheet_button>
             </section>
-            <%!-- Phones: the bonus die (from 64rem it rolls in the results panel). --%>
+          </div>
+          <%!-- Phones: the bonus die (from 64rem it rolls in the results panel).
+               Round 33: in the info row over the step bar, no overlay over the
+               test tubes. --%>
+          <div
+            :if={replaying?(@game, @seen) and die_step?(@reveal)}
+            id="info-die"
+            class="flex flex-col gap-1 lg:hidden"
+            data-role="info-row"
+          >
             <.replay_die
-              :if={replaying?(@game, @seen) and die_step?(@reveal)}
               lines={replay_die_lines(@game, @seat)}
-              class="flex shadow-lg lg:hidden"
+              class="flex min-h-9 bg-iron-dark/90 shadow-lg"
             />
           </div>
           <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
