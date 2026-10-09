@@ -117,6 +117,10 @@ defmodule QuacksWeb.GameLive do
   # tests set it long and send the tick themselves).
   @settle_ms Application.compile_env(:quacks, :reveal_settle_ms, 300)
 
+  # A paid droplet move or flask refill shows on the pot this long before the round
+  # ends by itself (round 32, `done_after/2`; 0 in the tests: at once).
+  @show_move_ms Application.compile_env(:quacks, :show_move_ms, 800)
+
   @doc "Join game `id`: take a free seat, or watch when the game is full."
   @impl true
   def mount(%{"id" => id}, session, socket) do
@@ -623,6 +627,8 @@ defmodule QuacksWeb.GameLive do
   def handle_info({:play_again, _id, new_id}, socket),
     do: {:noreply, push_navigate(socket, to: ~p"/g/#{new_id}")}
 
+  def handle_info(:auto_done, socket), do: {:noreply, auto_done(socket, true)}
+
   def handle_info(:uncopied, socket), do: {:noreply, assign(socket, copied: false)}
 
   # Auto mode: the slide's time is up (a stale tick, from a slide left before, is
@@ -790,7 +796,7 @@ defmodule QuacksWeb.GameLive do
     case GameServer.apply(socket.assigns.id, seat, action) do
       {:ok, game} ->
         {:noreply,
-         socket |> put_game(game) |> close_card_reveal(action) |> auto_done(shop_move?(action))}
+         socket |> put_game(game) |> close_card_reveal(action) |> done_after(action)}
 
       {:error, {:illegal_action, action, _phase}} ->
         {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
@@ -3832,6 +3838,17 @@ defmodule QuacksWeb.GameLive do
   end
 
   defp auto_done(socket, _acted?), do: socket
+
+  # Round 32: rubies paid for the droplet or the flask end the round only after the
+  # pot showed the move (`PotMotion` hop, 520 ms; flask fill, 700 ms), so the next
+  # round's card does not cover it.
+  defp done_after(%{assigns: %{skip_rubies: true}} = socket, {:rubies, what})
+       when what in [:droplet, :flask] and @show_move_ms > 0 do
+    Process.send_after(self(), :auto_done, @show_move_ms)
+    socket
+  end
+
+  defp done_after(socket, action), do: auto_done(socket, shop_move?(action))
 
   defp shop_move?({kind, _what}), do: kind in [:buy, :rubies]
   defp shop_move?(_action), do: false

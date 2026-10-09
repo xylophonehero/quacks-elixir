@@ -61,4 +61,33 @@ defmodule QuacksWeb.Round32MotionTest do
       refute has_element?(alice, "#keep-white")
     end
   end
+
+  describe "item 2: the droplet move marker" do
+    test "rubies paid for the droplet mark it for PotMotion's hop" do
+      {id, alice, _bob} = duo()
+      replace_game(id, &H.put(&1, 0, phase: :rubies, rubies: 4))
+      render_click(alice, "seen", %{"kind" => "results", "round" => 1})
+      refute has_element?(alice, "#droplet-0-lg[data-hop]")
+
+      alice |> element("#bar-rubies button[data-ruby=droplet]") |> render_click()
+      assert has_element?(alice, "#droplet-0-lg[data-hop=rubies][data-index='1']")
+    end
+
+    test "the last ruby spend on the droplet still ends the round, with the marker" do
+      {id, alice, _bob} = duo()
+      replace_game(id, &H.put(&1, 0, phase: :rubies, rubies: 2))
+      render_click(alice, "seen", %{"kind" => "results", "round" => 1})
+
+      alice |> element("#bar-rubies button[data-ruby=droplet]") |> render_click()
+      {:ok, %{game: game}} = GameServer.get(id)
+      assert game.players[0].droplet == 1
+      assert {0, :end_round} in game.log
+    end
+
+    test "the flask brew sits in a clip group, so the hook can raise it" do
+      {id, alice, _bob} = duo()
+      replace_game(id, &H.put(&1, 0, flask: true))
+      assert has_element?(alice, "[data-role=flask] g[clip-path] > [data-role=flask-brew]")
+    end
+  end
 end

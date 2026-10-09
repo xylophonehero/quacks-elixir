@@ -155,6 +155,10 @@ const PotMotion = {
       this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
     else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0])
     else if (added.length <= 2) added.forEach(c => this.land(c))
+    this.hop(this.el.querySelector("[data-role=droplet]"))
+    const brew = this.el.querySelector("[data-role=flask-brew]")
+    if (brew && !this.full && !reduced())
+      brew.animate([{transform: "translateY(34px)"}, {transform: "none"}], {duration: 700, easing: easing("--ease-out")})
     this.snapshot()
     this.flights()
   },
@@ -195,7 +199,17 @@ const PotMotion = {
         {duration: 240, delay: 200 + i * 60, fill: "backwards", easing: easing("--ease-out")})
     })
   },
+  // Round 32, rubies paid for the droplet (`data-hop`): it hops from its old space
+  // to the new one on a low arc, 520 ms, over the CSS slide. A refill fills the flask.
+  hop(d) {
+    if (reduced() || !d?.dataset.hop || d.dataset.index === this.drop) return
+    const a = this.pos(this.drop), b = this.pos(d.dataset.index)
+    d.animate([{translate: `${a.x}px ${a.y}px`},
+      {translate: `${(a.x + b.x) / 2}px ${(a.y + b.y) / 2 - 28}px`, scale: 1.3, offset: 0.5},
+      {translate: `${b.x}px ${b.y}px`}], {duration: 520, easing: easing("--ease-in-out")})
+  },
   snapshot() {
+    this.drop = this.el.querySelector("[data-role=droplet]")?.dataset.index
     this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
     this.full = !!this.el.querySelector("[data-role=flask-brew]")
     this.round = this.el.dataset.round
