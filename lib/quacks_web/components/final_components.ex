@@ -40,7 +40,7 @@ defmodule QuacksWeb.FinalComponents do
     ~H"""
     <section
       id="final-board"
-      class="final-board paper absolute inset-[3%] z-30 flex flex-col gap-1.5 overflow-hidden rounded-2xl p-3 text-ink shadow-2xl ring-1 ring-black/30"
+      class="final-board paper absolute inset-x-[3%] top-1/2 z-30 flex max-h-[96%] -translate-y-1/2 flex-col gap-1 overflow-hidden rounded-2xl p-2.5 text-ink shadow-2xl ring-1 ring-black/30"
       aria-label="Final scores"
       data-role="final-board"
     >
@@ -60,11 +60,11 @@ defmodule QuacksWeb.FinalComponents do
           <% end %>
         </h2>
       </header>
-      <ol class="flex min-h-0 flex-1 flex-col justify-center gap-1" data-role="final-rows">
+      <ol class="flex min-h-0 flex-col gap-0.5" data-role="final-rows">
         <li
           :for={{row, i} <- Enum.with_index(@rows)}
           class={[
-            "final-row flex min-h-7 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm",
+            "final-row flex min-h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm",
             if(row.place == 1, do: "bg-gold/30", else: "bg-parchment-deep/50"),
             row.seat == @seat && "ring-2 ring-gold"
           ]}
