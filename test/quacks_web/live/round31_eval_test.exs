@@ -1,7 +1,7 @@
 defmodule QuacksWeb.Round31EvalTest do
   @moduledoc """
   Round 31 (item 6): the evaluation on the tiles applies one update per step.
-  The scoring space plays as three steps (coins, VP, rubies), and a tile, the rat
+  Round 35: the scoring space is one step again. A tile, the rat
   track, the pot and the ruby counter show the values before a step until Next.
   """
   use QuacksWeb.ConnCase, async: true
@@ -65,7 +65,8 @@ defmodule QuacksWeb.Round31EvalTest do
     end)
   end
 
-  test "the scoring space splits into coins, VP and rubies steps, one update each" do
+  # Round 35 (item 4): the scoring space is one step again (coins, VP and ruby).
+  test "the scoring space is one step with its coins, VP and ruby" do
     space = %{
       kind: :space,
       rows: [
@@ -75,49 +76,33 @@ defmodule QuacksWeb.Round31EvalTest do
       gains: %{0 => {1, 1}, 1 => {0, 0}}
     }
 
-    assert [coins, vp, rubies] = TileReveal.slides([space])
-    assert {coins.part, vp.part, rubies.part} == {:coins, :vp, :rubies}
-    assert coins.gains == %{0 => {0, 0}, 1 => {0, 0}}
-    assert vp.gains == %{0 => {1, 0}, 1 => {0, 0}}
-    assert rubies.gains == %{0 => {0, 1}, 1 => {0, 0}}
-    assert TileReveal.badges(coins, 0) == [{:coins, 6}]
-    assert TileReveal.badges(vp, 0) == [{:vp, 1}]
-    assert TileReveal.badges(vp, 1) == []
-    assert TileReveal.badges(rubies, 0) == [{:rubies, 1}]
-
-    assert Enum.map([coins, vp, rubies], &TileReveal.label/1) == [
-             "Coins",
-             "Victory points",
-             "Rubies"
-           ]
-
-    # A part nobody gets has no step.
-    none = put_in(space, [:rows, Access.all(), :rubies], 0)
-    assert none |> List.wrap() |> TileReveal.slides() |> Enum.map(& &1.part) == [:coins, :vp]
+    assert [step] = TileReveal.slides([space])
+    assert step.gains == %{0 => {1, 1}, 1 => {0, 0}}
+    assert TileReveal.badges(step, 0) == [{:vp, 1}, {:rubies, 1}]
+    assert TileReveal.badges(step, 1) == []
+    assert TileReveal.label(step) == "Scoring space"
   end
 
-  test "a tile shows the VP before the VP step until Next, then the VP after it" do
+  # Round 35: the step the bar names is the step on show (it is scored).
+  test "a tile shows the VP before the space step until Next shows it" do
     {game, view} = duo_on_tiles()
     slides = game |> Reveal.slides(0) |> TileReveal.slides()
-    index = Enum.find_index(slides, &(&1[:part] == :vp))
-    assert index && index > 0, "a step before the VP step"
+    index = Enum.find_index(slides, &(&1.kind == :space))
+    assert index && index > 0, "a step before the space step"
 
-    {seat, {gain, 0}} =
+    {seat, {gain, _}} =
       Enum.find(slides |> Enum.at(index) |> Map.get(:gains), fn {_s, {v, _}} -> v > 0 end)
 
     {before, _} = TileReveal.totals(game, slides, index - 1)[seat]
 
-    # The bar names the VP step: it is not scored yet.
-    next_until(view, "Victory points")
+    # The step before the space step is on show: the space is not scored yet.
+    next_until(view, slides |> Enum.at(index - 1) |> TileReveal.label())
     assert has_element?(view, "#tile-vp-#{seat}-#{before}")
     refute has_element?(view, "#tile-vp-#{seat}-#{before + gain}")
-    # The pot plays the scored step's own update only: no VP tag yet.
-    refute has_element?(view, "[data-role=vp-float]")
-    refute has_element?(view, "#tile-stage [data-role=tile-step-icon] [data-book]")
 
-    # Next scores it.
+    # Next shows (and scores) it.
     view |> element("[data-role=tile-next]") |> render_click()
-    refute step_label(view) == "Victory points"
+    assert step_label(view) == "Scoring space"
     assert has_element?(view, "#tile-vp-#{seat}-#{before + gain}")
   end
 
@@ -212,25 +197,25 @@ defmodule QuacksWeb.Round31EvalTest do
     test "a book step shows its chip; the die and the space parts their pieces" do
       book = %{kind: :book, book: :purple, rows: []}
       die = %{kind: :die, rows: []}
-      vp = %{kind: :space, part: :vp, rows: []}
+      vp = %{kind: :space, rows: []}
       slides = [die, book, vp]
 
-      html = stage(slides, 1)
+      html = stage(slides, 2)
 
       assert q(html, "[data-role=tile-step-icon] [data-book=purple] [data-chip-icon=purple]")
              |> Enum.count() == 1
 
-      # The name stays for screen readers; "Step 2 of 3" stays small.
-      assert q(html, "[data-role=tile-step].sr-only") |> LazyHTML.text() =~ "Purple book"
+      # Round 35: the name shows; "Step 2 of 3" stays small.
+      assert q(html, "[data-role=tile-step]") |> LazyHTML.text() =~ "Purple book"
       assert LazyHTML.text(html) =~ "Step 2 of 3"
 
       assert q(
-               stage(slides, 0),
+               stage(slides, 1),
                "[data-role=tile-step-icon] [data-icon=die], [data-role=tile-step-icon] svg"
              )
              |> Enum.count() >= 1
 
-      assert q(stage(slides, 0), "[data-book]") |> Enum.count() == 0
+      assert q(stage(slides, 1), "[data-book]") |> Enum.count() == 0
     end
 
     test "once every step is scored the button closes, also in Auto" do

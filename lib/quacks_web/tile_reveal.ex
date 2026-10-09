@@ -18,10 +18,14 @@ defmodule QuacksWeb.TileReveal do
 
   # The overlay's slides the tiles play; the results table and the standings are
   # the tiles themselves.
-  @kinds [:die, :book, :space]
+  # Round 35: the standings slide too, as the last step ("Round scored").
+  @kinds [:die, :book, :space, :standings]
 
   # A step on the tiles lasts this many beats (`--beat-ms`, the Speed setting).
   @beats 5
+
+  # One roll of the bonus die in beats (app.css `--die-roll`).
+  @die_roll_beats 1.5556
 
   @type badge ::
           {:vp, pos_integer}
@@ -32,33 +36,91 @@ defmodule QuacksWeb.TileReveal do
           | {:book, atom}
 
   @doc """
-  The overlay's slides that the tiles play (the scoring steps). Round 31: one
-  update per step, so the scoring space plays as up to three steps (`part`): its
-  coins, its VP, its rubies. A part nobody gets has no step.
+  The overlay's slides that the tiles play (the scoring steps). Round 35: the
+  scoring space is one step again (its coins, VP and ruby in one row each).
   """
   @spec slides([Reveal.slide()]) :: [Reveal.slide()]
-  def slides(slides),
-    do: slides |> Enum.filter(&(&1.kind in @kinds)) |> Enum.flat_map(&split/1)
+  def slides(slides), do: Enum.filter(slides, &(&1.kind in @kinds))
 
-  defp split(%{kind: :space, rows: rows} = slide) do
-    [
-      part(slide, :coins, rows, &(&1.coins > 0), fn _row -> {0, 0} end),
-      part(slide, :vp, rows, &(&1.vp > 0), &{&1.vp, 0}),
-      part(slide, :rubies, rows, &(&1.rubies > 0), &{0, &1.rubies})
-    ]
-    |> Enum.reject(&is_nil/1)
+  # The evaluation's choice phases: the steps play on the tiles from then on.
+  @eval_phases [:chip_choice, :witch_choice]
+
+  @doc """
+  Round 35 (item 7): the steps to play now, from the round's result slides
+  (`Reveal.result_slides/1`). In the shop: `slides/1`. While the evaluation asks
+  its choices (`evaluating?/1`) the scoring space and "Round scored" are not
+  there yet, and a book whose choice a seat still makes has its step already
+  (no rows yet), in its place: die, black, green, purple, the other books.
+  """
+  @spec live(Game.t(), [Reveal.slide()]) :: [Reveal.slide()]
+  def live(game, slides) do
+    slides = slides(slides)
+
+    if evaluating?(game) do
+      slides = Enum.reject(slides, &(&1.kind in [:space, :standings]))
+      have = for %{kind: :book, book: c} <- slides, do: c
+
+      waiting =
+        for c <- [:green, :purple],
+            c not in have,
+            choosing(game, c) != [],
+            do: %{kind: :book, book: c, set: Map.get(game.sets, c, 1), rows: [], gains: %{}}
+
+      Enum.sort_by(slides ++ waiting, &rank/1)
+    else
+      slides
+    end
   end
 
-  defp split(slide), do: [slide]
+  @doc "Whether the evaluation still asks its choices (the shop has not opened)."
+  @spec evaluating?(Game.t()) :: boolean
+  def evaluating?(%Game{phase: phase}), do: phase in @eval_phases
 
-  defp part(slide, part, rows, pick, gain) do
-    if Enum.any?(rows, pick),
-      do: Map.merge(slide, %{part: part, gains: Map.new(rows, &{&1.seat, gain.(&1)})})
+  defp rank(%{kind: :die}), do: 0
+  defp rank(%{kind: :book, book: :black}), do: 1
+  defp rank(%{kind: :book, book: :green}), do: 2
+  defp rank(%{kind: :book, book: :purple}), do: 3
+  defp rank(%{kind: :book}), do: 4
+  defp rank(%{kind: :space}), do: 5
+  defp rank(_slide), do: 6
+
+  @doc "The seats that still choose in the book of `colour` (G2, G4, G5; P2, P4, P5)."
+  @spec choosing(Game.t(), atom) :: [Game.seat()]
+  def choosing(game, colour) do
+    for s <- game.seats,
+        p = Game.player(game, s),
+        p.phase == :chip_choice,
+        Enum.any?(p.chip_choices, &(choice_colour(&1) == colour)),
+        do: s
   end
 
-  @doc "How long a step stays on the tiles in Auto mode, in ms, at `speed`."
-  @spec duration(atom) :: pos_integer
-  def duration(speed), do: Reveal.beat_ms(speed) * @beats
+  @doc "The book colour of a chip actions' choice or `{:chip, choice}` action, or nil."
+  @spec choice_colour(term) :: atom | nil
+  def choice_colour({:chip, choice}), do: choice_colour(choice)
+
+  def choice_colour({kind, _}) when kind in [:gain, :ruby_move, :pay_ruby_move, :starter],
+    do: :green
+
+  def choice_colour({kind, _}) when kind in [:purple_trade, :purple_buy, :buy, :upgrade],
+    do: :purple
+
+  def choice_colour({:upgrade, _, _}), do: :purple
+  def choice_colour(_choice), do: nil
+
+  @doc """
+  How long a step stays on the tiles in Auto mode, in ms, at `speed`. Round 35:
+  the die step waits for its dice to roll (app.css `.stage-die`: one roll of
+  `--die-roll`, 1.5556 beats, after the other per seat) before its beats start.
+  """
+  @spec duration(atom, Reveal.slide() | nil) :: pos_integer
+  def duration(speed, slide \\ nil)
+
+  def duration(speed, %{kind: :die, rows: rows}) do
+    rolls = rows |> Enum.map(&length(Map.get(&1, :rolls, []))) |> Enum.max(fn -> 0 end)
+    duration(speed) + round(Reveal.beat_ms(speed) * @die_roll_beats * rolls)
+  end
+
+  def duration(speed, _slide), do: Reveal.beat_ms(speed) * @beats
 
   @doc """
   The step's name for the stage pill: "Bonus die", "Black book", "Ruby space", ...
@@ -66,10 +128,136 @@ defmodule QuacksWeb.TileReveal do
   @spec label(Reveal.slide()) :: String.t()
   def label(%{kind: :die}), do: "Bonus die"
   def label(%{kind: :book, book: colour}), do: "#{String.capitalize(to_string(colour))} book"
-  def label(%{kind: :space, part: :coins}), do: "Coins"
-  def label(%{kind: :space, part: :vp}), do: "Victory points"
-  def label(%{kind: :space, part: :rubies}), do: "Rubies"
   def label(%{kind: :space}), do: "Scoring space"
+  def label(%{kind: :standings}), do: "Round scored"
+
+  @typedoc """
+  One part of a results stage row (`stage_rows/2`): a reason or a result, drawn as
+  icons by `QuacksWeb.TileRevealComponents.results_stage/1`.
+  """
+  @type cell ::
+          {:count, non_neg_integer, atom}
+          | {:beats, [Game.seat()], :both | :some | :tie}
+          | {:chips, [Quacks.Rules.Chips.chip()]}
+          | {:text, String.t()}
+          | {:dice, [term]}
+          | {:chip, atom}
+          | {:vp | :rubies | :droplet | :coins, non_neg_integer}
+          | {:gain, integer}
+          | {:total, integer}
+          | {:rank, non_neg_integer}
+          | :choosing
+
+  @type stage_row :: %{
+          seat: Game.seat(),
+          why: [cell],
+          got: [cell],
+          none: boolean,
+          lead: boolean
+        }
+
+  @doc """
+  Round 35 (direction A): the results stage's rows for the step `slide`, one per
+  seat. The reason (`why`) and the result (`got`) are icons where possible. Seat
+  order; the "Round scored" step (`:standings`) sorts by rank, the leader first
+  (`lead`). A row with no result has `none: true` (it fades). `choosing` lists
+  the seats that still choose in this book (round 35 item 7): their result is
+  `:choosing`.
+  """
+  @spec stage_rows(Game.t(), Reveal.slide(), [Game.seat()]) :: [stage_row]
+  def stage_rows(game, slide, choosing \\ [])
+
+  # Equal VP share a place (and the lead).
+  def stage_rows(_game, %{kind: :standings, rows: rows}, _choosing) do
+    for r <- Enum.sort_by(rows, & &1.rank) do
+      place = Enum.count(rows, &(&1.vp > r.vp))
+
+      %{
+        seat: r.seat,
+        why: [{:rank, place}],
+        got: [{:gain, r.vp - r.from_vp}, {:total, r.vp}],
+        none: false,
+        lead: place == 0
+      }
+    end
+  end
+
+  def stage_rows(game, %{kind: :die, rows: rows}, _choosing) do
+    for s <- game.seats do
+      faces = rows |> row_of(s) |> Map.get(:rolls, []) |> Enum.map(& &1.face)
+
+      why =
+        cond do
+          faces != [] -> [{:text, "furthest"}]
+          Game.player(game, s).exploded? -> [{:text, "exploded"}]
+          true -> []
+        end
+
+      got = if faces == [], do: [], else: [{:dice, faces}]
+      %{seat: s, why: why, got: got, none: faces == [], lead: false}
+    end
+  end
+
+  def stage_rows(game, %{kind: :book, book: colour, rows: rows}, choosing) do
+    for s <- game.seats do
+      row = row_of(rows, s)
+      got = book_got(row, colour, s in choosing)
+      %{seat: s, why: book_why(row, colour), got: got, none: got == [], lead: false}
+    end
+  end
+
+  def stage_rows(game, %{kind: :space, rows: rows}, _choosing) do
+    for s <- game.seats do
+      row = row_of(rows, s)
+
+      got =
+        for {k, n} <- [coins: row[:coins], vp: row[:vp], rubies: row[:rubies]], n > 0, do: {k, n}
+
+      why = if row[:exploded], do: [{:text, "exploded"}], else: []
+      %{seat: s, why: why, got: got, none: got == [], lead: false}
+    end
+  end
+
+  def stage_rows(_game, _slide, _choosing), do: []
+
+  defp row_of(rows, seat), do: Enum.find(rows, %{}, &(&1.seat == seat))
+
+  # Black book I: the black count and whom it beats ("2 [black] > both").
+  defp book_why(%{chips: chips, compare: [_ | _] = targets, scored: scored}, :black) do
+    mine = length(chips)
+    beaten = for {t, n} <- targets, mine > n, do: t
+
+    beats =
+      cond do
+        beaten != [] and length(beaten) == length(targets) and length(targets) > 1 ->
+          [{:beats, beaten, :both}]
+
+        beaten != [] ->
+          [{:beats, beaten, :some}]
+
+        scored ->
+          [{:beats, Enum.map(targets, &elem(&1, 0)), :tie}]
+
+        true ->
+          []
+      end
+
+    [{:count, mine, :black} | beats]
+  end
+
+  defp book_why(%{chips: [_ | _] = chips}, _colour), do: [{:chips, chips}]
+  defp book_why(_row, _colour), do: []
+
+  defp book_got(_row, _colour, true), do: [:choosing]
+
+  defp book_got(%{scored: true} = row, colour, false) do
+    case rewards(row) do
+      [] -> [{:chip, colour}]
+      rewards -> rewards
+    end
+  end
+
+  defp book_got(_row, _colour, false), do: []
 
   @doc """
   What `seat` got in this step, as badges: the book's ingredient and its VP,
@@ -90,20 +278,16 @@ defmodule QuacksWeb.TileReveal do
     end
   end
 
-  def badges(%{kind: :space, rows: rows} = slide, seat) do
+  def badges(%{kind: :space, rows: rows}, seat) do
     case Enum.find(rows, &(&1.seat == seat)) do
       nil -> []
-      row -> space_badges(slide[:part], row)
+      row -> space_badges(row)
     end
   end
 
   def badges(_slide, _seat), do: []
 
-  defp space_badges(:coins, %{coins: n}) when n > 0, do: [{:coins, n}]
-  defp space_badges(:vp, %{vp: n}) when n > 0, do: [{:vp, n}]
-  defp space_badges(:rubies, %{rubies: n}) when n > 0, do: [{:rubies, n}]
-  defp space_badges(nil, row), do: row |> Map.put(:droplet, 0) |> rewards()
-  defp space_badges(_part, _row), do: []
+  defp space_badges(row), do: row |> Map.put(:droplet, 0) |> rewards()
 
   @doc """
   Round 31: the replay lines of `seat` (`Replay.beats/2`) that the step `slide`
@@ -120,19 +304,18 @@ defmodule QuacksWeb.TileReveal do
 
   defp step_line?(%{kind: :die}, line), do: line.kind == :die
   defp step_line?(%{kind: :book, book: colour}, line), do: Reveal.book_line?(line, colour)
-  defp step_line?(%{kind: :space, part: :vp}, line), do: line.kind == :space and line.vp > 0
-
-  defp step_line?(%{kind: :space, part: :rubies}, line),
-    do: line.kind == :space and line.rubies > 0
+  defp step_line?(%{kind: :space}, line), do: line.kind == :space
 
   defp step_line?(_slide, _line), do: false
 
   @doc """
   The pot marks the step lights up (`Replay.highlights/1` of `step_lines/3`); the
-  coins step lights the scoring space.
+  space step also lights the scoring space.
   """
   @spec marks(Game.t(), Game.seat(), Reveal.slide() | nil) :: %{Replay.mark() => integer}
-  def marks(_game, _seat, %{kind: :space, part: :coins}), do: %{ring: 0}
+  def marks(game, seat, %{kind: :space} = slide),
+    do: game |> step_lines(seat, slide) |> Replay.highlights() |> Map.put_new(:ring, 0)
+
   def marks(game, seat, slide), do: game |> step_lines(seat, slide) |> Replay.highlights()
 
   defp rewards(row) do
@@ -175,6 +358,11 @@ defmodule QuacksWeb.TileReveal do
       {s, max(Game.player(game, s).droplet - moves, 0)}
     end)
   end
+
+  @doc "The droplet moves the steps `slides` bring `seat` (die faces, book moves)."
+  @spec moves_in([Reveal.slide()], Game.seat()) :: non_neg_integer
+  def moves_in(slides, seat) when is_list(slides),
+    do: slides |> Enum.map(&droplet_moves(&1, seat)) |> Enum.sum()
 
   defp droplet_moves(%{kind: :die, rows: rows}, seat) do
     case Enum.find(rows, &(&1.seat == seat)) do

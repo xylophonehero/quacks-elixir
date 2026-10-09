@@ -624,12 +624,18 @@ defmodule Quacks.GameTest do
   end
 
   describe "the shop" do
-    test "the buy first, once; then the rubies and Done" do
+    # Round 35: the ruby uses are legal in the buy step too (the page asks for them
+    # before the round's last results step); Done only after the buy.
+    test "the buy first, once; the rubies before or after it; then Done" do
       g = put(new(), phase: :shop, coins: 8, rubies: 4, flask: false)
       actions = Game.legal_actions(g)
       assert {:buy, [{:green, 1}, {:orange, 1}]} in actions and {:buy, []} in actions
-      refute Enum.any?(actions, &(match?({:rubies, _}, &1) or &1 == :end_round))
-      assert {:error, _} = Game.apply(g, {:rubies, :flask})
+      assert {:rubies, :flask} in actions and {:rubies, :droplet} in actions
+      refute :end_round in actions
+
+      early = apply!(g, {:rubies, :flask})
+      assert me(early).flask and me(early).rubies == 2 and not me(early).bought?
+      assert {:buy, [{:orange, 1}]} in Game.legal_actions(early)
 
       g = apply!(g, {:buy, [{:orange, 1}]})
       assert me(g).bought? and Game.phase(g, 0) == :shop

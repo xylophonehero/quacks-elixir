@@ -72,9 +72,10 @@ defmodule Quacks.Game do
 
   @rounds 9
 
-  # Reverse pot side (round 18): in the evaluation's choice phases a seat's droplet
-  # moves wait; they come in the shop, after the round's results are logged.
-  @droplets_wait [:chip_choice, :witch_choice]
+  # Reverse pot side (round 18): in the gold witches' phase a seat's droplet moves
+  # wait; they come in the shop. Round 35: in the chip actions' choices they come
+  # first (rulebook §3.2 B: black, then green and purple; the die before them all).
+  @droplets_wait [:witch_choice]
   # Rulebook §4: yellow enters the shop in round 2, purple in round 3.
   @from_round %{yellow: 2, purple: 3}
   # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
@@ -538,8 +539,8 @@ defmodule Quacks.Game do
   def legal_actions(%__MODULE__{players: players}, seat) when not is_map_key(players, seat),
     do: []
 
-  # Reverse pot side: a waiting droplet move comes first, in any phase but the
-  # evaluation's choices (round 18: they wait for the shop, after the reveal).
+  # Reverse pot side: a waiting droplet move comes first, in any phase but the gold
+  # witches' (`@droplets_wait`).
   def legal_actions(%__MODULE__{phase: phase, players: players} = g, seat) when phase != :over do
     case players[seat] do
       %Player{droplet_moves: n} when n > 0 and phase not in @droplets_wait ->
@@ -593,9 +594,11 @@ defmodule Quacks.Game do
       else: []
   end
 
-  # Two steps: first the buy (once, not in round 9), then the rubies and "Done". The
-  # rubies come last, never before the buy (`{:buy, []}` buys nothing). A seat whose
-  # coins buy nothing starts at the rubies ("buy nothing" stays legal). Witches in both.
+  # Two steps: first the buy (once, not in round 9), then the rubies and "Done"
+  # (`{:buy, []}` buys nothing). A seat whose coins buy nothing starts at the rubies
+  # ("buy nothing" stays legal). Witches in both. Round 35: the ruby uses are legal
+  # in the buy step too (rulebook F after E, but coins and rubies do not pay for each
+  # other's step): the page asks for them before the round's last results step.
   defp phase_actions(%__MODULE__{phase: :shopping} = g, seat) do
     case player(g, seat) do
       %Player{phase: :shop} = p ->
@@ -606,7 +609,8 @@ defmodule Quacks.Game do
           do:
             Enum.map(buys, &{:buy, &1}) ++
               ruby_actions(g, p) ++ Witches.legal_actions(g, seat) ++ [:end_round],
-          else: Enum.map(buys, &{:buy, &1}) ++ Witches.legal_actions(g, seat)
+          else:
+            Enum.map(buys, &{:buy, &1}) ++ ruby_actions(g, p) ++ Witches.legal_actions(g, seat)
 
       %Player{phase: :ready} ->
         []
