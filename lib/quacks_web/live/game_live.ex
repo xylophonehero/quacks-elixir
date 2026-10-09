@@ -1143,7 +1143,6 @@ defmodule QuacksWeb.GameLive do
                What comes and goes here is absolute, so the square never changes. --%>
           <div class="pot-box flex min-h-0 flex-1 items-start justify-center lg:items-center">
             <div class="pot-square pot-hearth relative" data-role="pot-area">
-              <.tile_stage :if={tiles_playing?(@reveal)} reveal={@reveal} mode={@reveal_mode} />
               <.pot
                 game={@game}
                 seat={@seat || 0}
@@ -1584,8 +1583,10 @@ defmodule QuacksWeb.GameLive do
           </div>
           <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
                the update chips stay on the cards until then. --%>
+          <%!-- Round 29: the results' steps on the tiles take the bar's place. --%>
+          <.tile_stage :if={tiles_playing?(@reveal)} reveal={@reveal} mode={@reveal_mode} />
           <.button
-            :if={@skip_rubies}
+            :if={@skip_rubies && !tiles_playing?(@reveal)}
             variant={:primary}
             class="min-h-12 w-full text-base"
             phx-click="action"
@@ -1601,7 +1602,7 @@ defmodule QuacksWeb.GameLive do
                decision is a panel in the context column, and this shows only when
                that panel was closed. --%>
           <.button
-            :if={@decision && !@bar_choice}
+            :if={@decision && !@bar_choice && !tiles_playing?(@reveal)}
             variant={:primary}
             class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible lg:[body:has(dialog[open])_&]:hidden"
             data-role="decision-button"
@@ -1643,7 +1644,7 @@ defmodule QuacksWeb.GameLive do
                everyone shops (the shop has its own buttons). From 64rem Draw is the
                large button on top, Stop and the flask under it. --%>
           <.bar_choice
-            :if={@bar_choice && not Game.over?(@game)}
+            :if={@bar_choice && not Game.over?(@game) && !tiles_playing?(@reveal)}
             choice={@bar_choice}
             actions={@all_actions}
             game={@game}

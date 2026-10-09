@@ -180,4 +180,55 @@ defmodule QuacksWeb.Round29BarTest do
       refute has_element?(view, "#bar-rubies button[data-ruby=tube]")
     end
   end
+
+  describe "item 6: the evaluation steps in the bar" do
+    # Two seats brew to the shop: each stops (or answers what it must).
+    defp to_shop(id) do
+      Enum.find_value(1..120, fn _ ->
+        {:ok, %{game: game}} = GameServer.get(id)
+
+        if game.phase == :shopping do
+          true
+        else
+          seat = Enum.find(game.seats, &(Quacks.Game.legal_actions(game, &1) -- [:resume] != []))
+          actions = Quacks.Game.legal_actions(game, seat) -- [:resume]
+          pick = [:stop, :chip_done, {:explosion_choice, :vp}, :draw]
+          {:ok, _} = GameServer.apply(id, seat, Enum.find(pick, hd(actions), &(&1 in actions)))
+          nil
+        end
+      end)
+    end
+
+    test "the step's name, Skip and Next sit in the bar; no pill over the pot" do
+      {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, alice, _} = live(browser("alice-#{id}"), ~p"/g/#{id}")
+      {:ok, _bob, _} = live(browser("bob-#{id}"), ~p"/g/#{id}")
+      {:ok, _} = GameServer.begin(id, "alice-#{id}")
+      {:ok, _} = GameServer.apply(id, 0, :draw)
+      {:ok, _} = GameServer.apply(id, 1, :draw)
+      to_shop(id)
+
+      render_hook(alice, "reveal_settings", %{
+        "mode" => "step",
+        "speed" => "normal",
+        "phone" => true
+      })
+
+      assert has_element?(alice, "footer #tile-stage[data-kind] [data-role=tile-step]")
+      assert has_element?(alice, "footer #tile-stage", "Step 1 of")
+
+      assert has_element?(
+               alice,
+               "footer #tile-stage[class*='*:min-h-12'] button[data-role=tile-next]",
+               "Next"
+             )
+
+      assert has_element?(alice, "footer #tile-stage button[data-role=tile-skip]", "Skip")
+      refute has_element?(alice, "[data-role=pot-area] #tile-stage")
+      refute has_element?(alice, "[data-role=decision-button]")
+
+      alice |> element("[data-role=tile-skip]") |> render_click()
+      refute has_element?(alice, "#tile-stage")
+    end
+  end
 end
