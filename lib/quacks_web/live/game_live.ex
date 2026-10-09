@@ -1134,7 +1134,7 @@ defmodule QuacksWeb.GameLive do
               "-mx-2 grid gap-1 px-2 pt-1.5 pb-0.5",
               not replaying?(@game, @seen) && "replay-done"
             ]}
-            style={"grid-template-columns: repeat(#{loop_columns(length(@game.seats))}, minmax(0, 1fr))"}
+            style={"grid-template-columns: repeat(#{2 * loop_columns(length(@game.seats))}, minmax(0, 1fr))"}
             aria-label="Players"
             data-role="players-row"
             data-columns={loop_columns(length(@game.seats))}
@@ -1149,6 +1149,7 @@ defmodule QuacksWeb.GameLive do
               lead={seat in round_leaders(@game)}
               row={row}
               col={col}
+              start={loop_start(length(@game.seats), row, col)}
               updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
               ticks={replaying?(@game, @seen) and not tiles_playing?(@reveal)}
               totals={tiles_playing?(@reveal) && tile_totals(@game, @reveal)[seat]}
