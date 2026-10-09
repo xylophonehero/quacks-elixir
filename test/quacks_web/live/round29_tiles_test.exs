@@ -156,12 +156,17 @@ defmodule QuacksWeb.Round29TilesTest do
       # The pot is at least 328 px wide on a phone: 13 px is 13 * 536 / 328 units.
       floor = 13 * 536 / 328 - 0.1
 
+      doc = LazyHTML.from_fragment(html)
+      vp_tags = doc |> LazyHTML.query("[data-role=vp-tag] text") |> Enum.count()
+
+      # Round 31: the VP crown's number is 13 units on purpose (Nick: smaller VP, the
+      # space number is the hero), so it is the one text under the floor.
       sizes =
-        html
-        |> LazyHTML.from_fragment()
+        doc
         |> LazyHTML.query("text[font-size]")
         |> LazyHTML.attribute("font-size")
         |> Enum.map(&elem(Float.parse(&1), 0))
+        |> Kernel.--(List.duplicate(13.0, vp_tags))
 
       assert sizes != []
       assert Enum.all?(sizes, &(&1 >= floor)), inspect(Enum.uniq(sizes))

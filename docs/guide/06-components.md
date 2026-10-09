@@ -1262,7 +1262,17 @@ the space), and an exploded tile shakes once (`.tile-boom`).
 labels on the game screen use them, never less than `text-tag`; where space is
 tight, drop the label and keep the icon and the number. The pot SVG has its own
 units: `@pot_tag` is 13 px at the smallest phone pot (328 px wide), so the
-coins, the VP seals and the chip values are at least 13 px there.
+chip values are at least 13 px there.
+
+**The board numbers (round 31).** The space number is the hero: 24 units (about
+15 px on a 360 px phone), in the body font (`font-sans`, not Kalam) with
+`lining-nums tabular-nums`, centred with `text-anchor="middle"` and
+`dominant-baseline="central"` and no hand offsets (`data-role=space-number`).
+The VP is a small purple tag with a crown over the number (`vp_crown/1`,
+`data-role=vp-tag`), not a gold seal: gold is only for coins. `rim/2` puts the tag
+radially outward of the number and the ruby radially inward, each just clear of
+it (both marks taken as ellipses). The tag's number is 13 units, about 8 px: the
+one text under the floor, chosen so the tag does not crowd the space number.
 
 **Every VP on the rat track.** Each dot has its VP: one number for seats in a
 step with the same VP, the numbers of a step alternating above and below the line
@@ -1325,8 +1335,10 @@ bar) never moves:
   `min-w-[2ch]` (coins, VP), `[4.5ch]` (percent), `[5ch]` ("3/14"). The reward row
   always has the ruby slot (`data-ruby`, `opacity-25 grayscale` when the space
   pays none). The rat track's numbers are absolute: they move no layout.
-- **One explosion icon** (`explosion_icon/1`: the `:explosion` piece icon,
-  `text-ruby`) is the bar's risk and an exploded tile's badge.
+- **One explosion icon** (`explosion_icon/1`: the `:explosion` piece icon) is the
+  bar's risk and an exploded tile's badge. Round 31: it is our own 💥-shaped burst
+  (`boom.svg`, three layered paths in red, orange and yellow from fixed radii), so
+  its colours are in the file, not `currentColor`.
 
 ### `PotMotion`: animate on top of the patch
 
