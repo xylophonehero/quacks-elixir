@@ -2231,7 +2231,7 @@ defmodule QuacksWeb.GameComponents do
   end
 
   # The status graphic (see `seat_state/2`): a steam wisp while brewing, a lid once
-  # stopped, a burst after an explosion, three dots while choosing, a tick when
+  # stopped, the 💥 explosion icon after an explosion, three dots while choosing, a tick when
   # ready. No word on screen: the word is for screen readers only. Everyone shops at
   # once, so the shop shows nothing. On a tile (`tile`, round 27, design B): nothing
   # while brewing, a check once stopped and the red explosion icon (round 30: the
@@ -2270,8 +2270,18 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, state: seat_state(assigns.game, assigns.seat))
 
     ~H"""
+    <%!-- Round 31: an explosion is the 💥 burst here too, not a star in a dot. --%>
     <span
-      :if={@state && @state not in ["shopping"]}
+      :if={@state == "exploded"}
+      class={["grid size-3.5 shrink-0 place-items-center sm:size-4", @class]}
+      title={@state}
+      data-role="player-state"
+      data-state={@state}
+    >
+      <.explosion_icon class="size-full drop-shadow-[0_0_1px_rgb(0_0_0/0.9)]" />
+    </span>
+    <span
+      :if={@state && @state not in ["shopping", "exploded"]}
       class={[
         "grid size-3.5 shrink-0 place-items-center rounded-full ring-[1.5px] ring-iron-dark sm:size-4",
         state_class(@state),
@@ -2301,12 +2311,6 @@ defmodule QuacksWeb.GameComponents do
               r="1.3"
               fill="currentColor"
             />
-          <% :burst -> %>
-            <path
-              d="M8 1.5l1.3 3.6 3.7-1.4-1.6 3.5 3.1 2-3.7.6.3 3.8L8 11.4 4.9 13.6l.3-3.8-3.7-.6 3.1-2L3 3.7l3.7 1.4z"
-              fill="currentColor"
-              stroke-width="0.8"
-            />
           <% :dots -> %>
             <circle cx="3.5" cy="8" r="1.3" fill="currentColor" stroke="none" /><circle
               cx="8"
@@ -2326,7 +2330,6 @@ defmodule QuacksWeb.GameComponents do
 
   defp state_graphic("brewing"), do: :steam
   defp state_graphic("stopped"), do: :lid
-  defp state_graphic("exploded"), do: :burst
   defp state_graphic(state) when state in ["ready", "chosen"], do: :tick
   defp state_graphic(_choosing), do: :dots
 
