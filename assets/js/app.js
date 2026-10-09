@@ -223,6 +223,7 @@ const PotMotion = {
   // Round 31, a draw (the mirror of `ghost` to the bag): the new chip comes out of
   // the bag small, flies on an arc above both ends and lands on its space with the
   // pop, 460 ms. Only your own pot (`data-mine`); reduced motion: no flight.
+  // A copy flies in the top layer (`top`); the chip hides until it lands.
   fly(chip) {
     if (reduced()) return
     chip.getAnimations().forEach(a => a.cancel())
@@ -231,21 +232,30 @@ const PotMotion = {
     const arc = t => ({x: (1 - t) ** 2 * b.x + 2 * (1 - t) * t * c.x + t * t * p.x,
                        y: (1 - t) ** 2 * b.y + 2 * (1 - t) * t * c.y + t * t * p.y})
     const steps = [0, 0.2, 0.4, 0.6, 0.8, 1]
-    chip.animate([
+    const copy = chip.cloneNode(true), g = this.top(copy, p)
+    copy.removeAttribute("id")
+    const hide = chip.animate([{opacity: 0}, {opacity: 0}], {duration: 460})
+    copy.animate([
       ...steps.map(t => ({transform: at(arc(t), p, 0.55 + 0.6 * t), opacity: t === 0 ? 0 : 1, offset: t * 0.8})),
       {transform: at(p, p, 0.96), opacity: 1, offset: 0.9, easing: easing("--ease-spring")},
       {transform: at(p, p, 1), opacity: 1},
-    ], {duration: 460, easing: "linear"})
+    ], {duration: 460, easing: "linear"}).finished.catch(() => {}).finally(() => { g.remove(); hide.cancel() })
+  },
+  // `el` at space `p` in the top `pot-fx` layer: SVG paints in DOM order, so a
+  // flight there passes over the later spaces.
+  top(el, p) {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g")
+    g.setAttribute("transform", `translate(${p.x} ${p.y})`)
+    g.append(el)
+    this.el.querySelector("[data-role=pot-fx]").append(g)
+    return g
   },
   // A chip that left, put back where it was (out of LiveView's way) to fly to
   // `target`, or, without one, to fade out after `delay` ms.
   ghost(el, target, delay = 0) {
-    const fx = this.el.querySelector("[data-role=pot-fx]"), p = this.pos(el.dataset.index)
-    const g = document.createElementNS("http://www.w3.org/2000/svg", "g")
-    g.setAttribute("transform", `translate(${p.x} ${p.y})`)
+    const p = this.pos(el.dataset.index)
     el.removeAttribute("id")
-    g.append(el)
-    fx.append(g)
+    const g = this.top(el, p)
     el.getAnimations().forEach(a => a.cancel())
     const fade = reduced() || !target
     const frames = fade
