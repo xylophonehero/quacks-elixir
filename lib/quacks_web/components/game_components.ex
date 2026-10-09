@@ -1195,7 +1195,7 @@ defmodule QuacksWeb.GameComponents do
   def bag(assigns) do
     ~H"""
     <div class="paper rounded-lg p-3">
-      <h2 class="text-lg font-bold">Bag ({length(@bag)} chips)</h2>
+      <h2 class="sheet-head text-lg font-bold">Bag ({length(@bag)} chips)</h2>
       <.chip_counts chips={@bag} size={:md} />
     </div>
     """
@@ -1701,7 +1701,7 @@ defmodule QuacksWeb.GameComponents do
       data-seat={@seat}
       data-role="player-card"
     >
-      <header class="flex flex-wrap items-center gap-1.5 pr-8">
+      <header class="sheet-head flex flex-wrap items-center gap-1.5 pr-8">
         <.seat_dot seat={@seat} />
         <span class="font-hand text-lg font-bold" data-role="player-name">{@name}</span>
         <span :if={@you} class="text-xs font-semibold text-ink-soft">you</span>
@@ -3133,7 +3133,7 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <div class="paper rounded-lg p-3">
-      <h2 class="text-lg font-bold">Log</h2>
+      <h2 class="sheet-head text-lg font-bold">Log</h2>
       <ol class="mt-1 space-y-1 text-sm" aria-label="Recent actions">
         <li :for={{seat, line} <- @entries} class="flex items-baseline gap-1.5">
           <.seat_dot :if={seat} seat={seat} />

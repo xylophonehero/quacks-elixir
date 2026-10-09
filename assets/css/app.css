@@ -568,6 +568,31 @@ body {
   color: var(--color-ink-soft);
 }
 
+/* Round 34: the × and the title row (`sheet-head`) stay put while the content
+   scrolls. Sticky insets count from the sheet's content edge (inside its 1rem
+   padding): the × sticks where it sits at rest (its margin is -0.75rem), the head
+   at the top of the content, as at rest, so nothing moves. The head paints the
+   parchment across the sheet, and its shadow fills the padding strip above it, so
+   no text shows through. */
+.sheet .sheet-close {
+  position: sticky;
+  top: -0.75rem;
+  z-index: 2;
+}
+.sheet .sheet-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-inline: -1rem;
+  padding-inline: 1rem;
+  background-color: var(--color-parchment);
+  /* The paper's dots, in step with the sheet's when the head is stuck. */
+  background-image: radial-gradient(circle, rgb(120 80 30 / 0.07) 1px, transparent 1.5px);
+  background-size: 7px 7px;
+  background-position: 0 -1rem;
+  box-shadow: 0 -1rem 0 var(--color-parchment);
+}
+
 .sheet-close::after {
   content: "";
   position: absolute;
@@ -662,6 +687,14 @@ body {
     opacity: 1;
     scale: none;
     transition: none;
+  }
+
+  .sheet-inline-lg .sheet-head {
+    position: static;
+    margin-inline: 0;
+    padding-inline: 0;
+    background: none;
+    box-shadow: none;
   }
 
   .sheet-inline-lg > .sheet-close {
@@ -1919,7 +1952,10 @@ body {
   position: relative;
   min-width: 0;
   border-radius: 10px;
-  padding: 0.75rem 1rem 1rem;
+  /* The heading's sticky band reads these (round 34). */
+  --page-pt: 0.75rem;
+  --page-px: 1rem;
+  padding: var(--page-pt) var(--page-px) 1rem;
   color: var(--color-ink);
   background-color: var(--color-parchment-light);
   background-image:
@@ -2034,16 +2070,31 @@ body {
   }
 }
 
+/* Round 34: the page title stays put while the page scrolls. It sticks at the
+   page's top edge (`--page-pt`, `--page-px`: the page padding) and spans the page, so no
+   text shows above or beside it; the rule under it keeps its old inset (::after).
+   The negative margins equal the paddings: nothing moves at rest. */
 .book-heading {
+  position: sticky;
+  top: calc(-1 * var(--page-pt, 0px));
+  z-index: 1;
+  margin: calc(-1 * var(--page-pt, 0px)) calc(-1 * var(--page-px, 0px)) 0.75rem;
+  padding: var(--page-pt, 0px) var(--page-px, 0px) calc(0.25rem + 2px);
+  background-color: color-mix(in srgb, var(--color-parchment-light) 88%, transparent);
+  backdrop-filter: blur(8px);
   font-family: var(--font-hand);
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 700;
   color: #4f1a14;
-  border-bottom: 2px solid rgb(79 26 20 / 0.55);
-  box-shadow: 0 3px 0 -1px rgb(79 26 20 / 0.25);
-  padding-bottom: 0.25rem;
-  margin-bottom: 0.75rem;
+}
+.book-heading::after {
+  content: "";
+  position: absolute;
+  inset: auto var(--page-px, 0px) 0;
+  height: 2px;
+  background: rgb(79 26 20 / 0.55);
+  box-shadow: 0 2px 0 rgb(79 26 20 / 0.25);
 }
 
 .book-subheading {
@@ -2300,7 +2351,9 @@ body {
     align-items: stretch;
   }
   .book-page {
-    padding: 1.5rem 2rem 1.5rem;
+    --page-pt: 1.5rem;
+    --page-px: 2rem;
+    padding: var(--page-pt) var(--page-px) 1.5rem;
   }
   .book-page-left {
     grid-column: 1;
