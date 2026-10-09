@@ -1146,8 +1146,8 @@ On the branch `round-27-eval` the menu's reveal settings have a third row,
 On tiles, the results' reveal plays only its scoring steps (`TileReveal.slides/1`:
 the bonus die, the books, the scoring space) and no dialog opens. The same
 `%{slides, index}` state and Auto ticks run it; a step lasts 5 beats
-(`TileReveal.duration/1`, `--beat-ms`). A pill over the pot's top edge names the
-step (`tile_stage/1`) with Next (Step mode) and Skip. Each tile shows its seat's
+(`TileReveal.duration/1`, `--beat-ms`). `tile_stage/1` names the step, with Next
+(Step mode) and Skip (a pill over the pot until round 29; now in the bar). Each tile shows its seat's
 badge for the step (`tile_gains/1`: the book's ingredient, VP, rubies, droplet),
 which folds into the tile's counters; the counters show the running totals
 (`TileReveal.totals/3`) and count up from the old value (`.tile-count`). The die
@@ -1199,6 +1199,38 @@ the tile. While a step plays the droplet shows its running value
 **Every VP on the rat track.** Each dot has its VP: one number for seats in a
 step with the same VP, the numbers of a step alternating above and below the line
 (`track-vp`; the leader's is `leader-vp`).
+
+### Round 29: the bar carries every action
+
+The two slots of Stop and Draw (`min-h-12`) are the one place for "what do I do
+now". What takes their place keeps that height, so the pot (a flex child above the
+bar) never moves:
+
+- **Draw** (no "a chip") and Stop. After Stop the phase pill says "Waiting"; Draw
+  stays greyed.
+- **The white meter row** holds the reward and the risk as icons
+  (`GameComponents.reward_line/1`): coin and count, laurel and VP, the ruby, then
+  the explosion icon with the menu's **Risk** setting (Off, Percent, Chips "3/14").
+  The setting is one more `segments` row in `reveal_settings/1`; `RevealSettings`
+  keeps it in `localStorage` (`quacks:risk`) and sends it with the others, so the
+  server renders only the chosen form (no CSS toggles).
+- **A choice in the bar** (`GameLive.bar_choice/1`, assign `@bar_choice`): the
+  explosion's Take VP / Take coins, and the rubies step (Skip, test tube, flask,
+  pot; "2" + ruby on each paying button, the seat's `ruby_price`; a disabled use
+  says why). These decisions open no dialog (`open_waiting/1` skips them, and the
+  "Back to choice" button hides). A rubies step with a witch to call keeps the
+  dialog: the witch card does not fit the bar.
+- **The explosion's beat** is CSS on insert, like the pot shake: `.boom` (BOOM in
+  Kalam over the pot, 700 ms, `forwards`) and `.bar-choice-late` (the choice
+  waits 700 ms, `visibility: hidden` in the `from` keyframe with fill `both`, so
+  it cannot take a tap meant for Draw). Reduced motion swaps both to plain fades
+  of the same length. The one bit of JS is the `Boom` hook: `navigator.vibrate`
+  once per game and round (`sessionStorage`), guarded when the browser has none.
+- **The evaluation steps** on the tiles (`tile_stage/1`): the step's name and
+  number, Skip and Next, in the footer instead of a pill over the pot. The other
+  footer buttons hide while it plays.
+- **The shop** says **Skip** for "buy nothing". With chips ticked, Buy is the wide
+  primary and Skip shrinks to a small secondary button.
 
 ### `PotMotion`: animate on top of the patch
 
