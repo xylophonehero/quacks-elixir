@@ -1380,90 +1380,36 @@ defmodule QuacksWeb.GameComponents do
   end
 
   @doc """
-  One seat's score and resources in one row of icons with numbers: VP (laurel),
-  rubies, the flask (full or empty glass), the essence with The Alchemists, and the
-  coins while it buys. Each pair is a `dt` (the word, for screen readers) and a
-  `dd`. A badge shows after an explosion. The white total is the fuse
-  (`fuse_meter/1`) above the action bar.
+  Round 30: your ruby total as a small badge by the pot (top right). The scoring
+  sequence's rubies fly to it (`PotMotion` in app.js, `#stat-rubies`) and it ticks
+  on their beat. Round 30 removed the stats strip over the tiles: VP is on your tile
+  and the rat track, the flask is drawn at the pot.
   """
-  attr :game, Game, required: true
-  attr :seat, :integer, default: 0
+  attr :rubies, :integer, required: true
 
   attr :beats, :map,
     default: %{},
-    doc: "while the replay plays: `%{vp: beat, rubies: beat}`, when each counter ticks"
+    doc: "while the replay plays: `%{rubies: beat, from: %{rubies: n}}`"
 
-  def status(assigns) do
-    assigns =
-      assign(assigns,
-        me: assigns.game.players[assigns.seat],
-        shop?: Game.phase(assigns.game, assigns.seat) == :shop,
-        alchemists?: Game.expansion?(assigns.game, :alchemists)
-      )
+  attr :class, :any, default: nil
 
+  def ruby_badge(assigns) do
     ~H"""
     <dl
-      class="paper flex min-h-10 flex-wrap items-center justify-around gap-x-3 gap-y-1 rounded-lg px-2 py-1"
-      data-role="stats"
+      class={[
+        "flex h-8 items-center gap-0.5 rounded-full bg-iron-dark/85 py-0.5 pr-2.5 pl-1.5 text-parchment-light shadow-md ring-1 ring-parchment/20",
+        @class
+      ]}
+      data-role="ruby-badge"
     >
       <.stat
-        label="VP"
-        value={@me.vp}
-        id="stat-vp"
-        icon={:vp}
-        beat={@beats[:vp]}
-        from={@beats[:vp] && get_in(@beats, [:from, :vp])}
-      />
-      <.stat
         label="Rubies"
-        value={@me.rubies}
+        value={@rubies}
         id="stat-rubies"
         icon={:ruby}
         beat={@beats[:rubies]}
         from={@beats[:rubies] && get_in(@beats, [:from, :rubies])}
       />
-      <div class="flex items-center gap-1" title={"Flask #{flask_word(@me.flask)}"}>
-        <dt class="flex">
-          <.piece_icon
-            name={:flask}
-            class={["size-6", if(@me.flask, do: "text-potion", else: "text-ink-soft/40")]}
-          />
-          <span class="sr-only">Flask</span>
-        </dt>
-        <dd class="text-tag font-semibold text-ink-soft" data-role="flask-state">
-          {flask_word(@me.flask)}
-        </dd>
-      </div>
-      <div :if={@alchemists?} class="flex items-center gap-1" title="Essence">
-        <dt class="flex">
-          <span class="size-4 rounded-full bg-potion ring-2 ring-potion-deep/60" aria-hidden="true" />
-          <span class="sr-only">Essence</span>
-        </dt>
-        <dd class="font-hand text-xl leading-none font-bold tabular-nums" data-role="stat-essence">
-          {@me.essence}
-        </dd>
-      </div>
-      <%!-- The id holds the value: a new value is a new node, so it pops. --%>
-      <div :if={@shop?} class="flex items-center gap-1" title="Coins to spend">
-        <dt class="flex">
-          <span class="book-coin text-xl" aria-hidden="true" /><span class="sr-only">Coins</span>
-        </dt>
-        <dd
-          id={"stat-coins-#{@me.coins}"}
-          class="stat-pop font-hand text-xl leading-none font-bold tabular-nums"
-          data-role="coins"
-        >
-          {@me.coins}<span class="sr-only"> coins to spend</span>
-        </dd>
-      </div>
-      <span
-        :if={@me.exploded?}
-        id="status-exploded"
-        class="rounded-md bg-ruby px-2 text-sm font-semibold text-white"
-        data-role="exploded"
-      >
-        {exploded_text(@me)}
-      </span>
     </dl>
     """
   end
@@ -1658,17 +1604,14 @@ defmodule QuacksWeb.GameComponents do
   # word and the plain number.
   defp stat(assigns) do
     ~H"""
-    <div class="flex items-center gap-1" title={@label}>
+    <div class="flex items-center gap-0.5" title={@label}>
       <dt class="flex">
-        <.piece_icon
-          name={@icon}
-          class={["size-6", if(@icon == :ruby, do: "text-ruby", else: "text-gold drop-shadow-sm")]}
-        />
+        <.piece_icon name={@icon} class="size-5 text-ruby-light drop-shadow-sm" />
         <span class="sr-only">{@label}</span>
       </dt>
       <dd
         id={@id}
-        class="stat-tick font-hand text-xl leading-none font-bold tabular-nums"
+        class="stat-tick min-w-[2ch] text-center font-hand text-num leading-none font-bold tabular-nums"
         style={"--n: #{@value}" <> beat_style(@beat, @from)}
         data-beat={@beat}
         data-from={@from}
@@ -1715,7 +1658,7 @@ defmodule QuacksWeb.GameComponents do
           class="rounded bg-ruby px-1.5 text-xs font-bold text-white"
           data-role="exploded-badge"
         >
-          Exploded
+          {exploded_text(@p)}
         </span>
       </header>
       <dl class="grid grid-cols-4 gap-1 text-center">
@@ -2229,7 +2172,7 @@ defmodule QuacksWeb.GameComponents do
     <span
       :if={@state == "exploded"}
       class={["grid size-5 shrink-0 place-items-center", @class]}
-      title={@state}
+      title={exploded_text(@game.players[@seat])}
       data-role="player-state"
       data-state={@state}
     >

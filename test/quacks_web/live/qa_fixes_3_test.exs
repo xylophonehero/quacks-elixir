@@ -153,7 +153,6 @@ defmodule QuacksWeb.QaFixes3Test do
     before = Replay.before(game, 0)
 
     assert before == %{vp: 10 - 3 - 1, rubies: 4 - 1 - 1}
-    assert has_element?(view, ~s(#stat-vp[data-from="#{before.vp}"]))
     assert has_element?(view, ~s(#stat-rubies[data-from="#{before.rubies}"]))
 
     assert has_element?(

@@ -47,12 +47,13 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
              %{green: 1, blue: 1, red: 2, yellow: 1, purple: 1, black: 1}
   end
 
-  test "a protected explosion shows in the status strip and the log" do
+  test "a protected explosion shows in the player sheet and the log" do
     g = Game.new(seed: {1, 2, 3}, fortune: false, sets: %{blue: 2})
     g = Quacks.GameHelpers.put(g, drawn: [{{:white, 3}, 3}, {{:white, 3}, 0}], pot_index: 3)
     g = force_draws(g, [{:blue, 2}, {:white, 3}])
 
-    assert render_component(&GameComponents.status/1, game: g) =~ "Exploded (protected)"
+    assert render_component(&GameComponents.player_card/1, game: g, seat: 0, name: "A") =~
+             "Exploded (protected)"
 
     assert render_component(&GameComponents.action_log/1, log: g.log) =~
              "Crow skull: protected, kept VP and coins"

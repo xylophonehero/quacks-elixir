@@ -1111,7 +1111,6 @@ defmodule QuacksWeb.GameLive do
             hidden
             phx-mounted={JS.remove_class("replay-done", to: "#players-row")}
           />
-          <.status :if={@seat} game={@game} seat={@seat} beats={stat_beats(@game, @seat, @seen)} />
           <%!-- Round 27: one tile per seat in a fixed seat loop (`seat_loop/1`):
                one row up to 4 seats, two rows from 5, the second row backwards, so
                neighbours touch. The tiles never re-order and have a fixed height.
@@ -1278,13 +1277,17 @@ defmodule QuacksWeb.GameLive do
                   Tap to continue
                 </p>
               </div>
-              <%!-- Round 22: the kept Toadstool chips (red Set 2) wait in the top
-                   right corner, a small pill outside the round rim. --%>
-              <.aside
-                :if={@me && @me.aside != []}
-                chips={@me.aside}
-                class="absolute top-0 right-0"
-              />
+              <%!-- Round 30: the top right corner holds your ruby total (the
+                   scoring's rubies fly to it) and, below it, the kept Toadstool
+                   chips (red Set 2, round 22), small pills outside the round rim. --%>
+              <div
+                :if={@me}
+                class="absolute top-0 right-0 flex flex-col items-end gap-1.5"
+                data-role="pot-corner-right"
+              >
+                <.ruby_badge rubies={@me.rubies} beats={stat_beats(@game, @seat, @seen)} />
+                <.aside :if={@me.aside != []} chips={@me.aside} />
+              </div>
               <%!-- The overflow bowl hangs over the pot's lower rim. --%>
               <div
                 :if={@game.players[@seat || 0].bowl != []}
@@ -3633,7 +3636,7 @@ defmodule QuacksWeb.GameLive do
       do:
         for(
           %{kind: kind, beat: beat} <- Replay.updates(game, seat),
-          kind in [:vp, :rubies],
+          kind == :rubies,
           into: %{from: Replay.before(game, seat)},
           do: {kind, beat}
         ),
