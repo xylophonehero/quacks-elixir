@@ -2638,11 +2638,11 @@ defmodule QuacksWeb.GameLive do
     assigns = assign(assigns, from: chip, to: Fortune.upgrade(chip))
 
     ~H"""
-    <span class="-my-1.5 inline-flex items-center">
-      <.chip chip={@from} size={:sm} /><.icon name="hero-arrow-right" class="size-3" /><.chip
+    <span class="inline-flex items-center gap-0.5">
+      <.chip chip={@from} size={:xs} /><.icon name="hero-arrow-right" class="size-3" /><.chip
         :if={@to}
         chip={@to}
-        size={:sm}
+        size={:xs}
       />
     </span>
     """

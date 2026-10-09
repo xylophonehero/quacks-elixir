@@ -479,11 +479,13 @@ body {
 @media (width < 64rem) {
   .sheet[data-pot],
   .sheet.sheet-pot {
-    inset: 8.5rem 0.5rem 6rem;
+    /* As high as its content, from the pot's foot up; the pot shows above a
+       short decision. */
+    inset: auto 0.5rem 6rem;
     width: auto;
     max-width: 40rem;
     height: auto;
-    max-height: none;
+    max-height: calc(100dvh - 15rem);
     margin: 0 auto;
     z-index: 30;
     border-top: 0;
@@ -523,7 +525,8 @@ body {
     .sheet[data-pot],
     .sheet.sheet-pot {
       position-anchor: --pot-area;
-      inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
+      inset: auto anchor(right) anchor(bottom) anchor(left);
+      max-height: calc(anchor-size(height) - 0.5rem);
       margin: 0.25rem 0.5rem;
     }
   }

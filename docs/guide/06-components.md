@@ -1328,6 +1328,44 @@ bar) never moves:
 - **One explosion icon** (`explosion_icon/1`: the `:explosion` piece icon,
   `text-ruby`) is the bar's risk and an exploded tile's badge.
 
+### Round 31: no full-height sheets; cards and decisions over the pot
+
+- **A card with no choice has no sheet.** `next_slide/1` on the held new card ends
+  the reveal at once. A card that drew chips for everyone (P8, P13, B7:
+  `card_rows?/1`) sets `card_grown`, so the card stays over the pot with every
+  player's rows (`card_reveals compact`); Continue or a tap shrinks it. Any other
+  card shrinks into the corner, and `card_toast/2` puts one line over the pot
+  (`#card-toast-N`, `.card-toast`: it fades in, then out after 2.8 s by itself),
+  e.g. "Drop It: Droplet +1", from the slide's `outcomes`. The reveal overlay's
+  card slide is no longer shown.
+- **A card's choice is the bar.** `bar_choice(:fortune_choice, _)` gives
+  `bar_choice/1` with `choice: :fortune_choice` (`#bar-card-N`): one button per
+  `{:fortune, choice}`, an icon (the chip, chip → chip for a Flea Market trade, or a
+  piece icon) with a short title and a hint line (`card_choice_title/2`,
+  `card_choice_hint/3`), like the explosion's VP/coins pair. More than 3 options
+  scroll sideways in one row, so the bar keeps its height. The card stays over the
+  pot (`pot_card?/1` is true for every `:fortune_choice`, on every screen) and
+  shows the rows for the cards that drew chips; there is no `#card-tap` layer then
+  (`card_tap?/1`). The choice sent closes the held reveal (`close_card_reveal/2`),
+  and the card shrinks into the corner. The card's dialog (`#card-round-N`) is gone.
+- **Decisions cover the pot.** `dialog_sheet` has `pot`: below 64rem app.js opens
+  it with `show()` (non-modal, no backdrop) and app.css places it over the pot
+  column: anchored to `[data-area=pot]` (`anchor-name: --pot-area`; its foot on the
+  column's foot, as high as its content, at most the column), else a fixed box
+  above the bar. The header, the players row and the bar stay in view; × closes it
+  and the bar's reopen button brings it back. The shop's footer (purse, Skip, Buy)
+  goes where the bar's buttons are (`position: fixed` at the screen's foot). Every
+  `decision-*` dialog uses it. The tall popover sheets (player, witches, patient,
+  Forgetfulness, fortune card) take the class `sheet-pot` for the same place.
+- **What stays full height:** the final scoring overlay (the eval and end
+  builder's), the books drawer (a reference), the menu, the bag, the log and the
+  bug report (not game moves).
+- **Rubies.** The rubies step stays in the bar (`bar_choice :rubies`), shown only
+  when a ruby buys something (`ruby_step_action?/1`). Round 9's `{:rubies, :vp}`
+  is no step: the seat's "Done" converts what it keeps (`final_conversion`), so a
+  round-9 seat with no witch to call ends its round after the evaluation
+  (`auto_done/2`).
+
 ### `PotMotion`: animate on top of the patch
 
 Some motion needs a path or a measured target: a ruby flies from a chip to the
