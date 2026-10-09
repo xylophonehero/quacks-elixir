@@ -1447,6 +1447,47 @@ Nick's rule: use the bottom context area, not a modal. A turn's small choices ar
   on a low arc; reduced motion: nothing. It is not in `PotMotion`, whose size is
   budgeted.
 
+### Round 35 (eval): the results stage, and each choice on its step
+
+**The results stage** (`TileRevealComponents.results_stage/1`, direction A of the
+round's design page) is a parchment panel in the band above the bar's buttons.
+It floats (app.css `.results-stage`: absolute, from the top of the step bar,
+growing upwards), so the pot never moves. It shows the step on show, one row
+per player in one column for every player count: the colour disc with the
+initial, the short name, the reason and, at the row's end, the result. Both are
+icons where possible (`TileReveal.stage_rows/3` gives cells such as
+`{:count, 2, :black}`, `{:beats, seats, :both}`, `{:dice, faces}`, `{:vp, 1}`).
+A row with no result fades. The bonus die rolls at the end of each roller's row
+(`.stage-die`, one roll after the other per seat), and Auto waits for the rolls
+(`TileReveal.duration/2`). A chip with no value (`{colour, nil}`) shows its icon
+in the centre with no badge.
+
+**The steps.** The step on show is `index - 1`; the first shows at once (index
+1), and the bar names the step on show. The scoring space is one step again
+(coins, VP and ruby in one row). The standings slide stays as the last step,
+**Round scored**: the totals in VP order, equal VP share a place, the leader's
+row is gold. Auto is the default mode (app.js, nothing saved); Step stays in the
+settings.
+
+**Rubies before Round scored.** Next on the step before it holds the steps
+(`reveal.rubies`) while a ruby buys something: the bar shows the ruby uses with
+**Keep** (`rubies_keep`), the panel collapses to one line. The engine allows the
+ruby uses in the buy step too, so this works before the shop; rubies decided here
+skip the shop's rubies step after the buy (`decide/4`).
+
+**Choices on their steps.** On the tiles the results begin with the chip actions'
+choices (`reveal_key/2`: `{:results, round}` in `:chip_choice` and
+`:witch_choice`). The slides follow the game (`refresh_tiles/1`,
+`TileReveal.live/2`): while the evaluation asks, there is no scoring space yet,
+and a book with a waiting choice has its step at once. A decision holds the step
+on show (`tile_hold/1`): a free droplet move on the step that won it (more moves
+waiting than the later steps bring), a chip actions' choice on its book's step
+(only that book's actions in the bar). **Done** there moves on to the next book
+with a choice of this seat, else it ends the choices; a choice left only in a
+passed step ends by itself (`end_choices/1`). At the end of the steps while
+others still choose, Next says "Waiting…". The panel hides while the droplet or
+a chip choice is asked, so the pot and the test tubes show.
+
 ### `PotMotion`: animate on top of the patch
 
 Some motion needs a path or a measured target: a ruby flies from a chip to the
