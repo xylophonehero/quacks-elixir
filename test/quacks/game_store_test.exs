@@ -151,7 +151,7 @@ defmodule Quacks.GameStoreTest do
     assert {:ok, ^id} = GameServer.start_from_bundle(body, restore: true)
     # the human has stopped: the restored bot (seat 1) brews in one go at once
     {:ok, %{game: %Game{} = game}} = GameServer.get(id)
-    assert Enum.count(game.log, &match?({1, :draw}, &1)) >= 1
+    assert Enum.any?(game.log, &match?({1, :draw}, &1))
   end
 
   test "a file that does not load is renamed .bad and the rest restore", %{dir: dir} do
