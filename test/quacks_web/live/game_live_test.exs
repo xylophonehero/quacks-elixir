@@ -106,27 +106,30 @@ defmodule QuacksWeb.GameLiveTest do
 
     html =
       Enum.reduce_while(1..500, html, fn _, html ->
-        if html =~ "reveal-final-9",
+        if html =~ "final-board",
           do: {:halt, html},
           else: {:cont, step(view, html)}
       end)
 
-    # Round 22: the final scoring's last slide is the game-over screen.
-    assert html =~ "reveal-final-9"
-    html = view |> element("#reveal-skip") |> render_click()
+    # Round 31: the game's end is the score chart over the pot, with Play again
+    # and Lobby in the bar.
     assert html =~ "Game over"
     assert html =~ "victory points"
+    assert has_element?(view, "[data-role=pot-area] #final-board")
 
-    final = "#reveal-final-9 [data-role=reveal-slide][data-kind=podium]"
-    refute has_element?(view, "#{final} [data-role=buying-power]")
-    assert has_element?(view, "#{final} [data-role=return-to-lobby]", "Back to lobby")
+    assert has_element?(
+             view,
+             "[data-role=game-over-actions] [data-role=return-to-lobby]",
+             "Lobby"
+           )
+
     refute has_element?(view, "[data-role=action-bar]")
     refute has_element?(view, "button[data-slot=draw]")
     refute has_element?(view, "button[data-slot=stop]")
 
     {:ok, view, _html} =
       view
-      |> element("#reveal-final-9 button", "Play again")
+      |> element("[data-role=game-over-actions] button", "Play again")
       |> render_click()
       |> follow_redirect(conn)
 

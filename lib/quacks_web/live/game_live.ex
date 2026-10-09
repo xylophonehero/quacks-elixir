@@ -146,7 +146,6 @@ defmodule QuacksWeb.GameLive do
            seen: seen(table, seat),
            reveal: nil,
            card_grown: false,
-           result_closed: false,
            reveal_mode: :step,
            reveal_speed: :normal,
            risk: :percent,
@@ -157,8 +156,7 @@ defmodule QuacksWeb.GameLive do
          )
          |> new_report()
          |> assign_table(table)
-         |> put_game(table.game)
-         |> result_on_mount()}
+         |> put_game(table.game)}
 
       {:error, :not_found} ->
         {:ok,
@@ -362,7 +360,7 @@ defmodule QuacksWeb.GameLive do
         %{"kind" => kind, "round" => round},
         %{assigns: %{seat: seat}} = socket
       )
-      when is_integer(seat) and kind in ["card", "results", "final"] and is_integer(round) do
+      when is_integer(seat) and kind in ["card", "results"] and is_integer(round) do
     key = {String.to_existing_atom(kind), round}
 
     socket =
@@ -380,31 +378,8 @@ defmodule QuacksWeb.GameLive do
   # Enter, Space) shows the next slide, the last one closes it; Skip jumps to the
   # last slide; Esc or × close it. Closing marks the moment seen and opens what
   # waited for it (the shop, a decision, the game-over sheet).
-  # Round 22: the game's last slide (the podium with Play again) stays; × or Esc
-  # close it, and "Show the result" opens it again.
-  def handle_event(
-        "reveal_next",
-        _params,
-        %{assigns: %{reveal: %{key: {:final, _}} = r}} = socket
-      )
-      when r.index == length(r.slides) - 1,
-      do: {:noreply, socket}
-
-  # Round 29: a tap on the final tally while it plays finishes it at once (the new
-  # totals and ranks) and pauses Auto; the next tap shows the podium.
-  def handle_event(
-        "reveal_next",
-        _params,
-        %{assigns: %{reveal: %{key: {:final, _}, settled: false} = r}} = socket
-      ),
-      do:
-        {:noreply,
-         assign(socket, reveal: %{r | settled: true, settle: nil, tick: nil, paused: true})}
-
   def handle_event("reveal_next", _params, %{assigns: %{reveal: %{}}} = socket),
     do: {:noreply, next_slide(socket)}
-
-  def handle_event("show_result", _params, socket), do: {:noreply, open_result(socket)}
 
   # Round 24: a tap on the big card over the pot (or anywhere, `#card-tap`). A new
   # card goes on (`next_slide/1`: into the corner, or its result or choice sheet); a
@@ -1198,6 +1173,14 @@ defmodule QuacksWeb.GameLive do
                 droplet={tiles_playing?(@reveal) && @me && tile_totals(@game, @reveal)[@seat].droplet}
                 fx_key={if tiles_playing?(@reveal), do: "s#{@reveal.index}-", else: ""}
               />
+              <%!-- Round 31: the game's end lies over the pot: the score chart. --%>
+              <QuacksWeb.FinalComponents.final_board
+                :if={Game.over?(@game)}
+                game={@game}
+                names={@names}
+                bots={@bots}
+                seat={@seat}
+              />
               <%!-- Round 29: your own explosion's beat (app.css `.boom`); the hook
                    buzzes the phone once (app.js `Boom`). --%>
               <p
@@ -1670,15 +1653,13 @@ defmodule QuacksWeb.GameLive do
           >
             {back_label(@decision, @game)}
           </.button>
-          <.button
+          <%!-- Round 31: at the game's end, Play again / Lobby (and Share). --%>
+          <QuacksWeb.FinalComponents.final_actions
             :if={Game.over?(@game)}
-            variant={:primary}
-            class="min-h-12 w-full text-base"
-            phx-click="show_result"
-            data-role="show-result"
-          >
-            Show the result
-          </.button>
+            game={@game}
+            names={@names}
+            share_url={url(~p"/g/#{@id}")}
+          />
           <%!-- Round 29: one row, the white meter, then the reward and the risk as icons. --%>
           <div
             :if={@seat && @game.phase == :potions}
@@ -1962,18 +1943,7 @@ defmodule QuacksWeb.GameLive do
           )
         }
         close_label={close_label(@reveal, @decision, @skip_rubies)}
-      >
-        <:podium :if={Game.over?(@game)}>
-          <.game_over
-            game={@game}
-            names={@names}
-            players={@players}
-            bots={@bots}
-            seat={@seat}
-            share_url={url(~p"/g/#{@id}")}
-          />
-        </:podium>
-      </.reveal_overlay>
+      />
     </Layouts.app>
     """
   end
@@ -2051,210 +2021,6 @@ defmodule QuacksWeb.GameLive do
       {if @copied, do: "Copied", else: "Copy link"}
     </.button>
     """
-  end
-
-  @doc """
-  The end of the game. With 2+ players: who won, a podium for the first three
-  (places from the VP, so a tie shares a place; the winner wears the laurel) and
-  rows for the rest. Solo: the score. This browser's place has a gold ring and
-  "you" (round 29; no VP breakdown any more). Then, stuck to the sheet's bottom, "Play again" (`GameServer.play_again/2`: the
-  same table again; focused when the dialog opens) and "Return to lobby".
-
-  The podium rises place by place, the winner last, and a gold shimmer crosses the
-  title (app.css `.podium-step`, `.win-shimmer`); reduced motion: fades only.
-  """
-  attr :game, Game, required: true
-  attr :names, :map, required: true
-  attr :players, :integer, required: true
-  attr :bots, :map, default: %{}
-  attr :seat, :integer, default: nil, doc: "this browser's seat, for \"You win!\""
-  attr :share_url, :string, default: nil, doc: "the game's link, for Share (round 22)"
-
-  def game_over(assigns) do
-    ranked = placed_ranking(assigns.game)
-    winners = for {seat, _vp, 1} <- ranked, do: seat
-
-    assigns =
-      assign(assigns,
-        ranked: ranked,
-        podium: ranked |> Enum.take(3) |> Enum.with_index() |> podium_order(),
-        rest: Enum.drop(ranked, 3),
-        title: win_title(winners, assigns.seat, assigns.names)
-      )
-
-    ~H"""
-    <section class="space-y-4 text-center" data-role="game-over">
-      <p class="text-xs font-bold tracking-[0.12em] text-ink-soft uppercase">Game over</p>
-      <h2
-        :if={@players > 1}
-        class="win-shimmer -mt-3 flex items-center justify-center gap-2 text-3xl font-bold"
-        data-role="winner"
-      >
-        <.piece_icon name={:vp} class="size-8 shrink-0 text-gold drop-shadow-sm" />{@title}
-      </h2>
-      <h2
-        :if={@players == 1}
-        class="win-shimmer -mt-3 flex items-center justify-center gap-2 text-3xl font-bold"
-      >
-        <.piece_icon name={:vp} class="size-8 shrink-0 text-gold drop-shadow-sm" />
-        <span>
-          <span class="tabular-nums">{Game.score(@game)[0]}</span> victory points
-        </span>
-      </h2>
-      <ol
-        :if={@players > 1}
-        class="mx-auto grid max-w-sm grid-cols-3 items-end gap-2 px-1"
-        aria-label="Podium"
-      >
-        <li
-          :for={{{seat, vp, place}, beat} <- @podium}
-          class={["podium-step flex min-w-0 flex-col items-center", place == 1 && "podium-win"]}
-          style={"--beat: #{beat}"}
-          data-seat={seat}
-          data-place={place}
-          data-role="final-score"
-        >
-          <.piece_icon
-            :if={place == 1}
-            name={:vp}
-            class="podium-crown mb-0.5 size-7 text-gold drop-shadow"
-            data-role="crown"
-          />
-          <span class={[
-            "grid size-9 place-items-center rounded-full font-hand text-lg font-bold text-ink",
-            if(seat == @seat,
-              do: "ring-3 ring-gold ring-offset-2 ring-offset-parchment",
-              else: "ring-2 ring-black/25"
-            ),
-            seat_bg(seat)
-          ]}>
-            {String.first(name(@names, seat))}
-          </span>
-          <span class="mt-1 line-clamp-2 w-full text-sm leading-tight font-semibold break-words">
-            {name(@names, seat)}
-          </span>
-          <.you_tag :if={seat == @seat} />
-          <.bot_badge :if={@bots[seat] && seat != @seat} />
-          <span class="font-hand text-2xl leading-none font-bold tabular-nums">
-            {vp}<span class="sr-only"> victory points</span>
-          </span>
-          <span
-            class={[
-              "podium-block mt-1 flex w-full items-start justify-center rounded-t-md pt-1 font-hand text-xl font-bold text-ink/70 shadow-inner",
-              seat_bg(seat),
-              podium_height(place)
-            ]}
-            aria-label={"Place #{place}"}
-          >
-            {place}
-          </span>
-        </li>
-      </ol>
-      <ol :if={@rest != []} class="space-y-1">
-        <li
-          :for={{seat, vp, place} <- @rest}
-          class={[
-            "flex items-center gap-2 rounded-md bg-parchment-deep/60 px-2 py-1 text-left",
-            seat == @seat && "ring-2 ring-gold"
-          ]}
-          data-seat={seat}
-          data-place={place}
-          data-role="final-score"
-        >
-          <span class="w-5 font-hand font-bold">{place}</span>
-          <.seat_dot seat={seat} />
-          <span class="min-w-0 flex-1 truncate font-semibold">{name(@names, seat)}</span>
-          <.you_tag :if={seat == @seat} />
-          <.bot_badge :if={@bots[seat] && seat != @seat} />
-          <span class="font-hand text-lg font-bold tabular-nums">{vp} VP</span>
-        </li>
-      </ol>
-      <%!-- Round 29 (F3): the actions stay at the sheet's bottom edge. --%>
-      <div class="sticky-actions sticky bottom-0 z-10" data-role="game-over-actions">
-        <div class="sticky-actions-bar grid grid-cols-2 gap-2 *:min-h-12">
-          <.button
-            phx-click="play_again"
-            variant={:primary}
-            class="col-span-2 text-base"
-            data-role="play-again"
-            autofocus
-          >
-            Play again
-          </.button>
-          <.button
-            phx-click="lobby"
-            variant={:secondary}
-            class={[!@share_url && "col-span-2"]}
-            data-role="return-to-lobby"
-          >
-            Back to lobby
-          </.button>
-          <.button
-            :if={@share_url}
-            phx-click={
-              JS.dispatch("quacks:share",
-                detail: %{text: share_text(@ranked, @names, @players), url: @share_url}
-              )
-            }
-            variant={:secondary}
-            data-role="share-result"
-          >
-            <.icon name="hero-share" class="size-4" /> Share
-          </.button>
-        </div>
-      </div>
-    </section>
-    """
-  end
-
-  # Round 29 (F3): the podium marks this browser's own place.
-  defp you_tag(assigns) do
-    ~H"""
-    <span
-      class="rounded-full bg-gold px-1.5 text-[0.65rem] leading-4 font-bold tracking-wider text-ink uppercase"
-      data-role="you"
-    >
-      you
-    </span>
-    """
-  end
-
-  # Round 22: what Share sends: the places and their VP, one line.
-  defp share_text([{seat, vp, _place}], names, 1),
-    do: "#{name(names, seat)} brewed #{vp} VP in Quacks."
-
-  defp share_text(ranked, names, _players) do
-    places =
-      Enum.map_join(ranked, ", ", fn {s, vp, place} -> "#{place}. #{name(names, s)} #{vp} VP" end)
-
-    "Quacks of Quedlinburg: #{places}."
-  end
-
-  # The ranking as `{seat, vp, place}`, best first; equal VP share a place.
-  defp placed_ranking(game) do
-    ranked = ranking(game)
-    for {seat, vp} <- ranked, do: {seat, vp, 1 + Enum.count(ranked, fn {_, v} -> v > vp end)}
-  end
-
-  # The podium left to right: 2nd, 1st, 3rd. Its beat is the order it rises in: last
-  # place first, the winner last.
-  defp podium_order([first, second, third]),
-    do: [{elem(second, 0), 1}, {elem(first, 0), 2}, {elem(third, 0), 0}]
-
-  defp podium_order([first, second]), do: [{elem(second, 0), 0}, {elem(first, 0), 1}]
-  defp podium_order(one), do: Enum.map(one, fn {entry, _i} -> {entry, 0} end)
-
-  defp podium_height(1), do: "h-16"
-  defp podium_height(2), do: "h-11"
-  defp podium_height(_place), do: "h-7"
-
-  defp win_title([seat], seat, _names), do: "You win!"
-  defp win_title([seat], _me, names), do: "#{name(names, seat)} wins!"
-
-  defp win_title(seats, me, names) do
-    if me in seats,
-      do: "You share the win!",
-      else: "#{Enum.map_join(seats, " and ", &name(names, &1))} share the win!"
   end
 
   @doc """
@@ -3202,44 +2968,15 @@ defmodule QuacksWeb.GameLive do
       :keep -> socket
       :drop -> assign(socket, reveal: nil)
       :open -> start_reveal(socket, key, Reveal.slides(game, seat))
-      :result -> open_result(socket)
     end
-  end
-
-  # A spectator gets only the game's last slide.
-  defp open_reveal(%{assigns: %{game: game, reveal: nil, result_closed: false}} = socket) do
-    if Game.over?(game), do: open_result(socket), else: socket
   end
 
   defp open_reveal(socket), do: socket
-
-  # Round 22: a page that opens on a finished game (a reload, a rejoin) shows the
-  # game's last slide, also when the final scoring was not seen to its end.
-  defp result_on_mount(%{assigns: %{game: %Game{phase: :over}}} = socket), do: open_result(socket)
-  defp result_on_mount(socket), do: socket
-
-  # Round 22: the game's last slide (the podium and its actions), straight away: after
-  # a reload or rejoin of a finished game, and from "Show the result".
-  defp open_result(%{assigns: %{game: game}} = socket) do
-    case Reveal.slides(game, socket.assigns.seat) do
-      [] ->
-        socket
-
-      slides ->
-        socket
-        |> start_reveal(Reveal.moment(game), slides)
-        |> show_slide(length(slides) - 1)
-    end
-  end
 
   # What the overlay does with the game's moment `key`.
   defp reveal_step(_assigns, nil), do: :keep
 
   defp reveal_step(%{reveal: %{key: key}}, key), do: :keep
-
-  # The final scoring seen: its last slide, once per page (until × closes it).
-  defp reveal_step(%{reveal: nil, result_closed: false} = assigns, {:final, _} = key),
-    do: if(seen_key?(assigns.seen, key), do: :result, else: :open)
 
   defp reveal_step(assigns, key), do: if(seen_key?(assigns.seen, key), do: :drop, else: :open)
 
@@ -3263,7 +3000,6 @@ defmodule QuacksWeb.GameLive do
         tick: nil,
         settled: true,
         settle: nil,
-        paused: false,
         held: match?({:card, _}, key)
       },
       card_grown: false
@@ -3294,14 +3030,12 @@ defmodule QuacksWeb.GameLive do
   # shows the old ranks; 300 ms later the settle tick sets the new ones (round 18).
   defp show_slide(%{assigns: %{reveal: reveal} = assigns} = socket, index) do
     slide = Enum.at(reveal.slides, index)
-    # The game's last slide waits for Play again: no Auto timer there.
-    final_last? = match?({:final, _}, reveal.key) and index == length(reveal.slides) - 1
 
     tick =
-      if reveal_mode(reveal, assigns) == :auto and connected?(socket) and not final_last?,
+      if reveal_mode(reveal, assigns) == :auto and connected?(socket),
         do: make_ref()
 
-    settle = if slide.kind in [:standings, :tally] and connected?(socket), do: make_ref()
+    settle = if slide.kind == :standings and connected?(socket), do: make_ref()
 
     if tick do
       ms = slide_ms(reveal, slide, assigns.reveal_speed)
@@ -3310,27 +3044,14 @@ defmodule QuacksWeb.GameLive do
     end
 
     if settle,
-      do: Process.send_after(self(), {:reveal_settle, settle}, settle_ms(slide, assigns))
+      do: Process.send_after(self(), {:reveal_settle, settle}, @settle_ms)
 
     assign(socket,
       reveal: %{reveal | index: index, tick: tick, settled: is_nil(settle), settle: settle}
     )
   end
 
-  # Round 29: the final scoring plays in Auto mode by default (a tap pauses it);
-  # reduced motion keeps Step.
-  defp reveal_mode(%{key: {:final, _}, paused: false}, %{reduced: false}), do: :auto
-  defp reveal_mode(%{key: {:final, _}}, _assigns), do: :step
   defp reveal_mode(_reveal, assigns), do: assigns.reveal_mode
-
-  # The final tally settles once its parts have popped in (app.css `.tally-part`:
-  # one every 0.35 beat, the 4th row's last at --i 11).
-  defp settle_ms(%{kind: :tally, rows: rows}, assigns) do
-    parts = rows |> Enum.map(&(&1.from_rank * 3 + length(&1.parts))) |> Enum.max(fn -> 0 end)
-    max(@settle_ms, 500 + round(parts * 0.35 * Reveal.beat_ms(assigns.reveal_speed)))
-  end
-
-  defp settle_ms(_slide, _assigns), do: @settle_ms
 
   # Round 22: the new card hovers over the pot while its reveal shows, or while the
   # card's choice waits with no chips drawn (Safety Procedure and Flea Market draw
@@ -3392,7 +3113,7 @@ defmodule QuacksWeb.GameLive do
     was = pot_card?(socket.assigns)
 
     socket
-    |> assign(reveal: nil, result_closed: match?({:final, _}, key))
+    |> assign(reveal: nil)
     |> card_vt(was)
     |> mark_seen(key)
     |> auto_done()
@@ -3516,11 +3237,6 @@ defmodule QuacksWeb.GameLive do
     do: Map.new(tile_totals(game, reveal), fn {s, totals} -> {s, totals.vp} end)
 
   # Auto mode: the shown slide's time (the overlay's timer bar), else nil.
-  # The game's last slide (the podium) and a paused final tally have no timer.
-  defp reveal_ms(%{key: {:final, _}, slides: slides, index: index}, _mode, _speed)
-       when index == length(slides) - 1,
-       do: nil
-
   defp reveal_ms(%{slides: slides, index: index}, :auto, speed),
     do: slides |> Enum.at(index) |> Reveal.duration(Reveal.factor(speed))
 
@@ -3531,7 +3247,8 @@ defmodule QuacksWeb.GameLive do
   defp close_label(_reveal, :shop, _skip), do: "To the shop"
   defp close_label(_reveal, :rubies, _skip), do: "Spend rubies"
   defp close_label(_reveal, :droplet_choice, _skip), do: "Move the droplet"
-  # Round 29 (F1): round 9 has no "Done": the final tally follows by itself.
+
+  # Round 29 (F1): round 9 has no "Done": the game's end follows by itself (round 31: the chart over the pot).
   defp close_label(%{key: {:results, 9}}, _decision, true), do: "Continue"
   defp close_label(%{key: {:results, _}}, _decision, true), do: "Done"
   defp close_label(_reveal, _decision, _skip), do: "Close"
@@ -3988,7 +3705,6 @@ defmodule QuacksWeb.GameLive do
   defp name(names, seat), do: Map.get(names, seat, GameServer.default_name(seat))
 
   # Seats by VP, highest first.
-  defp ranking(game), do: game |> Game.score() |> Enum.sort_by(fn {_seat, vp} -> -vp end)
 
   defp seed_param({a, b, c}), do: "#{a},#{b},#{c}"
 

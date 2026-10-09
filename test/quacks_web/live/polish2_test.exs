@@ -144,54 +144,37 @@ defmodule QuacksWeb.Polish2Test do
       %{game | log: log ++ game.log, players: players}
     end
 
-    defp render_over(seat) do
-      render_component(&GameLive.game_over/1,
+    # Round 31: the score chart over the pot (`FinalComponents.final_board/1`).
+    defp render_over(seat, bots \\ %{}) do
+      render_component(&QuacksWeb.FinalComponents.final_board/1,
         game: final_game(),
         names: %{0 => "Ann", 1 => "Bo", 2 => "Cy", 3 => "Di"},
-        players: 4,
+        bots: bots,
         seat: seat
       )
     end
 
-    test "the podium shows 2nd, 1st, 3rd; the winner wears the laurel; the rest are rows" do
+    test "the chart lists every seat in final order; the winner's title" do
       html = render_over(0)
       doc = LazyHTML.from_fragment(html)
-
-      podium =
-        doc |> LazyHTML.query("[aria-label=Podium] > li") |> LazyHTML.attribute("data-seat")
-
-      assert podium == ["0", "2", "1"]
-
-      places =
-        doc |> LazyHTML.query("[aria-label=Podium] > li") |> LazyHTML.attribute("data-place")
-
-      assert places == ["2", "1", "3"]
-      assert count(html, ~s([data-seat="2"][data-place="1"] [data-role=crown])) == 1
-      assert count(html, "[data-role=crown]") == 1
-      assert count(html, ~s|ol:not([aria-label=Podium]) > li[data-seat="3"][data-place="4"]|) == 1
+      rows = LazyHTML.query(doc, "[data-role=final-score]")
+      assert LazyHTML.attribute(rows, "data-seat") == ["2", "0", "1", "3"]
+      assert LazyHTML.attribute(rows, "data-place") == ["1", "2", "3", "4"]
+      # The totals count up from the round-9 VP (Cy: 40 with 3 final VP).
+      assert count(html, ~s([data-seat="2"] [data-role=final-vp][data-from="37"])) == 1
       assert html =~ "Cy wins!"
       assert render_over(2) =~ "You win!"
     end
 
-    test "round 29: no VP breakdown pills; this browser's place has a ring and \"you\"" do
+    test "round 29: this browser's place has a ring and \"you\"" do
       html = render_over(2)
-      assert count(html, "[data-role=vp-breakdown]") == 0
       assert count(html, ~s([data-role=final-score][data-seat="2"] [data-role=you])) == 1
       assert count(html, "[data-role=you]") == 1
-      assert count(html, ~s([data-role=final-score][data-seat="2"] .ring-gold)) == 1
+      assert count(html, ~s([data-role=final-score][data-seat="2"].ring-gold)) == 1
       assert count(render_over(nil), "[data-role=you]") == 0
-      assert count(html, "[data-role=game-over-actions].sticky") == 1
 
       # The replay viewed from a bot's seat: that seat is "you", not a bot.
-      html =
-        render_component(&GameLive.game_over/1,
-          game: final_game(),
-          names: %{0 => "Ann", 1 => "Bo", 2 => "Cy", 3 => "Di"},
-          players: 4,
-          bots: %{1 => :balanced, 2 => :balanced},
-          seat: 2
-        )
-
+      html = render_over(2, %{1 => :balanced, 2 => :balanced})
       assert html =~ "You win!"
       assert count(html, ~s([data-seat="2"] [data-role=bot-badge])) == 0
       assert count(html, ~s([data-seat="1"] [data-role=bot-badge])) == 1
@@ -204,10 +187,19 @@ defmodule QuacksWeb.Polish2Test do
       end
     end
 
-    test "Play again is the primary button and takes the focus when the dialog opens" do
-      html = render_over(0)
-      assert count(html, "button[data-role=play-again][autofocus]") == 1
-      assert count(html, "button[autofocus]") == 1
+    test "the bar: Play again is the primary button, then Lobby and Share" do
+      html =
+        render_component(&QuacksWeb.FinalComponents.final_actions/1,
+          game: final_game(),
+          names: %{},
+          share_url: "http://x/g/1"
+        )
+
+      assert count(html, "button[data-role=play-again]") ==
+               1
+
+      assert count(html, "button[data-role=return-to-lobby]") == 1
+      assert count(html, "button[data-role=share-result][aria-label]") == 1
     end
 
     test "solo: the score as the title" do
@@ -215,10 +207,9 @@ defmodule QuacksWeb.Polish2Test do
       game = %{game | log: [{0, {:pot_vp, 12, 30}} | game.log]}
       game = put_in(game.players[0].vp, 12)
 
-      html = render_component(&GameLive.game_over/1, game: game, names: %{}, players: 1)
+      html = render_component(&QuacksWeb.FinalComponents.final_board/1, game: game, names: %{})
       assert html =~ "victory points"
-      assert count(html, "[aria-label=Podium]") == 0
-      assert count(html, "[data-role=vp-breakdown]") == 0
+      assert count(html, "[data-role=final-score]") == 1
     end
   end
 

@@ -95,7 +95,7 @@ defmodule QuacksWeb.Round14Test do
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
     end
 
-    test "the end of the game (round 29): the final tally, the podium with the actions" do
+    test "the end of the game (round 31): the score chart over the pot, no overlay" do
       {id, view, _token} = solo_results()
       render_hook(view, "reveal_close", %{})
 
@@ -108,15 +108,11 @@ defmodule QuacksWeb.Round14Test do
         }
       end)
 
-      # Round 29: one final tally, then the podium.
-      assert has_element?(view, "dialog#reveal-final-9 #reveal-slide-0[data-kind=tally]")
-      refute has_element?(view, "dialog#game-over")
-
-      view |> element("#reveal-next") |> render_click()
-      view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-slide-1[data-kind=podium] [data-role=game-over]")
-      assert has_element?(view, "#reveal-slide-1 [data-role=play-again]")
-      refute has_element?(view, "#reveal-next")
+      refute has_element?(view, "[data-role=reveal]")
+      assert has_element?(view, "[data-role=pot-area] #final-board [data-role=final-score]")
+      assert has_element?(view, "[data-role=game-over-actions] [data-role=play-again]")
+      assert has_element?(view, "[data-role=game-over-actions] [data-role=return-to-lobby]")
+      refute has_element?(view, "[data-role=action-bar]")
     end
 
     test "round 29: round 9's results end on the last step with Continue, no standings" do

@@ -115,8 +115,7 @@ defmodule QuacksWeb.UiRound3bTest do
 
     {:error, {:live_redirect, %{to: "/g/" <> new_id}}} =
       alice
-      |> tap(&(&1 |> element("#reveal-skip") |> render_click()))
-      |> element("#reveal-final-9 button", "Play again")
+      |> element("[data-role=game-over-actions] button", "Play again")
       |> render_click()
 
     assert {"/g/" <> ^new_id, _flash} = assert_redirect(bob)

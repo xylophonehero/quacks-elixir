@@ -203,12 +203,12 @@ defmodule QuacksWeb.UiRound3Test do
     game = game |> put_in([Access.key(:players), 0, Access.key(:vp)], 5)
     game = game |> put_in([Access.key(:players), 1, Access.key(:vp)], 2)
 
+    names = %{0 => "Ann", 1 => "Bo"}
+
+    # Round 31: the score chart over the pot, Play again / Lobby in the bar.
     html =
-      render_component(&GameLive.game_over/1,
-        game: game,
-        names: %{0 => "Ann", 1 => "Bo"},
-        players: 2
-      )
+      render_component(&QuacksWeb.FinalComponents.final_board/1, game: game, names: names) <>
+        render_component(&QuacksWeb.FinalComponents.final_actions/1, game: game, names: names)
 
     assert html =~ "Ann wins!"
     assert count(html, ~s([data-role=final-score][data-seat="0"][data-place="1"])) == 1

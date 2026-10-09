@@ -22,7 +22,6 @@ defmodule QuacksWeb.RevealComponents do
       card_outcome: 2,
       chip: 1,
       die: 1,
-      seat_bg: 1,
       seat_dot: 1
     ]
 
@@ -42,9 +41,6 @@ defmodule QuacksWeb.RevealComponents do
   attr :auto_ms, :integer, default: nil, doc: "the slide's time in Auto mode, nil in Step mode"
   attr :close_label, :string, default: "Close"
 
-  slot :podium,
-    doc: "round 22: the game-over screen (podium, results, Play again) on the final podium slide"
-
   def reveal_overlay(assigns) do
     %{key: {kind, round}, slides: slides, index: index} = assigns.reveal
 
@@ -54,9 +50,7 @@ defmodule QuacksWeb.RevealComponents do
         slide: Enum.at(slides, index),
         count: length(slides),
         last?: index == length(slides) - 1,
-        card?: kind == :card,
-        # Round 22: the game's last slide holds the game-over actions: no Next.
-        actions?: kind == :final and index == length(slides) - 1 and assigns.podium != []
+        card?: kind == :card
       )
 
     ~H"""
@@ -91,7 +85,7 @@ defmodule QuacksWeb.RevealComponents do
         <.strip
           :if={
             @slide[:standings] not in [nil, []] and
-              @slide.kind not in [:card, :podium, :standings, :tally]
+              @slide.kind not in [:card, :standings]
           }
           rows={@slide.standings}
           names={@names}
@@ -106,14 +100,11 @@ defmodule QuacksWeb.RevealComponents do
           data-role="reveal-timer"
           aria-hidden="true"
         />
-        <%!-- A tap anywhere on the slide is Next (not on the game's last slide). --%>
+        <%!-- A tap anywhere on the slide is Next. --%>
         <div
           id="reveal-stage"
-          class={[
-            "reveal-stage flex flex-1 flex-col justify-center py-3",
-            not @actions? && "cursor-pointer"
-          ]}
-          phx-click={not @actions? && "reveal_next"}
+          class="reveal-stage flex flex-1 cursor-pointer flex-col justify-center py-3"
+          phx-click="reveal_next"
           data-role="reveal-stage"
           aria-live="polite"
         >
@@ -123,9 +114,7 @@ defmodule QuacksWeb.RevealComponents do
             data-role="reveal-slide"
             data-kind={@slide.kind}
           >
-            {if @actions?, do: render_slot(@podium)}
             <.slide
-              :if={not @actions?}
               slide={@slide}
               names={@names}
               seat={@seat}
@@ -133,7 +122,7 @@ defmodule QuacksWeb.RevealComponents do
             />
           </div>
         </div>
-        <footer :if={not @actions?} class="flex gap-2 *:min-h-12" data-role="reveal-bar">
+        <footer class="flex gap-2 *:min-h-12" data-role="reveal-bar">
           <.button
             :if={not @last?}
             id="reveal-skip"
@@ -161,7 +150,6 @@ defmodule QuacksWeb.RevealComponents do
 
   defp title({:card, round}), do: "Round #{round}: the fortune teller"
   defp title({:results, round}), do: "Round #{round}: evaluation"
-  defp title({:final, _}), do: "Final scoring"
 
   attr :slide, :map, required: true
   attr :names, :map, required: true
@@ -395,102 +383,6 @@ defmodule QuacksWeb.RevealComponents do
     """
   end
 
-  # Round 29 (F1): the final tally. The rows start at the round-9 totals and
-  # ranks; each row's final parts pop in one after the other, then (the settle
-  # tick) the totals count up and the rows glide to their new ranks.
-  defp slide(%{slide: %{kind: :tally}} = assigns) do
-    ~H"""
-    <div class="space-y-2">
-      <h2 class="text-center font-hand text-3xl leading-tight font-bold">Final tally</h2>
-      <div
-        class="standings tally relative text-sm"
-        style={"--rows: #{length(@slide.rows)}"}
-        data-role="reveal-tally"
-        data-settled={to_string(@settled)}
-      >
-        <ol class="absolute inset-y-0 left-0 w-5" aria-hidden="true">
-          <li
-            :for={i <- 1..length(@slide.rows)}
-            class="standings-slot font-hand text-lg text-ink-soft"
-          >
-            {i}
-          </li>
-        </ol>
-        <div
-          :for={row <- @slide.rows}
-          id={"tally-row-#{row.seat}"}
-          class={["standings-row", row.seat == @seat && "ring-2 ring-gold"]}
-          style={"--rank: #{if @settled, do: row.rank, else: row.from_rank}"}
-          data-seat={row.seat}
-          data-rank={if @settled, do: row.rank, else: row.from_rank}
-          data-role="tally-row"
-        >
-          <div class="min-w-0 flex-1">
-            <p class="flex items-center gap-1.5">
-              <.seat_dot seat={row.seat} />
-              <span class="min-w-0 truncate font-semibold">
-                {short_name(@names, row.seat, @seat)}
-              </span>
-            </p>
-            <ul class="mt-0.5 flex flex-wrap gap-1 text-xs" aria-label="Final scoring">
-              <li
-                :for={{{kind, n, vp}, i} <- Enum.with_index(row.parts)}
-                class="tally-part inline-flex items-center gap-1 rounded-full bg-parchment-light/80 px-1.5 ring-1 ring-ink/10"
-                style={"--i: #{row.from_rank * 3 + i}"}
-                data-part={kind}
-              >
-                {part_text(kind, n)}<span class="font-bold tabular-nums">+{vp}</span>
-              </li>
-              <li :if={row.parts == []} class="text-ink-soft">No final VP</li>
-            </ul>
-          </div>
-          <span class="flex w-16 shrink-0 items-center justify-end gap-1 font-hand text-2xl font-bold">
-            <.piece_icon name={:vp} class="size-4 text-gold" /><.ticker value={
-              if @settled, do: row.vp, else: row.from_vp
-            } />
-            <span class="sr-only">VP</span>
-          </span>
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  defp slide(%{slide: %{kind: :podium}} = assigns) do
-    ~H"""
-    <div class="space-y-3 text-center">
-      <h2 class="win-shimmer font-hand text-3xl leading-tight font-bold">
-        {winner(@slide.ranked, @names, @seat)}
-      </h2>
-      <ol class="space-y-1.5 text-left" data-role="reveal-podium">
-        <li
-          :for={{{seat, vp, place}, i} <- Enum.with_index(@slide.ranked)}
-          class={[
-            "reveal-row flex items-center gap-2 rounded-md px-2 py-1.5",
-            if(place == 1, do: "bg-gold/40 ring-1 ring-gold", else: "bg-parchment-deep/50")
-          ]}
-          style={"--i: #{length(@slide.ranked) - 1 - i}"}
-          data-seat={seat}
-          data-place={place}
-        >
-          <span class="w-5 font-hand text-lg font-bold">{place}</span>
-          <span class={[
-            "grid size-7 place-items-center rounded-full font-hand font-bold text-ink ring-1 ring-black/25",
-            seat_bg(seat)
-          ]}>
-            {String.first(short_name(@names, seat, nil))}
-          </span>
-          <span class="min-w-0 flex-1 truncate font-semibold">
-            {short_name(@names, seat, @seat)}
-          </span>
-          <.piece_icon :if={place == 1} name={:vp} class="size-5 text-gold" />
-          <span class="font-hand text-xl font-bold tabular-nums">{vp} VP</span>
-        </li>
-      </ol>
-    </div>
-    """
-  end
-
   # The running results (round 16): one chip per seat in VP order, its VP so far and
   # what this slide added. A fixed height, so the slide does not move. Each slide
   # has its own ids, so the gain pops in once per slide.
@@ -688,20 +580,8 @@ defmodule QuacksWeb.RevealComponents do
   defp choice(:vp), do: "VP"
   defp choice(:buy), do: "coins"
 
-  defp part_text(:coins, n), do: "#{n} #{if n == 1, do: "coin", else: "coins"}"
-  defp part_text(:rubies, n), do: "#{n} #{if n == 1, do: "ruby", else: "rubies"}"
-  defp part_text(:pennies, _n), do: "Pennies"
-
   defp short_name(_names, seat, seat), do: "You"
   defp short_name(names, seat, _me), do: Map.get(names, seat, "Player #{seat + 1}")
-
-  defp winner(ranked, names, me) do
-    case for({seat, _vp, 1} <- ranked, do: seat) do
-      [^me] -> "You win!"
-      [seat] -> "#{short_name(names, seat, nil)} wins!"
-      seats -> "#{Enum.map_join(seats, " and ", &short_name(names, &1, me))} share the win!"
-    end
-  end
 
   @doc """
   The menu's reveal settings, a form (`#reveal-settings`, event
