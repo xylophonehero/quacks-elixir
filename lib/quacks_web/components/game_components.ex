@@ -1788,7 +1788,8 @@ defmodule QuacksWeb.GameComponents do
         bg: @seat_bg[assigns.seat],
         state: state,
         boom: p.exploded? and p.drawn != [],
-        stopped: state == "stopped"
+        stopped: state == "stopped",
+        brewing: assigns.game.phase == :potions
       )
 
     ~H"""
@@ -1872,27 +1873,33 @@ defmodule QuacksWeb.GameComponents do
       </span>
       <%!-- R2: the bottom line swaps to the step's news and back (app.css
            `.tile-line`); a new `news.key` plays the swap again. --%>
+      <%!-- Round 31: while the round brews, the pot's black chips and white
+           sum stay on the line's right end, beside the last draws. --%>
       <span
         id={"tile-line-#{@seat}" <> if(@news, do: "-" <> @news.key, else: "")}
-        class="tile-line relative h-[18px] w-full min-w-0"
+        class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]"
         data-role="tile-line"
         data-news={@news && "true"}
         data-hold={@news && @news[:hold] && "true"}
       >
-        <.chip_stats
-          game={@game}
-          p={@p}
-          seat={@seat}
-          totals={@totals}
-          ticks={@ticks && card_ticks(@game, @seat, @updates)}
-        />
-        <span
-          :if={@news}
-          class="tile-news absolute inset-0 flex items-center gap-1 overflow-hidden text-tag font-bold whitespace-nowrap tabular-nums"
-          data-role="tile-news"
-        >
-          <QuacksWeb.TileRevealComponents.tile_news items={@news.items} />
+        <span class="relative h-full min-w-0 flex-1">
+          <.chip_stats
+            game={@game}
+            p={@p}
+            seat={@seat}
+            totals={@totals}
+            ticks={@ticks && card_ticks(@game, @seat, @updates)}
+            show_black={!@brewing}
+          />
+          <span
+            :if={@news}
+            class="tile-news absolute inset-0 flex items-center gap-1 overflow-hidden text-tag font-bold whitespace-nowrap tabular-nums"
+            data-role="tile-news"
+          >
+            <QuacksWeb.TileRevealComponents.tile_news items={@news.items} />
+          </span>
         </span>
+        <.tile_brew :if={@brewing} game={@game} p={@p} seat={@seat} />
       </span>
       <.player_state game={@game} seat={@seat} tile class="absolute -top-1.5 -right-1.5" />
     </button>
@@ -2050,6 +2057,59 @@ defmodule QuacksWeb.GameComponents do
     """
   end
 
+  attr :game, Game, required: true
+  attr :p, Player, required: true
+  attr :seat, :integer, required: true
+
+  # Round 31 (item 8): while the round brews, the right end of a tile's bottom
+  # line: the black chips in the pot and the white sum against the limit ("4/7",
+  # `Potions.explode_above/2`; amber one point before the limit, red at it or
+  # after an explosion, like `fuse_meter/1`). Compact, so 8 tiles fit at 360 px.
+  defp tile_brew(assigns) do
+    white = Game.white_sum(assigns.game, assigns.seat)
+    limit = Potions.explode_above(assigns.game, assigns.seat)
+
+    assigns =
+      assign(assigns,
+        black: Enum.count(Player.pot_chips(assigns.p), &match?({:black, _}, &1)),
+        white: white,
+        limit: limit,
+        level:
+          cond do
+            assigns.p.exploded? or white >= limit -> "danger"
+            white == limit - 1 -> "warn"
+            true -> "safe"
+          end
+      )
+
+    ~H"""
+    <span
+      class="flex shrink-0 items-center gap-[3px] text-tag font-semibold tabular-nums"
+      data-role="tile-brew"
+    >
+      <span class="flex items-center gap-px" title="Black chips in the pot" data-role="tile-black">
+        <span class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver" aria-hidden="true" />{@black}
+        <span class="sr-only">black chips in the pot</span>
+      </span>
+      <span
+        class={[
+          "leading-none",
+          case @level do
+            "danger" -> "font-bold text-ruby-light"
+            "warn" -> "font-bold text-[#f0892a]"
+            "safe" -> "text-parchment-light"
+          end
+        ]}
+        title={"White #{@white} of #{@limit}"}
+        data-role="tile-white"
+        data-level={@level}
+      >
+        {@white}<span class="text-parchment-dim">/</span>{@limit}<span class="sr-only"> white</span>
+      </span>
+    </span>
+    """
+  end
+
   @doc """
   Whether the black chips in a pot matter at the table: black book I (the base
   book) compares them, with the neighbours or (house rule) the standings. Black
@@ -2063,6 +2123,10 @@ defmodule QuacksWeb.GameComponents do
   attr :seat, :integer, required: true
   attr :ticks, :any, default: nil, doc: "`%{vp: {beat, from}, rubies: {beat, from}}`"
   attr :totals, :any, default: nil, doc: "see `player_chip/1`"
+
+  attr :show_black, :boolean,
+    default: true,
+    doc: "the black count (`tile_brew/1` has it while brewing)"
 
   # The tile's bottom line: rubies, the droplet, the flask (full or used), the black
   # chips in the pot (black book I only), this round's rat tails (rats on),
@@ -2111,7 +2175,7 @@ defmodule QuacksWeb.GameComponents do
         <span class="sr-only">flask {flask_word(@p.flask)}</span>
       </span>
       <span
-        :if={black_counts?(@game)}
+        :if={@show_black and black_counts?(@game)}
         class="flex items-center gap-px"
         title="Black chips in the pot"
         data-role="player-black"

@@ -228,17 +228,19 @@ defmodule QuacksWeb.Round28TilesTest do
       assert has?(html, "[data-role=player-vp].text-num")
     end
 
+    # Round 31: out of the brewing (while brewing `tile-black` has the count).
     test "black chips in the pot only with black book I (either black rule)" do
-      assert has?(tile(Game.new(seed: {1, 2, 3}, players: 2)), "[data-role=player-black]")
+      shop = &%{&1 | phase: :shopping}
+      assert has?(tile(shop.(Game.new(seed: {1, 2, 3}, players: 2))), "[data-role=player-black]")
 
       standings = Game.new(seed: {1, 2, 3}, players: 2, rules: %{black_rule: :standings})
-      assert has?(tile(standings), "[data-role=player-black]")
+      assert has?(tile(shop.(standings)), "[data-role=player-black]")
 
       for set <- [2, 3] do
         game =
           Game.new(seed: {1, 2, 3}, players: 2, expansions: [:herb_witches], sets: %{black: set})
 
-        refute has?(tile(game), "[data-role=player-black]")
+        refute has?(tile(shop.(game)), "[data-role=player-black]")
       end
     end
 

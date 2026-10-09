@@ -126,4 +126,69 @@ defmodule QuacksWeb.Round31EvalTest do
     assert has_element?(view, ".pot-lg [data-role=droplet][data-index='#{droplets[0]}']")
     assert view |> element("#stat-rubies .sr-only") |> render() =~ ">#{rubies}<"
   end
+
+  describe "item 8: black and white on the tiles" do
+    defp tile(game, seat \\ 1) do
+      render_component(&QuacksWeb.GameComponents.player_chip/1,
+        game: game,
+        seat: seat,
+        name: "Wilhelmina"
+      )
+      |> LazyHTML.from_fragment()
+    end
+
+    defp text(html, selector),
+      do: html |> LazyHTML.query(selector) |> LazyHTML.text() |> String.replace(~r/\s+/, " ")
+
+    defp brewing(players) do
+      game = Game.new(seed: {1, 2, 3}, players: players)
+      %{game | phase: :potions}
+    end
+
+    test "while brewing a tile shows the black count and the white sum against the limit" do
+      game = brewing(8)
+      white = Game.white_sum(game, 1)
+      limit = Quacks.Game.Potions.explode_above(game, 1)
+      html = tile(game)
+
+      assert text(html, "[data-role=tile-white]") =~ "#{white}/#{limit}"
+      assert text(html, "[data-role=tile-black]") =~ "0"
+      # The black count moves out of the stats line while it is on the right end.
+      assert Enum.empty?(LazyHTML.query(html, "[data-role=player-black]"))
+    end
+
+    test "out of the brewing the stats line keeps its black count, no white sum" do
+      game = %{brewing(2) | phase: :shopping}
+      html = tile(game)
+      assert Enum.empty?(LazyHTML.query(html, "[data-role=tile-brew]"))
+      refute Enum.empty?(LazyHTML.query(html, "[data-role=player-black]"))
+    end
+
+    test "the white sum turns amber one point before the limit and red at it" do
+      game = brewing(2)
+      limit = Quacks.Game.Potions.explode_above(game, 1)
+
+      level = fn white ->
+        drawn = [{{:white, white}, 1}]
+        g = update_in(game.players[1], &%{&1 | drawn: drawn})
+
+        g
+        |> tile()
+        |> LazyHTML.query("[data-role=tile-white]")
+        |> LazyHTML.attribute("data-level")
+      end
+
+      assert level.(limit - 2) == ["safe"]
+      assert level.(limit - 1) == ["warn"]
+      assert level.(limit) == ["danger"]
+    end
+
+    test "with 8 players a tile keeps 2 draws beside the counts" do
+      game = brewing(8)
+      chips = for v <- [1, 2, 1], do: {{:orange, v}, 1}
+      game = update_in(game.players[0], &%{&1 | drawn: chips})
+      assert %{items: items} = TileReveal.news(game, 0, nil)
+      assert length(items) == 2
+    end
+  end
 end

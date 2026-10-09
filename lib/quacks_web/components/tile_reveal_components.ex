@@ -40,13 +40,18 @@ defmodule QuacksWeb.TileRevealComponents do
   end
 
   # Round 29 (B2): a draw while the round brews. The newest (`age` 0) glows
-  # once (`beat-glow`); the older ones are dimmer.
+  # once (`beat-glow`); the older ones are dimmer. Round 31: they overlap by 4 px
+  # (the newest on top), so the line has room for the black and white counts.
   defp badge(%{badge: {:drew, chip, age}} = assigns) do
     assigns = assign(assigns, chip: chip, age: age)
 
     ~H"""
     <span
-      class={["relative shrink-0 rounded-full ring-1 ring-black/40", @age > 0 && "opacity-70"]}
+      class={[
+        "relative shrink-0 rounded-full ring-1 ring-black/40",
+        @age > 0 && "-ml-2 opacity-70"
+      ]}
+      style={"z-index: #{10 - @age}"}
       data-gain="drew"
       data-age={@age}
     >
