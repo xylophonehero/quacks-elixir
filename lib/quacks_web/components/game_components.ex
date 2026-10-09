@@ -583,7 +583,8 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   The test-tube rack of the reverse pot side: glass 0 (the start) and the 12 bonus
   glasses, each with its bonus (a ruby, the VP, or the chip). The droplet sits above
-  the glass the player reached; glasses already paid are dimmed.
+  the glass the player reached; glasses already paid are dimmed. Round 35: the ruby
+  and the VP crown are the game's icons (no "VP" text), and the glasses are shorter.
   """
   attr :tube, :integer, required: true, doc: "the player's `tube` (0..12)"
   attr :class, :any, default: "block h-auto w-full"
@@ -616,15 +617,15 @@ defmodule QuacksWeb.GameComponents do
     <svg
       id={@id}
       phx-hook=".TubeDrop"
-      viewBox="0 -18 364 84"
+      viewBox="0 -18 364 72"
       class={[@class, "select-none"]}
       role="img"
       aria-label={"Test tubes: glass #{@tube} of #{@last}"}
       data-role="test-tubes"
       data-tube={@tube}
     >
-      <rect x="2" y="54" width="360" height="9" rx="3" fill="var(--color-wood)" />
-      <rect x="2" y="54" width="360" height="3" rx="1.5" fill="var(--color-wood-dark)" opacity="0.5" />
+      <rect x="2" y="44" width="360" height="8" rx="3" fill="var(--color-wood)" />
+      <rect x="2" y="44" width="360" height="3" rx="1.5" fill="var(--color-wood-dark)" opacity="0.5" />
       <g
         :for={glass <- @glasses}
         transform={"translate(#{14 + 28 * glass} 0)"}
@@ -637,8 +638,8 @@ defmodule QuacksWeb.GameComponents do
         <path
           d={
             if glass == 0,
-              do: "M-7 22 v20 a7 7 0 0 0 14 0 v-20",
-              else: "M-10 6 v38 a10 10 0 0 0 20 0 v-38"
+              do: "M-7 18 v14 a7 7 0 0 0 14 0 v-14",
+              else: "M-10 6 v28 a10 10 0 0 0 20 0 v-28"
           }
           fill="var(--color-parchment-light)"
           fill-opacity="0.85"
@@ -648,8 +649,8 @@ defmodule QuacksWeb.GameComponents do
         <line
           x1={if glass == 0, do: "-9", else: "-12"}
           x2={if glass == 0, do: "9", else: "12"}
-          y1={if glass == 0, do: "22", else: "6"}
-          y2={if glass == 0, do: "22", else: "6"}
+          y1={if glass == 0, do: "18", else: "6"}
+          y2={if glass == 0, do: "18", else: "6"}
           stroke="var(--color-iron)"
           stroke-width="3"
           stroke-linecap="round"
@@ -674,11 +675,15 @@ defmodule QuacksWeb.GameComponents do
 
   defp glass_bonus(%{bonus: :ruby} = assigns) do
     ~H"""
-    <path
-      d="M0 22 l7 5 -2.5 8 h-9 l-2.5 -8 z"
-      fill="var(--color-ruby)"
-      stroke="#7a1410"
-      stroke-width="1"
+    <.piece_icon
+      name={:ruby}
+      x="-8"
+      y="16"
+      width="16"
+      height="16"
+      class="text-ruby"
+      style="filter: drop-shadow(0 0 1px #4a0d0a)"
+      data-role="glass-ruby"
     />
     """
   end
@@ -687,11 +692,18 @@ defmodule QuacksWeb.GameComponents do
     assigns = assign(assigns, n: n)
 
     ~H"""
-    <text y="31" text-anchor="middle" font-size="15" font-weight="800" fill="var(--color-ink)">
+    <.piece_icon
+      name={:vp}
+      x="-7"
+      y="10"
+      width="14"
+      height="14"
+      class="text-gold"
+      style="filter: drop-shadow(0 0 1px #5a3d0a)"
+      data-role="glass-vp"
+    />
+    <text y="37" text-anchor="middle" font-size="13" font-weight="800" fill="var(--color-ink)">
       {@n}
-    </text>
-    <text y="42" text-anchor="middle" font-size="7" font-weight="700" fill="var(--color-ink-soft)">
-      VP
     </text>
     """
   end
@@ -702,13 +714,13 @@ defmodule QuacksWeb.GameComponents do
 
     ~H"""
     <circle
-      cy="30"
+      cy="26"
       r="8"
       fill={"var(--color-chip-#{@colour})"}
       stroke="rgb(0 0 0 / 0.4)"
       stroke-width="1.5"
     />
-    <text y="33.5" text-anchor="middle" font-size="10" font-weight="700" fill={@ink}>
+    <text y="29.5" text-anchor="middle" font-size="10" font-weight="700" fill={@ink}>
       {@value}
     </text>
     """

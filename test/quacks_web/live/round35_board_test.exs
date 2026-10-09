@@ -120,4 +120,21 @@ defmodule QuacksWeb.Round35BoardTest do
       assert js =~ "bagUntil - performance.now()"
     end
   end
+
+  describe "test tubes" do
+    test "the ruby and the VP are icons, no VP text; the rack is shorter" do
+      html =
+        render_component(&QuacksWeb.GameComponents.test_tubes/1, id: "t", tube: 0)
+        |> LazyHTML.from_fragment()
+
+      assert html |> LazyHTML.query("[data-role=glass-ruby][data-icon=ruby]") |> Enum.count() > 0
+      assert html |> LazyHTML.query("[data-role=glass-vp][data-icon=vp]") |> Enum.count() > 0
+      texts = html |> LazyHTML.query("text") |> Enum.map(&String.trim(LazyHTML.text(&1)))
+      refute "VP" in texts
+
+      assert LazyHTML.attribute(LazyHTML.query(html, "svg[data-role=test-tubes]"), "viewBox") == [
+               "0 -18 364 72"
+             ]
+    end
+  end
 end

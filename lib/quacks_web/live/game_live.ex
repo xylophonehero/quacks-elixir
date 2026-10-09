@@ -1347,7 +1347,7 @@ defmodule QuacksWeb.GameLive do
             <.test_tubes
               id="tubes-main"
               tube={@game.players[@seat || 0].tube}
-              class="mx-auto block h-auto w-full max-w-sm"
+              class="mx-auto block h-auto w-full max-w-xs"
             />
           </div>
         </div>
