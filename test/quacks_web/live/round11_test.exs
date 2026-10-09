@@ -101,7 +101,9 @@ defmodule QuacksWeb.Round11Test do
       {id, view} = solo()
       replace_game(id, &H.put(&1, 0, exploded?: true, phase: :explosion_choice))
       assert has_element?(view, "[data-role=exploded-panel].lg\\:block", "Your pot exploded")
-      assert has_element?(view, "[data-role=action-bar].lg\\:hidden")
+      # Round 29: the explosion's choice takes the place of the buttons.
+      refute has_element?(view, "[data-role=action-bar]")
+      assert has_element?(view, "[data-role=bar-explosion]")
     end
   end
 

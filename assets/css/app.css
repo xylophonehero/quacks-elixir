@@ -2697,3 +2697,52 @@ html:active-view-transition-type(card) .card-caption {
   .tile-line[data-news] .tile-news { animation-name: tile-news-fade; }
   .tile-line[data-news] .tile-totals { animation-name: tile-totals-fade; }
 }
+
+/* Round 29: your own explosion's beat. BOOM over the pot (`boom` in game_live)
+   for about 700 ms while the pot shakes and the fuse bursts; then the choice
+   shows in the bar (`.bar-choice-late`), so a tap meant for Draw does not choose.
+   Reduced motion: the same beat as a plain fade, no growth or slide. */
+.boom {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-family: var(--font-hand);
+  font-size: 4.5rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-ruby-light);
+  text-shadow: 0 2px 0 var(--color-wood-dark), 0 0 18px rgb(216 50 43 / 0.7);
+  animation: boom 700ms var(--ease-out) forwards;
+}
+
+@keyframes boom {
+  0% { opacity: 0; scale: 0.6; }
+  20% { opacity: 1; scale: 1.15; }
+  75% { opacity: 1; scale: 1; }
+  100% { opacity: 0; scale: 1.05; }
+}
+
+@keyframes boom-fade {
+  0%, 75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.bar-choice-late {
+  animation: bar-choice-in 200ms var(--ease-out) 700ms both;
+}
+
+@keyframes bar-choice-in {
+  from { opacity: 0; visibility: hidden; translate: 0 6px; }
+}
+
+@keyframes bar-choice-show {
+  from { opacity: 0; visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boom { animation-name: boom-fade; }
+  .bar-choice-late { animation-name: bar-choice-show; }
+}

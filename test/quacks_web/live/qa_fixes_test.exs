@@ -81,8 +81,9 @@ defmodule QuacksWeb.QaFixesTest do
     )
 
     assert has_element?(view, "dialog#reveal-results-1")
-    assert has_element?(view, "dialog#decision-rubies")
-    refute auto_open?(view, "#decision-rubies")
+    # Round 29: the rubies wait in the bar, under the results.
+    assert has_element?(view, "#bar-rubies")
+    refute has_element?(view, "dialog#decision-rubies")
   end
 
   describe "B4/B5: the configure screen" do

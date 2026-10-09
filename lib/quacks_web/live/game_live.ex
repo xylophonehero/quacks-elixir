@@ -1154,6 +1154,19 @@ defmodule QuacksWeb.GameLive do
                 beats={replay_marks(@game, @seat)}
                 effects={replay_effects(@game, @seat, @seen)}
               />
+              <%!-- Round 29: your own explosion's beat (app.css `.boom`); the hook
+                   buzzes the phone once (app.js `Boom`). --%>
+              <p
+                :if={@me && @me.exploded? && @game.phase == :potions}
+                id={"boom-#{@game.round}"}
+                class="boom"
+                phx-hook="Boom"
+                data-key={"#{@id}-#{@game.round}"}
+                aria-hidden="true"
+                data-role="boom"
+              >
+                BOOM
+              </p>
               <%!-- Round 22: the top left corner holds the round's card (a tap
                    shows its text) and, below it, the witches. Small enough for the
                    free corner outside the round rim. --%>
@@ -1276,7 +1289,7 @@ defmodule QuacksWeb.GameLive do
                    waits for the update chips, a decision for a new card (they hand
                    over). The fortune choice lives in the card's dialog. --%>
           <.dialog_sheet
-            :if={@decision && @decision != :fortune_choice}
+            :if={@decision && @decision != :fortune_choice && !@bar_choice}
             id={"decision-#{@decision}"}
             label={phase_name(@decision)}
             auto_open={is_nil(@reveal)}
@@ -1588,7 +1601,7 @@ defmodule QuacksWeb.GameLive do
                decision is a panel in the context column, and this shows only when
                that panel was closed. --%>
           <.button
-            :if={@decision}
+            :if={@decision && !@bar_choice}
             variant={:primary}
             class="min-h-12 w-full text-base [body:has(dialog[open])_&]:invisible lg:[body:has(dialog[open])_&]:hidden"
             data-role="decision-button"
@@ -1629,8 +1642,15 @@ defmodule QuacksWeb.GameLive do
                while the game runs, only disabled; gone at game over and while
                everyone shops (the shop has its own buttons). From 64rem Draw is the
                large button on top, Stop and the flask under it. --%>
+          <.bar_choice
+            :if={@bar_choice && not Game.over?(@game)}
+            choice={@bar_choice}
+            actions={@all_actions}
+            game={@game}
+            me={@me}
+          />
           <section
-            :if={@seat && not Game.over?(@game) && not results?(@game)}
+            :if={@seat && not Game.over?(@game) && not results?(@game) && !@bar_choice}
             class={[
               "action-bar *:min-h-12 *:touch-manipulation",
               @decision && "max-lg:hidden",
@@ -2401,6 +2421,144 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
+  @doc """
+  Round 29: a choice in the bar, where Stop and Draw sit (`@bar_choice`), not a sheet.
+  It keeps the bar's height (`min-h-12`), so the pot does not move.
+
+  `:explosion_choice`: Take VP or Take coins, each with its icon, its number and a
+  one-line hint. On a phone it shows after the explosion's beat (BOOM over the pot,
+  about 700 ms, `.bar-choice-late` in app.css), so a tap meant for Draw does not
+  choose.
+
+  `:rubies`: Skip, then one button per ruby use, each "2" (the seat's
+  `ruby_price`) and the ruby, then its icon: the test tube (reverse pot side only),
+  the flask, the pot (droplet +1). Round 9: 2 rubies buy 1 VP. A use that is not
+  possible now is disabled and says why ("Flask full").
+  """
+  attr :choice, :atom, required: true, values: [:explosion_choice, :rubies]
+  attr :actions, :list, required: true
+  attr :game, Game, required: true
+  attr :me, Player, required: true
+
+  def bar_choice(%{choice: :explosion_choice} = assigns) do
+    space = PotTrack.at(Player.scoring_index(assigns.me))
+    assigns = assign(assigns, space: space, final?: assigns.game.round == 9)
+
+    ~H"""
+    <section
+      id={"bar-explosion-#{@game.round}"}
+      class="bar-choice bar-choice-late grid grid-cols-2 gap-2 *:min-h-12 *:touch-manipulation"
+      aria-label="Your pot exploded: take the victory points or the coins"
+      data-role="bar-explosion"
+    >
+      <.button
+        phx-click="action"
+        phx-value-action={encode({:explosion_choice, :vp})}
+        disabled={{:explosion_choice, :vp} not in @actions}
+        class="flex-col gap-0! px-2! py-1! leading-tight"
+        aria-label={action_label({:explosion_choice, :vp}, @game, @me)}
+        data-choice="vp"
+      >
+        <span class="flex items-center gap-1 text-base">
+          <.piece_icon name={:vp} class="size-5" /> Take VP +{@space.vp}
+        </span>
+        <span class="text-xs font-normal opacity-80">Score now, no coins</span>
+      </.button>
+      <.button
+        phx-click="action"
+        phx-value-action={encode({:explosion_choice, :buy})}
+        disabled={{:explosion_choice, :buy} not in @actions}
+        class="flex-col gap-0! px-2! py-1! leading-tight"
+        aria-label={action_label({:explosion_choice, :buy}, @game, @me)}
+        data-choice="buy"
+      >
+        <span class="flex items-center gap-1 text-base">
+          <.piece_icon name={:coin} class="size-5" /> Take coins {@space.coins}
+        </span>
+        <span class="text-xs font-normal opacity-80">
+          {if @final?, do: "Turn into VP at the end", else: "Shop, no VP"}
+        </span>
+      </.button>
+    </section>
+    """
+  end
+
+  def bar_choice(%{choice: :rubies} = assigns) do
+    assigns =
+      assign(assigns,
+        uses: ruby_uses(assigns.game),
+        price: if(assigns.game.round == 9, do: 2, else: assigns.me.ruby_price)
+      )
+
+    ~H"""
+    <section
+      id="bar-rubies"
+      class="bar-choice flex gap-1.5 *:min-h-12 *:min-w-0 *:flex-1 *:touch-manipulation"
+      aria-label={"Spend rubies: you have #{@me.rubies}"}
+      data-role="bar-rubies"
+    >
+      <.button
+        phx-click="action"
+        phx-value-action={encode(:end_round)}
+        disabled={:end_round not in @actions}
+        class="px-1!"
+        data-role="rubies-skip"
+      >
+        Skip
+      </.button>
+      <.button
+        :for={use <- @uses}
+        phx-click="action"
+        phx-value-action={encode({:rubies, use})}
+        disabled={{:rubies, use} not in @actions}
+        variant={:primary}
+        class="flex-col gap-0! px-1! py-1! leading-tight"
+        aria-label={action_label({:rubies, use}, @game, @me)}
+        title={
+          if {:rubies, use} in @actions,
+            do: action_label({:rubies, use}, @game, @me),
+            else: ruby_why(use, @me, @actions)
+        }
+        data-ruby={use}
+      >
+        <span class="flex items-center gap-0.5 text-base tabular-nums">
+          {@price}<.piece_icon name={:ruby} class="size-4 text-ruby" />
+          <.piece_icon name={ruby_icon(use)} class="ml-0.5 size-5" />
+        </span>
+        <span class="max-w-full truncate text-[11px] font-normal">
+          {ruby_why(use, @me, @actions)}
+        </span>
+      </.button>
+    </section>
+    """
+  end
+
+  # The ruby uses in the bar: round 9 only buys VP; the test tube is on the reverse
+  # pot side only.
+  defp ruby_uses(%Game{round: 9}), do: [:vp]
+  defp ruby_uses(%Game{rules: %{pot_side: :back}}), do: [:tube, :flask, :droplet]
+  defp ruby_uses(_game), do: [:flask, :droplet]
+
+  defp ruby_icon(:tube), do: :tube
+  defp ruby_icon(:flask), do: :flask
+  defp ruby_icon(:droplet), do: :pot
+  defp ruby_icon(:vp), do: :vp
+
+  # The small line on a ruby button: what it does, or why it cannot.
+  defp ruby_why(use, me, actions) do
+    cond do
+      {:rubies, use} in actions -> ruby_what(use)
+      use == :flask and me.flask -> "Flask full"
+      use == :tube and me.tube >= TestTubes.last() -> "Tubes full"
+      true -> "Too few rubies"
+    end
+  end
+
+  defp ruby_what(:tube), do: "Test tube"
+  defp ruby_what(:flask), do: "Refill flask"
+  defp ruby_what(:droplet), do: "Droplet +1"
+  defp ruby_what(:vp), do: "1 VP"
+
   # The Buy button's Enter hint: from 64rem, and only when the shop bar is 24rem
   # wide (Done alone always has the room).
   defp shop_kbd, do: "hidden lg:@min-[24rem]/shop-bar:inline-block"
@@ -2899,6 +3057,7 @@ defmodule QuacksWeb.GameLive do
       me: nil,
       selected: [],
       decision: nil,
+      bar_choice: nil,
       all_actions: [],
       actions: [],
       skip_rubies: false,
@@ -2923,6 +3082,7 @@ defmodule QuacksWeb.GameLive do
       me: me,
       selected: kept_selection(socket.assigns, game, phase, actions),
       decision: decision,
+      bar_choice: bar_choice(decision, actions),
       all_actions: actions,
       actions: if(decision || skip_rubies, do: [], else: Enum.reject(actions, &witch?/1)),
       skip_rubies: skip_rubies,
@@ -3141,8 +3301,8 @@ defmodule QuacksWeb.GameLive do
 
   defp mark_seen(socket, _key), do: socket
 
-  defp open_waiting(%{assigns: %{game: game, decision: decision}} = socket) do
-    if decision && not Game.over?(game),
+  defp open_waiting(%{assigns: %{game: game, decision: decision} = assigns} = socket) do
+    if decision && !assigns[:bar_choice] && not Game.over?(game),
       do: push_event(socket, "quacks:open", %{to: decision_dialog(decision, game)}),
       else: socket
   end
@@ -3158,6 +3318,12 @@ defmodule QuacksWeb.GameLive do
         {decision, false}
     end
   end
+
+  # Round 29: the choices that take the place of Stop and Draw in the bar (no sheet):
+  # the explosion's, and the rubies step when no witch can be called there.
+  defp bar_choice(:explosion_choice, _actions), do: :explosion_choice
+  defp bar_choice(:rubies, actions), do: if(Enum.any?(actions, &witch?/1), do: nil, else: :rubies)
+  defp bar_choice(_decision, _actions), do: nil
 
   defp stop_slot(game, %Player{phase: :stopped}), do: if(stir?(game), do: :stop, else: :resume)
   defp stop_slot(_game, _me), do: :stop

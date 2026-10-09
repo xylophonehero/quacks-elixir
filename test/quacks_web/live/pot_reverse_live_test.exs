@@ -77,10 +77,16 @@ defmodule QuacksWeb.PotReverseLiveTest do
     {id, view} = solo_back()
     replace_game(id, &H.put(&1, phase: :rubies, rubies: 2, tube: 2))
 
-    assert has_element?(view, "#decision-rubies button", "Spend 2 rubies: pot droplet +1")
+    # Round 29: the rubies are in the bar; the full text is the button's label.
+    assert has_element?(
+             view,
+             ~s(#bar-rubies button[data-ruby=droplet][aria-label="Spend 2 rubies: pot droplet +1"])
+           )
 
     view
-    |> element("#decision-rubies button", "Spend 2 rubies: test tube (bonus: blue 1 chip)")
+    |> element(
+      ~S|#bar-rubies button[data-ruby=tube][aria-label="Spend 2 rubies: test tube (bonus: blue 1 chip)"]|
+    )
     |> render_click()
 
     assert has_element?(view, ~s(svg[data-role=test-tubes][data-tube="3"]))

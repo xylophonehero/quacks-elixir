@@ -49,7 +49,12 @@ defmodule QuacksWeb.R10EngineTest do
       refute has_element?(alice, "dialog#decision-rubies")
 
       render_click(alice, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
-      assert has_element?(alice, "#decision-rubies button", "Spend 2 rubies: test tube")
+      # Round 29: the rubies are in the bar.
+      assert has_element?(
+               alice,
+               "#bar-rubies button[data-ruby=tube]:not([disabled])",
+               "Test tube"
+             )
     end
   end
 

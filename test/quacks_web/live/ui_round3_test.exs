@@ -242,12 +242,12 @@ defmodule QuacksWeb.UiRound3Test do
     view = buy_orange(view)
 
     refute has_element?(view, "#decision-shop")
-    assert has_element?(view, "dialog#decision-rubies[phx-mounted*='quacks:modal']")
-    assert has_element?(view, "#decision-rubies [data-role=shop-rubies] button", "droplet +1")
-    refute has_element?(view, "#decision-rubies #shop")
+    # Round 29: the rubies step is in the bar.
+    refute has_element?(view, "dialog#decision-rubies")
+    assert has_element?(view, "#bar-rubies button[data-ruby=droplet]", "Droplet +1")
     refute has_element?(view, "li", "— Round 1 over —")
 
-    view |> element("#decision-rubies [data-role=rubies-done]", "Keep rubies") |> render_click()
+    view |> element("#bar-rubies [data-role=rubies-skip]", "Skip") |> render_click()
     assert has_element?(view, "li", "— Round 1 over —")
   end
 end

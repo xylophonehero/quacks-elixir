@@ -98,4 +98,86 @@ defmodule QuacksWeb.Round29BarTest do
       assert js =~ ~s{localStorage.setItem("quacks:risk"}
     end
   end
+
+  describe "item 4: the explosion's beat and choice in the bar" do
+    test "BOOM over the pot, then Take VP / Take coins where Stop and Draw were; no sheet" do
+      {id, view} = solo()
+      replace_game(id, &H.put(&1, 0, phase: :explosion_choice, exploded?: true))
+
+      assert has_element?(view, "[data-role=pot-area] #boom-1.boom[phx-hook=Boom]", "BOOM")
+      refute has_element?(view, "dialog#decision-explosion_choice")
+      refute has_element?(view, "[data-role=decision-button]")
+      refute has_element?(view, "[data-role=action-bar]")
+
+      bar = "[data-role=bar-explosion].bar-choice-late"
+      assert has_element?(view, "#{bar} button[data-choice=vp] use[href='#icon-vp']")
+      assert has_element?(view, "#{bar} button[data-choice=buy] use[href='#icon-coin']")
+      assert has_element?(view, "#{bar} button[data-choice=vp]", "Score now, no coins")
+      assert has_element?(view, "#{bar} button[data-choice=buy]", "Shop, no VP")
+
+      view |> element("#{bar} button[data-choice=vp]") |> render_click()
+      refute has_element?(view, "[data-role=bar-explosion]")
+
+      assert GameServer.get(id)
+             |> elem(1)
+             |> Map.fetch!(:game)
+             |> then(& &1.players[0].explosion_choice) == :vp
+    end
+
+    test "app.js buzzes only in the Boom hook, guarded" do
+      js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
+      assert length(String.split(js, "navigator.vibrate(")) == 2
+      assert js =~ ~s{typeof navigator.vibrate === "function"}
+      assert js =~ "navigator.vibrate([40, 30, 90])"
+    end
+  end
+
+  describe "item 5: the ruby choice in the bar" do
+    test "Skip, test tube, flask, pot in one row; each paying button says 2 and the ruby" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false, pot_side: :back})
+      {:ok, view, _} = live(browser("r29-rubies"), ~p"/g/#{id}")
+      replace_game(id, &H.put(&1, 0, phase: :rubies, coins: 0, rubies: 2, flask: true))
+
+      refute has_element?(view, "dialog#decision-rubies")
+      bar = "#bar-rubies.flex"
+      assert has_element?(view, "#{bar} > button:nth-child(1)[data-role=rubies-skip]", "Skip")
+
+      assert has_element?(
+               view,
+               "#{bar} > button:nth-child(2)[data-ruby=tube] use[href='#icon-tube']"
+             )
+
+      assert has_element?(
+               view,
+               "#{bar} > button:nth-child(3)[data-ruby=flask] use[href='#icon-flask']"
+             )
+
+      assert has_element?(
+               view,
+               "#{bar} > button:nth-child(4)[data-ruby=droplet] use[href='#icon-pot']"
+             )
+
+      for use <- ~w(tube flask droplet) do
+        assert has_element?(view, "#{bar} button[data-ruby=#{use}] use[href='#icon-ruby']")
+        assert has_element?(view, "#{bar} button[data-ruby=#{use}]", "2")
+      end
+
+      # The flask is full: disabled, and it says why.
+      assert has_element?(view, "#{bar} button[data-ruby=flask][disabled]", "Flask full")
+      refute has_element?(view, "#{bar} button[data-ruby=droplet][disabled]")
+
+      # Same height as Stop / Draw: the pot does not move.
+      assert has_element?(view, "#bar-rubies[class*='*:min-h-12']")
+
+      view |> element("#{bar} button[data-ruby=droplet]") |> render_click()
+      refute has_element?(view, "#bar-rubies")
+    end
+
+    test "the gold witch's price (G4: 1 ruby) shows on the buttons" do
+      {id, view} = solo()
+      replace_game(id, &H.put(&1, 0, phase: :rubies, coins: 0, rubies: 1, ruby_price: 1))
+      assert has_element?(view, "#bar-rubies button[data-ruby=droplet]:not([disabled])", "1")
+      refute has_element?(view, "#bar-rubies button[data-ruby=tube]")
+    end
+  end
 end

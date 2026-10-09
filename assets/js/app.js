@@ -108,6 +108,16 @@ const RevealSettings = {
   destroyed() { phoneQuery.removeEventListener("change", this.onPhone) }
 }
 
+// Round 29: your own explosion buzzes the phone once (`boom` in game_live), and
+// nothing else does. Once per game and round: a reload does not buzz again.
+const Boom = {
+  mounted() {
+    const key = `quacks:boom:${this.el.dataset.key}`
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1") } catch (_e) {}
+    if (typeof navigator.vibrate === "function") navigator.vibrate([40, 30, 90])
+  }
+}
+
 // The menu's "App" line (round 14): which install rule fails on a phone that shows
 // no Install button. The worker, the display mode and whether Chrome fired
 // `beforeinstallprompt` on this page (`installFired`, set below).
@@ -257,7 +267,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, AppStatus, ConfigMemory, NameMemory, PotMotion, RevealSettings},
+  hooks: {...colocatedHooks, AppStatus, Boom, ConfigMemory, NameMemory, PotMotion, RevealSettings},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
   // is in a field, on a control that Space/Enter already press, or whether a modal
   // dialog is open. The server decides from that; no key logic here.
