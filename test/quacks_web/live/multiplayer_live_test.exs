@@ -84,7 +84,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
       # everyone shops at once, each in their own shop dialog
       refute has_element?(view, "[data-role=turn]")
       assert has_element?(view, "dialog#decision-shop")
-      assert has_element?(view, "[data-role=shop-done]")
+      assert has_element?(view, "[data-role=shop-buy]")
     end
 
     refute has_element?(bob, "button", "Undo")
@@ -101,7 +101,8 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     assert has_element?(bob, ~s([data-role=player-chip][popovertarget="sheet-player-0"]))
 
     # bob is done shopping first (1 ruby: nothing to spend, so he is ready at once)
-    bob |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(bob, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
     refute has_element?(bob, "[data-role=turn]")
     assert has_element?(alice, "dialog#decision-shop")
   end

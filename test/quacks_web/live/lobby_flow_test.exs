@@ -115,7 +115,8 @@ defmodule QuacksWeb.LobbyFlowTest do
     refute has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]))
 
     # bob has 1 ruby: nothing to spend after the buy, so he is ready at once
-    bob |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(bob, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
     assert has_element?(alice, "dialog#decision-shop")
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "ready")
     refute has_element?(bob, "[data-role=turn]")

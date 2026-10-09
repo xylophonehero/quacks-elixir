@@ -57,13 +57,13 @@ defmodule QuacksWeb.UiRound6Test do
     {id, view} = solo()
     replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
 
-    # Round 33: in the bar, the chips are buttons, then Return all.
-    bar = "#bar-pick-blue_choice"
+    # Round 33: in the bar, the chips are buttons, then Return all (round 35: Skip).
+    bar = "[data-role=bar-blue]"
     refute has_element?(view, "dialog#decision-blue_choice")
     place = &~s(#{bar} button[phx-value-action="#{GameLive.encode({:place, &1})}"])
     assert has_element?(view, "#{place.({:red, 1})} .chip-token")
     assert has_element?(view, place.({:white, 1}))
-    assert has_element?(view, "#{bar} button[aria-label^='Crow skull: return all']", "Return all")
+    assert has_element?(view, "#{bar} button[aria-label^='Crow skull: return all']", "Skip")
 
     view |> element(place.({:red, 1})) |> render_click()
     {:ok, %{game: game}} = GameServer.get(id)

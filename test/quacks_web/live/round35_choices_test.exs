@@ -68,4 +68,27 @@ defmodule QuacksWeb.Round35ChoicesTest do
              )
     end
   end
+
+  describe "item 4: the shop always buys" do
+    test "no Skip: Buy is the one button, disabled until a chip is ticked" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, phase: :shop, coins: 10))
+
+      refute has_element?(view, "#decision-shop [data-role=shop-done]")
+      refute has_element?(view, "#decision-shop button", "Skip")
+      assert has_element?(view, "#decision-shop [data-role=shop-buy]:disabled")
+    end
+
+    test "too few coins for any chip: only then Nothing to buy" do
+      # The page skips the buy step when nothing is affordable (unless a copper
+      # witch acts there), so the shop itself is checked here.
+      {id, _view} = solo(%{})
+      game = replace_game(id, &H.put(&1, phase: :shop, coins: 2))
+      html = render_component(&QuacksWeb.GameLive.shop/1, game: game, seat: 0, selected: [])
+      doc = LazyHTML.from_fragment(html)
+
+      assert doc |> LazyHTML.query("[data-role=shop-done]") |> LazyHTML.text() =~ "Nothing to buy"
+      assert doc |> LazyHTML.query("[data-role=shop-buy]") |> Enum.empty?()
+    end
+  end
 end

@@ -1980,9 +1980,10 @@ defmodule QuacksWeb.GameLive do
   The engine decides what may be ticked: a box is disabled when adding its chip
   to the selection is not a legal buy. "Buy selected" sends `{:buy, selected}`.
 
-  The copper witches are here too. "Skip" buys nothing (`{:buy, []}`): with nothing
-  ticked it is the one button; with chips ticked it is a small secondary button
-  beside Buy (round 29: a mis-tap does not end the shop with nothing).
+  The copper witches are here too. Round 35: there is no Skip; a player always buys
+  a chip (a UI rule: the engine still takes `{:buy, []}`, and the bots are as
+  before). Buy is the one button, disabled until a chip is ticked. Only when no
+  chip is affordable does "Nothing to buy" (`{:buy, []}`) take its place.
 
   `:rubies`, after the buy (or when there is nothing to buy): the ruby options
   (`{:rubies, _}`), other witch calls, and "Keep rubies" (`:end_round`). Both steps
@@ -2005,6 +2006,7 @@ defmodule QuacksWeb.GameLive do
         me: me,
         actions: actions,
         buying?: Enum.any?(actions, &match?({:buy, _}, &1)),
+        affordable?: Enum.any?(actions, &match?({:buy, [_ | _]}, &1)),
         copper: copper,
         others: Enum.reject(actions, &(match?({:buy, _}, &1) or &1 in [:end_round | copper])),
         owned: Player.pot_chips(me) ++ me.bowl ++ me.bag,
@@ -2157,18 +2159,19 @@ defmodule QuacksWeb.GameLive do
           <span class="book-coin" />{@me.coins}<span class="text-base text-ink-soft">→</span>{@remaining}
         </p>
         <.button
+          :if={!@affordable?}
           phx-click="action"
           phx-value-action={encode({:buy, []})}
-          variant={if @buying?, do: :secondary, else: :primary}
-          autofocus={!@buying?}
-          class={["min-w-0", if(@selected != [], do: "flex-none px-3 text-sm", else: "flex-1")]}
+          variant={:primary}
+          autofocus
+          class="min-w-0 flex-1"
           data-role="shop-done"
         >
-          Skip
-          <.kbd :if={!@buying?}>Enter</.kbd>
+          Nothing to buy
+          <.kbd>Enter</.kbd>
         </.button>
         <.button
-          :if={@buying? and @selected != []}
+          :if={@affordable?}
           phx-click="action"
           phx-value-action={encode({:buy, @selected})}
           variant={:primary}

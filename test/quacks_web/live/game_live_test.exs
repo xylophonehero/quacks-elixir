@@ -39,8 +39,12 @@ defmodule QuacksWeb.GameLiveTest do
   # One step: the first legal action, or (an empty rubies step waits for it) close
   # the round results as the browser does.
   defp step(view, html) do
-    case first_action(html) do
-      nil ->
+    case {first_action(html), shop_chip(html)} do
+      # Round 35: the shop has no Skip; tick a chip and Buy is the action.
+      {nil, chip} when is_binary(chip) ->
+        render_change(view, "select", %{"chips" => [chip]})
+
+      {nil, nil} ->
         round =
           html
           |> LazyHTML.from_fragment()
@@ -52,9 +56,17 @@ defmodule QuacksWeb.GameLiveTest do
 
         render_hook(view, "seen", %{"kind" => "results", "round" => round})
 
-      action ->
+      {action, _chip} ->
         render_click(view, "action", %{"action" => action})
     end
+  end
+
+  defp shop_chip(html) do
+    html
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#shop input[name='chips[]']:not([disabled])")
+    |> LazyHTML.attribute("value")
+    |> List.first()
   end
 
   test "mounts round 1 with a Draw button and the seed", %{conn: conn} do
@@ -203,7 +215,8 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, "dialog#decision-shop[phx-mounted]")
 
     # 1 ruby: nothing to spend, so the buy ends the round at once
-    view |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
     refute has_element?(view, "dialog#decision-shop")
     assert has_element?(view, "li", "— Round 1 over —")
   end
@@ -238,7 +251,8 @@ defmodule QuacksWeb.GameLiveTest do
     view = mount_shop(conn)
     [_, before] = Regex.run(~r/Your chips: (\d+)/, render(view))
     before = String.to_integer(before)
-    refute has_element?(view, "button[data-role=shop-buy]")
+    # Round 35: Buy is always there (no Skip), disabled until a chip is ticked.
+    assert has_element?(view, "button[data-role=shop-buy]:disabled")
     assert has_element?(view, checkbox({:orange, 1}) <> ":not(:disabled)")
     assert has_element?(view, checkbox({:yellow, 1}) <> ":disabled")
     assert has_element?(view, checkbox({:green, 2}) <> ":disabled")
@@ -304,7 +318,8 @@ defmodule QuacksWeb.GameLiveTest do
     assert has_element?(view, "li", "Scoring space 7: +1 VP")
     refute render(view) =~ "Round 1 over"
 
-    view |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
     assert has_element?(view, "li", "— Round 1 over —")
     refute has_element?(view, "li", "End round")
   end
@@ -320,7 +335,8 @@ defmodule QuacksWeb.GameLiveTest do
              ~s([data-role=shop-total][aria-label="7 coins, -5 left after this buy"])
            )
 
-    view |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
     assert has_element?(view, "li", "— Round 1 over —")
   end
 

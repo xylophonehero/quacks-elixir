@@ -102,7 +102,8 @@ defmodule QuacksWeb.UiRound3Test do
   defp to_shop_rest(view) do
     for _ <- 1..2, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
-    view |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
   end
 
   test "the players row: one chip per seat, yours marked; a tap opens the detail sheet" do
