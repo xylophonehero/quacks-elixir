@@ -370,11 +370,15 @@ window.addEventListener("phx:quacks:reload", () => {
 window.addEventListener("phx:quacks:toggle", e => document.getElementById(e.detail.id)?.togglePopover())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
-// Share the result (round 22): the phone's share sheet, else copy text and link.
-window.addEventListener("quacks:share", ({detail: {text, url}}) => {
-  if (navigator.share) navigator.share({text, url}).catch(() => {})
+// Share the result (round 22) or the game's link (round 29, with a title): the
+// phone's share sheet, else copy text and link.
+window.addEventListener("quacks:share", ({detail: {title, text, url}}) => {
+  if (navigator.share) navigator.share({title, text, url}).catch(() => {})
   else navigator.clipboard?.writeText(`${text} ${url}`)
 })
+// Round 29: with a share sheet, Share is the waiting panel's main button and Copy
+// link steps back (app.css `.share-only`, `.share-fallback`).
+if (navigator.share) document.documentElement.dataset.share = "true"
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

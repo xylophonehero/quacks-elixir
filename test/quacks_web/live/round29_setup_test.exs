@@ -91,4 +91,27 @@ defmodule QuacksWeb.Round29SetupTest do
       end
     end
   end
+
+  describe "the waiting panel: Share and the room code" do
+    test "Share is the primary button with title, text and link; Copy link is the fallback" do
+      {:ok, id} = Quacks.GameServer.start(2, {1, 2, 3})
+      view = lobby(~p"/g/#{id}")
+
+      assert has_element?(view, "#invite [data-role=room-code].font-hand", id)
+      assert has_element?(view, "#share-game.share-only.bg-gold", "Share")
+      assert has_element?(view, "#invite [data-role=copy-link].share-fallback", "Copy link")
+
+      [click] =
+        view
+        |> render()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query("#share-game")
+        |> LazyHTML.attribute("phx-click")
+
+      assert click =~ "quacks:share"
+      assert click =~ "Room code: #{id}"
+      assert click =~ ~s("title":"Quacks")
+      assert click =~ "/g/#{id}"
+    end
+  end
 end

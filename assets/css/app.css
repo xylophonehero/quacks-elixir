@@ -2739,3 +2739,17 @@ html:active-view-transition-type(card) .card-caption {
   .tile-line[data-news] .tile-news { animation-name: tile-news-fade; }
   .tile-line[data-news] .tile-totals { animation-name: tile-totals-fade; }
 }
+
+/* Round 29: the waiting panel's Share shows only where the browser has a share
+   sheet (app.js sets `data-share` on <html>); else Copy link is the main button,
+   in the gold primary style. */
+html:not([data-share]) .share-only {
+  display: none;
+}
+html[data-share] .share-fallback {
+  display: none;
+}
+html:not([data-share]) .share-fallback {
+  background: var(--color-gold);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.25);
+}
