@@ -84,7 +84,7 @@ defmodule QuacksWeb.Round12Test do
       {id, view} = solo()
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 20))
       assert has_element?(view, "[data-role=shop-footer].min-w-0")
-      assert has_element?(view, "[data-role=shop-done].min-w-0")
+      assert has_element?(view, "[data-role=shop-buy].min-w-0")
 
       view
       |> element("#shop")
@@ -92,9 +92,9 @@ defmodule QuacksWeb.Round12Test do
 
       assert has_element?(view, "[data-role=shop-buy].min-w-0 span.truncate", "Buy")
 
-      # Round 29: nothing ticked, Skip is the one button.
+      # Round 35: nothing ticked, Buy stays (disabled); there is no Skip.
       view |> element("#shop") |> render_change(%{"chips" => []})
-      refute has_element?(view, "[data-role=shop-buy]")
+      assert has_element?(view, "[data-role=shop-buy]:disabled")
     end
   end
 

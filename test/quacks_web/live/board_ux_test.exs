@@ -133,7 +133,8 @@ defmodule QuacksWeb.BoardUxTest do
     assert has_element?(view, "#sheet-player-0 [data-role=result-total]", ~r/Total: \+\d+ VP/)
 
     # with one ruby there is nothing left to do after the buy: the round ends at once
-    view |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
     refute has_element?(view, "#reveal-results-1")
     refute has_element?(view, "#sheet-player-0 [data-role=round-results]")
   end

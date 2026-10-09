@@ -27,6 +27,10 @@ defmodule Quacks.Game.Fortune do
   @rats_first [:p7, :p9]
   # Round 30: the cards that draw chips for each seat (`reveals/1`).
   @reveal_cards [:p8, :p13, :b7]
+  # Round 35: the cards that offer every seat a choice (`reveals/1` has a row for
+  # each seat that chose or still chooses). Toil and Trouble offers only the seats
+  # whose right neighbour exploded.
+  @choice_cards [:p1, :p3, :p6, :p9, :p10, :p11, :b2]
   # Flea Market (P13): the next higher value of the same colour. ⚠️ White is not
   # traded up (a bigger white chip only hurts); orange, purple and black have no
   # higher value.
@@ -106,15 +110,30 @@ defmodule Quacks.Game.Fortune do
   `number` (P8: their sum, else nil), `traded` (P13: the chip traded up, or nil),
   `gains` (`{:chip, chip}` taken from the supply, `{:rubies, n}`, `{:placed, chip}`
   put on the pot by B7), `best?` (P8: the lowest sum, which takes the blue 2) and
-  `choosing?` (the seat still chooses). An empty map under any other card. The card
-  sheet, the corner card and the player tiles show it.
+  `choosing?` (the seat still chooses). The card sheet, the corner card and the
+  player tiles show it.
+
+  Round 35: also for the cards that offer each seat a choice (`choice_card?/1`):
+  a row per seat that chose or still chooses, with `drew` empty and `gains` what it
+  took, also `{:rubies, -1}` (P3's price), `{:vp, n}`, `{:droplet, 2}`,
+  `{:removed, chip}` (P6's white 1) and `{:rats, -n}` (P9); `[]` for a pass.
+
+  An empty map under any other card.
   """
   @spec reveals(Game.t()) :: %{
           Game.seat() => %{
             drew: [Chips.chip()],
             number: non_neg_integer | nil,
             traded: Chips.chip() | nil,
-            gains: [{:chip, Chips.chip()} | {:rubies, pos_integer} | {:placed, Chips.chip()}],
+            gains: [
+              {:chip, Chips.chip()}
+              | {:rubies, integer}
+              | {:placed, Chips.chip()}
+              | {:vp, pos_integer}
+              | {:droplet, pos_integer}
+              | {:removed, Chips.chip()}
+              | {:rats, neg_integer}
+            ],
             best?: boolean,
             choosing?: boolean
           }
@@ -144,7 +163,45 @@ defmodule Quacks.Game.Fortune do
     end)
   end
 
+  def reveals(%{fortune_card: id} = g) when id in @choice_cards do
+    chosen =
+      g.log
+      |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+      |> Enum.reverse()
+      |> Enum.reduce(%{}, fn
+        {seat, {:fortune, ^id, outcome}}, acc ->
+          gains = choice_gains(id, outcome)
+          Map.update(acc, seat, choice_row(gains, false), &%{&1 | gains: &1.gains ++ gains})
+
+        _entry, acc ->
+          acc
+      end)
+
+    waiting =
+      for {seat, %{phase: :fortune_choice}} <- g.players,
+          into: %{},
+          do: {seat, choice_row([], true)}
+
+    Map.merge(chosen, waiting)
+  end
+
   def reveals(_g), do: %{}
+
+  @doc "Round 35: whether card `id` offers every seat a choice (`reveals/1` has rows)."
+  @spec choice_card?(atom | nil) :: boolean
+  def choice_card?(id), do: id in @choice_cards
+
+  defp choice_row(gains, choosing?),
+    do: %{drew: [], number: nil, traded: nil, gains: gains, best?: false, choosing?: choosing?}
+
+  defp choice_gains(:p3, {:take, chip}), do: [{:rubies, -1}, {:chip, chip}]
+  defp choice_gains(_id, {:take, chip}), do: [{:chip, chip}]
+  defp choice_gains(:p1, :rubies), do: [{:rubies, 3}]
+  defp choice_gains(_id, {:vp, n}), do: [{:vp, n}]
+  defp choice_gains(_id, :droplet), do: [{:droplet, 2}]
+  defp choice_gains(_id, :remove_white), do: [{:removed, {:white, 1}}]
+  defp choice_gains(_id, {:rats_back, n}), do: [{:rats, -n}, {:rubies, n}]
+  defp choice_gains(_id, _outcome), do: []
 
   @doc "Whether card `id` draws chips for each seat (`reveals/1` has rows for it)."
   @spec reveal_card?(atom | nil) :: boolean

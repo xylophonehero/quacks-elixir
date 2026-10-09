@@ -3102,3 +3102,19 @@ html:not([data-share]) .share-fallback {
     animation: mandrake-bob 1.6s ease-in-out infinite;
   }
 }
+
+/* Round 35: the crow skull's row leaves after a tap. It floats over the bar's
+   foot (out of the flow, so Stop and Draw take their place at once) while the
+   chips not chosen fly back into the bag (`.FromBag`); the chosen chip and the
+   Skip button fade. */
+.bar-to-bag {
+  position: absolute;
+  inset: auto 0.5rem max(0.5rem, env(safe-area-inset-bottom)) 0.5rem;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.bar-to-bag > :not([data-pool-chip]) {
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}

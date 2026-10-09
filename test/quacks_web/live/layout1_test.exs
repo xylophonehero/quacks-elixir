@@ -163,7 +163,7 @@ defmodule QuacksWeb.Layout1Test do
       # Round 33: the crow skull is a bar choice: it takes the bar, no sheet.
       replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
       refute has_element?(view, "[data-role=action-bar]")
-      assert has_element?(view, "footer #bar-pick-blue_choice")
+      assert has_element?(view, "footer [data-role=bar-blue]")
 
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
       assert has_element?(view, "[data-role=decision-button]", "Back to shop")
