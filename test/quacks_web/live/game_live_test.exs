@@ -118,7 +118,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert html =~ "victory points"
 
     final = "#reveal-final-9 [data-role=reveal-slide][data-kind=podium]"
-    assert has_element?(view, "#{final} [data-role=buying-power]", "Final coins and rubies")
+    refute has_element?(view, "#{final} [data-role=buying-power]")
     assert has_element?(view, "#{final} [data-role=return-to-lobby]", "Back to lobby")
     refute has_element?(view, "[data-role=action-bar]")
     refute has_element?(view, "button[data-slot=draw]")

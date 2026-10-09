@@ -1652,6 +1652,22 @@ body {
   text-decoration: line-through;
 }
 
+/* Round 29 (F3): the game-over actions stick to the sheet's bottom edge. Only
+   while they cover content (`scroll-state(stuck)`) do they get a parchment
+   backing, so on a short page they sit on the paper itself. */
+.sticky-actions {
+  container-type: scroll-state;
+}
+
+@container scroll-state(stuck: bottom) {
+  .sticky-actions-bar {
+    margin-inline: -1rem;
+    padding: 0.75rem 1rem 0.25rem;
+    background: var(--color-parchment);
+    box-shadow: 0 -6px 12px -6px rgb(60 40 10 / 0.35);
+  }
+}
+
 /* Game over: the podium rises place by place (`--beat`: last place 0, the winner
    last), then a gold shimmer crosses the title once. */
 .podium-step {
@@ -2368,6 +2384,96 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   }
 }
 
+/* Round 29 (B7): a phone on its side. The overlay is the right column at the pot's
+   height (the landscape `.sheet`); its slides fit without a scroll: the close
+   button sits in the header's corner, the titles, rows and buttons are tighter. */
+@media (orientation: landscape) and (max-height: 30rem) and (min-width: 35rem) {
+  .sheet.reveal-sheet:not(.reveal-card-sheet) {
+    min-height: 0;
+    padding-top: 0.5rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  .reveal-sheet:not(.reveal-card-sheet) > form:has(.sheet-close) {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.5rem;
+    z-index: 1;
+  }
+
+  .reveal-sheet > [data-role="reveal"] {
+    min-height: 0;
+  }
+
+  .reveal-sheet [data-role="reveal-stage"] {
+    padding-block: 0.25rem;
+  }
+
+  .reveal-sheet [data-role="reveal-stage"] h2 {
+    font-size: 1.5rem;
+    line-height: 1.75rem;
+  }
+
+  .reveal-sheet [data-role="reveal-stage"] h2 > .size-10 {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .reveal-sheet [data-role="reveal-stage"] .space-y-2 > :not(:last-child),
+  .reveal-sheet [data-role="reveal-stage"] .space-y-3 > :not(:last-child) {
+    margin-bottom: 0.25rem;
+  }
+
+  .reveal-sheet [data-role="reveal-bar"] > * {
+    min-height: 2.5rem;
+  }
+
+  .reveal-sheet .standings {
+    --row-h: 2.125rem;
+  }
+
+  .reveal-sheet .standings.tally {
+    --row-h: 2.75rem;
+  }
+
+  /* The game-over screen: a lower podium, the actions side by side. */
+  .reveal-sheet [data-role="game-over"] {
+    margin-block: 0;
+  }
+
+  .reveal-sheet [data-role="game-over"] > :not(:last-child) {
+    margin-bottom: 0.5rem;
+  }
+
+  .reveal-sheet [data-role="game-over"] .podium-block.h-16 {
+    height: 2.5rem;
+  }
+
+  .reveal-sheet [data-role="game-over"] .podium-block.h-11 {
+    height: 1.75rem;
+  }
+
+  .reveal-sheet [data-role="game-over"] .podium-block.h-7 {
+    height: 1.25rem;
+  }
+
+  .reveal-sheet [data-role="game-over"] .podium-block {
+    padding-top: 0;
+    font-size: 1rem;
+    line-height: 1.25rem;
+  }
+
+  .reveal-sheet .sticky-actions-bar {
+    grid-template-columns: 1fr auto auto;
+  }
+
+  .reveal-sheet .sticky-actions-bar > * {
+    grid-column: auto;
+    min-height: 2.5rem;
+    white-space: nowrap;
+  }
+}
+
 /* Round 22: a new card. The card hovers over the pot (`.pot-card`), outside the
    overlay; the overlay is only a bottom sheet with Continue, at every width, and
    its backdrop is clear, so the pot above it is not dimmed. */
@@ -2386,10 +2492,13 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   background-color: transparent;
 }
 
+/* Round 29 (B7): from 64rem the card's result sits in the right context column
+   (22rem, its foot over the bar), not over the pot. */
 @media (width >= 64rem) {
   .sheet.reveal-sheet.reveal-card-sheet {
-    max-width: 30rem;
-    inset: auto 0 1rem 0;
+    width: calc(22rem - 0.75rem);
+    max-width: none;
+    inset: auto 0.75rem 0.75rem auto;
     border: 4px solid var(--color-iron);
     border-radius: 1rem;
   }
@@ -2612,6 +2721,26 @@ html:active-view-transition-type(card) .card-caption {
   transition-duration: 700ms;
 }
 
+/* Round 29 (F1): the final tally. Each row is two lines (name, final parts); the
+   parts pop in one after the other (`--i`), then the server's settle tick counts
+   the totals up and glides the rows like the standings. A tap settles at once. */
+.standings.tally {
+  --row-h: 3.5rem;
+}
+
+.tally .standings-row {
+  height: calc(var(--row-h) - 0.25rem);
+}
+
+.tally-part {
+  animation: reveal-pop 320ms var(--ease-spring) both;
+  animation-delay: calc(300ms + var(--i) * var(--beat-ms) * 0.35ms);
+}
+
+.tally[data-settled="true"] .tally-part {
+  animation: none;
+}
+
 /* Reduced motion: no slide, no pop, no roll; the die shows its face at once. */
 @media (prefers-reduced-motion: reduce) {
   .reveal-slide {
@@ -2631,6 +2760,10 @@ html:active-view-transition-type(card) .card-caption {
   .standings-row,
   .standings .stat-tick {
     transition: none;
+  }
+
+  .tally-part {
+    animation: none;
   }
 }
 

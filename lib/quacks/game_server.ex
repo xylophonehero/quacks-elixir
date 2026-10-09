@@ -284,9 +284,18 @@ defmodule Quacks.GameServer do
 
     with {:ok, session} <- Session.from_bundle(bundle, at) do
       seats = 0..(session.players - 1)
-      bots = Map.new(Enum.filter(bundle["bots"] || [], &(&1 in seats)), &{&1, @bot_profile})
-      names = bundle["names"] || []
       token = opts[:token]
+      # Round 29: the seat this browser takes is no bot (a replay viewed from a bot's
+      # seat said "You win!" over a bot's name).
+      mine = if token, do: opts[:seat]
+
+      bots =
+        Map.new(
+          Enum.filter(bundle["bots"] || [], &(&1 in seats and &1 != mine)),
+          &{&1, @bot_profile}
+        )
+
+      names = bundle["names"] || []
 
       start_server(%{
         max_players: session.players,

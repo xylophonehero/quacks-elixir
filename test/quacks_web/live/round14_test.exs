@@ -95,7 +95,7 @@ defmodule QuacksWeb.Round14Test do
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
     end
 
-    test "the end of the game (round 22): final scoring, standings, podium with the actions" do
+    test "the end of the game (round 29): the final tally, the podium with the actions" do
       {id, view, _token} = solo_results()
       render_hook(view, "reveal_close", %{})
 
@@ -108,15 +108,30 @@ defmodule QuacksWeb.Round14Test do
         }
       end)
 
-      assert has_element?(view, "dialog#reveal-final-9 #reveal-slide-0[data-kind=final]")
+      # Round 29: one final tally, then the podium.
+      assert has_element?(view, "dialog#reveal-final-9 #reveal-slide-0[data-kind=tally]")
       refute has_element?(view, "dialog#game-over")
 
       view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-slide-1[data-kind=standings]")
       view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-slide-2[data-kind=podium] [data-role=game-over]")
-      assert has_element?(view, "#reveal-slide-2 [data-role=play-again]")
+      assert has_element?(view, "#reveal-slide-1[data-kind=podium] [data-role=game-over]")
+      assert has_element?(view, "#reveal-slide-1 [data-role=play-again]")
       refute has_element?(view, "#reveal-next")
+    end
+
+    test "round 29: round 9's results end on the last step with Continue, no standings" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, view, _html} = live(browser("r29-r9-#{System.unique_integer()}"), ~p"/g/#{id}")
+
+      replace_game(id, fn g ->
+        g = put_in(g.players[0].drawn, [{{:green, 1}, 12}, {{:purple, 1}, 11}])
+        g = %{g | log: [{0, {:purple, 1, :vp}}, {0, {:green_rubies, 1}}, {:round_end, 8}]}
+        H.put(g, 0, round: 9, phase: :shop, coins: 0, rubies: 0)
+      end)
+
+      view |> element("#reveal-skip") |> render_click()
+      refute has_element?(view, "#reveal-results-9 [data-kind=standings]")
+      assert has_element?(view, "#reveal-results-9 #reveal-next", "Continue")
     end
 
     test "Enter and Space are Next; a focused button keeps its own key" do

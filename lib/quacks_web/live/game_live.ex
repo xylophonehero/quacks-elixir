@@ -36,7 +36,7 @@ defmodule QuacksWeb.GameLive do
   pot and the right column has two CSS-only tabs, "Decision" and "Books"; a new
   decision checks "Decision". Below 64rem the same dialogs are bottom sheets; a tap on the dimmed
   backdrop or × closes one to look at the pot, and while a decision waits, one
-  button ("Back to shop", "Back to choice") takes the place of Stop and Draw and
+  button ("Back to shop", "Back to choice", "Continue" for the card's choice) takes the place of Stop and Draw and
   opens it again.
 
   A new fortune card shows in the reveal overlay (below); when it asks this seat a
@@ -387,6 +387,17 @@ defmodule QuacksWeb.GameLive do
       )
       when r.index == length(r.slides) - 1,
       do: {:noreply, socket}
+
+  # Round 29: a tap on the final tally while it plays finishes it at once (the new
+  # totals and ranks) and pauses Auto; the next tap shows the podium.
+  def handle_event(
+        "reveal_next",
+        _params,
+        %{assigns: %{reveal: %{key: {:final, _}, settled: false} = r}} = socket
+      ),
+      do:
+        {:noreply,
+         assign(socket, reveal: %{r | settled: true, settle: nil, tick: nil, paused: true})}
 
   def handle_event("reveal_next", _params, %{assigns: %{reveal: %{}}} = socket),
     do: {:noreply, next_slide(socket)}
@@ -1844,7 +1855,13 @@ defmodule QuacksWeb.GameLive do
         reveal={@reveal}
         names={@names}
         seat={@seat}
-        auto_ms={reveal_ms(@reveal, @reveal_mode, @reveal_speed)}
+        auto_ms={
+          reveal_ms(
+            @reveal,
+            reveal_mode(@reveal, %{reduced: @reduced, reveal_mode: @reveal_mode}),
+            @reveal_speed
+          )
+        }
         close_label={close_label(@reveal, @decision, @skip_rubies)}
       >
         <:podium :if={Game.over?(@game)}>
@@ -1939,8 +1956,8 @@ defmodule QuacksWeb.GameLive do
   @doc """
   The end of the game. With 2+ players: who won, a podium for the first three
   (places from the VP, so a tie shares a place; the winner wears the laurel) and
-  rows for the rest. Solo: the score. Then where each player's VP came from
-  (`GameComponents.vp_breakdown/3`), "Play again" (`GameServer.play_again/2`: the
+  rows for the rest. Solo: the score. This browser's place has a gold ring and
+  "you" (round 29; no VP breakdown any more). Then, stuck to the sheet's bottom, "Play again" (`GameServer.play_again/2`: the
   same table again; focused when the dialog opens) and "Return to lobby".
 
   The podium rises place by place, the winner last, and a gold shimmer crosses the
@@ -2004,7 +2021,11 @@ defmodule QuacksWeb.GameLive do
             data-role="crown"
           />
           <span class={[
-            "grid size-9 place-items-center rounded-full font-hand text-lg font-bold text-ink ring-2 ring-black/25",
+            "grid size-9 place-items-center rounded-full font-hand text-lg font-bold text-ink",
+            if(seat == @seat,
+              do: "ring-3 ring-gold ring-offset-2 ring-offset-parchment",
+              else: "ring-2 ring-black/25"
+            ),
             seat_bg(seat)
           ]}>
             {String.first(name(@names, seat))}
@@ -2012,7 +2033,8 @@ defmodule QuacksWeb.GameLive do
           <span class="mt-1 line-clamp-2 w-full text-sm leading-tight font-semibold break-words">
             {name(@names, seat)}
           </span>
-          <.bot_badge :if={@bots[seat]} />
+          <.you_tag :if={seat == @seat} />
+          <.bot_badge :if={@bots[seat] && seat != @seat} />
           <span class="font-hand text-2xl leading-none font-bold tabular-nums">
             {vp}<span class="sr-only"> victory points</span>
           </span>
@@ -2031,7 +2053,10 @@ defmodule QuacksWeb.GameLive do
       <ol :if={@rest != []} class="space-y-1">
         <li
           :for={{seat, vp, place} <- @rest}
-          class="flex items-center gap-2 rounded-md bg-parchment-deep/60 px-2 py-1 text-left"
+          class={[
+            "flex items-center gap-2 rounded-md bg-parchment-deep/60 px-2 py-1 text-left",
+            seat == @seat && "ring-2 ring-gold"
+          ]}
           data-seat={seat}
           data-place={place}
           data-role="final-score"
@@ -2039,66 +2064,58 @@ defmodule QuacksWeb.GameLive do
           <span class="w-5 font-hand font-bold">{place}</span>
           <.seat_dot seat={seat} />
           <span class="min-w-0 flex-1 truncate font-semibold">{name(@names, seat)}</span>
-          <.bot_badge :if={@bots[seat]} />
+          <.you_tag :if={seat == @seat} />
+          <.bot_badge :if={@bots[seat] && seat != @seat} />
           <span class="font-hand text-lg font-bold tabular-nums">{vp} VP</span>
         </li>
       </ol>
-      <div class="space-y-1.5 text-left" aria-label="Where the VP came from">
-        <div
-          :for={{seat, vp, _place} <- @ranked}
-          class="rounded-md bg-parchment-deep/50 px-2 py-1.5"
-          data-seat={seat}
-          data-role="vp-breakdown"
-        >
-          <p :if={@players > 1} class="flex items-center gap-1.5 text-sm font-semibold">
-            <.seat_dot seat={seat} />{name(@names, seat)}
-          </p>
-          <ul class="mt-0.5 flex flex-wrap gap-1 text-xs">
-            <li
-              :for={{part, part_vp} <- vp_breakdown(@game.log, seat, vp)}
-              class="inline-flex items-center gap-1 rounded-full bg-parchment-light px-2 py-0.5 ring-1 ring-ink/10"
-              data-part={part}
-              data-role={part == :final && "buying-power"}
-              title={vp_part_hint(part)}
-            >
-              {vp_part_name(part)}
-              <span class="font-bold tabular-nums">{signed(part_vp)}</span>
-            </li>
-          </ul>
+      <%!-- Round 29 (F3): the actions stay at the sheet's bottom edge. --%>
+      <div class="sticky-actions sticky bottom-0 z-10" data-role="game-over-actions">
+        <div class="sticky-actions-bar grid grid-cols-2 gap-2 *:min-h-12">
+          <.button
+            phx-click="play_again"
+            variant={:primary}
+            class="col-span-2 text-base"
+            data-role="play-again"
+            autofocus
+          >
+            Play again
+          </.button>
+          <.button
+            phx-click="lobby"
+            variant={:secondary}
+            class={[!@share_url && "col-span-2"]}
+            data-role="return-to-lobby"
+          >
+            Back to lobby
+          </.button>
+          <.button
+            :if={@share_url}
+            phx-click={
+              JS.dispatch("quacks:share",
+                detail: %{text: share_text(@ranked, @names, @players), url: @share_url}
+              )
+            }
+            variant={:secondary}
+            data-role="share-result"
+          >
+            <.icon name="hero-share" class="size-4" /> Share
+          </.button>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-2 *:min-h-12" data-role="game-over-actions">
-        <.button
-          phx-click="play_again"
-          variant={:primary}
-          class="col-span-2 text-base"
-          data-role="play-again"
-          autofocus
-        >
-          Play again
-        </.button>
-        <.button
-          phx-click="lobby"
-          variant={:secondary}
-          class={[!@share_url && "col-span-2"]}
-          data-role="return-to-lobby"
-        >
-          Back to lobby
-        </.button>
-        <.button
-          :if={@share_url}
-          phx-click={
-            JS.dispatch("quacks:share",
-              detail: %{text: share_text(@ranked, @names, @players), url: @share_url}
-            )
-          }
-          variant={:secondary}
-          data-role="share-result"
-        >
-          <.icon name="hero-share" class="size-4" /> Share
-        </.button>
-      </div>
     </section>
+    """
+  end
+
+  # Round 29 (F3): the podium marks this browser's own place.
+  defp you_tag(assigns) do
+    ~H"""
+    <span
+      class="rounded-full bg-gold px-1.5 text-[0.65rem] leading-4 font-bold tracking-wider text-ink uppercase"
+      data-role="you"
+    >
+      you
+    </span>
     """
   end
 
@@ -2139,9 +2156,6 @@ defmodule QuacksWeb.GameLive do
       do: "You share the win!",
       else: "#{Enum.map_join(seats, " and ", &name(names, &1))} share the win!"
   end
-
-  defp signed(n) when n >= 0, do: "+#{n}"
-  defp signed(n), do: "#{n}"
 
   @doc """
   The shop dialogs: everything this seat may do between brewing and the next round,
@@ -3007,6 +3021,7 @@ defmodule QuacksWeb.GameLive do
         tick: nil,
         settled: true,
         settle: nil,
+        paused: false,
         held: match?({:card, _}, key)
       },
       card_grown: false
@@ -3041,10 +3056,10 @@ defmodule QuacksWeb.GameLive do
     final_last? = match?({:final, _}, reveal.key) and index == length(reveal.slides) - 1
 
     tick =
-      if assigns.reveal_mode == :auto and connected?(socket) and not final_last?,
+      if reveal_mode(reveal, assigns) == :auto and connected?(socket) and not final_last?,
         do: make_ref()
 
-    settle = if slide.kind == :standings and connected?(socket), do: make_ref()
+    settle = if slide.kind in [:standings, :tally] and connected?(socket), do: make_ref()
 
     if tick do
       ms = slide_ms(reveal, slide, assigns.reveal_speed)
@@ -3052,12 +3067,28 @@ defmodule QuacksWeb.GameLive do
       Process.send_after(self(), {:reveal_tick, tick}, ms)
     end
 
-    if settle, do: Process.send_after(self(), {:reveal_settle, settle}, @settle_ms)
+    if settle,
+      do: Process.send_after(self(), {:reveal_settle, settle}, settle_ms(slide, assigns))
 
     assign(socket,
       reveal: %{reveal | index: index, tick: tick, settled: is_nil(settle), settle: settle}
     )
   end
+
+  # Round 29: the final scoring plays in Auto mode by default (a tap pauses it);
+  # reduced motion keeps Step.
+  defp reveal_mode(%{key: {:final, _}, paused: false}, %{reduced: false}), do: :auto
+  defp reveal_mode(%{key: {:final, _}}, _assigns), do: :step
+  defp reveal_mode(_reveal, assigns), do: assigns.reveal_mode
+
+  # The final tally settles once its parts have popped in (app.css `.tally-part`:
+  # one every 0.35 beat, the 4th row's last at --i 11).
+  defp settle_ms(%{kind: :tally, rows: rows}, assigns) do
+    parts = rows |> Enum.map(&(&1.from_rank * 3 + length(&1.parts))) |> Enum.max(fn -> 0 end)
+    max(@settle_ms, 500 + round(parts * 0.35 * Reveal.beat_ms(assigns.reveal_speed)))
+  end
+
+  defp settle_ms(_slide, _assigns), do: @settle_ms
 
   # Round 22: the new card hovers over the pot while its reveal shows, or while the
   # card's choice waits with no chips drawn (Safety Procedure and Flea Market draw
@@ -3215,6 +3246,11 @@ defmodule QuacksWeb.GameLive do
     do: Map.new(tile_totals(game, reveal), fn {s, totals} -> {s, totals.vp} end)
 
   # Auto mode: the shown slide's time (the overlay's timer bar), else nil.
+  # The game's last slide (the podium) and a paused final tally have no timer.
+  defp reveal_ms(%{key: {:final, _}, slides: slides, index: index}, _mode, _speed)
+       when index == length(slides) - 1,
+       do: nil
+
   defp reveal_ms(%{slides: slides, index: index}, :auto, speed),
     do: slides |> Enum.at(index) |> Reveal.duration(Reveal.factor(speed))
 
@@ -3225,6 +3261,8 @@ defmodule QuacksWeb.GameLive do
   defp close_label(_reveal, :shop, _skip), do: "To the shop"
   defp close_label(_reveal, :rubies, _skip), do: "Spend rubies"
   defp close_label(_reveal, :droplet_choice, _skip), do: "Move the droplet"
+  # Round 29 (F1): round 9 has no "Done": the final tally follows by itself.
+  defp close_label(%{key: {:results, 9}}, _decision, true), do: "Continue"
   defp close_label(%{key: {:results, _}}, _decision, true), do: "Done"
   defp close_label(_reveal, _decision, _skip), do: "Close"
 
@@ -3559,6 +3597,8 @@ defmodule QuacksWeb.GameLive do
 
   defp back_label(:rubies, %Game{round: 9}), do: "Back to final scoring"
   defp back_label(decision, _game) when decision in [:shop, :rubies], do: "Back to shop"
+  # Round 29 (Q10): the card's choice opens after its reveal: "Continue".
+  defp back_label(:fortune_choice, _game), do: "Continue"
   defp back_label(_decision, _game), do: "Back to choice"
 
   # Whether a decision dialog opens with one enabled primary button (it takes the

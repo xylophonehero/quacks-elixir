@@ -173,26 +173,28 @@ defmodule QuacksWeb.Polish2Test do
       assert render_over(2) =~ "You win!"
     end
 
-    test "each player's VP breakdown comes from the log and adds up" do
-      html = render_over(nil)
-      doc = LazyHTML.from_fragment(html)
+    test "round 29: no VP breakdown pills; this browser's place has a ring and \"you\"" do
+      html = render_over(2)
+      assert count(html, "[data-role=vp-breakdown]") == 0
+      assert count(html, ~s([data-role=final-score][data-seat="2"] [data-role=you])) == 1
+      assert count(html, "[data-role=you]") == 1
+      assert count(html, ~s([data-role=final-score][data-seat="2"] .ring-gold)) == 1
+      assert count(render_over(nil), "[data-role=you]") == 0
+      assert count(html, "[data-role=game-over-actions].sticky") == 1
 
-      parts = fn seat ->
-        doc
-        |> LazyHTML.query(~s([data-role=vp-breakdown][data-seat="#{seat}"] li))
-        |> Enum.map(&(&1 |> LazyHTML.text() |> String.split() |> Enum.join(" ")))
-      end
+      # The replay viewed from a bot's seat: that seat is "you", not a bot.
+      html =
+        render_component(&GameLive.game_over/1,
+          game: final_game(),
+          names: %{0 => "Ann", 1 => "Bo", 2 => "Cy", 3 => "Di"},
+          players: 4,
+          bots: %{1 => :balanced, 2 => :balanced},
+          seat: 2
+        )
 
-      assert parts.(2) == [
-               "Brewing +30",
-               "Bonus die +2",
-               "Rubies +1",
-               "Final coins and rubies +3",
-               "Other +4"
-             ]
-
-      assert parts.(0) == ["Brewing +20", "Chip actions +2", "Essence +4"]
-      assert parts.(1) == ["Brewing +10"]
+      assert html =~ "You win!"
+      assert count(html, ~s([data-seat="2"] [data-role=bot-badge])) == 0
+      assert count(html, ~s([data-seat="1"] [data-role=bot-badge])) == 1
 
       for {seat, vp} <- final_game() |> Game.score() do
         assert final_game().log
@@ -208,7 +210,7 @@ defmodule QuacksWeb.Polish2Test do
       assert count(html, "button[autofocus]") == 1
     end
 
-    test "solo: the score as the title, with its breakdown" do
+    test "solo: the score as the title" do
       game = %{Game.new(seed: {1, 2, 3}) | phase: :over}
       game = %{game | log: [{0, {:pot_vp, 12, 30}} | game.log]}
       game = put_in(game.players[0].vp, 12)
@@ -216,7 +218,7 @@ defmodule QuacksWeb.Polish2Test do
       html = render_component(&GameLive.game_over/1, game: game, names: %{}, players: 1)
       assert html =~ "victory points"
       assert count(html, "[aria-label=Podium]") == 0
-      assert count(html, ~s([data-role=vp-breakdown] li[data-part=brewing])) == 1
+      assert count(html, "[data-role=vp-breakdown]") == 0
     end
   end
 
