@@ -40,7 +40,8 @@ defmodule QuacksWeb.R10UiTest do
         html = render_component(&GameComponents.pot/1, game: game, seat: 1, size: size)
         assert count(html, "[data-role=rat]") == 3
         assert attrs(html, "[data-role=rat]", "data-index") == ~w(3 4 5)
-        assert attrs(html, "[data-role=rat]", "id") == for(t <- 1..3, do: "rat-1-#{size}-#{t}")
+        # Round 35: a rat's id names its space.
+        assert attrs(html, "[data-role=rat]", "id") == for(t <- 3..5, do: "rat-1-#{size}-#{t}")
         # The first chip lands after the last rat.
         assert attrs(html, "[data-role=pot-chip]", "data-index") == ["6"]
       end

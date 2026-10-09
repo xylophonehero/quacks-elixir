@@ -1179,6 +1179,7 @@ defmodule QuacksWeb.GameLive do
                 effects={replay_effects(@game, @seat, @seen, @reveal)}
                 droplet={tiles_playing?(@reveal) && @me && tile_totals(@game, @reveal)[@seat].droplet}
                 fx_key={if tiles_playing?(@reveal), do: "s#{@reveal.index}-", else: ""}
+                bagged={bagged?(assigns)}
               />
               <%!-- Round 31: the game's end lies over the pot: the score chart. --%>
               <QuacksWeb.FinalComponents.final_board
@@ -1348,7 +1349,7 @@ defmodule QuacksWeb.GameLive do
             <.test_tubes
               id="tubes-main"
               tube={@game.players[@seat || 0].tube}
-              class="mx-auto block h-auto w-full max-w-sm"
+              class="mx-auto block h-auto w-full max-w-xs"
             />
           </div>
         </div>
@@ -1407,7 +1408,7 @@ defmodule QuacksWeb.GameLive do
               :if={not shop_step?(@decision) and @decision not in [:patient_choice, :essence_choice]}
               class="space-y-3"
             >
-              <div class="flex items-center gap-1">
+              <div class="sheet-head flex items-center gap-1">
                 <h2 class="text-xl font-bold">{phase_name(@decision)}</h2>
                 <.offer_books
                   id="offer-books"
@@ -1455,7 +1456,10 @@ defmodule QuacksWeb.GameLive do
           >
             <%!-- The title row holds the × (it floats right), so it never squeezes the
                  first card (round 14). --%>
-            <h2 class="min-h-8 font-hand text-2xl leading-8 font-bold" data-role="witches-title">
+            <h2
+              class="sheet-head min-h-8 font-hand text-2xl leading-8 font-bold"
+              data-role="witches-title"
+            >
               Herb witches
             </h2>
             <section class="clear-both space-y-2 pt-1" aria-label="Herb witches">
@@ -1708,7 +1712,7 @@ defmodule QuacksWeb.GameLive do
         label="Forgetfulness"
         class="sheet-pot"
       >
-        <h2 class="font-hand text-2xl font-bold">Forgetfulness</h2>
+        <h2 class="sheet-head font-hand text-2xl font-bold">Forgetfulness</h2>
         <p class="text-sm text-ink-soft">
           Tap a chip in your pot to return it to the bag. It costs as much essence as its value. You have {@me.essence}.
         </p>
@@ -1766,7 +1770,7 @@ defmodule QuacksWeb.GameLive do
 
       <.sheet id="sheet-menu" label="Menu">
         <div class="space-y-3 text-sm">
-          <h2 class="text-lg font-bold">Game {@id}</h2>
+          <h2 class="sheet-head text-lg font-bold">Game {@id}</h2>
           <label :if={@seat && @players > 1} class="block space-y-1">
             <span class="flex items-center gap-1.5 font-semibold">
               <.seat_dot seat={@seat} /> Your name
@@ -1835,7 +1839,7 @@ defmodule QuacksWeb.GameLive do
            over the context column, never over the pot, and stays open when a
            decision comes (app.js waits until it closes). --%>
       <.sheet id="sheet-books" label="Ingredient books" class="sheet-drawer">
-        <h2 class="mb-2 text-lg font-bold">Ingredient books</h2>
+        <h2 class="sheet-head mb-2 text-lg font-bold">Ingredient books</h2>
         <div
           class="grid gap-2.5 sm:grid-cols-2 md:grid-cols-1 phone-landscape:grid-cols-1"
           data-role="books-in-play"
@@ -2022,7 +2026,7 @@ defmodule QuacksWeb.GameLive do
 
     ~H"""
     <section :if={@step == :shop} class="space-y-2" aria-label="Shop">
-      <h2 class="text-xl font-bold">Shop</h2>
+      <h2 class="sheet-head text-xl font-bold">Shop</h2>
       <div class="rounded-md bg-parchment-deep/60 px-2 py-1" data-role="shop-bag">
         <h3 class="text-tag font-semibold text-ink-soft">Your chips: {length(@owned)}</h3>
         <.chip_counts chips={@owned} />
@@ -2187,7 +2191,7 @@ defmodule QuacksWeb.GameLive do
       </div>
     </section>
     <section :if={@step == :rubies} class="space-y-2" aria-label="Spend rubies">
-      <h2 class="text-xl font-bold">Spend rubies</h2>
+      <h2 class="sheet-head text-xl font-bold">Spend rubies</h2>
       <div class="space-y-2" data-role="shop-rubies">
         <.witch_card :for={id <- witches_acting(@game, @others)} id={id} />
         <p class="flex items-center gap-1.5 text-sm">
@@ -3419,7 +3423,7 @@ defmodule QuacksWeb.GameLive do
         <.icon name="hero-information-circle" class="size-6" />
       </button>
       <.sheet id={@id} label="Ingredient books">
-        <h2 class="mb-2 text-lg font-bold">Ingredient books</h2>
+        <h2 class="sheet-head mb-2 text-lg font-bold">Ingredient books</h2>
         <.book_list books={@books} players={map_size(@game.players)} rules={@game.rules} />
       </.sheet>
     </span>
@@ -3799,6 +3803,14 @@ defmodule QuacksWeb.GameLive do
 
   # The round results show from the shop until the round ends (round 9 has no shop).
   defp results?(game), do: game.phase == :shopping
+
+  # Round 35: the round went to the shop (the results closed, this seat shops or is
+  # ready): the chips leave the pot for the bag.
+  defp bagged?(%{game: game, reveal: nil, me: %{phase: phase}, decision: decision} = assigns)
+       when phase in [:shop, :ready] and decision in [nil, :shop, :rubies],
+       do: results?(game) and not replaying?(game, assigns.seen)
+
+  defp bagged?(_assigns), do: false
 
   # The update chips of the round still play (this seat has not seen them).
   defp replaying?(game, seen), do: results?(game) and not seen?(seen, :results, game)
