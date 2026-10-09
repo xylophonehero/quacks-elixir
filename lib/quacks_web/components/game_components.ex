@@ -2801,8 +2801,9 @@ defmodule QuacksWeb.GameComponents do
 
   @doc """
   Red Set 2 chips waiting beside the pot (not in the bag): a small pill of chips
-  for the pot's top right corner (round 22). The chips overlap a little, so four
-  still fit the corner; the label is for screen readers only.
+  for the pot's top right corner (round 22), under the rubies. Round 35: they
+  stack in a column (the corner has room down the pot's side, not across it),
+  apart, so each value badge shows. The label is for screen readers only.
   """
   attr :chips, :list, required: true, doc: "the player's `aside` chips"
   attr :class, :any, default: nil
@@ -2811,7 +2812,7 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <div
       class={[
-        "paper flex items-center -space-x-1.5 rounded-full p-1 shadow-md ring-2 ring-ruby/70",
+        "paper flex flex-col items-center gap-0.5 rounded-full p-1 shadow-md ring-2 ring-ruby/70",
         @class
       ]}
       role="group"

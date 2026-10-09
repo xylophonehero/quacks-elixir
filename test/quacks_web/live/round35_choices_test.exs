@@ -46,4 +46,14 @@ defmodule QuacksWeb.Round35ChoicesTest do
       refute has_element?(view, "[data-role=bar-blue]")
     end
   end
+
+  describe "item 2: the toadstools beside the pot" do
+    test "stack in a column" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, aside: [{:red, 1}, {:red, 2}]))
+
+      assert has_element?(view, "[data-role=beside-pot].flex-col [data-role=aside-chip]")
+      refute has_element?(view, "[data-role=beside-pot].-space-x-1\\.5")
+    end
+  end
 end
