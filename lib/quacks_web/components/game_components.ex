@@ -848,7 +848,9 @@ defmodule QuacksWeb.GameComponents do
   adds one); seats in one step stack. Under each rat tail its VP. Since round 28
   every seat's VP sits by its dot (`track-vp`, the leader's `leader-vp`): one
   number for seats in a step with the same VP, the numbers of a step alternating
-  above and below the line so they do not collide. A fixed height; nothing to tap.
+  above and below the line so they do not collide. Since round 35 a rat shows its
+  VP only in a gap of 1 or 2 rats between neighbouring seats, and not next to a
+  step with a label below the line. A fixed height; nothing to tap.
   """
   attr :game, :map, required: true
   attr :seat, :any, default: nil, doc: "this browser's seat, nil for a spectator"
@@ -885,7 +887,7 @@ defmodule QuacksWeb.GameComponents do
             }
       end)
 
-    rats = for {t, j} <- Enum.with_index(tails), do: %{vp: t, x: (j + 1) / steps}
+    rats = for {t, j} <- Enum.with_index(tails), do: %{vp: t, x: (j + 1) / steps, j: j}
 
     # Round 28: every seat's VP by its dot. Seats in one step with the same VP share
     # one number; the numbers of a step alternate above and below the line.
@@ -906,6 +908,25 @@ defmodule QuacksWeb.GameComponents do
             seats: Enum.map(group, & &1.seat)
           }
         end)
+      end)
+
+    # Round 35: a rat keeps its VP only in a small gap (1 or 2 rats) between two
+    # neighbouring seats, and not next to a step whose VP label sits below the line.
+    occupied = dots |> Enum.map(& &1.step) |> Enum.uniq()
+    below = for l <- vp_labels, l.below, uniq: true, do: round(l.x * steps - 0.5)
+
+    big_gaps =
+      occupied
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.filter(fn [a, b] -> b - a >= 3 end)
+
+    rats =
+      Enum.map(rats, fn rat ->
+        quiet? =
+          Enum.any?(big_gaps, fn [a, b] -> a <= rat.j and rat.j < b end) or
+            rat.j in below or rat.j + 1 in below
+
+        Map.put(rat, :show_vp, not quiet?)
       end)
 
     label =
@@ -946,7 +967,10 @@ defmodule QuacksWeb.GameComponents do
         data-vp={rat.vp}
       >
         <.piece_icon name={:rat} class="size-3" />
-        <span class="absolute top-full text-tag leading-none font-semibold tabular-nums">
+        <span
+          :if={rat.show_vp}
+          class="absolute top-full text-tag leading-none font-semibold tabular-nums"
+        >
           {rat.vp}
         </span>
       </span>
