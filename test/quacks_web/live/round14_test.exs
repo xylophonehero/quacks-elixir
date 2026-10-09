@@ -293,13 +293,14 @@ defmodule QuacksWeb.Round14Test do
   end
 
   describe "the menu" do
-    test "has the App line that app.js fills" do
+    test "round 29: has no App line; the seed stays" do
       {_id, view} = herb_solo()
-      assert has_element?(view, "#sheet-menu #app-status[phx-hook=AppStatus]", "App:")
+      refute has_element?(view, "#app-status")
+      refute render(view) =~ "install prompt"
+      assert has_element?(view, "#sheet-menu a[href^='/?seed=']")
 
       js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
-      assert js =~ "navigator.serviceWorker?.getRegistration()"
-      assert js =~ "install prompt: ${prompt}"
+      refute js =~ "AppStatus"
     end
   end
 

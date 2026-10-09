@@ -103,27 +103,8 @@ const RevealSettings = {
   destroyed() { phoneQuery.removeEventListener("change", this.onPhone) }
 }
 
-// The menu's "App" line (round 14): which install rule fails on a phone that shows
-// no Install button. The worker, the display mode and whether Chrome fired
-// `beforeinstallprompt` on this page (`installFired`, set below).
+// Whether Chrome fired `beforeinstallprompt` on this page (set below).
 let installFired = false
-const AppStatus = {
-  mounted() {
-    this.show = () => this.render()
-    this.show()
-    window.addEventListener("quacks:install", this.show)
-    navigator.serviceWorker?.addEventListener("controllerchange", this.show)
-    document.getElementById("sheet-menu")?.addEventListener("toggle", this.show)
-  },
-  destroyed() { window.removeEventListener("quacks:install", this.show) },
-  async render() {
-    const reg = await navigator.serviceWorker?.getRegistration().catch(() => null)
-    const worker = reg?.active ? "active" : (reg?.installing || reg?.waiting) ? "installing" : "none"
-    const display = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true ? "standalone" : "browser"
-    const prompt = installFired || document.documentElement.dataset.install === "ready" ? "fired" : "not fired"
-    this.el.textContent = `App: worker: ${worker} · display: ${display} · install prompt: ${prompt}`
-  },
-}
 
 // The large pot's motion (docs/research/animations.md §3 B3, round 10). Every patch
 // already shows the final pot; this only plays WAAPI `transform`/`opacity` on top, so
@@ -252,7 +233,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, AppStatus, ConfigMemory, NameMemory, PotMotion, RevealSettings},
+  hooks: {...colocatedHooks, ConfigMemory, NameMemory, PotMotion, RevealSettings},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
   // is in a field, on a control that Space/Enter already press, or whether a modal
   // dialog is open. The server decides from that; no key logic here.

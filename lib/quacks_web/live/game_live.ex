@@ -1806,16 +1806,6 @@ defmodule QuacksWeb.GameLive do
           </p>
           <.books sets={@game.sets} />
           <.house_rules rules={@game.rules} />
-          <%!-- Why the browser offers no Install (round 14): app.js fills the line. --%>
-          <p
-            id="app-status"
-            class="font-mono text-xs text-ink-soft"
-            phx-hook="AppStatus"
-            phx-update="ignore"
-            data-role="app-status"
-          >
-            App: worker: … · display: … · install prompt: …
-          </p>
           <.scrubber :if={@debug} debug={@debug} />
         </div>
       </.sheet>
