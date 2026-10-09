@@ -110,4 +110,20 @@ defmodule QuacksWeb.Round30BarTest do
       assert badge =~ "min-w-[1.2em]"
     end
   end
+
+  describe "one red explosion icon" do
+    test "the bar's risk and an exploded tile use the same red icon" do
+      g = Game.new(seed: {1, 2, 3}, fortune: false)
+      bar = render_component(&GameComponents.reward_line/1, game: g)
+      assert bar =~ ~r/class="text-ruby size-5"[^>]*data-icon="explosion"/
+
+      g = Quacks.GameHelpers.put(g, exploded?: true)
+      tile = render_component(&GameComponents.player_chip/1, game: g, seat: 0, name: "A")
+
+      assert tile =~
+               ~r/data-state="exploded".*class="text-ruby size-5[^"]*"[^>]*data-icon="explosion"/s
+
+      refute tile =~ "stroke=\"#ffd25a\""
+    end
+  end
 end

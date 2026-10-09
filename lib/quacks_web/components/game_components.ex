@@ -1533,7 +1533,7 @@ defmodule QuacksWeb.GameComponents do
         data-count={"#{@bad}/#{@bag}"}
         title={"Explosion risk of the next draw: #{@bad} of #{@bag} chips in the bag"}
       >
-        <.piece_icon name={:explosion} class="size-5 text-chip-orange" />
+        <.explosion_icon class="size-5" />
         <span class="sr-only">Explode:</span>
         <%= if @risk == :chips do %>
           <span class="min-w-[5ch] text-left">{@bad}/{@bag}</span>
@@ -2166,11 +2166,22 @@ defmodule QuacksWeb.GameComponents do
   defp penny_text(:copper), do: "text-penny-copper"
   defp penny_text(:gold), do: "text-penny-gold"
 
+  attr :class, :any, default: nil
+
+  # Round 30: "explosion" is one red icon, the same in the bar's risk and on an
+  # exploded tile.
+  defp explosion_icon(assigns) do
+    ~H"""
+    <.piece_icon name={:explosion} class={["text-ruby", @class]} />
+    """
+  end
+
   # The status graphic (see `seat_state/2`): a steam wisp while brewing, a lid once
   # stopped, a burst after an explosion, three dots while choosing, a tick when
   # ready. No word on screen: the word is for screen readers only. Everyone shops at
   # once, so the shop shows nothing. On a tile (`tile`, round 27, design B): nothing
-  # while brewing, a check once stopped and a large red burst after an explosion.
+  # while brewing, a check once stopped and the red explosion icon (round 30: the
+  # same as the bar's risk, `explosion_icon/1`) after an explosion.
   attr :game, Game, required: true
   attr :seat, :integer, required: true
   attr :class, :any, default: nil
@@ -2188,14 +2199,7 @@ defmodule QuacksWeb.GameComponents do
       data-role="player-state"
       data-state={@state}
     >
-      <svg viewBox="0 0 24 24" class="size-5" aria-hidden="true">
-        <path
-          d="M12 1l2.6 6.2 6.4-2.6-2.9 6.1L24 13l-6.4 1.6 2 6.4-5.7-3.4L12 23l-1.9-5.4-5.7 3.4 2-6.4L0 13l5.9-2.3L3 4.6l6.4 2.6z"
-          fill="var(--color-ruby)"
-          stroke="#ffd25a"
-          stroke-width="1.2"
-        />
-      </svg>
+      <.explosion_icon class="size-5 drop-shadow-[0_0_2px_rgb(0_0_0/0.9)]" />
       <span class="sr-only">{@state}</span>
     </span>
     <.player_state
