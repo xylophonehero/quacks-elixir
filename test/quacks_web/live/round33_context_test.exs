@@ -23,19 +23,16 @@ defmodule QuacksWeb.Round33ContextTest do
   end
 
   describe "item 1: the choices in two rows" do
-    test "Choices, Choices: five buttons in two rows of three, no scroll" do
+    test "Choices, Choices: one row of chips (round 35), no scroll" do
       {id, view} = solo(%{})
 
       replace_game(id, fn g ->
         %{g | phase: :fortune_choice, fortune_card: :p1} |> H.put(0, phase: :fortune_choice)
       end)
 
-      grid = "#bar-card-1 [data-role=choice-grid][data-rows='2'].grid-cols-3"
-      assert has_element?(view, grid)
+      refute has_element?(view, "#bar-card-1 [data-role=choice-grid]")
       refute has_element?(view, "#bar-card-1 .overflow-x-auto")
-      assert has_element?(view, "#{grid} button[data-choice=take]", "black 1")
-      # The chip has its own box, so its value badge never covers the text.
-      assert has_element?(view, "#{grid} button [data-role=choice-icon] .chip-token")
+      assert has_element?(view, "#bar-card-1 button[data-choice=take] .chip-token")
     end
 
     test "the grid: up to 4 in one row, 5 to 8 in two rows" do

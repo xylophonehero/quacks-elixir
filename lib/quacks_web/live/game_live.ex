@@ -2340,6 +2340,51 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
+  # Round 35: Choices, Choices (P1) as one row of what you may take, in the button
+  # row only: the black chip, each 2-chip, and the ruby with its 3 inside. A tap
+  # takes it; the card stays over the pot, so its text is there to read.
+  @p1_rubies 3
+
+  def bar_choice(%{choice: :fortune_choice, game: %Game{fortune_card: :p1}} = assigns) do
+    picks = Enum.filter(assigns.actions, &match?({:fortune, _}, &1))
+    assigns = assign(assigns, picks: picks, rubies: @p1_rubies)
+
+    ~H"""
+    <section
+      id={"bar-card-#{@game.round}"}
+      class="bar-choice relative z-50 flex min-h-12 items-center justify-center gap-2.5"
+      aria-label={"#{Quacks.Rules.Fortune.card(:p1).name}: take one"}
+      data-role="bar-card"
+      data-card="p1"
+    >
+      <button
+        :for={{:fortune, choice} = action <- @picks}
+        type="button"
+        phx-click="action"
+        phx-value-action={encode(action)}
+        class="relative grid size-12 shrink-0 place-items-center rounded-full touch-manipulation transition-transform duration-100 ease-out hover:scale-105 active:scale-95"
+        aria-label={action_label(action, @game, @me)}
+        title={action_label(action, @game, @me)}
+        data-role="card-option"
+        data-choice={card_choice_kind(choice)}
+      >
+        <%= case choice do %>
+          <% {:take, chip} -> %>
+            <.chip chip={chip} size={:lg} />
+          <% _rubies -> %>
+            <.piece_icon name={:ruby} class="size-12 text-ruby drop-shadow-md" />
+            <span
+              class="absolute inset-0 grid place-items-center pt-1 font-hand text-xl leading-none font-bold text-parchment-light drop-shadow-[0_1px_1px_rgb(0_0_0/0.9)]"
+              data-role="ruby-count"
+            >
+              {@rubies}
+            </span>
+        <% end %>
+      </button>
+    </section>
+    """
+  end
+
   def bar_choice(%{choice: :fortune_choice} = assigns) do
     card = assigns.game.fortune_card
     picks = Enum.filter(assigns.actions, &match?({:fortune, _}, &1))

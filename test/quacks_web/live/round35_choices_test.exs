@@ -91,4 +91,26 @@ defmodule QuacksWeb.Round35ChoicesTest do
       assert doc |> LazyHTML.query("[data-role=shop-buy]") |> Enum.empty?()
     end
   end
+
+  describe "item 5: Choices, Choices as a chip row" do
+    test "the black chip, the 2-chips and a ruby with 3, in the bottom row only" do
+      {id, view} = solo(%{})
+
+      replace_game(id, fn g ->
+        %{g | phase: :fortune_choice, fortune_card: :p1} |> H.put(0, phase: :fortune_choice)
+      end)
+
+      row = "footer section[data-role=bar-card][data-card=p1]"
+      assert has_element?(view, "#{row} button[data-choice=take] [aria-label='black 1']")
+      assert has_element?(view, "#{row} button[data-choice=take] [aria-label='red 2']")
+      assert has_element?(view, "#{row} button [data-role=ruby-count]", "3")
+      refute has_element?(view, "#{row} [data-role=info-row]")
+      refute has_element?(view, "#{row} [data-role=choice-grid]")
+
+      view |> element("#{row} button[data-choice=rubies]") |> render_click()
+      refute has_element?(view, row)
+      {:ok, %{game: game}} = GameServer.get(id)
+      assert game.players[0].rubies == 4
+    end
+  end
 end
