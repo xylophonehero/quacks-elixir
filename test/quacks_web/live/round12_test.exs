@@ -24,15 +24,12 @@ defmodule QuacksWeb.Round12Test do
     do: view |> element("#game") |> render_keydown(Map.put(meta, "key", key))
 
   describe "the reward line" do
-    test "sits above the draw strip and always names the VP" do
+    test "sits beside the white meter and always names the VP" do
       {_id, view} = solo()
 
-      assert has_element?(
-               view,
-               "[data-role=fuse-row] > [data-role=reward-line] + div #fuse-meter"
-             )
-
-      assert has_element?(view, "[data-role=reward-line].h-4 [data-role=next-reward]", "Reward:")
+      # Round 29: one row, the meter then the reward.
+      assert has_element?(view, "[data-role=fuse-row] > #fuse-meter + [data-role=reward-line]")
+      assert has_element?(view, "[data-role=reward-line].h-7 [data-role=next-reward]", "Reward:")
       assert has_element?(view, "[data-role=next-reward]", "0 VP")
     end
 
@@ -88,10 +85,16 @@ defmodule QuacksWeb.Round12Test do
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 20))
       assert has_element?(view, "[data-role=shop-footer].min-w-0")
       assert has_element?(view, "[data-role=shop-done].min-w-0")
+
+      view
+      |> element("#shop")
+      |> render_change(%{"chips" => [QuacksWeb.GameLive.encode({:orange, 1})]})
+
       assert has_element?(view, "[data-role=shop-buy].min-w-0 span.truncate", "Buy")
 
+      # Round 29: nothing ticked, Skip is the one button.
       view |> element("#shop") |> render_change(%{"chips" => []})
-      refute has_element?(view, "[data-role=shop-buy] kbd")
+      refute has_element?(view, "[data-role=shop-buy]")
     end
   end
 
@@ -99,7 +102,7 @@ defmodule QuacksWeb.Round12Test do
     test "a ruby space has its gem on the lower left, mirroring the VP tag" do
       {_id, view} = solo()
       html = render(view)
-      assert html =~ ~s(x="-21.5")
+      assert html =~ ~s(x="-23")
       refute html =~ ~s(y="-27")
     end
   end

@@ -37,6 +37,25 @@ defmodule Quacks.AITest do
     end
   end
 
+  describe "Odds counts (round 29: the risk setting's 3/14)" do
+    test "bust_count/3 gives the bad whites and the bag size" do
+      bag = [{:white, 1}, {:white, 1}, {:white, 1}, {:white, 3}, {:green, 1}]
+      assert Odds.bust_count(bag, 5, 7) == {1, 5}
+      assert Odds.bust_count(bag, 7, 7) == {4, 5}
+      assert Odds.bust_count([], 7, 7) == {0, 0}
+    end
+
+    test "next_draw_count/2 matches next_draw/2" do
+      game =
+        Game.new(seed: @seed, fortune: false)
+        |> force_draws([{:white, 3}, {:white, 2}])
+        |> put(bag: [{:white, 3}, {:white, 1}, {:orange, 1}])
+
+      assert Odds.next_draw_count(game, 0) == {1, 3}
+      assert Odds.next_draw(game, 0) == 1 / 3
+    end
+  end
+
   test "Profile has three named profiles" do
     assert Profile.all() == [:cautious, :balanced, :reckless]
     assert Profile.names().balanced == "Steady Sam"

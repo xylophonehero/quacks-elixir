@@ -18,8 +18,21 @@ defmodule Quacks.AI.Odds do
   @spec bust([Quacks.Rules.Chips.chip()], non_neg_integer, pos_integer) :: float
   def bust([], _sum, _limit), do: 0.0
 
-  def bust(bag, sum, limit),
-    do: Enum.count(bag, &match?({:white, w} when sum + w > limit, &1)) / length(bag)
+  def bust(bag, sum, limit) do
+    {bad, all} = bust_count(bag, sum, limit)
+    bad / all
+  end
+
+  @doc """
+  `bust/3` as a count: `{white chips in bag that would explode the pot, chips in bag}`.
+
+      iex> Quacks.AI.Odds.bust_count([{:white, 1}, {:white, 3}, {:green, 1}, {:white, 1}], 5, 7)
+      {1, 4}
+  """
+  @spec bust_count([Quacks.Rules.Chips.chip()], non_neg_integer, pos_integer) ::
+          {non_neg_integer, non_neg_integer}
+  def bust_count(bag, sum, limit),
+    do: {Enum.count(bag, &match?({:white, w} when sum + w > limit, &1)), length(bag)}
 
   @doc """
   `bust/3` for `seat`'s next draw. 0 when the draw cannot explode: a B3 card draw or a
@@ -27,11 +40,23 @@ defmodule Quacks.AI.Odds do
   """
   @spec next_draw(Game.t(), Game.seat()) :: float
   def next_draw(game, seat) do
+    case next_draw_count(game, seat) do
+      {_bad, 0} -> 0.0
+      {bad, all} -> bad / all
+    end
+  end
+
+  @doc """
+  `next_draw/2` as a count, `{bad, chips in bag}` (`bust_count/3`): the "3/14" of
+  the risk setting. `bad` is 0 when the draw cannot explode.
+  """
+  @spec next_draw_count(Game.t(), Game.seat()) :: {non_neg_integer, non_neg_integer}
+  def next_draw_count(game, seat) do
     p = Game.player(game, seat)
 
     if Fortune.safe_draw?(game, p) or p.starters != [],
-      do: 0.0,
-      else: bust(p.bag, Player.white_sum(p), Potions.explode_above(game, seat))
+      do: {0, length(p.bag)},
+      else: bust_count(p.bag, Player.white_sum(p), Potions.explode_above(game, seat))
   end
 
   @doc """

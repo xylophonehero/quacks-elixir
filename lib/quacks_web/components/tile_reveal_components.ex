@@ -3,13 +3,14 @@ defmodule QuacksWeb.TileRevealComponents do
   The evaluation on the player tiles (`QuacksWeb.TileReveal`; round 27, the phone
   default since round 28). `tile_news/1` fills a tile's bottom line while a step
   plays and after a buy in the shop (`GameComponents.player_chip/1` swaps the line
-  to the news and back, app.css `.tile-line`). `tile_stage/1` is the small pill
-  over the pot that names the step, with Next (Step mode) and Skip. Nothing hangs
+  to the news and back, app.css `.tile-line`). `tile_stage/1` names the step,
+  with Skip and Next (Step mode), in the bar where Stop and Draw sit (round 29). Nothing hangs
   outside a tile, so neither the tiles nor the pot move.
   """
   use Phoenix.Component
 
   import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
+  import QuacksWeb.CoreComponents, only: [button: 1]
   import QuacksWeb.GameComponents, only: [chip: 1, die_face: 1]
 
   alias QuacksWeb.TileReveal
@@ -34,6 +35,23 @@ defmodule QuacksWeb.TileRevealComponents do
 
     ~H"""
     <.die_face face={@face} class="size-3.5" />
+    """
+  end
+
+  # Round 29 (B2): a draw while the round brews. The newest (`age` 0) glows
+  # once (`beat-glow`); the older ones are dimmer.
+  defp badge(%{badge: {:drew, chip, age}} = assigns) do
+    assigns = assign(assigns, chip: chip, age: age)
+
+    ~H"""
+    <span
+      class={["relative shrink-0 rounded-full ring-1 ring-black/40", @age > 0 && "opacity-70"]}
+      data-gain="drew"
+      data-age={@age}
+    >
+      <.chip chip={@chip} size={:xs} />
+      <span :if={@age == 0} class="tile-draw-glow" aria-hidden="true"></span>
+    </span>
     """
   end
 
@@ -128,7 +146,11 @@ defmodule QuacksWeb.TileRevealComponents do
   attr :reveal, :map, required: true
   attr :mode, :atom, required: true, doc: "`:step` shows Next; `:auto` moves on by itself"
 
-  @doc "The step that plays on the tiles, over the pot's top edge."
+  @doc """
+  The step that plays on the tiles. Round 29: in the bar, where Stop and Draw sit
+  (not over the pot): the step's name and number, then Skip and Next (Step mode).
+  It keeps the bar's height (`min-h-12`), so the pot does not move.
+  """
   def tile_stage(assigns) do
     assigns =
       assign(assigns,
@@ -137,33 +159,41 @@ defmodule QuacksWeb.TileRevealComponents do
       )
 
     ~H"""
-    <div
+    <section
       id="tile-stage"
-      class="absolute top-0 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-iron-dark/90 py-1 pr-1 pl-3 text-xs font-semibold whitespace-nowrap text-parchment shadow-lg ring-1 ring-gold/40"
+      class="flex min-h-12 items-center gap-2 *:min-h-12 *:touch-manipulation"
+      aria-label="Round results"
       data-role="tile-stage"
       data-kind={@slide.kind}
-      aria-live="polite"
     >
-      <span>{TileReveal.label(@slide)}</span>
-      <span class="text-parchment-dim tabular-nums">{@reveal.index + 1}/{@count}</span>
-      <button
-        :if={@mode == :step}
-        type="button"
-        phx-click="reveal_next"
-        class="rounded-full bg-gold px-2 py-0.5 text-ink"
-        data-role="tile-next"
-      >
-        Next
-      </button>
-      <button
+      <p class="flex min-w-0 flex-1 flex-col justify-center leading-tight" aria-live="polite">
+        <span class="truncate font-semibold text-parchment" data-role="tile-step">
+          {TileReveal.label(@slide)}
+        </span>
+        <span class="text-tag text-parchment-dim tabular-nums">
+          Step {@reveal.index + 1} of {@count}
+        </span>
+      </p>
+      <.button
         type="button"
         phx-click="reveal_close"
-        class="rounded-full px-2 py-0.5 text-parchment-dim hover:text-parchment"
+        variant={:secondary}
+        class="shrink-0 px-4"
         data-role="tile-skip"
       >
         Skip
-      </button>
-    </div>
+      </.button>
+      <.button
+        :if={@mode == :step}
+        type="button"
+        phx-click="reveal_next"
+        variant={:primary}
+        class="w-2/5 shrink-0"
+        data-role="tile-next"
+      >
+        Next
+      </.button>
+    </section>
     """
   end
 end

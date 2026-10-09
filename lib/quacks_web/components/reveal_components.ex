@@ -89,7 +89,8 @@ defmodule QuacksWeb.RevealComponents do
         </ol>
         <.strip
           :if={
-            @slide[:standings] not in [nil, []] and @slide.kind not in [:card, :podium, :standings]
+            @slide[:standings] not in [nil, []] and
+              @slide.kind not in [:card, :podium, :standings, :tally]
           }
           rows={@slide.standings}
           names={@names}
@@ -376,29 +377,63 @@ defmodule QuacksWeb.RevealComponents do
     """
   end
 
-  defp slide(%{slide: %{kind: :final}} = assigns) do
+  # Round 29 (F1): the final tally. The rows start at the round-9 totals and
+  # ranks; each row's final parts pop in one after the other, then (the settle
+  # tick) the totals count up and the rows glide to their new ranks.
+  defp slide(%{slide: %{kind: :tally}} = assigns) do
     ~H"""
-    <div class="space-y-3">
-      <h2 class="text-center font-hand text-3xl leading-tight font-bold">Coins, rubies, pennies</h2>
-      <ul class="space-y-1.5 text-sm" data-role="reveal-final">
-        <li
-          :for={{row, i} <- Enum.with_index(@slide.rows)}
-          class="reveal-row space-y-0.5 rounded-md bg-parchment-deep/50 px-2 py-1.5"
-          style={"--i: #{i}"}
+    <div class="space-y-2">
+      <h2 class="text-center font-hand text-3xl leading-tight font-bold">Final tally</h2>
+      <div
+        class="standings tally relative text-sm"
+        style={"--rows: #{length(@slide.rows)}"}
+        data-role="reveal-tally"
+        data-settled={to_string(@settled)}
+      >
+        <ol class="absolute inset-y-0 left-0 w-5" aria-hidden="true">
+          <li
+            :for={i <- 1..length(@slide.rows)}
+            class="standings-slot font-hand text-lg text-ink-soft"
+          >
+            {i}
+          </li>
+        </ol>
+        <div
+          :for={row <- @slide.rows}
+          id={"tally-row-#{row.seat}"}
+          class={["standings-row", row.seat == @seat && "ring-2 ring-gold"]}
+          style={"--rank: #{if @settled, do: row.rank, else: row.from_rank}"}
           data-seat={row.seat}
+          data-rank={if @settled, do: row.rank, else: row.from_rank}
+          data-role="tally-row"
         >
-          <p class="flex items-center gap-1.5 font-semibold">
-            <.seat_dot seat={row.seat} />
-            <span class="min-w-0 flex-1 truncate">{short_name(@names, row.seat, @seat)}</span>
-            <span class="font-hand text-lg tabular-nums">{row.vp} VP</span>
-          </p>
-          <p class="text-xs text-ink-soft">
-            {row.coins} coins → {row.coins_vp} VP · {row.rubies} {if row.rubies == 1,
-              do: "ruby",
-              else: "rubies"} → {row.rubies_vp} VP<span :if={row.pennies_vp > 0}> · pennies {row.pennies_vp} VP</span>
-          </p>
-        </li>
-      </ul>
+          <div class="min-w-0 flex-1">
+            <p class="flex items-center gap-1.5">
+              <.seat_dot seat={row.seat} />
+              <span class="min-w-0 truncate font-semibold">
+                {short_name(@names, row.seat, @seat)}
+              </span>
+            </p>
+            <ul class="mt-0.5 flex flex-wrap gap-1 text-xs" aria-label="Final scoring">
+              <li
+                :for={{{kind, n, vp}, i} <- Enum.with_index(row.parts)}
+                class="tally-part inline-flex items-center gap-1 rounded-full bg-parchment-light/80 px-1.5 ring-1 ring-ink/10"
+                style={"--i: #{row.from_rank * 3 + i}"}
+                data-part={kind}
+              >
+                {part_text(kind, n)}<span class="font-bold tabular-nums">+{vp}</span>
+              </li>
+              <li :if={row.parts == []} class="text-ink-soft">No final VP</li>
+            </ul>
+          </div>
+          <span class="flex w-16 shrink-0 items-center justify-end gap-1 font-hand text-2xl font-bold">
+            <.piece_icon name={:vp} class="size-4 text-gold" /><.ticker value={
+              if @settled, do: row.vp, else: row.from_vp
+            } />
+            <span class="sr-only">VP</span>
+          </span>
+        </div>
+      </div>
     </div>
     """
   end
@@ -635,6 +670,10 @@ defmodule QuacksWeb.RevealComponents do
   defp choice(:vp), do: "VP"
   defp choice(:buy), do: "coins"
 
+  defp part_text(:coins, n), do: "#{n} #{if n == 1, do: "coin", else: "coins"}"
+  defp part_text(:rubies, n), do: "#{n} #{if n == 1, do: "ruby", else: "rubies"}"
+  defp part_text(:pennies, _n), do: "Pennies"
+
   defp short_name(_names, seat, seat), do: "You"
   defp short_name(names, seat, _me), do: Map.get(names, seat, "Player #{seat + 1}")
 
@@ -648,8 +687,8 @@ defmodule QuacksWeb.RevealComponents do
 
   @doc """
   The menu's reveal settings, a form (`#reveal-settings`, event
-  `"reveal_settings"`): Step or Auto, the speed and (not on a phone) where the
-  results play. `RevealSettings` (app.js)
+  `"reveal_settings"`): Step or Auto, the speed, the risk beside the white meter
+  (round 29: Off, Percent or Chips) and (not on a phone) where the results play. `RevealSettings` (app.js)
   keeps them in this browser and sends them on mount. With reduced motion only
   Step.
   """
@@ -665,6 +704,11 @@ defmodule QuacksWeb.RevealComponents do
   attr :phone, :boolean,
     default: false,
     doc: "round 28: a phone always plays the results on the tiles; the Results choice hides"
+
+  attr :risk, :atom,
+    default: :percent,
+    values: [:off, :percent, :chips],
+    doc: "round 29: the explosion risk beside the white meter"
 
   def reveal_settings(assigns) do
     ~H"""
@@ -688,6 +732,12 @@ defmodule QuacksWeb.RevealComponents do
         legend="Speed"
         value={@speed}
         options={[normal: "Normal", slow: "Slow", slower: "Slower"]}
+      />
+      <.segments
+        name="risk"
+        legend="Risk"
+        value={@risk}
+        options={[off: "Off", percent: "Percent", chips: "Chips"]}
       />
       <input type="hidden" name="phone" value={to_string(@phone)} />
       <div :if={!@phone} data-role="reveal-show">

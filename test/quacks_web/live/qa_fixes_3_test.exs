@@ -103,7 +103,7 @@ defmodule QuacksWeb.QaFixes3Test do
       render_hook(view, "seen", %{"kind" => "results", "round" => 1})
 
       view
-      |> element("dialog#decision-rubies button", "Spend 2 rubies: droplet +1")
+      |> element("#bar-rubies button[data-ruby=droplet]")
       |> render_click()
 
       assert {:ok, %{game: %Game{round: 2}}} = GameServer.get(id)
@@ -130,8 +130,9 @@ defmodule QuacksWeb.QaFixes3Test do
       assert html =~ "Final scoring"
       refute html =~ "Everyone shops"
       refute has_element?(alice, "[data-role=turn]")
-      assert has_element?(alice, "[data-role=decision-button]", "Back to final scoring")
-      assert has_element?(alice, "dialog#decision-rubies button", "2 rubies → 1 VP")
+      # Round 29: the rubies are in the bar (no sheet, no back button).
+      refute has_element?(alice, "[data-role=decision-button]")
+      assert has_element?(alice, "#bar-rubies button[data-ruby=vp]", "1 VP")
     end
 
     test "brewing names the VP, not coins; the explosion's coins say they become VP" do
@@ -141,8 +142,8 @@ defmodule QuacksWeb.QaFixes3Test do
       assert has_element?(view, "[data-role=next-reward]", "VP")
 
       replace_game(id, &H.put(&1, 0, phase: :explosion_choice, exploded?: true))
-      assert has_element?(view, "button", "converted to VP at the end")
-      refute has_element?(view, "button", "to spend")
+      assert has_element?(view, "[data-role=bar-explosion] button", "Turn into VP at the end")
+      refute has_element?(view, "[data-role=bar-explosion] button", "Shop")
     end
   end
 

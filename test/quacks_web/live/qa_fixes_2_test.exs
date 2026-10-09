@@ -67,7 +67,8 @@ defmodule QuacksWeb.QaFixes2Test do
       view = open(browser(token("rubies")), id)
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 2))
 
-      assert has_element?(view, "dialog#decision-rubies [data-role=shop-rubies]")
+      # Round 29: the choice is in the bar.
+      assert has_element?(view, "#bar-rubies button[data-ruby=droplet]")
     end
   end
 
@@ -175,7 +176,7 @@ defmodule QuacksWeb.QaFixes2Test do
     test "G1: the decision button hides while a dialog is open" do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
       view = open(browser(token("g1")), id)
-      replace_game(id, &H.put(&1, 0, phase: :explosion_choice, exploded?: true))
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 30))
 
       assert has_element?(
                view,

@@ -35,17 +35,17 @@ defmodule QuacksWeb.UiRound6Test do
     )
 
     refute has_element?(view, "dialog#decision-shop")
-    assert has_element?(view, "dialog#decision-rubies [data-role=shop-rubies]")
-    # round 14: the reveal overlay's end opens it
+    # Round 29: the rubies are in the bar, no dialog to open.
+    assert has_element?(view, "#bar-rubies")
     render_hook(view, "reveal_close", %{})
-    assert_push_event(view, "quacks:open", %{to: "#decision-rubies"})
+    refute_push_event(view, "quacks:open", %{to: "#decision-rubies"})
   end
 
   test "a seat with no coins to spend skips the shop too; with coins it shops" do
     {id, view} = solo()
     replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 2))
     refute has_element?(view, "dialog#decision-shop")
-    assert has_element?(view, "dialog#decision-rubies")
+    assert has_element?(view, "#bar-rubies")
 
     replace_game(id, &H.put(&1, 0, coins: 10))
     assert has_element?(view, "dialog#decision-shop #shop")

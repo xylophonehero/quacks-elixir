@@ -183,11 +183,10 @@ closes the dialog in one chain:
 state: `ConfigMemory` (`assets/js/app.js:43-53`) keeps the host's last settings in
 `localStorage` (round 14: also the herb witch picks; round 27: the config carries
 `v: 27`, and an older one drops its `black_rule`, see `SetupComponents.saved_rules/1`), `NameMemory` keeps your name,
-`RevealSettings` keeps the reveal settings, `AppStatus` writes the menu's "App"
-line, and `PotMotion` animates the pot (see "Motion" below).
+`RevealSettings` keeps the reveal settings and `PotMotion` animates the pot (see "Motion" below).
 
 **The witch pickers (round 14).** With The Herb Witches on, the spell book's
-books form shows a tile per penny colour (copper, silver, gold). A tap opens the
+witches page (round 29: `witch_links/1`, the Herb Witches row's Customise) shows a tile per penny colour (copper, silver, gold). A tap opens the
 colour's page with "Random" and its four cards as radio cards
 (`witches[colour]`), the same pattern as the book pages. `parse_witches/1`
 (`lib/quacks_web/components/setup_components.ex:273`) turns the form into
@@ -197,11 +196,9 @@ picked colours (`pick_witches/2`, `lib/quacks/game.ex:399`), so the random strea
 stays the same. The witches sheet in the game has a title row now, so its × no
 longer squeezes the first card.
 
-**The App line (round 14).** The menu ends with
-`App: worker: active · display: browser · install prompt: fired`. `AppStatus`
-reads `navigator.serviceWorker.getRegistration()`, `matchMedia("(display-mode:
-standalone)")` and whether `beforeinstallprompt` fired. On a phone with no Install
-button it shows which of Chrome's rules fails.
+**The App line (round 14; removed in round 29).** The menu ended with a debug
+line on the service worker, the display mode and the install prompt. Nick asked
+for a quieter menu, so the line and its `AppStatus` hook are gone; the seed stays.
 
 ## Layout: one dialog, every screen size
 
@@ -591,8 +588,8 @@ sections carry `.book-page-left` or `.book-page-right` for the open book's grid.
 A page that appears after a step turns in once (`page-turn`, only with
 `data-turned`, so the first paint never animates). There are no bookmarks.
 
-The pages split the forms: the expansion cards (Expansions page) belong to
-`#books`, the pot-side card to `#options`, and each colour page's radio cards
+The pages split the forms: the expansion switches (New game's rows) belong to
+`#books`, the pot-side switch to `#options`, and each colour page's radio cards
 (`SetupComponents.book_options/1`, `witch_options/1`) to `#books`. Each input
 names its form (`form="books"`), so the browser sends it with that form's change
 and LiveView's `phx-change` sees it. `books_form/1` takes `patch` (a function from
@@ -623,6 +620,27 @@ with an ellipsis and Back + Start keep the bar's width (before, the grid's `auto
 column took the summary's full width and pushed Start off the right edge).
 `.page-link` has `min-width: 0` for the same reason, and the colour swatches
 shrink (`flex-1 max-w-8`) so 8 fit.
+
+**Round 29: one main page.** New game holds every setting as a row: the
+expansions (`SetupComponents.expansion_row/1`: icon, title, a line on the current
+choice, `customise_button/1`, the switch), then Ingredient books and House rules
+(`page_link/1` with a Customise pill), then Public. Customise is dim and not
+tappable while its expansion is off. A gold dot (`.changed-dot`) on Customise
+marks a change from the default: a witch picked, a patient picked, books that are
+not the Beginner preset, a house rule changed (the pot side has its own row, so
+`rules_summary/1` does not count it). Every other page (witches, patients, books,
+rules) is a child of New game; a witch page is a child of witches, a book page of
+books. From 64rem the right page next to New game is Ingredient books. The
+Alchemists' patients page keeps only "Your patient": the rulebook draws 3 patients
+from the bag at random, so the game has no "available patients" filter. Start and
+New game (`.start-button`, `.flow-button`) are the gold primary of Draw and Next.
+
+**Round 29: Share.** The waiting panel shows the room code large (Kalam,
+letter-spaced, to read aloud) and a **Share** button (`#share-game`, primary) that
+dispatches `quacks:share` with `{title, text, url}`; app.js calls
+`navigator.share`. app.js sets `data-share` on `<html>` when the browser has a
+share sheet; app.css hides Share without it (`.share-only`) and then shows Copy
+link as the gold main button (`.share-fallback`).
 
 Every page of the flow ends in one bar, `flow_bar/1` (`#flow-bar`): the setup in a
 line ("3 players · 2 bots · Herb Witches · private") and whether Start opens the
@@ -1092,6 +1110,28 @@ starts no timer for it. × or Esc close it; "Show the result" opens it again
 reload, a rejoin or a spectator, opens straight on that slide
 (`result_on_mount/1`). There is no `#game-over` dialog any more.
 
+**Round 29: one final tally.** Round 9's results end on the last scoring step:
+no `:standings` slide, and with nothing left to decide the button says "Continue"
+(not "Done"). `{:final, 9}` now has two slides: `:tally` and `:podium`. The tally
+reuses the standings' CSS FLIP (`.standings`, `--rank`): every row starts at the
+seat's round-9 total and rank; its final parts (coins, rubies, pennies → VP,
+`parts: [{kind, count, vp}]`) pop in one after the other (`.tally-part`, `--i`);
+then the settle tick (`settle_ms/2`, after the last part) sets the new totals and
+ranks, so the counters count up (`.stat-tick`) and the rows glide. The final
+scoring plays in Auto mode for everyone (`reveal_mode/2`; reduced motion keeps
+Step). A tap on the tally while it plays settles it at once and pauses Auto
+(`paused: true`); the next tap shows the podium. The podium has no VP breakdown
+any more: this browser's place has a gold ring and "you" (`you_tag/1`), and the
+actions stick to the sheet's bottom edge (`.sticky-actions`; a parchment backing
+only while stuck, with the `scroll-state` container query).
+
+Two fixes of the same round: a `/debug/replay` seat taken by this browser is no
+bot any more (`GameServer.start_debug/2`; the podium said "You win!" over a
+bot's name), and the card's choice button (phones) says "Continue". From 64rem
+the card's result sheet sits in the right context column; on a phone on its side
+the overlay is the right column at the pot's height and its slides fit without a
+scroll (the landscape block after `.reveal-sheet` in app.css).
+
 **Controls.** `reveal_overlay/1`
 (`lib/quacks_web/components/reveal_components.ex:35`) renders the slide and a bar:
 
@@ -1146,8 +1186,8 @@ On the branch `round-27-eval` the menu's reveal settings have a third row,
 On tiles, the results' reveal plays only its scoring steps (`TileReveal.slides/1`:
 the bonus die, the books, the scoring space) and no dialog opens. The same
 `%{slides, index}` state and Auto ticks run it; a step lasts 5 beats
-(`TileReveal.duration/1`, `--beat-ms`). A pill over the pot's top edge names the
-step (`tile_stage/1`) with Next (Step mode) and Skip. Each tile shows its seat's
+(`TileReveal.duration/1`, `--beat-ms`). `tile_stage/1` names the step, with Next
+(Step mode) and Skip (a pill over the pot until round 29; now in the bar). Each tile shows its seat's
 badge for the step (`tile_gains/1`: the book's ingredient, VP, rubies, droplet),
 which folds into the tile's counters; the counters show the running totals
 (`TileReveal.totals/3`) and count up from the old value (`.tile-count`). The die
@@ -1196,9 +1236,57 @@ key, so new news is a new element and the swap plays again. Nothing hangs outsid
 the tile. While a step plays the droplet shows its running value
 (`TileReveal.droplets/3`).
 
+**The last draws while the round brews (round 29, B2).** In the `:potions`
+phase `news/3` gives the seat's last draws (`{:drew, chip, age}`, newest first,
+straight from `player.drawn`) with `hold: true`, whatever the Results choice
+says. How many depends on the tile's width (`tile_draws/1`: 3 with four columns,
+up to 7 with two). `data-hold` keeps the line on the news (no swap back); the key
+is the draw count, so each draw slides in again. The newest chip glows once
+(`.tile-draw-glow`, `beat-glow`), the pot space pops when it changes (its id has
+the space), and an exploded tile shakes once (`.tile-boom`).
+
+**The type scale (round 29, B3).** Four tokens in `app.css` `@theme`: `text-tag`
+13 px (the floor), `text-label` 15, `text-num` 18, `text-big` 24. Numbers and
+labels on the game screen use them, never less than `text-tag`; where space is
+tight, drop the label and keep the icon and the number. The pot SVG has its own
+units: `@pot_tag` is 13 px at the smallest phone pot (328 px wide), so the
+coins, the VP seals and the chip values are at least 13 px there.
+
 **Every VP on the rat track.** Each dot has its VP: one number for seats in a
 step with the same VP, the numbers of a step alternating above and below the line
 (`track-vp`; the leader's is `leader-vp`).
+
+### Round 29: the bar carries every action
+
+The two slots of Stop and Draw (`min-h-12`) are the one place for "what do I do
+now". What takes their place keeps that height, so the pot (a flex child above the
+bar) never moves:
+
+- **Draw** (no "a chip") and Stop. After Stop the phase pill says "Waiting"; Draw
+  stays greyed.
+- **The white meter row** holds the reward and the risk as icons
+  (`GameComponents.reward_line/1`): coin and count, laurel and VP, the ruby, then
+  the explosion icon with the menu's **Risk** setting (Off, Percent, Chips "3/14").
+  The setting is one more `segments` row in `reveal_settings/1`; `RevealSettings`
+  keeps it in `localStorage` (`quacks:risk`) and sends it with the others, so the
+  server renders only the chosen form (no CSS toggles).
+- **A choice in the bar** (`GameLive.bar_choice/1`, assign `@bar_choice`): the
+  explosion's Take VP / Take coins, and the rubies step (Skip, test tube, flask,
+  pot; "2" + ruby on each paying button, the seat's `ruby_price`; a disabled use
+  says why). These decisions open no dialog (`open_waiting/1` skips them, and the
+  "Back to choice" button hides). A rubies step with a witch to call keeps the
+  dialog: the witch card does not fit the bar.
+- **The explosion's beat** is CSS on insert, like the pot shake: `.boom` (BOOM in
+  Kalam over the pot, 700 ms, `forwards`) and `.bar-choice-late` (the choice
+  waits 700 ms, `visibility: hidden` in the `from` keyframe with fill `both`, so
+  it cannot take a tap meant for Draw). Reduced motion swaps both to plain fades
+  of the same length. The one bit of JS is the `Boom` hook: `navigator.vibrate`
+  once per game and round (`sessionStorage`), guarded when the browser has none.
+- **The evaluation steps** on the tiles (`tile_stage/1`): the step's name and
+  number, Skip and Next, in the footer instead of a pill over the pot. The other
+  footer buttons hide while it plays.
+- **The shop** says **Skip** for "buy nothing". With chips ticked, Buy is the wide
+  primary and Skip shrinks to a small secondary button.
 
 ### `PotMotion`: animate on top of the patch
 

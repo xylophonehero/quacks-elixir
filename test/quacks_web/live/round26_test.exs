@@ -29,11 +29,11 @@ defmodule QuacksWeb.Round26Test do
 
   describe "the spell book's patient picker" do
     test "shows with The Alchemists only: Random and the 3 the seed deals" do
-      {:ok, view, _html} = live(browser("p1"), ~p"/?seed=1,2,3&step=expansions")
+      {:ok, view, _html} = live(browser("p1"), ~p"/?seed=1,2,3&step=patients")
       refute has_element?(view, "#lobby-patient")
 
       alchemists(view)
-      assert has_element?(view, "#page-expansions #lobby-patient")
+      assert has_element?(view, "#page-patients #lobby-patient")
       assert has_element?(view, "#lobby-patient [data-patient=random] input[checked]")
 
       ids =
@@ -48,7 +48,7 @@ defmodule QuacksWeb.Round26Test do
 
     test "a picked patient is yours at once; the game skips your choice" do
       [_a, b, _c] = Essence.dealt(@seed)
-      {:ok, view, _html} = live(browser("p2"), ~p"/?seed=1,2,3&step=expansions")
+      {:ok, view, _html} = live(browser("p2"), ~p"/?seed=1,2,3&step=patients")
       alchemists(view)
       view |> element("#lobby-patient") |> render_change(%{"patient" => to_string(b)})
       assert has_element?(view, "#lobby-patient [data-patient=#{b}] input[checked]")

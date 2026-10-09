@@ -32,7 +32,7 @@ defmodule QuacksWeb.FortuneLiveTest do
     {:ok, view, _html} = live_game(conn, {30, 30, 30})
     assert has_element?(view, "[data-role=fortune-card][data-colour=purple]", "Boomberry Cleanse")
     assert has_element?(view, "dd", "Fortune teller")
-    assert has_element?(view, "button[data-slot=draw][disabled]", "Draw a chip")
+    assert has_element?(view, "button[data-slot=draw][disabled]", "Draw")
 
     view |> element("button", "Score 4 VP") |> render_click()
 
@@ -54,7 +54,7 @@ defmodule QuacksWeb.FortuneLiveTest do
 
   test "B7 Safety Procedure: stopping offers chips to place (seed 1,2,3)", %{conn: conn} do
     {:ok, view, _html} = live_game(conn, {1, 2, 3})
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
     assert has_element?(view, "[aria-label='Fortune teller offer']", "Safety Procedure drew:")

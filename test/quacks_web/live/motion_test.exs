@@ -27,11 +27,11 @@ defmodule QuacksWeb.MotionTest do
     assert has_element?(view, "#droplet-0-lg[data-role=droplet][style*=translate]")
     assert has_element?(view, "#flask-0[data-role=flask]")
 
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     [first] = ids(render(view), "[data-role=pot-chip]")
     assert first =~ ~r/^pot-chip-0-\d+-1$/
 
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     chips = ids(render(view), "[data-role=pot-chip]")
     assert length(chips) == 2
     assert first in chips

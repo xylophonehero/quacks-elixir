@@ -222,7 +222,7 @@ no game exists until Start. Each event (`"players"`, `"sets"`, `"rules"`,
 builds one config map and calls `GameServer.create/3`, which seats you, your name
 and colour and the bots in one call, so a solo or all-bot game begins at once
 without a waiting panel. The book also holds the table's seed from mount, so with
-The Alchemists the Expansions page can show the 3 patients that seed deals
+The Alchemists the patients page can show the 3 patients that seed deals
 (`patient_picker/1`, `"patient"`), and Start passes the seed and your pick on.
 
 Which page shows is the URL (round 19). Each page of the book is a step:

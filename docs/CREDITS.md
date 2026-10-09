@@ -24,6 +24,8 @@ The files are in `priv/static/images/icons/`. The app shows this credit in the l
 | `test-tube-1.svg` | test tube glyph | corked-tube | Lorc |
 | `bag-1.svg` | bag glyph | swap-bag | Lorc |
 | `cauldron-2.svg` | cauldron glyph | cauldron | DarkZaitzev |
+| `explosion-1.svg` | explosion risk, explosion choice (round 29) | explosion-rays | Lorc |
+| `pot-1.svg` | ruby spend: pot droplet (round 29) | cauldron | Lorc |
 | `penny-1.svg` | witch pennies | two-coins | Delapouite |
 | `witch-1.svg` | herb witches | witch-flight | Lorc |
 | `patient-nervousness-2.svg` | Nervousness | worried-eyes | Lorc |

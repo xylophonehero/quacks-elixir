@@ -105,7 +105,7 @@ defmodule QuacksWeb.BoardUxTest do
     assert has_element?(view, "[data-role=action-bar] button[data-slot=draw]:not([disabled])")
     refute has_element?(view, "button", "Use flask")
 
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
     # while everyone shops the bar goes (QA V4: the shop has its own buttons)
@@ -119,7 +119,7 @@ defmodule QuacksWeb.BoardUxTest do
     refute has_element?(view, "#reveal-results-1")
     refute has_element?(view, "#round-results")
 
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
     # Round 12: no update chips on the card; round 14: the reveal overlay ends the replay.

@@ -49,7 +49,12 @@ defmodule QuacksWeb.R10EngineTest do
       refute has_element?(alice, "dialog#decision-rubies")
 
       render_click(alice, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
-      assert has_element?(alice, "#decision-rubies button", "Spend 2 rubies: test tube")
+      # Round 29: the rubies are in the bar.
+      assert has_element?(
+               alice,
+               "#bar-rubies button[data-ruby=tube]:not([disabled])",
+               "Test tube"
+             )
     end
   end
 
@@ -81,7 +86,7 @@ defmodule QuacksWeb.R10EngineTest do
         H.put(g, 0, drawn: [{{:white, 1}, 1}], pot_index: 1, bag: [{:yellow, 1}])
       end)
 
-      alice |> element("button", "Draw a chip") |> render_click()
+      alice |> element("button[data-slot=draw]") |> render_click()
       refute has_element?(alice, "#decision-yellow_choice")
       assert has_element?(alice, "[data-role=mandrake-undo]", "went back in your bag")
       refute has_element?(bob, "#keep-white")
@@ -99,9 +104,9 @@ defmodule QuacksWeb.R10EngineTest do
         H.put(g, 0, drawn: [{{:white, 1}, 1}], pot_index: 1, bag: [{:yellow, 1}])
       end)
 
-      alice |> element("button", "Draw a chip") |> render_click()
+      alice |> element("button[data-slot=draw]") |> render_click()
       assert has_element?(alice, "#keep-white")
-      bob |> element("button", "Draw a chip") |> render_click()
+      bob |> element("button[data-slot=draw]") |> render_click()
       refute has_element?(alice, "#keep-white")
       assert GameServer.keep_white(id, 0) == {:error, :too_late}
     end

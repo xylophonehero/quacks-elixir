@@ -20,7 +20,7 @@ defmodule QuacksWeb.Round28Test do
     {:ok, _} = GameServer.begin(id, "alice")
 
     for view <- [alice, bob] do
-      view |> element("button", "Draw a chip") |> render_click()
+      view |> element("button[data-slot=draw]") |> render_click()
       view |> element("button", "Stop") |> render_click()
     end
 

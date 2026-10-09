@@ -176,7 +176,13 @@ defmodule QuacksWeb.RevealTest do
     assert %{rows: [%{seat: 1}, %{seat: 0}]} = game |> Reveal.slides(0) |> Enum.at(-2)
   end
 
-  test "the end of the game: the final scoring, the standings, then the podium" do
+  test "round 29: round 9's results end on the last step, no standings slide" do
+    slides = Reveal.slides(%{results_game() | round: 9}, 0)
+    assert List.last(slides).kind == :space
+    refute Enum.any?(slides, &(&1.kind == :standings))
+  end
+
+  test "round 29: the end of the game is one final tally, then the podium" do
     game = Game.new(seed: {1, 2, 3}, players: 2)
     game = put_in(game.players[0].vp, 40)
     game = put_in(game.players[1].vp, 44)
@@ -190,20 +196,21 @@ defmodule QuacksWeb.RevealTest do
 
     game = %{game | log: log, phase: :over, round: 9}
 
-    assert [
-             %{kind: :final, rows: rows},
-             %{kind: :standings, last: false, rows: standings},
-             %{kind: :podium, ranked: ranked}
-           ] = Reveal.slides(game, 0)
+    assert [%{kind: :tally, rows: rows}, %{kind: :podium, ranked: ranked}] =
+             Reveal.slides(game, 0)
 
-    assert [%{seat: 0, coins: 4, coins_vp: 0}, %{seat: 1, rubies_vp: 1, pennies_vp: 2}] = rows
     assert ranked == [{1, 44, 1}, {0, 40, 2}]
 
-    # Round 22: the standings go from before the final scoring to the end.
+    # The rows start at the round-9 totals and end on the final ones, with the
+    # parts that took them there (a part that gave nothing and counted nothing:
+    # no part).
     assert [
-             %{seat: 0, from_vp: 40, vp: 40},
-             %{seat: 1, from_vp: 40, vp: 44, from_rank: 1, rank: 0}
-           ] = standings
+             %{seat: 0, from_vp: 40, vp: 40, from_rank: 0, rank: 1, parts: parts0},
+             %{seat: 1, from_vp: 40, vp: 44, from_rank: 1, rank: 0, parts: parts1}
+           ] = rows
+
+    assert parts0 == [{:coins, 4, 0}, {:rubies, 1, 0}]
+    assert parts1 == [{:coins, 7, 1}, {:rubies, 3, 1}, {:pennies, nil, 2}]
   end
 
   test "Auto times scale with the speed" do

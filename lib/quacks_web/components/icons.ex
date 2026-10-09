@@ -42,6 +42,8 @@ defmodule QuacksWeb.Icons do
     penny: "penny-1.svg",
     coin: "coin.svg",
     witch: "witch-1.svg",
+    explosion: "explosion-1.svg",
+    pot: "pot-1.svg",
     nervousness: "patient-nervousness-2.svg",
     ear_worm: "patient-ear-worm-1.svg",
     carrot_nose: "patient-carrot-nose-1.svg",
@@ -67,7 +69,7 @@ defmodule QuacksWeb.Icons do
           end)
 
   @ingredients ~w(white orange green blue red yellow purple black locoweed)a
-  @pieces ~w(flask droplet ruby rat die vp book tube bag cauldron penny coin witch)a
+  @pieces ~w(flask droplet ruby rat die vp book tube bag cauldron penny coin witch explosion pot)a
   @patients ~w(nervousness ear_worm carrot_nose wing_ears chicken_eyes witch_hump forgetfulness vampirism)a
 
   @doc "The ingredient colours that have an icon."

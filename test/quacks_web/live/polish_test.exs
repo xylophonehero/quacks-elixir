@@ -96,16 +96,17 @@ defmodule QuacksWeb.PolishTest do
     me = game(id).players[0]
     space = PotTrack.at(Player.scoring_index(me))
 
+    # Round 29: in the bar, not a sheet.
     assert has_element?(
              view,
-             "#decision-explosion_choice [data-role=decision-actions] button",
-             "Take VP (+#{space.vp})"
+             "[data-role=bar-explosion] button[data-choice=vp]",
+             "Take VP +#{space.vp}"
            )
 
     assert has_element?(
              view,
-             "#decision-explosion_choice [data-role=decision-actions] button",
-             "Take coins (#{space.coins} to spend)"
+             "[data-role=bar-explosion] button[data-choice=buy]",
+             "Take coins #{space.coins}"
            )
   end
 
@@ -113,7 +114,7 @@ defmodule QuacksWeb.PolishTest do
   defp explode(view) do
     exploded? =
       Enum.reduce_while(1..20, false, fn _, _ ->
-        if has_element?(view, "#decision-explosion_choice") do
+        if has_element?(view, "[data-role=bar-explosion]") do
           {:halt, true}
         else
           view |> element("button[data-slot=draw]") |> render_click()

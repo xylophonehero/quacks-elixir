@@ -82,9 +82,11 @@ setBeat(loadReveal().speed)
 const phoneQuery = window.matchMedia("(max-width: 39.999rem)")
 const RevealSettings = {
   mounted() {
+    // Round 29: the risk beside the white meter (Off, Percent, Chips) in `quacks:risk`.
+    const loadRisk = () => { try { return localStorage.getItem("quacks:risk") || "percent" } catch (_e) { return "percent" } }
     const send = ({mode, speed, show}) => {
       setBeat(speed)
-      this.pushEvent("reveal_settings", {mode, speed, show, phone: phoneQuery.matches, reduced: reduced()})
+      this.pushEvent("reveal_settings", {mode, speed, show, risk: loadRisk(), phone: phoneQuery.matches, reduced: reduced()})
     }
     const current = () => {
       const saved = loadReveal()
@@ -93,7 +95,10 @@ const RevealSettings = {
     this.el.addEventListener("change", () => {
       const form = new FormData(this.el)
       const settings = {mode: form.get("mode") || "step", speed: form.get("speed") || "normal", show: form.get("show") || current().show}
-      try { localStorage.setItem("quacks:reveal", JSON.stringify(settings)) } catch (_e) {}
+      try {
+        localStorage.setItem("quacks:reveal", JSON.stringify(settings))
+        localStorage.setItem("quacks:risk", form.get("risk") || "percent")
+      } catch (_e) {}
       setBeat(settings.speed)
     })
     this.onPhone = () => send(current())
@@ -103,27 +108,18 @@ const RevealSettings = {
   destroyed() { phoneQuery.removeEventListener("change", this.onPhone) }
 }
 
-// The menu's "App" line (round 14): which install rule fails on a phone that shows
-// no Install button. The worker, the display mode and whether Chrome fired
-// `beforeinstallprompt` on this page (`installFired`, set below).
-let installFired = false
-const AppStatus = {
+// Round 29: your own explosion buzzes the phone once (`boom` in game_live), and
+// nothing else does. Once per game and round: a reload does not buzz again.
+const Boom = {
   mounted() {
-    this.show = () => this.render()
-    this.show()
-    window.addEventListener("quacks:install", this.show)
-    navigator.serviceWorker?.addEventListener("controllerchange", this.show)
-    document.getElementById("sheet-menu")?.addEventListener("toggle", this.show)
-  },
-  destroyed() { window.removeEventListener("quacks:install", this.show) },
-  async render() {
-    const reg = await navigator.serviceWorker?.getRegistration().catch(() => null)
-    const worker = reg?.active ? "active" : (reg?.installing || reg?.waiting) ? "installing" : "none"
-    const display = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true ? "standalone" : "browser"
-    const prompt = installFired || document.documentElement.dataset.install === "ready" ? "fired" : "not fired"
-    this.el.textContent = `App: worker: ${worker} · display: ${display} · install prompt: ${prompt}`
-  },
+    const key = `quacks:boom:${this.el.dataset.key}`
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1") } catch (_e) {}
+    if (typeof navigator.vibrate === "function") navigator.vibrate([40, 30, 90])
+  }
 }
+
+// Whether Chrome fired `beforeinstallprompt` on this page (set below).
+let installFired = false
 
 // The large pot's motion (docs/research/animations.md §3 B3, round 10). Every patch
 // already shows the final pot; this only plays WAAPI `transform`/`opacity` on top, so
@@ -252,7 +248,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, AppStatus, ConfigMemory, NameMemory, PotMotion, RevealSettings},
+  hooks: {...colocatedHooks, Boom, ConfigMemory, NameMemory, PotMotion, RevealSettings},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
   // is in a field, on a control that Space/Enter already press, or whether a modal
   // dialog is open. The server decides from that; no key logic here.
@@ -370,11 +366,15 @@ window.addEventListener("phx:quacks:reload", () => {
 window.addEventListener("phx:quacks:toggle", e => document.getElementById(e.detail.id)?.togglePopover())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
-// Share the result (round 22): the phone's share sheet, else copy text and link.
-window.addEventListener("quacks:share", ({detail: {text, url}}) => {
-  if (navigator.share) navigator.share({text, url}).catch(() => {})
+// Share the result (round 22) or the game's link (round 29, with a title): the
+// phone's share sheet, else copy text and link.
+window.addEventListener("quacks:share", ({detail: {title, text, url}}) => {
+  if (navigator.share) navigator.share({title, text, url}).catch(() => {})
   else navigator.clipboard?.writeText(`${text} ${url}`)
 })
+// Round 29: with a share sheet, Share is the waiting panel's main button and Copy
+// link steps back (app.css `.share-only`, `.share-fallback`).
+if (navigator.share) document.documentElement.dataset.share = "true"
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

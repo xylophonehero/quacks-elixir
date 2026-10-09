@@ -35,7 +35,7 @@ defmodule QuacksWeb.AuditFixesTest do
       view = open(browser("solo-#{id}"), id)
       stop_server(id)
 
-      view |> element("button", "Draw a chip") |> render_click()
+      view |> element("button[data-slot=draw]") |> render_click()
       flash = assert_redirect(view, ~p"/")
       assert flash["error"] == "This game has ended."
     end
@@ -63,7 +63,7 @@ defmodule QuacksWeb.AuditFixesTest do
     view = open(browser("solo-#{id}"), id)
     assert has_element?(view, "#announcer.sr-only[aria-live=polite]")
 
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     assert has_element?(view, "#announcer", ~r/^Drew \w+ \d/)
   end
 

@@ -43,33 +43,30 @@ defmodule QuacksWeb.Round25Test do
   end
 
   describe "the House rules row" do
-    test "is on the Expansions page under the expansion rows, not on New game" do
+    test "round 29: is on New game after the expansion rows and the books row" do
       view = lobby(~p"/?step=players")
-      refute has_element?(view, "#page-players #to-rules")
-      assert has_element?(view, "#page-players #to-expansions")
-      assert has_element?(view, "#page-players #to-books")
 
       ids =
         view
         |> render()
         |> LazyHTML.from_fragment()
         |> LazyHTML.query(
-          "#page-expansions [data-role=expansion-cards], #page-expansions #to-rules"
+          "#page-players [data-role=expansion-cards], #page-players #to-books, #page-players #to-rules"
         )
         |> LazyHTML.attribute("data-role")
 
-      assert ids == ["expansion-cards", "to-rules"]
+      assert ids == ["expansion-cards", "to-books", "to-rules"]
     end
 
-    test "its page stays; Back from it goes to Expansions" do
-      view = lobby(~p"/?step=expansions")
+    test "its page stays; Back from it goes to New game" do
+      view = lobby(~p"/?step=players")
       view |> element("#to-rules") |> render_click()
       assert_patch(view, ~p"/?step=rules")
       assert has_element?(view, "#page-rules #options")
 
       view = lobby(~p"/?step=rules")
       view |> element("#flow-back") |> render_click()
-      assert_patch(view, ~p"/?step=expansions")
+      assert_patch(view, ~p"/?step=players")
     end
   end
 

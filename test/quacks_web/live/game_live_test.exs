@@ -62,14 +62,14 @@ defmodule QuacksWeb.GameLiveTest do
     assert html =~ "1 / 9"
     assert html =~ "Seed"
     assert html =~ "1,2,3"
-    assert has_element?(view, "button", "Draw a chip")
+    assert has_element?(view, "button[data-slot=draw]", "Draw")
     assert pot_chips(view) == 0
   end
 
   test "Draw places a chip in the pot and Undo takes it back", %{conn: conn} do
     {:ok, view, _html} = mount(conn)
 
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     assert pot_chips(view) == 1
     assert has_element?(view, "li", ~r/Drew white \d → space \d/)
     refute has_element?(view, "li", "Draw a chip")
@@ -118,7 +118,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert html =~ "victory points"
 
     final = "#reveal-final-9 [data-role=reveal-slide][data-kind=podium]"
-    assert has_element?(view, "#{final} [data-role=buying-power]", "Final coins and rubies")
+    refute has_element?(view, "#{final} [data-role=buying-power]")
     assert has_element?(view, "#{final} [data-role=return-to-lobby]", "Back to lobby")
     refute has_element?(view, "[data-role=action-bar]")
     refute has_element?(view, "button[data-slot=draw]")
@@ -137,7 +137,7 @@ defmodule QuacksWeb.GameLiveTest do
   # A shop with 7 coins: seed 10,11,12 draws white 2, 3, 1 (index 6, scoring space 7).
   defp mount_shop(conn) do
     {:ok, view, _html} = live_game(conn, {10, 11, 12})
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
     assert has_element?(view, "dd", "Shop")
     assert has_element?(view, "[data-role=coins]", "7 coins to spend")
@@ -235,7 +235,7 @@ defmodule QuacksWeb.GameLiveTest do
     view = mount_shop(conn)
     [_, before] = Regex.run(~r/Your chips: (\d+)/, render(view))
     before = String.to_integer(before)
-    assert has_element?(view, "button[data-role=shop-buy]:disabled", "Buy")
+    refute has_element?(view, "button[data-role=shop-buy]")
     assert has_element?(view, checkbox({:orange, 1}) <> ":not(:disabled)")
     assert has_element?(view, checkbox({:yellow, 1}) <> ":disabled")
     assert has_element?(view, checkbox({:green, 2}) <> ":disabled")

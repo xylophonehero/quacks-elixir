@@ -90,7 +90,7 @@ defmodule QuacksWeb.IconsTest do
   test "shop tiles show the ingredient icon", %{conn: conn} do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
     tiles = view |> render() |> query("[data-role=shop-row] label")

@@ -49,7 +49,7 @@ defmodule QuacksWeb.UiRound3bTest do
     end
 
     assert state(alice, 0) =~ "deciding"
-    alice |> element("button", "Draw a chip") |> render_click()
+    alice |> element("button[data-slot=draw]") |> render_click()
 
     assert has_element?(alice, "button[data-slot=draw][disabled]")
     assert has_element?(alice, "button[data-slot=stop][disabled]")
@@ -87,15 +87,16 @@ defmodule QuacksWeb.UiRound3bTest do
 
     assert has_element?(alice, "dialog#decision-shop #shop")
     assert has_element?(alice, "dialog#decision-shop [data-role=shop-bag]")
-    assert has_element?(alice, "dialog#decision-shop [data-role=shop-done]", "Done")
+    assert has_element?(alice, "dialog#decision-shop [data-role=shop-done]", "Skip")
     refute has_element?(alice, "button", "Buy nothing")
     refute has_element?(alice, "dialog#decision-shop [data-role=shop-rubies]")
 
     replace_game(id, &(&1 |> H.put(round: 9) |> H.put(0, rubies: 3)))
     refute has_element?(alice, "dialog#decision-shop")
     assert has_element?(alice, "dialog#reveal-results-9")
-    assert has_element?(alice, "dialog#decision-rubies")
-    alice |> element("dialog#decision-rubies button", "2 rubies → 1 VP") |> render_click()
+    # Round 29: the rubies are in the bar.
+    assert has_element?(alice, "#bar-rubies button[data-ruby=vp]", "1 VP")
+    alice |> element("#bar-rubies button[data-ruby=vp]") |> render_click()
     assert has_element?(alice, "li", "Spent 2 rubies: +1 VP")
   end
 

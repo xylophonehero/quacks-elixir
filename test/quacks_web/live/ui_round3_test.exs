@@ -28,7 +28,7 @@ defmodule QuacksWeb.UiRound3Test do
 
   # Seed 10,11,12 draws white 2, 3, 1: stop there for a shop with 7 coins.
   defp to_shop(view) do
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
     view
   end
@@ -81,7 +81,7 @@ defmodule QuacksWeb.UiRound3Test do
     assert has_element?(view, "#card-tap")
 
     # later renders keep the same card: it does not open again
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
 
     view |> element("#card-tap") |> render_click()
@@ -99,7 +99,7 @@ defmodule QuacksWeb.UiRound3Test do
 
   # The rest of `to_shop/1` after one draw, then "Done" (round over).
   defp to_shop_rest(view) do
-    for _ <- 1..2, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..2, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
     view |> element("[data-role=shop-done]") |> render_click()
   end
@@ -211,9 +211,8 @@ defmodule QuacksWeb.UiRound3Test do
 
     assert html =~ "Ann wins!"
     assert count(html, ~s([data-role=final-score][data-seat="0"][data-place="1"])) == 1
-    assert count(html, ~s([data-seat="0"] [data-role=buying-power])) == 1
-    assert html =~ ~r/Final coins and rubies\s*<span[^>]*>\+5</
-    assert html =~ ~r/Final coins and rubies\s*<span[^>]*>\+2</
+    # Round 29 (F3): no VP breakdown under the podium.
+    assert count(html, "[data-role=buying-power]") == 0
     assert count(html, "button[data-role=play-again][phx-click=play_again]:not([disabled])") == 1
     assert count(html, "button[data-role=return-to-lobby][phx-click=lobby]") == 1
 
@@ -242,12 +241,12 @@ defmodule QuacksWeb.UiRound3Test do
     view = buy_orange(view)
 
     refute has_element?(view, "#decision-shop")
-    assert has_element?(view, "dialog#decision-rubies[phx-mounted*='quacks:modal']")
-    assert has_element?(view, "#decision-rubies [data-role=shop-rubies] button", "droplet +1")
-    refute has_element?(view, "#decision-rubies #shop")
+    # Round 29: the rubies step is in the bar.
+    refute has_element?(view, "dialog#decision-rubies")
+    assert has_element?(view, "#bar-rubies button[data-ruby=droplet]", "Droplet +1")
     refute has_element?(view, "li", "— Round 1 over —")
 
-    view |> element("#decision-rubies [data-role=rubies-done]", "Keep rubies") |> render_click()
+    view |> element("#bar-rubies [data-role=rubies-skip]", "Skip") |> render_click()
     assert has_element?(view, "li", "— Round 1 over —")
   end
 end

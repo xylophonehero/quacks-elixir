@@ -58,7 +58,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     assert {:ok, %{status: :playing, players: 2}} = GameServer.get(id)
     open_player(alice, 1)
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-name]), "Bob")
-    assert has_element?(bob, "button[data-slot=draw]", "Draw a chip")
+    assert has_element?(bob, "button[data-slot=draw]", "Draw")
   end
 
   test "a closed page frees its seat; when the creator leaves, the next player may start" do
