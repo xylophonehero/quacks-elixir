@@ -2713,12 +2713,8 @@ defmodule QuacksWeb.GameLive do
     {targets, picks} = Enum.split_with(picks, &pot_action?/1)
     {buys, picks} = Enum.split_with(picks, &match?({:chip, {:buy, _}}, &1))
     rungs = ladder(me, actions, game)
-    pick = assigns.pot_pick && Enum.filter(targets, &(pot_chip(&1) == assigns.pot_pick))
-
-    options =
-      if pick not in [nil, []],
-        do: Enum.map(pick, &chip_option(&1, game, me)),
-        else: Enum.map(picks, &chip_option(&1, game, me))
+    pick = Enum.filter(targets, &(pot_chip(&1) == assigns.pot_pick))
+    options = Enum.map(if(pick == [], do: picks, else: pick), &chip_option(&1, game, me))
 
     items =
       Enum.map(rungs, &rung_item(&1, game, me)) ++
@@ -2745,7 +2741,7 @@ defmodule QuacksWeb.GameLive do
         items: items,
         titles: titles,
         options: options,
-        picked: pick not in [nil, []] && assigns.pot_pick,
+        picked: pick != [] && assigns.pot_pick,
         tap?: targets != [],
         buys?: buys != []
       )
