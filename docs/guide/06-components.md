@@ -1714,3 +1714,33 @@ with no change.
 | Keyboard shortcuts | a `useHotkeys` hook that calls the handlers | `phx-window-keydown`, the server picks the legal action |
 | Timed sequences | `setTimeout`, `staggerChildren` | `--beat` from the server, CSS delays |
 | Custom JS | most of the app | about 300 lines in `assets/js/app.js`: `PotMotion`, the dialog modes, the replay end, the bug report details, the install button |
+
+### Round 36 (ui): chips to tap, pot targets, the purple buy sheet
+
+- **Chip row** (`GameLive.chip_row/1`): a choice among chips is the chips, as round
+  buttons (`data-role="chip-option"`, `data-chip`, a card's `data-choice`); an
+  upgrade shows its target on the edge (`chip-option-to`). Its inner block holds
+  the buttons that follow (Done, Skip, ladders). Used by `:chip_choice` (G2, G5),
+  the generic `:fortune_choice` and the silver witch's `:witch_offer`.
+- **Pot targets**: `pot/1` takes `targets` (`%{chip => %{event, value, label}}`);
+  each pot chip of that kind becomes a button (`.pot-target`, a gold
+  `target-glow`, Enter too) and the other chips dim (app.css). `pot_targets/1`
+  builds it from the open bar choice's actions (`pot_choice_actions/1`, the tile
+  step's actions on a step hold): `pot_action?/1` is P4's upgrade, locoweed V's
+  return and Chicken eyes' swap. One action per chip sends it; more send
+  `pot_pick`, and the bar shows that chip's options (`@pot_pick`, Back clears it).
+  Chicken eyes' swap is `bar_choice(:essence_bonus)` now; Vampirism's buy stays a sheet.
+- **Purple buy sheet** (`purple_buy/1`): P5's `{:chip, {:buy, chips}}` actions as
+  shop tiles, ticked with the shop's `select` and `@selected` (`kept_selection/4`
+  keeps a legal P5 selection too), Take. A `dialog_sheet` `decision-purple-buy-N`;
+  the bar's "Choose chips" reopens it.
+- **Everyone-card stage** (`CardRevealComponents.card_stage/1`): the grown card's
+  rows in the `.results-stage` panel over the bar (`card_stage?/1`), yours first.
+- **Players row**: 2 half columns per column, each tile spans 2
+  (`GameComponents.loop_start/3`), so the short second row (5, 7 seats) is centred.
+- **Peeked chip**: Mandrake V's peek (`peeked/2`) sits over the bag
+  (`data-role="peek-chip"`, `.peek-rise`) until this seat's next draw or the round's end.
+- **Scoring pulse**: `PotMotion.scoringPulse` hides the new scoring space and ring
+  during the draw's flight, then pops them with one ping ring. No flight (reduced
+  motion), no pulse.
+

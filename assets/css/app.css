@@ -3154,6 +3154,69 @@ html:not([data-share]) .share-fallback {
   }
 }
 
+/* Round 36: the pot chips a choice is about glow gold, the others dim; a tap
+   (or Enter) on a glowing chip chooses it. Reduced motion: a steady glow. */
+.pot-target {
+  cursor: pointer;
+  outline: none;
+}
+
+.pot-target-glow {
+  fill: var(--color-gold);
+  fill-opacity: 0.35;
+  stroke: var(--color-gold);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px var(--color-gold));
+}
+
+.pot-target:focus-visible .pot-target-glow {
+  stroke: var(--color-droplet);
+  stroke-width: 4;
+}
+
+.pot-lg:has(.pot-target) [data-role="pot-chip"]:not(.pot-target) {
+  opacity: 0.5;
+}
+
+@keyframes target-glow {
+  from {
+    fill-opacity: 0.15;
+    stroke-opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pot-target-glow {
+    animation: target-glow 1.1s ease-in-out infinite alternate;
+  }
+}
+
+/* Round 36: Mandrake V's peeked chip comes up out of the bag and stays over it
+   (with the bob) until your next draw. Reduced motion: it fades in. */
+@keyframes peek-rise {
+  from {
+    opacity: 0;
+    translate: 0 28px;
+    scale: 0.5;
+  }
+}
+
+@keyframes peek-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.peek-rise {
+  animation: peek-fade 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .peek-rise {
+    animation: peek-rise 420ms var(--ease-out) both;
+  }
+}
+
 /* Round 35: the crow skull's row leaves after a tap. It floats over the bar's
    foot (out of the flow, so Stop and Draw take their place at once) while the
    chips not chosen fly back into the bag (`.FromBag`); the chosen chip and the

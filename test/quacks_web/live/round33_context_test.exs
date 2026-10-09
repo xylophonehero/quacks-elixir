@@ -78,11 +78,12 @@ defmodule QuacksWeb.Round33ContextTest do
       refute has_element?(view, "dialog#decision-chip_choice")
       refute has_element?(view, "[data-role=decision-button]")
       assert has_element?(view, "#{bar} [data-role=info-row]", "Garden spider: take one")
-      assert has_element?(view, "#{bar} button[data-role=chip-action] .chip-token")
+      # Round 36: the chips are chips to tap.
+      assert has_element?(view, "#{bar} button[data-role=chip-option] .chip-token")
       assert has_element?(view, "#{bar} button[data-role=chip-action]", "Done")
 
       view
-      |> element("#{bar} button[data-role=chip-action][aria-label^='Garden spider: take']")
+      |> element("#{bar} button[data-role=chip-option][aria-label^='Garden spider: take']")
       |> render_click()
 
       {:ok, %{game: game}} = GameServer.get(id)

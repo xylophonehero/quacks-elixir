@@ -91,7 +91,7 @@ defmodule QuacksWeb.Round24Test do
 
       view |> element("#bar-card-1 [data-choice=rubies]") |> render_click()
       # Round 35: the card stays, grown, with what everyone took; Continue shrinks it.
-      assert has_element?(view, "#pot-card-1 [data-role=card-reveals]")
+      assert has_element?(view, "#card-stage-1[data-role=card-stage]")
       view |> element("#card-continue") |> render_click()
       assert_push_event(view, "quacks:vt", %{type: "card"})
       refute has_element?(view, "#pot-card-1")
@@ -222,7 +222,8 @@ defmodule QuacksWeb.Round24Test do
         chip_actions(%{purple: 4}, [{{:purple, 1}, 10}, {{:green, 1}, 8}])
 
       bar = "[data-role=bar-chip-actions]"
-      assert has_element?(view, "#{bar} button[data-role=chip-action]", "Swap")
+      # Round 36: the swaps are taps on the pot chip.
+      assert has_element?(view, "#pot-0-lg [data-role=pot-chip][data-target]")
       off = "#{bar} button[data-role=ladder-rung-off]"
       assert has_element?(view, "#{off}[aria-label*='a 2-chip → a 4-chip']")
       assert has_element?(view, off, "needs 3 purple")

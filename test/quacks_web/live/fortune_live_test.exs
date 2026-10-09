@@ -45,7 +45,7 @@ defmodule QuacksWeb.FortuneLiveTest do
   test "P13 Flea Market shows the 4 drawn chips (seed 2,2,2)", %{conn: conn} do
     {:ok, view, _html} = live_game(conn, {2, 2, 2})
     # Round 31: the drawn chips show in the rows over the pot, the trades in the bar.
-    mine = "[id^=pot-card-reveals] [data-me] [data-role=reveal-chip]"
+    mine = "[id^=card-stage] [data-me] [data-role=reveal-chip]"
     assert view |> render() |> count(mine) == 4
 
     assert has_element?(

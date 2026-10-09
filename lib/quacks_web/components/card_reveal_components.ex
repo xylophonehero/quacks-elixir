@@ -69,6 +69,122 @@ defmodule QuacksWeb.CardRevealComponents do
     """
   end
 
+  @doc """
+  Round 36: the same rows in the results stage (round 35's parchment panel in the
+  band above the bar's buttons, app.css `.results-stage`), not under the card: a
+  title line (the card's name, its rule), then one row per player,
+  yours first, then the turn order: the seat disc and name, the drawn chips (and P8's sum), and at the row's end what
+  the card gave, or "choosing…". It floats over the pot's lower band, so the pot
+  never moves.
+  """
+  attr :id, :string, required: true
+  attr :card, :atom, required: true
+  attr :reveals, :map, required: true
+  attr :order, :list, required: true
+  attr :seat, :integer, default: nil
+  attr :names, :map, required: true
+  attr :game, :any, default: nil
+
+  def card_stage(assigns) do
+    seats = Enum.filter(assigns.order, &Map.has_key?(assigns.reveals, &1))
+    {mine, others} = Enum.split_with(seats, &(&1 == assigns.seat))
+    assigns = assign(assigns, seats: mine ++ others, choice?: Fortune.choice_card?(assigns.card))
+
+    ~H"""
+    <section
+      :if={@seats != []}
+      id={@id}
+      class="results-stage"
+      aria-label={"#{Quacks.Rules.Fortune.card(@card).name}: what everyone got"}
+      data-role="card-stage"
+      data-card={@card}
+    >
+      <header class="flex items-center gap-1.5 px-1 pb-0.5">
+        <span
+          class="font-hand text-lg leading-none font-bold whitespace-nowrap"
+          data-role="stage-title"
+        >
+          {Quacks.Rules.Fortune.card(@card).name}
+        </span>
+        <span class="ml-auto truncate text-xs text-ink-soft" data-role="card-reveals-rule">
+          {rule(@card)}
+        </span>
+      </header>
+      <ol class="space-y-0.5" data-role="stage-rows">
+        <li
+          :for={seat <- @seats}
+          id={"#{@id}-row-#{seat}"}
+          class={[
+            "stage-row flex min-h-7 items-center gap-1.5 rounded-md px-1 py-0.5",
+            @reveals[seat].best? && "bg-gold/35",
+            seat == @seat && "ring-1 ring-gold-deep/70"
+          ]}
+          data-role="card-reveal-row"
+          data-seat={seat}
+          data-me={seat == @seat && "true"}
+          data-best={@reveals[seat].best? && "true"}
+        >
+          <span
+            class={[
+              "grid size-5 shrink-0 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40",
+              seat_bg(seat)
+            ]}
+            aria-hidden="true"
+            data-role="seat-disc"
+          >
+            {initial(Map.get(@names, seat, "#{seat + 1}"))}
+          </span>
+          <span class="stage-name max-w-16 shrink-0 truncate text-xs font-semibold">
+            {name(@names, seat, @seat)}
+          </span>
+          <span class="flex min-w-0 flex-1 flex-wrap items-center gap-0.5" data-role="reveal-chips">
+            <span
+              :for={{chip, i} <- Enum.with_index(if(@choice?, do: [], else: @reveals[seat].drew))}
+              class={[
+                "inline-flex rounded-full",
+                (traded?(@reveals[seat], chip, i) or placed?(@reveals[seat], chip, i)) &&
+                  "ring-2 ring-gold"
+              ]}
+              title={note(@card, @reveals[seat], @game, seat == @seat, chip, i)}
+              data-role="reveal-chip"
+            >
+              <.chip chip={chip} size={:xs} />
+            </span>
+            <span
+              :if={@reveals[seat].number}
+              class="ml-1 text-sm font-extrabold tabular-nums"
+              title="Sum"
+              data-role="reveal-number"
+            >
+              = {@reveals[seat].number}
+            </span>
+          </span>
+          <span
+            class="stage-got flex shrink-0 items-center gap-1.5 font-hand text-lg leading-none font-bold"
+            data-role="reveal-result"
+          >
+            <%= cond do %>
+              <% @reveals[seat].choosing? -> %>
+                <span
+                  class="animate-pulse font-sans text-xs font-semibold text-ink-soft"
+                  data-cell="choosing"
+                >
+                  choosing…
+                </span>
+              <% @reveals[seat].gains == [] -> %>
+                <span class="font-sans text-xs font-semibold text-ink-soft">
+                  {if @choice?, do: "passed", else: none(@card)}
+                </span>
+              <% true -> %>
+                <.gain :for={gain <- @reveals[seat].gains} gain={gain} size={:xs} />
+            <% end %>
+          </span>
+        </li>
+      </ol>
+    </section>
+    """
+  end
+
   attr :seat, :integer, required: true
   attr :row, :map, required: true
   attr :me, :boolean, required: true

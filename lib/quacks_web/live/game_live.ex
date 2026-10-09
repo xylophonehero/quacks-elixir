@@ -192,6 +192,20 @@ defmodule QuacksWeb.GameLive do
   def handle_event("action", _params, socket),
     do: {:noreply, put_flash(socket, :error, "You are watching this game.")}
 
+  # Round 36: a tap on a glowing pot chip with more than one choice (P4: a 1-chip
+  # may become a 2- or a 4-chip) opens its choices in the bar; Back closes them.
+  def handle_event("pot_pick", %{"action" => encoded}, socket) do
+    pick =
+      case decode(encoded) do
+        {:ok, chip} -> pot_pick(socket.assigns.all_actions, chip)
+        _bad -> nil
+      end
+
+    {:noreply, assign(socket, pot_pick: pick)}
+  end
+
+  def handle_event("pot_pick", _params, socket), do: {:noreply, assign(socket, pot_pick: nil)}
+
   # Keys (`phx-window-keydown` on the grid): d or Space draws, s stops, f uses the
   # flask, b opens or closes the bag, Enter takes the open decision's one primary
   # button. app.js adds to each
@@ -1134,7 +1148,7 @@ defmodule QuacksWeb.GameLive do
               "-mx-2 grid gap-1 px-2 pt-1.5 pb-0.5",
               not replaying?(@game, @seen) && "replay-done"
             ]}
-            style={"grid-template-columns: repeat(#{loop_columns(length(@game.seats))}, minmax(0, 1fr))"}
+            style={"grid-template-columns: repeat(#{2 * loop_columns(length(@game.seats))}, minmax(0, 1fr))"}
             aria-label="Players"
             data-role="players-row"
             data-columns={loop_columns(length(@game.seats))}
@@ -1149,6 +1163,7 @@ defmodule QuacksWeb.GameLive do
               lead={seat in round_leaders(@game)}
               row={row}
               col={col}
+              start={loop_start(length(@game.seats), row, col)}
               updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
               ticks={replaying?(@game, @seen) and not tiles_playing?(@reveal)}
               totals={tiles_playing?(@reveal) && tile_totals(@game, @reveal)[seat]}
@@ -1209,6 +1224,7 @@ defmodule QuacksWeb.GameLive do
                 droplet={tiles_playing?(@reveal) && @me && tile_totals(@game, @reveal)[@seat].droplet}
                 fx_key={if tiles_playing?(@reveal), do: "s#{@reveal.index}-", else: ""}
                 bagged={bagged?(assigns)}
+                targets={pot_targets(assigns)}
               />
               <%!-- Round 31: the game's end lies over the pot: the score chart. --%>
               <QuacksWeb.FinalComponents.final_board
@@ -1291,23 +1307,8 @@ defmodule QuacksWeb.GameLive do
                 <%!-- Round 30: every player's chips under the grown card. Round 31:
                      also while the card's choice waits in the bar (Flea Market), and
                      after the new card's tap (`next_slide/1` grows it). --%>
-                <%!-- Round 35: a choice card's rows once this seat has chosen. --%>
-                <.card_reveals
-                  :if={
-                    (@card_grown or
-                       (@decision == :fortune_choice and Fortune.reveal_card?(@game.fortune_card))) and
-                      Fortune.reveals(@game) != %{}
-                  }
-                  id={"pot-card-reveals-#{@game.round}"}
-                  card={@game.fortune_card}
-                  reveals={Fortune.reveals(@game)}
-                  order={Game.turn_order(@game)}
-                  seat={@seat}
-                  names={@names}
-                  game={@game}
-                  compact
-                  class="paper rounded-md border-l-4 border-chip-purple p-2"
-                />
+                <%!-- Round 36: the everyone-card rows are in the results stage
+                     (`card_stage/1`, over the bar), not under the card. --%>
                 <p
                   :if={card_tap?(assigns)}
                   id={"card-caption-#{@game.round}-#{@card_grown}"}
@@ -1370,6 +1371,22 @@ defmodule QuacksWeb.GameLive do
                   <.icon name="hero-arrow-uturn-left" class="size-5" />
                 </button>
                 <span class="mandrake-bob"><.chip chip={white} /></span>
+              </div>
+              <%!-- Round 36: Mandrake V peeked at one more chip (it moved the
+                   chip on by its value and went back): that chip over the bag,
+                   until your next draw. --%>
+              <div
+                :if={peek = @me && @game.phase == :potions && peeked(@game.log, @seat)}
+                id={"peek-#{@game.round}-#{length(@me.drawn)}"}
+                class="peek-rise pointer-events-none absolute right-1.5 bottom-14 flex flex-col items-center"
+                role="status"
+                aria-label={"Mandrake: peeked at #{chip_name(peek)}, back in the bag"}
+                title={"Peeked at #{chip_name(peek)}, back in the bag"}
+                data-role="peek-chip"
+                data-chip={chip_name(peek)}
+              >
+                <span class="mandrake-bob"><.chip chip={peek} /></span>
+                <.icon name="hero-arrow-down" class="size-4 text-parchment drop-shadow" />
               </div>
             </div>
           </div>
@@ -1475,6 +1492,16 @@ defmodule QuacksWeb.GameLive do
                 </.button>
               </section>
             </div>
+          </.dialog_sheet>
+          <%!-- Round 36: Ghost's breath V's buys: a sheet like the shop's. --%>
+          <.dialog_sheet
+            :if={(buys = purple_buys(assigns)) != []}
+            id={"decision-purple-buy-#{@game.round}"}
+            label="Ghost's breath"
+            side={:panel}
+            pot
+          >
+            <.purple_buy buys={buys} selected={@selected} game={@game} me={@me} />
           </.dialog_sheet>
           <.sheet
             :if={@game.witches}
@@ -1590,6 +1617,18 @@ defmodule QuacksWeb.GameLive do
           </div>
           <%!-- An empty rubies step (nothing to spend, no witch to call) is one tap:
                the update chips stay on the cards until then. --%>
+          <%!-- Round 36: an everyone-card's results (Round 30 grown card, round
+               35 choice card) in the results stage, over the bar. --%>
+          <.card_stage
+            :if={card_stage?(assigns)}
+            id={"card-stage-#{@game.round}"}
+            card={@game.fortune_card}
+            reveals={Fortune.reveals(@game)}
+            order={Game.turn_order(@game)}
+            seat={@seat}
+            names={@names}
+            game={@game}
+          />
           <%!-- Round 35: the results stage, over the step bar. --%>
           <.results_stage
             :if={
@@ -1621,6 +1660,7 @@ defmodule QuacksWeb.GameLive do
             game={@game}
             me={@me}
             seat={@seat}
+            pot_pick={@pot_pick}
           />
           <.bar_choice
             :if={tile_hold(assigns) == :droplet_choice}
@@ -1720,6 +1760,7 @@ defmodule QuacksWeb.GameLive do
             game={@game}
             me={@me}
             seat={@seat}
+            pot_pick={@pot_pick}
           />
           <section
             :if={@seat && not Game.over?(@game) && not results?(@game) && !@bar_choice}
@@ -2050,6 +2091,117 @@ defmodule QuacksWeb.GameLive do
   end
 
   @doc """
+  Round 36: Ghost's breath V (purple Set 5, The Herb Witches): the VP of the
+  purple spaces buy chips, as in the shop. The chips any buy may take, in the
+  shop's rows, as tiles to tick (the shop's `select` and `@selected`): up to two of
+  different colours, a tile that no buy allows with the ticked ones is greyed.
+  "Take" sends the ticked buy (`{:chip, {:buy, chips}}`); the sheet's × leaves the
+  choice in the bar ("Choose chips" opens it again, Done passes).
+  """
+  attr :buys, :list, required: true, doc: "the `{:chip, {:buy, chips}}` actions"
+  attr :selected, :list, required: true
+  attr :game, Game, required: true
+  attr :me, Player, required: true
+
+  def purple_buy(assigns) do
+    %{buys: buys, game: game, me: me, selected: selected} = assigns
+    chips = buys |> Enum.flat_map(fn {:chip, {:buy, chips}} -> chips end) |> MapSet.new()
+
+    rows =
+      for row <- shop_rows(game.expansion, game.sets),
+          r = Enum.filter(row, &(&1 in chips)),
+          r != [],
+          do: r
+
+    coins =
+      Enum.find_value(me.chip_choices, 0, fn
+        {:purple_buy, n} -> n
+        _choice -> nil
+      end)
+
+    total = selected |> Enum.map(&Chips.price(&1, game.sets)) |> Enum.sum()
+
+    assigns =
+      assign(assigns,
+        rows: rows,
+        coins: coins,
+        remaining: coins - total,
+        take: {:chip, {:buy, selected}},
+        actions: Enum.map(buys, fn {:chip, buy} -> buy end)
+      )
+
+    ~H"""
+    <section class="space-y-2" aria-label="Ghost's breath: take chips" data-role="purple-buy">
+      <h2 class="sheet-head text-xl font-bold">Ghost's breath</h2>
+      <p class="text-sm">
+        Your purple spaces pay {@coins} coins. Tap up to two chips of different colours.
+      </p>
+      <form id={"purple-buy-#{@game.round}"} phx-change="select" class="space-y-2">
+        <ul :for={row <- @rows} class="grid grid-cols-3 gap-1.5" data-role="purple-buy-row">
+          <li :for={chip <- row} class="min-w-0">
+            <label class={[
+              "relative flex min-h-12 min-w-0 items-center gap-1.5 rounded-lg bg-parchment-light px-2 text-sm",
+              "ring-1 ring-ink/20 select-none touch-manipulation",
+              "transition-[scale,box-shadow,background-color] duration-150 ease-out",
+              "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink",
+              "has-focus-visible:outline-3 has-focus-visible:outline-droplet",
+              if(blocked?(chip, @selected, @actions),
+                do: "opacity-40",
+                else: "cursor-pointer active:scale-[0.96]"
+              )
+            ]}>
+              <input
+                type="checkbox"
+                name="chips[]"
+                value={encode(chip)}
+                checked={chip in @selected}
+                disabled={blocked?(chip, @selected, @actions)}
+                class="peer sr-only"
+                aria-label={chip_name(chip)}
+              />
+              <span
+                class="absolute -top-2 -right-2 hidden size-5 items-center justify-center rounded-full bg-ink text-gold shadow peer-checked:flex"
+                data-role="tile-check"
+              >
+                <.icon name="hero-check" class="size-3.5" />
+              </span>
+              <.chip chip={chip} size={:md} />
+              <span
+                class="ml-auto inline-flex shrink-0 items-center gap-1 font-semibold tabular-nums text-ink-soft"
+                data-role="price"
+              >
+                {Chips.price(chip, @game.sets)}<span class="book-coin" /><span class="sr-only">coins</span>
+              </span>
+            </label>
+          </li>
+        </ul>
+      </form>
+      <div
+        class="sticky bottom-0 z-10 -mx-4 mt-3 flex min-w-0 items-center gap-2 bg-parchment px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_12px_-10px_rgb(0_0_0/0.35)] *:min-h-12"
+        data-role="purple-buy-footer"
+      >
+        <p
+          class="flex min-w-0 shrink items-center gap-1 font-hand text-xl leading-none font-bold whitespace-nowrap tabular-nums"
+          data-role="purple-buy-total"
+          aria-label={"#{@coins} coins, #{@remaining} left after this"}
+        >
+          <span class="book-coin" />{@coins}<span class="text-base text-ink-soft">→</span>{@remaining}
+        </p>
+        <.button
+          phx-click="action"
+          phx-value-action={encode(@take)}
+          disabled={@take not in @buys}
+          class="ml-auto min-w-28"
+          data-role="purple-buy-take"
+        >
+          Take
+        </.button>
+      </div>
+    </section>
+    """
+  end
+
+  @doc """
   The shop dialogs: everything this seat may do between brewing and the next round,
   in two steps (`step`).
 
@@ -2214,7 +2366,17 @@ defmodule QuacksWeb.GameLive do
             phx-click="action"
             phx-value-action={encode(action)}
             variant={:secondary}
+            class="justify-start gap-2"
           >
+            <%!-- Round 36: C1's pot chips as chips, then what it does. --%>
+            <span
+              :if={match?({:witch, :copper, {:upgrade, _}}, action)}
+              class="inline-flex shrink-0 items-center gap-0.5"
+              data-role="copper-chips"
+            >
+              <.chip :for={chip <- elem(elem(action, 2), 1)} chip={chip} size={:sm} />
+              <.icon name="hero-arrow-up-mini" class="size-4" />
+            </span>
             {label(action)}
           </.button>
         </div>
@@ -2318,7 +2480,7 @@ defmodule QuacksWeb.GameLive do
   attr :choice, :atom,
     required: true,
     values:
-      [:explosion_choice, :rubies, :fortune_choice, :chip_choice, :droplet_choice] ++
+      [:explosion_choice, :rubies, :fortune_choice, :chip_choice, :droplet_choice, :essence_bonus] ++
         @pick_choices
 
   attr :actions, :list, required: true
@@ -2329,6 +2491,10 @@ defmodule QuacksWeb.GameLive do
   attr :keep, :boolean,
     default: false,
     doc: "round 35: the results' rubies step, its Skip is \"Keep\" (`rubies_keep`)"
+
+  attr :pot_pick, :any,
+    default: nil,
+    doc: "round 36: the pot chip tapped for its choices (`:chip_choice`)"
 
   def bar_choice(%{choice: :explosion_choice} = assigns) do
     space = PotTrack.at(Player.scoring_index(assigns.me))
@@ -2477,10 +2643,26 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
+  # Round 36: a card's chips are chips to tap (`chip_row/1`); its other choices
+  # (rubies, VP, Skip) follow them as buttons. Without chips: the button grid.
   def bar_choice(%{choice: :fortune_choice} = assigns) do
-    card = assigns.game.fortune_card
+    %{game: game, me: me} = assigns
+    card = game.fortune_card
     picks = Enum.filter(assigns.actions, &match?({:fortune, _}, &1))
-    assigns = assign(assigns, card: card, picks: picks)
+    {chips, picks} = Enum.split_with(picks, &match?({:fortune, {_kind, {_, _}}}, &1))
+
+    options =
+      for {:fortune, {kind, chip}} = action <- chips do
+        %{
+          chip: chip,
+          action: action,
+          label: action_label(action, game, me),
+          kind: kind,
+          to: if(kind == :upgrade, do: Fortune.upgrade(chip))
+        }
+      end
+
+    assigns = assign(assigns, card: card, picks: picks, options: options)
 
     ~H"""
     <section
@@ -2489,7 +2671,21 @@ defmodule QuacksWeb.GameLive do
       aria-label={"#{Quacks.Rules.Fortune.card(@card).name}: choose one"}
       data-role="bar-card"
     >
-      <.choice_grid count={length(@picks)}>
+      <.chip_row :if={@options != []} options={@options}>
+        <.choice_button
+          :for={{:fortune, choice} = action <- @picks}
+          action={action}
+          variant={if choice == :skip, do: :secondary, else: :primary}
+          label={action_label(action, @game, @me)}
+          title={card_choice_title(choice, @card)}
+          hint={card_choice_hint(choice, @card, @me)}
+          class="min-h-12 min-w-16 flex-1"
+          data-choice={card_choice_kind(choice)}
+        >
+          <:icon><.card_choice_icon choice={choice} /></:icon>
+        </.choice_button>
+      </.chip_row>
+      <.choice_grid :if={@options == []} count={length(@picks)}>
         <.choice_button
           :for={{:fortune, choice} = action <- @picks}
           action={action}
@@ -2506,14 +2702,22 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
+  # Round 36: the chips to choose are chips to tap (`chip_row/1`): G2's and G5's
+  # chips here, a pot chip's choice (P4, locoweed V) on the chip in the pot
+  # (`pot_targets/1`; a chip with more than one choice shows them here once
+  # tapped, `@pot_pick`), Ghost's breath V's buys in their sheet (`purple_buy/1`).
+  # The ladders (P2, G4) and Done stay buttons.
   def bar_choice(%{choice: :chip_choice} = assigns) do
     %{actions: actions, game: game, me: me} = assigns
     picks = actions |> Enum.filter(&(pick_chips(&1) != [])) |> Enum.sort_by(&chip_order/1)
+    {targets, picks} = Enum.split_with(picks, &pot_action?/1)
+    {buys, picks} = Enum.split_with(picks, &match?({:chip, {:buy, _}}, &1))
     rungs = ladder(me, actions, game)
+    pick = Enum.filter(targets, &(pot_chip(&1) == assigns.pot_pick))
+    options = Enum.map(if(pick == [], do: picks, else: pick), &chip_option(&1, game, me))
 
     items =
-      Enum.map(picks, &chip_item(&1, game, me)) ++
-        Enum.map(rungs, &rung_item(&1, game, me)) ++
+      Enum.map(rungs, &rung_item(&1, game, me)) ++
         for(
           :chip_done <- actions,
           do: %{
@@ -2528,10 +2732,19 @@ defmodule QuacksWeb.GameLive do
 
     titles =
       Enum.uniq(
-        Enum.map(picks, &pick_title(&1, game.fortune_card)) ++ Enum.map(rungs, &rung_title/1)
+        Enum.map(picks ++ targets ++ buys, &pick_title(&1, game.fortune_card)) ++
+          Enum.map(rungs, &rung_title/1)
       )
 
-    assigns = assign(assigns, items: items, titles: titles)
+    assigns =
+      assign(assigns,
+        items: items,
+        titles: titles,
+        options: options,
+        picked: pick != [] && assigns.pot_pick,
+        tap?: targets != [],
+        buys?: buys != []
+      )
 
     ~H"""
     <section
@@ -2543,20 +2756,53 @@ defmodule QuacksWeb.GameLive do
       <.info_row id="info-chip-actions">
         <:icon><.piece_icon name={:book} class="size-5" /></:icon>
         <span :for={title <- @titles} class="block truncate" data-role="info-title">{title}</span>
+        <span
+          :if={@tap? and !@picked}
+          class="block truncate text-xs font-normal text-parchment-dim"
+          data-role="tap-pot"
+        >
+          Tap a glowing chip in your pot
+        </span>
+        <span
+          :if={@picked}
+          class="block truncate text-xs font-normal text-parchment-dim"
+          data-role="pot-picked"
+        >
+          {chip_name(@picked)}: swap it for
+        </span>
       </.info_row>
-      <.choice_grid count={length(@items)}>
+      <.chip_row options={@options}>
+        <.button
+          :if={@picked}
+          phx-click="pot_pick"
+          variant={:secondary}
+          class="min-h-12 touch-manipulation px-4"
+          data-role="pot-pick-back"
+        >
+          Back
+        </.button>
+        <.sheet_button
+          :if={@buys? and !@picked}
+          for={"decision-purple-buy-#{@game.round}"}
+          class="min-h-12 touch-manipulation px-4"
+          data-role="purple-buy-open"
+        >
+          Choose chips
+        </.sheet_button>
         <.choice_button
           :for={item <- @items}
+          :if={!@picked}
           action={if(item.reason, do: nil, else: item.action)}
           variant={if item.action == :chip_done, do: :secondary, else: :primary}
           label={if item.reason, do: "#{item.label}: #{item.reason}", else: item.label}
           title={item.title}
           hint={item.hint}
+          class="min-h-12 min-w-16 flex-1"
           data-role={if item.reason, do: "ladder-rung-off", else: "chip-action"}
         >
           <:icon :if={item.icon}><.chip_item_icon icon={item.icon} /></:icon>
         </.choice_button>
-      </.choice_grid>
+      </.chip_row>
     </section>
     """
   end
@@ -2613,6 +2859,40 @@ defmodule QuacksWeb.GameLive do
           <:icon><.piece_icon name={:tube} class="size-5" /></:icon>
         </.choice_button>
       </.choice_grid>
+    </section>
+    """
+  end
+
+  # Round 36: Chicken eyes (The Alchemists): the 1-chips it may swap glow in the
+  # pot (`pot_targets/1`); the bar says so and holds No.
+  def bar_choice(%{choice: :essence_bonus} = assigns) do
+    ~H"""
+    <section
+      id={"bar-essence-swap-#{@game.round}"}
+      class="bar-choice flex flex-col gap-1.5"
+      aria-label={bonus_hint(@me.essence_pending)}
+      data-role="bar-essence-swap"
+    >
+      <.info_row id="info-essence-swap">
+        <:icon><.piece_icon name={:pot} class="size-5" /></:icon>
+        <span class="block truncate" data-role="info-title">{bonus_hint(@me.essence_pending)}</span>
+        <span class="block truncate text-xs font-normal text-parchment-dim" data-role="tap-pot">
+          Tap a glowing chip in your pot
+        </span>
+      </.info_row>
+      <div class="flex min-h-12 justify-end *:min-h-12 *:touch-manipulation">
+        <.button
+          :if={{:essence, :pass} in @actions}
+          phx-click="action"
+          phx-value-action={encode({:essence, :pass})}
+          variant={:secondary}
+          class="px-6"
+          aria-label={action_label({:essence, :pass}, @game, @me)}
+          data-role="essence-pass"
+        >
+          No
+        </.button>
+      </div>
     </section>
     """
   end
@@ -2723,7 +3003,19 @@ defmodule QuacksWeb.GameLive do
           {@spec.text}
         </span>
       </.info_row>
-      <.choice_grid count={length(@spec.items)}>
+      <.chip_row :if={@spec[:options]} options={@spec.options}>
+        <.choice_button
+          :for={item <- @spec.items}
+          action={item.action}
+          variant={item[:variant] || :primary}
+          label={item.label}
+          title={item.title}
+          hint={item.hint}
+          class="min-h-12 min-w-16 flex-1"
+          data-role="pick-action"
+        />
+      </.chip_row>
+      <.choice_grid :if={!@spec[:options]} count={length(@spec.items)}>
         <.choice_button
           :for={item <- @spec.items}
           action={item.action}
@@ -2785,6 +3077,7 @@ defmodule QuacksWeb.GameLive do
   attr :label, :string, required: true
   attr :title, :string, required: true
   attr :hint, :string, default: nil
+  attr :class, :any, default: nil
   attr :rest, :global
   slot :icon
 
@@ -2795,7 +3088,7 @@ defmodule QuacksWeb.GameLive do
       phx-value-action={@action && encode(@action)}
       disabled={@disabled or is_nil(@action)}
       variant={@variant}
-      class="flex-col gap-0! px-1! py-1! leading-tight"
+      class={["flex-col gap-0! px-1! py-1! leading-tight", @class]}
       aria-label={@label}
       title={@label}
       data-choice-button
@@ -2817,6 +3110,78 @@ defmodule QuacksWeb.GameLive do
     </.button>
     """
   end
+
+  @doc """
+  Round 36: a choice among chips as the chips themselves, to tap (the crow skull's
+  and Choices, Choices' way): one round button per option, its chip big (`:md`
+  from 7 options), the action's label to read on hover and for screen readers.
+  An upgrade shows the chip it turns into, small, on its edge (`to`). An option
+  without an action is greyed. The inner block (Skip, Done, a ladder) follows the
+  chips in the same row; the row wraps into a second row while choosing (it
+  rises over the pot's lower band, as `choice_grid/1` does).
+  """
+  attr :options, :list, required: true, doc: "`%{chip, action, label}`, optional `to`"
+  slot :inner_block
+
+  def chip_row(assigns) do
+    assigns = assign(assigns, size: if(length(assigns.options) > 6, do: :md, else: :lg))
+
+    ~H"""
+    <div
+      class="flex min-h-12 flex-wrap items-center justify-center gap-x-2 gap-y-1.5"
+      data-role="chip-row"
+    >
+      <button
+        :for={o <- @options}
+        type="button"
+        phx-click={o.action && "action"}
+        phx-value-action={o.action && encode(o.action)}
+        disabled={is_nil(o.action)}
+        class={[
+          "relative grid shrink-0 place-items-center rounded-full touch-manipulation",
+          "transition-transform duration-100 ease-out hover:scale-105 active:scale-95",
+          "focus-visible:outline-3 focus-visible:outline-droplet disabled:opacity-40"
+        ]}
+        aria-label={o.label}
+        title={o.label}
+        data-role="chip-option"
+        data-chip={chip_name(o.chip)}
+        data-choice={o[:kind]}
+      >
+        <.chip chip={o.chip} size={@size} />
+        <span
+          :if={o[:to]}
+          class="absolute -right-2 -bottom-1 flex items-center rounded-full bg-iron-dark/90 py-0.5 pr-0.5 shadow"
+          data-role="chip-option-to"
+        >
+          <.icon name="hero-arrow-right-mini" class="size-3 text-parchment" />
+          <.chip chip={o.to} size={:xs} />
+        </span>
+      </button>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  # A chip action as a `chip_row/1` option: the chip it brings (an upgrade: the
+  # bigger chip, the pot chip is already chosen).
+  defp chip_option(action, game, me) do
+    %{chip: option_chip(action), action: action, label: action_label(action, game, me)}
+  end
+
+  defp option_chip({:chip, {:upgrade, _from, to}}), do: to
+  defp option_chip(action), do: hd(pick_chips(action))
+
+  # Round 36: the choices about a chip already in the pot: the player taps that
+  # chip (`pot_targets/1`). P4 swaps a pot chip, locoweed V returns one, an
+  # Alchemists bonus swaps a 1-chip for a bigger one.
+  defp pot_action?({:chip, {:upgrade, _from, _to}}), do: true
+  defp pot_action?({:chip, {:return, _chip}}), do: true
+  defp pot_action?({:essence, {:swap, _chip}}), do: true
+  defp pot_action?(_action), do: false
+
+  defp pot_chip({:chip, {:upgrade, from, _to}}), do: from
+  defp pot_chip({_kind, {_verb, chip}}), do: chip
 
   @doc """
   Round 33: the info row, the bar's second context row. It sits where the white
@@ -2866,11 +3231,23 @@ defmodule QuacksWeb.GameLive do
   end
 
   defp pick_spec(:witch_offer, actions, game, me) do
+    picks = Enum.filter(actions, &(pick_chips(&1) != []))
+
     %{
       chip: nil,
       title: "The silver witch drew:",
-      text: "Place them one by one, in any order, or return the rest",
-      items: pool_items(me.witch_offer, actions, game, me, "Place")
+      text: "Tap them one by one, in any order, or return the rest",
+      options:
+        for chip <- me.witch_offer do
+          action = pool_pick(picks, chip)
+
+          %{
+            chip: chip,
+            action: action,
+            label: if(action, do: action_label(action, game, me), else: chip_name(chip))
+          }
+        end,
+      items: Enum.map(text_actions(actions), &text_item(&1, game, me))
     }
   end
 
@@ -2981,30 +3358,6 @@ defmodule QuacksWeb.GameLive do
       do: "Bonus: #{tube_bonus(TestTubes.bonus(tube + 1))}",
       else: "Tubes full"
   end
-
-  # Round 33: one chip action as a bar button: its chips, a verb, the chip's name.
-  defp chip_item(action, game, me) do
-    {title, hint} = chip_words(action)
-
-    %{
-      action: action,
-      label: action_label(action, game, me),
-      title: title,
-      hint: hint,
-      reason: nil,
-      icon: {:chips, pick_chips(action), upgrade?(action)}
-    }
-  end
-
-  defp chip_words({:chip, {:gain, chip}}), do: {"Take", chip_name(chip)}
-  defp chip_words({:chip, {:starter, chip}}), do: {"Start with", chip_name(chip)}
-  defp chip_words({:chip, {:buy, chips}}), do: {"Take", Enum.map_join(chips, " + ", &chip_name/1)}
-
-  defp chip_words({:chip, {:upgrade, from, to}}),
-    do: {"Swap", "#{chip_name(from)} → #{chip_name(to)}"}
-
-  defp chip_words({:chip, {:return, chip}}), do: {"Return", chip_name(chip)}
-  defp chip_words(_action), do: {"Take", nil}
 
   # A ladder rung (`ladder/3`) as a bar button; a rung out of reach is greyed with
   # its reason as the hint.
@@ -3551,6 +3904,7 @@ defmodule QuacksWeb.GameLive do
       skip_rubies: false,
       stop_slot: :stop,
       essence_pick: nil,
+      pot_pick: nil,
       reveal: nil
     )
   end
@@ -3577,6 +3931,7 @@ defmodule QuacksWeb.GameLive do
       skip_rubies: skip_rubies,
       stop_slot: stop_slot(game, me),
       essence_pick: essence_pick(me, socket.assigns[:essence_pick]),
+      pot_pick: pot_pick(actions, socket.assigns[:pot_pick]),
       card_grown:
         (socket.assigns[:card_grown] == true and same_round?(socket.assigns[:game], game)) or
           chose_card?(socket.assigns, decision, game)
@@ -3596,7 +3951,9 @@ defmodule QuacksWeb.GameLive do
       old.round == game.round and Game.phase(old, assigns.seat) == phase and
         old.players[assigns.seat] == game.players[assigns.seat]
 
-    if same? and {:buy, selected} in actions, do: selected, else: []
+    if same? and ({:buy, selected} in actions or {:chip, {:buy, selected}} in actions),
+      do: selected,
+      else: []
   end
 
   defp kept_selection(_assigns, _game, _phase, _actions), do: []
@@ -3893,12 +4250,18 @@ defmodule QuacksWeb.GameLive do
   # Round 33: the chip actions and the droplet's free move too, with an info row.
   defp bar_choice(:chip_choice, _actions), do: :chip_choice
   defp bar_choice(:droplet_choice, _actions), do: :droplet_choice
+  # Round 36: Chicken eyes' swap is a tap on the pot chip (the sheet covered the pot).
+  defp bar_choice(:essence_bonus, actions),
+    do: if(Enum.any?(actions, &match?({:essence, {:swap, _}}, &1)), do: :essence_bonus)
+
   defp bar_choice(choice, _actions) when choice in @pick_choices, do: choice
   defp bar_choice(_decision, _actions), do: nil
 
   # Round 33: the bar choices with an info row (it takes the white track's row).
   defp info_choice?(:blue_choice), do: false
-  defp info_choice?(choice), do: choice in [:chip_choice, :droplet_choice | @pick_choices]
+
+  defp info_choice?(choice),
+    do: choice in [:chip_choice, :droplet_choice, :essence_bonus | @pick_choices]
 
   defp stop_slot(game, %Player{phase: :stopped}), do: if(stir?(game), do: :stop, else: :resume)
   defp stop_slot(_game, _me), do: :stop
@@ -4420,6 +4783,69 @@ defmodule QuacksWeb.GameLive do
     do: match?([{^seat, {:returned, {:white, _}}}, {^seat, :return_white} | _], game.log)
 
   defp keep_white?(_game, _seat, _bots), do: false
+
+  # Round 36: the everyone-card's rows show in the results stage while the card is
+  # grown over the pot, or while its choice waits (once a seat chose).
+  defp card_stage?(%{game: %Game{fortune_card: card} = game} = assigns) when card != nil do
+    (assigns.card_grown or
+       (assigns.decision == :fortune_choice and Fortune.reveal_card?(card))) and
+      not tiles_playing?(assigns.reveal) and Fortune.reveals(game) != %{}
+  end
+
+  defp card_stage?(_assigns), do: false
+
+  # Round 36: Ghost's breath V's buys while its choice is open in the bar.
+  defp purple_buys(assigns),
+    do: assigns |> pot_choice_actions() |> Enum.filter(&match?({:chip, {:buy, [_ | _]}}, &1))
+
+  # Round 36: the pot chip picked for its choices, while it still has them.
+  defp pot_pick(actions, chip) do
+    if chip && Enum.any?(actions, &(pot_action?(&1) and pot_chip(&1) == chip)), do: chip
+  end
+
+  # Round 36: the pot chips the open choice is about (`pot_action?/1`), for the
+  # pot: one choice is sent at a tap, more open them in the bar (`pot_pick`).
+  defp pot_targets(%{seat: seat, game: %Game{} = game, me: %Player{} = me} = assigns)
+       when is_integer(seat) do
+    assigns
+    |> pot_choice_actions()
+    |> Enum.filter(&pot_action?/1)
+    |> Enum.group_by(&pot_chip/1)
+    |> Map.new(fn
+      {chip, [action]} ->
+        {chip, %{event: "action", value: encode(action), label: action_label(action, game, me)}}
+
+      {chip, _actions} ->
+        {chip,
+         %{event: "pot_pick", value: encode(chip), label: "#{chip_name(chip)}: choose its swap"}}
+    end)
+  end
+
+  defp pot_targets(_assigns), do: %{}
+
+  # The actions of the bar's open choice (the same list the bar shows).
+  defp pot_choice_actions(assigns) do
+    cond do
+      tile_hold(assigns) == :chip_choice -> step_chip_actions(assigns)
+      tiles_playing?(assigns.reveal) or Game.over?(assigns.game) -> []
+      assigns.bar_choice in [:chip_choice, :essence_bonus] -> assigns.all_actions
+      true -> []
+    end
+  end
+
+  # Round 36: the chip Mandrake V peeked at on this seat's newest draw this round.
+  defp peeked(log, seat) when is_integer(seat) do
+    log
+    |> Stream.take_while(
+      &(not match?({^seat, {:drew, _, _}}, &1) and not match?({:round_end, _}, &1))
+    )
+    |> Enum.find_value(fn
+      {^seat, {:effect, {:yellow, 5}, {:peek, chip}}} -> chip
+      _entry -> nil
+    end)
+  end
+
+  defp peeked(_log, _seat), do: nil
 
   # The white chip of the newest Mandrake answer (see `keep_white?/3`).
   defp returned_white(%{log: [{_seat, {:returned, chip}} | _]}), do: chip

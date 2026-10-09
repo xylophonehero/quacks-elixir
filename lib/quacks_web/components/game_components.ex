@@ -258,6 +258,13 @@ defmodule QuacksWeb.GameComponents do
 
   attr :fx_key, :string, default: "", doc: "round 31: the step, so each step's effects play"
 
+  attr :targets, :map,
+    default: %{},
+    doc: """
+    round 36: `%{chip => %{event, value, label}}`, the pot chips a choice is about:
+    they glow and a tap (or Enter) sends `event` with `value` as `action`
+    """
+
   attr :bagged, :boolean,
     default: false,
     doc: "round 35: the round went to the shop, so the chips are back in the bag (none drawn)"
@@ -459,6 +466,7 @@ defmodule QuacksWeb.GameComponents do
           placed={placed}
           size={@size}
           beat={space.beat}
+          target={@size == :lg && @targets[elem(chip, 0)]}
         />
         <.scoring_ring :if={rings} seats={rings} />
         <.beat_ring :if={at == :next} beat={space.ring_beat} r="32" />
@@ -1081,6 +1089,10 @@ defmodule QuacksWeb.GameComponents do
   attr :size, :atom, required: true
   attr :beat, :integer, default: nil, doc: "the replay beat this chip lights up on"
 
+  attr :target, :map,
+    default: nil,
+    doc: "round 36: `%{event, value, label}` when a tap on this chip chooses it"
+
   defp pot_chip(assigns) do
     {colour, value} = assigns.chip
     icon = if colour in @ink_icon_chips, do: "text-ink", else: "text-white"
@@ -1094,8 +1106,17 @@ defmodule QuacksWeb.GameComponents do
       data-role="pot-chip"
       data-order={@order}
       data-index={@index}
-      aria-label={"#{@colour} #{@value}"}
+      aria-label={if @target, do: @target.label, else: "#{@colour} #{@value}"}
+      role={@target && "button"}
+      tabindex={@target && "0"}
+      class={@target && "pot-target"}
+      phx-click={@target && @target.event}
+      phx-keydown={@target && @target.event}
+      phx-key={@target && "Enter"}
+      phx-value-action={@target && @target.value}
+      data-target={@target && "true"}
     >
+      <circle :if={@target} r="27" class="pot-target-glow" data-role="target-glow" />
       <circle
         r="19"
         fill={"var(--color-chip-#{@colour})"}
@@ -1867,6 +1888,11 @@ defmodule QuacksWeb.GameComponents do
   attr :lead, :boolean, default: false, doc: "the round leader: the crown"
   attr :row, :integer, default: 1
   attr :col, :integer, default: nil
+
+  attr :start, :integer,
+    default: nil,
+    doc: "round 36: the first of the tile's 2 half columns (`loop_start/3`)"
+
   attr :updates, :list, default: [], doc: "the round's results, `Replay.updates/2`"
 
   attr :ticks, :boolean,
@@ -1911,7 +1937,7 @@ defmodule QuacksWeb.GameComponents do
         @stopped && "opacity-55",
         @lead && "tile-lead"
       ]}
-      style={"grid-row: #{@row}" <> if(@col, do: "; grid-column: #{@col}", else: "")}
+      style={"grid-row: #{@row}" <> if(@start, do: "; grid-column: #{@start} / span 2", else: "")}
       title={@name}
       data-seat={@seat}
       data-role="player-chip"
@@ -2070,6 +2096,20 @@ defmodule QuacksWeb.GameComponents do
       {seat, i} -> {seat, 2, 2 * cols - i}
     end)
   end
+
+  @doc """
+  Round 36: the players row has 2 half columns per column and each tile spans 2,
+  so a short second row (5 or 7 seats) moves half a column to the left: it is
+  centred under the first row, its tiles as wide as the first row's. This is the
+  half column where the tile at `row`, `col` (`seat_loop/1`) of `n` seats starts.
+
+      iex> for {_seat, row, col} <- QuacksWeb.GameComponents.seat_loop([0, 1, 2, 3, 4]),
+      ...>     do: QuacksWeb.GameComponents.loop_start(5, row, col)
+      [1, 3, 5, 4, 2]
+  """
+  @spec loop_start(pos_integer, pos_integer, pos_integer) :: pos_integer
+  def loop_start(n, 2, col) when rem(n, 2) == 1, do: 2 * col - 2
+  def loop_start(_n, _row, col), do: 2 * col - 1
 
   @doc "The players row's column count for `n` seats (`seat_loop/1`)."
   @spec loop_columns(pos_integer) :: pos_integer

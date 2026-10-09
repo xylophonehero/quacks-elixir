@@ -75,7 +75,13 @@ defmodule QuacksWeb.UiRound4Test do
     # answered: the bar goes, and the card counts as seen (no reveal afterwards).
     # Round 35: the card stays, grown, with what everyone took, until Continue.
     refute has_element?(alice, "#bar-card-1")
-    assert has_element?(alice, "#pot-card-1 [data-role=card-reveal-row][data-seat='0']", "passed")
+
+    assert has_element?(
+             alice,
+             "#card-stage-1 [data-role=card-reveal-row][data-seat='0']",
+             "passed"
+           )
+
     alice |> element("#card-continue") |> render_click()
     refute has_element?(alice, "#pot-card-1")
     refute has_element?(alice, "[data-role=reveal]")
