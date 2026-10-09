@@ -795,8 +795,7 @@ defmodule QuacksWeb.GameLive do
   defp play(socket, seat, action) do
     case GameServer.apply(socket.assigns.id, seat, action) do
       {:ok, game} ->
-        {:noreply,
-         socket |> put_game(game) |> close_card_reveal(action) |> done_after(action)}
+        {:noreply, socket |> put_game(game) |> close_card_reveal(action) |> done_after(action)}
 
       {:error, {:illegal_action, action, _phase}} ->
         {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
