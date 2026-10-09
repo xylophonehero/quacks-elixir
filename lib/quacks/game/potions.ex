@@ -546,7 +546,7 @@ defmodule Quacks.Game.Potions do
   # Round 35: the first chip in the pot fixes the rat stone's space; a later droplet
   # move does not move it (rulebook §3 step 2).
   defp fix_rats(%{drawn: [], rat_stone: n} = p) when n > 0,
-    do: %{p | rat_end: Player.start_index(p)}
+    do: put_in(p.mods.rat_end, Player.start_index(p))
 
   defp fix_rats(p), do: p
 

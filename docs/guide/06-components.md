@@ -1608,7 +1608,7 @@ with no change.
   sits below the line drops its number too, so no two labels collide. The tails
   come from `ScoringTrack.tails_between/2`, so they repeat after 50.
 - **Rats in the pot.** `rat_spaces/1` gives the rat pebbles' spaces: after the
-  droplet, at most `rat_stone`, never past `Player.rat_end` (set by the round's first
+  droplet, at most `rat_stone`, never past `Player.mods.rat_end` (set by the round's first
   chip). A droplet move after the first draw takes the first rat's space and that
   rat goes; the rest stay. Each rat's id names its space (`rat-SEAT-SIZE-SPACE`), so
   `PotMotion.ratsOut/0` fades exactly the rat the droplet took.

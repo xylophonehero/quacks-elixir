@@ -858,16 +858,39 @@ defmodule QuacksWeb.GameComponents do
   @spec palette_bg(0..7) :: String.t()
   def palette_bg(colour), do: @palette_bg[colour]
 
+  # Round 35: a rat keeps its VP only in a small gap (1 or 2 rats) between two
+  # neighbouring seats, and not next to a step whose VP label sits below the line.
+  defp label_rats(rats, dots, vp_labels, steps) do
+    below = for l <- vp_labels, l.below, uniq: true, do: round(l.x * steps - 0.5)
+
+    big_gaps =
+      dots
+      |> Enum.map(& &1.step)
+      |> Enum.uniq()
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.filter(fn [a, b] -> b - a >= 3 end)
+
+    Enum.map(rats, fn rat ->
+      quiet? =
+        Enum.any?(big_gaps, fn [a, b] -> a <= rat.j and rat.j < b end) or
+          rat.j in below or (rat.j + 1) in below
+
+      Map.put(rat, :show_vp, not quiet?)
+    end)
+  end
+
   @doc """
   The pot spaces of a player's rat pebbles: the spaces after the droplet, at most
-  `rat_stone` of them, and never past `rat_end` (the stone's space). Before the first draw
+  `rat_stone` of them, and never past `mods.rat_end` (the stone's space). Before the first draw
   the start follows the droplet (`Game.move_droplet/3`); after it the rats stay put,
   so a droplet move takes the first rat's space and that rat goes (round 35).
   """
   @spec rat_spaces(Player.t()) :: [non_neg_integer]
   def rat_spaces(%Player{rat_stone: 0}), do: []
 
-  def rat_spaces(%Player{droplet: droplet, rat_stone: n, rat_end: rat_end, drawn: drawn}) do
+  def rat_spaces(%Player{droplet: droplet, rat_stone: n, mods: mods, drawn: drawn}) do
+    rat_end = mods[:rat_end]
+
     last = if drawn == [] or is_nil(rat_end), do: droplet + n, else: min(droplet + n, rat_end)
     Enum.to_list((droplet + 1)..last//1)
   end
@@ -943,24 +966,7 @@ defmodule QuacksWeb.GameComponents do
         end)
       end)
 
-    # Round 35: a rat keeps its VP only in a small gap (1 or 2 rats) between two
-    # neighbouring seats, and not next to a step whose VP label sits below the line.
-    occupied = dots |> Enum.map(& &1.step) |> Enum.uniq()
-    below = for l <- vp_labels, l.below, uniq: true, do: round(l.x * steps - 0.5)
-
-    big_gaps =
-      occupied
-      |> Enum.chunk_every(2, 1, :discard)
-      |> Enum.filter(fn [a, b] -> b - a >= 3 end)
-
-    rats =
-      Enum.map(rats, fn rat ->
-        quiet? =
-          Enum.any?(big_gaps, fn [a, b] -> a <= rat.j and rat.j < b end) or
-            rat.j in below or (rat.j + 1) in below
-
-        Map.put(rat, :show_vp, not quiet?)
-      end)
+    rats = label_rats(rats, dots, vp_labels, steps)
 
     label =
       Enum.map_join(vps, "; ", fn {s, vp} ->

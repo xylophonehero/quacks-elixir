@@ -69,7 +69,7 @@ defmodule QuacksWeb.Round35BoardTest do
 
     test "the first chip fixes the rat stone; a later move takes the first rat's space" do
       game = H.force_draws(rat_game(), 1, [{:white, 2}])
-      assert game.players[1].rat_end == 3
+      assert game.players[1].mods.rat_end == 3
       assert GameComponents.rat_spaces(game.players[1]) == [1, 2, 3]
 
       game = Game.move_droplet(game, 1, 1)
