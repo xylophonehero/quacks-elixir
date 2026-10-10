@@ -6,7 +6,7 @@ defmodule QuacksWeb.Polish2Test do
 
   alias Quacks.{Game, GameHelpers, GameServer}
   alias Quacks.Rules.Chips
-  alias QuacksWeb.{GameComponents, GameLive}
+  alias QuacksWeb.{ActionCode, GameText}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -86,7 +86,7 @@ defmodule QuacksWeb.Polish2Test do
       refute has_element?(view, "#{footer} [data-role=shop-done]")
       assert has_element?(view, "#{footer} [data-role=shop-buy]:disabled")
 
-      render_change(view, "select", %{"chips" => [GameLive.encode({:orange, 1})]})
+      render_change(view, "select", %{"chips" => [ActionCode.encode({:orange, 1})]})
 
       assert has_element?(
                view,
@@ -94,7 +94,7 @@ defmodule QuacksWeb.Polish2Test do
                "Buy 1 · 3 coins"
              )
 
-      chips = Enum.map([{:orange, 1}, {:blue, 1}], &GameLive.encode/1)
+      chips = Enum.map([{:orange, 1}, {:blue, 1}], &ActionCode.encode/1)
       render_change(view, "select", %{"chips" => chips})
       assert has_element?(view, "#{footer} button[data-role=shop-buy]", "Buy 2 · 8 coins")
 
@@ -182,7 +182,7 @@ defmodule QuacksWeb.Polish2Test do
 
       for {seat, vp} <- final_game() |> Game.score() do
         assert final_game().log
-               |> GameComponents.vp_breakdown(seat, vp)
+               |> GameText.vp_breakdown(seat, vp)
                |> Enum.map(&elem(&1, 1))
                |> Enum.sum() == vp
       end

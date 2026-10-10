@@ -459,11 +459,11 @@ defmodule QuacksWeb.TileReveal do
   def news(game, seat, _reveal), do: shop_news(game, seat)
 
   # How many draws fit on a tile's line at 360 px, by the players row's columns
-  # (`GameComponents.loop_columns/1`): four columns 2, three 4, two 7, one 8.
+  # (`TileComponents.loop_columns/1`): four columns 2, three 4, two 7, one 8.
   # Round 31: the line's right end holds the black count and the white sum, and
   # the draws overlap a little (`TileRevealComponents`).
   defp tile_draws(seats) do
-    case QuacksWeb.GameComponents.loop_columns(length(seats)) do
+    case QuacksWeb.TileComponents.loop_columns(length(seats)) do
       4 -> 2
       3 -> 4
       2 -> 7

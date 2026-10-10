@@ -102,7 +102,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
 
     # bob is done shopping first (1 ruby: nothing to spend, so he is ready at once)
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(bob, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(bob, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     refute has_element?(bob, "[data-role=turn]")
     assert has_element?(alice, "dialog#decision-shop")
   end

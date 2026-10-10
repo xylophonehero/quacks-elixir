@@ -213,7 +213,7 @@ defmodule QuacksWeb.Round37EvalTest do
 
       {:ok, %{game: game}} = GameServer.get(id)
       trade = Enum.find(Game.legal_actions(game, 0), &match?({:fortune, {:upgrade, _}}, &1))
-      render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode(trade)})
+      render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode(trade)})
       {:ok, %{game: game}} = GameServer.get(id)
       assert Game.player(game, 0).phase == :potions
 

@@ -72,12 +72,12 @@ Read 1, 2 and 4 first. They hold the architecture. The rest you can read in any 
 | `switch (action.type)` | several function clauses with pattern matching (`defp step(...)`, `lib/quacks/game.ex:624`) |
 | Server state store (a backend) | `Quacks.GameServer`, a GenServer (`lib/quacks/game_server.ex:72`) |
 | WebSocket subscription | `Phoenix.PubSub.subscribe/2` in `mount/3` (`lib/quacks_web/live/game_live.ex:119`) |
-| Component props | `attr :name, :type` on a function component (`lib/quacks_web/components/game_components.ex:153`) |
+| Component props | `attr :name, :type` on a function component (`chip/1` in `lib/quacks_web/components/chip_components.ex`) |
 | `children` | `slot :inner_block` and `render_slot/1` (`lib/quacks_web/components/core_components.ex:108`) |
 | `useState` | none in components; state lives in the LiveView's `assigns` |
 | Derived state / selectors | `put_game/2` computes `@me`, `@decision`, `@actions` once per update (`lib/quacks_web/live/game_live.ex:2513`) |
 | TS `interface` for a module | a behaviour: `@callback` in `Quacks.AI.Decider` (`lib/quacks/ai/decider.ex:11`) |
-| `key` on a list item | the element `id`, e.g. `pot_chip_id/4` (`lib/quacks_web/components/game_components.ex:927`) |
+| `key` on a list item | the element `id`, e.g. `pot_chip_id/4` (`lib/quacks_web/components/pot_components.ex`) |
 | Framer Motion `layout` / FLIP | the `PotMotion` hook with the Web Animations API (`assets/js/app.js:80`) |
 | `staggerChildren` / delayed sequence | `--beat` from `QuacksWeb.Replay`, one CSS delay formula (`assets/css/app.css:981-994`) |
 | Optimistic UI (show first, sync later) | the reverse: the first patch is final, CSS delays only *show* it on the beats (chapter 6) |

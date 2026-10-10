@@ -11,8 +11,9 @@ defmodule QuacksWeb.CardRevealComponents do
   use Phoenix.Component
   import QuacksWeb.Icons, only: [piece_icon: 1]
 
-  import QuacksWeb.GameComponents,
-    only: [chip: 1, chip_name: 1, die: 1, flea_reason: 1, seat_bg: 1]
+  import QuacksWeb.ChipComponents, only: [chip: 1, die: 1, seat_bg: 1]
+
+  import QuacksWeb.GameText, only: [chip_name: 1, flea_reason: 1]
 
   alias Quacks.Game.Fortune
 

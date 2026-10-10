@@ -621,7 +621,7 @@ Each check gives `:ok` or `{:error, reason}`, and the first error falls out of t
   `<details>` block with one regex.
 
 **A known smell.** `log_words/1` (lines 165-173) calls
-`QuacksWeb.GameComponents.log_text/3`, so `lib/quacks` (the core) depends on
+`QuacksWeb.GameText.log_text/3`, so `lib/quacks` (the core) depends on
 `lib/quacks_web` (the UI) for the wording of the log. The usual direction is the
 other way: the web layer calls the core, never back. It works, because both are in
 one Mix app, and the report must use the words the player saw. A cleaner split

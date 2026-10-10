@@ -7,7 +7,7 @@ defmodule QuacksWeb.PolishTest do
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Potions
   alias Quacks.Rules.PotTrack
-  alias QuacksWeb.{CoreComponents, GameComponents}
+  alias QuacksWeb.{BarComponents, CoreComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -128,7 +128,7 @@ defmodule QuacksWeb.PolishTest do
   defp whites(sum), do: for(i <- 1..sum, do: {{:white, 1}, i})
 
   defp fuse_level(game) do
-    html = render_component(&GameComponents.fuse_meter/1, game: game, seat: 0)
+    html = render_component(&BarComponents.fuse_meter/1, game: game, seat: 0)
 
     [level] =
       html

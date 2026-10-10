@@ -5,7 +5,7 @@ defmodule QuacksWeb.GameLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Chips
-  alias QuacksWeb.{GameComponents, GameLive}
+  alias QuacksWeb.{ActionCode, BarComponents, GameText, PotComponents, ShopComponents}
 
   @pot_chip "[data-role=pot-chip]"
 
@@ -101,16 +101,18 @@ defmodule QuacksWeb.GameLiveTest do
   test "a well-formed but illegal action shows a flash", %{conn: conn} do
     {:ok, view, _html} = mount(conn)
 
-    html = render_click(view, "action", %{"action" => GameLive.encode(:stop)})
+    html = render_click(view, "action", %{"action" => ActionCode.encode(:stop)})
     assert html =~ "Stop is not allowed right now."
     assert pot_chips(view) == 0
   end
 
   test "decode rejects payloads that would create functions or atoms" do
-    assert {:error, :bad_action} = GameLive.decode("@@@")
+    assert {:error, :bad_action} = ActionCode.decode("@@@")
     fun = :erlang.term_to_binary(fn -> :boom end) |> Base.url_encode64(padding: false)
-    assert {:error, :bad_action} = GameLive.decode(fun)
-    assert {:ok, {:buy, [{:green, 2}]}} = GameLive.decode(GameLive.encode({:buy, [{:green, 2}]}))
+    assert {:error, :bad_action} = ActionCode.decode(fun)
+
+    assert {:ok, {:buy, [{:green, 2}]}} =
+             ActionCode.decode(ActionCode.encode({:buy, [{:green, 2}]}))
   end
 
   test "clicking the first legal action until the end reaches game over", %{conn: conn} do
@@ -160,9 +162,9 @@ defmodule QuacksWeb.GameLiveTest do
   end
 
   defp select(view, chips),
-    do: render_change(view, "select", %{"chips" => Enum.map(chips, &GameLive.encode/1)})
+    do: render_change(view, "select", %{"chips" => Enum.map(chips, &ActionCode.encode/1)})
 
-  defp checkbox(chip), do: ~s(#shop input[value="#{GameLive.encode(chip)}"])
+  defp checkbox(chip), do: ~s(#shop input[value="#{ActionCode.encode(chip)}"])
 
   defp bag_size(view) do
     [_, n] = Regex.run(~r/Bag \((\d+) chips\)/, render(view))
@@ -172,7 +174,7 @@ defmodule QuacksWeb.GameLiveTest do
   test "the pot draws each chip on its recorded space", %{conn: _conn} do
     game = Game.new(seed: {1, 2, 3})
     game = put_in(game.players[0].drawn, [{{:red, 2}, 4}, {{:orange, 1}, 1}])
-    html = render_component(&GameComponents.pot/1, game: game)
+    html = render_component(&PotComponents.pot/1, game: game)
     assert count(html, ~s([data-space="4"] #{@pot_chip}[aria-label="red 2"])) == 1
     assert count(html, ~s([data-space="1"] #{@pot_chip}[aria-label="orange 1"])) == 1
     assert count(html, ~s([data-space="3"] #{@pot_chip})) == 0
@@ -181,14 +183,14 @@ defmodule QuacksWeb.GameLiveTest do
 
   test "the pot shows the rat stone at droplet + rat stone, only when there is one" do
     game = Game.new(seed: {1, 2, 3}, players: 2)
-    html = render_component(&GameComponents.pot/1, game: game, seat: 1)
+    html = render_component(&PotComponents.pot/1, game: game, seat: 1)
     assert count(html, "[data-role=rat-stone]") == 0
 
     game = put_in(game.players[1].droplet, 2)
     game = put_in(game.players[1].rat_stone, 3)
 
     for size <- [:lg, :sm] do
-      html = render_component(&GameComponents.pot/1, game: game, seat: 1, size: size)
+      html = render_component(&PotComponents.pot/1, game: game, seat: 1, size: size)
       assert count(html, ~s([data-role=rat-stone][data-index="5"])) == 1
       assert count(html, "[data-role=rat-stone]") == 1
     end
@@ -216,7 +218,7 @@ defmodule QuacksWeb.GameLiveTest do
 
     # 1 ruby: nothing to spend, so the buy ends the round at once
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     refute has_element?(view, "dialog#decision-shop")
     assert has_element?(view, "li", "— Round 1 over —")
   end
@@ -232,14 +234,14 @@ defmodule QuacksWeb.GameLiveTest do
     assert Game.legal_actions(game) == [{:place, {:white, 1}}, :return_all]
 
     html =
-      render_component(&GameLive.chip_picks/1,
+      render_component(&BarComponents.chip_picks/1,
         actions: Game.legal_actions(game),
         pool: game.players[0].pending,
         game: game,
         me: game.players[0]
       )
 
-    place = GameLive.encode({:place, {:white, 1}})
+    place = ActionCode.encode({:place, {:white, 1}})
 
     assert count(
              html,
@@ -304,7 +306,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert html |> LazyHTML.query("[data-role=shop-row] [aria-label]") |> Enum.count() ==
              length(Chips.shop())
 
-    assert GameLive.shop_rows() |> List.flatten() |> Enum.sort() == Chips.shop()
+    assert ShopComponents.shop_rows() |> List.flatten() |> Enum.sort() == Chips.shop()
     # no visible checkboxes: each box is hidden inside its tile, with a check glyph
     assert html |> LazyHTML.query("#shop input[type=checkbox]:not(.sr-only)") |> Enum.empty?()
 
@@ -319,7 +321,7 @@ defmodule QuacksWeb.GameLiveTest do
     refute render(view) =~ "Round 1 over"
 
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     assert has_element?(view, "li", "— Round 1 over —")
     refute has_element?(view, "li", "End round")
   end
@@ -336,35 +338,35 @@ defmodule QuacksWeb.GameLiveTest do
            )
 
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     assert has_element?(view, "li", "— Round 1 over —")
   end
 
   test "every engine action in the choice phases has a human label" do
     for action <- [:return_white, :keep, {:place, {:white, 1}}, :return_all] do
-      refute GameComponents.label(action) =~ ~r/^[:{]/
+      refute GameText.label(action) =~ ~r/^[:{]/
     end
   end
 
   test "every scoring event has a human label" do
-    assert GameComponents.label({:green_rubies, 2}) == "Garden spider: +2 rubies"
-    assert GameComponents.label({:green_rubies, 1}) == "Garden spider: +1 ruby"
+    assert GameText.label({:green_rubies, 2}) == "Garden spider: +2 rubies"
+    assert GameText.label({:green_rubies, 1}) == "Garden spider: +1 ruby"
 
-    assert GameComponents.label({:purple, 2, :vp1_ruby}) ==
+    assert GameText.label({:purple, 2, :vp1_ruby}) ==
              "Ghost's breath (tier 2): +1 VP, +1 ruby"
 
-    assert GameComponents.label({:black, :droplet}) == "Hawkmoth: droplet +1"
-    assert GameComponents.label({:black, :droplet_ruby}) == "Hawkmoth: droplet +1, +1 ruby"
-    assert GameComponents.label({:rats, 3}) == "Rats: 3 tails"
-    assert GameComponents.label({:pot_ruby, 24}) == "Scoring space 24: +1 ruby"
-    assert GameComponents.label({:pot_vp, 8, 24}) == "Scoring space 24: +8 VP"
-    assert GameComponents.label({:round_end, 4}) == "— Round 4 over —"
+    assert GameText.label({:black, :droplet}) == "Hawkmoth: droplet +1"
+    assert GameText.label({:black, :droplet_ruby}) == "Hawkmoth: droplet +1, +1 ruby"
+    assert GameText.label({:rats, 3}) == "Rats: 3 tails"
+    assert GameText.label({:pot_ruby, 24}) == "Scoring space 24: +1 ruby"
+    assert GameText.label({:pot_vp, 8, 24}) == "Scoring space 24: +8 VP"
+    assert GameText.label({:round_end, 4}) == "— Round 4 over —"
 
-    assert GameComponents.label({:final_conversion, 17, 3, 5, 2}) ==
+    assert GameText.label({:final_conversion, 17, 3, 5, 2}) ==
              "Final: 17 coins → 3 VP, 5 rubies → 2 VP"
 
     for event <- [{:purple, 1, :vp1}, {:purple, 3, :vp2_droplet}] do
-      refute GameComponents.label(event) =~ ~r/^[:{]/
+      refute GameText.label(event) =~ ~r/^[:{]/
     end
   end
 end

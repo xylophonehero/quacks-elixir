@@ -11,7 +11,7 @@ defmodule QuacksWeb.Round39ShopTest do
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
   alias Quacks.Rules.Chips
-  alias QuacksWeb.GameLive
+  alias QuacksWeb.{ActionCode, ShopComponents}
 
   @panel "#purple-buy-panel-1[data-role=purple-buy]"
   @bar "[data-role=bar-chip-actions]"
@@ -43,7 +43,7 @@ defmodule QuacksWeb.Round39ShopTest do
     do:
       view
       |> element("#purple-buy-1")
-      |> render_change(%{"chips" => Enum.map(chips, &GameLive.encode/1)})
+      |> render_change(%{"chips" => Enum.map(chips, &ActionCode.encode/1)})
 
   describe "item 1: Ghost's breath V picks its chips in the context area" do
     test "a panel, not a sheet: every chip of the shop, the dear ones greyed" do
@@ -52,7 +52,7 @@ defmodule QuacksWeb.Round39ShopTest do
       refute has_element?(view, "dialog [data-role=purple-buy]")
       assert has_element?(view, "[data-area=context] > #{@panel}.pick-panel")
 
-      shop = List.flatten(GameLive.shop_rows(game.expansion, game.sets))
+      shop = List.flatten(ShopComponents.shop_rows(game.expansion, game.sets))
       assert length(shop) == length(view |> render() |> chips_in("#{@panel} label"))
 
       for chip <- shop, Chips.price(chip, game.sets) > coins do

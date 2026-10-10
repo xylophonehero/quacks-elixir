@@ -45,11 +45,11 @@ defmodule QuacksWeb.R10EngineTest do
       assert has_element?(alice, "[data-role=droplet-sources]", "Bonus die")
 
       # the droplet first, then the buy, then the rubies
-      render_click(alice, "action", %{"action" => QuacksWeb.GameLive.encode({:droplet, :tube})})
+      render_click(alice, "action", %{"action" => QuacksWeb.ActionCode.encode({:droplet, :tube})})
       assert has_element?(alice, "dialog#decision-shop")
       refute has_element?(alice, "dialog#decision-rubies")
 
-      render_click(alice, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+      render_click(alice, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
       # Round 29: the rubies are in the bar.
       assert has_element?(
                alice,

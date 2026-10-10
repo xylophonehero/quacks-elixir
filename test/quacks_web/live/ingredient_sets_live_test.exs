@@ -5,7 +5,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
   import Quacks.GameHelpers, only: [force_draws: 2]
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.{GameText, PanelComponents, PotComponents, TileComponents}
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "sets-#{System.unique_integer()}")}
@@ -52,10 +52,10 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
     g = Quacks.GameHelpers.put(g, drawn: [{{:white, 3}, 3}, {{:white, 3}, 0}], pot_index: 3)
     g = force_draws(g, [{:blue, 2}, {:white, 3}])
 
-    assert render_component(&GameComponents.player_card/1, game: g, seat: 0, name: "A") =~
+    assert render_component(&TileComponents.player_card/1, game: g, seat: 0, name: "A") =~
              "Exploded (protected)"
 
-    assert render_component(&GameComponents.action_log/1, log: g.log) =~
+    assert render_component(&PanelComponents.action_log/1, log: g.log) =~
              "Crow skull: protected, kept VP and coins"
   end
 
@@ -92,12 +92,12 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
 
     for {book, detail} <- effects,
         entry <- [{:effect, book, detail}, {1, {:effect, book, detail}}] do
-      refute GameComponents.label(entry) =~ ~r/^[:{]/
+      refute GameText.label(entry) =~ ~r/^[:{]/
     end
 
-    for action <- actions, do: refute(GameComponents.label(action) =~ ~r/^[:{]/)
+    for action <- actions, do: refute(GameText.label(action) =~ ~r/^[:{]/)
 
-    assert GameComponents.label({:effect, {:blue, 2}, :protected_explosion}) ==
+    assert GameText.label({:effect, {:blue, 2}, :protected_explosion}) ==
              "Crow skull: protected, kept VP and coins"
   end
 
@@ -106,8 +106,8 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
     g = force_draws(g, [{:white, 1}, {:red, 2}])
     assert g.players[0].aside == [{:red, 2}]
 
-    html = render_component(&GameComponents.aside/1, chips: g.players[0].aside)
+    html = render_component(&PotComponents.aside/1, chips: g.players[0].aside)
     assert html =~ "Beside the pot" and html =~ ~s(aria-label="red 2")
-    assert GameComponents.label({:red, {:place, {:red, 2}}}) =~ "place red 2"
+    assert GameText.label({:red, {:place, {:red, 2}}}) =~ "place red 2"
   end
 end

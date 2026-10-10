@@ -93,7 +93,7 @@
   --color-seat-7: #8a94a6; /* slate */
 
   /* Seat N's chosen colour: player cards, log names and scoring rings. The game
-     page overrides these on <main> (`GameComponents.seat_style/1`). */
+     page overrides these on <main> (`ChipComponents.seat_style/1`). */
   --color-player-0: var(--color-seat-0);
   --color-player-1: var(--color-seat-1);
   --color-player-2: var(--color-seat-2);
@@ -284,7 +284,7 @@
   }
 }
 
-/* The white fuse above Stop / Draw (`GameComponents.fuse_meter/1`). Notches light
+/* The white fuse above Stop / Draw (`BarComponents.fuse_meter/1`). Notches light
    one by one (a short stagger); the whole fuse turns amber, then red. */
 .fuse-notch {
   background-color: rgb(0 0 0 / 0.35);

@@ -10,7 +10,7 @@ defmodule QuacksWeb.ScoringTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, Replay}
+  alias QuacksWeb.{ChipComponents, PotComponents, Replay, TileComponents}
 
   # Newest first, like the engine: die → black → green → purple → scoring space.
   @log [
@@ -63,7 +63,7 @@ defmodule QuacksWeb.ScoringTest do
     lines = Replay.beats(game, 0)
 
     html =
-      render_component(&GameComponents.pot/1,
+      render_component(&PotComponents.pot/1,
         game: game,
         beats: Replay.highlights(lines),
         effects: Replay.pot_effects(lines)
@@ -76,7 +76,7 @@ defmodule QuacksWeb.ScoringTest do
     assert html |> attr("[data-role=ruby-flight]", "data-x") |> Enum.all?(&(&1 != ""))
     assert has?(html, ~s(#pot-0-lg[data-slide-beat="1"][style="--slide-beat: 1"]))
 
-    html = render_component(&GameComponents.pot/1, game: game, beats: Replay.highlights(lines))
+    html = render_component(&PotComponents.pot/1, game: game, beats: Replay.highlights(lines))
     refute has?(html, "[data-role=ruby-flight], [data-role=vp-float], [data-slide-beat]")
   end
 
@@ -84,7 +84,7 @@ defmodule QuacksWeb.ScoringTest do
     game = game()
     [die | _] = Replay.beats(game, 0)
 
-    html = render_component(&GameComponents.replay_die/1, lines: [die], class: "flex")
+    html = render_component(&ChipComponents.replay_die/1, lines: [die], class: "flex")
 
     assert has?(
              html,
@@ -92,14 +92,14 @@ defmodule QuacksWeb.ScoringTest do
            )
 
     html =
-      render_component(&GameComponents.ruby_badge/1,
+      render_component(&TileComponents.ruby_badge/1,
         rubies: game.players[0].rubies,
         beats: %{rubies: 5}
       )
 
     assert has?(html, ~s(#stat-rubies[data-beat="5"]))
 
-    html = render_component(&GameComponents.ruby_badge/1, rubies: game.players[0].rubies)
+    html = render_component(&TileComponents.ruby_badge/1, rubies: game.players[0].rubies)
     refute has?(html, ".stat-tick[data-beat]")
   end
 

@@ -20,7 +20,7 @@ defmodule Quacks.BugReports do
   """
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.GameText
 
   @max_text 2000
   @max_body 60_000
@@ -175,7 +175,7 @@ defmodule Quacks.BugReports do
     names = if table.players > 1, do: table.names
 
     table.game.log
-    |> GameComponents.log_text(@log_lines, names)
+    |> GameText.log_text(@log_lines, names)
     |> Enum.reverse()
   end
 

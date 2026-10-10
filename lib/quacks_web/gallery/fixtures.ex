@@ -54,33 +54,33 @@ defmodule QuacksWeb.Gallery.Fixtures do
         "TileRevealComponents.results_stage/1 + stage_list/1 over the bar's step line",
         results_variants()
       ),
-      component("pot", "Pot board", 520, "GameComponents.pot/1", pot_variants()),
+      component("pot", "Pot board", 520, "PotComponents.pot/1", pot_variants()),
       component(
         "tiles",
         "Player tiles",
         150,
-        "GameComponents.player_chip/1 in the players row",
+        "TileComponents.player_chip/1 in the players row",
         tile_variants()
       ),
       component(
         "bar",
         "Bottom context bar",
         520,
-        "the bar: Draw/Stop, GameLive.bar_choice/1, TipComponents.tip_card/1",
+        "the bar: Draw/Stop, BarComponents.bar_choice/1, TipComponents.tip_card/1",
         bar_variants()
       ),
       component(
         "track",
         "Score / rat track",
         110,
-        "GameComponents.rat_track/1",
+        "TrackComponents.rat_track/1",
         track_variants()
       ),
       component(
         "chip",
         "Chip",
         1450,
-        "GameComponents.chip/1: every colour x size x value",
+        "ChipComponents.chip/1: every colour x size x value",
         chip_variants()
       )
     ]
@@ -334,7 +334,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
     ]
   end
 
-  # `choice`: the `GameLive.bar_choice/1` the page shows for the seat's phase.
+  # `choice`: the `BarComponents.bar_choice/1` the page shows for the seat's phase.
   defp bar(g, opts \\ []) do
     me = g.players[0]
     actions = Game.legal_actions(g, 0)

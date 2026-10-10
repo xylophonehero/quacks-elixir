@@ -119,7 +119,7 @@ defmodule QuacksWeb.Round31EvalTest do
 
   describe "item 8: black and white on the tiles" do
     defp tile(game, seat \\ 1) do
-      render_component(&QuacksWeb.GameComponents.player_chip/1,
+      render_component(&QuacksWeb.TileComponents.player_chip/1,
         game: game,
         seat: seat,
         name: "Wilhelmina"
@@ -234,7 +234,7 @@ defmodule QuacksWeb.Round31EvalTest do
 
     defp line(game) do
       html =
-        render_component(&QuacksWeb.GameComponents.player_chip/1,
+        render_component(&QuacksWeb.TileComponents.player_chip/1,
           game: game,
           seat: 1,
           name: "W",

@@ -156,7 +156,7 @@ like `sort((a, b) => a.colourIndex - b.colourIndex || a.value - b.value)` in JS.
 The readers: `Books.in_play/2` (`lib/quacks/rules/books.ex:261-274`), the shop rows
 and the chip picks in `GameLive` (`lib/quacks_web/live/game_live.ex:2199-2208` and
 `chip_order/1`, line 2416), the bag counts (`chip_counts/1`,
-`lib/quacks_web/components/game_components.ex:976-977`) and the spell book's
+`lib/quacks_web/components/pot_components.ex`) and the spell book's
 book tiles (`SetupComponents.book_colours/0`,
 `lib/quacks_web/components/setup_components.ex:404`). To change the order, change one
 line; the doctests show the new order.
@@ -223,7 +223,7 @@ tuple, glass 0 to 12 (`lib/quacks/rules/test_tubes.ex:12-14`):
 
 `bonus/1` is `elem(@glasses, glass)` and `last/0` is `tuple_size(@glasses) - 1`, so
 the end of the track follows the data. The engine (`Game.move_droplet/3`,
-chapter 2) and the pot component (`lib/quacks_web/components/game_components.ex:471`)
+chapter 2) and the pot component (`lib/quacks_web/components/pot_components.ex`)
 both read `TestTubes.last()`, never a literal 12.
 
 ## House rules are data too

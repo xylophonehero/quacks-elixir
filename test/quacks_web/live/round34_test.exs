@@ -10,7 +10,7 @@ defmodule QuacksWeb.Round34Test do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.PotComponents
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -60,7 +60,7 @@ defmodule QuacksWeb.Round34Test do
 
   describe "a chip that moves in the pot (green III)" do
     defp pot_chips(game) do
-      render_component(&GameComponents.pot/1, game: game)
+      render_component(&PotComponents.pot/1, game: game)
       |> LazyHTML.from_fragment()
       |> LazyHTML.query("[data-role=pot-chip]")
       |> Enum.map(fn n ->
