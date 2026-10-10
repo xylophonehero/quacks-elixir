@@ -95,6 +95,42 @@ defmodule Quacks.AITest do
     assert action(put(full, phase: :blue_choice, pending: [{:white, 2}])) == :return_all
   end
 
+  describe "crow skull offer of a white" do
+    # White 3 and white 1 in the pot (4), the blue 1 drew a white 2.
+    defp white_offer(round, bag) do
+      Game.new(seed: @seed, fortune: false)
+      |> force_draws([{:white, 3}, {:white, 1}])
+      |> put(round: round, phase: :blue_choice, pending: [{:white, 2}], bag: bag)
+    end
+
+    test "goes back when it makes the next draw riskier, even within the policy" do
+      # At 4 nothing in the bag explodes; at 6 the other white 2 does (1 in 4).
+      game = white_offer(3, [{:white, 2}, {:white, 1}, {:orange, 1}, {:green, 1}])
+      for name <- Profile.all(), do: assert(action(game, 0, name) == :return_all)
+    end
+
+    test "goes in when the next draw is as safe without it" do
+      game = white_offer(3, [{:white, 1}, {:orange, 1}, {:green, 1}])
+      assert action(game) == {:place, {:white, 2}}
+    end
+
+    test "goes in when the bot stops anyway: its spaces are free" do
+      # White 3 and white 2 in the pot (5), a white 1 offered: 2 in 4 explode
+      # without it, 3 in 4 with it; the cautious bot stops at either in round 9.
+      game =
+        Game.new(seed: @seed, fortune: false)
+        |> force_draws([{:white, 3}, {:white, 2}])
+        |> put(
+          round: 9,
+          phase: :blue_choice,
+          pending: [{:white, 1}],
+          bag: [{:white, 3}, {:white, 3}, {:white, 2}, {:orange, 1}]
+        )
+
+      assert action(game, 0, :cautious) == {:place, {:white, 1}}
+    end
+  end
+
   test "explosion: coins early, VP late, always VP in round 9" do
     boom =
       Game.new(seed: @seed, fortune: false)
