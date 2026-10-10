@@ -1802,3 +1802,52 @@ with no change.
   `gains`), so the card grows after its tap and `card_stage/1` shows each die.
 - **Flea Market** (P13): after this seat's trade the card grows with every row
   and Continue (`chose_card?/3`), like the choice cards.
+
+## Component gallery (dev only)
+
+`/dev/gallery` shows the components that took the most rounds to get right, each
+in its edge cases. Its routes sit beside the router's `dev_routes` block
+(LiveDashboard), behind their own flag `gallery_routes`: on in `config/dev.exs`
+and `config/test.exs` (test keeps `dev_routes` off, it opens `/debug/replay`),
+so the gallery is not in prod or staging builds. Start the server and open
+`http://localhost:<PORT>/dev/gallery`; `?c=pot` picks a component.
+
+- `QuacksWeb.GalleryLive` (the index): one component at a time, every variant in
+  three iframes at real viewport widths, **360, 392 and 1280 px**, because the
+  app's layout uses viewport breakpoints (`lg:`, `@media (width >= 64rem)`). The
+  1280 frame is drawn at half scale.
+- `QuacksWeb.GalleryFrameLive` (`/dev/gallery/:component/:variant`): the bare
+  frame. Only the component, with its fixture assigns, on the game background
+  with the real `app.css`. It copies the wrappers the component's CSS needs (the
+  bar's `.game-bar`, the pot's `.pot-square`, the players row grid). Clicks do
+  nothing (`handle_event/3` ignores them).
+- `QuacksWeb.Gallery.Fixtures`: the catalog (`catalog/0`) and the fixture of each
+  variant. A fixture plays a seeded `Quacks.Game` with `Game.apply/3` where the
+  engine can reach the state, so the fixtures follow engine changes. `draw/3`
+  rigs a draw: it puts the wanted chip where the game's own random number takes
+  the next chip, then `:draw` runs. Fields set by hand (`put/3`) are only for
+  states the engine does not reach easily (3-digit VP, a droplet at 49, a fifth
+  crow skull chip); each such place says so.
+
+Components: the results panel (each evaluation step, 2/5/8 players, long names,
+3-digit VP, exploded rows, the recap, Take a Chance), the pot board, the player
+tiles, the bottom context bar (Draw/Stop, crow skull, Mandrake, chip choice, the
+rubies step with the gold witch, hints), the score/rat track and `chip/1`.
+
+### Add a variant
+
+1. In `Fixtures.catalog/0`, add `{"my-id", "What it shows", fn -> ... end}` to the
+   component's list. The function returns the frame's assigns; copy a neighbour,
+   e.g. `fn -> bar(draws(new(1), 0, [{:white, 3}, {:blue, 2}])) end`.
+2. Build the state with the engine: `new/2`, `draws/3`, `apply!/3`,
+   `finish_round/2`, `shop_all/1`. Use `put/3` only when the engine cannot get
+   there easily, and say why in a comment.
+3. Open `/dev/gallery?c=<component>` and look at the three widths.
+4. `test/quacks_web/live/gallery_live_test.exs` renders every frame (one loop), so
+   a broken fixture fails `mix test`.
+
+A new component: add an entry to `catalog/0` (with the frame height in px) and a
+`frame/1` clause for its `view` in `GalleryFrameLive`.
+
+UI change: check the component in `/dev/gallery` at 360/392/1280 and add a
+variant for any new state.
