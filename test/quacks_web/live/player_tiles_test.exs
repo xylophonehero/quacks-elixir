@@ -477,7 +477,7 @@ defmodule QuacksWeb.PlayerTilesTest do
     refute class =~ "lg:hidden"
   end
 
-  describe "name card (2)" do
+  describe "the pieces on a name card" do
     test "shows rubies and the flask" do
       game = Game.new(seed: {1, 2, 3}, players: 2)
       game = put_in(game.players[1].rubies, 3)

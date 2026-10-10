@@ -60,7 +60,7 @@ defmodule QuacksWeb.ResultsStageTest do
       assert view |> element("[data-role=tile-step]") |> render() =~ TileReveal.label(first)
     end
 
-    test "round 37: the last step is the scoring space; Round scored waits for the recap" do
+    test "the last step is the scoring space; Round scored waits for the recap" do
       {_id, game, view} = duo()
       slides = game |> Reveal.slides(0) |> TileReveal.slides()
       refute Enum.any?(slides, &(&1.kind == :standings))

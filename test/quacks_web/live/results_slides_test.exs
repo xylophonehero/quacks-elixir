@@ -163,7 +163,7 @@ defmodule QuacksWeb.ResultsSlidesTest do
 
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
 
-  test "the steps: die, black, the space, then the standings (round 28: no table)" do
+  test "the steps: die, black, the space, then the standings (no table)" do
     assert game() |> Reveal.slides(0) |> Enum.map(& &1.kind) ==
              [:die, :book, :space, :standings]
   end

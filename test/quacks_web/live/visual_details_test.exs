@@ -105,7 +105,7 @@ defmodule QuacksWeb.VisualDetailsTest do
     end
   end
 
-  describe "visual fixes" do
+  describe "the bar, the seat edge and the corner buttons" do
     test "the bar has no Stop/Draw while everyone shops; the side column is marked" do
       {:ok, id} = GameServer.start(1, {10, 11, 12})
       view = open(browser("bar-#{System.unique_integer()}"), id)
@@ -161,7 +161,7 @@ defmodule QuacksWeb.VisualDetailsTest do
   # Take a seat from a page that closes at once (a browser that lost its cookie
   # afterwards): the seat stays, but no page holds it.
 
-  describe "glitches" do
+  describe "dialogs, locks and seals" do
     test "the decision button hides while a dialog is open" do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
       view = open(browser(token("g1")), id)
@@ -204,7 +204,7 @@ defmodule QuacksWeb.VisualDetailsTest do
     {id, alice, bob}
   end
 
-  describe "glitches (2)" do
+  describe "phone sizes, pills and badges" do
     test "the phone pot sits in the middle of its box (equal bands)" do
       css = File.read!("assets/css/app.css")
       assert css =~ "margin-top: calc((100cqh - 100cqmin) / 2);"

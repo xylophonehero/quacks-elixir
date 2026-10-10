@@ -397,7 +397,7 @@ defmodule QuacksWeb.ShopTest do
     game
   end
 
-  describe "shop" do
+  describe "the shop sheet" do
     test "a sticky footer holds the purse, Done and the buy with its count and price" do
       view = shop_view()
       footer = "#decision-shop [data-role=shop-footer].sticky"
@@ -458,7 +458,7 @@ defmodule QuacksWeb.ShopTest do
     view
   end
 
-  describe "shop (2)" do
+  describe "the shop rows" do
     test "no Ingredient books line; each row has a label with the ingredient and its book" do
       view = shop_view_2()
       html = render(view)
