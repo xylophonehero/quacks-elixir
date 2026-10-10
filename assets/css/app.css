@@ -3407,9 +3407,9 @@ html:not([data-share]) .share-fallback {
   pointer-events: none;
 }
 
-.bar-to-bag > :not([data-role=blue-tray]),
-.bar-to-bag [data-role=blue-cloth],
-.bar-to-bag [data-role=blue-hint] {
+.bar-to-bag [data-role=info-row],
+.bar-to-bag [data-role=blue-skip],
+.bar-to-bag [data-role=blue-cloth] {
   opacity: 0;
   transition: opacity 150ms ease-out;
 }

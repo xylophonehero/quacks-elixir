@@ -1,9 +1,9 @@
 defmodule QuacksWeb.GalleryFrameLive do
   @moduledoc """
-  One gallery frame (dev only, `/dev/gallery/:component/:variant`): only the
-  component, with its fixture assigns (`QuacksWeb.Gallery.Fixtures`), on the game
-  background with the real app CSS. `QuacksWeb.GalleryLive` loads it in iframes at
-  real viewport widths, so the viewport breakpoints apply.
+  One gallery frame (dev only, `/dev/gallery/frame/:component/:variant`): only
+  the component, with its fixture assigns (`QuacksWeb.Gallery.Fixtures`), on the
+  game background with the real app CSS. `QuacksWeb.GalleryLive` loads it in one
+  iframe at a real viewport width, so the viewport breakpoints apply.
 
   The frame copies the page's wrappers that the component's CSS needs (the bar's
   `.game-bar`, the pot's `.pot-square`, the players row grid). Clicks do nothing.
@@ -110,14 +110,21 @@ defmodule QuacksWeb.GalleryFrameLive do
 
   defp frame(%{view: :bar} = assigns) do
     fuse? = assigns.game.phase == :potions and assigns.choice not in @info_choices
-    assigns = assign(assigns, fuse?: fuse?)
+    assigns = assign(assigns, fuse?: fuse?, crow?: assigns.choice == :blue_choice)
 
     ~H"""
     <.bottom tip={@tip && @tip.key}>
+      <:context :if={@crow?}>
+        <GameLive.crow_panel actions={@actions} game={@game} me={@me} />
+      </:context>
       <div class="game-tray">
         <TipComponents.tip_card :if={@tip} tip={@tip} class={tip_shift(@tip.key)} />
       </div>
-      <div :if={@fuse?} class="flex min-w-0 items-center gap-2" data-role="fuse-row">
+      <div
+        :if={@fuse?}
+        class={["flex min-w-0 items-center gap-2", @crow? && "max-lg:hidden"]}
+        data-role="fuse-row"
+      >
         <.fuse_meter game={@game} seat={@seat} />
         <.reward_line game={@game} seat={@seat} />
       </div>
@@ -129,7 +136,12 @@ defmodule QuacksWeb.GalleryFrameLive do
         me={@me}
         seat={@seat}
       />
-      <.action_bar :if={!@choice} actions={@actions} stop_slot={@stop_slot} />
+      <.action_bar
+        :if={!@choice or @crow?}
+        actions={@actions}
+        stop_slot={@stop_slot}
+        class={@crow? && "max-lg:hidden"}
+      />
     </.bottom>
     """
   end
@@ -204,14 +216,24 @@ defmodule QuacksWeb.GalleryFrameLive do
   end
 
   attr :tip, :string, default: nil
+  slot :context, doc: "from 64rem: the context column's panel, over the bar"
   slot :inner_block, required: true
 
   # `#game` with `data-tip` lights the hint's target (app.css `[data-tip]`).
   defp bottom(assigns) do
     ~H"""
     <div id="game" class="flex h-dvh flex-col" data-tip={@tip}>
-      <div class="min-h-0 flex-1" aria-hidden="true">
-        <div class="pot-hearth mx-auto aspect-square h-full max-w-full rounded-full opacity-60" />
+      <div class="flex min-h-0 flex-1">
+        <div class="min-h-0 min-w-0 flex-1" aria-hidden="true">
+          <div class="pot-hearth mx-auto aspect-square h-full max-w-full rounded-full opacity-60" />
+        </div>
+        <aside
+          :if={@context != []}
+          class="hidden w-[22rem] shrink-0 flex-col justify-end p-3 pl-0 lg:flex"
+          data-area="context"
+        >
+          {render_slot(@context)}
+        </aside>
       </div>
       <footer class="game-bar lg:ml-auto lg:w-[22rem]" data-area="bar">
         {render_slot(@inner_block)}
@@ -222,12 +244,16 @@ defmodule QuacksWeb.GalleryFrameLive do
 
   attr :actions, :list, required: true
   attr :stop_slot, :atom, required: true
+  attr :class, :any, default: nil
 
   # A copy of the page's action bar (it is inline in `GameLive.render/1`).
   # REVIEW: if GameLive moves it into a component, use that here.
   defp action_bar(assigns) do
     ~H"""
-    <section class="action-bar *:min-h-12 *:touch-manipulation" data-role="action-bar">
+    <section
+      class={["action-bar *:min-h-12 *:touch-manipulation", @class]}
+      data-role="action-bar"
+    >
       <.button disabled={@stop_slot not in @actions} data-slot="stop">
         {if @stop_slot == :resume, do: "Resume", else: "Stop"}
         <.kbd>s</.kbd>

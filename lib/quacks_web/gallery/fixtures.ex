@@ -64,7 +64,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
       component(
         "bar",
         "Bottom context bar",
-        420,
+        520,
         "the bar: Draw/Stop, GameLive.bar_choice/1, TipComponents.tip_card/1",
         bar_variants()
       ),

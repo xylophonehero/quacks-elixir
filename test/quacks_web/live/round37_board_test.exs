@@ -26,43 +26,21 @@ defmodule QuacksWeb.Round37BoardTest do
     do: replace_game(id, &H.put(&1, phase: :blue_choice, pending: pending))
 
   describe "item 6: the crow skull's choice" do
-    test "the crow skull chip first, then the chips on a cloth with the hint" do
+    # Round 40 moved the hint to the info row and made the chips one size
+    # (`crow_skull_choice_test.exs`).
+    test "the drawn chips lie on a cloth" do
       {id, view} = solo()
       blue(id, [{:orange, 1}, {:white, 3}, {:yellow, 1}, {:blue, 2}])
 
       row = "footer section[data-role=bar-blue]"
-
-      assert has_element?(
-               view,
-               "#{row} > [data-role=blue-book]:first-child [data-chip-icon=blue]"
-             )
-
       assert has_element?(view, "#{row} [data-role=blue-tray] [data-role=blue-cloth]")
-
-      assert has_element?(
-               view,
-               "#{row} [data-role=blue-tray] [data-role=blue-hint]",
-               "Add a chip to the pot"
-             )
-
       assert view |> render() |> count("#{row} [data-role=blue-tray] button[data-pool-chip]") == 4
-      # four chips stay large; Skip stays in the row
-      assert has_element?(view, "#{row} button[data-pool-chip] .chip-token.size-12")
-      assert has_element?(view, "#{row} > [data-role=blue-skip]", "Skip")
-    end
-
-    test "from five chips they are smaller, so the row still fits" do
-      {id, view} = solo()
-      blue(id, [{:orange, 1}, {:white, 3}, {:yellow, 1}, {:blue, 2}, {:red, 1}])
-
-      assert has_element?(view, "[data-role=bar-blue] button[data-pool-chip] .chip-token.size-9")
-      refute has_element?(view, "[data-role=bar-blue] button[data-pool-chip] .chip-token.size-12")
     end
 
     test "as the row leaves, the cloth and hint fade but the chips fly" do
       css = File.read!("assets/css/app.css")
-      assert css =~ ".bar-to-bag > :not([data-role=blue-tray]),"
-      assert css =~ ".bar-to-bag [data-role=blue-cloth],"
+      assert css =~ ".bar-to-bag [data-role=info-row],"
+      assert css =~ ".bar-to-bag [data-role=blue-cloth] {"
       assert css =~ ".blue-cloth {"
     end
   end
