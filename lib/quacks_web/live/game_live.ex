@@ -2524,7 +2524,7 @@ defmodule QuacksWeb.GameLive do
             <%!-- Round 36: C1's pot chips as chips, then what it does. --%>
             <span
               :if={match?({:witch, :copper, {:upgrade, _}}, action)}
-              class="inline-flex shrink-0 items-center gap-0.5"
+              class="inline-flex shrink-0 items-center gap-1.5"
               data-role="copper-chips"
             >
               <.chip :for={chip <- elem(elem(action, 2), 1)} chip={chip} size={:sm} />

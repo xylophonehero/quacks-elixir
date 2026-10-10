@@ -197,7 +197,7 @@ defmodule QuacksWeb.GalleryFrameLive do
       <section :for={size <- [:xs, :sm, :md, :lg]} class="space-y-1" data-size={size}>
         <h2 class="font-mono text-xs text-parchment-dim">:{size}</h2>
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span :for={colour <- @colours} class="flex items-center gap-1" title={colour}>
+          <span :for={colour <- @colours} class="flex items-center gap-1.5" title={colour}>
             <.chip :for={value <- @values} chip={{colour, value}} size={size} />
           </span>
         </div>
@@ -205,7 +205,7 @@ defmodule QuacksWeb.GalleryFrameLive do
       <section class="paper space-y-1 rounded-lg p-2 text-ink">
         <h2 class="font-mono text-xs">on parchment, :sm and :lg</h2>
         <div class="flex flex-wrap items-center gap-2">
-          <span :for={colour <- @colours} class="flex items-center gap-1">
+          <span :for={colour <- @colours} class="flex items-center gap-1.5">
             <.chip :for={value <- @values} chip={{colour, value}} size={:sm} />
             <.chip chip={{colour, List.last(@values)}} size={:lg} />
           </span>

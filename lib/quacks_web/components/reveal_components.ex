@@ -250,7 +250,7 @@ defmodule QuacksWeb.RevealComponents do
       <.step_rows :let={row} rows={@slide.rows} names={@names} seat={@seat} scored={& &1.scored}>
         <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span
-            class="inline-flex items-center gap-1 text-xs font-bold tabular-nums"
+            class="inline-flex items-center gap-1.5 text-xs font-bold tabular-nums"
             aria-label={"#{length(row.chips)} counted"}
             data-role="reveal-chips"
           >

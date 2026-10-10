@@ -209,7 +209,7 @@ defmodule QuacksWeb.TileRevealComponents do
         type="button"
         phx-click="reveal_close"
         variant={:secondary}
-        class="shrink-0 px-4"
+        class="shrink-0 px-3 sm:px-4"
         data-role="tile-skip"
       >
         Skip
@@ -219,7 +219,7 @@ defmodule QuacksWeb.TileRevealComponents do
         type="button"
         phx-click="reveal_next"
         variant={:primary}
-        class="w-2/5 shrink-0"
+        class="w-1/3 shrink-0 sm:w-2/5"
         disabled={@waiting}
         data-role="tile-next"
       >
@@ -332,7 +332,8 @@ defmodule QuacksWeb.TileRevealComponents do
   for the seat disc, the name, the reason and every result column (`cols`); each
   row is a subgrid of it (app.css `.stage-grid`), so the counts, chips and
   numbers of all rows stand in one line, whatever the names' lengths. Numbers
-  are tabular. A row with `shift` (`Round scored`) moves from its old place to
+  are tabular. A long name takes two lines (round 41), so names that start the
+  same stay apart; the row keeps its height. A row with `shift` (`Round scored`) moves from its old place to
   its new one (FLIP in CSS: `.stage-shift`, off for reduced motion).
   """
   def stage_list(assigns) do
@@ -365,7 +366,11 @@ defmodule QuacksWeb.TileRevealComponents do
         >
           {initial(name(@names, row.seat))}
         </span>
-        <span class="stage-name truncate text-xs font-semibold" title={name(@names, row.seat)}>
+        <span
+          class="stage-name line-clamp-2 text-xs leading-3 font-semibold break-words"
+          title={name(@names, row.seat)}
+          data-role="stage-name"
+        >
           {if @you and row.seat == @seat, do: "You", else: name(@names, row.seat)}
         </span>
         <span class="flex min-w-0 items-center gap-1 text-sm" data-role="stage-why">
