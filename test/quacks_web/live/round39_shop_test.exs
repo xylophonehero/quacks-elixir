@@ -11,7 +11,7 @@ defmodule QuacksWeb.Round39ShopTest do
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
   alias Quacks.Rules.Chips
-  alias QuacksWeb.{ActionCode, BarComponents}
+  alias QuacksWeb.{ActionCode, ShopComponents}
 
   @panel "#purple-buy-panel-1[data-role=purple-buy]"
   @bar "[data-role=bar-chip-actions]"
@@ -52,7 +52,7 @@ defmodule QuacksWeb.Round39ShopTest do
       refute has_element?(view, "dialog [data-role=purple-buy]")
       assert has_element?(view, "[data-area=context] > #{@panel}.pick-panel")
 
-      shop = List.flatten(BarComponents.shop_rows(game.expansion, game.sets))
+      shop = List.flatten(ShopComponents.shop_rows(game.expansion, game.sets))
       assert length(shop) == length(view |> render() |> chips_in("#{@panel} label"))
 
       for chip <- shop, Chips.price(chip, game.sets) > coins do
