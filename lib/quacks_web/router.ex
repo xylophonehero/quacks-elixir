@@ -61,6 +61,9 @@ defmodule QuacksWeb.Router do
       live "/gallery", GalleryLive
       live "/gallery/:component/:variant", GalleryLive
       live "/gallery/frame/:component/:variant", GalleryFrameLive
+      # Scenarios (`Quacks.Scenarios`): one real game per rules item, on the game page.
+      live "/scenarios", ScenariosLive
+      get "/scenarios/:kind/*id", ScenarioController, :show
     end
   end
 end

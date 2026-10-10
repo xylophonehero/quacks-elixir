@@ -108,6 +108,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.RevealComponents
   import QuacksWeb.TileRevealComponents
   import QuacksWeb.TipComponents
+  import QuacksWeb.ScenarioComponents
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Fortune
@@ -1091,6 +1092,7 @@ defmodule QuacksWeb.GameLive do
 
     ~H"""
     <Layouts.app flash={@flash} full style={seat_style(@colours)}>
+      <.step_bar :if={@debug[:scenario]} debug={@debug} />
       <.announcer log={@game.log} names={if @players > 1, do: @names} />
       <%!-- One grid for every screen: each block names its area (`data-area`) and
            app.css places the areas per layout (portrait, landscape phone, 64rem,
