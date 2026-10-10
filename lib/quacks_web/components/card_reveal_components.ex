@@ -282,7 +282,8 @@ defmodule QuacksWeb.CardRevealComponents do
   attr :gain, :any, required: true
   attr :size, :atom, default: :sm
 
-  # One ruby is "+" and the gem; more (or a price) shows the number too.
+  # A gain is its number and its icon: "+1" and the gem (round 41: "+" alone read
+  # as a missing digit).
   defp gain(%{gain: {:rubies, n}} = assigns) do
     assigns = assign(assigns, n: n, text: count_text(n))
 
@@ -350,8 +351,7 @@ defmodule QuacksWeb.CardRevealComponents do
   defp gain_ink(:droplet), do: "text-droplet"
   defp gain_ink(_kind), do: nil
 
-  defp count_text(1), do: "+"
-  defp count_text(n) when n > 1, do: "+#{n}"
+  defp count_text(n) when n > 0, do: "+#{n}"
   defp count_text(n), do: "−#{abs(n)}"
 
   defp none(:b7), do: "returned"

@@ -166,17 +166,37 @@ defmodule Quacks.AI do
 
   # -- on-draw choices ----------------------------------------------------------------
 
-  # Blue: the coloured chip that moves furthest; a white only when it cannot explode.
-  defp blue(%{game: game, seat: seat, legal: legal}) do
+  # Blue: the coloured chip that moves furthest; a white only when it cannot explode
+  # and (round 41) it adds no risk: the next draw's bust chance stays as it is, or
+  # the bot stops anyway. Else the white goes back (the bag keeps it either way).
+  defp blue(%{game: game, seat: seat, legal: legal} = ctx) do
     room = Potions.explode_above(game, seat) - Game.white_sum(game, seat)
     places = for {:place, chip} <- legal, do: chip
     {whites, coloured} = Enum.split_with(places, &match?({:white, _}, &1))
-    safe = Enum.filter(whites, fn {:white, w} -> w <= room end)
+    safe = Enum.filter(whites, fn {:white, w} -> w <= room and no_risk?(ctx, {:white, w}) end)
 
     case Enum.sort_by(coloured, &elem(&1, 1), :desc) ++ Enum.sort_by(safe, &elem(&1, 1), :desc) do
       [] -> :return_all
       [chip | _] -> {:place, chip}
     end
+  end
+
+  # Placing `chip` adds no risk: the next draw is as safe as without it, or the bot
+  # would stop without it too (then the chip's spaces are free).
+  defp no_risk?(%{game: game, seat: seat} = ctx, chip) do
+    with {:ok, placed} <- Game.apply(game, seat, {:place, chip}),
+         {:ok, back} <- Game.apply(game, seat, :return_all) do
+      Odds.next_draw(placed, seat) <= Odds.next_draw(back, seat) or not draws?(ctx, back)
+    else
+      _ -> false
+    end
+  end
+
+  defp draws?(%{seat: seat} = ctx, game) do
+    p = Odds.next_draw(game, seat)
+
+    Game.phase(game, seat) == :potions and :draw in Game.legal_actions(game, seat) and
+      (p == 0 or draw?(%{ctx | game: game}, p))
   end
 
   # Coins (a buy) early, VP late; round 9 always VP.

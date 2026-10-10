@@ -5,8 +5,8 @@ defmodule Quacks.Scenarios.Builders do
   the round-9 test tube. A hand-written scenario is a generic builder with options:
   its own choices (`me:`, `others:`), a stricter goal (`ready:`), extra checks
   per step (`checks:`, a map of step label to a function of the game), extra
-  elements per step (`sees:`, label to selectors) and taps (`taps:`, label to
-  `[{selector, selectors_after}]`).
+  elements per step (`sees:`, label to selectors), taps (`taps:`, label to
+  `[{selector, selectors_after}]`) and more seeds for a rare moment (`tries:`).
 
   Every builder returns `{:ok, Quacks.Scenarios.Script.t()} | {:error, reason}`.
   """
@@ -378,8 +378,11 @@ defmodule Quacks.Scenarios.Builders do
   end
 
   # `Script.search/2`, and every step that `checks:` names must be there (a hand-written
-  # scenario that misses its step tries the next seed).
+  # scenario that misses its step tries the next seed). `tries:` gives a rare moment
+  # more seeds.
   defp search(opts, script, tries \\ 60) do
+    tries = Keyword.get(opts, :tries, tries)
+
     Script.search(
       fn seed ->
         s = script.(seed)

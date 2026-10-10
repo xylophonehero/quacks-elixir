@@ -295,6 +295,9 @@ defmodule Quacks.Scenarios do
 
   defp ghosts_breath_v do
     [
+      # The buy needs a rare draw: seed 73 since round 41 (the bots keep more whites
+      # out of the pot).
+      tries: 100,
       sees: %{"book choice" => ["[data-role=purple-buy]"]},
       # The purple chips' spaces pay for a chip: you buy the first offer.
       me: fn g, legal ->

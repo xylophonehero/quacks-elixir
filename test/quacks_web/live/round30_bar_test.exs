@@ -104,7 +104,7 @@ defmodule QuacksWeb.Round30BarTest do
       g = game_with_ruby(false)
       tile = render_component(&GameComponents.player_chip/1, game: g, seat: 0, name: "A")
       assert tile =~ ~r/class="tile-space min-w-\[1.2em\]/
-      assert tile =~ ~r/class="min-w-\[1.2em\] text-right"\s+data-role="vp-number"/
+      assert tile =~ ~r/class="min-w-\[1.2em\] pr-px text-right"\s+data-role="vp-number"/
 
       badge = render_component(&GameComponents.ruby_badge/1, rubies: 3)
       assert badge =~ "min-w-[1.2em]"
@@ -121,7 +121,7 @@ defmodule QuacksWeb.Round30BarTest do
       tile = render_component(&GameComponents.player_chip/1, game: g, seat: 0, name: "A")
 
       assert tile =~
-               ~r/data-state="exploded".*class="text-ruby size-5[^"]*"[^>]*data-icon="explosion"/s
+               ~r/data-state="exploded".*class="text-ruby size-4[^"]*"[^>]*data-icon="explosion"/s
 
       refute tile =~ "stroke=\"#ffd25a\""
     end

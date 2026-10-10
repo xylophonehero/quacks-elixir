@@ -512,6 +512,15 @@ body {
     background-color: transparent;
   }
 
+  /* Round 41: while a sheet is open over the pot, the results stage folds to its
+     title line (as for a decision on the step), so it never covers the sheet's
+     buttons. */
+  :root:has(.sheet[data-pot][open], .sheet.sheet-pot:popover-open)
+    .results-stage
+    [data-role="stage-rows"] {
+    display: none;
+  }
+
   /* The shop's purse and buttons go where the bar's buttons are (the bar hides
      its own while a decision is open): context buttons, not the sheet's foot. */
   .sheet[data-pot][open] [data-role="shop-footer"] {
@@ -940,8 +949,9 @@ body {
   min-height: 1.75rem;
 }
 
+/* Round 41: a long name takes two lines (`line-clamp-2`), a little wider. */
 .stage-grid .stage-name {
-  max-width: 6.5rem;
+  max-width: 7rem;
 }
 
 /* "Round scored": a row that changed places starts at its old place and moves

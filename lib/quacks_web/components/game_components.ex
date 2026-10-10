@@ -134,7 +134,9 @@ defmodule QuacksWeb.GameComponents do
   One chip: a disc in the chip colour with the ingredient icon and the value in a
   parchment badge. `size={:xs}` is too small for the icon: it shows only the value.
   Round 35 (item 8): a chip with no value (`{colour, nil}`, a result that is a
-  chip) has its icon in the centre and no badge.
+  chip) has its icon in the centre and no badge. The `:sm` and `:md` badge sticks
+  out 4 px to the lower right: a row of valued chips needs a gap of 6 px
+  (`gap-1.5`), else the badge touches the next chip (round 41).
 
   ## Examples
 
@@ -473,8 +475,14 @@ defmodule QuacksWeb.GameComponents do
           beat={space.beat}
           target={@size == :lg && @targets[elem(chip, 0)]}
         />
-        <.scoring_ring :if={rings} seats={rings} />
-        <.beat_ring :if={at == :next} beat={space.ring_beat} r="32" />
+        <%!-- Round 41: the spoon sits by the rim; its rings are smaller, so they
+             stay inside the brew. --%>
+        <.scoring_ring :if={rings} seats={rings} r={if index == spoon(), do: 22, else: 26} />
+        <.beat_ring
+          :if={at == :next}
+          beat={space.ring_beat}
+          r={if index == spoon(), do: 24, else: 32}
+        />
       </g>
       <%!-- The droplet and the rats are full pieces, like chips: the droplet on its
            space, then one rat per rat tail on each space after it, so the first chip
@@ -747,6 +755,7 @@ defmodule QuacksWeb.GameComponents do
   # A scoring ring: one full circle, or one arc per seat when seats share the space.
   # `pathLength="100"` lets each arc be "100 / n" long whatever the radius.
   attr :seats, :list, required: true
+  attr :r, :integer, default: 26
 
   defp scoring_ring(assigns) do
     assigns = assign(assigns, arc: 100 / length(assigns.seats))
@@ -754,7 +763,7 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <circle
       :for={{seat, i} <- Enum.with_index(@seats)}
-      r="26"
+      r={@r}
       fill="none"
       stroke={seat_colour(seat)}
       stroke-width="5"
@@ -873,10 +882,46 @@ defmodule QuacksWeb.GameComponents do
   @spec palette_bg(0..7) :: String.t()
   def palette_bg(colour), do: @palette_bg[colour]
 
+  # Round 41: the labels' room on the narrowest track (a 360 px phone: 328 px
+  # between the insets, less a margin), a 13 px digit and the space between labels.
+  @track_px 320
+  @digit_px 8
+  @label_gap_px 3
+
+  # A label's centre and half width in px on the narrowest track.
+  defp label_box(x, shift, vp),
+    do: {x * @track_px + shift * 7, length(Integer.digits(vp)) * @digit_px / 2}
+
+  defp clear?({c, half}, {c2, half2}), do: abs(c - c2) >= half + half2 + @label_gap_px
+
+  # From the leader's side: each label above the line when it does not touch the
+  # label before it above, else below; when both touch, the side with more room.
+  defp place_vp_labels(labels) do
+    labels
+    |> Enum.map_reduce({nil, nil}, fn l, {above, below} ->
+      box = label_box(l.x, l.shift, l.vp)
+
+      below? =
+        cond do
+          above == nil or clear?(box, above) -> false
+          below == nil or clear?(box, below) -> true
+          true -> gap(box, below) > gap(box, above)
+        end
+
+      l = Map.put(l, :below, below?)
+      {l, if(below?, do: {above, box}, else: {box, below})}
+    end)
+    |> elem(0)
+  end
+
+  defp gap({c, half}, {c2, half2}), do: abs(c - c2) - half - half2
+
   # Round 35: a rat keeps its VP only in a small gap (1 or 2 rats) between two
-  # neighbouring seats, and not next to a step whose VP label sits below the line.
-  defp label_rats(rats, dots, vp_labels, steps) do
-    below = for l <- vp_labels, l.below, uniq: true, do: round(l.x * steps - 0.5)
+  # neighbouring seats. Round 41: and only when it does not repeat a seat's VP and
+  # its number does not touch a VP below the line or the rat VP before it.
+  defp label_rats(rats, dots, vp_labels) do
+    seat_vps = MapSet.new(dots, & &1.vp)
+    below = for l <- vp_labels, l.below, do: label_box(l.x, l.shift, l.vp)
 
     big_gaps =
       dots
@@ -885,13 +930,19 @@ defmodule QuacksWeb.GameComponents do
       |> Enum.chunk_every(2, 1, :discard)
       |> Enum.filter(fn [a, b] -> b - a >= 3 end)
 
-    Enum.map(rats, fn rat ->
-      quiet? =
-        Enum.any?(big_gaps, fn [a, b] -> a <= rat.j and rat.j < b end) or
-          rat.j in below or (rat.j + 1) in below
+    rats
+    |> Enum.map_reduce(nil, fn rat, last ->
+      box = label_box(rat.x, 0, rat.vp)
 
-      Map.put(rat, :show_vp, not quiet?)
+      show? =
+        not Enum.any?(big_gaps, fn [a, b] -> a <= rat.j and rat.j < b end) and
+          rat.vp not in seat_vps and
+          Enum.all?(below, &clear?(box, &1)) and
+          (last == nil or clear?(box, last))
+
+      {Map.put(rat, :show_vp, show?), if(show?, do: box, else: last)}
     end)
+    |> elem(0)
   end
 
   @doc """
@@ -918,10 +969,10 @@ defmodule QuacksWeb.GameComponents do
   (`ScoringTrack.rat_tails/2`: the leader's step has none, each tail to the right
   adds one); seats in one step stack. Under each rat tail its VP. Since round 28
   every seat's VP sits by its dot (`track-vp`, the leader's `leader-vp`): one
-  number for seats in a step with the same VP, the numbers of a step alternating
-  above and below the line so they do not collide. Since round 35 a rat shows its
-  VP only in a gap of 1 or 2 rats between neighbouring seats, and not next to a
-  step with a label below the line. A fixed height; nothing to tap.
+  number for seats in a step with the same VP, above the line or, when it would
+  touch the number before it, below. Since round 35 a rat shows its VP only in a
+  gap of 1 or 2 rats between neighbouring seats; since round 41 only when it is
+  not a seat's VP and touches no other number. A fixed height; nothing to tap.
   """
   attr :game, :map, required: true
   attr :seat, :any, default: nil, doc: "this browser's seat, nil for a spectator"
@@ -961,27 +1012,27 @@ defmodule QuacksWeb.GameComponents do
     rats = for {t, j} <- Enum.with_index(tails), do: %{vp: t, x: (j + 1) / steps, j: j}
 
     # Round 28: every seat's VP by its dot. Seats in one step with the same VP share
-    # one number; the numbers of a step alternate above and below the line.
+    # one number. A number goes above the line, or below it when it would touch the
+    # number before it above (round 41: also across neighbouring steps).
     vp_labels =
       dots
       |> Enum.chunk_by(& &1.step)
       |> Enum.flat_map(fn same ->
         same
         |> Enum.chunk_by(& &1.vp)
-        |> Enum.with_index()
-        |> Enum.map(fn {group, i} ->
+        |> Enum.map(fn group ->
           %{
             vp: hd(group).vp,
             x: hd(group).x,
             shift: Enum.sum(Enum.map(group, & &1.shift)) / length(group),
-            below: rem(i, 2) == 1,
             leader: hd(group).vp == leader,
             seats: Enum.map(group, & &1.seat)
           }
         end)
       end)
+      |> place_vp_labels()
 
-    rats = label_rats(rats, dots, vp_labels, steps)
+    rats = label_rats(rats, dots, vp_labels)
 
     label =
       Enum.map_join(vps, "; ", fn {s, vp} ->
@@ -1942,7 +1993,7 @@ defmodule QuacksWeb.GameComponents do
       popovertarget={"sheet-player-#{@seat}"}
       phx-click={JS.push("open_player", value: %{seat: @seat})}
       class={[
-        "player-tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation",
+        "player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation",
         "transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97]",
         if(@you,
           do: "border-2 border-gold bg-gold/15",
@@ -2045,7 +2096,7 @@ defmodule QuacksWeb.GameComponents do
         </span>
         <.tile_brew :if={@brewing} game={@game} p={@p} seat={@seat} />
       </span>
-      <.player_state game={@game} seat={@seat} tile class="absolute -top-1.5 -right-1.5" />
+      <.player_state game={@game} seat={@seat} tile class="absolute -top-2.5 -right-1.5" />
     </button>
     """
   end
@@ -2181,7 +2232,7 @@ defmodule QuacksWeb.GameComponents do
     >
       <b
         id={"tile-space-#{@seat}-#{@index}"}
-        class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light"
+        class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label"
         title="Pot space (coins)"
         data-role="player-space"
         data-index={@index}
@@ -2190,14 +2241,14 @@ defmodule QuacksWeb.GameComponents do
       </b>
       <span
         class={[
-          "flex items-center gap-px text-num leading-none tracking-tight text-gold",
+          "flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label",
           @p.vp >= 100 && "max-sm:text-label"
         ]}
         title="VP"
         data-role="player-vp"
       >
         <.piece_icon name={:vp} class="size-3 shrink-0 text-gold" /><span
-          class="min-w-[1.2em] text-right"
+          class="min-w-[1.2em] pr-px text-right"
           data-role="vp-number"
         ><.card_count
           :if={!@totals}
@@ -2423,12 +2474,12 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <span
       :if={@state == "exploded"}
-      class={["grid size-5 shrink-0 place-items-center", @class]}
+      class={["grid size-4 shrink-0 place-items-center", @class]}
       title={exploded_text(@game.players[@seat])}
       data-role="player-state"
       data-state={@state}
     >
-      <.explosion_icon class="size-5 drop-shadow-[0_0_2px_rgb(0_0_0/0.9)]" />
+      <.explosion_icon class="size-4 drop-shadow-[0_0_2px_rgb(0_0_0/0.9)]" />
       <span class="sr-only">{@state}</span>
     </span>
     <.player_state
@@ -2964,7 +3015,7 @@ defmodule QuacksWeb.GameComponents do
     ~H"""
     <div
       class={[
-        "paper flex flex-col items-center gap-0.5 rounded-full p-1 shadow-md ring-2 ring-ruby/70",
+        "paper flex flex-col items-center gap-1.5 rounded-full p-1 pb-1.5 shadow-md ring-2 ring-ruby/70",
         @class
       ]}
       role="group"
