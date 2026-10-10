@@ -162,6 +162,9 @@ defmodule Quacks.Scenarios do
     [
       entry("rule", "tube9", "Round 9: the test tube (reverse pot side)", "pot", fn opts ->
         Builders.tube9(hand("rule/tube9") ++ opts)
+      end),
+      entry("rule", "crow-chain", "Crow skull chain (blue book 1)", "chips", fn opts ->
+        Builders.crow_chain(hand("rule/crow-chain") ++ opts)
       end)
     ]
   end
@@ -194,7 +197,8 @@ defmodule Quacks.Scenarios do
       "chip/black/1" => black_book(),
       "chip/green/1" => green_book(),
       "witch/gold/g1" => gold_witch_g1(),
-      "rule/tube9" => []
+      "rule/tube9" => [],
+      "rule/crow-chain" => []
     }
   end
 

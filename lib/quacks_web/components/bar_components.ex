@@ -263,11 +263,16 @@ defmodule QuacksWeb.BarComponents do
   attr :me, Player, required: true
 
   def crow_panel(assigns) do
-    assigns = assign(assigns, chips: crow_chips(assigns), skip?: :return_all in assigns.actions)
+    assigns =
+      assign(assigns,
+        chips: crow_chips(assigns),
+        offer: crow_offer(assigns.me),
+        skip?: :return_all in assigns.actions
+      )
 
     ~H"""
     <section
-      id={"crow-panel-#{@game.round}"}
+      id={"crow-panel-#{@game.round}-#{@offer}"}
       phx-hook=".FromBag"
       class="paper hidden shrink-0 flex-col gap-3 rounded-2xl border-4 border-iron p-3 text-ink lg:flex"
       aria-label="Crow skull: place one chip in the pot, or return them all to the bag"
@@ -286,7 +291,7 @@ defmodule QuacksWeb.BarComponents do
         <span class="blue-cloth absolute inset-0 rounded-xl" aria-hidden="true" />
         <button
           :for={c <- @chips}
-          id={"crow-chip-#{@game.round}-#{c.id}"}
+          id={"crow-chip-#{@game.round}-#{@offer}-#{c.id}"}
           type="button"
           phx-click={c.action && "action"}
           phx-value-action={c.action && encode(c.action)}
@@ -314,6 +319,11 @@ defmodule QuacksWeb.BarComponents do
     </section>
     """
   end
+
+  # Round 42 (Nick: blank spaces in a chain): a crow skull placed from an offer
+  # starts a new offer. The offer's elements get new ids (the pot's chip count), so
+  # the `.FromBag` hook mounts again and no chip keeps the old offer's fade-out.
+  defp crow_offer(%Player{drawn: drawn}), do: length(drawn)
 
   # The crow skull's drawn chips, each with its action (nil: it cannot go in now).
   defp crow_chips(%{actions: actions, game: game, me: me}) do
@@ -821,11 +831,16 @@ defmodule QuacksWeb.BarComponents do
   # choice is a panel in the context column (`crow_panel/1`) and the bar keeps
   # Stop and Draw (disabled) with the white track.
   def bar_choice(%{choice: :blue_choice} = assigns) do
-    assigns = assign(assigns, chips: crow_chips(assigns), skip?: :return_all in assigns.actions)
+    assigns =
+      assign(assigns,
+        chips: crow_chips(assigns),
+        offer: crow_offer(assigns.me),
+        skip?: :return_all in assigns.actions
+      )
 
     ~H"""
     <section
-      id={"bar-blue-#{@game.round}"}
+      id={"bar-blue-#{@game.round}-#{@offer}"}
       phx-hook=".FromBag"
       phx-remove={JS.transition("bar-to-bag", time: 520)}
       class="bar-choice flex flex-col gap-1.5 lg:hidden"
@@ -877,7 +892,7 @@ defmodule QuacksWeb.BarComponents do
           />
           <button
             :for={c <- @chips}
-            id={"blue-chip-#{@game.round}-#{c.id}"}
+            id={"blue-chip-#{@game.round}-#{@offer}-#{c.id}"}
             type="button"
             phx-click={c.action && "action"}
             phx-value-action={c.action && encode(c.action)}
