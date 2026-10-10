@@ -180,17 +180,18 @@ defmodule QuacksWeb.Round36UiTest do
       {id, view} =
         chip_choice(%{purple: 5}, [{{:purple, 1}, 40}, {{:purple, 1}, 30}], :herb_witches)
 
-      sheet = "dialog#decision-purple-buy-1[data-pot] [data-role=purple-buy]"
-      assert has_element?(view, "#{sheet} [data-role=purple-buy-row] input[type=checkbox]")
-      assert has_element?(view, "#{sheet} [data-role=purple-buy-take]:disabled")
-      assert has_element?(view, "[data-role=bar-chip-actions] [data-role=purple-buy-open]")
+      # Round 39: a panel in the context area; Take is in the bar.
+      panel = "#purple-buy-panel-1[data-role=purple-buy]"
+      assert has_element?(view, "#{panel} input[type=checkbox]")
+      take = "[data-role=bar-chip-actions] [data-role=purple-buy-take]"
+      assert has_element?(view, "#{take}:disabled")
       assert has_element?(view, "[data-role=bar-chip-actions] [data-role=chip-action]", "Done")
 
       view
       |> element("#purple-buy-1")
       |> render_change(%{"chips" => [QuacksWeb.GameLive.encode({:green, 1})]})
 
-      view |> element("#{sheet} [data-role=purple-buy-take]") |> render_click()
+      view |> element(take) |> render_click()
       assert logged?(id, &match?({0, {:chip, {:buy, [{:green, 1}]}}}, &1))
     end
   end
