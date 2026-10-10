@@ -138,7 +138,7 @@ defmodule QuacksWeb.Round28TilesTest do
       assert TileReveal.news(game, 0, %{key: {:card, 1}}) == nil
 
       html =
-        render_component(&QuacksWeb.GameComponents.player_chip/1,
+        render_component(&QuacksWeb.TileComponents.player_chip/1,
           game: game,
           seat: 0,
           name: "Ann",
@@ -194,7 +194,7 @@ defmodule QuacksWeb.Round28TilesTest do
   describe "the tile" do
     defp tile(game, opts \\ []) do
       render_component(
-        &QuacksWeb.GameComponents.player_chip/1,
+        &QuacksWeb.TileComponents.player_chip/1,
         [game: game, seat: 1, name: "Wilhelmina"] ++ opts
       )
       |> LazyHTML.from_fragment()

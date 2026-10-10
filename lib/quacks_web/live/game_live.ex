@@ -67,7 +67,7 @@ defmodule QuacksWeb.GameLive do
   until the step resolves, and a stopped player has no Resume.
 
   While everyone brews or shops at the same time, each player chip shows what that
-  seat does now (`GameComponents.seat_state/2`), and a player who has finished sees
+  seat does now (`TileComponents.seat_state/2`), and a player who has finished sees
   who they wait for. A stopped player's Stop button becomes Resume.
 
   With The Herb Witches the page also shows the 3 witches (a sheet on phones, the
@@ -103,6 +103,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.ChipComponents
   import QuacksWeb.GameText
   import QuacksWeb.PotComponents
+  import QuacksWeb.TileComponents
   import QuacksWeb.TrackComponents
   import QuacksWeb.CardRevealComponents
 

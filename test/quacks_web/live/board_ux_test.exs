@@ -5,7 +5,7 @@ defmodule QuacksWeb.BoardUxTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, PotComponents}
+  alias QuacksWeb.{PotComponents, TileComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -64,12 +64,12 @@ defmodule QuacksWeb.BoardUxTest do
     game = put_in(game.players[1].exploded?, true)
 
     html =
-      render_component(&GameComponents.player_card/1, game: game, seat: 1, name: "Bob")
+      render_component(&TileComponents.player_card/1, game: game, seat: 1, name: "Bob")
 
     assert count(html, "[data-role=exploded-badge]") == 1
     assert count(html, ~s(svg[data-exploded="true"] [data-role=cracked-rim])) == 1
 
-    html = render_component(&GameComponents.player_chip/1, game: game, seat: 1, name: "Bob")
+    html = render_component(&TileComponents.player_chip/1, game: game, seat: 1, name: "Bob")
     assert count(html, "[data-role=player-state][data-state=exploded]") == 1
 
     html = render_component(&PotComponents.pot/1, game: game, seat: 0)

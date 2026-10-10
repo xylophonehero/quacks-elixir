@@ -8,7 +8,7 @@ defmodule QuacksWeb.ReplayTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, PotComponents, Replay}
+  alias QuacksWeb.{PotComponents, Replay, TileComponents}
 
   # Newest first, like the engine: die → black → green → purple → scoring space.
   @log [
@@ -125,7 +125,7 @@ defmodule QuacksWeb.ReplayTest do
     game = game()
 
     html =
-      render_component(&GameComponents.player_chip/1,
+      render_component(&TileComponents.player_chip/1,
         game: game,
         seat: 0,
         name: "Ann",
@@ -138,7 +138,7 @@ defmodule QuacksWeb.ReplayTest do
     assert has?(html, ".stat-tick")
 
     html =
-      render_component(&GameComponents.player_chip/1,
+      render_component(&TileComponents.player_chip/1,
         game: game,
         seat: 0,
         name: "Ann",
@@ -149,7 +149,7 @@ defmodule QuacksWeb.ReplayTest do
   end
 
   test "the player sheet lists the result lines with the die face and the totals" do
-    html = render_component(&GameComponents.result_lines/1, game: game(), seat: 0)
+    html = render_component(&TileComponents.result_lines/1, game: game(), seat: 0)
     assert length(query(html, "[data-role=result-line]") |> Enum.to_list()) == 6
 
     assert has?(

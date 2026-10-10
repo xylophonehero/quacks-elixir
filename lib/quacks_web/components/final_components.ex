@@ -9,7 +9,7 @@ defmodule QuacksWeb.FinalComponents do
 
   import QuacksWeb.CoreComponents, only: [button: 1, icon: 1]
   import QuacksWeb.Icons, only: [piece_icon: 1]
-  import QuacksWeb.GameComponents, only: [bot_badge: 1]
+  import QuacksWeb.TileComponents, only: [bot_badge: 1]
   import QuacksWeb.ChipComponents, only: [seat_bg: 1]
 
   alias Phoenix.LiveView.JS

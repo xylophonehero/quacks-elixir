@@ -2,7 +2,7 @@ defmodule QuacksWeb.TileRevealComponents do
   @moduledoc """
   The evaluation on the player tiles (`QuacksWeb.TileReveal`; round 27, the phone
   default since round 28). `tile_news/1` fills a tile's bottom line while a step
-  plays and after a buy in the shop (`GameComponents.player_chip/1` swaps the line
+  plays and after a buy in the shop (`TileComponents.player_chip/1` swaps the line
   to the news and back, app.css `.tile-line`). `tile_stage/1` names the step,
   with Skip and Next (Step mode), in the bar where Stop and Draw sit (round 29). Nothing hangs
   outside a tile, so neither the tiles nor the pot move.
@@ -19,7 +19,7 @@ defmodule QuacksWeb.TileRevealComponents do
   attr :items, :list, required: true, doc: "`QuacksWeb.TileReveal.news/3`'s items"
 
   @doc """
-  Round 28 (R2): the news on a tile's bottom line (`GameComponents.player_chip/1`
+  Round 28 (R2): the news on a tile's bottom line (`TileComponents.player_chip/1`
   draws the line and swaps it): die faces, a book's ingredient and its rewards,
   the space's VP and ruby, the chips bought and the droplet pushes in the shop.
   """

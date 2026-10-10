@@ -9,7 +9,7 @@ defmodule QuacksWeb.R10UiTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, PotComponents}
+  alias QuacksWeb.{GameComponents, PotComponents, TileComponents}
 
   defp query(html, selector),
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
@@ -82,7 +82,7 @@ defmodule QuacksWeb.R10UiTest do
       game = Game.new(seed: {1, 2, 3}, players: 2)
       game = put_in(game.players[1].rubies, 3)
       game = put_in(game.players[1].flask, false)
-      html = render_component(&GameComponents.player_chip/1, game: game, seat: 1, name: "Bob")
+      html = render_component(&TileComponents.player_chip/1, game: game, seat: 1, name: "Bob")
 
       assert count(html, "[data-role=player-chip] [data-role=player-vp]") == 1
       assert html |> query("[data-role=player-rubies]") |> LazyHTML.text() =~ "3"
@@ -98,7 +98,7 @@ defmodule QuacksWeb.R10UiTest do
       game = put_in(game.players[1].rat_stone, 4)
       game = put_in(game.players[1].essence, 2)
       game = put_in(game.players[1].tube, 5)
-      html = render_component(&GameComponents.player_chip/1, game: game, seat: 1, name: "Bob")
+      html = render_component(&TileComponents.player_chip/1, game: game, seat: 1, name: "Bob")
 
       assert html |> query("[data-role=player-rats]") |> LazyHTML.text() =~ "4"
       assert html |> query("[data-role=player-essence]") |> LazyHTML.text() =~ "2"

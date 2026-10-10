@@ -12,7 +12,7 @@ defmodule QuacksWeb.Round36UiTest do
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
 
-  doctest QuacksWeb.GameComponents, import: true, only: [loop_start: 3]
+  doctest QuacksWeb.TileComponents, import: true, only: [loop_start: 3]
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 

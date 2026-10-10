@@ -11,7 +11,7 @@ defmodule QuacksWeb.Round30BarTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.PotTrack
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.{GameComponents, TileComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -102,11 +102,11 @@ defmodule QuacksWeb.Round30BarTest do
 
     test "the tile's pot space and VP and the ruby badge reserve two digits" do
       g = game_with_ruby(false)
-      tile = render_component(&GameComponents.player_chip/1, game: g, seat: 0, name: "A")
+      tile = render_component(&TileComponents.player_chip/1, game: g, seat: 0, name: "A")
       assert tile =~ ~r/class="tile-space min-w-\[1.2em\]/
       assert tile =~ ~r/class="min-w-\[1.2em\] pr-px text-right"\s+data-role="vp-number"/
 
-      badge = render_component(&GameComponents.ruby_badge/1, rubies: 3)
+      badge = render_component(&TileComponents.ruby_badge/1, rubies: 3)
       assert badge =~ "min-w-[1.2em]"
     end
   end
@@ -118,7 +118,7 @@ defmodule QuacksWeb.Round30BarTest do
       assert bar =~ ~r/class="text-ruby size-5"[^>]*data-icon="explosion"/
 
       g = Quacks.GameHelpers.put(g, exploded?: true)
-      tile = render_component(&GameComponents.player_chip/1, game: g, seat: 0, name: "A")
+      tile = render_component(&TileComponents.player_chip/1, game: g, seat: 0, name: "A")
 
       assert tile =~
                ~r/data-state="exploded".*class="text-ruby size-4[^"]*"[^>]*data-icon="explosion"/s

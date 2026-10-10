@@ -11,7 +11,7 @@ defmodule QuacksWeb.Layout1Test do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{GameComponents, GameLive, PotComponents}
+  alias QuacksWeb.{GameLive, PotComponents, TileComponents}
 
   defp query(html, selector), do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
   defp count(html, selector), do: html |> query(selector) |> Enum.count()
@@ -21,7 +21,7 @@ defmodule QuacksWeb.Layout1Test do
 
   defp card(game, seat, opts \\ []) do
     render_component(
-      &GameComponents.player_chip/1,
+      &TileComponents.player_chip/1,
       [game: game, seat: seat, name: Keyword.get(opts, :name, "Lavinia")] ++ opts
     )
   end

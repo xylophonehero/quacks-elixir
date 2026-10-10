@@ -134,7 +134,7 @@ defmodule QuacksWeb.Round29TilesTest do
       g = brewing_game()
 
       html =
-        render_component(&QuacksWeb.GameComponents.player_chip/1,
+        render_component(&QuacksWeb.TileComponents.player_chip/1,
           game: g,
           seat: 1,
           name: "Wilhelmina",

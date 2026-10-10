@@ -10,7 +10,7 @@ defmodule QuacksWeb.ScoringTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{ChipComponents, GameComponents, PotComponents, Replay}
+  alias QuacksWeb.{ChipComponents, PotComponents, Replay, TileComponents}
 
   # Newest first, like the engine: die → black → green → purple → scoring space.
   @log [
@@ -92,14 +92,14 @@ defmodule QuacksWeb.ScoringTest do
            )
 
     html =
-      render_component(&GameComponents.ruby_badge/1,
+      render_component(&TileComponents.ruby_badge/1,
         rubies: game.players[0].rubies,
         beats: %{rubies: 5}
       )
 
     assert has?(html, ~s(#stat-rubies[data-beat="5"]))
 
-    html = render_component(&GameComponents.ruby_badge/1, rubies: game.players[0].rubies)
+    html = render_component(&TileComponents.ruby_badge/1, rubies: game.players[0].rubies)
     refute has?(html, ".stat-tick[data-beat]")
   end
 

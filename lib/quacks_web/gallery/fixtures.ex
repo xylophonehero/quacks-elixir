@@ -59,7 +59,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
         "tiles",
         "Player tiles",
         150,
-        "GameComponents.player_chip/1 in the players row",
+        "TileComponents.player_chip/1 in the players row",
         tile_variants()
       ),
       component(
