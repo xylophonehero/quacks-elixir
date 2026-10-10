@@ -238,6 +238,7 @@ const PotMotion = {
     this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
     this.rats = [...this.el.querySelectorAll("[data-role=rat]")]
     this.full = !!this.el.querySelector("[data-role=flask-brew]")
+    this.oldMarks = this.marks().map(m => ({copy: m.cloneNode(), index: m.closest("[data-space]").dataset.space}))
     this.round = this.el.dataset.round
     this.bagged = !!this.el.dataset.bagged
     if (this.bagged) bagRound = this.round
@@ -283,30 +284,31 @@ const PotMotion = {
       {transform: at(p, p, 0.96), opacity: 1, offset: 0.9, easing: easing("--ease-spring")},
       {transform: at(p, p, 1), opacity: 1},
     ], {duration: 460, easing: "linear"}).finished.catch(() => {}).finally(() => { g.remove(); hide.cancel() })
-    if (s0 !== 1) this.scoringPulse(460)
+    if (s0 !== 1) this.scoringMove(460)
   },
-  // Round 36: the new scoring space (the gold space and this seat's ring) waits
-  // for the chip to land (`after` ms), then pops and sends out one ring, 600 ms.
-  // Only after a draw's flight, so reduced motion has no pulse.
-  scoringPulse(after) {
-    const seat = this.el.id.split("-")[1]
-    const marks = [...this.el.querySelectorAll(`[data-role=next-space], [data-role=scoring-ring][data-seat="${seat}"]`)]
-    if (marks.length === 0) return
-    marks.forEach(m => {
-      m.getAnimations().forEach(a => a.cancel())
-      m.animate([{opacity: 0}, {opacity: 0}], {duration: after})
-      m.animate([{scale: 0.6, opacity: 0}, {scale: 1.25, opacity: 1, offset: 0.45}, {scale: 1, opacity: 1}],
-        {duration: 600, delay: after, easing: easing("--ease-out"), fill: "backwards"})
+  // Round 37 (replaces round 36's pulse): this seat's scoring marks (the gold
+  // space and its ring). At the draw the old ones shrink a little and fade out
+  // (ghost copies on their old space); when the chip has landed (`after` ms) the
+  // new ones grow by the same amount as they fade in. Only after a draw's flight,
+  // so reduced motion has none.
+  marks() {
+    return [...this.el.querySelectorAll(`[data-role=next-space], [data-role=scoring-ring][data-seat="${this.el.id.split("-")[1]}"]`)]
+  },
+  scoringMove(after) {
+    const ease = easing("--ease-out"), now = this.marks()
+    const here = now[0]?.closest("[data-space]").dataset.space
+    this.oldMarks.forEach(({copy, index}) => {
+      if (index === here) return
+      copy.removeAttribute("data-role")
+      const g = this.top(copy, this.pos(index))
+      copy.animate([{scale: 1, opacity: 1}, {scale: 0.85, opacity: 0}], {duration: 220, easing: ease, fill: "forwards"})
+        .finished.catch(() => {}).finally(() => g.remove())
     })
-    const ring = marks.find(m => m.matches("[data-role=scoring-ring]"))
-    if (!ring) return
-    const ping = ring.cloneNode()
-    ping.removeAttribute("data-role")
-    ping.setAttribute("aria-hidden", "true")
-    ring.after(ping)
-    ping.animate([{scale: 1, opacity: 0.9}, {scale: 1.7, opacity: 0}],
-      {duration: 600, delay: after + 120, easing: easing("--ease-out"), fill: "both"})
-      .finished.catch(() => {}).finally(() => ping.remove())
+    now.forEach(m => {
+      m.getAnimations().forEach(a => a.cancel())
+      m.animate([{scale: 0.85, opacity: 0}, {scale: 1, opacity: 1}],
+        {duration: 280, delay: after, easing: ease, fill: "backwards"})
+    })
   },
   // `el` at space `p` in the top `pot-fx` layer: SVG paints in DOM order, so a
   // flight there passes over the later spaces.
