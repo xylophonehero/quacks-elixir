@@ -6,10 +6,8 @@ defmodule QuacksWeb.MessagesTest do
   import Phoenix.LiveViewTest
   import QuacksWeb.LiveHelpers
   alias Quacks.GameServer
-  alias Quacks.GameServer
+  alias QuacksWeb.GameText
   alias QuacksWeb.PanelComponents
-  alias QuacksWeb.{GameText, PanelComponents}
-  alias QuacksWeb.{GameText, PanelComponents}
 
   # The game process stops, as after a crash or the idle timeout.
 

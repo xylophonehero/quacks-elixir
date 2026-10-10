@@ -7,15 +7,12 @@ defmodule QuacksWeb.VisualDetailsTest do
   import Quacks.GameHelpers, only: [replace_game: 2]
   import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
+  alias Quacks.Game
+  alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias Quacks.{Game, GameHelpers, GameServer}
-  alias Quacks.{Game, GameServer}
-  alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{AlchemistsComponents, PanelComponents}
-  alias QuacksWeb.{AlchemistsComponents, PanelComponents}
+  alias QuacksWeb.AlchemistsComponents
   alias QuacksWeb.CoreComponents
-  alias QuacksWeb.PanelComponents
   alias QuacksWeb.PanelComponents
 
   defp game(id) do

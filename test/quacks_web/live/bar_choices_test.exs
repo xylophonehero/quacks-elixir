@@ -8,9 +8,9 @@ defmodule QuacksWeb.BarChoicesTest do
   import QuacksWeb.LiveHelpers
   import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
+  alias Quacks.Game
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias Quacks.{Game, GameServer}
   alias QuacksWeb.BarComponents
 
   defp solo(rules) do

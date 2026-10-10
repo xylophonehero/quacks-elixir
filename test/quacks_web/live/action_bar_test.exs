@@ -9,19 +9,15 @@ defmodule QuacksWeb.ActionBarTest do
   import QuacksWeb.LiveHelpers
   import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
+  alias Quacks.Game
   alias Quacks.Game.Potions
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
+  alias Quacks.Player
   alias Quacks.Rules.PotTrack
-  alias Quacks.Rules.PotTrack
-  alias Quacks.{Game, GameServer, Player}
-  alias Quacks.{Game, GameServer}
-  alias QuacksWeb.ActionCode
-  alias QuacksWeb.{ActionCode, BarComponents}
   alias QuacksWeb.ActionCode
   alias QuacksWeb.BarComponents
-  alias QuacksWeb.BarComponents
-  alias QuacksWeb.{BarComponents, TileComponents}
+  alias QuacksWeb.TileComponents
 
   defp solo(rules \\ %{fortune: false}) do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, rules)

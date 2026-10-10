@@ -6,8 +6,10 @@ defmodule QuacksWeb.ResultsSlidesTest do
   import Phoenix.LiveViewTest
   alias Quacks.Game
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{PanelComponents, TileComponents}
-  alias QuacksWeb.{Reveal, RevealComponents}
+  alias QuacksWeb.PanelComponents
+  alias QuacksWeb.Reveal
+  alias QuacksWeb.RevealComponents
+  alias QuacksWeb.TileComponents
 
   # Newest first. Seat 0: die, green, purple, the scoring space and a card; seat 1:
   # its scoring VP.

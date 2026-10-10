@@ -5,10 +5,11 @@ defmodule QuacksWeb.ResultsOnTilesTest do
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import QuacksWeb.LiveHelpers, except: [text: 2]
+  alias Quacks.Game
   alias Quacks.Game.Potions
-  alias Quacks.{Game, GameServer}
+  alias Quacks.GameServer
+  alias QuacksWeb.Reveal
   alias QuacksWeb.TileReveal
-  alias QuacksWeb.{Reveal, TileReveal}
 
   # Two seats brew to the shop: each stops (or answers what it must).
   defp to_shop(id) do

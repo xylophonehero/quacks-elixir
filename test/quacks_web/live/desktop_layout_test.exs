@@ -8,7 +8,8 @@ defmodule QuacksWeb.DesktopLayoutTest do
   import QuacksWeb.LiveHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias Quacks.Rules.{Books, Fortune}
+  alias Quacks.Rules.Books
+  alias Quacks.Rules.Fortune
 
   defp start(name, opts \\ %{}) do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, opts)
