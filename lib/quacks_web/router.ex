@@ -49,4 +49,16 @@ defmodule QuacksWeb.Router do
       live_dashboard "/dashboard", metrics: QuacksWeb.Telemetry
     end
   end
+
+  # The component gallery (`QuacksWeb.GalleryLive`), beside the dev routes: each
+  # component in its edge cases, in frames at real viewport widths. On in dev and
+  # test only (`gallery_routes`; test keeps `dev_routes` off for `/debug/replay`).
+  if Application.compile_env(:quacks, :gallery_routes) do
+    scope "/dev", QuacksWeb do
+      pipe_through :browser
+
+      live "/gallery", GalleryLive
+      live "/gallery/:component/:variant", GalleryFrameLive
+    end
+  end
 end

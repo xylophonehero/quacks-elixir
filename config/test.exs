@@ -34,3 +34,6 @@ config :quacks, :debug_token, nil
 # The standings slide's settle tick (round 18): tests send it themselves.
 config :quacks, reveal_settle_ms: 60_000
 config :quacks, show_move_ms: 0
+
+# The component gallery's routes (dev only otherwise), so its test runs.
+config :quacks, gallery_routes: true
