@@ -1,19 +1,22 @@
 defmodule QuacksWeb.ShopTest do
   @moduledoc """
-  The shop: Ghost's breath V's chips in the context area, every seat's scoring ring, another seat's buy, Flea Market, the black book and the shop tiles.
+  The shop: the sticky footer, prices and locks, the tiles from 64rem, the chips you own, a buy that ends the shop, round 9 without a shop, Ghost's breath V's chips, every seat's scoring ring, another seat's buy, Flea Market, the black book and the status line.
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
   import QuacksWeb.LiveHelpers
+  import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
+  alias Quacks.Game
+  alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
+  alias Quacks.Player
   alias Quacks.Rules.Chips
-  alias Quacks.{Game, GameHelpers, GameServer}
-  alias Quacks.{Game, GameServer}
+  alias QuacksWeb.ActionCode
   alias QuacksWeb.PanelComponents
-  alias QuacksWeb.{ActionCode, ShopComponents}
+  alias QuacksWeb.ShopComponents
 
   @panel "#purple-buy-panel-1[data-role=purple-buy]"
   @bar "[data-role=bar-chip-actions]"
@@ -361,5 +364,286 @@ defmodule QuacksWeb.ShopTest do
              game: game,
              offer: [:stop]
            ) == ""
+  end
+
+  # Play seat 0 of a solo game to the shop, with 30 coins to spend.
+  defp to_shop_2(id) do
+    Enum.find_value(1..60, fn _ ->
+      game = game(id)
+      actions = Game.legal_actions(game, 0)
+
+      if game.phase == :shopping do
+        GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, coins: 30))
+      else
+        action =
+          Enum.find([:stop, :chip_done, {:explosion_choice, :buy}], hd(actions), &(&1 in actions))
+
+        {:ok, _} = GameServer.apply(id, 0, action)
+        nil
+      end
+    end)
+  end
+
+  defp shop_view do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+    view = open(browser("shopper"), id)
+    to_shop_2(id)
+    render(view)
+    view
+  end
+
+  defp game(id) do
+    {:ok, %{game: game}} = GameServer.get(id)
+    game
+  end
+
+  describe "shop" do
+    test "a sticky footer holds the purse, Done and the buy with its count and price" do
+      view = shop_view()
+      footer = "#decision-shop [data-role=shop-footer].sticky"
+
+      assert has_element?(view, "#{footer} [data-role=shop-total] .book-coin")
+
+      assert has_element?(
+               view,
+               ~s(#{footer} [data-role=shop-total][aria-label="30 coins, 30 left after this buy"])
+             )
+
+      # Round 35: no Skip; Buy waits for a chip.
+      refute has_element?(view, "#{footer} [data-role=shop-done]")
+      assert has_element?(view, "#{footer} [data-role=shop-buy]:disabled")
+
+      render_change(view, "select", %{"chips" => [ActionCode.encode({:orange, 1})]})
+
+      assert has_element?(
+               view,
+               "#{footer} button[data-role=shop-buy]:not(:disabled)",
+               "Buy 1 · 3 coins"
+             )
+
+      chips = Enum.map([{:orange, 1}, {:blue, 1}], &ActionCode.encode/1)
+      render_change(view, "select", %{"chips" => chips})
+      assert has_element?(view, "#{footer} button[data-role=shop-buy]", "Buy 2 · 8 coins")
+
+      assert has_element?(
+               view,
+               ~s(#{footer} [data-role=shop-total][aria-label="30 coins, 22 left after this buy"])
+             )
+    end
+
+    test "prices show a coin glyph; colours not for sale yet carry a lock" do
+      view = shop_view()
+      html = render(view)
+
+      assert has_element?(view, "#shop [data-role=price] .book-coin")
+      refute render(view) =~ ~r/\d+c\s*</
+      # round 1: yellow (from round 2) and purple (from round 3) are locked
+      assert count(html, "#shop label.shop-locked") ==
+               length(Enum.filter(Chips.shop(), &(elem(&1, 0) in [:yellow, :purple])))
+
+      assert count(html, "#shop label.shop-locked [data-role=tile-lock]") ==
+               count(html, "#shop label.shop-locked")
+
+      refute has_element?(view, "#shop label.shop-locked input:not(:disabled)")
+    end
+  end
+
+  # Play seat 0 of a solo game to the shop, with 30 coins to spend.
+
+  defp shop_view_2 do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+    {:ok, view, _html} = live(browser("shopper-#{id}"), ~p"/g/#{id}")
+    to_shop_2(id)
+    render(view)
+    view
+  end
+
+  describe "shop (2)" do
+    test "no Ingredient books line; each row has a label with the ingredient and its book" do
+      view = shop_view_2()
+      html = render(view)
+
+      refute has_element?(view, "#decision-shop [data-role=books]")
+      refute html |> query("#decision-shop") |> LazyHTML.text() =~ "Ingredient books:"
+
+      assert count(html, "#shop [data-role=shop-row-label]") ==
+               count(html, "#shop [data-role=shop-row]")
+
+      assert has_element?(view, "#shop [data-role=shop-row-label]", "Garden spider")
+      assert has_element?(view, "#shop [data-role=shop-row-label]", "book I")
+    end
+  end
+
+  defp solo_2 do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+    {id, open(browser(token("solo")), id)}
+  end
+
+  defp duo do
+    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+    alice = open(browser(token("alice")), id)
+    bob = open(browser(token("bob")), id)
+    alice |> element("button", "Start game") |> render_click()
+    {id, alice, bob}
+  end
+
+  test "from 64rem a shop tile is chip, value and price; the price never shrinks" do
+    {id, view} = solo_2()
+    replace_game(id, &H.put(&1, 0, phase: :shop, coins: 30))
+
+    assert has_element?(
+             view,
+             "#shop label [data-role=tile-name].sr-only.sm\\:not-sr-only.lg\\:sr-only"
+           )
+
+    refute has_element?(view, "#shop [data-role=tile-name].xl\\:sr-only")
+    assert has_element?(view, "#shop label.min-w-0 [data-role=price].shrink-0")
+  end
+
+  describe "round 9 has no shop" do
+    test "the pill, the line and the back button speak of the final scoring" do
+      {id, alice, _bob} = duo()
+
+      replace_game(id, fn g ->
+        g |> H.put(0, round: 9, phase: :shop, coins: 0, rubies: 3) |> H.put(1, rubies: 0)
+      end)
+
+      html = render(alice)
+      assert html =~ "Final scoring"
+      refute html =~ "Everyone shops"
+      render_hook(alice, "seen", %{"kind" => "results", "round" => 9})
+      refute has_element?(alice, "[data-role=turn]")
+      # Round 31: no rubies step in round 9 (they turn into VP by themselves).
+      refute has_element?(alice, "[data-role=decision-button]")
+      refute has_element?(alice, "#bar-rubies")
+    end
+
+    test "brewing names the VP, not coins; the explosion's coins say they become VP" do
+      {id, view} = solo_2()
+      replace_game(id, &H.put(&1, 0, round: 9))
+      skip_results(view)
+      refute has_element?(view, "[data-role=next-reward]", "coin")
+      assert has_element?(view, "[data-role=next-reward]", "VP")
+
+      replace_game(id, &H.put(&1, 0, phase: :explosion_choice, exploded?: true))
+      assert has_element?(view, "[data-role=bar-explosion] button", "Turn into VP at the end")
+      refute has_element?(view, "[data-role=bar-explosion] button", "Shop")
+    end
+  end
+
+  describe "the shop status line" do
+    setup do
+      {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+      alice = open(browser(token("alice")), id)
+      bob = open(browser(token("bob")), id)
+      alice |> element("button", "Start game") |> render_click()
+
+      # Alice exploded and took the VP: she keeps her rubies to spend, but no buy.
+      replace_game(id, fn g ->
+        g
+        |> H.put(0, explosion_choice: :vp, coins: 0, rubies: 3)
+        |> H.put(1, coins: 20)
+        |> Quacks.Game.to_shop()
+      end)
+
+      %{alice: alice, bob: bob}
+    end
+
+    test "a seat with no buy waits for the others", %{alice: alice, bob: bob} do
+      refute has_element?(alice, "[data-role=turn]")
+      refute has_element?(bob, "[data-role=turn]")
+    end
+  end
+
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+
+  # Seed 10,11,12 draws white 2, 3, 1: stop there for a shop with 7 coins.
+  defp to_shop_3(view) do
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
+    view |> element("button", "Stop") |> render_click()
+    skip_results(view)
+    view
+  end
+
+  # The rest of `to_shop_3/1` after one draw, then "Done" (round over).
+
+  defp buy_orange(view) do
+    view
+    |> element("#shop")
+    |> render_change(%{"chips" => [ActionCode.encode({:orange, 1})]})
+
+    view |> element("button[data-role=shop-buy]") |> render_click()
+    view
+  end
+
+  test "the shop shows every chip you own, as counts" do
+    {:ok, id} = GameServer.start(1, {10, 11, 12})
+    view = browser("solo") |> open(id) |> to_shop_3()
+
+    {:ok, %{game: game}} = GameServer.get(id)
+    me = game.players[0]
+    # the pot, the bag and any chip the round gave (the bonus die)
+    owned = length(Player.pot_chips(me) ++ me.bag)
+    assert owned >= 9
+    assert has_element?(view, "#decision-shop [data-role=shop-bag]", "Your chips: #{owned}")
+    assert has_element?(view, "#decision-shop [data-role=shop-bag] [aria-label='white 1']")
+    assert has_element?(view, "#decision-shop [data-role=shop-bag] [data-role=chip-count]", "×4")
+  end
+
+  test "a buy ends the shop when no ruby can be spent; otherwise the rubies step opens" do
+    {:ok, id} = GameServer.start(1, {10, 11, 12})
+    view = browser("solo") |> open(id) |> to_shop_3() |> buy_orange()
+    assert has_element?(view, "li", "— Round 1 over —")
+
+    {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, %{starting_rubies: 3})
+    view = browser("rich") |> open(id) |> to_shop_3()
+    # the round results were closed (their close sends "seen")
+    render_hook(view, "seen", %{"kind" => "results", "round" => 1})
+    view = buy_orange(view)
+
+    refute has_element?(view, "#decision-shop")
+    # Round 29: the rubies step is in the bar.
+    refute has_element?(view, "dialog#decision-rubies")
+    assert has_element?(view, "#bar-rubies button[data-ruby=droplet]", "Droplet +1")
+    refute has_element?(view, "li", "— Round 1 over —")
+
+    view |> element("#bar-rubies [data-role=rubies-skip]", "Skip") |> render_click()
+    assert has_element?(view, "li", "— Round 1 over —")
+  end
+
+  # A 2-player game without fortune cards, started by alice.
+  defp duo_3(seed \\ {1, 2, 3}, rules \\ %{fortune: false}) do
+    {:ok, id} = GameServer.start(2, seed, %{}, rules)
+    alice = open(browser("alice"), id)
+    bob = open(browser("bob"), id)
+    alice |> element("button", "Start game") |> render_click()
+    {id, alice, bob}
+  end
+
+  test "the shop: Done, no Buy nothing, no rubies; round 9 turns rubies into VP by itself" do
+    {id, alice, _bob} = duo_3()
+    replace_game(id, &H.put(&1, 0, phase: :shop, rubies: 3, coins: 30))
+
+    assert has_element?(alice, "dialog#decision-shop #shop")
+    assert has_element?(alice, "dialog#decision-shop [data-role=shop-bag]")
+    # Round 35: no Skip in the shop; Buy waits for a chip.
+    assert has_element?(alice, "dialog#decision-shop [data-role=shop-buy]:disabled", "Buy")
+    refute has_element?(alice, "dialog#decision-shop [data-role=shop-done]")
+    refute has_element?(alice, "button", "Buy nothing")
+    refute has_element?(alice, "dialog#decision-shop [data-role=shop-rubies]")
+
+    replace_game(id, &(&1 |> H.put(round: 9) |> H.put(0, rubies: 3)))
+    refute has_element?(alice, "dialog#decision-shop")
+    assert has_element?(alice, "#tile-stage")
+    # Round 31: no rubies step in round 9: the rubies turn into VP by themselves
+    # once the evaluation was seen.
+    refute has_element?(alice, "#bar-rubies")
+    {:ok, %{game: before}} = GameServer.get(id)
+    vp = before.players[0].vp
+    render_hook(alice, "reveal_close", %{})
+    {:ok, %{game: game}} = GameServer.get(id)
+    assert %{rubies: 1, vp: new_vp} = game.players[0]
+    # 30 coins: 6 VP; 3 rubies: 1 VP, 1 ruby kept.
+    assert new_vp == vp + 7
   end
 end
