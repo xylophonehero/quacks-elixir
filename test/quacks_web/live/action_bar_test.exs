@@ -1,19 +1,26 @@
 defmodule QuacksWeb.ActionBarTest do
   @moduledoc """
-  The bottom bar: Stop and Draw, hotkeys, the reward line, the waiting state, the choices in the bar, Continue and the chips of a choice as controls.
+  The bottom bar: Stop and Draw, the fuse meter, hotkeys, the reward line, the waiting state, the choices in the bar, the free droplet move, Continue, round 9's Stir! and the chips of a choice as controls.
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.Component, only: [sigil_H: 2]
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
   import QuacksWeb.LiveHelpers
+  import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
+  alias Quacks.Game.Potions
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
   alias Quacks.Rules.PotTrack
+  alias Quacks.Rules.PotTrack
+  alias Quacks.{Game, GameServer, Player}
   alias Quacks.{Game, GameServer}
   alias QuacksWeb.ActionCode
   alias QuacksWeb.{ActionCode, BarComponents}
+  alias QuacksWeb.ActionCode
+  alias QuacksWeb.BarComponents
+  alias QuacksWeb.BarComponents
   alias QuacksWeb.{BarComponents, TileComponents}
 
   defp solo(rules \\ %{fortune: false}) do
@@ -63,7 +70,7 @@ defmodule QuacksWeb.ActionBarTest do
       assert css =~ ~s{"books pot bar";}
     end
 
-    test "the tiles have a fixed height: no update chips (round 12, round 27)" do
+    test "the tiles have a fixed height: no update chips" do
       {_id, view} = solo()
       assert has_element?(view, "#players-row [data-role=player-chip].h-\\[3\\.25rem\\]")
 
@@ -202,7 +209,7 @@ defmodule QuacksWeb.ActionBarTest do
     end
   end
 
-  test "D2/D3: the bonus dice of the table roll one after the other, then the books" do
+  test "the bonus dice of the table roll one after the other, then the books" do
     {id, _alice, _bob} = duo()
 
     game =
@@ -682,7 +689,7 @@ defmodule QuacksWeb.ActionBarTest do
   end
 
   describe "the choices in two rows" do
-    test "Choices, Choices: one row of chips (round 35), no scroll" do
+    test "Choices, Choices: one row of chips, no scroll" do
       {id, view} = solo_4(%{})
 
       replace_game(id, fn g ->
@@ -816,7 +823,7 @@ defmodule QuacksWeb.ActionBarTest do
       assert has_element?(view, "#{bar} button[aria-label^='Mandrake: keep']", "Keep")
     end
 
-    test "the crow skull: chips in the bar (round 35: the white track stays)" do
+    test "the crow skull: chips in the bar" do
       {id, view} = solo_4(%{})
       replace_game(id, &H.put(&1, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
 
@@ -923,5 +930,245 @@ defmodule QuacksWeb.ActionBarTest do
     end
 
     refute has_element?(view, "dialog#decision-red_choice")
+  end
+
+  defp solo_2(seed) do
+    {:ok, id} = GameServer.start(1, seed)
+    {:ok, view, _html} = live(browser("solo"), ~p"/g/#{id}")
+    {id, view}
+  end
+
+  defp game(id) do
+    {:ok, %{game: game}} = GameServer.get(id)
+    game
+  end
+
+  # Draw until the explosion choice opens (the starting bag holds 14 white points).
+  defp explode(view) do
+    exploded? =
+      Enum.reduce_while(1..20, false, fn _, _ ->
+        if has_element?(view, "[data-role=bar-explosion]") do
+          {:halt, true}
+        else
+          view |> element("button[data-slot=draw]") |> render_click()
+          {:cont, false}
+        end
+      end)
+
+    assert exploded?
+  end
+
+  defp whites(sum), do: for(i <- 1..sum, do: {{:white, 1}, i})
+
+  defp fuse_level(game) do
+    html = render_component(&BarComponents.fuse_meter/1, game: game, seat: 0)
+
+    [level] =
+      html
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("#fuse-meter")
+      |> LazyHTML.attribute("data-level")
+
+    level
+  end
+
+  test "the fuse meter shows the white total, one notch per point up to the limit" do
+    {id, view} = solo_2({1, 2, 3})
+    assert has_element?(view, ~s(#fuse-meter[data-white="0"][data-limit="7"]), "White 0 / 7")
+
+    view |> element("button[data-slot=draw]") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
+
+    game = game(id)
+    white = Game.white_sum(game, 0)
+    limit = Potions.explode_above(game, 0)
+    html = render(view)
+
+    assert has_element?(view, ~s(#fuse-meter[data-white="#{white}"]), "White #{white} / #{limit}")
+    assert count(html, "#fuse-meter .fuse-notch") == limit
+    assert count(html, ~s(#fuse-meter .fuse-notch[data-lit="true"])) == min(white, limit)
+  end
+
+  test "the fuse turns amber one point before the limit and red at it" do
+    game = Game.new(seed: {1, 2, 3})
+    level = fn white -> fuse_level(put_in(game.players[0].drawn, whites(white))) end
+
+    assert level.(5) == "safe"
+    assert level.(6) == "warn"
+    assert level.(7) == "danger"
+    assert fuse_level(put_in(game.players[0].exploded?, true)) == "danger"
+  end
+
+  test "the bar shows what the next space pays" do
+    {id, view} = solo_2({1, 2, 3})
+    space = PotTrack.at(Game.scoring_index(game(id), 0))
+    coins = if space.coins == 1, do: "1 coin", else: "#{space.coins} coins"
+
+    assert has_element?(
+             view,
+             "[data-role=reward-line] [data-role=next-reward]",
+             "Reward: #{coins}"
+           )
+
+    assert has_element?(view, "[data-role=next-reward]", "#{space.vp} VP")
+  end
+
+  test "the explosion choice says how many VP and coins" do
+    {id, view} = solo_2({1, 2, 3})
+    explode(view)
+
+    me = game(id).players[0]
+    space = PotTrack.at(Player.scoring_index(me))
+
+    # Round 29: in the bar, not a sheet.
+    assert has_element?(
+             view,
+             "[data-role=bar-explosion] button[data-choice=vp]",
+             "Take VP +#{space.vp}"
+           )
+
+    assert has_element?(
+             view,
+             "[data-role=bar-explosion] button[data-choice=buy]",
+             "Take coins #{space.coins}"
+           )
+  end
+
+  # Take a seat from a page that closes at once (a browser that lost its cookie
+  # afterwards): the seat stays, but no page holds it.
+
+  test "a droplet move says so in the status line and on the seat" do
+    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+    alice = open(browser(token("alice")), id)
+    bob = open(browser(token("bob")), id)
+    alice |> element("button", "Start game") |> render_click()
+
+    replace_game(id, &H.put(&1, 0, droplet_moves: 1))
+
+    refute has_element?(alice, "[data-role=turn]")
+
+    assert has_element?(
+             bob,
+             ~s([data-role=player-chip][data-seat="0"] [data-role=player-state][data-state=droplet])
+           )
+  end
+
+  defp duo_2(rules) do
+    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, rules)
+    alice = open(browser("alice-#{id}"), id)
+    bob = open(browser("bob-#{id}"), id)
+    {:ok, _} = GameServer.begin(id, "alice-#{id}")
+    {id, alice, bob}
+  end
+
+  describe "rubies last, the free droplet move" do
+    test "the droplet choice says the move is free and where it came from" do
+      {id, alice, _bob} = duo_2(%{fortune: false, pot_side: :back})
+
+      replace_game(id, fn g ->
+        g
+        |> H.put(0, phase: :buy, coins: 10, rubies: 4, droplet_moves: 1)
+        |> Map.update!(:log, &[{0, {:black, :droplet}}, {0, {:bonus_die, :droplet}} | &1])
+      end)
+
+      render_click(alice, "seen", %{"kind" => "results", "round" => 1})
+      # Round 33: the bar's info row names the causes; the moves are buttons.
+      assert has_element?(alice, "#bar-droplet [data-role=info-row]", "Move your pot droplet")
+      assert has_element?(alice, "[data-role=droplet-sources]", "Hawkmoth: droplet +1")
+      assert has_element?(alice, "[data-role=droplet-sources]", "Bonus die")
+
+      # the droplet first, then the buy, then the rubies
+      render_click(alice, "action", %{"action" => QuacksWeb.ActionCode.encode({:droplet, :tube})})
+      assert has_element?(alice, "dialog#decision-shop")
+      refute has_element?(alice, "dialog#decision-rubies")
+
+      render_click(alice, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
+      # Round 29: the rubies are in the bar.
+      assert has_element?(
+               alice,
+               "#bar-rubies button[data-ruby=tube]:not([disabled])",
+               "Test tube"
+             )
+    end
+  end
+
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+
+  # Seed 10,11,12 draws white 2, 3, 1: stop there for a shop with 7 coins.
+
+  # The rest of `to_shop_2/1` after one draw, then "Done" (round over).
+
+  test "the controls sit around the pot; the bottom bar has only Stop and Draw" do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{}, :herb_witches)
+    view = open(browser("solo"), id)
+
+    assert has_element?(view, "[data-role=pot-area] [data-role=bag-button].right-0.bottom-0")
+    # round 22: the card in the pot's top left corner, the witches below it
+    refute has_element?(view, "header [data-role=fortune-tile]")
+
+    assert has_element?(
+             view,
+             "[data-role=pot-area] [data-role=pot-corner].top-0.left-0 #corner-card + [data-role=witches-button]"
+           )
+
+    assert has_element?(
+             view,
+             ~s{[data-role=pot-area] svg [data-role=flask][transform="translate(-222 214)"]}
+           )
+
+    html = render(view)
+    # Stop, Draw, and the flask button (shown from 64rem only).
+    # Round 30: Continue shows while the round's card hovers.
+    assert count(html, "footer.game-bar button:not(#card-continue)") == 3
+    assert count(html, "footer.game-bar [popovertarget]") == 0
+  end
+
+  # A 2-player game without fortune cards, started by alice.
+  defp duo_4(seed \\ {1, 2, 3}, rules \\ %{fortune: false}) do
+    {:ok, id} = GameServer.start(2, seed, %{}, rules)
+    alice = open(browser("alice"), id)
+    bob = open(browser("bob"), id)
+    alice |> element("button", "Start game") |> render_click()
+    {id, alice, bob}
+  end
+
+  defp state(view, seat),
+    do:
+      view
+      |> element(~s([data-role=player-chip][data-seat="#{seat}"] [data-role=player-state]))
+      |> render()
+
+  test "a Stir! banner; a pick locks Draw and Stop; no Resume" do
+    {id, alice, bob} = duo_4()
+
+    replace_game(id, fn g ->
+      g
+      |> H.put(round: 9)
+      |> H.put(0, bag: [{:orange, 1}, {:orange, 1}])
+      |> H.put(1, drawn: [{{:orange, 1}, 2}], pot_index: 2, bag: [{:white, 1}, {:orange, 1}])
+    end)
+
+    skip_results(alice)
+
+    for view <- [alice, bob] do
+      assert has_element?(view, "[data-role=stir]", "Stir! Everyone draws together.")
+    end
+
+    assert state(alice, 0) =~ "deciding"
+    alice |> element("button[data-slot=draw]") |> render_click()
+
+    assert has_element?(alice, "button[data-slot=draw][disabled]")
+    assert has_element?(alice, "button[data-slot=stop][disabled]")
+
+    refute has_element?(alice, "[data-role=turn]")
+
+    assert state(bob, 0) =~ "chosen"
+    assert state(bob, 1) =~ "deciding"
+
+    # bob stops: the step resolves, alice draws again; bob's stop is final
+    bob |> element("button", "Stop") |> render_click()
+    assert has_element?(alice, "button[data-slot=draw]:not([disabled])")
+    refute has_element?(bob, "button", "Resume")
+    assert has_element?(bob, "button[data-slot=stop][disabled]", "Stop")
   end
 end
