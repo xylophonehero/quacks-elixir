@@ -95,7 +95,8 @@ defmodule QuacksWeb.MotionB3Test do
     # round 31's draw flight in the top layer to 9 000; round 32's droplet hop and
     # flask fill to 9 500; round 34's move in the pot (green III) to 10 000; round
     # 35's rat that the droplet takes and the chips to the bag to 11 500; round
-    # 36's scoring space pulse after the draw to 12 500
+    # 36's scoring space pulse after the draw to 12 500; round 37's ring that
+    # shrinks and grows takes the pulse's place within it
     assert byte_size(hook) < 12_500
     assert hook =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
     assert js =~ "!reduced()"
