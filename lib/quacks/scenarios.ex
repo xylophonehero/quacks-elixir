@@ -1,8 +1,9 @@
 defmodule Quacks.Scenarios do
   @moduledoc """
-  Scenarios (dev and test only, `/dev/scenarios`): one real game per rules item that
-  plays to the moment where the item acts, in steps you can walk through on the real
-  game page.
+  Scenarios (dev, test and staging: `QuacksWeb.Plugs.Gallery`): one real game per
+  rules item that plays to the moment where the item acts, in steps. The gallery
+  (`/dev/gallery`, `QuacksWeb.Gallery.Stories`) shows each step as a full screen;
+  `/dev/scenarios/<kind>/<id>` opens it as a live game on the real game page.
 
   `all/0` lists one entry per item, from the rules data: every Fortune Teller card
   (`Quacks.Rules.Fortune`), every ingredient book (`Quacks.Rules.Books`), every
@@ -11,7 +12,7 @@ defmodule Quacks.Scenarios do
   builder of their kind (`Quacks.Scenarios.Builders`); a hand-written entry
   (`hand: true`) adds its own choices and stricter checks.
 
-  `build/1` plays the scenario (`Quacks.Scenarios.Script`): a seeded
+  `build/2` plays the scenario (`Quacks.Scenarios.Script`): a seeded
   `Quacks.Session`, every action through `Quacks.Game.apply/3`, steps marked on the
   way. `bundle/2` turns it into a replay bundle for
   `Quacks.GameServer.start_from_bundle/2`, so the game runs in the real
@@ -37,7 +38,7 @@ defmodule Quacks.Scenarios do
 
   @typedoc """
   One scenario: `kind` and `id` (its URL, `/dev/scenarios/<kind>/<id>`), `title`,
-  `group` (a heading on the index), `hand` (hand-written) and `build` (the script).
+  `group` (a heading), `hand` (hand-written) and `build` (the script).
   """
   @type entry :: %{
           kind: String.t(),
@@ -45,7 +46,7 @@ defmodule Quacks.Scenarios do
           title: String.t(),
           group: String.t(),
           hand: boolean,
-          build: (-> {:ok, Script.t()} | {:error, term})
+          build: (keyword -> {:ok, Script.t()} | {:error, term})
         }
 
   @doc "The kinds, in index order: `{kind, heading}`."
@@ -76,9 +77,18 @@ defmodule Quacks.Scenarios do
     {if(i > 0, do: Enum.at(same, i - 1)), Enum.at(same, i + 1)}
   end
 
-  @doc "Play the scenario: `{:ok, script}` or `{:error, reason}` (no seed reached its goal)."
-  @spec build(entry) :: {:ok, Script.t()} | {:error, term}
-  def build(%{build: build}), do: build.()
+  @doc """
+  Play the scenario: `{:ok, script}` or `{:error, reason}` (no seed reached its
+  goal). `players:` plays it with that many seats instead of its own count
+  (`players/1`); a count where no seed reaches the goal is an error.
+  """
+  @spec build(entry, keyword) :: {:ok, Script.t()} | {:error, term}
+  def build(%{build: build}, opts \\ []), do: build.(Keyword.take(opts, [:players]))
+
+  @doc "The scenario's own number of seats (a card: 3; the others: 2)."
+  @spec players(entry) :: pos_integer
+  def players(%{kind: "card"}), do: 3
+  def players(_entry), do: 2
 
   @doc """
   The replay bundle of a built scenario, with the steps for the step bar under
@@ -93,7 +103,7 @@ defmodule Quacks.Scenarios do
     |> Map.put(:scenario, %{
       key: key(entry),
       title: entry.title,
-      index: "/dev/scenarios",
+      index: "/dev/gallery/scenario-#{entry.kind}/#{String.replace(entry.id, "/", "-")}",
       prev: prev && path(prev),
       next: next && path(next),
       steps: Enum.map(script.steps, &Map.take(&1, [:label, :at, :note]))
@@ -106,8 +116,8 @@ defmodule Quacks.Scenarios do
     for %{id: id, name: name, colour: colour} <- Fortune.all() do
       key = "card/#{id}"
 
-      entry("card", "#{id}", "#{String.upcase("#{id}")} #{name}", "#{colour} cards", fn ->
-        Builders.card(id, hand(key))
+      entry("card", "#{id}", "#{String.upcase("#{id}")} #{name}", "#{colour} cards", fn opts ->
+        Builders.card(id, hand(key) ++ opts)
       end)
     end
   end
@@ -117,16 +127,16 @@ defmodule Quacks.Scenarios do
       key = "chip/#{colour}/#{set}"
       %{name: name} = Books.get(book)
 
-      entry("chip", "#{colour}/#{set}", "#{name} #{roman(set)}", "#{colour}", fn ->
-        Builders.chip(book, hand(key))
+      entry("chip", "#{colour}/#{set}", "#{name} #{roman(set)}", "#{colour}", fn opts ->
+        Builders.chip(book, hand(key) ++ opts)
       end)
     end
   end
 
   defp patients do
     for id <- Alchemists.patients() do
-      entry("patient", "#{id}", Alchemists.get(id).name, "patients", fn ->
-        Builders.patient(id, hand("patient/#{id}"))
+      entry("patient", "#{id}", Alchemists.get(id).name, "patients", fn opts ->
+        Builders.patient(id, hand("patient/#{id}") ++ opts)
       end)
     end
   end
@@ -136,16 +146,22 @@ defmodule Quacks.Scenarios do
       %{title: title} = WitchCards.card(id)
       key = "witch/#{colour}/#{id}"
 
-      entry("witch", "#{colour}/#{id}", "#{String.upcase("#{id}")} #{title}", "#{colour}", fn ->
-        Builders.witch(id, hand(key))
-      end)
+      entry(
+        "witch",
+        "#{colour}/#{id}",
+        "#{String.upcase("#{id}")} #{title}",
+        "#{colour}",
+        fn opts ->
+          Builders.witch(id, hand(key) ++ opts)
+        end
+      )
     end
   end
 
   defp rules do
     [
-      entry("rule", "tube9", "Round 9: the test tube (reverse pot side)", "pot", fn ->
-        Builders.tube9(hand("rule/tube9"))
+      entry("rule", "tube9", "Round 9: the test tube (reverse pot side)", "pot", fn opts ->
+        Builders.tube9(hand("rule/tube9") ++ opts)
       end)
     ]
   end

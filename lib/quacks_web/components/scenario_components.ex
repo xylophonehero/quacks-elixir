@@ -3,7 +3,7 @@ defmodule QuacksWeb.ScenarioComponents do
   The step bar of a scenario table (dev only, `Quacks.Scenarios`): a small bar on
   top of the game page. "Step 2/4: resolve", the step's note, the step buttons (they
   seek the debug table, `GameServer.seek/2`), the links to the previous and next
-  item of the same kind, the index, "Play on" (unfreezes the bots) and a fold
+  item of the same kind, the scenario in the gallery, "Play on" (unfreezes the bots) and a fold
   button (the bar folds to one row, in the browser only).
   """
   use Phoenix.Component
