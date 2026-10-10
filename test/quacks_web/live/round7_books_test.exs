@@ -7,7 +7,7 @@ defmodule QuacksWeb.Round7BooksTest do
 
   import Phoenix.LiveViewTest
 
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.PanelComponents
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "round7-#{System.unique_integer()}")}
@@ -31,13 +31,13 @@ defmodule QuacksWeb.Round7BooksTest do
           {6, "more than 1 neighbour", "same count"}
         ] do
       html =
-        render_component(&GameComponents.book_tile/1, colour: :black, set: 1, players: players)
+        render_component(&PanelComponents.book_tile/1, colour: :black, set: 1, players: players)
 
       assert html =~ shown
       refute html =~ hidden
     end
 
-    html = render_component(&GameComponents.book_list/1, books: [black: 1], players: 2)
+    html = render_component(&PanelComponents.book_list/1, books: [black: 1], players: 2)
     assert rows(html, "[data-role=book-tiers] tr") == 2
   end
 
@@ -84,15 +84,15 @@ defmodule QuacksWeb.Round7BooksTest do
 
   test "orange books carry no text: tile, picker card and book list", %{conn: conn} do
     for set <- [1, 2] do
-      html = render_component(&GameComponents.book_tile/1, colour: :orange, set: set)
+      html = render_component(&PanelComponents.book_tile/1, colour: :orange, set: set)
       assert rows(html, "[data-role=book-tile] > p") == 0
       assert html =~ "Pumpkin"
     end
 
-    html = render_component(&GameComponents.book_tile/1, colour: :orange, set: 2)
+    html = render_component(&PanelComponents.book_tile/1, colour: :orange, set: 2)
     assert rows(html, "[data-role=chip]") == 2 or html =~ "22"
 
-    html = render_component(&GameComponents.book_list/1, books: [orange: 2])
+    html = render_component(&PanelComponents.book_list/1, books: [orange: 2])
     refute html =~ "No action"
     refute html =~ "·"
 

@@ -12,7 +12,7 @@ defmodule QuacksWeb.TidyTest do
 
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias QuacksWeb.{GameComponents, GameText}
+  alias QuacksWeb.{GameText, PanelComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -24,7 +24,7 @@ defmodule QuacksWeb.TidyTest do
   defp token(name), do: "#{name}-#{System.unique_integer()}"
 
   defp log_html(log),
-    do: render_component(&GameComponents.action_log/1, log: log, names: %{0 => "A", 1 => "B"})
+    do: render_component(&PanelComponents.action_log/1, log: log, names: %{0 => "A", 1 => "B"})
 
   describe "the log" do
     test "actions read in the past tense" do
@@ -100,7 +100,7 @@ defmodule QuacksWeb.TidyTest do
   end
 
   test "G6: the card tile is small on phones" do
-    html = render_component(&GameComponents.fortune_tile/1, id: :b3)
+    html = render_component(&PanelComponents.fortune_tile/1, id: :b3)
     assert html =~ "w-12"
     assert html =~ "lg:w-20"
   end

@@ -9,7 +9,7 @@ defmodule QuacksWeb.UiRound4Test do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.PanelComponents
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -88,14 +88,14 @@ defmodule QuacksWeb.UiRound4Test do
   end
 
   test "the card band: blue is for this round, purple says nothing more" do
-    blue = render_component(&GameComponents.fortune_card/1, id: :b1)
-    purple = render_component(&GameComponents.fortune_card/1, id: :p1)
+    blue = render_component(&PanelComponents.fortune_card/1, id: :b1)
+    purple = render_component(&PanelComponents.fortune_card/1, id: :p1)
 
     assert blue =~ "Fortune teller · this round"
     assert purple =~ "Fortune teller"
     refute purple =~ "Fortune teller ·"
 
-    assert render_component(&GameComponents.fortune_card/1, id: :p1, choice: true) =~
+    assert render_component(&PanelComponents.fortune_card/1, id: :p1, choice: true) =~
              "resolve now"
   end
 

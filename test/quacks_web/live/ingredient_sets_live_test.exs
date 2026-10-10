@@ -5,7 +5,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
   import Quacks.GameHelpers, only: [force_draws: 2]
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, GameText, PotComponents, TileComponents}
+  alias QuacksWeb.{GameText, PanelComponents, PotComponents, TileComponents}
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "sets-#{System.unique_integer()}")}
@@ -55,7 +55,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
     assert render_component(&TileComponents.player_card/1, game: g, seat: 0, name: "A") =~
              "Exploded (protected)"
 
-    assert render_component(&GameComponents.action_log/1, log: g.log) =~
+    assert render_component(&PanelComponents.action_log/1, log: g.log) =~
              "Crow skull: protected, kept VP and coins"
   end
 

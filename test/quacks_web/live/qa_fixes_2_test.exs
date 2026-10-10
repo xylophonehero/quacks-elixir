@@ -13,7 +13,7 @@ defmodule QuacksWeb.QaFixes2Test do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{AlchemistsComponents, GameComponents, GameLive}
+  alias QuacksWeb.{AlchemistsComponents, GameLive, PanelComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -38,7 +38,7 @@ defmodule QuacksWeb.QaFixes2Test do
 
   test "N3: a resume is one log line" do
     log = [{1, :resumed}, {1, :resume}, {1, :stopped}, {1, :stop}]
-    html = render_component(&GameComponents.action_log/1, log: log, names: %{1 => "B"})
+    html = render_component(&PanelComponents.action_log/1, log: log, names: %{1 => "B"})
 
     assert html =~ "B: Resumed brewing"
     refute html =~ "B: Resume brewing"

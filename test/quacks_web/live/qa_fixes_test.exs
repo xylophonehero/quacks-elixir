@@ -12,7 +12,7 @@ defmodule QuacksWeb.QaFixesTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{GameComponents, GameLive, GameText}
+  alias QuacksWeb.{GameLive, GameText, PanelComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -248,7 +248,7 @@ defmodule QuacksWeb.QaFixesTest do
       ]
 
       html =
-        render_component(&GameComponents.action_log/1, log: log, names: %{0 => "A", 1 => "B"})
+        render_component(&PanelComponents.action_log/1, log: log, names: %{0 => "A", 1 => "B"})
 
       assert html =~ "Second Chances: put back white 1, green 1"
       assert length(String.split(html, "B: Stopped<")) == 2

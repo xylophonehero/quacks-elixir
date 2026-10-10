@@ -49,7 +49,7 @@ defmodule QuacksWeb.LobbyLive do
   """
   use QuacksWeb, :live_view
 
-  import QuacksWeb.GameComponents, only: [book_ink: 1]
+  import QuacksWeb.PanelComponents, only: [book_ink: 1]
 
   import QuacksWeb.TileComponents, only: [bot_badge: 1]
 

@@ -9,7 +9,7 @@ defmodule QuacksWeb.UiRound5Test do
 
   alias Quacks.Game
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{GameComponents, TileComponents}
+  alias QuacksWeb.{PanelComponents, TileComponents}
 
   defp count(html, selector),
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> Enum.count()
@@ -68,11 +68,11 @@ defmodule QuacksWeb.UiRound5Test do
   end
 
   test "a tiered book shows its tiers as a table on the tile and in the book list" do
-    html = render_component(&GameComponents.book_tile/1, colour: :purple, set: 2)
+    html = render_component(&PanelComponents.book_tile/1, colour: :purple, set: 2)
     assert count(html, "[data-role=book-tiers] tr") == 3
     assert html =~ "green 1 · blue 2 · 3 VP · droplet +1"
 
-    html = render_component(&GameComponents.book_list/1, books: [purple: 2, green: 1])
+    html = render_component(&PanelComponents.book_list/1, books: [purple: 2, green: 1])
     assert count(html, "[data-book=purple-2] [data-role=book-tiers]") == 1
     assert count(html, "[data-book=green-1] [data-role=book-tiers]") == 0
   end

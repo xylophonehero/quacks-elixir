@@ -15,7 +15,7 @@ defmodule QuacksWeb.RevealComponents do
   import QuacksWeb.CoreComponents, only: [button: 1, dialog_sheet: 1, kbd: 1]
   import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
 
-  import QuacksWeb.GameComponents, only: [book_info: 2, book_ink: 1]
+  import QuacksWeb.PanelComponents, only: [book_info: 2, book_ink: 1]
 
   import QuacksWeb.ChipComponents, only: [chip: 1, die: 1, seat_dot: 1]
 

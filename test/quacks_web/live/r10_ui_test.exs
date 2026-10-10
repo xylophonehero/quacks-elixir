@@ -9,7 +9,7 @@ defmodule QuacksWeb.R10UiTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, PotComponents, TileComponents}
+  alias QuacksWeb.{PanelComponents, PotComponents, TileComponents}
 
   defp query(html, selector),
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
@@ -54,13 +54,13 @@ defmodule QuacksWeb.R10UiTest do
   end
 
   test "the fortune card and its header tile are portrait cards" do
-    html = render_component(&GameComponents.fortune_card/1, id: :b3)
+    html = render_component(&PanelComponents.fortune_card/1, id: :b3)
     assert count(html, "[data-role=fortune-card].card-portrait") == 1
 
-    html = render_component(&GameComponents.fortune_card/1, id: :b3, flip: true)
+    html = render_component(&PanelComponents.fortune_card/1, id: :b3, flip: true)
     assert count(html, "#card-flip-b3 [data-role=fortune-card].card-portrait") == 1
 
-    html = render_component(&GameComponents.fortune_tile/1, id: :b3)
+    html = render_component(&PanelComponents.fortune_tile/1, id: :b3)
     assert count(html, "[data-role=fortune-tile].card-portrait") == 1
     assert count(html, "[data-role=fortune-tile] [data-icon=bag]") == 1
   end
