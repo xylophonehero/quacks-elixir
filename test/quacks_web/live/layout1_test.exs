@@ -161,8 +161,9 @@ defmodule QuacksWeb.Layout1Test do
       assert has_element?(view, "[data-role=action-bar]:not(.max-lg\\:hidden)")
 
       # Round 33: the crow skull is a bar choice: it takes the bar, no sheet.
+      # Round 40: from 64rem it is in the context column; Stop and Draw stay.
       replace_game(id, &H.put(&1, 0, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
-      refute has_element?(view, "[data-role=action-bar]")
+      refute has_element?(view, "[data-role=action-bar]:not(.max-lg\\:hidden)")
       assert has_element?(view, "footer [data-role=bar-blue]")
 
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))

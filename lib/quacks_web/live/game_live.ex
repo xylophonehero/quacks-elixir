@@ -1556,6 +1556,13 @@ defmodule QuacksWeb.GameLive do
             game={@game}
             me={@me}
           />
+          <%!-- Round 40: the crow skull's choice, from 64rem (the bar has it below). --%>
+          <.crow_panel
+            :if={@bar_choice == :blue_choice && !tiles_playing?(@reveal)}
+            actions={@all_actions}
+            game={@game}
+            me={@me}
+          />
           <%!-- From 80rem the witches are in the left column instead (round 39). --%>
           <.sheet
             :if={@game.witches}
@@ -1761,12 +1768,13 @@ defmodule QuacksWeb.GameLive do
           />
           <%!-- Round 29: one row, the white meter, then the reward and the risk as icons. --%>
           <%!-- Round 33: a choice with an info row takes this row's place. --%>
+          <%!-- Round 40: the crow skull's info row takes it below 64rem. --%>
           <div
             :if={
               @seat && @game.phase == :potions && !info_choice?(@bar_choice) &&
                 !tiles_playing?(@reveal)
             }
-            class="flex min-w-0 items-center gap-2"
+            class={["flex min-w-0 items-center gap-2", @bar_choice == :blue_choice && "max-lg:hidden"]}
             data-role="fuse-row"
           >
             <.fuse_meter game={@game} seat={@seat} />
@@ -1813,13 +1821,16 @@ defmodule QuacksWeb.GameLive do
             pot_pick={@pot_pick}
             selected={@selected}
           />
+          <%!-- Round 40: from 64rem the crow skull's choice is in the context
+               column, so Stop and Draw (disabled) stay here. --%>
           <section
             :if={
-              @seat && not Game.over?(@game) && not results?(@game) && !@bar_choice &&
-                !tiles_playing?(@reveal)
+              @seat && not Game.over?(@game) && not results?(@game) &&
+                (!@bar_choice or @bar_choice == :blue_choice) && !tiles_playing?(@reveal)
             }
             class={[
               "action-bar *:min-h-12 *:touch-manipulation",
+              @bar_choice == :blue_choice && "max-lg:hidden",
               card_continue?(assigns) && "hidden",
               @decision && "max-lg:hidden",
               @me && @me.exploded? && "lg:hidden"
@@ -2141,6 +2152,85 @@ defmodule QuacksWeb.GameLive do
       {if @copied, do: "Copied", else: "Copy link"}
     </.button>
     """
+  end
+
+  @doc """
+  Round 40 (Nick): the crow skull's choice from 64rem, a panel in the context
+  column (as Ghost's breath V's, round 39), not in the bar: the crow skull chip,
+  what to do, the drawn chips (large) on the cloth and Skip. Below 64rem it is
+  hidden and the bar has the choice (`bar_choice/1`, `:blue_choice`).
+  """
+  attr :actions, :list, required: true
+  attr :game, Game, required: true
+  attr :me, Player, required: true
+
+  def crow_panel(assigns) do
+    assigns = assign(assigns, chips: crow_chips(assigns), skip?: :return_all in assigns.actions)
+
+    ~H"""
+    <section
+      id={"crow-panel-#{@game.round}"}
+      phx-hook=".FromBag"
+      class="paper hidden shrink-0 flex-col gap-3 rounded-2xl border-4 border-iron p-3 text-ink lg:flex"
+      aria-label="Crow skull: place one chip in the pot, or return them all to the bag"
+      data-role="crow-panel"
+    >
+      <div class="flex items-center gap-2">
+        <.chip chip={{:blue, nil}} size={:md} />
+        <div class="min-w-0 flex-1">
+          <h2 class="font-hand text-xl leading-tight font-bold">Crow skull</h2>
+          <p class="text-sm" data-role="crow-hint">
+            Add a chip to the pot, or skip: they all go back in the bag.
+          </p>
+        </div>
+      </div>
+      <div class="relative flex flex-wrap justify-center gap-2 p-2" data-role="crow-tray">
+        <span class="blue-cloth absolute inset-0 rounded-xl" aria-hidden="true" />
+        <button
+          :for={c <- @chips}
+          id={"crow-chip-#{@game.round}-#{c.id}"}
+          type="button"
+          phx-click={c.action && "action"}
+          phx-value-action={c.action && encode(c.action)}
+          disabled={is_nil(c.action)}
+          class="pool-chip relative z-10 grid size-12 cursor-pointer place-items-center rounded-full transition-transform duration-100 ease-out hover:scale-105 active:scale-95 disabled:cursor-default disabled:opacity-40"
+          aria-label={c.label}
+          title={c.label}
+          data-pool-chip
+        >
+          <.chip chip={c.chip} size={:lg} />
+        </button>
+      </div>
+      <.button
+        :if={@skip?}
+        phx-click="action"
+        phx-value-action={encode(:return_all)}
+        variant={:secondary}
+        class="min-h-11"
+        aria-label={action_label(:return_all, @game, @me)}
+        data-role="crow-skip"
+        data-crow-skip
+      >
+        Skip
+      </.button>
+    </section>
+    """
+  end
+
+  # The crow skull's drawn chips, each with its action (nil: it cannot go in now).
+  defp crow_chips(%{actions: actions, game: game, me: me}) do
+    picks = Enum.filter(actions, &(pick_chips(&1) != []))
+
+    for {chip, i} <- Enum.with_index(me.pending) do
+      action = pool_pick(picks, chip)
+
+      %{
+        id: i,
+        chip: chip,
+        action: action,
+        label: if(action, do: action_label(action, game, me), else: chip_name(chip))
+      }
+    end
   end
 
   @doc """
@@ -2997,42 +3087,25 @@ defmodule QuacksWeb.GameLive do
     """
   end
 
-  # Round 35: the crow skull's chips in the button row only (the white track stays
-  # over it). They come out of the bag one by one (`.FromBag`, WAAPI from the bag
-  # to their place, 140 ms apart); on a tap the chips not chosen go back into the
-  # bag while the row leaves (`phx-remove`, `.bar-to-bag`). Reduced motion: fades.
-  # Round 37: the crow skull chip first (as an evaluation step shows its book's
-  # chip), then the drawn chips on a cloth with "Add a chip to the pot" on it.
-  # Four chips and Skip fit in one row at 360 px; from five the chips are smaller.
+  # Round 35: the crow skull's chips come out of the bag one by one (`.FromBag`,
+  # WAAPI from the bag to their place, 140 ms apart); on a tap the chips not chosen
+  # go back into the bag while the row leaves (`phx-remove`, `.bar-to-bag`).
+  # Reduced motion: fades. Round 37: the chips lie on a cloth.
+  # Round 40 (Nick): the row has the height of Stop and Draw (`h-12`), so nothing
+  # moves between brewing and the choice. The crow skull chip and "Add a chip to
+  # the pot" are in the info row over it, where the white track is. Up to 5 chips
+  # (36 px, 44 px tap targets) and Skip fit in the row at 360 px. From 64rem the
+  # choice is a panel in the context column (`crow_panel/1`) and the bar keeps
+  # Stop and Draw (disabled) with the white track.
   def bar_choice(%{choice: :blue_choice} = assigns) do
-    %{actions: actions, game: game, me: me} = assigns
-    picks = Enum.filter(actions, &(pick_chips(&1) != []))
-
-    chips =
-      for {chip, i} <- Enum.with_index(me.pending) do
-        action = pool_pick(picks, chip)
-
-        %{
-          id: i,
-          chip: chip,
-          action: action,
-          label: if(action, do: action_label(action, game, me), else: chip_name(chip))
-        }
-      end
-
-    assigns =
-      assign(assigns,
-        chips: chips,
-        skip?: :return_all in actions,
-        size: if(length(chips) > 4, do: :md, else: :lg)
-      )
+    assigns = assign(assigns, chips: crow_chips(assigns), skip?: :return_all in assigns.actions)
 
     ~H"""
     <section
       id={"bar-blue-#{@game.round}"}
       phx-hook=".FromBag"
       phx-remove={JS.transition("bar-to-bag", time: 520)}
-      class="bar-choice flex min-h-12 items-center gap-2"
+      class="bar-choice flex flex-col gap-1.5 lg:hidden"
       aria-label="Crow skull: place one chip in the pot, or return them all to the bag"
       data-role="bar-blue"
     >
@@ -3052,7 +3125,7 @@ defmodule QuacksWeb.GameLive do
             chips.forEach((c, i) => c.animate([away(c), {translate: "0 0", scale: 1, opacity: 1}],
               {duration: reduce ? 200 : 420, delay: i * 140, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "backwards"}))
             this.el.addEventListener("click", e => {
-              const hit = e.target.closest("[data-pool-chip]:not(:disabled), [data-role=blue-skip]")
+              const hit = e.target.closest("[data-pool-chip]:not(:disabled), [data-crow-skip]")
               if (!hit) return
               if (hit.matches("[data-pool-chip]")) hit.animate([{opacity: 1}, {opacity: 0}], {duration: 220, fill: "forwards"})
               chips.filter(c => c !== hit).forEach((c, i) => c.animate([{translate: "0 0", scale: 1, opacity: 1}, away(c)],
@@ -3061,29 +3134,24 @@ defmodule QuacksWeb.GameLive do
           }
         }
       </script>
-      <span
-        class="grid size-9 shrink-0 place-items-center"
-        title="Crow skull"
-        data-role="blue-book"
-      >
-        <.chip chip={{:blue, nil}} size={:md} />
-      </span>
-      <div
-        class="relative flex min-w-0 shrink flex-col items-center gap-0.5 px-1.5 pt-1 pb-1.5"
-        data-role="blue-tray"
-      >
-        <span
-          class="blue-cloth absolute inset-0 rounded-xl"
-          aria-hidden="true"
-          data-role="blue-cloth"
-        />
-        <span
-          class="relative text-tag leading-none font-semibold whitespace-nowrap text-parchment"
-          data-role="blue-hint"
-        >
-          Add a chip to the pot
+      <.info_row id={"info-blue-#{@game.round}"}>
+        <:icon>
+          <span class="grid size-7 place-items-center" title="Crow skull" data-role="blue-book">
+            <.chip chip={{:blue, nil}} size={:sm} />
+          </span>
+        </:icon>
+        <span class="block truncate" data-role="blue-hint">Add a chip to the pot</span>
+        <span class="block truncate text-xs font-normal text-parchment-dim">
+          Or skip: they all go back in the bag
         </span>
-        <span class="relative flex items-center gap-1">
+      </.info_row>
+      <div class="flex h-12 items-center gap-2" data-role="blue-row">
+        <div class="relative flex h-12 min-w-0 items-center px-1" data-role="blue-tray">
+          <span
+            class="blue-cloth absolute inset-0 rounded-xl"
+            aria-hidden="true"
+            data-role="blue-cloth"
+          />
           <button
             :for={c <- @chips}
             id={"blue-chip-#{@game.round}-#{c.id}"}
@@ -3091,26 +3159,27 @@ defmodule QuacksWeb.GameLive do
             phx-click={c.action && "action"}
             phx-value-action={c.action && encode(c.action)}
             disabled={is_nil(c.action)}
-            class="pool-chip relative z-10 rounded-full touch-manipulation transition-transform duration-100 ease-out active:scale-95 disabled:opacity-40"
+            class="pool-chip relative z-10 grid size-11 shrink-0 place-items-center rounded-full touch-manipulation transition-transform duration-100 ease-out active:scale-95 disabled:opacity-40"
             aria-label={c.label}
             title={c.label}
             data-pool-chip
           >
-            <.chip chip={c.chip} size={@size} />
+            <.chip chip={c.chip} size={:md} />
           </button>
-        </span>
+        </div>
+        <.button
+          :if={@skip?}
+          phx-click="action"
+          phx-value-action={encode(:return_all)}
+          variant={:secondary}
+          class="ml-auto h-12 shrink-0 touch-manipulation px-3"
+          aria-label={action_label(:return_all, @game, @me)}
+          data-role="blue-skip"
+          data-crow-skip
+        >
+          Skip
+        </.button>
       </div>
-      <.button
-        :if={@skip?}
-        phx-click="action"
-        phx-value-action={encode(:return_all)}
-        variant={:secondary}
-        class="ml-auto min-h-12 shrink-0 touch-manipulation px-3"
-        aria-label={action_label(:return_all, @game, @me)}
-        data-role="blue-skip"
-      >
-        Skip
-      </.button>
     </section>
     """
   end

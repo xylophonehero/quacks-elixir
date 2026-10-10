@@ -21,16 +21,18 @@ defmodule QuacksWeb.Round35ChoicesTest do
   end
 
   describe "item 1: the crow skull in the bottom row" do
-    test "the drawn chips and Skip in one row, the white track stays" do
+    # Round 40: the info row takes the white track's place on phones; from 64rem
+    # the bar keeps the white track and Stop / Draw (`crow_skull_choice_test.exs`).
+    test "the drawn chips and Skip in one row" do
       {id, view} = solo(%{})
       replace_game(id, &H.put(&1, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
 
       row = "footer section[data-role=bar-blue][phx-hook$='FromBag'][phx-remove]"
       assert has_element?(view, "#{row} button[data-pool-chip] .chip-token")
       assert has_element?(view, "#{row} [data-role=blue-skip]", "Skip")
-      refute has_element?(view, "#{row} [data-role=info-row]")
-      assert has_element?(view, "[data-role=fuse-row]")
-      refute has_element?(view, "[data-role=action-bar]")
+      assert has_element?(view, "#{row} [data-role=info-row]")
+      assert has_element?(view, "[data-role=fuse-row].max-lg\\:hidden")
+      assert has_element?(view, "[data-role=action-bar].max-lg\\:hidden")
     end
 
     test "a tap places the chip; Skip returns them all" do
