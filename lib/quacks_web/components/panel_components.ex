@@ -61,7 +61,27 @@ defmodule QuacksWeb.PanelComponents do
     p10: :rat,
     p11: :droplet,
     p12: :die,
-    p13: :bag
+    p13: :bag,
+    ap1: :ruby,
+    ap2: :ruby,
+    ap3: :ruby,
+    ap4: :die,
+    ap5: :die,
+    ap6: :rat,
+    ap7: :bag,
+    ap8: :bag,
+    ap9: :rat,
+    ap10: :droplet,
+    ab1: :cauldron,
+    ab2: :bag,
+    ab3: {:ingredient, :white},
+    ab4: :rat,
+    ab5: {:ingredient, :white},
+    ab6: :cauldron,
+    ab7: :flask,
+    ab8: :cauldron,
+    ab9: :droplet,
+    ab10: :ruby
   }
 
   @doc """
@@ -481,6 +501,7 @@ defmodule QuacksWeb.PanelComponents do
       :starting_rubies,
       :round6_white,
       :fortune,
+      :alch_cards,
       :rats,
       :black_solo,
       :black_rule,
@@ -503,6 +524,7 @@ defmodule QuacksWeb.PanelComponents do
   defp rule_label({:starting_rubies, n}), do: "#{n} starting rubies"
   defp rule_label({:round6_white, false}), do: "no round-6 white"
   defp rule_label({:fortune, false}), do: "no Fortune Teller cards"
+  defp rule_label({:alch_cards, false}), do: "no Alchemists cards"
   defp rule_label({:rats, false}), do: "no rats"
   defp rule_label({:black_solo, :droplet_ruby}), do: "solo black pays a ruby"
   defp rule_label({:black_rule, :standings}), do: "black chips by standings"

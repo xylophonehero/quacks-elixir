@@ -482,8 +482,41 @@ defmodule QuacksWeb.GameText do
 
   # A `{:fortune, choice}` button. `card` is the current card; nil means unknown.
   defp fortune_choice({:take, chip}, :p3), do: "Trade 1 ruby for #{chip_name(chip)}"
+
+  defp fortune_choice({:take, {_, v} = chip}, :ap3),
+    do: "Trade #{v} #{plural(v, "ruby", "rubies")} for #{chip_name(chip)}"
+
+  defp fortune_choice({:take, {_, v} = chip}, :ap9),
+    do: "Trade #{v * 2} rat tails for #{chip_name(chip)}"
+
+  defp fortune_choice({:take, {_, v} = chip}, :ap10),
+    do: "Droplet back #{div(v, 2)} for #{chip_name(chip)}"
+
+  defp fortune_choice({:take, chip}, :ab1), do: "Put #{chip_name(chip)} in its place"
   defp fortune_choice({:take, chip}, _card), do: "Take #{chip_name(chip)}"
+  defp fortune_choice(:rubies, :ap3), do: "Take 2 rubies"
   defp fortune_choice(:rubies, _card), do: "Take 3 rubies"
+  defp fortune_choice(:bundle, _card), do: "Take 1 ruby, 1 die roll and 3 rat tails"
+  defp fortune_choice(:rats, _card), do: "Take 8 more rat tails"
+  defp fortune_choice(:rolls, _card), do: "Roll the die 4 times"
+  defp fortune_choice(:droplet, :ap4), do: "Droplet 3 forward"
+
+  defp fortune_choice({:cherish, k}, _card),
+    do: "Give #{k} #{plural(k, "ruby", "rubies")} for #{3 * k} rat tails"
+
+  defp fortune_choice({:penny, colour}, _card), do: "Give your #{colour} witch penny for a chip"
+  defp fortune_choice({:swap, chip}, _card), do: "Swap #{chip_name(chip)} in the pot"
+  defp fortune_choice(:keep, _card), do: "Keep the pot as it is"
+
+  defp fortune_choice({:gift, :white}, _card),
+    do: "The player to your left removes a white 1"
+
+  defp fortune_choice({:gift, :chip}, _card),
+    do: "The player to your left takes a chip of their choice"
+
+  defp fortune_choice(:return_white3, _card),
+    do: "A good neighborhood: put the white 3 back (left player +2 rubies)"
+
   defp fortune_choice(:vp, :p6), do: "Score 4 VP"
   defp fortune_choice(:vp, :p10), do: "Score 1 VP per rat tail behind the leader"
   defp fortune_choice(:vp, _card), do: "Score victory points"
@@ -536,6 +569,30 @@ defmodule QuacksWeb.GameText do
 
   defp fortune_outcome({:upgrade, chip}, _id), do: "traded #{chip_name(chip)} up"
   defp fortune_outcome(:orange, _id), do: "took orange 1"
+  defp fortune_outcome({:rolled, face}, _id), do: "rolled the die: #{die_text(face)}"
+  defp fortune_outcome({:rubies, n}, _id), do: "+#{n} #{plural(n, "ruby", "rubies")}"
+  defp fortune_outcome({:bundle, 0}, _id), do: "+1 ruby"
+  defp fortune_outcome({:bundle, n}, _id), do: "+1 ruby, rat stone +#{n}"
+  defp fortune_outcome(:rolls, _id), do: "rolls the die 4 times"
+  defp fortune_outcome({:droplet, n}, _id), do: "droplet +#{n}"
+
+  defp fortune_outcome({:cherish, k}, _id),
+    do: "gave #{k} #{plural(k, "ruby", "rubies")}, rat stone +#{3 * k}"
+
+  defp fortune_outcome({:penny, colour}, :ap7), do: "gave the #{colour} penny"
+  defp fortune_outcome({:swap, chip}, _id), do: "picked #{chip_name(chip)} to swap"
+
+  defp fortune_outcome({:better, old, new}, _id),
+    do: "swapped #{chip_name(old)} for #{chip_name(new)}"
+
+  defp fortune_outcome(:keep, _id), do: "kept the pot"
+  defp fortune_outcome({:gift, :white}, _id), do: "left player removes a white 1"
+  defp fortune_outcome({:gift, :chip}, _id), do: "left player takes a chip"
+  defp fortune_outcome({:gift_taken, chip}, _id), do: "took #{chip_name(chip)} (gift)"
+  defp fortune_outcome(:return_white3, _id), do: "white 3 back in the bag"
+  defp fortune_outcome({:coins, n}, _id), do: "+#{n} coins"
+  defp fortune_outcome({:free, chip}, _id), do: "free #{chip_name(chip)}"
+  defp fortune_outcome({:penny, colour}, _id), do: "#{colour} penny back"
   defp fortune_outcome(other, _id), do: inspect(other)
 
   defp chip_list(chips), do: Enum.map_join(chips, ", ", &chip_name/1)

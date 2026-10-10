@@ -440,7 +440,10 @@ defmodule Quacks.IngredientSetsTest do
             actions = Game.legal_actions(g, seat)
             next = apply!(g, seat, Enum.at(actions, rem(div(pick, 7), length(actions))))
             assert inventory(next) == inventory(g)
-            assert Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
+
+            assert g.fortune_card == :ap10 or
+                     Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
+
             assert Enum.all?(g.seats, &(me(next, &1).pot_index <= 53)) and next.round in 1..9
 
             # B3 and B7 draws cannot explode the pot, even over the limit.

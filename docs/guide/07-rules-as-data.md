@@ -12,7 +12,7 @@ The `Quacks.Game.*` modules hold the logic that reads them.
 | `Quacks.Rules.ScoringTrack` | where the rat tails are | `place_rats/1` |
 | `Quacks.Rules.Chips` | prices per set, the supply, the starting bag, the board order | the shop, `Game.new/1`, every chip list in the UI |
 | `Quacks.Rules.Books` | the book texts, triggers, tiers | the UI only |
-| `Quacks.Rules.Fortune` | 24 card names and texts | `Game.Fortune`, the UI |
+| `Quacks.Rules.Fortune` | 44 card names and texts (24 base, 20 of The Alchemists box with their expansion symbol), the deck filter `ids/2` | `Game.Fortune`, the UI |
 | `Quacks.Rules.Witches` | 12 witch cards, the deal | `Game.Witches`, the UI |
 | `Quacks.Rules.TestTubes` | the 12 glass bonuses | reverse pot side |
 | `Quacks.Rules.Alchemists` | 8 patients, their essence slots, the deal | `Game.Essence`, the UI |

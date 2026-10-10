@@ -334,7 +334,7 @@ defmodule QuacksWeb.AlchemistsComponents do
   @spec preview_space(Game.t(), Game.seat()) :: 0..10 | nil
   def preview_space(%{phase: :potions} = game, seat) do
     {_reach, parts} = Essence.count(game, seat)
-    min(parts.colours + parts.locoweed + parts.white7, Alchemists.max_space())
+    min(parts.colours + parts.locoweed + parts.white7 + parts.card, Alchemists.max_space())
   end
 
   def preview_space(_game, _seat), do: nil
@@ -669,7 +669,8 @@ defmodule QuacksWeb.AlchemistsComponents do
       parts.locoweed > 0 && "+#{parts.locoweed} locoweed",
       parts.white7 > 0 && "+1 white 7",
       parts.neighbours > 0 &&
-        "+#{parts.neighbours} #{if parts.neighbours == 1, do: "neighbour", else: "neighbours"} exploded"
+        "+#{parts.neighbours} #{if parts.neighbours == 1, do: "neighbour", else: "neighbours"} exploded",
+      Map.get(parts, :card, 0) > 0 && "+#{parts.card} card"
     ]
     |> Enum.filter(& &1)
   end

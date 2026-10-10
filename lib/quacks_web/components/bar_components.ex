@@ -1418,15 +1418,36 @@ defmodule QuacksWeb.BarComponents do
   defp card_choice_piece(:rubies), do: :ruby
   defp card_choice_piece(:vp), do: :vp
   defp card_choice_piece({:rats_back, _n}), do: :rat
+  defp card_choice_piece({:cherish, _n}), do: :rat
+  defp card_choice_piece(:rats), do: :rat
+  defp card_choice_piece(:bundle), do: :ruby
+  defp card_choice_piece({:penny, _colour}), do: :ruby
+  defp card_choice_piece({:gift, :white}), do: :bag
+  defp card_choice_piece(:return_white3), do: :bag
   defp card_choice_piece(:remove_white), do: :bag
   defp card_choice_piece(:return_all), do: :bag
   defp card_choice_piece(_choice), do: nil
 
-  defp card_choice_kind({kind, _}), do: kind
+  defp card_choice_kind(choice) when is_tuple(choice), do: elem(choice, 0)
   defp card_choice_kind(kind), do: kind
 
   # The big line on a card choice button: short, the hint says the rest.
   defp card_choice_title({:take, _chip}, :p3), do: "Trade"
+  defp card_choice_title({:take, {_, v}}, :ap3), do: "−#{v} rubies"
+  defp card_choice_title({:take, {_, v}}, :ap9), do: "−#{v * 2}"
+  defp card_choice_title({:take, {_, v}}, :ap10), do: "Back #{div(v, 2)}"
+  defp card_choice_title(:rubies, :ap3), do: "+2"
+  defp card_choice_title(:droplet, :ap4), do: "Droplet +3"
+  defp card_choice_title(:bundle, _card), do: "Bundle"
+  defp card_choice_title(:rats, _card), do: "+8"
+  defp card_choice_title(:rolls, _card), do: "Roll ×4"
+  defp card_choice_title({:cherish, k}, _card), do: "+#{3 * k}"
+  defp card_choice_title({:penny, colour}, _card), do: String.capitalize("#{colour}")
+  defp card_choice_title({:take, _chip}, :ab1), do: "Swap"
+  defp card_choice_title(:keep, _card), do: "Keep"
+  defp card_choice_title({:gift, :white}, _card), do: "White out"
+  defp card_choice_title({:gift, :chip}, _card), do: "Free chip"
+  defp card_choice_title(:return_white3, _card), do: "White 3 back"
   defp card_choice_title({:take, _chip}, _card), do: "Take"
   defp card_choice_title({:upgrade, _chip}, _card), do: ""
   defp card_choice_title(:droplet, :p11), do: "Droplet +2"
@@ -1443,6 +1464,22 @@ defmodule QuacksWeb.BarComponents do
 
   # The small line under it.
   defp card_choice_hint({:take, chip}, :p3, _me), do: "1 ruby: #{chip_name(chip)}"
+  defp card_choice_hint({:take, chip}, :ap9, _me), do: "Rat tails: #{chip_name(chip)}"
+  defp card_choice_hint({:take, chip}, :ap10, _me), do: "Droplet back: #{chip_name(chip)}"
+  defp card_choice_hint(:rubies, :ap3, _me), do: "Take 2 rubies"
+  defp card_choice_hint(:bundle, _card, _me), do: "Ruby, die roll, 3 rat tails"
+  defp card_choice_hint(:rats, _card, _me), do: "8 more rat tails"
+  defp card_choice_hint(:rolls, _card, _me), do: "Roll the die 4 times"
+
+  defp card_choice_hint({:cherish, k}, _card, _me),
+    do: "#{k} #{if k == 1, do: "ruby", else: "rubies"} for rat tails"
+
+  defp card_choice_hint({:penny, _colour}, _card, _me), do: "Give the penny for a chip"
+
+  defp card_choice_hint(:keep, _card, _me), do: "Keep the pot"
+  defp card_choice_hint({:gift, :white}, _card, _me), do: "Left player: remove a white 1"
+  defp card_choice_hint({:gift, :chip}, _card, _me), do: "Left player: a chip of choice"
+  defp card_choice_hint(:return_white3, _card, _me), do: "Left player +2 rubies"
   defp card_choice_hint({:take, chip}, _card, _me), do: chip_name(chip)
   defp card_choice_hint({:upgrade, _chip}, _card, _me), do: "Trade up"
   defp card_choice_hint(:droplet, _card, _me), do: "Move your droplet"
