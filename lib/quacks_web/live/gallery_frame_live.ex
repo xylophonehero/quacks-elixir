@@ -15,7 +15,7 @@ defmodule QuacksWeb.GalleryFrameLive do
   """
   use QuacksWeb, :live_view
 
-  import QuacksWeb.BarComponents, only: [fuse_meter: 1, reward_line: 1]
+  import QuacksWeb.BarComponents, only: [action_bar: 1, fuse_meter: 1, reward_line: 1]
 
   import QuacksWeb.TileComponents,
     only: [player_chip: 1, seat_loop: 1, loop_columns: 1, loop_start: 3, round_leaders: 1]
@@ -304,39 +304,6 @@ defmodule QuacksWeb.GalleryFrameLive do
         {render_slot(@inner_block)}
       </footer>
     </div>
-    """
-  end
-
-  attr :actions, :list, required: true
-  attr :stop_slot, :atom, required: true
-  attr :class, :any, default: nil
-
-  # A copy of the page's action bar (it is inline in `GameLive.render/1`).
-  # REVIEW: if GameLive moves it into a component, use that here.
-  defp action_bar(assigns) do
-    ~H"""
-    <section
-      class={["action-bar *:min-h-12 *:touch-manipulation", @class]}
-      data-role="action-bar"
-    >
-      <.button disabled={@stop_slot not in @actions} data-slot="stop">
-        {if @stop_slot == :resume, do: "Resume", else: "Stop"}
-        <.kbd>s</.kbd>
-      </.button>
-      <.button
-        disabled={:use_flask not in @actions}
-        class="flex-col gap-0! px-1! max-lg:hidden!"
-        aria-label="Use the flask"
-        data-slot="flask"
-      >
-        <.piece_icon name={:flask} class="size-5" />
-        <.kbd>f</.kbd>
-      </.button>
-      <.button disabled={:draw not in @actions} variant={:primary} data-slot="draw">
-        Draw
-        <.kbd>d</.kbd>
-      </.button>
-    </section>
     """
   end
 
