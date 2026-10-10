@@ -61,7 +61,27 @@ defmodule QuacksWeb.PanelComponents do
     p10: :rat,
     p11: :droplet,
     p12: :die,
-    p13: :bag
+    p13: :bag,
+    ap1: :ruby,
+    ap2: :ruby,
+    ap3: :ruby,
+    ap4: :die,
+    ap5: :die,
+    ap6: :rat,
+    ap7: :bag,
+    ap8: :bag,
+    ap9: :rat,
+    ap10: :droplet,
+    ab1: :cauldron,
+    ab2: :bag,
+    ab3: {:ingredient, :white},
+    ab4: :rat,
+    ab5: {:ingredient, :white},
+    ab6: :cauldron,
+    ab7: :flask,
+    ab8: :cauldron,
+    ab9: :droplet,
+    ab10: :ruby
   }
 
   @doc """
