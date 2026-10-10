@@ -332,12 +332,18 @@ defmodule Quacks.GameServer do
         public: false,
         session: session,
         store: nil,
-        debug:
-          Map.merge(
-            %{bundle: bundle, at: at, total: total, frozen: Keyword.get(opts, :frozen, true)},
-            if(bundle["scenario"], do: %{scenario: bundle["scenario"]}, else: %{})
-          )
+        debug: debug_state(bundle, at, total, opts)
       })
+    end
+  end
+
+  # A scenario's bundle (`Quacks.Scenarios.bundle/2`) adds its steps.
+  defp debug_state(bundle, at, total, opts) do
+    debug = %{bundle: bundle, at: at, total: total, frozen: Keyword.get(opts, :frozen, true)}
+
+    case bundle do
+      %{"scenario" => %{} = scenario} -> Map.put(debug, :scenario, scenario)
+      _bundle -> debug
     end
   end
 
