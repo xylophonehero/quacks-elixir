@@ -4,7 +4,8 @@ defmodule Quacks.AlchCardsTest do
 
   import Quacks.GameHelpers
 
-  alias Quacks.Game
+  alias Quacks.{AI, Game}
+  alias Quacks.AI.{Profile, Sim}
   alias Quacks.Game.Fortune
   alias Quacks.Rules.Alchemists
   alias Quacks.Rules.Fortune, as: Cards
@@ -237,6 +238,43 @@ defmodule Quacks.AlchCardsTest do
       assert me(g).pennies.gold
       refute me(g).pennies.silver
       assert logged?(g, 0, :ab10, {:penny, :gold})
+    end
+  end
+
+  describe "bots" do
+    test "every bot answers every new card choice with a legal, sensible action" do
+      rng = :rand.seed_s(:exsss, {9, 9, 9})
+
+      for id <- [:ap1, :ap3, :ap4, :ap6, :ap7, :ap9, :ap10], name <- Profile.all() do
+        g =
+          new(2, expansions: [:herb_witches])
+          |> put(1, vp: 0, rubies: 3)
+          |> put(0, vp: 6, droplet: 2, pot_index: 2)
+          |> put(round: 2)
+          |> purple(id)
+
+        for seat <- g.seats, Game.legal_actions(g, seat) != [] do
+          {action, _rng} = AI.decide(g, seat, Profile.get(name), rng)
+          assert action in Game.legal_actions(g, seat), "#{id} #{name}: #{inspect(action)}"
+        end
+      end
+    end
+
+    test "the scored pick swaps a pot chip up, not down (AB1)" do
+      g = new() |> blue(:ab1) |> force_draws([{:green, 2}, {:white, 1}]) |> apply!(:stop)
+      {action, _rng} = AI.decide(g, 0, Profile.get(:balanced), :rand.seed_s(:exsss, {9, 9, 9}))
+      assert {:fortune, {:better, {:green, 2}, {_, 4}}} = action
+    end
+
+    test "bots play whole games with the box cards" do
+      for n <- 1..12 do
+        {g, _rounds} =
+          Sim.play([:balanced, :cautious, :balanced], {n, 5, 7},
+            expansions: [:alchemists, :herb_witches]
+          )
+
+        assert Game.over?(g)
+      end
     end
   end
 end

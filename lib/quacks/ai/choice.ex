@@ -29,6 +29,9 @@ defmodule Quacks.AI.Choice do
     {:yellow, 2} => {:yellow, 4}
   }
 
+  # One bonus-die roll: about 1 VP (1 VP, 2 VP, a ruby, a droplet step, an orange 1).
+  @roll 1.2
+
   # P2 trades (`Quacks.Game.Evaluation`): purple chips spent, what comes back.
   @trades %{
     1 => {[{:black, 1}], 1, 1, 0},
@@ -60,8 +63,38 @@ defmodule Quacks.AI.Choice do
   defp fortune({:take, chip}, %{fortune_card: :p3} = game, _seat, profile),
     do: worth(chip, game.round, profile) - profile.ruby_value
 
+  # The Alchemists box: AP3 costs rubies, AP9 rat tails, AP10 droplet spaces.
+  defp fortune({:take, {_, v} = chip}, %{fortune_card: :ap3} = game, _seat, profile),
+    do: worth(chip, game.round, profile) - v * profile.ruby_value
+
+  defp fortune({:take, {_, v} = chip}, %{fortune_card: :ap9} = game, _seat, profile),
+    do: worth(chip, game.round, profile) - 2 * v * space(game.round, profile)
+
+  defp fortune({:take, {_, v} = chip}, %{fortune_card: :ap10} = game, _seat, profile),
+    do: worth(chip, game.round, profile) - div(v, 2) * droplet(game.round, profile)
+
   defp fortune({:take, chip}, game, _seat, profile), do: worth(chip, game.round, profile)
+  defp fortune(:rubies, %{fortune_card: :ap3}, _seat, profile), do: 2 * profile.ruby_value
   defp fortune(:rubies, _game, _seat, profile), do: 3 * profile.ruby_value
+
+  defp fortune(:bundle, game, _seat, profile),
+    do: profile.ruby_value + @roll + 3 * space(game.round, profile)
+
+  defp fortune(:rats, game, _seat, profile), do: 8 * space(game.round, profile)
+  defp fortune(:rolls, _game, _seat, _profile), do: 4 * @roll
+
+  defp fortune({:cherish, k}, game, _seat, profile),
+    do: k * (3 * space(game.round, profile) - profile.ruby_value)
+
+  # A penny is 2 VP at the end and one witch call.
+  defp fortune({:exchange, _colour, chip}, game, _seat, profile),
+    do: worth(chip, game.round, profile) - 3
+
+  defp fortune({:better, old, new}, game, _seat, profile),
+    do: worth(new, game.round, profile) - worth(old, game.round, profile)
+
+  defp fortune(:droplet, %{fortune_card: :ap4} = game, _seat, profile),
+    do: 3 * droplet(game.round, profile)
 
   defp fortune(:vp, %{fortune_card: :p10} = game, seat, _profile),
     do: game |> Game.player(seat) |> Map.fetch!(:rat_stone)
