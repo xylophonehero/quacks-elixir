@@ -113,9 +113,23 @@ defmodule QuacksWeb.ScenariosTest do
     Scenarios.record(entry, :pass)
   end
 
+  # The results play on the tiles step by step: a selector that waits for a later
+  # step (a book's choice, the rubies after the results) shows after Next.
   defp sees!(view, entry, n, step, selectors) do
+    next_until_seen(view, selectors, 12)
+
     for selector <- selectors, not has_element?(view, selector) do
       fail(entry, step.label, "step #{n} (#{step.label}): the page has no #{selector}")
+    end
+  end
+
+  defp next_until_seen(_view, _selectors, 0), do: :ok
+
+  defp next_until_seen(view, selectors, left) do
+    if Enum.any?(selectors, &(not has_element?(view, &1))) and
+         has_element?(view, "[data-role=tile-next]") do
+      view |> element("[data-role=tile-next]") |> render_click()
+      next_until_seen(view, selectors, left - 1)
     end
   end
 

@@ -9,6 +9,7 @@ defmodule QuacksWeb.QaFixes2Test do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.{Game, GameServer}
@@ -53,12 +54,12 @@ defmodule QuacksWeb.QaFixes2Test do
 
       refute has_element?(view, "dialog#decision-rubies")
       refute has_element?(view, "[data-role=decision-button]")
-      # the reveal overlay shows: the round waits
+      # the results play on the tiles: the round waits
       assert {:ok, %{game: %Game{round: 1}}} = GameServer.get(id)
-      assert has_element?(view, "dialog#reveal-results-1")
+      assert has_element?(view, "#tile-stage")
 
       # QA 3, N4: no bare "Done" after the replay
-      render_hook(view, "seen", %{"kind" => "results", "round" => 1})
+      skip_results(view)
       assert {:ok, %{game: %Game{round: 2}}} = GameServer.get(id)
     end
 
@@ -66,6 +67,7 @@ defmodule QuacksWeb.QaFixes2Test do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
       view = open(browser(token("rubies")), id)
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 2))
+      skip_results(view)
 
       # Round 29: the choice is in the bar.
       assert has_element?(view, "#bar-rubies button[data-ruby=droplet]")
@@ -177,6 +179,7 @@ defmodule QuacksWeb.QaFixes2Test do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
       view = open(browser(token("g1")), id)
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 30))
+      skip_results(view)
 
       assert has_element?(
                view,

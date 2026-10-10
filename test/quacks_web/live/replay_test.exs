@@ -6,6 +6,7 @@ defmodule QuacksWeb.ReplayTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.{Game, GameServer}
   alias QuacksWeb.{PotComponents, Replay, TileComponents}
@@ -168,8 +169,8 @@ defmodule QuacksWeb.ReplayTest do
     for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
-    # round 14: the reveal overlay holds the replay open; its end ends it
-    assert has_element?(view, "dialog#reveal-results-1 [data-role=reveal-slide]")
+    # the results on the tiles hold the replay open; their end ends it
+    assert has_element?(view, "#tile-stage")
     refute has_element?(view, "#players-row.replay-done")
     refute has_element?(view, "[data-role=replay-timer]")
 
@@ -182,10 +183,9 @@ defmodule QuacksWeb.ReplayTest do
       assert String.to_integer(beat) <= last
     end
 
-    view |> element("#reveal-skip") |> render_click()
-    view |> element("#reveal-next") |> render_click()
+    skip_results(view)
     assert has_element?(view, "#players-row.replay-done")
-    refute has_element?(view, "dialog#reveal-results-1")
+    refute has_element?(view, "#tile-stage")
     assert {:ok, %{seen: %{0 => %{results: 1}}}} = GameServer.get(id)
   end
 

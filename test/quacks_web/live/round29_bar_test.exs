@@ -6,6 +6,7 @@ defmodule QuacksWeb.Round29BarTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.GameHelpers, as: H
@@ -137,10 +138,12 @@ defmodule QuacksWeb.Round29BarTest do
       {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false, pot_side: :back})
       {:ok, view, _} = live(browser("r29-rubies"), ~p"/g/#{id}")
       replace_game(id, &H.put(&1, 0, phase: :rubies, coins: 0, rubies: 2, flask: true))
+      skip_results(view)
 
       refute has_element?(view, "dialog#decision-rubies")
       bar = "#bar-rubies.flex"
-      assert has_element?(view, "#{bar} > button:nth-child(1)[data-role=rubies-skip]", "Skip")
+      # On the tiles the results' stage stays: "Keep" keeps the rubies (round 39).
+      assert has_element?(view, "#{bar} > button:nth-child(1)[data-role=rubies-keep]", "Keep")
 
       assert has_element?(
                view,
@@ -176,6 +179,7 @@ defmodule QuacksWeb.Round29BarTest do
     test "the gold witch's price (G4: 1 ruby) shows on the buttons" do
       {id, view} = solo()
       replace_game(id, &H.put(&1, 0, phase: :rubies, coins: 0, rubies: 1, ruby_price: 1))
+      skip_results(view)
       assert has_element?(view, "#bar-rubies button[data-ruby=droplet]:not([disabled])", "1")
       refute has_element?(view, "#bar-rubies button[data-ruby=tube]")
     end

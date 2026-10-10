@@ -8,6 +8,7 @@ defmodule QuacksWeb.Round37EvalTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers
@@ -210,6 +211,8 @@ defmodule QuacksWeb.Round37EvalTest do
         |> GameHelpers.put(fortune_deck: [:p13], round: 2)
         |> Game.start_round()
       end)
+
+      skip_results(view)
 
       {:ok, %{game: game}} = GameServer.get(id)
       trade = Enum.find(Game.legal_actions(game, 0), &match?({:fortune, {:upgrade, _}}, &1))

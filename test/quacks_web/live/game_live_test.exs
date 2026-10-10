@@ -2,6 +2,7 @@ defmodule QuacksWeb.GameLiveTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Chips
@@ -36,9 +37,16 @@ defmodule QuacksWeb.GameLiveTest do
     |> List.first()
   end
 
-  # One step: the first legal action, or (an empty rubies step waits for it) close
-  # the round results as the browser does.
+  # One step: the round results on the tiles end first; then the first legal
+  # action, or (an empty rubies step waits for it) mark the results seen as the
+  # browser does.
   defp step(view, html) do
+    if count(html, "[data-role=tile-next]") > 0,
+      do: render(skip_results(view)),
+      else: act(view, html)
+  end
+
+  defp act(view, html) do
     case {first_action(html), shop_chip(html)} do
       # Round 35: the shop has no Skip; tick a chip and Buy is the action.
       {nil, chip} when is_binary(chip) ->
@@ -156,6 +164,7 @@ defmodule QuacksWeb.GameLiveTest do
     {:ok, view, _html} = live_game(conn, {10, 11, 12})
     for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
+    skip_results(view)
     assert has_element?(view, "dd", "Shop")
     assert has_element?(view, ~s([data-role=shop-total][aria-label^="7 coins,"]))
     view

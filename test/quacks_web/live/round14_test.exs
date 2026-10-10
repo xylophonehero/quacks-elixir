@@ -37,52 +37,6 @@ defmodule QuacksWeb.Round14Test do
   defp reveal(view), do: :sys.get_state(view.pid).socket.assigns.reveal
 
   describe "the reveal overlay" do
-    test "Next steps through the slides; the last one opens the shop" do
-      {id, view, _token} = solo_results()
-      assert has_element?(view, "dialog#reveal-results-1[phx-mounted*='quacks:modal']")
-      assert has_element?(view, "#reveal-slide-0[data-kind=book]")
-      assert has_element?(view, "[data-role=reveal-count]", "1 / 4")
-      assert has_element?(view, "#reveal-slide-0 [data-role=reveal-chips]")
-
-      view |> element("#reveal-next") |> render_click()
-      assert has_element?(view, "#reveal-slide-1[data-kind=book]")
-      # a tap on the slide is Next too; round 20: the scoring space has its slide
-      view |> element("#reveal-stage") |> render_click()
-      assert has_element?(view, "#reveal-slide-2[data-kind=space]")
-      view |> element("#reveal-next") |> render_click()
-      # round 28: no results table; then the standings
-      assert has_element?(view, "#reveal-slide-3[data-kind=standings]")
-      refute has_element?(view, "#reveal-skip")
-      assert has_element?(view, "#reveal-next", "To the shop")
-
-      view |> element("#reveal-next") |> render_click()
-      refute has_element?(view, "[data-role=reveal]")
-      assert_push_event(view, "quacks:open", %{to: "#decision-shop"})
-      assert {:ok, %{seen: %{0 => %{results: 1}}}} = GameServer.get(id)
-    end
-
-    test "Skip jumps to the last slide; Esc (the dialog's close) ends it" do
-      {_id, view, _token} = solo_results()
-      view |> element("#reveal-skip") |> render_click()
-      assert has_element?(view, "#reveal-slide-3[data-kind=standings]")
-
-      assert has_element?(view, "dialog#reveal-results-1[data-on-close*=reveal_close]")
-      render_hook(view, "reveal_close", %{})
-      refute has_element?(view, "[data-role=reveal]")
-    end
-
-    test "a reload mid-reveal starts at the first slide; after the end it stays closed" do
-      {id, view, token} = solo_results()
-      view |> element("#reveal-next") |> render_click()
-      {:ok, again, _html} = live(browser(token), ~p"/g/#{id}")
-      assert has_element?(again, "#reveal-slide-0")
-
-      again |> element("#reveal-skip") |> render_click()
-      again |> element("#reveal-next") |> render_click()
-      {:ok, third, _html} = live(browser(token), ~p"/g/#{id}")
-      refute has_element?(third, "[data-role=reveal]")
-    end
-
     test "the round's card: one slide; closing marks it seen" do
       {:ok, id} = GameServer.start(1, {1, 2, 3})
       {:ok, view, _html} = live(browser("r14-card-#{System.unique_integer()}"), ~p"/g/#{id}")
@@ -113,31 +67,6 @@ defmodule QuacksWeb.Round14Test do
       assert has_element?(view, "[data-role=game-over-actions] [data-role=play-again]")
       assert has_element?(view, "[data-role=game-over-actions] [data-role=return-to-lobby]")
       refute has_element?(view, "[data-role=action-bar]")
-    end
-
-    test "round 29: round 9's results end on the last step with Continue, no standings" do
-      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
-      {:ok, view, _html} = live(browser("r29-r9-#{System.unique_integer()}"), ~p"/g/#{id}")
-
-      replace_game(id, fn g ->
-        g = put_in(g.players[0].drawn, [{{:green, 1}, 12}, {{:purple, 1}, 11}])
-        g = %{g | log: [{0, {:purple, 1, :vp}}, {0, {:green_rubies, 1}}, {:round_end, 8}]}
-        H.put(g, 0, round: 9, phase: :shop, coins: 0, rubies: 0)
-      end)
-
-      view |> element("#reveal-skip") |> render_click()
-      refute has_element?(view, "#reveal-results-9 [data-kind=standings]")
-      assert has_element?(view, "#reveal-results-9 #reveal-next", "Continue")
-    end
-
-    test "Enter and Space are Next; a focused button keeps its own key" do
-      {_id, view, _token} = solo_results()
-      view |> element("#game") |> render_keydown(%{"key" => "Enter"})
-      assert has_element?(view, "#reveal-slide-1")
-      view |> element("#game") |> render_keydown(%{"key" => " "})
-      assert has_element?(view, "#reveal-slide-2")
-      view |> element("#game") |> render_keydown(%{"key" => "Enter", "control" => true})
-      assert has_element?(view, "#reveal-slide-2")
     end
   end
 

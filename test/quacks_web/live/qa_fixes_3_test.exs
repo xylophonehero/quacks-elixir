@@ -9,11 +9,11 @@ defmodule QuacksWeb.QaFixes3Test do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.Replay
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -36,22 +36,6 @@ defmodule QuacksWeb.QaFixes3Test do
     alice |> element("button", "Start game") |> render_click()
     {id, alice, bob}
   end
-
-  # A round with a bonus die, a ruby and VP lines (newest first, like the engine).
-  @log [
-    {0, {:pot_vp, 3, 13}},
-    {0, {:pot_ruby, 13}},
-    {0, {:green_rubies, 1}},
-    {0, {:bonus_die, {:vp, 1}}},
-    {0, {:drew, {:green, 1}, 12}},
-    {:round_end, 0}
-  ]
-
-  defp scored(g),
-    do:
-      g
-      |> H.put(0, phase: :shop, coins: 30, vp: 10, rubies: 4, drawn: [{{:green, 1}, 12}])
-      |> Map.put(:log, @log)
 
   test "Q1: from 64rem a shop tile is chip, value and price; the price never shrinks" do
     {id, view} = solo()
@@ -138,6 +122,7 @@ defmodule QuacksWeb.QaFixes3Test do
     test "brewing names the VP, not coins; the explosion's coins say they become VP" do
       {id, view} = solo()
       replace_game(id, &H.put(&1, 0, round: 9))
+      skip_results(view)
       refute has_element?(view, "[data-role=next-reward]", "coin")
       assert has_element?(view, "[data-role=next-reward]", "VP")
 
@@ -145,48 +130,6 @@ defmodule QuacksWeb.QaFixes3Test do
       assert has_element?(view, "[data-role=bar-explosion] button", "Turn into VP at the end")
       refute has_element?(view, "[data-role=bar-explosion] button", "Shop")
     end
-  end
-
-  test "Q5: during the replay the counters start from the values before the round" do
-    {id, view} = solo()
-    game = replace_game(id, &scored/1)
-    before = Replay.before(game, 0)
-
-    assert before == %{vp: 10 - 3 - 1, rubies: 4 - 1 - 1}
-    assert has_element?(view, ~s(#stat-rubies[data-from="#{before.rubies}"]))
-
-    assert has_element?(
-             view,
-             ~s([data-role=player-chip][data-seat="0"] [data-role=player-vp] .stat-tick[data-from="#{before.vp}"])
-           )
-
-    css = File.read!("assets/css/app.css")
-    assert css =~ "@keyframes stat-count"
-    assert css =~ ":root:has(#players-row.replay-done) .stat-tick[data-from]"
-
-    render_hook(view, "seen", %{"kind" => "results", "round" => 1})
-    refute has_element?(view, ".stat-tick[data-from]")
-  end
-
-  # Round 39: no results panel in the context column; the overlay's die rolls in
-  # the bar's info row on every screen. Nothing sits on the pot's corner any more.
-  test "Q6: the bonus die rolls in the bar's info row, not on the pot" do
-    {id, view} = solo()
-    replace_game(id, &scored/1)
-
-    refute has_element?(view, "[data-role=results-panel]")
-
-    # Round 33: in the bar's info row, not in the tray.
-    assert has_element?(view, "footer #info-die [data-role=replay-die]")
-    refute has_element?(view, ".game-tray [data-role=replay-die]")
-    refute has_element?(view, "[data-role=replay-die-corner]")
-
-    assert view
-           |> render()
-           |> LazyHTML.from_fragment()
-           |> LazyHTML.query("[data-role=replay-die]")
-           |> Enum.count() ==
-             1
   end
 
   describe "Q7: rejoin" do

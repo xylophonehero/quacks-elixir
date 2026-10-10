@@ -47,9 +47,9 @@ defmodule QuacksWeb.GameLive do
 
   The reveal overlay (round 14, `QuacksWeb.Reveal`, `reveal_overlay/1`): the round's
   card at its start, the evaluation when the shop phase begins and the final
-  scoring at the end, one slide at a time, per browser (`@reveal`). Round 39: once
-  the browser sends its settings the evaluation plays on the tiles on every
-  screen; the overlay is only the default until then. Next, Skip,
+  scoring at the end, one slide at a time, per browser (`@reveal`). The evaluation
+  plays on the tiles and their stage on every screen (round 39; the refactor of
+  October 2026 removed the overlay's results mode). Next, Skip,
   Enter, Space, Esc; Auto mode advances on a server timer. Under it each name
   card's VP and ruby counters tick on their replay beats. Its end marks the moment
   seen (`GameServer.ack/4`) and opens the waiting shop or decision. A seat that can
@@ -167,7 +167,6 @@ defmodule QuacksWeb.GameLive do
            reveal_mode: :step,
            reveal_speed: :normal,
            risk: :percent,
-           reveal_show: :overlay,
            reduced: false,
            rubies_kept: nil,
            tips: nil
@@ -485,9 +484,6 @@ defmodule QuacksWeb.GameLive do
     mode = if params["mode"] == "auto" and not reduced, do: :auto, else: :step
     speed = Enum.find(Reveal.speeds(), :normal, &(Atom.to_string(&1) == params["speed"]))
 
-    # Round 39: every screen plays the results on the tiles and their stage (no
-    # overlay over the pot). The overlay stays only until this first push.
-    show = :tiles
     # Round 29: the risk shown beside the white meter (`quacks:risk` in this browser).
     risk =
       Enum.find(
@@ -504,24 +500,12 @@ defmodule QuacksWeb.GameLive do
       assign(socket,
         reveal_mode: mode,
         reveal_speed: speed,
-        reveal_show: show,
         risk: risk,
         reduced: reduced,
         tips: tips
       )
 
     case socket.assigns.reveal do
-      # Round 27: the settings come after mount, so the results' reveal starts again
-      # where the Results setting says (the overlay or the tiles).
-      %{key: {:results, _} = key} = reveal when reveal.tiles != (show == :tiles) ->
-        game = socket.assigns.game
-
-        if TileReveal.evaluating?(game),
-          do: {:noreply, assign(socket, reveal: nil)},
-          else:
-            {:noreply,
-             socket |> assign(reveal: nil) |> start_reveal(key, Reveal.result_slides(game))}
-
       %{index: index} ->
         {:noreply, show_slide(socket, index)}
 
@@ -1213,11 +1197,8 @@ defmodule QuacksWeb.GameLive do
               updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
               ticks={replaying?(@game, @seen) and not tiles_playing?(@reveal)}
               totals={tiles_playing?(@reveal) && tile_totals(@game, @reveal)[seat]}
-              news={
-                (@reveal_show == :tiles or @game.phase == :potions) &&
-                  TileReveal.news(@game, seat, @reveal)
-              }
-              rolls={if @reveal_show == :tiles, do: tile_rolls(@game, seat, @reveal), else: []}
+              news={TileReveal.news(@game, seat, @reveal)}
+              rolls={tile_rolls(@game, seat, @reveal)}
             />
           </nav>
           <%!-- Round 16: the rat track, a fixed height while the rats rule is on. --%>
@@ -1661,9 +1642,8 @@ defmodule QuacksWeb.GameLive do
               </.sheet_button>
             </section>
           </div>
-          <%!-- The bonus die while the overlay plays the results (only until the
-               browser's settings come, round 39). Round 33: in the info row over
-               the step bar, no overlay over the test tubes. --%>
+          <%!-- The bonus die while the results play. Round 33: in the info row
+               over the step bar, no overlay over the test tubes. --%>
           <div
             :if={replaying?(@game, @seen) and die_step?(@reveal)}
             id="info-die"
@@ -2186,7 +2166,6 @@ defmodule QuacksWeb.GameLive do
       reveal_mode: :step,
       reveal_speed: :normal,
       risk: :percent,
-      reveal_show: :tiles,
       reduced: false,
       rubies_kept: nil,
       tips: nil
@@ -2301,15 +2280,13 @@ defmodule QuacksWeb.GameLive do
   # choices (each choice waits on its book's step); the overlay waits for the shop.
   # Round 37 (item 4): at a round's start the last round's recap (the shop, then
   # "Round scored") plays first, before the new card.
-  defp reveal_key(game, %{reveal_show: :tiles} = assigns) do
+  defp reveal_key(game, assigns) do
     cond do
       TileReveal.evaluating?(game) -> {:results, game.round}
       recap_due?(game, assigns) -> {:recap, game.round - 1}
       true -> Reveal.moment(game)
     end
   end
-
-  defp reveal_key(game, _assigns), do: Reveal.moment(game)
 
   defp reveal_slides(game, _seat, {:results, _}), do: Reveal.result_slides(game)
   defp reveal_slides(game, _seat, {:recap, _}), do: Reveal.recap_slides(game)
@@ -2351,7 +2328,7 @@ defmodule QuacksWeb.GameLive do
     # player tiles (`QuacksWeb.TileReveal`); no step to play, the overlay as before.
     tiles =
       case key do
-        {:results, _} when socket.assigns.reveal_show == :tiles ->
+        {:results, _} ->
           TileReveal.live(socket.assigns.game, slides)
 
         {:recap, _} ->
@@ -2697,7 +2674,10 @@ defmodule QuacksWeb.GameLive do
 
   # Round 37 (item 4): the last round's recap is due at the round's start (this
   # seat has not drawn yet) until this seat has seen it. Not in round 1, the shop
-  # or after the game.
+  # or after the game. A scenario's table starts at its moment: no recap before it
+  # (as the gallery's scenario steps).
+  defp recap_due?(_game, %{debug: %{scenario: _}}), do: false
+
   defp recap_due?(%Game{round: round, phase: phase} = game, %{seat: seat, seen: seen})
        when is_integer(seat) and round > 1 and phase not in [:shopping, :over] do
     Game.player(game, seat).drawn == [] and not seen?(seen, :recap, %{round: round - 1})

@@ -2,6 +2,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.{Chips, Witches}
@@ -215,6 +216,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {:ok, _} = GameServer.apply(id, 0, :draw)
     {:ok, _} = GameServer.apply(id, 0, :stop)
     {:ok, _} = GameServer.apply(id, 0, {:buy, []})
+    skip_results(view)
 
     # Round 37: with a ruby to spend she is in the rubies bar, beside the uses
     assert has_element?(view, "#bar-rubies [data-role=rubies-witch]")
