@@ -2103,26 +2103,38 @@ coins
 <p class="font-hand text-2xl leading-tight font-bold">Your pot exploded</p>
 <p class="text-sm">Next: take the VP or buy (the choice above).</p>
 </section>
-<section aria-label="Your pot exploded: take the victory points or the coins" class="bar-choice bar-choice-late grid grid-cols-2 gap-2 *:min-h-12 *:touch-manipulation" data-role="bar-explosion" id="bar-explosion-1">
+<section aria-label="Your pot exploded: take the victory points or the coins" class="bar-choice bar-choice-late grid gap-2 *:min-h-12 *:touch-manipulation grid-cols-3" data-role="bar-explosion" id="bar-explosion-1">
 <button aria-label="Take VP (+2)" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-iron-dark/60 text-parchment ring-2 ring-parchment/45 ring-inset hover:bg-iron-dark hover:ring-parchment/70 flex-col gap-0! px-2! py-1! leading-tight" data-choice="vp" phx-click="action" phx-value-action="g2gCdxBleHBsb3Npb25fY2hvaWNldwJ2cA">
 <span class="flex items-center gap-1 text-base">
 <svg aria-hidden="true" class="size-5" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-vp">
 </use>
-</svg> Take VP +2
+</svg> VP +2
 </span>
-<span class="text-xs font-normal opacity-80">Score now, no coins</span>
+<span class="text-xs font-normal opacity-80">
+No coins
+</span>
 </button>
 <button aria-label="Take coins (13 to spend)" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-iron-dark/60 text-parchment ring-2 ring-parchment/45 ring-inset hover:bg-iron-dark hover:ring-parchment/70 flex-col gap-0! px-2! py-1! leading-tight" data-choice="buy" phx-click="action" phx-value-action="g2gCdxBleHBsb3Npb25fY2hvaWNldwNidXk">
 <span class="flex items-center gap-1 text-base">
 <svg aria-hidden="true" class="size-5" data-icon="coin" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-coin">
 </use>
-</svg> Take coins 13
+</svg>
+Coins 13
 </span>
 <span class="text-xs font-normal opacity-80">
 Shop, no VP
 </span>
+</button>
+<button aria-label="Call the silver witch: no explosion penalty, take the VP and the coins" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-parchment-light text-ink shadow-sm ring-1 ring-ink/25 hover:bg-white flex-col gap-0! px-2! py-1! leading-tight" data-role="explosion-witch" phx-click="action" phx-value-action="g2gCdwV3aXRjaHcGc2lsdmVy" title="Call the silver witch: no explosion penalty, take the VP and the coins">
+<span class="flex items-center gap-1 text-base">
+<svg aria-hidden="true" class="size-5 text-penny-silver" data-icon="witch" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-witch">
+</use>
+</svg> Witch
+</span>
+<span class="text-xs font-normal opacity-80">VP and coins</span>
 </button>
 </section>
 </footer>
