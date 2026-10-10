@@ -2705,10 +2705,11 @@ defmodule QuacksWeb.GameComponents do
 
   @doc """
   The ingredient books in play as compact tiles in board order (`Books.in_play/2`):
-  the desktop books column (80rem). Each tile: the icon, the
-  name, the book number, when it acts and its rule; tiered books show their tiers
-  inline, only the rows for this table size. `beats` (`%{colour => beat}`) lights a
-  book up on the replay beat of its line (app.css `.book-beat`).
+  the desktop left column (80rem). Round 39: a `<details>`, closed by default; its
+  summary opens it. Each tile: the icon, the name, the book number, when it acts
+  and its rule; tiered books show their tiers inline, only the rows for this table
+  size. `beats` (`%{colour => beat}`) lights a book up on the replay beat of its
+  line (app.css `.book-beat`).
   """
   attr :id, :string, required: true
   attr :game, Game, required: true
@@ -2724,20 +2725,15 @@ defmodule QuacksWeb.GameComponents do
       )
 
     ~H"""
-    <section
-      id={@id}
-      class={["min-h-0 flex-col gap-1.5", @class]}
-      aria-label="Ingredient books"
-      {@rest}
-    >
-      <h2 class="flex items-baseline gap-2 px-1 font-hand text-lg font-bold text-parchment">
+    <.fold id={@id} class={@class} label="Ingredient books" {@rest}>
+      <:title>
         <QuacksWeb.CoreComponents.icon name="hero-book-open" class="size-4 self-center" />
         Books in play
-        <span class="ml-auto font-sans text-xs font-normal text-parchment-dim">
+        <span class="font-sans text-xs font-normal text-parchment-dim">
           {@players} {if @players == 1, do: "player", else: "players"}
         </span>
-      </h2>
-      <ol class="min-h-0 space-y-1.5 overflow-y-auto pb-1" data-role="books-in-play">
+      </:title>
+      <ol class="space-y-1.5 pb-1" data-role="books-in-play">
         <li :for={{colour, set} <- @books}>
           <.book_line
             colour={colour}
@@ -2748,7 +2744,43 @@ defmodule QuacksWeb.GameComponents do
           />
         </li>
       </ol>
-    </section>
+    </.fold>
+    """
+  end
+
+  @doc """
+  Round 39: a block of the desktop left column that folds (`<details>`), closed
+  by default. A click on the title opens or closes it; the page keeps that state
+  across patches (`JS.ignore_attributes/1` on `open`).
+  """
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :class, :any, default: nil
+  attr :rest, :global
+  slot :title, required: true
+  slot :inner_block, required: true
+
+  def fold(assigns) do
+    ~H"""
+    <details
+      id={@id}
+      class={["fold group min-h-0", @class]}
+      aria-label={@label}
+      phx-mounted={JS.ignore_attributes(["open"])}
+      {@rest}
+    >
+      <summary
+        class="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-1 font-hand text-lg font-bold text-parchment transition-colors duration-150 select-none hover:bg-iron-dark/60 [&::-webkit-details-marker]:hidden"
+        data-role="fold-title"
+      >
+        {render_slot(@title)}
+        <QuacksWeb.CoreComponents.icon
+          name="hero-chevron-down"
+          class="ml-auto size-4 shrink-0 text-parchment-dim transition-transform duration-200 group-open:rotate-180"
+        />
+      </summary>
+      <div class="pt-1.5">{render_slot(@inner_block)}</div>
+    </details>
     """
   end
 
@@ -3493,8 +3525,8 @@ defmodule QuacksWeb.GameComponents do
   @doc """
   The bonus die while the replay plays (scoring sequence): it shows on its beat,
   rolls through its strip, lands, and its line ("Bonus die: +1 VP") fades in after.
-  Phones show it in the bar's tray; from 64rem the results panel in the context
-  column rolls it (`results_panel/1` in game_live.ex).
+  It shows in the bar's tray (the overlay's results; the tiles' stage has its own
+  die step).
   """
   attr :lines, :list, required: true, doc: "the replay's `:die` lines (`Replay.beats/3`)"
   attr :class, :any, default: nil

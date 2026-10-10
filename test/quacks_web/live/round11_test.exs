@@ -174,7 +174,9 @@ defmodule QuacksWeb.Round11Test do
       refute has_element?(view, "[id^=fortune-under-]")
     end
 
-    test "Take a Chance: every seat's roll, one after the other" do
+    # Round 39: the old list of rolls is gone; the card's rows show in the results
+    # stage (round 36), the one list of what the card did.
+    test "Take a Chance: no second list of the rolls in the context column" do
       {id, alice, _bob} = duo()
 
       replace_game(id, fn g ->
@@ -186,19 +188,8 @@ defmodule QuacksWeb.Round11Test do
         )
       end)
 
-      panel = "[data-role=side-column] > [data-role=chance-panel].lg\\:block"
-
-      assert has_element?(
-               alice,
-               ~s{#{panel} [data-role=chance-roll][data-seat="0"][data-beat="0"]},
-               "You: 2 VP"
-             )
-
-      assert has_element?(
-               alice,
-               ~s{#{panel} [data-role=chance-roll][data-seat="1"][data-beat="2"]},
-               "ruby"
-             )
+      refute has_element?(alice, "[data-role=chance-panel]")
+      refute has_element?(alice, "[data-role=chance-roll]")
     end
 
     test "Mandrake's Keep sits in the bar's tray (the context column from 64rem) and works" do

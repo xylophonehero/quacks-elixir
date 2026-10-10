@@ -32,7 +32,10 @@ defmodule QuacksWeb.Layout2Test do
     test "the books in play, left of the pot, in board order" do
       {_id, view} = start("books")
 
-      assert has_element?(view, "[data-role=my-seat] > #books-column.xl\\:flex.hidden")
+      assert has_element?(view, "[data-role=my-seat] > #left-column.xl\\:flex.hidden")
+      # Round 39: folded until a click opens it.
+      assert has_element?(view, "#left-column > details#books-column:not([open])")
+      assert has_element?(view, "#books-column > summary[data-role=fold-title]", "Books in play")
 
       assert attrs(view, "#books-column [data-role=book-line]", "data-colour") ==
                ~w(orange blue red yellow green black purple)

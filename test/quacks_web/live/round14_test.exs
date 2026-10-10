@@ -156,33 +156,32 @@ defmodule QuacksWeb.Round14Test do
 
       assert has_element?(view, "#reveal-mode-auto[checked]")
       assert has_element?(view, "#reveal-speed-slower[checked]")
-      # Auto: the slide's timer bar runs for its time at that speed
-      assert has_element?(view, ~s([data-role=reveal-timer][style*="--slide-ms: 8500ms"]))
+      # Round 39: the results play on the tiles; Auto runs the step's timer.
+      assert is_reference(reveal(view).tick)
+      refute has_element?(view, "[data-role=tile-next]")
 
       view |> form("#reveal-settings", mode: "step", speed: "slow") |> render_change()
       assert has_element?(view, "#reveal-mode-step[checked]")
       assert has_element?(view, "#reveal-speed-slow[checked]")
-      refute has_element?(view, "[data-role=reveal-timer]")
+      assert has_element?(view, "[data-role=tile-next]")
       assert reveal(view).tick == nil
     end
 
-    test "Auto: the server's timer advances the slides; a stale tick does nothing" do
+    test "Auto: the server's timer advances the steps; a stale tick does nothing" do
       {_id, view, _token} = solo_results()
       render_hook(view, "reveal_settings", %{"mode" => "auto", "speed" => "normal"})
-      %{tick: tick, index: 0} = reveal(view)
+      %{tick: tick, index: 1, tiles: true} = reveal(view)
       assert is_reference(tick)
 
       send(view.pid, {:reveal_tick, make_ref()})
-      assert has_element?(view, "#reveal-slide-0")
+      assert has_element?(view, ~s(#tile-stage[data-index="1"]))
 
       send(view.pid, {:reveal_tick, tick})
-      assert has_element?(view, "#reveal-slide-1")
+      assert has_element?(view, ~s(#tile-stage[data-index="2"]))
 
-      # Next still works, and drops the old timer
-      %{tick: tick} = reveal(view)
-      view |> element("#reveal-next") |> render_click()
+      # A stale tick after the step moved on does nothing.
       send(view.pid, {:reveal_tick, tick})
-      assert has_element?(view, "#reveal-slide-2")
+      assert has_element?(view, ~s(#tile-stage[data-index="2"]))
     end
 
     test "reduced motion: Step only, no timer" do
@@ -205,7 +204,7 @@ defmodule QuacksWeb.Round14Test do
       assert js =~ ~s{style.setProperty("--beat-ms"}
 
       assert js =~
-               ~S|this.pushEvent("reveal_settings", {mode, speed, show, risk: loadRisk(), phone: phoneQuery.matches, reduced: reduced(), tips: loadTips()})|
+               ~S|this.pushEvent("reveal_settings", {mode, speed, risk: loadRisk(), reduced: reduced(), tips: loadTips()})|
     end
   end
 
