@@ -1,7 +1,8 @@
 defmodule QuacksWeb.GalleryFitTest do
   @moduledoc """
   Things the component gallery showed that did not fit at 360 px: each test opens
-  the gallery frame (or scenario) where it showed and checks the fix.
+  the gallery frame where it showed (or renders the same component) and checks the
+  fix.
   """
   use QuacksWeb.ConnCase, async: true
 
@@ -20,25 +21,35 @@ defmodule QuacksWeb.GalleryFitTest do
   defp texts(doc, selector),
     do: doc |> LazyHTML.query(selector) |> Enum.map(&String.trim(LazyHTML.text(&1)))
 
+  # The gallery's track stories (track/8p, track/big-gaps), as components.
+  defp track(vps) do
+    game = Game.new(seed: {1, 2, 3}, players: length(vps), rules: %{rats: true})
+
+    game =
+      vps
+      |> Enum.with_index()
+      |> Enum.reduce(game, fn {vp, s}, g -> put_in(g.players[s].vp, vp) end)
+
+    render_component(&QuacksWeb.GameComponents.rat_track/1, game: game, names: %{})
+    |> LazyHTML.from_fragment()
+  end
+
   describe "score track labels" do
-    test "seats 1 VP apart put their numbers on both sides of the line", %{conn: conn} do
-      view = frame(conn, "track/8p")
-      above = "#rat-track [data-role=track-vp]:not([data-below])"
-      below = "#rat-track [data-role=track-vp][data-below]"
-      assert has_element?(view, above <> "[data-vp='41']")
-      assert has_element?(view, below <> "[data-vp='40']")
+    test "seats 1 VP apart put their numbers on both sides of the line" do
+      html = track([3, 11, 19, 24, 28, 40, 41, 55])
+      above = "[data-role=track-vp]:not([data-below])"
+      below = "[data-role=track-vp][data-below]"
+      assert texts(html, above <> "[data-vp='41']") == ["41"]
+      assert texts(html, below <> "[data-vp='40']") == ["40"]
     end
 
-    test "rat numbers do not run together or repeat a seat's VP", %{conn: conn} do
+    test "rat numbers do not run together or repeat a seat's VP" do
       # 28 / 24 / 19: rats 26, 24, 22, 20 in a row; only every other one has room,
       # and 24 is a seat's VP.
-      rats = conn |> frame("track/8p") |> doc("#rat-track") |> texts("[data-role=track-rat]")
+      rats = texts(track([3, 11, 19, 24, 28, 40, 41, 55]), "[data-role=track-rat]")
       assert Enum.reject(rats, &(&1 == "")) == ~w(26 22)
 
-      rats =
-        conn |> frame("track/big-gaps") |> doc("#rat-track") |> texts("[data-role=track-rat]")
-
-      refute "30" in rats
+      refute "30" in texts(track([2, 30, 31, 70, 45]), "[data-role=track-rat]")
     end
   end
 
