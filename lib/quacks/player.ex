@@ -34,8 +34,9 @@ defmodule Quacks.Player do
   above 0, `Quacks.Game.phase/2` is `:droplet_choice`.
 
   `bowl` is the overflow bowl (The Herb Witches): chips drawn after a chip sits on the
-  last space (53), newest first. They have no action and are not in the pot, but white
-  bowl chips count toward the explosion. They go back in the bag at the end of the round.
+  last space (52; the spoon, 53, is never covered), newest first. They have no action
+  and are not in the pot, but white bowl chips count toward the explosion. They go back
+  in the bag at the end of the round.
 
   The Alchemists (`Quacks.Game.Essence`): `patient` is the seat's patient (nil until
   chosen), `essence` the essence marker (0..10; set in the essence phase, spent by

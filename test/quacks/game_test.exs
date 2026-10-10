@@ -90,10 +90,17 @@ defmodule Quacks.GameTest do
     assert PotTrack.at(99) == PotTrack.at(53)
   end
 
-  test "chips past the spoon land on the spoon" do
+  test "round 37: chips past the last space land on it (52), the spoon (53) scores" do
     g = new() |> put(droplet: 50, pot_index: 50) |> force_draws([{:white, 3}, {:white, 3}])
-    assert me(g).pot_index == 53
+    assert me(g).pot_index == 52
+    assert Enum.all?(me(g).drawn, fn {_chip, i} -> i <= PotTrack.last_chip() end)
     assert Game.scoring_index(g) == 53
+
+    # a chip exactly on the last space: the next one goes in the overflow bowl
+    g = new() |> put(droplet: 49, pot_index: 49) |> force_draws([{:white, 3}, {:white, 1}])
+    assert [{{:white, 3}, 52}] = me(g).drawn
+    assert me(g).bowl == [{:white, 1}]
+    assert {0, {:pot_vp, 15, 53}} in apply!(g, :stop).log
   end
 
   test "stopping rolls the die and pays the scoring space" do
