@@ -93,7 +93,10 @@ defmodule QuacksWeb.Reveal do
               outcomes: card_outcomes(game, seat),
               # Round 35: a choice card's rows wait for the choices (the grown card).
               reveals:
-                if(Fortune.reveal_card?(game.fortune_card), do: Fortune.reveals(game), else: %{}),
+                if(Fortune.reveal_card?(game.fortune_card) or game.fortune_card == :p12,
+                  do: card_reveals(game),
+                  else: %{}
+                ),
               order: Game.turn_order(game)
             }
           ],
@@ -107,6 +110,44 @@ defmodule QuacksWeb.Reveal do
         []
     end
   end
+
+  @doc """
+  Round 37 (item 5): the everyone-card rows of the results panel: the rows of
+  `Quacks.Game.Fortune.reveals/1`, and for Take a Chance (P12, everyone rolls the
+  bonus die) a row per seat with the face (`die`) and what it gave (`gains`).
+  """
+  @spec card_reveals(Game.t()) :: %{Game.seat() => map}
+  def card_reveals(%Game{fortune_card: :p12} = game) do
+    game.log
+    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+    |> Enum.flat_map(fn
+      {s, {:fortune, :p12, face}} when is_integer(s) ->
+        [
+          {s,
+           %{
+             drew: [],
+             number: nil,
+             traded: nil,
+             gains: die_gains(face),
+             best?: false,
+             choosing?: false,
+             die: face
+           }}
+        ]
+
+      _entry ->
+        []
+    end)
+    |> Map.new()
+  end
+
+  def card_reveals(game), do: Fortune.reveals(game)
+
+  defp die_gains({:vp, n}), do: [{:vp, n}]
+  defp die_gains(:ruby), do: [{:rubies, 1}]
+  defp die_gains(:droplet), do: [{:droplet, 1}]
+  defp die_gains(:orange), do: [{:chip, {:orange, 1}}]
+  defp die_gains(_face), do: []
 
   @doc """
   Round 35: the round's result slides (as `slides/2` gives them in the shop), also
@@ -179,7 +220,76 @@ defmodule QuacksWeb.Reveal do
     # round's last decisions.
     if round == 9,
       do: steps,
-      else: steps ++ [Map.put(standings_slide(game, round, before), :gains, rest)]
+      else: steps ++ [Map.put(standings_slide(game, round, before, now(game)), :gains, rest)]
+  end
+
+  # -- the recap (round 37, item 4) ------------------------------------------------------
+
+  @doc """
+  Round 37 (item 4): the last round's recap, at the start of the next round (when
+  every seat has shopped): the shop step (`:shop`, what each seat bought, its
+  droplet pushes and flask refills, `QuacksWeb.TileReveal.shop/2`) and then
+  "Round scored" (`:standings`, the last round's totals and how the places
+  changed). Empty in round 1, in the shop and at the game's end.
+
+  The totals come from the log: the seats' VP and rubies now less what this
+  round gave so far (its card) is the end of the last round; less the last
+  round's results is its start.
+  """
+  @spec recap_slides(Game.t()) :: [slide]
+  def recap_slides(%Game{round: round, phase: phase})
+      when round < 2 or phase in [:shopping, :over],
+      do: []
+
+  def recap_slides(game) do
+    last = game.round - 1
+    now = now(game)
+    {current, previous} = split_rounds(game.log)
+    ended = minus(now, gains_of(current))
+    began = minus(ended, gains_of(previous))
+
+    shop =
+      for s <- game.seats do
+        game |> QuacksWeb.TileReveal.shop(s) |> Map.put(:seat, s)
+      end
+
+    # A shop where nobody bought or spent anything has no step.
+    shopped? = Enum.any?(shop, &(&1.chips != [] or &1.droplets > 0 or &1.flasks > 0))
+
+    Enum.reject(
+      [
+        shopped? && %{kind: :shop, round: last, rows: shop, gains: %{}},
+        Map.put(standings_slide(game, last, began, ended), :gains, %{})
+      ],
+      &(&1 == false)
+    )
+  end
+
+  # The log entries of this round and of the last round (newest first each).
+  defp split_rounds(log) do
+    {current, rest} = Enum.split_while(log, &(not match?({:round_end, _}, &1)))
+    previous = rest |> Enum.drop(1) |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+    {current, previous}
+  end
+
+  defp gains_of(entries) do
+    Enum.reduce(entries, %{}, fn
+      {s, entry}, acc when is_integer(s) ->
+        case Replay.gain(entry) do
+          {vp, rubies} -> add_gain({s, {vp, rubies}}, acc)
+          nil -> acc
+        end
+
+      _entry, acc ->
+        acc
+    end)
+  end
+
+  defp minus(totals, gains) do
+    Map.new(totals, fn {s, {vp, rubies}} ->
+      {v, r} = Map.get(gains, s, {0, 0})
+      {s, {max(vp - v, 0), max(rubies - r, 0)}}
+    end)
   end
 
   # The bonus die: every roll of the round (the base die and book G6's), a row per
@@ -328,8 +438,7 @@ defmodule QuacksWeb.Reveal do
   # and after the round's results, with its rank before (`from_rank`) and after
   # (`rank`, 0 is first). The rows stay in seat order: the overlay moves each row to
   # its rank with CSS, from the old rank to the new one.
-  defp standings_slide(game, round, before) do
-    totals = now(game)
+  defp standings_slide(game, round, before, totals) do
     from_ranks = ranks(before)
     to_ranks = ranks(totals)
 

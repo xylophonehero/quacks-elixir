@@ -856,6 +856,49 @@ body {
   animation-delay: calc(var(--roll, 0) * var(--die-roll));
 }
 
+/* Round 37 (items 1-3): every results panel's rows share one grid: the seat
+   disc, the name, the reason, then one column per kind of result. Each row is a
+   subgrid, so counts, chips and numbers stand in one line whatever the names. */
+.stage-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) repeat(var(--cols, 1), auto);
+  column-gap: 0.375rem;
+  row-gap: 0.125rem;
+}
+
+.stage-grid > .stage-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: 1.75rem;
+}
+
+.stage-grid .stage-name {
+  max-width: 6.5rem;
+}
+
+/* "Round scored": a row that changed places starts at its old place and moves
+   to its new one (FLIP without JS: `--shift` rows, each row one row high plus
+   the gap). It waits a moment, so the old order shows first. */
+.results-stage .stage-row.stage-shift {
+  position: relative;
+  z-index: 1;
+  animation:
+    fade-in 160ms var(--ease-out) both,
+    stage-shift calc(var(--beat-step) * 1.6) var(--ease-in-out)
+      calc(var(--beat-step) * 1.5) both;
+}
+
+@keyframes stage-shift {
+  from {
+    translate: 0 calc(var(--shift) * (100% + 0.125rem));
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .results-stage,
   .results-stage * {
@@ -2943,9 +2986,37 @@ html:active-view-transition-type(card) .card-caption {
   content: counter(n);
 }
 
+/* Round 37 (item 3): the final rows in one grid (place, disc, name, the parts'
+   columns, VP), each row a subgrid, so the parts and the VP stand in lines. */
+.final-grid {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) repeat(var(--cols, 0), auto) auto;
+  column-gap: 0.375rem;
+  row-gap: 0.125rem;
+}
+
+.final-grid > .final-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: 1.625rem;
+}
+
+/* A row that changed places since round 9 starts at its old place and moves to
+   its new one after the VP counted up (FLIP, as "Round scored"). */
+.final-row.stage-shift {
+  position: relative;
+  z-index: 1;
+  animation:
+    reveal-pop 320ms var(--ease-out) calc(250ms + var(--i) * 70ms) both,
+    stage-shift 700ms var(--ease-in-out) 2200ms both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .final-board,
   .final-row,
+  .final-row.stage-shift,
   .final-count {
     animation: none;
   }

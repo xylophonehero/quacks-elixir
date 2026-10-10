@@ -1623,7 +1623,7 @@ defmodule QuacksWeb.GameLive do
             :if={card_stage?(assigns)}
             id={"card-stage-#{@game.round}"}
             card={@game.fortune_card}
-            reveals={Fortune.reveals(@game)}
+            reveals={Reveal.card_reveals(@game)}
             order={Game.turn_order(@game)}
             seat={@seat}
             names={@names}
@@ -1716,7 +1716,10 @@ defmodule QuacksWeb.GameLive do
           <%!-- Round 29: one row, the white meter, then the reward and the risk as icons. --%>
           <%!-- Round 33: a choice with an info row takes this row's place. --%>
           <div
-            :if={@seat && @game.phase == :potions && !info_choice?(@bar_choice)}
+            :if={
+              @seat && @game.phase == :potions && !info_choice?(@bar_choice) &&
+                !tiles_playing?(@reveal)
+            }
             class="flex min-w-0 items-center gap-2"
             data-role="fuse-row"
           >
@@ -1763,7 +1766,10 @@ defmodule QuacksWeb.GameLive do
             pot_pick={@pot_pick}
           />
           <section
-            :if={@seat && not Game.over?(@game) && not results?(@game) && !@bar_choice}
+            :if={
+              @seat && not Game.over?(@game) && not results?(@game) && !@bar_choice &&
+                !tiles_playing?(@reveal)
+            }
             class={[
               "action-bar *:min-h-12 *:touch-manipulation",
               card_continue?(assigns) && "hidden",
@@ -3979,13 +3985,20 @@ defmodule QuacksWeb.GameLive do
 
   # Round 35 (item 7): on the tiles the results begin with the chip actions'
   # choices (each choice waits on its book's step); the overlay waits for the shop.
-  defp reveal_key(game, %{reveal_show: :tiles}) do
-    if TileReveal.evaluating?(game), do: {:results, game.round}, else: Reveal.moment(game)
+  # Round 37 (item 4): at a round's start the last round's recap (the shop, then
+  # "Round scored") plays first, before the new card.
+  defp reveal_key(game, %{reveal_show: :tiles} = assigns) do
+    cond do
+      TileReveal.evaluating?(game) -> {:results, game.round}
+      recap_due?(game, assigns) -> {:recap, game.round - 1}
+      true -> Reveal.moment(game)
+    end
   end
 
   defp reveal_key(game, _assigns), do: Reveal.moment(game)
 
   defp reveal_slides(game, _seat, {:results, _}), do: Reveal.result_slides(game)
+  defp reveal_slides(game, _seat, {:recap, _}), do: Reveal.recap_slides(game)
   defp reveal_slides(game, seat, _key), do: Reveal.slides(game, seat)
 
   # Round 35: while the steps play on the tiles they follow the game (a choice
@@ -4023,9 +4036,16 @@ defmodule QuacksWeb.GameLive do
     # Round 27 (experimental): "On tiles" plays the results' scoring steps on the
     # player tiles (`QuacksWeb.TileReveal`); no step to play, the overlay as before.
     tiles =
-      if socket.assigns.reveal_show == :tiles and match?({:results, _}, key),
-        do: TileReveal.live(socket.assigns.game, slides),
-        else: []
+      case key do
+        {:results, _} when socket.assigns.reveal_show == :tiles ->
+          TileReveal.live(socket.assigns.game, slides)
+
+        {:recap, _} ->
+          slides
+
+        _key ->
+          []
+      end
 
     # Nothing to play yet while the evaluation asks its choices: wait.
     if tiles == [] and TileReveal.evaluating?(socket.assigns.game),
@@ -4071,8 +4091,9 @@ defmodule QuacksWeb.GameLive do
   # the bar name it); the first step shows at once (index 1). On the last step
   # ("Round scored") Next closes.
   # A decision on the step on show holds it (`tile_hold/1`). Round 35 (item 5):
-  # before "Round scored" this seat spends its rubies (`reveal.rubies`), when a
-  # ruby buys something.
+  # this seat spends its rubies (`reveal.rubies`), when a ruby buys something.
+  # Round 37 (item 4): after the last step of the results (the scoring space),
+  # since "Round scored" comes after the shop now.
   defp next_slide(
          %{assigns: %{reveal: %{tiles: true, index: index, slides: slides} = reveal}} = socket
        ) do
@@ -4080,11 +4101,12 @@ defmodule QuacksWeb.GameLive do
       tile_hold(socket.assigns) != nil ->
         assign(socket, reveal: %{reveal | tick: nil})
 
+      index >= length(slides) and match?({:results, _}, reveal.key) and
+          ruby_due?(socket.assigns) ->
+        assign(socket, reveal: %{reveal | rubies: true, tick: nil})
+
       index >= length(slides) ->
         close_reveal(socket)
-
-      match?(%{kind: :standings}, Enum.at(slides, index)) and ruby_due?(socket.assigns) ->
-        assign(socket, reveal: %{reveal | rubies: true, tick: nil})
 
       true ->
         show_slide(socket, index + 1)
@@ -4128,6 +4150,9 @@ defmodule QuacksWeb.GameLive do
   # Round 22: the new card hovers over the pot while its reveal shows, or while the
   # card's choice waits with no chips drawn (Safety Procedure and Flea Market draw
   # chips: there the pot matters, so the card stays in the dialog).
+  # Round 37: not while the last round's recap plays (its panel is on show).
+  defp pot_card?(%{reveal: %{key: {:recap, _}}}), do: false
+
   defp pot_card?(%{reveal: %{key: {:card, _}}, game: %Game{fortune_card: card}}) when card != nil,
     do: true
 
@@ -4199,8 +4224,22 @@ defmodule QuacksWeb.GameLive do
     |> card_vt(was)
     |> mark_seen(key)
     |> auto_done()
-    |> open_waiting()
+    |> after_recap(key)
   end
+
+  # Round 37: the recap ends where the new round's card begins.
+  defp after_recap(socket, {:recap, _}), do: open_reveal(socket)
+  defp after_recap(socket, _key), do: open_waiting(socket)
+
+  # Round 37 (item 4): the last round's recap is due at the round's start (this
+  # seat has not drawn yet) until this seat has seen it. Not in round 1, the shop
+  # or after the game.
+  defp recap_due?(%Game{round: round, phase: phase} = game, %{seat: seat, seen: seen})
+       when is_integer(seat) and round > 1 and phase not in [:shopping, :over] do
+    Game.player(game, seat).drawn == [] and not seen?(seen, :recap, %{round: round - 1})
+  end
+
+  defp recap_due?(_game, _assigns), do: false
 
   # Round 31: the card's choice is made in the bar while the new card still hovers
   # (its reveal held): the choice ends the reveal, the card goes to the corner.
@@ -4285,9 +4324,12 @@ defmodule QuacksWeb.GameLive do
   # Round 35: this seat just made the choice of a card that offers everyone one:
   # the card grows over the pot with what everyone took (`Fortune.reveals/1`),
   # live while the others still choose; a tap or Continue shrinks it.
+  # Round 37 (item 10): Flea Market too, so the trade shows before the round goes on.
   defp chose_card?(%{decision: :fortune_choice, game: old}, decision, game)
        when decision != :fortune_choice,
-       do: same_round?(old, game) and Fortune.choice_card?(game.fortune_card)
+       do:
+         same_round?(old, game) and
+           (Fortune.choice_card?(game.fortune_card) or game.fortune_card == :p13)
 
   defp chose_card?(_assigns, _decision, _game), do: false
 
@@ -4506,6 +4548,7 @@ defmodule QuacksWeb.GameLive do
 
   # The last slide's button names what comes next.
   defp close_label(%{key: {:card, _}}, _decision, _skip), do: "Continue"
+  defp close_label(%{key: {:recap, _}}, _decision, _skip), do: "Next round"
   defp close_label(_reveal, :shop, _skip), do: "To the shop"
   defp close_label(_reveal, :rubies, _skip), do: "Spend rubies"
   defp close_label(_reveal, :droplet_choice, _skip), do: "Move the droplet"
@@ -4789,7 +4832,7 @@ defmodule QuacksWeb.GameLive do
   defp card_stage?(%{game: %Game{fortune_card: card} = game} = assigns) when card != nil do
     (assigns.card_grown or
        (assigns.decision == :fortune_choice and Fortune.reveal_card?(card))) and
-      not tiles_playing?(assigns.reveal) and Fortune.reveals(game) != %{}
+      not tiles_playing?(assigns.reveal) and Reveal.card_reveals(game) != %{}
   end
 
   defp card_stage?(_assigns), do: false

@@ -106,10 +106,9 @@ defmodule QuacksWeb.Round27EvalTest do
     assert TileReveal.badges(space, 0) == [{:vp, 2}, {:rubies, 1}]
     assert TileReveal.label(book) == "Black book"
 
-    # Round 35: the standings stay, as the last step ("Round scored").
+    # Round 37: the standings ("Round scored") moved to the recap after the shop.
     assert TileReveal.slides([%{kind: :die}, %{kind: :results}, %{kind: :standings}]) == [
-             %{kind: :die},
-             %{kind: :standings}
+             %{kind: :die}
            ]
   end
 end

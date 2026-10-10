@@ -278,56 +278,117 @@ defmodule QuacksWeb.TileRevealComponents do
           {if @collapsed && @note, do: elem(@note, 1), else: hint(@slide)}
         </span>
       </header>
-      <ol :if={!@collapsed} class="space-y-0.5" data-role="stage-rows">
-        <li
-          :for={row <- @rows}
-          id={"stage-row-#{@index}-#{row.seat}"}
-          class={[
-            "stage-row flex min-h-7 items-center gap-1.5 rounded-md px-1 py-0.5",
-            row.none && "opacity-45",
-            row.lead && "bg-gold/35",
-            row.seat == @seat && "ring-1 ring-gold-deep/70"
-          ]}
-          data-role="stage-row"
-          data-seat={row.seat}
-          data-none={row.none && "true"}
-          data-lead={row.lead && "true"}
-        >
-          <span
-            class={[
-              "grid size-5 shrink-0 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40",
-              seat_bg(row.seat)
-            ]}
-            aria-hidden="true"
-            data-role="seat-disc"
-          >
-            {initial(name(@names, row.seat))}
-          </span>
-          <span
-            class="stage-name max-w-16 shrink-0 truncate text-xs font-semibold"
-            title={name(@names, row.seat)}
-          >
-            {name(@names, row.seat)}
-          </span>
-          <span class="flex min-w-0 flex-1 items-center gap-1 text-sm" data-role="stage-why">
-            <.cell :for={cell <- row.why} cell={cell} names={@names} />
-          </span>
-          <span
-            class="flex shrink-0 items-center gap-1.5 font-hand text-lg leading-none font-bold"
-            data-role="stage-got"
-          >
-            <.cell :for={{cell, i} <- Enum.with_index(row.got)} cell={cell} names={@names} i={i} />
-          </span>
-        </li>
-      </ol>
+      <.stage_list
+        :if={!@collapsed}
+        id={"stage-rows-#{@index}"}
+        rows={@rows}
+        cols={TileReveal.columns(@rows)}
+        names={@names}
+        seat={@seat}
+        row_role="stage-row"
+        row_id={fn row -> "stage-row-#{@index}-#{row.seat}" end}
+        row_attrs={
+          fn row ->
+            %{"data-none" => row.none && "true", "data-lead" => row.lead && "true"}
+          end
+        }
+      >
+        <:why :let={row}>
+          <.cell :for={cell <- row.why} cell={cell} names={@names} />
+        </:why>
+        <:got :let={{row, col, i}}>
+          <.cell :for={cell <- got_in(row.got, col, i)} cell={cell} names={@names} i={i} />
+        </:got>
+      </.stage_list>
     </section>
+    """
+  end
+
+  # Round 37: a row's result in column `col` (the `i`-th); a row still choosing
+  # shows "choosing…" in the first column.
+  defp got_in(got, col, i) do
+    Enum.filter(got, fn cell ->
+      kind = TileReveal.cell_kind(cell)
+      kind == col or (kind == :choosing and i == 0)
+    end)
+  end
+
+  attr :id, :string, required: true
+  attr :rows, :list, required: true, doc: "maps with `seat`, optional `none`, `lead`, `shift`"
+  attr :cols, :list, required: true, doc: "the result columns, one cell each per row"
+  attr :names, :map, required: true
+  attr :seat, :integer, default: nil, doc: "this browser's seat (its row has a ring)"
+  attr :you, :boolean, default: false, doc: "this browser's row says \"You\""
+  attr :row_role, :string, required: true
+  attr :row_id, :any, required: true, doc: "fn row -> the row's DOM id"
+  attr :row_attrs, :any, default: nil, doc: "fn row -> more attributes for the row"
+  attr :row_class, :any, default: nil, doc: "fn row -> more classes for the row"
+  slot :why, required: true, doc: "the reason, `:let={row}`"
+  slot :got, required: true, doc: "one result column, `:let={{row, col, index}}`"
+
+  @doc """
+  Round 37 (items 1-3): the one row layout of every results panel (the
+  evaluation steps, the recap, the everyone-cards). A grid with one column each
+  for the seat disc, the name, the reason and every result column (`cols`); each
+  row is a subgrid of it (app.css `.stage-grid`), so the counts, chips and
+  numbers of all rows stand in one line, whatever the names' lengths. Numbers
+  are tabular. A row with `shift` (`Round scored`) moves from its old place to
+  its new one (FLIP in CSS: `.stage-shift`, off for reduced motion).
+  """
+  def stage_list(assigns) do
+    ~H"""
+    <ol id={@id} class="stage-grid" style={"--cols: #{max(length(@cols), 1)}"} data-role="stage-rows">
+      <li
+        :for={row <- @rows}
+        id={@row_id.(row)}
+        class={[
+          "stage-row rounded-md px-1 py-0.5",
+          row[:none] && "opacity-45",
+          row[:lead] && "bg-gold/35",
+          row.seat == @seat && "ring-1 ring-gold-deep/70",
+          row[:shift] not in [nil, 0] && "stage-shift",
+          @row_class && @row_class.(row)
+        ]}
+        style={row[:shift] not in [nil, 0] && "--shift: #{row.shift}"}
+        data-role={@row_role}
+        data-seat={row.seat}
+        data-shift={row[:shift]}
+        {(@row_attrs && @row_attrs.(row)) || %{}}
+      >
+        <span
+          class={[
+            "grid size-5 shrink-0 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40",
+            seat_bg(row.seat)
+          ]}
+          aria-hidden="true"
+          data-role="seat-disc"
+        >
+          {initial(name(@names, row.seat))}
+        </span>
+        <span class="stage-name truncate text-xs font-semibold" title={name(@names, row.seat)}>
+          {if @you and row.seat == @seat, do: "You", else: name(@names, row.seat)}
+        </span>
+        <span class="flex min-w-0 items-center gap-1 text-sm" data-role="stage-why">
+          {render_slot(@why, row)}
+        </span>
+        <span
+          :for={{col, i} <- Enum.with_index(if(@cols == [], do: [nil], else: @cols))}
+          class="stage-col flex items-center justify-end gap-1 text-base leading-none font-extrabold tabular-nums"
+          data-role="stage-got"
+          data-col={col}
+        >
+          {render_slot(@got, {row, col, i})}
+        </span>
+      </li>
+    </ol>
     """
   end
 
   defp hint(%{kind: :die}), do: "furthest in the pot rolls"
   defp hint(%{kind: :book, book: :black}), do: "more black than neighbours"
   defp hint(%{kind: :space}), do: "coins · VP · ruby"
-  defp hint(%{kind: :standings}), do: "this round"
+  defp hint(%{kind: :standings}), do: "this round · total"
+  defp hint(%{kind: :shop}), do: "what everyone bought"
   defp hint(_slide), do: nil
 
   defp name(names, seat), do: Map.get(names || %{}, seat) || "Player #{seat + 1}"
@@ -426,7 +487,7 @@ defmodule QuacksWeb.TileRevealComponents do
     assigns = assign(assigns, n: n)
 
     ~H"""
-    <span class="flex items-center gap-px text-base text-ink-soft" data-cell="gain">
+    <span class="flex items-center gap-px text-sm text-ink-soft" data-cell="gain">
       +{@n}<.piece_icon name={:vp} class="size-3.5 text-gold-deep" />
     </span>
     """
@@ -436,8 +497,9 @@ defmodule QuacksWeb.TileRevealComponents do
     assigns = assign(assigns, n: n)
 
     ~H"""
-    <span class="flex items-center gap-px" data-cell="total">
-      <span class="text-sm text-ink-soft">→</span>{@n}
+    <span class="flex items-center gap-0.5" data-cell="total">
+      <span class="text-sm font-semibold text-ink-soft" aria-hidden="true">→</span>
+      <span class="min-w-[3ch] text-right">{@n}</span>
     </span>
     """
   end
@@ -508,9 +570,11 @@ defmodule QuacksWeb.TileRevealComponents do
   defp piece(%{kind: :die}), do: :die
   defp piece(%{kind: :space}), do: :coin
   defp piece(%{kind: :standings}), do: :vp
+  defp piece(%{kind: :shop}), do: :bag
   defp piece(_slide), do: :pot
 
   defp ink(:die), do: "text-parchment-light"
+  defp ink(:bag), do: "text-parchment-light"
   defp ink(:ruby), do: "text-ruby-light"
   defp ink(:pot), do: "text-parchment-light"
   defp ink(_gold), do: "text-gold"

@@ -1744,3 +1744,36 @@ with no change.
   during the draw's flight, then pops them with one ping ring. No flight (reduced
   motion), no pulse.
 
+
+### Round 37 (eval): one row grid, the recap after the shop
+
+- **One row grid** (`TileRevealComponents.stage_list/1`): every results panel
+  (the evaluation steps, the recap, the everyone-cards' `card_stage/1`) draws
+  its rows with it. The `<ol>` is a grid (app.css `.stage-grid`: the seat disc,
+  the name, the reason, then one column per kind of result, `--cols`); each row
+  is a subgrid, so counts, chips and numbers stand in one line whatever the
+  names' lengths. `TileReveal.columns/1` gives the result columns in a fixed
+  order (`:dice, :chip, :coins, :vp, :rubies, :droplet, :flask, :gain,
+  :total`); every row gets a cell in each (`data-role="stage-got"`,
+  `data-col`), "choosing…" in the first. Numbers are tabular (the sans font);
+  the total has room for 3 digits.
+- **Round scored moves, rows glide**: the standings rows are in the new order and
+  carry `shift` (`from_rank - rank`, `TileReveal.stage_rows/3`). `.stage-shift`
+  translates a row `shift` rows down and moves it to 0 after 1.5 beats (FLIP in
+  CSS only, no JS); reduced motion: none. The final board (`final_board/1`) does
+  the same from the round-9 order (`shifts/1`) after the VP count up, and its
+  parts (coins, rubies, pennies) have one column each (`.final-grid`).
+- **The recap** (`Reveal.recap_slides/1`, key `{:recap, round}`): on the tiles,
+  when a round begins (round 2 on, this seat has not drawn), the last round's
+  **Shop** step (each seat's chips bought, droplet pushes and flask refills; no
+  step when nobody shopped) and then **Round scored**. It plays as a tile reveal
+  (`start_reveal/3`), before the new card (`after_recap/2` opens the card's reveal);
+  the bar's last button says "Next round"; the seat acks `:recap`
+  (`GameServer.ack/4`). The totals come from the log (`split_rounds/1`): the
+  seats' VP now less this round's gains, less the last round's results. The
+  shop-phase steps end on the scoring space, and the rubies step follows it
+  (`next_slide/1`). The overlay (desktop setting) keeps its standings slide.
+- **Take a Chance** (P12): `Reveal.card_reveals/1` gives a row per seat (`die`,
+  `gains`), so the card grows after its tap and `card_stage/1` shows each die.
+- **Flea Market** (P13): after this seat's trade the card grows with every row
+  and Continue (`chose_card?/3`), like the choice cards.
