@@ -138,9 +138,10 @@ defmodule Quacks.AlchCardsTest do
 
     test "AP7 A quick exchange: a witch penny for any chip" do
       g = new(1, expansions: [:herb_witches]) |> purple(:ap7)
-      assert {:exchange, :gold, {:green, 4}} in fortune_actions(g)
-      assert :skip in fortune_actions(g)
-      g = apply!(g, {:fortune, {:exchange, :gold, {:green, 4}}})
+      assert fortune_actions(g) == [{:penny, :silver}, {:penny, :copper}, {:penny, :gold}, :skip]
+      g = apply!(g, {:fortune, {:penny, :gold}})
+      assert {:take, {:green, 4}} in fortune_actions(g)
+      g = apply!(g, {:fortune, {:take, {:green, 4}}})
       assert me(g).pennies.gold == false and {:green, 4} in me(g).bag
       assert fortune_actions(new() |> purple(:ap7)) == []
     end
@@ -188,8 +189,11 @@ defmodule Quacks.AlchCardsTest do
     test "AB1 From good to better: after stop, swap a coloured 2/4 chip in the pot" do
       g = new() |> blue(:ab1) |> force_draws([{:green, 2}, {:white, 1}]) |> apply!(:stop)
       assert Game.phase(g, 0) == :fortune_choice
-      assert {:better, {:green, 2}, {:blue, 4}} in fortune_actions(g)
-      g = apply!(g, {:fortune, {:better, {:green, 2}, {:blue, 4}}})
+      assert fortune_actions(g) == [{:swap, {:green, 2}}, :keep]
+      g = apply!(g, {:fortune, {:swap, {:green, 2}}})
+      assert {:take, {:blue, 4}} in fortune_actions(g)
+      refute {:take, {:green, 2}} in fortune_actions(g)
+      g = apply!(g, {:fortune, {:take, {:blue, 4}}})
       assert {:blue, 4} in Game.pot_chips(g) or {:blue, 4} in me(g).bag
       refute {:green, 2} in me(g).bag
       assert logged?(g, 0, :ab1, {:better, {:green, 2}, {:blue, 4}})
@@ -275,10 +279,14 @@ defmodule Quacks.AlchCardsTest do
       end
     end
 
-    test "the scored pick swaps a pot chip up, not down (AB1)" do
+    test "the scored pick swaps a pot 2-chip for a 4-chip (AB1)" do
       g = new() |> blue(:ab1) |> force_draws([{:green, 2}, {:white, 1}]) |> apply!(:stop)
-      {action, _rng} = AI.decide(g, 0, Profile.get(:balanced), :rand.seed_s(:exsss, {9, 9, 9}))
-      assert {:fortune, {:better, {:green, 2}, {_, 4}}} = action
+      rng = :rand.seed_s(:exsss, {9, 9, 9})
+      {action, _rng} = AI.decide(g, 0, Profile.get(:balanced), rng)
+      assert action == {:fortune, {:swap, {:green, 2}}}
+      g = apply!(g, action)
+      {action, _rng} = AI.decide(g, 0, Profile.get(:balanced), rng)
+      assert {:fortune, {:take, {_, 4}}} = action
     end
 
     test "bots play whole games with the box cards" do

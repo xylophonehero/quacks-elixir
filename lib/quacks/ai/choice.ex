@@ -29,6 +29,8 @@ defmodule Quacks.AI.Choice do
     {:yellow, 2} => {:yellow, 4}
   }
 
+  @penny_order %{silver: 0, copper: 0.1, gold: 0.2}
+
   # One bonus-die roll: about 1 VP (1 VP, 2 VP, a ruby, a droplet step, an orange 1).
   @roll 1.2
 
@@ -63,6 +65,11 @@ defmodule Quacks.AI.Choice do
   defp fortune({:take, chip}, %{fortune_card: :p3} = game, _seat, profile),
     do: worth(chip, game.round, profile) - profile.ruby_value
 
+  defp fortune({:take, chip}, %{fortune_card: :ab1} = game, seat, profile) do
+    {:swap, old} = Enum.find_value(game.log, &ab1_swap(&1, seat))
+    worth(chip, game.round, profile) - worth(old, game.round, profile)
+  end
+
   # The Alchemists box: AP3 costs rubies, AP9 rat tails, AP10 droplet spaces.
   defp fortune({:take, {_, v} = chip}, %{fortune_card: :ap3} = game, _seat, profile),
     do: worth(chip, game.round, profile) - v * profile.ruby_value
@@ -86,16 +93,18 @@ defmodule Quacks.AI.Choice do
   defp fortune({:cherish, k}, game, _seat, profile),
     do: k * (3 * space(game.round, profile) - profile.ruby_value)
 
-  # A penny is 2 VP at the end and one witch call.
-  defp fortune({:exchange, _colour, chip}, game, _seat, profile),
-    do: worth(chip, game.round, profile) - 3
+  # AP7: a penny is 2 VP at the end and one witch call; the chip comes next. Spend
+  # the silver penny first.
+  defp fortune({:penny, colour}, game, _seat, profile),
+    do: worth({:green, 4}, game.round, profile) - 3 - Map.fetch!(@penny_order, colour)
 
   # AP8: the left neighbour gets the smaller gift (a white 1 out, not a free chip).
   defp fortune({:gift, :white}, _game, _seat, _profile), do: 0
   defp fortune({:gift, :chip}, _game, _seat, _profile), do: -1
 
-  defp fortune({:better, old, new}, game, _seat, profile),
-    do: worth(new, game.round, profile) - worth(old, game.round, profile)
+  # AB1: a 2-chip swaps up to a 4-chip; a 4-chip only to another colour.
+  defp fortune({:swap, {_, 2}}, _game, _seat, _profile), do: 1
+  defp fortune({:swap, {_, _}}, _game, _seat, _profile), do: -1
 
   defp fortune(:droplet, %{fortune_card: :ap4} = game, _seat, profile),
     do: 3 * droplet(game.round, profile)
@@ -116,6 +125,9 @@ defmodule Quacks.AI.Choice do
 
   defp fortune({:place, chip}, game, seat, profile), do: place(chip, game, seat, profile)
   defp fortune(_skip, _game, _seat, _profile), do: 0
+
+  defp ab1_swap({seat, {:fortune, :ab1, {:swap, _} = swap}}, seat), do: swap
+  defp ab1_swap(_entry, _seat), do: nil
 
   # B7: a coloured chip moves the pot; a white only when it cannot explode.
   defp place({:white, w}, game, seat, profile) do

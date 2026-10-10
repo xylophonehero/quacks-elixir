@@ -166,11 +166,11 @@ Card outcomes (`{seat, {:fortune, id, outcome}}`):
 | AP4 | `{:rats, 8}`, `:rolls` then 4 × `{:rolled, face}`, `{:droplet, 3}` |
 | AP5 | `{:rolled, face}` (seats with 2+ rat tails) |
 | AP6 | `{:cherish, k}` (k rubies, 3k rat tails), `:skip` |
-| AP7 | `{:exchange, colour, chip}` (the penny is spent), `:skip` |
+| AP7 | `{:penny, colour}` (the penny is spent) then `{:take, chip}`, or `:skip` |
 | AP8 | `{:gift, :white \| :chip}` (the chooser); the left neighbour: `:remove_white`, or `{:gift_taken, chip}` then `{:take, chip}` |
 | AP9 | `{:take, chip}` (2/4/6 rat tails for a 1/2/4-chip), `:skip` |
 | AP10 | `{:take, chip}` (droplet back 1 for a 2-chip, 2 for a 4-chip), `:skip` |
-| AB1 | `{:better, old, new}` (the new chip takes the old one's space), `:keep` |
+| AB1 | `{:swap, old}`, then `{:better, old, new}` (the new chip takes the old one's space), or `:keep` |
 | AB2 | `{:free, chip}` (the cheaper of 2 bought chips again) |
 | AB3 | `{:vp, n}` (the white last chip's value) |
 | AB4 | `{:coins, n}` (2 per rat tail) |
@@ -310,9 +310,9 @@ Steps with no player choice run inside `apply/3`. The game has a coarse `phase`;
 | `:rubies` (box) | AP3: 2 rubies. |
 | `:rats`, `:rolls`, `:droplet` | AP4: 8 rat tails (not in solo), 4 die rolls, droplet 3 forward. |
 | `{:cherish, k}` | AP6: k (1-3) rubies for 3k rat tails. |
-| `{:exchange, colour, chip}` | AP7: spend the `colour` penny for any shop chip. |
+| `{:penny, colour}` | AP7: spend the `colour` penny; then `{:take, chip}`, any shop chip (the seat stays in `:fortune_choice`). |
 | `{:gift, :white}`, `{:gift, :chip}` | AP8: the left neighbour removes a white 1 (if its bag has one), or takes a chip of their choice (then that seat chooses again). |
-| `{:better, old, new}`, `:keep` | AB1, after a stop (player phase `:fortune_choice`): a coloured 2/4-chip of the pot for any other 2/4-chip ⚠️ (also a 2 for a 4); not after an explosion. |
+| `{:swap, old}`, `{:take, new}`, `:keep` | AB1, after a stop (player phase `:fortune_choice`): pick a coloured 2/4-chip of the pot, then any other 2/4-chip ⚠️ (also a 2 for a 4) takes its space; not after an explosion. |
 | `:return_white3` | AB5, while brewing: the newest pot chip is a white 3 → back in the bag (like the flask, ⚠️ only the newest chip), once; the left neighbour takes 2 rubies. |
 
 ## Chip choices (`{:chip, choice}`)

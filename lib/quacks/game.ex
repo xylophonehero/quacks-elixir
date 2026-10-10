@@ -152,8 +152,9 @@ defmodule Quacks.Game do
           | :rats
           | :rolls
           | {:cherish, 1..3}
-          | {:exchange, WitchCards.colour(), Chips.chip()}
-          | {:better, Chips.chip(), Chips.chip()}
+          | {:penny, WitchCards.colour()}
+          | {:swap, Chips.chip()}
+          | {:gift, :white | :chip}
           | :keep
           | :return_white3
           | {:explosion_choice, :vp | :buy}

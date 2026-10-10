@@ -492,6 +492,7 @@ defmodule QuacksWeb.GameText do
   defp fortune_choice({:take, {_, v} = chip}, :ap10),
     do: "Droplet back #{div(v, 2)} for #{chip_name(chip)}"
 
+  defp fortune_choice({:take, chip}, :ab1), do: "Put #{chip_name(chip)} in its place"
   defp fortune_choice({:take, chip}, _card), do: "Take #{chip_name(chip)}"
   defp fortune_choice(:rubies, :ap3), do: "Take 2 rubies"
   defp fortune_choice(:rubies, _card), do: "Take 3 rubies"
@@ -503,12 +504,8 @@ defmodule QuacksWeb.GameText do
   defp fortune_choice({:cherish, k}, _card),
     do: "Give #{k} #{plural(k, "ruby", "rubies")} for #{3 * k} rat tails"
 
-  defp fortune_choice({:exchange, colour, chip}, _card),
-    do: "Give your #{colour} penny for #{chip_name(chip)}"
-
-  defp fortune_choice({:better, old, new}, _card),
-    do: "Swap #{chip_name(old)} in the pot for #{chip_name(new)}"
-
+  defp fortune_choice({:penny, colour}, _card), do: "Give your #{colour} witch penny for a chip"
+  defp fortune_choice({:swap, chip}, _card), do: "Swap #{chip_name(chip)} in the pot"
   defp fortune_choice(:keep, _card), do: "Keep the pot as it is"
 
   defp fortune_choice({:gift, :white}, _card),
@@ -582,8 +579,8 @@ defmodule QuacksWeb.GameText do
   defp fortune_outcome({:cherish, k}, _id),
     do: "gave #{k} #{plural(k, "ruby", "rubies")}, rat stone +#{3 * k}"
 
-  defp fortune_outcome({:exchange, colour, chip}, _id),
-    do: "gave the #{colour} penny for #{chip_name(chip)}"
+  defp fortune_outcome({:penny, colour}, :ap7), do: "gave the #{colour} penny"
+  defp fortune_outcome({:swap, chip}, _id), do: "picked #{chip_name(chip)} to swap"
 
   defp fortune_outcome({:better, old, new}, _id),
     do: "swapped #{chip_name(old)} for #{chip_name(new)}"

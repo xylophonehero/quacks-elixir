@@ -221,7 +221,6 @@ defmodule Quacks.Game.Fortune do
   defp choice_gains(:ap3, :rubies), do: [{:rubies, 2}]
   defp choice_gains(:ap9, {:take, {_, v} = chip}), do: [{:rats, -@rodent[v]}, {:chip, chip}]
   defp choice_gains(:ap10, {:take, {_, v} = chip}), do: [{:droplet, -@tipple[v]}, {:chip, chip}]
-  defp choice_gains(:ap7, {:exchange, _colour, chip}), do: [{:chip, chip}]
   defp choice_gains(_id, {:bundle, 0}), do: [{:rubies, 1}]
   defp choice_gains(_id, {:bundle, rats}), do: [{:rubies, 1}, {:rats, rats}]
   defp choice_gains(_id, {:rats, n}), do: [{:rats, n}]
@@ -289,7 +288,10 @@ defmodule Quacks.Game.Fortune do
   def legal_actions(%{phase: :potions, fortune_card: :ab1} = g, seat) do
     case Game.player(g, seat) do
       %Player{phase: :fortune_choice} = p ->
-        Enum.map(better(g, p), &{:fortune, &1}) ++ [{:fortune, :keep}]
+        case swapping(g, seat) do
+          nil -> Enum.map(olds(p), &{:fortune, {:swap, &1}}) ++ [{:fortune, :keep}]
+          old -> Enum.map(news(g, old), &{:fortune, &1}) ++ [{:fortune, :keep}]
+        end
 
       _p ->
         []
@@ -352,8 +354,14 @@ defmodule Quacks.Game.Fortune do
     |> Potions.place_last(seat, chip)
   end
 
-  # AB1 From good to better: the new chip takes the old one's place in the pot.
-  def step(g, seat, {:fortune, {:better, old, new}}) do
+  # AB1 From good to better: first the pot chip (`{:swap, old}`, logged), then the
+  # new chip (`{:take, new}`), which takes the old one's place in the pot.
+  def step(%{fortune_card: :ab1} = g, seat, {:fortune, {:swap, old}}),
+    do: log(g, seat, {:swap, old})
+
+  def step(%{fortune_card: :ab1} = g, seat, {:fortune, {:take, new}}) do
+    old = swapping(g, seat)
+
     g
     |> Game.update_player(seat, fn p ->
       i = Enum.find_index(p.drawn, &(elem(&1, 0) == old))
@@ -449,9 +457,11 @@ defmodule Quacks.Game.Fortune do
   end
 
   # AB1: a coloured 2- or 4-chip in the pot can be swapped (player phase
-  # `:fortune_choice`, `{:better, old, new}` or `:keep`).
+  # `:fortune_choice`: `{:swap, old}` then `{:take, new}`, or `:keep`).
   def on_stop(%{fortune_card: :ab1} = g, seat) do
-    if better(g, Game.player(g, seat)) == [],
+    p = Game.player(g, seat)
+
+    if Enum.all?(olds(p), &(news(g, &1) == [])),
       do: g,
       else: Game.update_player(g, seat, &%{&1 | phase: :fortune_choice})
   end
@@ -668,9 +678,10 @@ defmodule Quacks.Game.Fortune do
   end
 
   # A seat that answered goes back to brewing (purple) or to done (B2, after brewing).
-  # Neighbor in need (AP8): a seat with a choice left (its gift, or the chip its right
-  # neighbour gave it) keeps choosing.
-  defp answered(%{fortune_card: :ap8} = g, seat) do
+  # A quick exchange (AP7: the chip after the penny) and Neighbor in need (AP8: its
+  # gift, or the chip its right neighbour gave it): a seat with a choice left keeps
+  # choosing.
+  defp answered(%{fortune_card: id} = g, seat) when id in [:ap7, :ap8] do
     if choices(g, seat) == [],
       do: Game.update_player(g, seat, &%{&1 | phase: :potions}),
       else: g
@@ -745,16 +756,26 @@ defmodule Quacks.Game.Fortune do
   defp choices(:ap6, g, %{rubies: r}, _seat) when r > 0,
     do: if(rats?(g), do: Enum.map(1..min(r, 3), &{:cherish, &1}) ++ [:skip], else: [])
 
-  defp choices(:ap7, g, p, _seat) do
-    for colour <- [:silver, :copper, :gold],
-        Map.get(p.pennies, colour) == true,
-        {:take, chip} <- takes(g, fn _chip -> true end),
-        reduce: [] do
-      acc -> acc ++ [{:exchange, colour, chip}]
-    end
-    |> case do
-      [] -> []
-      list -> list ++ [:skip]
+  # A quick exchange: first the penny (`{:penny, colour}`), then the chip.
+  defp choices(:ap7, g, p, seat) do
+    log = card_log(g, seat)
+    any = takes(g, fn _chip -> true end)
+
+    cond do
+      Enum.any?(log, &match?({:take, _}, &1)) or :skip in log ->
+        []
+
+      Enum.any?(log, &match?({:penny, _}, &1)) ->
+        any
+
+      any == [] ->
+        []
+
+      true ->
+        case for(c <- [:silver, :copper, :gold], Map.get(p.pennies, c) == true, do: {:penny, c}) do
+          [] -> []
+          pennies -> pennies ++ [:skip]
+        end
     end
   end
 
@@ -859,11 +880,10 @@ defmodule Quacks.Game.Fortune do
   defp choose(g, seat, :ap6, {:cherish, k}),
     do: g |> add_rubies(seat, -k) |> move_rats(seat, 3 * k) |> log(seat, {:cherish, k})
 
-  defp choose(g, seat, :ap7, {:exchange, colour, chip}) do
+  defp choose(g, seat, :ap7, {:penny, colour}) do
     g
     |> Game.update_player(seat, &%{&1 | pennies: %{&1.pennies | colour => false}})
-    |> log(seat, {:exchange, colour, chip})
-    |> Game.add_from_supply(seat, chip)
+    |> log(seat, {:penny, colour})
   end
 
   defp choose(g, seat, :p1, :rubies), do: g |> add_rubies(seat, 3) |> log(seat, :rubies)
@@ -957,20 +977,25 @@ defmodule Quacks.Game.Fortune do
   defp left(%{seats: [_]}, _seat), do: nil
   defp left(%{seats: seats}, seat), do: rem(seat + 1, length(seats))
 
-  # AB1: every `{:better, old, new}` swap: a coloured 2- or 4-chip of the pot for
-  # another 2- or 4-chip of the shop.
-  defp better(g, p) do
-    olds =
-      p
-      |> Player.pot_chips()
-      |> Enum.filter(fn {c, v} -> c != :white and v in [2, 4] end)
-      |> Enum.uniq()
-      |> Enum.sort()
-
-    for old <- olds,
-        {:take, new} <- takes(g, &(elem(&1, 1) in [2, 4] and &1 != old)),
-        do: {:better, old, new}
+  # AB1: the coloured 2- and 4-chips of the pot, and what each can become (another
+  # 2- or 4-chip of the shop).
+  defp olds(p) do
+    p
+    |> Player.pot_chips()
+    |> Enum.filter(fn {c, v} -> c != :white and v in [2, 4] end)
+    |> Enum.uniq()
+    |> Enum.sort()
   end
+
+  # AB1: the pot chip `seat` picked to swap, or nil.
+  defp swapping(g, seat) do
+    Enum.find_value(card_log(g, seat), fn
+      {:swap, old} -> old
+      _outcome -> nil
+    end)
+  end
+
+  defp news(g, old), do: takes(g, &(elem(&1, 1) in [2, 4] and &1 != old))
 
   defp fewest(g, field) do
     values = Map.new(g.players, fn {seat, p} -> {seat, field.(p)} end)

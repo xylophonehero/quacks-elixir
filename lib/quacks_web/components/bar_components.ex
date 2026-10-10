@@ -1348,24 +1348,6 @@ defmodule QuacksWeb.BarComponents do
     <span class="inline-flex pb-1"><.chip chip={elem(@choice, 1)} size={:sm} /></span>
     """
 
-  defp card_choice_icon(%{choice: {:exchange, _colour, _chip}} = assigns),
-    do: ~H"""
-    <span class="inline-flex pb-1"><.chip chip={elem(@choice, 2)} size={:sm} /></span>
-    """
-
-  defp card_choice_icon(%{choice: {:better, from, to}} = assigns) do
-    assigns = assign(assigns, from: from, to: to)
-
-    ~H"""
-    <span class="inline-flex items-center gap-0.5">
-      <.chip chip={@from} size={:xs} /><.icon name="hero-arrow-right" class="size-3" /><.chip
-        chip={@to}
-        size={:xs}
-      />
-    </span>
-    """
-  end
-
   defp card_choice_icon(%{choice: {:upgrade, chip}} = assigns) do
     assigns = assign(assigns, from: chip, to: Fortune.upgrade(chip))
 
@@ -1395,6 +1377,7 @@ defmodule QuacksWeb.BarComponents do
   defp card_choice_piece({:cherish, _n}), do: :rat
   defp card_choice_piece(:rats), do: :rat
   defp card_choice_piece(:bundle), do: :ruby
+  defp card_choice_piece({:penny, _colour}), do: :ruby
   defp card_choice_piece({:gift, :white}), do: :bag
   defp card_choice_piece(:return_white3), do: :bag
   defp card_choice_piece(:remove_white), do: :bag
@@ -1415,8 +1398,8 @@ defmodule QuacksWeb.BarComponents do
   defp card_choice_title(:rats, _card), do: "+8"
   defp card_choice_title(:rolls, _card), do: "Roll ×4"
   defp card_choice_title({:cherish, k}, _card), do: "+#{3 * k}"
-  defp card_choice_title({:exchange, _colour, _chip}, _card), do: "Penny"
-  defp card_choice_title({:better, _old, _new}, _card), do: "Swap"
+  defp card_choice_title({:penny, colour}, _card), do: String.capitalize("#{colour}")
+  defp card_choice_title({:take, _chip}, :ab1), do: "Swap"
   defp card_choice_title(:keep, _card), do: "Keep"
   defp card_choice_title({:gift, :white}, _card), do: "White out"
   defp card_choice_title({:gift, :chip}, _card), do: "Free chip"
@@ -1447,11 +1430,7 @@ defmodule QuacksWeb.BarComponents do
   defp card_choice_hint({:cherish, k}, _card, _me),
     do: "#{k} #{if k == 1, do: "ruby", else: "rubies"} for rat tails"
 
-  defp card_choice_hint({:exchange, colour, chip}, _card, _me),
-    do: "#{colour} penny: #{chip_name(chip)}"
-
-  defp card_choice_hint({:better, old, new}, _card, _me),
-    do: "#{chip_name(old)} for #{chip_name(new)}"
+  defp card_choice_hint({:penny, _colour}, _card, _me), do: "Give the penny for a chip"
 
   defp card_choice_hint(:keep, _card, _me), do: "Keep the pot"
   defp card_choice_hint({:gift, :white}, _card, _me), do: "Left player: remove a white 1"
