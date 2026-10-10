@@ -134,7 +134,7 @@ defmodule QuacksWeb.BoardUxTest do
 
     # with one ruby there is nothing left to do after the buy: the round ends at once
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     refute has_element?(view, "#reveal-results-1")
     refute has_element?(view, "#sheet-player-0 [data-role=round-results]")
   end

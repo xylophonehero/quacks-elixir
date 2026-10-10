@@ -42,7 +42,7 @@ defmodule QuacksWeb.Round22Test do
       assert has_element?(view, "#{bar} [data-role=choice-grid].grid-cols-3")
 
       for {kind, text} <- [place: "Place", keep: "Keep", return: "Return"] do
-        action = QuacksWeb.GameLive.encode({:red, {kind, {:red, 1}}})
+        action = QuacksWeb.ActionCode.encode({:red, {kind, {:red, 1}}})
         assert has_element?(view, ~s(#{bar} button[phx-value-action="#{action}"]), text)
       end
 

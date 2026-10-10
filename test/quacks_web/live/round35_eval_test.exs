@@ -251,7 +251,7 @@ defmodule QuacksWeb.Round35EvalTest do
       refute has_element?(view, "#bar-rubies")
 
       # After the buy, no second rubies step: the round ends for this seat.
-      render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+      render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
       refute has_element?(view, "#bar-rubies")
       {:ok, %{game: game}} = GameServer.get(id)
       assert game.round == 2 or Game.player(game, 0).phase == :ready
@@ -315,7 +315,7 @@ defmodule QuacksWeb.Round35EvalTest do
     end
 
     defp act(view, action),
-      do: render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode(action)})
+      do: render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode(action)})
 
     # Next until the step with this kind (and book) shows; a free droplet move on
     # the way goes to the pot.
@@ -353,13 +353,13 @@ defmodule QuacksWeb.Round35EvalTest do
       legal = Game.legal_actions(game, 0)
       greens = Enum.filter(legal, &(TileReveal.choice_colour(&1) == :green))
       assert greens != [] and Enum.any?(legal, &(TileReveal.choice_colour(&1) == :purple))
-      refute render(view) =~ QuacksWeb.GameLive.encode({:chip, {:purple_trade, 1}})
+      refute render(view) =~ QuacksWeb.ActionCode.encode({:chip, {:purple_trade, 1}})
 
       # Done on green moves on to purple (the engine still waits for this seat).
       act(view, :chip_done)
 
       assert view |> element("#bar-chip-actions-1") |> render() =~
-               QuacksWeb.GameLive.encode({:chip, {:purple_trade, 1}})
+               QuacksWeb.ActionCode.encode({:chip, {:purple_trade, 1}})
 
       assert {:ok, %{game: %{phase: :chip_choice}}} = GameServer.get(id)
 

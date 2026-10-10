@@ -10,7 +10,7 @@ defmodule QuacksWeb.UiRound3Test do
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Fortune, PotTrack}
-  alias QuacksWeb.{GameComponents, GameLive}
+  alias QuacksWeb.{ActionCode, GameComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -103,7 +103,7 @@ defmodule QuacksWeb.UiRound3Test do
     for _ <- 1..2, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
   end
 
   test "the players row: one chip per seat, yours marked; a tap opens the detail sheet" do
@@ -225,7 +225,7 @@ defmodule QuacksWeb.UiRound3Test do
   defp buy_orange(view) do
     view
     |> element("#shop")
-    |> render_change(%{"chips" => [GameLive.encode({:orange, 1})]})
+    |> render_change(%{"chips" => [ActionCode.encode({:orange, 1})]})
 
     view |> element("button[data-role=shop-buy]") |> render_click()
     view

@@ -134,9 +134,9 @@ defmodule QuacksWeb.UiRound4Test do
     render(view)
 
     chip = {:orange, 1}
-    render_change(view, "select", %{"chips" => [QuacksWeb.GameLive.encode(chip)]})
+    render_change(view, "select", %{"chips" => [QuacksWeb.ActionCode.encode(chip)]})
 
-    checked = ~s(#shop input[value="#{QuacksWeb.GameLive.encode(chip)}"][checked])
+    checked = ~s(#shop input[value="#{QuacksWeb.ActionCode.encode(chip)}"][checked])
     assert has_element?(view, checked)
     assert has_element?(view, "#shop label.has-checked\\:ring-\\[3px\\] input[checked]")
     # yellow is not for sale in round 1: its tile is hatched, locked and disabled

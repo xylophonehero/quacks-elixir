@@ -5,7 +5,7 @@ defmodule QuacksWeb.GameLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Chips
-  alias QuacksWeb.{GameComponents, GameLive}
+  alias QuacksWeb.{ActionCode, GameComponents, GameLive}
 
   @pot_chip "[data-role=pot-chip]"
 
@@ -101,16 +101,18 @@ defmodule QuacksWeb.GameLiveTest do
   test "a well-formed but illegal action shows a flash", %{conn: conn} do
     {:ok, view, _html} = mount(conn)
 
-    html = render_click(view, "action", %{"action" => GameLive.encode(:stop)})
+    html = render_click(view, "action", %{"action" => ActionCode.encode(:stop)})
     assert html =~ "Stop is not allowed right now."
     assert pot_chips(view) == 0
   end
 
   test "decode rejects payloads that would create functions or atoms" do
-    assert {:error, :bad_action} = GameLive.decode("@@@")
+    assert {:error, :bad_action} = ActionCode.decode("@@@")
     fun = :erlang.term_to_binary(fn -> :boom end) |> Base.url_encode64(padding: false)
-    assert {:error, :bad_action} = GameLive.decode(fun)
-    assert {:ok, {:buy, [{:green, 2}]}} = GameLive.decode(GameLive.encode({:buy, [{:green, 2}]}))
+    assert {:error, :bad_action} = ActionCode.decode(fun)
+
+    assert {:ok, {:buy, [{:green, 2}]}} =
+             ActionCode.decode(ActionCode.encode({:buy, [{:green, 2}]}))
   end
 
   test "clicking the first legal action until the end reaches game over", %{conn: conn} do
@@ -160,9 +162,9 @@ defmodule QuacksWeb.GameLiveTest do
   end
 
   defp select(view, chips),
-    do: render_change(view, "select", %{"chips" => Enum.map(chips, &GameLive.encode/1)})
+    do: render_change(view, "select", %{"chips" => Enum.map(chips, &ActionCode.encode/1)})
 
-  defp checkbox(chip), do: ~s(#shop input[value="#{GameLive.encode(chip)}"])
+  defp checkbox(chip), do: ~s(#shop input[value="#{ActionCode.encode(chip)}"])
 
   defp bag_size(view) do
     [_, n] = Regex.run(~r/Bag \((\d+) chips\)/, render(view))
@@ -216,7 +218,7 @@ defmodule QuacksWeb.GameLiveTest do
 
     # 1 ruby: nothing to spend, so the buy ends the round at once
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     refute has_element?(view, "dialog#decision-shop")
     assert has_element?(view, "li", "— Round 1 over —")
   end
@@ -239,7 +241,7 @@ defmodule QuacksWeb.GameLiveTest do
         me: game.players[0]
       )
 
-    place = GameLive.encode({:place, {:white, 1}})
+    place = ActionCode.encode({:place, {:white, 1}})
 
     assert count(
              html,
@@ -319,7 +321,7 @@ defmodule QuacksWeb.GameLiveTest do
     refute render(view) =~ "Round 1 over"
 
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     assert has_element?(view, "li", "— Round 1 over —")
     refute has_element?(view, "li", "End round")
   end
@@ -336,7 +338,7 @@ defmodule QuacksWeb.GameLiveTest do
            )
 
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     assert has_element?(view, "li", "— Round 1 over —")
   end
 

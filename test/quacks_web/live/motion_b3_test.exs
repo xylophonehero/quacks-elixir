@@ -75,7 +75,7 @@ defmodule QuacksWeb.MotionB3Test do
     refute_push_event(view, "quacks:vt", _)
     view |> element("button", "Stop") |> render_click()
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
 
     assert_push_event(view, "quacks:vt", %{})
     assert has_element?(view, "[data-role=round-counter]", "2 / 9")

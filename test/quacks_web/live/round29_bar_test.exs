@@ -10,7 +10,7 @@ defmodule QuacksWeb.Round29BarTest do
 
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias QuacksWeb.GameLive
+  alias QuacksWeb.ActionCode
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -55,7 +55,7 @@ defmodule QuacksWeb.Round29BarTest do
 
       view
       |> element("#shop")
-      |> render_change(%{"chips" => [GameLive.encode({:orange, 1})]})
+      |> render_change(%{"chips" => [ActionCode.encode({:orange, 1})]})
 
       assert has_element?(view, "[data-role=shop-buy]:not(:disabled)", "Buy 1")
       refute has_element?(view, "[data-role=shop-done]")

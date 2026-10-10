@@ -93,11 +93,12 @@ defmodule QuacksWeb.GameLive do
   chip, Nervousness lays its chips out above the action bar and Forgetfulness
   returns a pot chip from its sheet.
 
-  Actions travel to the browser as a URL-safe binary (see `encode/1`) so tuples like
+  Actions travel to the browser as a URL-safe binary (`QuacksWeb.ActionCode`) so tuples like
   `{:buy, [{:green, 2}]}` survive the round trip without a parser per action shape.
   """
   use QuacksWeb, :live_view
 
+  import QuacksWeb.ActionCode
   import QuacksWeb.GameComponents
   import QuacksWeb.CardRevealComponents
 
@@ -5434,24 +5435,4 @@ defmodule QuacksWeb.GameLive do
   # Seats by VP, highest first.
 
   defp seed_param({a, b, c}), do: "#{a},#{b},#{c}"
-
-  @doc "Turn an action term into a URL-safe string for `phx-value-action`."
-  @spec encode(Game.action()) :: String.t()
-  def encode(action), do: action |> :erlang.term_to_binary() |> Base.url_encode64(padding: false)
-
-  @doc """
-  Reverse of `encode/1`. Uses `Plug.Crypto.non_executable_binary_to_term/2` with `:safe`,
-  so a crafted payload can create neither functions nor new atoms.
-  """
-  @spec decode(String.t()) :: {:ok, term} | {:error, :bad_action}
-  def decode(encoded) when is_binary(encoded) do
-    with {:ok, binary} <- Base.url_decode64(encoded, padding: false) do
-      {:ok, Plug.Crypto.non_executable_binary_to_term(binary, [:safe])}
-    end
-  rescue
-    ArgumentError -> {:error, :bad_action}
-  else
-    {:ok, term} -> {:ok, term}
-    :error -> {:error, :bad_action}
-  end
 end
