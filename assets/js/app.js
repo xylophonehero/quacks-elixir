@@ -80,13 +80,25 @@ setBeat(loadReveal().speed)
 // the tiles; the server needs the width, so the hook sends it, and again when it
 // crosses `sm` (a turned phone).
 const phoneQuery = window.matchMedia("(max-width: 39.999rem)")
+// Round 38: the first-time hints this browser has seen (`QuacksWeb.Tips`). They go
+// to the server with the settings below; the server sends them back (`quacks:tips`)
+// when a hint closes or the menu's Tips row changes.
+const loadTips = () => {
+  try {
+    const tips = JSON.parse(localStorage.getItem("quacks:tips"))
+    return tips && tips.v === 1 ? tips : {v: 1, seen: [], off: false}
+  } catch (_e) { return {v: 1, seen: [], off: false} }
+}
+window.addEventListener("phx:quacks:tips", e => {
+  try { localStorage.setItem("quacks:tips", JSON.stringify(e.detail)) } catch (_e) {}
+})
 const RevealSettings = {
   mounted() {
     // Round 29: the risk beside the white meter (Off, Percent, Chips) in `quacks:risk`.
     const loadRisk = () => { try { return localStorage.getItem("quacks:risk") || "percent" } catch (_e) { return "percent" } }
     const send = ({mode, speed, show}) => {
       setBeat(speed)
-      this.pushEvent("reveal_settings", {mode, speed, show, risk: loadRisk(), phone: phoneQuery.matches, reduced: reduced()})
+      this.pushEvent("reveal_settings", {mode, speed, show, risk: loadRisk(), phone: phoneQuery.matches, reduced: reduced(), tips: loadTips()})
     }
     const current = () => {
       const saved = loadReveal()
