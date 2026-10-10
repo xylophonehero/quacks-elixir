@@ -1,18 +1,24 @@
 defmodule QuacksWeb.PlayerTilesTest do
   @moduledoc """
-  The players row: the seat loop of tiles, a tile's states (exploded, stopped, round leader), the name card anatomy, the update chips, the side panel and phone sheets, the board's chip order and the pieces on the board.
+  The players row and the player sheets: the seat loop of tiles, a tile's states (exploded, stopped, round leader), the name card anatomy, the update chips, the side panel and phone sheets, the board's chip order, the pieces on the board, the round's rat tails, the patient and essence pieces.
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
   import QuacksWeb.LiveHelpers
+  import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
+  alias Quacks.Game
+  alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
+  alias Quacks.GameServer
+  alias Quacks.Rules.Alchemists
   alias Quacks.Rules.PotTrack
-  alias Quacks.{Game, GameServer}
+  alias QuacksWeb.AlchemistsComponents
+  alias QuacksWeb.PanelComponents
+  alias QuacksWeb.PotComponents
+  alias QuacksWeb.ShopComponents
   alias QuacksWeb.TileComponents
-  alias QuacksWeb.{PanelComponents, PotComponents, TileComponents}
-  alias QuacksWeb.{PotComponents, ShopComponents, TileComponents}
 
   doctest QuacksWeb.TileComponents, import: true, only: [seat_loop: 1]
 
@@ -262,7 +268,7 @@ defmodule QuacksWeb.PlayerTilesTest do
       assert count(card(game, 1), "[data-role=player-patient] [data-icon=ear_worm]") == 1
     end
 
-    test "more than 4 players: two rows of tiles (round 27), no sideways scroll" do
+    test "more than 4 players: two rows of tiles, no sideways scroll" do
       {:ok, id} = GameServer.start(6, {1, 2, 3})
       token = "six-#{id}"
       {:ok, view, _html} = live(browser(token), ~p"/g/#{id}")
@@ -293,7 +299,7 @@ defmodule QuacksWeb.PlayerTilesTest do
       assert has_element?(view, "#sheet-player-0 [data-role=round-results]")
     end
 
-    test "round 14: no timer ends the replay in app.js; the server opens what waited" do
+    test "no timer ends the replay in app.js; the server opens what waited" do
       js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
       refute js =~ "[data-replay-last]"
       refute js =~ "onReplayEnd"
@@ -499,5 +505,168 @@ defmodule QuacksWeb.PlayerTilesTest do
       assert html |> query("[data-role=player-tube]") |> LazyHTML.text() =~ "5"
       assert count(html, ~s([data-role=player-flask][data-flask="full"])) == 1
     end
+  end
+
+  defp duo do
+    {:ok, id} = GameServer.start(2, {1, 2, 3})
+    alice = open(browser("alice-#{id}"), id)
+    bob = open(browser("bob-#{id}"), id)
+    {:ok, _} = GameServer.begin(id, "alice-#{id}")
+    {id, alice, bob}
+  end
+
+  # The game process stops, as after a crash or the idle timeout.
+
+  test "a player sheet renders its body only while it is open" do
+    {_id, alice, _bob} = duo()
+    sheet = "#sheet-player-1[data-on-hide]"
+    assert has_element?(alice, sheet)
+    refute has_element?(alice, "#{sheet} [data-role=player-card]")
+
+    alice |> element(~s([data-role=player-chip][data-seat="1"])) |> render_click()
+    assert has_element?(alice, "#{sheet} [data-role=player-card]")
+    refute has_element?(alice, "#sheet-player-0 [data-role=player-card]")
+
+    render_click(alice, "close_player", %{"seat" => 1})
+    refute has_element?(alice, "[data-role=player-card]")
+  end
+
+  # Play seat 0 of a solo game to the shop, with 30 coins to spend.
+
+  describe "patients and essence" do
+    test "the slot grid draws glasses with glyphs; the reached glass is ringed" do
+      html = render_component(&AlchemistsComponents.slot_grid/1, id: :carrot_nose, reached: 7)
+
+      assert count(html, "li[data-space]") == 10
+      assert count(html, ~s(li[data-space="1"] [data-glyph=rat])) == 1
+      assert count(html, ~s(li[data-space="7"][data-reached] [data-glyph=vp])) == 1
+      # the words stay for screen readers
+      assert html |> query(~s(li[data-space="7"] .sr-only)) |> LazyHTML.text() =~ "1 VP"
+    end
+
+    test "the patient card shows the patient's picture large" do
+      html = render_component(&AlchemistsComponents.patient_card/1, id: :ear_worm)
+      assert count(html, "[data-role=patient-card] svg.size-12[data-icon=ear_worm]") == 1
+      assert html =~ Alchemists.get(:ear_worm).name
+    end
+
+    test "the essence strip is a rack of vials" do
+      game = Game.new(seed: {1, 2, 3}, expansions: [:alchemists])
+      game = GameHelpers.put(game, 0, patient: :carrot_nose, essence: 3)
+      html = render_component(&AlchemistsComponents.flask_strip/1, game: game, seat: 0)
+
+      assert count(html, "[data-role=flask-strip] [data-role=essence-rack] li") == 11
+      assert count(html, "[data-role=essence-rack] [data-role=essence-marker]") == 1
+    end
+  end
+
+  defp duo_2(rules \\ %{fortune: false}) do
+    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, rules)
+    alice = open(browser("alice-#{id}"), id)
+    bob = open(browser("bob-#{id}"), id)
+    {:ok, _} = GameServer.begin(id, "alice-#{id}")
+    {id, alice, bob}
+  end
+
+  describe "player sheets" do
+    test "another player's sheet shows the test tubes and the essence strip" do
+      {:ok, id} =
+        GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false, pot_side: :back}, nil)
+
+      alice = open(browser("alice-#{id}"), id)
+      _bob = open(browser("bob-#{id}"), id)
+      {:ok, _} = GameServer.begin(id, "alice-#{id}")
+      replace_game(id, &H.put(&1, 1, tube: 3, patient: :ear_worm, essence: 4))
+
+      alice |> element(~s([data-role=player-chip][data-seat="1"])) |> render_click()
+      card = "#sheet-player-1 [data-role=player-card]"
+      assert has_element?(alice, ~s(#{card} svg[data-role=test-tubes][data-tube="3"]))
+      assert has_element?(alice, ~s(#{card} [data-role=flask-strip][data-essence="4"]))
+    end
+
+    test "a tap on a second player while a sheet is open shows that player's sheet" do
+      {_id, alice, _bob} = duo_2()
+      alice |> element(~s([data-role=player-chip][data-seat="0"])) |> render_click()
+      assert has_element?(alice, "#sheet-player-0 [data-role=player-card]")
+
+      # the second chip's open arrives first, the first sheet's light-dismiss after
+      alice |> element(~s([data-role=player-chip][data-seat="1"])) |> render_click()
+      render_click(alice, "close_player", %{"seat" => 0})
+      assert has_element?(alice, "#sheet-player-1 [data-role=player-card]")
+
+      render_click(alice, "close_player", %{"seat" => 1})
+      refute has_element?(alice, "[data-role=player-card]")
+    end
+  end
+
+  describe "the rat tails at the start of the round" do
+    test "a line under the players row names this round's rat tails; the results do not" do
+      {id, alice, _bob} = duo_2()
+      replace_game(id, &(&1 |> H.put(0, rat_stone: 2) |> H.put(1, rat_stone: 0)))
+      # Round 11: the rat tails show on the name cards only, no line.
+      refute has_element?(alice, "[data-role=round-rats]")
+
+      replace_game(id, &H.put(&1, 0, phase: :buy, vp: 0))
+      refute has_element?(alice, "[data-role=round-rats]")
+      refute has_element?(alice, "[data-role=result-rats]")
+      refute render(alice) =~ "Rats next round"
+    end
+  end
+
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+  defp open_player(view, seat),
+    do: view |> element(~s([data-role=player-chip][data-seat="#{seat}"])) |> render_click()
+
+  # Seed 10,11,12 draws white 2, 3, 1: stop there for a shop with 7 coins.
+
+  defp duo_3 do
+    {:ok, id} = GameServer.start(2, {1, 2, 3})
+    alice = open(browser("alice"), id)
+    bob = open(browser("bob"), id)
+    {:ok, _} = GameServer.begin(id, "alice")
+    {id, alice, bob}
+  end
+
+  # The rest of `to_shop_2/1` after one draw, then "Done" (round over).
+
+  test "the players row: one chip per seat, yours marked; a tap opens the detail sheet" do
+    {_id, alice, _bob} = duo_3()
+
+    # an outlined pill (seat-colour ring, parchment fill), not a gold button look-alike
+    assert has_element?(alice, "[data-role=you-are] .ring-player-0.bg-parchment", "Player 1")
+    refute has_element?(alice, "[data-role=you-are] .bg-player-0")
+    assert has_element?(alice, "[data-role=my-seat].border-player-0")
+
+    html = render(alice)
+    assert count(html, "[data-role=players-row] [data-role=player-chip]") == 2
+
+    assert has_element?(
+             alice,
+             ~s([data-role=player-chip][data-seat="0"][data-you].border-gold),
+             "you"
+           )
+
+    refute has_element?(alice, ~s([data-role=player-chip][data-seat="1"][data-you]))
+
+    # Round 27: a brewing tile has no state badge (design B).
+    assert has_element?(
+             alice,
+             ~s([data-role=player-chip][data-seat="1"][popovertarget="sheet-player-1"])
+           )
+
+    refute has_element?(
+             alice,
+             ~s([data-role=player-chip][data-seat="1"] [data-role=player-state])
+           )
+
+    sheet = ~s(#sheet-player-1[popover] article[data-seat="1"])
+    # the sheet's body renders only while it is open
+    refute has_element?(alice, sheet)
+    open_player(alice, 1)
+    assert has_element?(alice, "#{sheet} svg[aria-label='Pot track']")
+    assert has_element?(alice, "#{sheet} [data-role=player-bag]", "In the bag: 9")
+    assert has_element?(alice, "#{sheet} [data-role=player-bag] [aria-label='white 1']")
+    assert has_element?(alice, "#{sheet} dt", "Rubies")
+    assert has_element?(alice, "#{sheet} dt", "Flask")
   end
 end
