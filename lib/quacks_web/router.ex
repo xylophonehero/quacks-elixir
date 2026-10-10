@@ -51,14 +51,16 @@ defmodule QuacksWeb.Router do
   end
 
   # The component gallery (`QuacksWeb.GalleryLive`), beside the dev routes: each
-  # component in its edge cases, in frames at real viewport widths. On in dev and
+  # component in its edge cases, one variant at a time in a frame at a real
+  # viewport width (`/gallery/frame/...`, `QuacksWeb.GalleryFrameLive`). On in dev and
   # test only (`gallery_routes`; test keeps `dev_routes` off for `/debug/replay`).
   if Application.compile_env(:quacks, :gallery_routes) do
     scope "/dev", QuacksWeb do
       pipe_through :browser
 
       live "/gallery", GalleryLive
-      live "/gallery/:component/:variant", GalleryFrameLive
+      live "/gallery/:component/:variant", GalleryLive
+      live "/gallery/frame/:component/:variant", GalleryFrameLive
     end
   end
 end
