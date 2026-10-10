@@ -1830,55 +1830,21 @@ defmodule QuacksWeb.GameLive do
           />
           <%!-- Round 40: from 64rem the crow skull's choice is in the context
                column, so Stop and Draw (disabled) stay here. --%>
-          <section
+          <.action_bar
             :if={
               @seat && not Game.over?(@game) && not results?(@game) &&
                 (!@bar_choice or @bar_choice == :blue_choice) && !tiles_playing?(@reveal)
             }
+            actions={@actions}
+            stop_slot={@stop_slot}
+            flask={@me != nil}
             class={[
-              "action-bar *:min-h-12 *:touch-manipulation",
               @bar_choice == :blue_choice && "max-lg:hidden",
               card_continue?(assigns) && "hidden",
               @decision && "max-lg:hidden",
               @me && @me.exploded? && "lg:hidden"
             ]}
-            aria-label="Actions"
-            data-role="action-bar"
-          >
-            <.button
-              phx-click="action"
-              phx-value-action={encode(@stop_slot)}
-              disabled={@stop_slot not in @actions}
-              data-slot="stop"
-            >
-              {if @stop_slot == :resume, do: "Resume", else: "Stop"}
-              <.kbd>s</.kbd>
-            </.button>
-            <%!-- From 64rem: the flask as a button too (on the pot it is on every screen). --%>
-            <.button
-              :if={@me}
-              phx-click="action"
-              phx-value-action={encode(:use_flask)}
-              disabled={:use_flask not in @actions}
-              class="flex-col gap-0! px-1! max-lg:hidden!"
-              aria-label="Use the flask"
-              title="Put the white chip back in the bag"
-              data-slot="flask"
-            >
-              <.piece_icon name={:flask} class="size-5" />
-              <.kbd>f</.kbd>
-            </.button>
-            <.button
-              phx-click="action"
-              phx-value-action={encode(:draw)}
-              disabled={:draw not in @actions}
-              variant={:primary}
-              data-slot="draw"
-            >
-              Draw
-              <.kbd>d</.kbd>
-            </.button>
-          </section>
+          />
         </footer>
       </div>
 

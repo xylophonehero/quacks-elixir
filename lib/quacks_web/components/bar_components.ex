@@ -25,6 +25,59 @@ defmodule QuacksWeb.BarComponents do
   alias Quacks.Game.{Fortune, Potions}
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
 
+  @doc """
+  The action bar: Stop (or Resume), the flask (from 64rem; on the pot it is on
+  every screen) and Draw, each with its key. A button is disabled while its
+  action is not in `actions`.
+  """
+  attr :actions, :list, required: true
+  attr :stop_slot, :atom, required: true, doc: "`:stop` or `:resume`"
+  attr :flask, :boolean, default: true, doc: "false for a page with no seat's flask"
+  attr :class, :any, default: nil
+
+  def action_bar(assigns) do
+    ~H"""
+    <section
+      class={["action-bar *:min-h-12 *:touch-manipulation", @class]}
+      aria-label="Actions"
+      data-role="action-bar"
+    >
+      <.button
+        phx-click="action"
+        phx-value-action={encode(@stop_slot)}
+        disabled={@stop_slot not in @actions}
+        data-slot="stop"
+      >
+        {if @stop_slot == :resume, do: "Resume", else: "Stop"}
+        <.kbd>s</.kbd>
+      </.button>
+      <.button
+        :if={@flask}
+        phx-click="action"
+        phx-value-action={encode(:use_flask)}
+        disabled={:use_flask not in @actions}
+        class="flex-col gap-0! px-1! max-lg:hidden!"
+        aria-label="Use the flask"
+        title="Put the white chip back in the bag"
+        data-slot="flask"
+      >
+        <.piece_icon name={:flask} class="size-5" />
+        <.kbd>f</.kbd>
+      </.button>
+      <.button
+        phx-click="action"
+        phx-value-action={encode(:draw)}
+        disabled={:draw not in @actions}
+        variant={:primary}
+        data-slot="draw"
+      >
+        Draw
+        <.kbd>d</.kbd>
+      </.button>
+    </section>
+    """
+  end
+
   @doc "The round and this seat's phase, for the page header."
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
