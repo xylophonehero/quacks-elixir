@@ -48,7 +48,7 @@ defmodule Quacks.Scenarios.Builders do
     search(
       opts,
       fn seed ->
-        s = Script.new(seed, 3)
+        s = Script.new(seed, Keyword.get(opts, :players, 3))
         if hd(Script.game(s).fortune_deck) != id, do: throw({:miss, :deck})
         s = Script.play(s, &(&1.round == 2))
         g = Script.game(s)
@@ -110,7 +110,7 @@ defmodule Quacks.Scenarios.Builders do
         if(book == {:locoweed, 3}, do: [expansions: [:alchemists]], else: [])
 
     search(opts, fn seed ->
-      s = Script.new(seed, 2, game_opts)
+      s = Script.new(seed, Keyword.get(opts, :players, 2), game_opts)
       me = chip_me(target, opts[:me])
       s = Script.play(s, fn g -> target in Game.pot_chips(g, 0) and ready.(g) end, me: me)
       g = Script.game(s)
@@ -173,7 +173,12 @@ defmodule Quacks.Scenarios.Builders do
   @spec patient(atom, keyword) :: {:ok, Script.t()} | {:error, term}
   def patient(id, opts \\ []) do
     search(opts, fn seed ->
-      s = Script.new(seed, 2, expansions: [:alchemists], rules: %{fortune: false})
+      s =
+        Script.new(seed, Keyword.get(opts, :players, 2),
+          expansions: [:alchemists],
+          rules: %{fortune: false}
+        )
+
       if id not in Script.game(s).patients, do: throw({:miss, :not_dealt})
 
       s
@@ -211,7 +216,7 @@ defmodule Quacks.Scenarios.Builders do
 
     search(opts, fn seed ->
       s =
-        Script.new(seed, 2,
+        Script.new(seed, Keyword.get(opts, :players, 2),
           expansions: [:herb_witches],
           witches: %{colour => id},
           rules: %{fortune: false}
@@ -278,7 +283,10 @@ defmodule Quacks.Scenarios.Builders do
     end
 
     search(opts, fn seed ->
-      s = Script.new(seed, 2, rules: %{pot_side: :back, fortune: false})
+      s =
+        Script.new(seed, Keyword.get(opts, :players, 2),
+          rules: %{pot_side: :back, fortune: false}
+        )
 
       s =
         Script.play(

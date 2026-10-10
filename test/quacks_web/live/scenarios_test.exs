@@ -2,7 +2,7 @@ defmodule QuacksWeb.ScenariosTest do
   @moduledoc """
   Every scenario (`Quacks.Scenarios`): it builds (a seed reaches its goal and every
   step's engine check passes), it opens on the real game page through
-  `/dev/scenarios/<kind>/<id>`, and the step bar walks it: each step shows the step
+  `/dev/scenarios/<kind>/<id>` (the gallery lists them), and the step bar walks it: each step shows the step
   bar at that step and the step's key elements. A failure names the step.
 
   Each test writes its result for the index (`Quacks.Scenarios.record/2`). With
@@ -17,14 +17,21 @@ defmodule QuacksWeb.ScenariosTest do
   alias Quacks.{GameServer, Scenarios}
   alias Quacks.Rules.{Alchemists, Books, Fortune, Witches}
   alias Quacks.Scenarios.Script
+  alias QuacksWeb.Gallery.Stories
 
-  test "the index lists every item, marks the hand-written ones and links each", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/dev/scenarios")
+  test "the index goes to the gallery, which lists every item, marks the hand-written ones and links each",
+       %{conn: conn} do
+    assert "/dev/gallery/scenario-card/" <> _ =
+             to = conn |> get("/dev/scenarios") |> redirected_to()
+
+    {:ok, view, _html} = live(conn, to)
 
     for e <- Scenarios.all() do
-      row = "#scenario-#{String.replace(Scenarios.key(e), "/", "-")}"
-      assert has_element?(view, "#{row} a[href='#{Scenarios.path(e)}']")
-      assert has_element?(view, "#{row} [data-role=hand-written]") == e.hand
+      link =
+        "[data-role=gallery-variant-link][data-variant='scenario-#{e.kind}/#{Stories.scenario_id(e)}']"
+
+      assert has_element?(view, link)
+      assert has_element?(view, "#{link} [data-role=hand-written]") == e.hand
     end
 
     assert Enum.count(Scenarios.all(), & &1.hand) >= 10

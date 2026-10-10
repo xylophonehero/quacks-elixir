@@ -1,12 +1,17 @@
 defmodule QuacksWeb.GalleryFrameLive do
   @moduledoc """
-  One gallery frame (dev only, `/dev/gallery/frame/:component/:variant`): only
-  the component, with its fixture assigns (`QuacksWeb.Gallery.Fixtures`), on the
-  game background with the real app CSS. `QuacksWeb.GalleryLive` loads it in one
-  iframe at a real viewport width, so the viewport breakpoints apply.
+  One gallery frame (`/dev/gallery/frame/:component/:variant?<args>`): one story of
+  `QuacksWeb.Gallery.Stories` with its args, built into assigns
+  (`QuacksWeb.Gallery.Fixtures`), on the game background with the real app CSS.
+  `QuacksWeb.GalleryLive` loads it in one iframe at a real viewport width, so the
+  viewport breakpoints apply.
 
-  The frame copies the page's wrappers that the component's CSS needs (the bar's
-  `.game-bar`, the pot's `.pot-square`, the players row grid). Clicks do nothing.
+  A component frame copies the page's wrappers that the component's CSS needs (the
+  bar's `.game-bar`, the pot's `.pot-square`, the players row grid). A screen (and
+  a scenario step) is the whole game page: `GameLive.preview/3` makes the page's
+  assigns from the game and `GameLive.render/1` draws it. Clicks do nothing. Args
+  that reach no such state (e.g. a purple book step with no purple chip) show
+  the reason instead.
   """
   use QuacksWeb, :live_view
 
@@ -25,7 +30,7 @@ defmodule QuacksWeb.GalleryFrameLive do
     ]
 
   alias QuacksWeb.{CardRevealComponents, GameLive, TileRevealComponents, TipComponents}
-  alias QuacksWeb.Gallery.Fixtures
+  alias QuacksWeb.Gallery.Stories
 
   # The choices that put an info row in the fuse row's place (as `GameLive` does).
   @info_choices [
@@ -39,24 +44,72 @@ defmodule QuacksWeb.GalleryFrameLive do
   ]
 
   @impl true
-  def mount(%{"component" => component, "variant" => variant}, _session, socket) do
-    case Fixtures.fixture(component, variant) do
-      {:ok, fx} ->
-        {:ok,
-         socket
-         |> assign(fx)
-         |> assign(page_title: "#{component}/#{variant}", component: component, variant: variant)}
+  def mount(%{"component" => component, "variant" => variant} = params, _session, socket) do
+    socket =
+      assign(socket,
+        page_title: "#{component}/#{variant}",
+        component: component,
+        variant: variant
+      )
 
-      :error ->
+    case story(component, variant, params) do
+      {story, args} ->
+        case Stories.build(story, args) do
+          {:ok, %{view: :screen} = fx} ->
+            {:ok, socket |> GameLive.preview(fx.game, fx.preview) |> assign(view: :screen)}
+
+          {:ok, fx} ->
+            {:ok, assign(socket, fx)}
+
+          {:error, message} ->
+            {:ok, assign(socket, view: :error, message: message)}
+        end
+
+      nil ->
         {:ok, push_navigate(socket, to: "/dev/gallery")}
     end
   end
+
+  # The story, or the story with args that took an old variant's place.
+  defp story(component, variant, params) do
+    case Stories.story(component, variant) do
+      nil ->
+        with {story, args} <- Stories.claimed(component, variant),
+             do: {story, Stories.args(story, Map.merge(stringify(args), params))}
+
+      story ->
+        {story, Stories.args(story, params)}
+    end
+  end
+
+  defp stringify(args), do: Map.new(args, fn {k, v} -> {k, to_string(v)} end)
 
   # The components send their real events; the gallery ignores them.
   @impl true
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
+  # A screen's results step settles its standings as on the page.
   @impl true
+  def handle_info({tick, _ref} = msg, socket) when tick in [:reveal_settle, :reveal_tick],
+    do: GameLive.handle_info(msg, socket)
+
+  def handle_info(_msg, socket), do: {:noreply, socket}
+
+  @impl true
+  def render(%{view: :screen} = assigns) do
+    ~H"""
+    <div
+      id="gallery-frame"
+      class="contents"
+      data-component={@component}
+      data-variant={@variant}
+      data-view="screen"
+    >
+      {GameLive.render(assigns)}
+    </div>
+    """
+  end
+
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} full>
@@ -69,6 +122,14 @@ defmodule QuacksWeb.GalleryFrameLive do
         <.frame {assigns} />
       </div>
     </Layouts.app>
+    """
+  end
+
+  defp frame(%{view: :error} = assigns) do
+    ~H"""
+    <p class="m-3 rounded-md bg-black/30 p-3 font-mono text-sm" data-role="gallery-error">
+      These args reach no such state: {@message}
+    </p>
     """
   end
 

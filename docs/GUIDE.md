@@ -59,7 +59,7 @@ flowchart LR
 | 9 | [The agentic workflow and a cheat sheet](guide/09-workflow.md) | handoffs, worktrees, verification; "where to look when..." |
 | 10 | [Elixir idioms you met](guide/10-idioms.md) | pattern matching, `with`, pipes, guards, specs, Credo |
 | 11 | [The bots](guide/11-bots.md) | the `Decider` behaviour, profiles as data, exact odds, expected value with memoisation, the choice scorer, the bot at a table (flags, brews in one go, plans, names), the simulator |
-| 12 | [Scenarios](guide/12-scenarios.md) | `/dev/scenarios`: one real game per card, book, patient and witch, the step bar, the scenario test, snapshots, how a builder reproduces and fixes a bug |
+| 12 | [Gallery: stories, args, screens, scenarios](guide/12-gallery.md) | `/dev/gallery` (dev, test, staging): stories with args and presets, full game screens, the scenarios step by step; the live scenario game, the scenario test, snapshots, how a builder reproduces and fixes a bug |
 
 Read 1, 2 and 4 first. They hold the architecture. The rest you can read in any order.
 

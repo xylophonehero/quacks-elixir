@@ -35,5 +35,5 @@ config :quacks, :debug_token, nil
 config :quacks, reveal_settle_ms: 60_000
 config :quacks, show_move_ms: 0
 
-# The component gallery's routes (dev only otherwise), so its test runs.
-config :quacks, gallery_routes: true
+# The gallery and the scenarios (`QuacksWeb.Plugs.Gallery`), so their tests run.
+config :quacks, gallery: true

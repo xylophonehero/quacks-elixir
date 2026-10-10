@@ -17,6 +17,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
 
   alias Quacks.Game
   alias Quacks.Rules.Chips
+  alias Quacks.Scenarios.Script
   alias QuacksWeb.{Reveal, TileReveal, Tips}
 
   @short ~w(Ada Bram Cleo Dirk Edda Finn Gwen Hugo)
@@ -181,9 +182,9 @@ defmodule QuacksWeb.Gallery.Fixtures do
   end
 
   # Take a Chance (P12): round 2's card; everyone rolls the bonus die.
-  defp take_a_chance do
-    names = names(5, nil)
-    g = brewed_round(5, fortune: true)
+  defp take_a_chance(n \\ 5) do
+    names = names(n, nil)
+    g = brewed_round(n, fortune: true)
     g = g |> Map.put(:fortune_deck, [:p12 | g.fortune_deck -- [:p12]]) |> shop_all()
 
     %{
@@ -368,20 +369,28 @@ defmodule QuacksWeb.Gallery.Fixtures do
     bar(g)
   end
 
-  # Blue I draws as many chips as its value (1, 2 or 4); the engine never offers 5,
-  # so the 5th chip moves from the bag to the offer by hand.
-  defp crow(n) do
-    g = draws(new(1), 0, [{:white, 1}, {:blue, min(n, 4)}])
+  # Blue I draws as many chips as its value (1, 2 or 4); the engine never offers 3
+  # or 5, so for those the offer gives a chip back to the bag, or takes one more
+  # from it, by hand.
+  defp crow(n), do: bar(crow_game(new(1), n))
 
-    g =
-      if n > 4 do
-        [chip | bag] = g.players[0].bag
-        put(g, 0, bag: bag, pending: g.players[0].pending ++ [chip])
-      else
+  defp crow_game(g, n) do
+    value = Enum.find([1, 2, 4], 4, &(&1 >= n))
+    g = draws(g, 0, [{:white, 1}, {:blue, value}])
+    %{pending: pending, bag: bag} = g.players[0]
+
+    cond do
+      length(pending) > n ->
+        {keep, back} = Enum.split(pending, n)
+        put(g, 0, pending: keep, bag: back ++ bag)
+
+      length(pending) < n ->
+        {more, rest} = Enum.split(bag, n - length(pending))
+        put(g, 0, pending: pending ++ more, bag: rest)
+
+      true ->
         g
-      end
-
-    bar(g)
+    end
   end
 
   defp mandrake_game, do: draws(new(1), 0, [{:orange, 1}, {:white, 2}, {:yellow, 1}])
@@ -440,6 +449,148 @@ defmodule QuacksWeb.Gallery.Fixtures do
       {"no-value", "No value (book chips, value nil)",
        fn -> %{view: :chips, colours: Chips.order(), values: [nil]} end}
     ]
+  end
+
+  # -- 7. stories with args (`QuacksWeb.Gallery.Stories`) ------------------------------
+  #
+  # Each takes the story's args (a map, string keys) and gives the frame's assigns.
+
+  @doc "Results step `kind` (`:die`, a book colour, `:space`). Args: players, long_names, exploded, vp_digits."
+  @spec results_story(atom, map) :: map
+  def results_story(kind, a), do: results(a["players"], kind, round_opts(a))
+
+  @doc "The recap at round 2's start, step `kind` (`:shop`, `:standings`). Args as `results_story/2`."
+  @spec recap_story(atom, map) :: map
+  def recap_story(kind, a), do: recap(a["players"], kind, round_opts(a))
+
+  @doc "Take a Chance for `players` players."
+  @spec chance_story(map) :: map
+  def chance_story(%{"players" => n}), do: take_a_chance(n)
+
+  @doc "The pot mid-brew with the first `chips` chips of a brew drawn."
+  @spec pot_story(map) :: map
+  def pot_story(%{"chips" => k}), do: pot(draws(new(1), 0, Enum.take(mid_brew(), k)))
+
+  @doc """
+  The player tiles. Args: players, state (`brewing`, `stopped`, `exploded`, `shop`,
+  `done`), long_names, vp_digits, bots (every other seat a bot).
+  """
+  @spec tiles_story(map) :: map
+  def tiles_story(%{"players" => n} = a) do
+    g = n |> tiles_state(a["state"]) |> vp_digits(a["vp_digits"])
+    bots = if a["bots"], do: g.seats -- [0], else: []
+    tiles(g, names: long(a), bots: bots)
+  end
+
+  defp tiles_state(n, "brewing"), do: brewing(n)
+  defp tiles_state(n, "stopped"), do: apply!(brewing(n), min(1, n - 1), :stop)
+
+  defp tiles_state(n, "exploded") do
+    g = draws(brewing(n), min(1, n - 1), boom())
+    if n > 2, do: apply!(g, 2, :stop), else: g
+  end
+
+  defp tiles_state(n, "shop") do
+    g = brewed_round(n, [])
+    apply!(g, min(2, n - 1), {:buy, []})
+  end
+
+  defp tiles_state(n, "done") do
+    plans = [mid_brew(), boom(), [{:orange, 1}], Enum.take(mid_brew(), 4)]
+    finish_round(new(n), for(s <- 0..(n - 1), do: Enum.at(plans, rem(s, 4))))
+  end
+
+  @doc "The crow skull's offer of `chips` chips (1..5) in the bar."
+  @spec crow_story(map) :: map
+  def crow_story(%{"chips" => n}), do: crow(n)
+
+  @doc "The score track: players and a VP spread (`early`, `tied`, `above-50`, `big-gaps`)."
+  @spec track_story(map) :: map
+  def track_story(%{"players" => n, "spread" => spread}),
+    do: track(for(s <- 0..(n - 1), do: spread_vp(spread, s)))
+
+  defp spread_vp("early", s), do: rem(s * 3, 5)
+  defp spread_vp("tied", s), do: Enum.at([6, 6, 3], rem(s, 3))
+  defp spread_vp("above-50", s), do: 52 + rem(s * 9, 23)
+  defp spread_vp("big-gaps", s), do: Enum.at([2, 30, 31, 70, 45, 12, 58, 20], s)
+
+  # VP by hand: every seat's VP gets `digits` digits (1: as played).
+  defp vp_digits(g, 2), do: Enum.reduce(g.seats, g, &put(&2, &1, vp: 20 + 7 * &1))
+  defp vp_digits(g, 3), do: Enum.reduce(g.seats, g, &put(&2, &1, vp: 100 + 7 * &1))
+  defp vp_digits(g, _digits), do: g
+
+  defp round_opts(a) do
+    vp = %{1 => nil, 2 => 20, 3 => 100}[a["vp_digits"] || 1]
+    [names: long(a), vp: vp] ++ if(a["exploded"], do: [exploded: a["exploded"]], else: [])
+  end
+
+  defp long(%{"long_names" => true}), do: :long
+  defp long(_a), do: nil
+
+  # -- 8. full screens (`QuacksWeb.GameLive.preview/3`) ---------------------------------
+  #
+  # The whole game page for a phase. The assigns are the game and the options of
+  # `GameLive.preview/3`; `QuacksWeb.GalleryFrameLive` draws them with `GameLive.render/1`.
+
+  @doc "Brewing: every seat mid-brew. Args: players, long_names."
+  @spec brewing_screen(map) :: map
+  def brewing_screen(%{"players" => n} = a), do: screen(brewing(n), a)
+
+  @doc "A choice for you (seat 0) while the others brew: `crow`, `mandrake`, `explosion`, `chip_choice`."
+  @spec choice_screen(map) :: map
+  def choice_screen(%{"players" => n, "choice" => choice} = a),
+    do: screen(choice_game(n, choice), a)
+
+  defp choice_game(n, "crow"), do: n |> others_brew() |> crow_game(4)
+
+  defp choice_game(n, "mandrake"),
+    do: n |> others_brew() |> draws(0, [{:orange, 1}, {:white, 2}, {:yellow, 1}])
+
+  defp choice_game(n, "explosion"), do: n |> others_brew() |> draws(0, boom())
+
+  defp choice_game(n, "chip_choice") do
+    g = new(n, sets: %{green: 2})
+
+    finish_round(
+      g,
+      for(s <- g.seats, do: if(s == 0, do: [{:orange, 1}, {:green, 1}], else: [{:orange, 1}]))
+    )
+  end
+
+  # Every seat but you drew a few chips.
+  defp others_brew(n) do
+    Enum.reduce(new(n).seats -- [0], new(n), fn s, g ->
+      draws(g, s, Enum.take(mid_brew(), 2 + rem(s, 3)))
+    end)
+  end
+
+  @doc "An evaluation step on the tiles (`die`, a book colour, `space`). Args: players, long_names, exploded."
+  @spec evaluation_screen(map) :: map
+  def evaluation_screen(%{"players" => n, "step" => step} = a) do
+    g = brewed_round(n, round_opts(a))
+    screen(g, a, seen: %{}, step: String.to_existing_atom(step))
+  end
+
+  @doc "Round 2's start: the last round's recap, step `shop` or `standings` (round scored)."
+  @spec scored_screen(map) :: map
+  def scored_screen(%{"players" => n, "step" => step} = a) do
+    g = n |> brewed_round(round_opts(a)) |> shop_all()
+    screen(g, a, seen: %{}, step: String.to_existing_atom(step))
+  end
+
+  @doc "The shop after round 1 (the results seen). Args: players, long_names."
+  @spec shop_screen(map) :: map
+  def shop_screen(%{"players" => n} = a), do: screen(brewed_round(n, round_opts(a)), a)
+
+  @doc "The game over: bots play every seat through round 9 (`Quacks.Scenarios.Script`)."
+  @spec over_screen(map) :: map
+  def over_screen(%{"players" => n} = a) do
+    s = Script.new({20, 26, 10}, n, rules: %{fortune: false})
+    screen(Script.game(Script.play(s, &Game.over?/1)), a)
+  end
+
+  defp screen(g, a, opts \\ []) do
+    %{view: :screen, game: g, preview: [names: names(length(g.seats), long(a))] ++ opts}
   end
 
   # -- engine helpers -------------------------------------------------------------------
@@ -505,9 +656,10 @@ defmodule QuacksWeb.Gallery.Fixtures do
     Enum.find(picks, &(&1 in actions))
   end
 
-  # A seeded round 1 of `n` players to the shop. Seat 1 explodes (from 3 players);
-  # the others end at different spaces, with black, green and purple chips so every
-  # book step has rows. `vp:` adds that many VP to every seat first (by hand).
+  # A seeded round 1 of `n` players to the shop. Seat 1 explodes (from 3 players;
+  # `exploded:` sets how many seats explode, from seat 1); the others end at
+  # different spaces, with black, green and purple chips so every book step has
+  # rows. `vp:` adds that many VP to every seat first (by hand).
   defp brewed_round(n, opts) do
     g = new(n, rules: %{fortune: opts[:fortune] || false})
 
@@ -516,13 +668,12 @@ defmodule QuacksWeb.Gallery.Fixtures do
         do: Enum.reduce(g.seats, g, &put(&2, &1, vp: vp + 7 * &1)),
         else: g
 
-    plans = for s <- g.seats, do: plan(s, n)
+    exploded = min(Keyword.get(opts, :exploded, if(n > 2, do: 1, else: 0)), n - 1)
+    plans = for s <- g.seats, do: if(s in 1..exploded//1, do: boom(), else: plan(s))
     finish_round(g, plans)
   end
 
-  defp plan(1, n) when n > 2, do: boom()
-
-  defp plan(s, _n) do
+  defp plan(s) do
     base = [
       [{:orange, 1}, {:black, 1}, {:white, 1}, {:green, 1}],
       [{:purple, 1}, {:white, 2}, {:black, 1}, {:green, 1}, {:orange, 1}],

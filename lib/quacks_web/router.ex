@@ -50,20 +50,25 @@ defmodule QuacksWeb.Router do
     end
   end
 
-  # The component gallery (`QuacksWeb.GalleryLive`), beside the dev routes: each
-  # component in its edge cases, one variant at a time in a frame at a real
-  # viewport width (`/gallery/frame/...`, `QuacksWeb.GalleryFrameLive`). On in dev and
-  # test only (`gallery_routes`; test keeps `dev_routes` off for `/debug/replay`).
-  if Application.compile_env(:quacks, :gallery_routes) do
-    scope "/dev", QuacksWeb do
-      pipe_through :browser
+  # The gallery (`QuacksWeb.GalleryLive`: stories with args, screens, scenarios) and
+  # the scenarios' live games. In every build; `QuacksWeb.Plugs.Gallery` answers 404
+  # unless the runtime flag `:gallery` is on (dev, test, staging; not prod).
+  pipeline :gallery do
+    plug QuacksWeb.Plugs.Gallery
+  end
 
+  scope "/dev", QuacksWeb do
+    pipe_through [:browser, :gallery]
+
+    live_session :gallery, on_mount: QuacksWeb.Plugs.Gallery do
       live "/gallery", GalleryLive
       live "/gallery/:component/:variant", GalleryLive
       live "/gallery/frame/:component/:variant", GalleryFrameLive
-      # Scenarios (`Quacks.Scenarios`): one real game per rules item, on the game page.
-      live "/scenarios", ScenariosLive
-      get "/scenarios/:kind/*id", ScenarioController, :show
     end
+
+    # Scenarios (`Quacks.Scenarios`): the index goes to the gallery; one item opens
+    # as a live game on the game page.
+    get "/scenarios", ScenarioController, :index
+    get "/scenarios/:kind/*id", ScenarioController, :show
   end
 end
