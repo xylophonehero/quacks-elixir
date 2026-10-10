@@ -233,7 +233,7 @@ defmodule Quacks.Game.Evaluation do
 
     if Game.white_sum(g, seat) == 7 and n > 0 do
       [{chip, index} | rest] = p.drawn
-      index = min(index + n, PotTrack.last())
+      index = PotTrack.chip_index(index + n)
 
       g
       |> Game.update_player(seat, &%{&1 | drawn: [{chip, index} | rest], pot_index: index})

@@ -2917,6 +2917,9 @@ defmodule QuacksWeb.GameLive do
   # over it). They come out of the bag one by one (`.FromBag`, WAAPI from the bag
   # to their place, 140 ms apart); on a tap the chips not chosen go back into the
   # bag while the row leaves (`phx-remove`, `.bar-to-bag`). Reduced motion: fades.
+  # Round 37: the crow skull chip first (as an evaluation step shows its book's
+  # chip), then the drawn chips on a cloth with "Add a chip to the pot" on it.
+  # Four chips and Skip fit in one row at 360 px; from five the chips are smaller.
   def bar_choice(%{choice: :blue_choice} = assigns) do
     %{actions: actions, game: game, me: me} = assigns
     picks = Enum.filter(actions, &(pick_chips(&1) != []))
@@ -2933,14 +2936,19 @@ defmodule QuacksWeb.GameLive do
         }
       end
 
-    assigns = assign(assigns, chips: chips, skip?: :return_all in actions)
+    assigns =
+      assign(assigns,
+        chips: chips,
+        skip?: :return_all in actions,
+        size: if(length(chips) > 4, do: :md, else: :lg)
+      )
 
     ~H"""
     <section
       id={"bar-blue-#{@game.round}"}
       phx-hook=".FromBag"
       phx-remove={JS.transition("bar-to-bag", time: 520)}
-      class="bar-choice flex min-h-12 items-center gap-1.5"
+      class="bar-choice flex min-h-12 items-center gap-2"
       aria-label="Crow skull: place one chip in the pot, or return them all to the bag"
       data-role="bar-blue"
     >
@@ -2969,26 +2977,51 @@ defmodule QuacksWeb.GameLive do
           }
         }
       </script>
-      <button
-        :for={c <- @chips}
-        id={"blue-chip-#{@game.round}-#{c.id}"}
-        type="button"
-        phx-click={c.action && "action"}
-        phx-value-action={c.action && encode(c.action)}
-        disabled={is_nil(c.action)}
-        class="pool-chip relative z-10 rounded-full touch-manipulation transition-transform duration-100 ease-out active:scale-95 disabled:opacity-40"
-        aria-label={c.label}
-        title={c.label}
-        data-pool-chip
+      <span
+        class="grid size-9 shrink-0 place-items-center"
+        title="Crow skull"
+        data-role="blue-book"
       >
-        <.chip chip={c.chip} size={:lg} />
-      </button>
+        <.chip chip={{:blue, nil}} size={:md} />
+      </span>
+      <div
+        class="relative flex min-w-0 shrink flex-col items-center gap-0.5 px-1.5 pt-1 pb-1.5"
+        data-role="blue-tray"
+      >
+        <span
+          class="blue-cloth absolute inset-0 rounded-xl"
+          aria-hidden="true"
+          data-role="blue-cloth"
+        />
+        <span
+          class="relative text-tag leading-none font-semibold whitespace-nowrap text-parchment"
+          data-role="blue-hint"
+        >
+          Add a chip to the pot
+        </span>
+        <span class="relative flex items-center gap-1">
+          <button
+            :for={c <- @chips}
+            id={"blue-chip-#{@game.round}-#{c.id}"}
+            type="button"
+            phx-click={c.action && "action"}
+            phx-value-action={c.action && encode(c.action)}
+            disabled={is_nil(c.action)}
+            class="pool-chip relative z-10 rounded-full touch-manipulation transition-transform duration-100 ease-out active:scale-95 disabled:opacity-40"
+            aria-label={c.label}
+            title={c.label}
+            data-pool-chip
+          >
+            <.chip chip={c.chip} size={@size} />
+          </button>
+        </span>
+      </div>
       <.button
         :if={@skip?}
         phx-click="action"
         phx-value-action={encode(:return_all)}
         variant={:secondary}
-        class="ml-auto min-h-12 touch-manipulation px-4"
+        class="ml-auto min-h-12 shrink-0 touch-manipulation px-3"
         aria-label={action_label(:return_all, @game, @me)}
         data-role="blue-skip"
       >
