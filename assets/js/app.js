@@ -349,7 +349,7 @@ const queue = p => { vtQueue = p; p.then(() => { if (vtQueue === p) vtQueue = nu
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: 6000,
   params: {_csrf_token: csrfToken},
   hooks: {...colocatedHooks, Boom, ConfigMemory, NameMemory, PotMotion, RevealSettings},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
