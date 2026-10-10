@@ -144,7 +144,14 @@ defmodule Quacks.GameServer do
           patient_picks: %{optional(Game.seat()) => atom},
           expansion: nil | :herb_witches,
           expansions: MapSet.t(Game.expansion()),
-          debug: nil | %{at: non_neg_integer, total: non_neg_integer, frozen: boolean}
+          debug:
+            nil
+            | %{
+                required(:at) => non_neg_integer,
+                required(:total) => non_neg_integer,
+                required(:frozen) => boolean,
+                optional(:scenario) => map
+              }
         }
 
   @typedoc "A seat colour: an index into the 8-colour palette (`--color-seat-N`)."
@@ -271,7 +278,9 @@ defmodule Quacks.GameServer do
   replays only the first `at` actions (default: all), `token:` and `seat:` give that
   seat to the browser with `token` (the other human seats stay unclaimed). The
   bundle's `names` and `bots` (when present) name the seats and seat the bots.
-  Bots start frozen (see the moduledoc), unless `frozen: false`.
+  Bots start frozen (see the moduledoc), unless `frozen: false`. A scenario's
+  bundle (`Quacks.Scenarios.bundle/2`) has a `"scenario"` (its steps); the table
+  shows it in `debug.scenario`, for the page's step bar.
 
   `restore: true` instead brings back a stored game from its game file (the
   bundle plus `"table"`, see `Quacks.GameStore`): the same id, seats, tokens,
@@ -323,8 +332,18 @@ defmodule Quacks.GameServer do
         public: false,
         session: session,
         store: nil,
-        debug: %{bundle: bundle, at: at, total: total, frozen: Keyword.get(opts, :frozen, true)}
+        debug: debug_state(bundle, at, total, opts)
       })
+    end
+  end
+
+  # A scenario's bundle (`Quacks.Scenarios.bundle/2`) adds its steps.
+  defp debug_state(bundle, at, total, opts) do
+    debug = %{bundle: bundle, at: at, total: total, frozen: Keyword.get(opts, :frozen, true)}
+
+    case bundle do
+      %{"scenario" => %{} = scenario} -> Map.put(debug, :scenario, scenario)
+      _bundle -> debug
     end
   end
 
@@ -1678,7 +1697,15 @@ defmodule Quacks.GameServer do
       names: Enum.map(0..(state.session.players - 1), &Map.get(state.names, &1)),
       bots: state.bots |> Map.keys() |> Enum.sort()
     })
+    |> put_scenario(state.debug)
   end
+
+  # A scenario table's report names the scenario and the action it was at, so a
+  # builder can open the same step (`/dev/scenarios`, docs/guide/12-scenarios.md).
+  defp put_scenario(bundle, %{scenario: %{"key" => key}, at: at}),
+    do: Map.put(bundle, :scenario, %{key: key, at: at})
+
+  defp put_scenario(bundle, _debug), do: bundle
 
   defp table(%{session: session} = state) do
     %{
@@ -1707,7 +1734,7 @@ defmodule Quacks.GameServer do
         MapSet.new(
           List.wrap(state.opts[:expansion]) ++ Enum.to_list(state.opts[:expansions] || [])
         ),
-      debug: state.debug && Map.take(state.debug, [:at, :total, :frozen])
+      debug: state.debug && Map.take(state.debug, [:at, :total, :frozen, :scenario])
     }
   end
 
