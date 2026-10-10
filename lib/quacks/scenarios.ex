@@ -113,7 +113,10 @@ defmodule Quacks.Scenarios do
   # -- the catalog ----------------------------------------------------------------------
 
   defp cards do
-    for %{id: id, name: name, colour: colour} <- Fortune.all() do
+    # Every card that can be in a deck (the Alchemists box cards not built yet are not).
+    playable = Fortune.ids(4, [:alchemists, :herb_witches])
+
+    for %{id: id, name: name, colour: colour} <- Fortune.all(), id in playable do
       key = "card/#{id}"
 
       entry("card", "#{id}", "#{String.upcase("#{id}")} #{name}", "#{colour} cards", fn opts ->

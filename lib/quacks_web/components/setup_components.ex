@@ -42,6 +42,7 @@ defmodule QuacksWeb.SetupComponents do
     starting_rubies: 0..3,
     round6_white: [true, false],
     fortune: [true, false],
+    alch_cards: [true, false],
     rats: [true, false],
     black_solo: [:droplet, :droplet_ruby],
     black_rule: [:neighbours, :standings],
@@ -513,6 +514,14 @@ defmodule QuacksWeb.SetupComponents do
           name="rules[fortune]"
           label="Fortune Teller cards"
           value={@rules.fortune}
+          class="switch"
+        />
+        <.input
+          type="checkbox"
+          id="rules-alch_cards"
+          name="rules[alch_cards]"
+          label="The Alchemists' 20 cards (with The Alchemists)"
+          value={@rules.alch_cards}
           class="switch"
         />
         <.input

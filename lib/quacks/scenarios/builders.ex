@@ -48,8 +48,11 @@ defmodule Quacks.Scenarios.Builders do
     search(
       opts,
       fn seed ->
-        s = Script.new(seed, Keyword.get(opts, :players, 3))
-        if hd(Script.game(s).fortune_deck) != id, do: throw({:miss, :deck})
+        s = Script.new(seed, Keyword.get(opts, :players, 3), expansions: card_expansions(id))
+        # The Alchemists: round 1's card is still in the deck (the patients come first).
+        g = Script.game(s)
+        second = if g.fortune_card, do: hd(g.fortune_deck), else: Enum.at(g.fortune_deck, 1)
+        if second != id, do: throw({:miss, :deck})
         s = Script.play(s, &(&1.round == 2))
         g = Script.game(s)
 
@@ -87,6 +90,15 @@ defmodule Quacks.Scenarios.Builders do
       end,
       400
     )
+  end
+
+  # The Alchemists box cards need The Alchemists (and some The Herb Witches).
+  defp card_expansions(id) do
+    case {Fortune.alchemists?(id), Fortune.card(id).expansion} do
+      {false, _} -> []
+      {true, :herb_witches} -> [:alchemists, :herb_witches]
+      {true, _} -> [:alchemists]
+    end
   end
 
   # -- ingredient books --------------------------------------------------------------

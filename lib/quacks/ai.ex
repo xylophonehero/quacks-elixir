@@ -24,6 +24,7 @@ defmodule Quacks.AI do
   @shift_cap 0.10
   # The phases that `choice_rule` decides.
   @choices [:fortune_choice, :chip_choice, :witch_choice, :essence_choice]
+  @scored_cards [:ap1, :ap3, :ap4, :ap6, :ap7, :ap8, :ap9, :ap10, :ab1]
 
   @doc """
   The bot's own rng for `seat` in a game with seed `seed`; separate from the game rng.
@@ -69,6 +70,11 @@ defmodule Quacks.AI do
 
   defp choose(:chip_choice, ctx, rng), do: {first(ctx.legal, &(&1 != :chip_done)), rng}
   defp choose(:witch_choice, ctx, rng), do: {first(ctx.legal, &(&1 != :witch_done)), rng}
+  # The Alchemists box cards: the scored pick (their choices have a price).
+  defp choose(:fortune_choice, %{game: %{fortune_card: id}} = ctx, rng)
+       when id in @scored_cards,
+       do: {Choice.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
+
   defp choose(:fortune_choice, ctx, rng), do: random(undominated(ctx), rng)
   # Reverse pot side: the test tube while it is legal (until glass 12), else the pot.
   defp choose(:droplet_choice, ctx, rng),
@@ -120,9 +126,12 @@ defmodule Quacks.AI do
   defp white_return(%{game: game, seat: seat, legal: legal} = ctx) do
     case last_chip(Game.player(game, seat)) do
       {:white, w} ->
+        # B10 and AB5 return the white for free.
+        free = Enum.find(legal, &(&1 in [{:fortune, :return_white}, {:fortune, :return_white3}]))
+
         cond do
-          {:fortune, :return_white} in legal and again?(ctx, w, 0.0) ->
-            {:fortune, :return_white}
+          free != nil and again?(ctx, w, 0.0) ->
+            free
 
           :use_flask in legal and flask?(ctx, w) ->
             :use_flask

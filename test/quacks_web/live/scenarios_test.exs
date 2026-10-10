@@ -40,7 +40,7 @@ defmodule QuacksWeb.ScenariosTest do
   test "the catalog has every card, book, patient and witch" do
     keys = MapSet.new(Scenarios.all(), &Scenarios.key/1)
 
-    for %{id: id} <- Fortune.all(), do: assert("card/#{id}" in keys)
+    for id <- Fortune.ids(4, [:alchemists, :herb_witches]), do: assert("card/#{id}" in keys)
     for {c, set} <- Books.keys(), do: assert("chip/#{c}/#{set}" in keys)
     for id <- Alchemists.patients(), do: assert("patient/#{id}" in keys)
 

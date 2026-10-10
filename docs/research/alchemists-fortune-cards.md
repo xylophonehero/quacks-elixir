@@ -154,3 +154,20 @@ P4 with the rat part doing nothing, or skip them too — Nick to decide.
 - B8 Hexenbesuch and P7 Tausch-Rausch: German text only partly visible.
 - Not tried (needs a login): BGG files 323908 (Italian card PDF) and 226141 (Japanese rules with card
   list).
+
+## 6. Implementation status (2026-10-11, branch `alch-cards`)
+
+Built with the recommendations of §3 (Nick: "go with your recommendations"): 19 of the 20 cards.
+Engine: `Quacks.Game.Fortune`; data and deck filter: `Quacks.Rules.Fortune`; tests:
+`test/quacks/alch_cards_test.exs`.
+
+- **TODO: B8 Visit from a witch (`:ab8`) is not built.** It needs a new mechanic: an extra witch,
+  drawn at random from the ones not in `game.witches`, that every seat may call once this round
+  without a penny, with the timing of her colour. `Quacks.Rules.Fortune` keeps it out of every
+  deck (`@not_built`), and the scenario catalog leaves it out.
+- Our readings where §3 left a choice: B9 = the spaces the last chip moved (German); B7 picks for
+  the player (an empty flask is refilled, else one roll); B10 returns the gold penny first, then
+  copper, then silver; B5 only for a white 3 that is the newest pot chip; B1 only after a stop
+  (not after an explosion), any other 2/4-chip; P5 rolls by itself; P8's white removal happens
+  by itself (no downside); P10 pairs droplet −1 with a 2-chip and −2 with a 4-chip.
+- Solo: P5, P6, P8, P9, B4 are not in a solo deck. P1 and P4 keep their rat part out in solo.
