@@ -1,15 +1,16 @@
 defmodule QuacksWeb.LobbySetupTest do
   @moduledoc """
-  The New game flow: the expansions and books pages, the House rules row, the patient picker, Start straight into the game, the waiting panel, the viewport lock and book tiers.
+  The lobby and the New game flow: the hero and open games, the expansions and books pages, the House rules row and steppers, the overflow option, the configure screen, the patient picker, Start straight into the game, the waiting panel, the copy link, the viewport lock and book tiers.
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
+  import QuacksWeb.LiveHelpers
+  alias Quacks.Game
   alias Quacks.Game.Essence
   alias Quacks.GameServer
   alias Quacks.Rules.Alchemists
   alias Quacks.Rules.BookPresets
-  alias Quacks.{Game, GameServer}
   alias QuacksWeb.PanelComponents
 
   describe "the expansions list, the Games page and Full screen on a phone" do
@@ -17,7 +18,7 @@ defmodule QuacksWeb.LobbySetupTest do
       %{conn: init_test_session(conn, player_token: "r21-#{System.unique_integer()}")}
     end
 
-    test "the expansions are a list of rows (round 29: on New game)", %{conn: conn} do
+    test "the expansions are a list of rows", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?step=players")
 
       # A row: icon, title and line, Customise, the switch on the right.
@@ -78,8 +79,6 @@ defmodule QuacksWeb.LobbySetupTest do
       assert has_element?(view, "#fullscreen-menu .when-fullscreen", "Exit full screen")
     end
   end
-
-  defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
   defp css, do: File.read!(Path.expand("../../../assets/css/app.css", __DIR__))
 
@@ -210,7 +209,7 @@ defmodule QuacksWeb.LobbySetupTest do
   end
 
   describe "the House rules row" do
-    test "round 29: is on New game after the expansion rows and the books row" do
+    test "is on New game after the expansion rows and the books row" do
       view = lobby(~p"/?step=players")
 
       ids =
@@ -237,7 +236,7 @@ defmodule QuacksWeb.LobbySetupTest do
     end
   end
 
-  test "round 27: a new game counts black chips by neighbours again; standings is the other option" do
+  test "a new game counts black chips by neighbours again; standings is the other option" do
     assert Quacks.Game.default_rules().black_rule == :neighbours
     assert Quacks.Game.new(players: 3, seed: {1, 2, 3}).rules.black_rule == :neighbours
 
@@ -246,7 +245,7 @@ defmodule QuacksWeb.LobbySetupTest do
     assert has_element?(view, "#rules-black_rule-standings")
   end
 
-  test "round 27: a config saved in rounds 25-26 does not keep the old standings default" do
+  test "a config saved in rounds 25-26 does not keep the old standings default" do
     view = lobby(~p"/?step=rules")
 
     render_hook(view, "load_config", %{
@@ -630,5 +629,196 @@ defmodule QuacksWeb.LobbySetupTest do
       view |> element("#options") |> render_change(%{"rules" => %{"pot_side" => "true"}})
       assert has_element?(view, "#rules-pot_side[checked]")
     end
+  end
+
+  # Play seat 0 of a solo game to the shop, with 30 coins to spend.
+
+  describe "waiting panel" do
+    test "Start game for the host once every seat is taken; the guest waits" do
+      {:ok, id} = GameServer.start(2, {1, 2, 3})
+      host = open(browser("host"), id)
+      bar = "[data-role=start-bar]"
+      refute has_element?(host, "#{bar} [data-role=start-game]")
+      assert has_element?(host, "#{bar} [data-role=fill-bots]")
+
+      guest = open(browser("guest"), id)
+
+      assert has_element?(
+               host,
+               "#{bar} button[data-role=start-game][phx-click=begin]",
+               "Start game"
+             )
+
+      refute has_element?(guest, "#{bar} [data-role=start-game]")
+      assert has_element?(guest, "#{bar} [data-role=waiting-for-host]")
+    end
+
+    test "the spell book: expansions are switch cards; books are compact tiles" do
+      {:ok, host, _html} = live(browser("host"), ~p"/?step=books")
+
+      for input <- ~w(expansion alchemists rules-pot_side) do
+        assert has_element?(
+                 host,
+                 "[data-role=expansion-row] input##{input}.switch[type=checkbox]"
+               )
+      end
+
+      assert has_element?(host, "#options input#rules-rats.switch")
+      assert has_element?(host, "#options .segmented input.segment[type=radio]")
+      tile = "#books [data-role=book-tile][data-colour=green]"
+      assert has_element?(host, tile, "Garden spider")
+      refute has_element?(host, "#{tile} [data-role=book-tiers]")
+    end
+  end
+
+  # Play seat 0 of a solo game to the shop, with 30 coins to spend.
+
+  describe "lobby" do
+    test "a hero with the cauldron, the title and the tagline", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "[data-role=lobby-hero] svg[data-icon=cauldron]")
+      assert has_element?(view, "[data-role=lobby-hero] h1.font-hand", "Quacks")
+      assert has_element?(view, "[data-role=lobby-hero]", "don't explode")
+      assert has_element?(view, "#new-game", "Start")
+      assert has_element?(view, "footer#credits", "game-icons.net")
+    end
+
+    test "open games are cards with seat dots and expansion badges", %{conn: conn} do
+      {:ok, id} = GameServer.start(3, nil, %{}, %{}, MapSet.new([:herb_witches, :alchemists]))
+      {:ok, base} = GameServer.start(2)
+      {:ok, view, _html} = live(conn, ~p"/")
+      html = render(view)
+
+      card = "#game-#{id}[data-role=open-game]"
+      assert count(html, "#{card} [data-role=seat-dot]") == 3
+      assert count(html, "#{card} [data-role=seat-dot][data-taken]") == 0
+      assert has_element?(view, card, "0 of 3 seated")
+      assert has_element?(view, "#{card} [data-role=expansion-badge]", "Herb Witches")
+      assert has_element?(view, "#{card} [data-role=expansion-badge]", "Alchemists")
+      assert has_element?(view, ~s(#{card} a[href="/g/#{id}"]), "Join")
+
+      assert has_element?(view, "#game-#{base} [data-role=expansion-badge]", "Base game")
+    end
+
+    test "a taken seat fills its dot" do
+      {:ok, id} = GameServer.start(2)
+      {:ok, 0} = GameServer.claim_seat(id, "host-#{id}")
+      {:ok, view, _html} = live(browser("viewer-#{id}"), ~p"/")
+      html = render(view)
+
+      assert count(html, "#game-#{id} [data-role=seat-dot][data-taken]") == 1
+      assert has_element?(view, "#game-#{id}", "Player 1's table")
+    end
+  end
+
+  describe "options steppers" do
+    test "− / + change a number house rule; the ends disable the button" do
+      {:ok, view, _html} = live(browser("host-steppers"), ~p"/?step=rules")
+
+      assert has_element?(view, ~s(#options input[type=hidden]#rules-explode_above[value="7"]))
+      view |> element("[data-rule=explode_above] button[phx-value-to='8']") |> render_click()
+      assert has_element?(view, "[data-rule=explode_above] [data-role=rule-value]", "8")
+
+      view |> element("[data-rule=starting_rubies] button[phx-value-to='0']") |> render_click()
+      assert has_element?(view, "[data-rule=starting_rubies] [data-role=rule-value]", "0")
+      assert has_element?(view, "[data-rule=starting_rubies] button[phx-value-to='-1']:disabled")
+    end
+
+    test "step_rule ignores bad rules and values out of range" do
+      rules = Game.default_rules()
+      assert QuacksWeb.SetupComponents.step_rule(rules, "explode_above", "10") == rules
+      assert QuacksWeb.SetupComponents.step_rule(rules, "rats", "1") == rules
+      assert QuacksWeb.SetupComponents.step_rule(rules, "starting_rubies", "x") == rules
+      assert QuacksWeb.SetupComponents.step_rule(rules, "explode_above", "5").explode_above == 5
+    end
+  end
+
+  describe "the configure screen" do
+    test "the name goes on blur and with a colour tap, so a fast tap keeps both" do
+      {:ok, id} = GameServer.start(2)
+      alice = open(browser("alice-#{System.unique_integer()}"), id)
+
+      assert has_element?(alice, "#seat-name[phx-debounce=blur][phx-hook=NameMemory]")
+
+      swatch = ~s([data-role=colour-picker] button[data-colour="5"])
+      assert has_element?(alice, "#{swatch}[phx-click*='#rename-form']")
+
+      alice |> form("#rename-form", name: "Zed") |> render_submit()
+      alice |> element(swatch) |> render_click()
+
+      {:ok, table} = GameServer.get(id)
+      assert table.names[0] == "Zed" and table.colours[0] == 5
+    end
+
+    test "when the host leaves, the next seat is host with full controls" do
+      {:ok, id} = GameServer.start(3)
+      host = open(browser("alice-#{System.unique_integer()}"), id)
+      bob = open(browser("bob-#{System.unique_integer()}"), id)
+
+      # Round 26: the waiting panel; only the host may fill the seats.
+      refute has_element?(bob, "[data-role=fill-bots]")
+      assert has_element?(bob, "[data-role=waiting-for-host]")
+
+      # the host's page closes (its seat is freed in `terminate/2`)
+      ref = Process.monitor(host.pid)
+      GenServer.stop(host.pid)
+      assert_receive {:DOWN, ^ref, :process, _pid, _reason}
+
+      assert render(bob) =~ "You are now the host."
+      assert has_element?(bob, "[data-role=fill-bots]")
+      assert has_element?(bob, ~s([data-seat="1"]), "host")
+      refute has_element?(bob, "[data-role=waiting-for-host]")
+    end
+  end
+
+  describe "the overflow bowl option" do
+    test "the Herb Witches toggle leaves the overflow rule alone" do
+      conn = browser("host-overflow")
+      {:ok, host, _html} = live(conn, ~p"/?step=rules")
+      refute render(host) =~ "Witch cards, overflow bowl"
+
+      host |> element("#options") |> render_change(%{"rules" => %{"overflow" => "false"}})
+      host |> element("#books") |> render_change(%{"sets" => %{}, "expansion" => "true"})
+      assert has_element?(host, "#options #rules-overflow")
+      refute has_element?(host, "#options #rules-overflow[checked]")
+
+      render_click(host, "players", %{"count" => "1"})
+
+      {:error, {:live_redirect, %{to: "/g/" <> id}}} =
+        host |> element("#new-game") |> render_click()
+
+      assert {:ok, %{rules: %{overflow: false}, expansion: :herb_witches}} = GameServer.get(id)
+    end
+  end
+
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+
+  # Seed 10,11,12 draws white 2, 3, 1: stop there for a shop with 7 coins.
+
+  # The rest of `to_shop_2/1` after one draw, then "Done" (round over).
+
+  test "Copy link dispatches quacks:copy with the share link and says Copied" do
+    {:ok, id} = GameServer.start(2, {1, 2, 3})
+    view = open(browser("alice"), id)
+
+    [click] =
+      view
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("[data-role=copy-link]")
+      |> LazyHTML.attribute("phx-click")
+
+    assert click =~ "quacks:copy"
+    assert click =~ "/g/#{id}"
+
+    assert view |> element("[data-role=copy-link]") |> render_click() =~ "Copied"
+    send(view.pid, :uncopied)
+    assert has_element?(view, "[data-role=copy-link]", "Copy link")
+
+    # the menu has it too, once the game runs
+    _bob = open(browser("bob"), id)
+    {:ok, _} = GameServer.begin(id, "alice")
+    assert has_element?(view, "#sheet-menu [data-role=copy-link]", "Copy link")
   end
 end
