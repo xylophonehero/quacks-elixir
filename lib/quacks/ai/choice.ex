@@ -90,6 +90,10 @@ defmodule Quacks.AI.Choice do
   defp fortune({:exchange, _colour, chip}, game, _seat, profile),
     do: worth(chip, game.round, profile) - 3
 
+  # AP8: the left neighbour gets the smaller gift (a white 1 out, not a free chip).
+  defp fortune({:gift, :white}, _game, _seat, _profile), do: 0
+  defp fortune({:gift, :chip}, _game, _seat, _profile), do: -1
+
   defp fortune({:better, old, new}, game, _seat, profile),
     do: worth(new, game.round, profile) - worth(old, game.round, profile)
 

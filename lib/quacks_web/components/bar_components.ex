@@ -1395,6 +1395,7 @@ defmodule QuacksWeb.BarComponents do
   defp card_choice_piece({:cherish, _n}), do: :rat
   defp card_choice_piece(:rats), do: :rat
   defp card_choice_piece(:bundle), do: :ruby
+  defp card_choice_piece({:gift, :white}), do: :bag
   defp card_choice_piece(:return_white3), do: :bag
   defp card_choice_piece(:remove_white), do: :bag
   defp card_choice_piece(:return_all), do: :bag
@@ -1417,6 +1418,8 @@ defmodule QuacksWeb.BarComponents do
   defp card_choice_title({:exchange, _colour, _chip}, _card), do: "Penny"
   defp card_choice_title({:better, _old, _new}, _card), do: "Swap"
   defp card_choice_title(:keep, _card), do: "Keep"
+  defp card_choice_title({:gift, :white}, _card), do: "White out"
+  defp card_choice_title({:gift, :chip}, _card), do: "Free chip"
   defp card_choice_title(:return_white3, _card), do: "White 3 back"
   defp card_choice_title({:take, _chip}, _card), do: "Take"
   defp card_choice_title({:upgrade, _chip}, _card), do: ""
@@ -1451,6 +1454,8 @@ defmodule QuacksWeb.BarComponents do
     do: "#{chip_name(old)} for #{chip_name(new)}"
 
   defp card_choice_hint(:keep, _card, _me), do: "Keep the pot"
+  defp card_choice_hint({:gift, :white}, _card, _me), do: "Left player: remove a white 1"
+  defp card_choice_hint({:gift, :chip}, _card, _me), do: "Left player: a chip of choice"
   defp card_choice_hint(:return_white3, _card, _me), do: "Left player +2 rubies"
   defp card_choice_hint({:take, chip}, _card, _me), do: chip_name(chip)
   defp card_choice_hint({:upgrade, _chip}, _card, _me), do: "Trade up"

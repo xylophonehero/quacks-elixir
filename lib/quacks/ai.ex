@@ -24,7 +24,7 @@ defmodule Quacks.AI do
   @shift_cap 0.10
   # The phases that `choice_rule` decides.
   @choices [:fortune_choice, :chip_choice, :witch_choice, :essence_choice]
-  @scored_cards [:ap1, :ap3, :ap4, :ap6, :ap7, :ap9, :ap10, :ab1]
+  @scored_cards [:ap1, :ap3, :ap4, :ap6, :ap7, :ap8, :ap9, :ap10, :ab1]
 
   @doc """
   The bot's own rng for `seat` in a game with seed `seed`; separate from the game rng.

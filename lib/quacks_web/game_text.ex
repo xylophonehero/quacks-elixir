@@ -511,6 +511,12 @@ defmodule QuacksWeb.GameText do
 
   defp fortune_choice(:keep, _card), do: "Keep the pot as it is"
 
+  defp fortune_choice({:gift, :white}, _card),
+    do: "The player to your left removes a white 1"
+
+  defp fortune_choice({:gift, :chip}, _card),
+    do: "The player to your left takes a chip of their choice"
+
   defp fortune_choice(:return_white3, _card),
     do: "A good neighborhood: put the white 3 back (left player +2 rubies)"
 
@@ -583,6 +589,9 @@ defmodule QuacksWeb.GameText do
     do: "swapped #{chip_name(old)} for #{chip_name(new)}"
 
   defp fortune_outcome(:keep, _id), do: "kept the pot"
+  defp fortune_outcome({:gift, :white}, _id), do: "left player removes a white 1"
+  defp fortune_outcome({:gift, :chip}, _id), do: "left player takes a chip"
+  defp fortune_outcome({:gift_taken, chip}, _id), do: "took #{chip_name(chip)} (gift)"
   defp fortune_outcome(:return_white3, _id), do: "white 3 back in the bag"
   defp fortune_outcome({:coins, n}, _id), do: "+#{n} coins"
   defp fortune_outcome({:free, chip}, _id), do: "free #{chip_name(chip)}"

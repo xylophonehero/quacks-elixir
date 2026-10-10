@@ -30,7 +30,23 @@ defmodule Quacks.Game.Fortune do
   # Round 35: the cards that offer every seat a choice (`reveals/1` has a row for
   # each seat that chose or still chooses). Toil and Trouble offers only the seats
   # whose right neighbour exploded.
-  @choice_cards [:p1, :p3, :p6, :p9, :p10, :p11, :b2, :ap1, :ap3, :ap4, :ap6, :ap7, :ap9, :ap10]
+  @choice_cards [
+    :p1,
+    :p3,
+    :p6,
+    :p9,
+    :p10,
+    :p11,
+    :b2,
+    :ap1,
+    :ap3,
+    :ap4,
+    :ap6,
+    :ap7,
+    :ap8,
+    :ap9,
+    :ap10
+  ]
   # Useful rodent (AP9): the rat tails a chip of each value costs.
   @rodent %{1 => 2, 2 => 4, 4 => 6}
   # A powerful tipple (AP10): the droplet spaces back for a chip of each value.
@@ -652,6 +668,14 @@ defmodule Quacks.Game.Fortune do
   end
 
   # A seat that answered goes back to brewing (purple) or to done (B2, after brewing).
+  # Neighbor in need (AP8): a seat with a choice left (its gift, or the chip its right
+  # neighbour gave it) keeps choosing.
+  defp answered(%{fortune_card: :ap8} = g, seat) do
+    if choices(g, seat) == [],
+      do: Game.update_player(g, seat, &%{&1 | phase: :potions}),
+      else: g
+  end
+
   defp answered(g, seat) do
     back = if g.fortune_card == :b2, do: :done, else: :potions
     Game.update_player(g, seat, &%{&1 | phase: back})
@@ -734,6 +758,14 @@ defmodule Quacks.Game.Fortune do
     end
   end
 
+  # Neighbor in need: first what the left neighbour gets; then, when the right
+  # neighbour gave a chip, the chip.
+  defp choices(:ap8, %{seats: [_, _ | _]} = g, _p, seat) do
+    give = if gave?(g, seat), do: [], else: [{:gift, :white}, {:gift, :chip}]
+    take = if owed?(g, seat), do: takes(g, fn _chip -> true end), else: []
+    take ++ give
+  end
+
   defp choices(:ap9, g, p, _seat) do
     list =
       takes(g, fn {c, v} ->
@@ -777,7 +809,33 @@ defmodule Quacks.Game.Fortune do
     |> take(seat, chip)
   end
 
+  defp choose(g, seat, :ap8, {:take, chip}),
+    do: g |> log(seat, {:gift_taken, chip}) |> take(seat, chip)
+
   defp choose(g, seat, _id, {:take, chip}), do: take(g, seat, chip)
+
+  # The left neighbour may remove a white 1 (it always does: no downside).
+  defp choose(g, seat, :ap8, {:gift, :white}) do
+    left = left(g, seat)
+    g = log(g, seat, {:gift, :white})
+
+    if {:white, 1} in Game.player(g, left).bag,
+      do:
+        g
+        |> Game.update_player(left, &%{&1 | bag: List.delete(&1.bag, {:white, 1})})
+        |> Game.return_supply({:white, 1})
+        |> log(left, :remove_white),
+      else: g
+  end
+
+  defp choose(g, seat, :ap8, {:gift, :chip}) do
+    left = left(g, seat)
+    g = log(g, seat, {:gift, :chip})
+
+    if choices(g, left) == [],
+      do: g,
+      else: Game.update_player(g, left, &%{&1 | phase: :fortune_choice})
+  end
 
   defp choose(g, seat, :ap1, :bundle) do
     rats = if rats?(g), do: 3, else: 0
@@ -860,6 +918,28 @@ defmodule Quacks.Game.Fortune do
   defp potion_choices(_id, _p), do: []
 
   # -- helpers ---------------------------------------------------------------------------
+
+  # AP8: this round's card entries of `seat`, from the log.
+  defp card_log(g, seat) do
+    id = g.fortune_card
+
+    g.log
+    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
+    |> Enum.flat_map(fn
+      {^seat, {:fortune, ^id, outcome}} -> [outcome]
+      _entry -> []
+    end)
+  end
+
+  defp gave?(g, seat), do: Enum.any?(card_log(g, seat), &match?({:gift, _}, &1))
+
+  # The right neighbour gave `seat` a chip, and `seat` has not taken it yet.
+  defp owed?(g, seat) do
+    right = rem(seat - 1 + length(g.seats), length(g.seats))
+
+    {:gift, :chip} in card_log(g, right) and
+      not Enum.any?(card_log(g, seat), &match?({:gift_taken, _}, &1))
+  end
 
   defp each(g, fun), do: Enum.reduce(Game.turn_order(g), g, &fun.(&2, &1))
 

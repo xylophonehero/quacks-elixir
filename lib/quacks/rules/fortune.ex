@@ -160,9 +160,9 @@ defmodule Quacks.Rules.Fortune do
     ab7: :alchemists,
     ab9: :alchemists
   }
-  # TODO(alch-cards): Neighbor in need (cross-seat choice) and Visit from a witch (an
-  # extra witch for one round) need a new mechanic; they are not in the deck yet.
-  @not_built [:ap8, :ab8]
+  # TODO(alch-cards): Visit from a witch (an extra witch for one round) needs a new
+  # mechanic; it is not in the deck yet.
+  @not_built [:ab8]
 
   @ids Enum.map(@cards, &elem(&1, 0))
   @base Enum.reject(@ids, &String.starts_with?(Atom.to_string(&1), "a"))

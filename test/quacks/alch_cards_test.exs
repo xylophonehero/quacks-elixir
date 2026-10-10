@@ -52,12 +52,11 @@ defmodule Quacks.AlchCardsTest do
 
     test "the box cards are in the deck only with The Alchemists" do
       assert length(Cards.ids(4)) == 24
-      # 14 + 3 Alchemists, without the 2 cards not built yet (AP8 needs no expansion).
-      assert length(Cards.ids(4, [:alchemists])) == 24 + 16
-      assert length(Cards.ids(4, [:alchemists, :herb_witches])) == 24 + 18
+      # 14 + 3 Alchemists; AB8 (Herb Witches) is not built yet.
+      assert length(Cards.ids(4, [:alchemists])) == 24 + 17
+      assert length(Cards.ids(4, [:alchemists, :herb_witches])) == 24 + 19
       solo = Cards.ids(1, [:alchemists, :herb_witches])
       assert Enum.all?([:ap5, :ap6, :ap8, :ap9, :ab4], &(&1 not in solo))
-      refute :ap8 in Cards.ids(4, [:alchemists])
       refute :ab8 in Cards.ids(4, [:alchemists, :herb_witches])
     end
 
@@ -144,6 +143,22 @@ defmodule Quacks.AlchCardsTest do
       g = apply!(g, {:fortune, {:exchange, :gold, {:green, 4}}})
       assert me(g).pennies.gold == false and {:green, 4} in me(g).bag
       assert fortune_actions(new() |> purple(:ap7)) == []
+    end
+
+    test "AP8 Neighbor in need: each seat picks the left neighbour's gift" do
+      g = new(3) |> put(1, bag: [{:white, 1}, {:orange, 1}]) |> purple(:ap8)
+      assert fortune_actions(g, 0) == [{:gift, :white}, {:gift, :chip}]
+      # Seat 0 removes a white 1 from seat 1's bag.
+      g = apply!(g, 0, {:fortune, {:gift, :white}})
+      assert me(g, 1).bag == [{:orange, 1}]
+      # Seat 1 gives seat 2 a chip; seat 2 now also picks that chip.
+      g = apply!(g, 1, {:fortune, {:gift, :chip}})
+      assert {:take, {:green, 4}} in fortune_actions(g, 2)
+      g = apply!(g, 2, {:fortune, {:gift, :white}})
+      assert Game.phase(g, 2) == :fortune_choice
+      g = apply!(g, 2, {:fortune, {:take, {:green, 4}}})
+      assert {:green, 4} in me(g, 2).bag
+      assert g.phase == :potions
     end
 
     test "AP9 Useful rodent: 2, 4 or 6 rat tails for a 1-, 2- or 4-chip" do
@@ -245,7 +260,7 @@ defmodule Quacks.AlchCardsTest do
     test "every bot answers every new card choice with a legal, sensible action" do
       rng = :rand.seed_s(:exsss, {9, 9, 9})
 
-      for id <- [:ap1, :ap3, :ap4, :ap6, :ap7, :ap9, :ap10], name <- Profile.all() do
+      for id <- [:ap1, :ap3, :ap4, :ap6, :ap7, :ap8, :ap9, :ap10], name <- Profile.all() do
         g =
           new(2, expansions: [:herb_witches])
           |> put(1, vp: 0, rubies: 3)
