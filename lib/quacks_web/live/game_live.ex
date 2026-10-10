@@ -102,6 +102,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.GameComponents
   import QuacksWeb.ChipComponents
   import QuacksWeb.GameText
+  import QuacksWeb.PotComponents
   import QuacksWeb.TrackComponents
   import QuacksWeb.CardRevealComponents
 

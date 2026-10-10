@@ -153,7 +153,7 @@ defmodule QuacksWeb.Round29TilesTest do
     # (space 17, VP 12, chip badge 16 units), so only the classes keep the floor.
     test "no class below the floor in the pot" do
       g = brewing_game()
-      html = render_component(&QuacksWeb.GameComponents.pot/1, game: g, seat: 1)
+      html = render_component(&QuacksWeb.PotComponents.pot/1, game: g, seat: 1)
       assert [] = Enum.filter(classes(html), &below_floor?/1)
     end
   end

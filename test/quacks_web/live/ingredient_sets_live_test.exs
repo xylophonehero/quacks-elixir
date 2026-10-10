@@ -5,7 +5,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
   import Quacks.GameHelpers, only: [force_draws: 2]
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, GameText}
+  alias QuacksWeb.{GameComponents, GameText, PotComponents}
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "sets-#{System.unique_integer()}")}
@@ -106,7 +106,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
     g = force_draws(g, [{:white, 1}, {:red, 2}])
     assert g.players[0].aside == [{:red, 2}]
 
-    html = render_component(&GameComponents.aside/1, chips: g.players[0].aside)
+    html = render_component(&PotComponents.aside/1, chips: g.players[0].aside)
     assert html =~ "Beside the pot" and html =~ ~s(aria-label="red 2")
     assert GameText.label({:red, {:place, {:red, 2}}}) =~ "place red 2"
   end

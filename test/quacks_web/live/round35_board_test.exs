@@ -55,7 +55,7 @@ defmodule QuacksWeb.Round35BoardTest do
 
   describe "rats in the pot when the droplet moves" do
     alias Quacks.GameHelpers, as: H
-    alias QuacksWeb.{GameComponents, TrackComponents}
+    alias QuacksWeb.{PotComponents, TrackComponents}
 
     defp rat_game do
       Game.new(seed: {1, 2, 3}, players: 2) |> H.put(1, rat_stone: 3, pot_index: 3)
@@ -85,7 +85,7 @@ defmodule QuacksWeb.Round35BoardTest do
       game = H.force_draws(rat_game(), 1, [{:white, 2}]) |> Game.move_droplet(1, 1)
 
       html =
-        render_component(&GameComponents.pot/1, game: game, seat: 1, size: :lg)
+        render_component(&PotComponents.pot/1, game: game, seat: 1, size: :lg)
         |> LazyHTML.from_fragment()
 
       rats = LazyHTML.query(html, "[data-role=rat]")
@@ -124,7 +124,7 @@ defmodule QuacksWeb.Round35BoardTest do
   describe "test tubes" do
     test "the ruby and the VP are icons, no VP text; the rack is shorter" do
       html =
-        render_component(&QuacksWeb.GameComponents.test_tubes/1, id: "t", tube: 0)
+        render_component(&QuacksWeb.PotComponents.test_tubes/1, id: "t", tube: 0)
         |> LazyHTML.from_fragment()
 
       assert html |> LazyHTML.query("[data-role=glass-ruby][data-icon=ruby]") |> Enum.count() > 0

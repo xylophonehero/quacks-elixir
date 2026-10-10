@@ -8,7 +8,7 @@ defmodule QuacksWeb.ReplayTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, Replay}
+  alias QuacksWeb.{GameComponents, PotComponents, Replay}
 
   # Newest first, like the engine: die → black → green → purple → scoring space.
   @log [
@@ -84,7 +84,7 @@ defmodule QuacksWeb.ReplayTest do
   test "the pot lights the marked chips, the droplet and the scoring ring on their beat" do
     game = game()
     beats = game |> Replay.beats(0) |> Replay.highlights()
-    html = render_component(&GameComponents.pot/1, game: game, beats: beats)
+    html = render_component(&PotComponents.pot/1, game: game, beats: beats)
 
     assert has?(
              html,
@@ -101,7 +101,7 @@ defmodule QuacksWeb.ReplayTest do
     assert has?(html, ~s([data-space="#{ring}"] [data-role=beat-ring][data-beat="5"]))
     refute has?(html, "[data-role=pot-chip][data-index='5'] [data-role=beat-ring]")
 
-    html = render_component(&GameComponents.pot/1, game: game)
+    html = render_component(&PotComponents.pot/1, game: game)
     refute has?(html, "[data-role=beat-ring]")
   end
 

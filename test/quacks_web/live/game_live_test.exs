@@ -5,7 +5,7 @@ defmodule QuacksWeb.GameLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Chips
-  alias QuacksWeb.{ActionCode, GameComponents, GameLive, GameText}
+  alias QuacksWeb.{ActionCode, GameLive, GameText, PotComponents}
 
   @pot_chip "[data-role=pot-chip]"
 
@@ -174,7 +174,7 @@ defmodule QuacksWeb.GameLiveTest do
   test "the pot draws each chip on its recorded space", %{conn: _conn} do
     game = Game.new(seed: {1, 2, 3})
     game = put_in(game.players[0].drawn, [{{:red, 2}, 4}, {{:orange, 1}, 1}])
-    html = render_component(&GameComponents.pot/1, game: game)
+    html = render_component(&PotComponents.pot/1, game: game)
     assert count(html, ~s([data-space="4"] #{@pot_chip}[aria-label="red 2"])) == 1
     assert count(html, ~s([data-space="1"] #{@pot_chip}[aria-label="orange 1"])) == 1
     assert count(html, ~s([data-space="3"] #{@pot_chip})) == 0
@@ -183,14 +183,14 @@ defmodule QuacksWeb.GameLiveTest do
 
   test "the pot shows the rat stone at droplet + rat stone, only when there is one" do
     game = Game.new(seed: {1, 2, 3}, players: 2)
-    html = render_component(&GameComponents.pot/1, game: game, seat: 1)
+    html = render_component(&PotComponents.pot/1, game: game, seat: 1)
     assert count(html, "[data-role=rat-stone]") == 0
 
     game = put_in(game.players[1].droplet, 2)
     game = put_in(game.players[1].rat_stone, 3)
 
     for size <- [:lg, :sm] do
-      html = render_component(&GameComponents.pot/1, game: game, seat: 1, size: size)
+      html = render_component(&PotComponents.pot/1, game: game, seat: 1, size: size)
       assert count(html, ~s([data-role=rat-stone][data-index="5"])) == 1
       assert count(html, "[data-role=rat-stone]") == 1
     end

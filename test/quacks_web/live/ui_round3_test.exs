@@ -10,7 +10,7 @@ defmodule QuacksWeb.UiRound3Test do
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Fortune, PotTrack}
-  alias QuacksWeb.{ActionCode, GameComponents}
+  alias QuacksWeb.{ActionCode, PotComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -162,7 +162,7 @@ defmodule QuacksWeb.UiRound3Test do
   end
 
   test "every space with VP shows its VP tag, at every screen width" do
-    html = render_component(&GameComponents.pot/1, game: Game.new(seed: {1, 2, 3}))
+    html = render_component(&PotComponents.pot/1, game: Game.new(seed: {1, 2, 3}))
     with_vp = Enum.count(0..PotTrack.last(), &(PotTrack.at(&1).vp > 0))
 
     assert count(html, "[data-role=vp-tag]") == with_vp

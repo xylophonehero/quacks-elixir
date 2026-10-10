@@ -9,7 +9,7 @@ defmodule QuacksWeb.R10UiTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.{GameComponents, PotComponents}
 
   defp query(html, selector),
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
@@ -24,7 +24,7 @@ defmodule QuacksWeb.R10UiTest do
       game = put_in(game.players[0].droplet, 2)
 
       for size <- [:lg, :sm] do
-        html = render_component(&GameComponents.pot/1, game: game, size: size)
+        html = render_component(&PotComponents.pot/1, game: game, size: size)
         assert count(html, ~s(#droplet-0-#{size}[data-role=droplet][data-index="2"])) == 1
         assert count(html, ~s(#droplet-0-#{size} circle[r="19"])) == 1
       end
@@ -37,7 +37,7 @@ defmodule QuacksWeb.R10UiTest do
       game = put_in(game.players[1].drawn, [{{:white, 1}, 6}])
 
       for size <- [:lg, :sm] do
-        html = render_component(&GameComponents.pot/1, game: game, seat: 1, size: size)
+        html = render_component(&PotComponents.pot/1, game: game, seat: 1, size: size)
         assert count(html, "[data-role=rat]") == 3
         assert attrs(html, "[data-role=rat]", "data-index") == ~w(3 4 5)
         # Round 35: a rat's id names its space.
@@ -48,7 +48,7 @@ defmodule QuacksWeb.R10UiTest do
     end
 
     test "no rat pieces without rat tails" do
-      html = render_component(&GameComponents.pot/1, game: Game.new(seed: {1, 2, 3}))
+      html = render_component(&PotComponents.pot/1, game: Game.new(seed: {1, 2, 3}))
       assert count(html, "[data-role=rat]") == 0
     end
   end

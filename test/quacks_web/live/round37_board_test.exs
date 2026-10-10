@@ -12,7 +12,7 @@ defmodule QuacksWeb.Round37BoardTest do
   alias Quacks.Game
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias QuacksWeb.{ChipComponents, GameComponents}
+  alias QuacksWeb.{ChipComponents, PotComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -79,7 +79,7 @@ defmodule QuacksWeb.Round37BoardTest do
   end
 
   describe "item 13: the spoon is not a space" do
-    defp pot(game), do: render_component(&GameComponents.pot/1, game: game)
+    defp pot(game), do: render_component(&PotComponents.pot/1, game: game)
 
     defp spoon(html),
       do: html |> LazyHTML.from_fragment() |> LazyHTML.query("g[data-space='53']")

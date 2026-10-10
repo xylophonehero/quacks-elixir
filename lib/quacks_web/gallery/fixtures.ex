@@ -54,7 +54,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
         "TileRevealComponents.results_stage/1 + stage_list/1 over the bar's step line",
         results_variants()
       ),
-      component("pot", "Pot board", 520, "GameComponents.pot/1", pot_variants()),
+      component("pot", "Pot board", 520, "PotComponents.pot/1", pot_variants()),
       component(
         "tiles",
         "Player tiles",

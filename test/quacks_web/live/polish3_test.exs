@@ -6,7 +6,7 @@ defmodule QuacksWeb.Polish3Test do
 
   alias Quacks.{Game, GameHelpers, GameServer}
   alias Quacks.Rules.{Alchemists, Fortune}
-  alias QuacksWeb.{AlchemistsComponents, GameComponents}
+  alias QuacksWeb.{AlchemistsComponents, GameComponents, PotComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -141,11 +141,11 @@ defmodule QuacksWeb.Polish3Test do
 
   test "an exploded pot's brew is spoiled" do
     game = Game.new(seed: {1, 2, 3})
-    calm = render_component(&GameComponents.pot/1, game: game, seat: 0)
+    calm = render_component(&PotComponents.pot/1, game: game, seat: 0)
     assert count(calm, "[data-role=brew]:not([data-spoiled])") == 1
 
     game = GameHelpers.put(game, 0, exploded?: true)
-    html = render_component(&GameComponents.pot/1, game: game, seat: 0)
+    html = render_component(&PotComponents.pot/1, game: game, seat: 0)
     assert count(html, "[data-role=brew][data-spoiled]") == 1
     assert html |> query("[data-role=groove]") |> LazyHTML.attribute("stroke-opacity") == ["0.7"]
   end
