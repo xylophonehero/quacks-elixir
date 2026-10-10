@@ -1,23 +1,103 @@
-defmodule QuacksWeb.MotionB3Test do
+defmodule QuacksWeb.MotionHooksTest do
   @moduledoc """
-  Animation batch 3 (`docs/research/animations.md` §3 B3): what the chip flight hook
-  and the opt-in view transition need from the server. The motion itself is WAAPI
-  and CSS; these tests check only what the server renders and pushes.
+  What the motion hooks need from the server: the chip flight, the view transition and the animation data attributes.
   """
   use QuacksWeb.ConnCase, async: true
-
   import Phoenix.LiveViewTest
+  import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
-
   alias Quacks.{Game, GameServer}
   alias QuacksWeb.PotComponents
-
-  defp query(html, selector),
-    do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
 
   defp ids(html, selector), do: html |> query(selector) |> LazyHTML.attribute("id")
 
   defp mount do
+    {:ok, id} = GameServer.start(1, {10, 11, 12})
+    {:ok, view, _html} = live(init_test_session(build_conn(), player_token: "solo"), ~p"/g/#{id}")
+    {view, id}
+  end
+
+  test "pot chips, the droplet and the pot have fixed ids that hold across draws" do
+    {view, _id} = mount()
+    assert has_element?(view, "svg#pot-0-lg.pot-lg")
+    assert has_element?(view, "#droplet-0-lg[data-role=droplet][style*=translate]")
+    assert has_element?(view, "#flask-0[data-role=flask]")
+
+    view |> element("button[data-slot=draw]") |> render_click()
+    [first] = ids(render(view), "[data-role=pot-chip]")
+    assert first =~ ~r/^pot-chip-0-\d+-1$/
+
+    view |> element("button[data-slot=draw]") |> render_click()
+    chips = ids(render(view), "[data-role=pot-chip]")
+    assert length(chips) == 2
+    assert first in chips
+  end
+
+  test "the droplet moves by its translate, not by a new node" do
+    game = Game.new(seed: {1, 2, 3})
+    html = render_component(&PotComponents.pot/1, game: game)
+    [before] = query(html, "#droplet-0-lg") |> LazyHTML.attribute("style")
+
+    game = put_in(game.players[0].droplet, 3)
+    html = render_component(&PotComponents.pot/1, game: game)
+    assert has_element_html?(html, ~s(#droplet-0-lg[data-index="3"]))
+    [later] = query(html, "#droplet-0-lg") |> LazyHTML.attribute("style")
+    assert before != later
+  end
+
+  test "small pots, the rat stone and the explosion get their own ids" do
+    game = Game.new(seed: {1, 2, 3}, players: 2)
+    game = put_in(game.players[1].drawn, [{{:white, 1}, 4}, {{:orange, 1}, 1}])
+    game = put_in(game.players[1].rat_stone, 2)
+    game = put_in(game.players[1].exploded?, true)
+
+    html = render_component(&PotComponents.pot/1, game: game, seat: 1, size: :sm)
+    assert ids(html, "[data-role=pot-chip]") == ["pot-chip-1-1-0-sm", "pot-chip-1-4-0-sm"]
+    assert has_element_html?(html, "#pot-chip-1-4-0-sm[data-order='0']")
+    assert has_element_html?(html, "#rat-1-sm[data-role=rat-stone]")
+    assert has_element_html?(html, "#cracked-rim-1-sm [data-role=puff]")
+
+    html = render_component(&PotComponents.pot/1, game: game, seat: 1)
+    assert ids(html, "[data-role=pot-chip]") == ["pot-chip-1-1-0", "pot-chip-1-4-0"]
+  end
+
+  test "the new card of the round turns over; the info sheet's card does not" do
+    {view, id} = mount()
+    {:ok, %{game: %{fortune_card: card}}} = GameServer.get(id)
+
+    # round 22: over the pot, outside the overlay
+    assert has_element?(view, "#pot-card-1 #pot-card-flip .card-front [data-role=fortune-card]")
+    assert has_element?(view, "#pot-card-flip .card-back[aria-hidden=true]")
+    assert card
+    refute has_element?(view, "#sheet-fortune [data-role=card-flip]")
+  end
+
+  test "the ruby badge ticks: a stable counter and a pop keyed by the value" do
+    {view, id} = mount()
+    {:ok, %{game: game}} = GameServer.get(id)
+    me = game.players[0]
+
+    assert has_element?(view, ~s(dd#stat-rubies[style="--n: #{me.rubies}"]))
+    assert has_element?(view, "#stat-rubies-#{me.rubies}[aria-hidden=true]")
+    assert has_element?(view, "dd#stat-rubies .sr-only", "#{me.rubies}")
+  end
+
+  test "the CSS has the motion keyframes and a reduced-motion fallback for them" do
+    css = File.read!(Path.expand("../../../assets/css/app.css", __DIR__))
+
+    for name <- ~w(chip-land pot-shake puff card-flip stat-pop) do
+      assert css =~ "@keyframes #{name}"
+    end
+
+    [_, reduced] = String.split(css, "/* Reduced motion: fewer and gentler.", parts: 2)
+    assert reduced =~ "@media (prefers-reduced-motion: reduce)"
+    assert reduced =~ ~s(.pot-lg [data-role="pot-chip"])
+    assert reduced =~ ".card-flip-inner"
+  end
+
+  defp has_element_html?(html, selector), do: not Enum.empty?(query(html, selector))
+
+  defp mount_2 do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     {:ok, view, _html} = live(init_test_session(build_conn(), player_token: "solo"), ~p"/g/#{id}")
     view
@@ -58,7 +138,7 @@ defmodule QuacksWeb.MotionB3Test do
   end
 
   test "a draw keeps the earlier chips' ids; a new chip is the only new id" do
-    view = mount()
+    view = mount_2()
     view |> element("button[data-slot=draw]") |> render_click()
     before = ids(render(view), "[data-role=pot-chip]")
     view |> element("button[data-slot=draw]") |> render_click()
@@ -69,7 +149,7 @@ defmodule QuacksWeb.MotionB3Test do
   end
 
   test "the round change, and only it, asks for a view transition on the round counter" do
-    view = mount()
+    view = mount_2()
     assert has_element?(view, ".round-counter[data-role=round-counter]", "1 / 9")
 
     for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
@@ -103,6 +183,4 @@ defmodule QuacksWeb.MotionB3Test do
     assert hook =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
     assert js =~ "!reduced()"
   end
-
-  defp has_element_html?(html, selector), do: not Enum.empty?(query(html, selector))
 end
