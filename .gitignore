@@ -35,3 +35,6 @@ quacks-*.tar
 npm-debug.log
 /assets/node_modules/
 
+
+# Bot tuning state (mix quacks.tune); weights files are committed only after review.
+/priv/bots/tune-checkpoint*.json

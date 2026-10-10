@@ -270,3 +270,29 @@ The columns are mean VP, its spread, win rate, explosion rate overall and per
 round, then mean coins per round and chips bought per game. To compare two
 profiles, run the same seed with each and read the two rows. The research docs
 show the tables that chose today's numbers.
+
+## The benchmark and the training: `mix quacks.bench`, `mix quacks.tune`
+
+`mix quacks.sim` prints a lot of numbers for one run. To decide "is bot A stronger
+than bot B?" you need a confidence interval, and that is the job of
+`Quacks.AI.Bench` (`lib/quacks/ai/bench.ex`):
+
+```
+nice -n 10 mix quacks.bench --games 4000 --players 4 --jobs 4 --bots balanced+strong,balanced,balanced,balanced
+```
+
+- **Duplicate seating.** Each seed is played once per rotation of the bots
+  (`lineup/3`), so each bot gets the same chips in each seat. Two equal bots come
+  out at exactly 50/50.
+- **One seed is one sample.** The ± columns are 95 % intervals over the seeds, not
+  over the games, because the games of one seed are not independent.
+- **Capped.** `Task.async_stream/3` with `max_concurrency: jobs` (default half the
+  cores), and `--minutes` for a time budget.
+
+`Quacks.AI.Tune` (`lib/quacks/ai/tune.ex`) uses the benchmark as its score. It
+changes 27 numbers of a profile (`Quacks.AI.Weights.spec/0`), plays each variant
+against the base bot, and moves towards the best variants (the cross-entropy
+method). It saves a checkpoint after every generation, so `mix quacks.tune` goes on
+where it stopped. The result is a JSON file of numbers;
+`Profile.parse("file:priv/bots/tuned.json")` turns it back into a profile. The
+process, the numbers and the commands are in `docs/research/bot-training.md`.
