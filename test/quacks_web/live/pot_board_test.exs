@@ -1,19 +1,21 @@
 defmodule QuacksWeb.PotBoardTest do
   @moduledoc """
-  The pot and the board around it: the Toadstool rows and the corner card, the rat track, sticky sheet headers, chips that move in the pot, test tubes, the burst and the draw flight, the scoring ring, the value badge and the Mandrake chip over the bag.
+  The pot and the board around it: VP tags, the overflow bowl, the ruby badge, a spoiled brew, the Toadstool rows and the corner card, the rat track, sticky sheet headers, chips that move in the pot, test tubes, the burst and the draw flight, the scoring ring, the value badge and the Mandrake chip over the bag.
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
   import QuacksWeb.LiveHelpers
+  import QuacksWeb.LiveHelpers
   alias Quacks.Game
+  alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
   alias Quacks.Rules.Fortune
-  alias Quacks.{Game, GameServer}
+  alias Quacks.Rules.PotTrack
+  alias QuacksWeb.ChipComponents
   alias QuacksWeb.Icons
   alias QuacksWeb.PotComponents
-  alias QuacksWeb.{ChipComponents, PotComponents}
 
   defp solo(rules \\ %{fortune: false}) do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, rules)
@@ -668,7 +670,7 @@ defmodule QuacksWeb.PotBoardTest do
     view
   end
 
-  test "every seat's dot in its step, the rats between with their VP (round 22)" do
+  test "every seat's dot in its step, the rats between with their VP" do
     # Seat 0 (me) on 3, seat 1 on 12, seat 2 on 8: tails after 10, 7, 4 → 3 rats.
     view = trio_3(%{}, [3, 12, 8])
     assert has_element?(view, "#rat-track[data-steps='4']")
@@ -691,5 +693,63 @@ defmodule QuacksWeb.PotBoardTest do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
     {:ok, view, _html} = live(browser("r16-solo"), ~p"/g/#{id}")
     refute has_element?(view, "#rat-track")
+  end
+
+  defp solo_3(seed) do
+    {:ok, id} = GameServer.start(1, seed)
+    {:ok, view, _html} = live(browser("solo"), ~p"/g/#{id}")
+    {id, view}
+  end
+
+  # Play seat 0 of a solo game to the shop, with 30 coins to spend.
+
+  describe "no stats strip, rubies by the pot" do
+    test "the strip is gone; the ruby total is a badge in the pot's top right corner" do
+      {_id, view} = solo_3({1, 2, 3})
+
+      refute has_element?(view, "[data-role=stats]")
+      badge = "[data-role=pot-area] [data-role=pot-corner-right] [data-role=ruby-badge]"
+      assert has_element?(view, "#{badge} dt svg[data-icon=ruby]")
+      assert has_element?(view, "#{badge} dt .sr-only", "Rubies")
+      assert has_element?(view, "#{badge} dd#stat-rubies.font-hand.text-num.tabular-nums")
+    end
+  end
+
+  # Play seat 0 of a solo game to the shop, with 30 coins to spend.
+
+  test "an exploded pot's brew is spoiled" do
+    game = Game.new(seed: {1, 2, 3})
+    calm = render_component(&PotComponents.pot/1, game: game, seat: 0)
+    assert count(calm, "[data-role=brew]:not([data-spoiled])") == 1
+
+    game = GameHelpers.put(game, 0, exploded?: true)
+    html = render_component(&PotComponents.pot/1, game: game, seat: 0)
+    assert count(html, "[data-role=brew][data-spoiled]") == 1
+    assert html |> query("[data-role=groove]") |> LazyHTML.attribute("stroke-opacity") == ["0.7"]
+  end
+
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+
+  # Seed 10,11,12 draws white 2, 3, 1: stop there for a shop with 7 coins.
+
+  # The rest of `to_shop_2/1` after one draw, then "Done" (round over).
+
+  test "every space with VP shows its VP tag, at every screen width" do
+    html = render_component(&PotComponents.pot/1, game: Game.new(seed: {1, 2, 3}))
+    with_vp = Enum.count(0..PotTrack.last(), &(PotTrack.at(&1).vp > 0))
+
+    assert count(html, "[data-role=vp-tag]") == with_vp
+    refute html =~ "hidden sm:inline"
+  end
+
+  # A 2-player game without fortune cards, started by alice.
+
+  test "the overflow bowl shows under the pot in a base game once it has chips" do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+    view = open(browser("bowl"), id)
+    refute has_element?(view, "[data-role=bowl]")
+
+    replace_game(id, &H.put(&1, 0, bowl: [{:white, 1}]))
+    assert has_element?(view, "[data-role=bowl] [data-role=bowl-chip]")
   end
 end
