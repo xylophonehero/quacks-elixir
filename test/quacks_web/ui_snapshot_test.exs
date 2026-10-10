@@ -104,7 +104,9 @@ defmodule QuacksWeb.UiSnapshotTest do
 
   # One tag per line, the attributes of a tag sorted (their order follows map
   # order, which changes between runs); LiveView ids, session tokens and the csrf
-  # token replaced; icon path data hashed.
+  # token replaced; icon path data hashed. The indentation of text and LiveView's
+  # `phx-r` marker (a template's root) go: moving markup into a component changes
+  # them, not the page.
   defp normalise(html) do
     html
     |> String.replace(~r/"phx-[A-Za-z0-9_-]{16}"/, ~s("phx-ID"))
@@ -117,7 +119,10 @@ defmodule QuacksWeb.UiSnapshotTest do
       ~r/<([a-zA-Z][\w:-]*)((?:\s+[^\s=>"\/]+(?:="[^"]*")?)+)\s*(\/?)>/,
       &sort_attrs/1
     )
+    |> String.replace(~r/ phx-r=""/, "")
     |> String.replace(~r/>\s*</, ">\n<")
+    |> String.split("\n")
+    |> Enum.map_join("\n", &String.trim/1)
     |> String.trim()
     |> Kernel.<>("\n")
   end
