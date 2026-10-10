@@ -1,23 +1,164 @@
-defmodule QuacksWeb.Round36UiTest do
+defmodule QuacksWeb.BarChoicesTest do
   @moduledoc """
-  Round 36 (ui): chip choices as chips, Ghost's breath V in a sheet, pot chips as
-  targets, the short second tile row centred, the peeked chip over the bag and the
-  scoring space's pulse when the chip lands.
+  The choices in the bar: the crow skull's chips, the toadstools beside the pot, the shop always buys, Choices Choices as a chip row, chip choices as chips, Ghost's breath V in a sheet, pot chips as targets and an everyone-card's results.
   """
   use QuacksWeb.ConnCase, async: true
-
   import Phoenix.LiveViewTest
-  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
-
+  import QuacksWeb.LiveHelpers
+  import QuacksWeb.RevealHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
 
+  defp solo(rules) do
+    {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, Map.merge(%{fortune: false}, rules))
+    {:ok, view, _html} = live(browser("r35-#{System.unique_integer()}"), ~p"/g/#{id}")
+    {id, view}
+  end
+
+  describe "the crow skull in the bottom row" do
+    # Round 40: the info row takes the white track's place on phones; from 64rem
+    # the bar keeps the white track and Stop / Draw (`crow_skull_choice_test.exs`).
+    test "the drawn chips and Skip in one row" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
+
+      row = "footer section[data-role=bar-blue][phx-hook$='FromBag'][phx-remove]"
+      assert has_element?(view, "#{row} button[data-pool-chip] .chip-token")
+      assert has_element?(view, "#{row} [data-role=blue-skip]", "Skip")
+      assert has_element?(view, "#{row} [data-role=info-row]")
+      assert has_element?(view, "[data-role=fuse-row].max-lg\\:hidden")
+      assert has_element?(view, "[data-role=action-bar].max-lg\\:hidden")
+    end
+
+    test "a tap places the chip; Skip returns them all" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
+
+      view |> element("[data-role=bar-blue] button[aria-label*='red 1']") |> render_click()
+      refute has_element?(view, "[data-role=bar-blue]")
+      assert has_element?(view, "[data-role=action-bar]")
+
+      replace_game(id, &H.put(&1, phase: :blue_choice, pending: [{:red, 1}, {:white, 1}]))
+      view |> element("[data-role=blue-skip]") |> render_click()
+      refute has_element?(view, "[data-role=bar-blue]")
+    end
+  end
+
+  describe "the toadstools beside the pot" do
+    test "stack in a column" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, aside: [{:red, 1}, {:red, 2}]))
+
+      assert has_element?(view, "[data-role=beside-pot].flex-col [data-role=aside-chip]")
+      refute has_element?(view, "[data-role=beside-pot].-space-x-1\\.5")
+    end
+  end
+
+  describe "the shop's book text scrolls into view" do
+    test "the info button asks the sheet to show the opened text" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, phase: :shop, coins: 10))
+
+      assert has_element?(
+               view,
+               "#decision-shop [data-role=book-info][phx-click*='quacks:reveal'][phx-click*='#shop-book-0']"
+             )
+    end
+  end
+
+  describe "the shop always buys" do
+    test "no Skip: Buy is the one button, disabled until a chip is ticked" do
+      {id, view} = solo(%{})
+      replace_game(id, &H.put(&1, phase: :shop, coins: 10))
+
+      refute has_element?(view, "#decision-shop [data-role=shop-done]")
+      refute has_element?(view, "#decision-shop button", "Skip")
+      assert has_element?(view, "#decision-shop [data-role=shop-buy]:disabled")
+    end
+
+    test "too few coins for any chip: only then Nothing to buy" do
+      # The page skips the buy step when nothing is affordable (unless a copper
+      # witch acts there), so the shop itself is checked here.
+      {id, _view} = solo(%{})
+      game = replace_game(id, &H.put(&1, phase: :shop, coins: 2))
+      html = render_component(&QuacksWeb.ShopComponents.shop/1, game: game, seat: 0, selected: [])
+      doc = LazyHTML.from_fragment(html)
+
+      assert doc |> LazyHTML.query("[data-role=shop-done]") |> LazyHTML.text() =~ "Nothing to buy"
+      assert doc |> LazyHTML.query("[data-role=shop-buy]") |> Enum.empty?()
+    end
+  end
+
+  describe "Choices, Choices as a chip row" do
+    test "the black chip, the 2-chips and a ruby with 3, in the bottom row only" do
+      {id, view} = solo(%{})
+
+      replace_game(id, fn g ->
+        %{g | phase: :fortune_choice, fortune_card: :p1} |> H.put(0, phase: :fortune_choice)
+      end)
+
+      row = "footer section[data-role=bar-card][data-card=p1]"
+      assert has_element?(view, "#{row} button[data-choice=take] [aria-label='black 1']")
+      assert has_element?(view, "#{row} button[data-choice=take] [aria-label='red 2']")
+      assert has_element?(view, "#{row} button [data-role=ruby-count]", "3")
+      refute has_element?(view, "#{row} [data-role=info-row]")
+      refute has_element?(view, "#{row} [data-role=choice-grid]")
+
+      view |> element("#{row} button[data-choice=rubies]") |> render_click()
+      refute has_element?(view, row)
+      {:ok, %{game: game}} = GameServer.get(id)
+      assert game.players[0].rubies == 4
+    end
+  end
+
+  describe "what everyone took after an everyone-card" do
+    defp p1(g),
+      do:
+        %{g | phase: :fortune_choice, fortune_card: :p1}
+        |> Map.update!(
+          :players,
+          &Map.new(&1, fn {s, p} -> {s, %{p | phase: :fortune_choice}} end)
+        )
+
+    test "solo: after the choice the card grows with the row; Continue shrinks it" do
+      {id, view} = solo(%{})
+      replace_game(id, &p1/1)
+      refute has_element?(view, "[data-role=card-stage]")
+
+      view |> element("[data-card=p1] button[data-choice=rubies]") |> render_click()
+
+      # Round 36: the rows are in the results stage, not under the card.
+      row = "[data-role=card-stage][data-card=p1] [data-role=card-reveal-row]"
+
+      assert has_element?(view, "#{row}[data-me=true] [data-role=seat-disc]")
+      assert has_element?(view, "#{row} [data-gain=rubies]", "+3")
+      assert has_element?(view, "#card-continue")
+
+      view |> element("#card-continue") |> render_click()
+      refute has_element?(view, "[data-role=card-stage]")
+    end
+
+    test "two players: the one who chose sees the other still choosing, then the take" do
+      {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, alice, _} = live(browser("r35-alice-#{id}"), ~p"/g/#{id}")
+      {:ok, bob, _} = live(browser("r35-bob-#{id}"), ~p"/g/#{id}")
+      alice |> element("button", "Start game") |> render_click()
+      replace_game(id, &p1/1)
+
+      alice |> element("[data-card=p1] button[data-choice=rubies]") |> render_click()
+      rows = "[data-role=card-stage] [data-role=card-reveal-row]"
+      assert has_element?(alice, "#{rows}[data-seat='1']", "choosing")
+
+      bob |> element("[data-card=p1] button[aria-label*='black 1']") |> render_click()
+      assert has_element?(alice, "#{rows}[data-seat='1'] [data-gain=chip] [aria-label='black 1']")
+      assert has_element?(bob, "#{rows}[data-seat='0'] [data-gain=rubies]", "+3")
+    end
+  end
+
   doctest QuacksWeb.TileComponents, import: true, only: [loop_start: 3]
 
-  defp browser(name), do: init_test_session(build_conn(), player_token: name)
-
-  defp solo(sets \\ %{}, expansion \\ nil) do
+  defp solo_2(sets \\ %{}, expansion \\ nil) do
     {:ok, id} = GameServer.start(1, {10, 11, 12}, sets, %{fortune: false}, expansion)
     {:ok, view, _html} = live(browser("r36-#{System.unique_integer()}"), ~p"/g/#{id}")
     {id, view}
@@ -33,7 +174,7 @@ defmodule QuacksWeb.Round36UiTest do
     {id, view}
   end
 
-  describe "item 4: the short second tile row is centred" do
+  describe "the short second tile row is centred" do
     test "5 seats: 6 half columns, row 2 starts half a column in" do
       {_id, view} = table(5)
 
@@ -65,12 +206,12 @@ defmodule QuacksWeb.Round36UiTest do
     end
   end
 
-  describe "item 6: the scoring space pulses when the chip lands" do
+  describe "the scoring space pulses when the chip lands" do
     # Round 37 replaced the pulse with the old ring's shrink and the new ring's
     # growth (`QuacksWeb.Round37BoardTest`).
 
     test "the pot marks its scoring space and this seat's ring" do
-      {_id, view} = solo()
+      {_id, view} = solo_2()
       view |> element("[data-role=action-bar] button", "Draw") |> render_click()
 
       assert has_element?(view, "#pot-0-lg [data-role=next-space]")
@@ -78,11 +219,11 @@ defmodule QuacksWeb.Round36UiTest do
     end
   end
 
-  describe "item 5: Mandrake V's peeked chip over the bag" do
+  describe "Mandrake V's peeked chip over the bag" do
     defp log(g, entries), do: %{g | log: Enum.reverse(entries) ++ g.log}
 
     test "the peeked chip shows over the bag until the next draw" do
-      {id, view} = solo(%{yellow: 5}, :herb_witches)
+      {id, view} = solo_2(%{yellow: 5}, :herb_witches)
       refute has_element?(view, "[data-role=peek-chip]")
 
       replace_game(id, fn g ->
@@ -118,7 +259,7 @@ defmodule QuacksWeb.Round36UiTest do
 
   # Step B's chip choices of `sets` on the pot `drawn` (an explosion that took the coins).
   defp chip_choice(sets, drawn, expansion \\ nil) do
-    {id, view} = solo(%{}, expansion)
+    {id, view} = solo_2(%{}, expansion)
 
     replace_game(id, fn g ->
       %{g | sets: Map.merge(g.sets, sets)}
@@ -134,7 +275,7 @@ defmodule QuacksWeb.Round36UiTest do
     Enum.any?(game.log, pattern)
   end
 
-  describe "item 1: chip choices are chips to tap" do
+  describe "chip choices are chips to tap" do
     test "Garden spider II: the chips, then Done, no chip buttons with text" do
       {id, view} = chip_choice(%{green: 2}, [{{:green, 2}, 10}])
       bar = "[data-role=bar-chip-actions] [data-role=chip-row]"
@@ -152,7 +293,7 @@ defmodule QuacksWeb.Round36UiTest do
     end
 
     test "a card's upgrade shows the chip it becomes on the chip's edge" do
-      {id, view} = solo()
+      {id, view} = solo_2()
 
       replace_game(id, fn g ->
         g
@@ -176,7 +317,7 @@ defmodule QuacksWeb.Round36UiTest do
     end
   end
 
-  describe "item 2: Ghost's breath V in a sheet like the shop" do
+  describe "Ghost's breath V in a sheet like the shop" do
     test "the buys are tiles to tick; Take sends the ticked buy" do
       {id, view} =
         chip_choice(%{purple: 5}, [{{:purple, 1}, 40}, {{:purple, 1}, 30}], :herb_witches)
@@ -197,7 +338,7 @@ defmodule QuacksWeb.Round36UiTest do
     end
   end
 
-  describe "item 3: a choice about pot chips is a tap on the chip in the pot" do
+  describe "a choice about pot chips is a tap on the chip in the pot" do
     test "Ghost's breath IV, one swap: the green chip glows, a tap swaps it" do
       {id, view} = chip_choice(%{purple: 4}, [{{:purple, 1}, 10}, {{:green, 1}, 8}])
 
@@ -251,9 +392,9 @@ defmodule QuacksWeb.Round36UiTest do
     end
   end
 
-  describe "item 7: an everyone-card's results in the results stage" do
+  describe "an everyone-card's results in the results stage" do
     test "the rows sit in the parchment panel over the bar, not under the card" do
-      {id, view} = solo()
+      {id, view} = solo_2()
 
       replace_game(id, fn g ->
         %{g | phase: :fortune_choice, fortune_card: :p1}
