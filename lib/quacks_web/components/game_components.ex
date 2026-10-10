@@ -1329,12 +1329,14 @@ defmodule QuacksWeb.GameComponents do
   """
   attr :count, :integer, required: true
   attr :class, :any, default: "relative", doc: "must position it (the glass sits in its corner)"
+  attr :tap, :any, default: nil, doc: "round 38: also run on a tap (the bag hint closes)"
 
   def bag_button(assigns) do
     ~H"""
     <button
       type="button"
       popovertarget="sheet-bag"
+      phx-click={@tap}
       class={[
         "size-14 touch-manipulation drop-shadow-[0_2px_3px_rgb(0_0_0/0.5)]",
         "transition-transform duration-100 ease-out active:scale-95",

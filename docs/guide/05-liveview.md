@@ -242,6 +242,26 @@ on a deeper page `back/2` returns `JS.dispatch("quacks:back")` (app.js calls
 `history.back()`), else `JS.patch` to the parent. A pick on a colour page runs the
 same command, so it returns to the list with the pick applied.
 
+## First-time hints: a pure picker and a lifecycle hook
+
+Round 38 adds one-time hints (`QuacksWeb.Tips`). Three ideas keep them small:
+
+- **The rule is a pure function.** `Tips.pick(moment, seen)` takes a map such as
+  `%{phase: :brew, white: 3, rats: 0, drawn: 2}` and the seen keys, and returns a
+  hint or nil. `test/quacks_web/tips_test.exs` checks it with one table. The
+  LiveView only names the moment (`tip_moment/1`), from assigns it has already.
+- **The hint is derived, not stored.** `render/1` assigns `@tip` from the other
+  assigns, so no handler must remember to update it. Only the seen keys and the
+  on/off switch are state (`@tips`, from the browser's `RevealSettings` push).
+- **Closing is a lifecycle hook.** `attach_hook(socket, :tips, :handle_event,
+  &tip_closer/3)` runs before every `handle_event/3`: a Draw, a pick, a results
+  Next or a tile tap marks the hint on show as seen, and the existing handlers stay
+  as they were. The server sends the new state back with `push_event/3`
+  (`"quacks:tips"`), and a global listener in app.js writes `localStorage`.
+
+The ring needs no position JS: `#game` carries `data-tip={@tip.key}` and app.css
+lights each hint's targets with an attribute selector.
+
 ## Acknowledgement events: `"seen"`
 
 Three things play once: the new fortune card, the round results and (round 14)

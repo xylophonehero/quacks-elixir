@@ -104,11 +104,12 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.BugReportComponents
   import QuacksWeb.RevealComponents
   import QuacksWeb.TileRevealComponents
+  import QuacksWeb.TipComponents
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Game.Fortune
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
-  alias QuacksWeb.{Replay, Reveal, TileReveal}
+  alias QuacksWeb.{Replay, Reveal, TileReveal, Tips}
 
   # The colours with an ingredient book (white has none), for `offer_books/1`.
   @book_colours Chips.order() -- [:white]
@@ -158,8 +159,10 @@ defmodule QuacksWeb.GameLive do
            reveal_choice: :overlay,
            phone: false,
            reduced: false,
-           rubies_kept: nil
+           rubies_kept: nil,
+           tips: nil
          )
+         |> attach_hook(:tips, :handle_event, &tip_closer/3)
          |> new_report()
          |> assign_table(table)
          |> put_game(table.game)}
@@ -484,6 +487,10 @@ defmodule QuacksWeb.GameLive do
         &(Atom.to_string(&1) == params["risk"])
       )
 
+    # Round 38: the hints this browser has seen (`quacks:tips`), only in the push
+    # on mount; the form's own changes leave them.
+    tips = browser_tips(params["tips"], socket.assigns.tips)
+
     socket =
       assign(socket,
         reveal_mode: mode,
@@ -492,7 +499,8 @@ defmodule QuacksWeb.GameLive do
         reveal_choice: choice,
         risk: risk,
         phone: phone,
-        reduced: reduced
+        reduced: reduced,
+        tips: tips
       )
 
     case socket.assigns.reveal do
@@ -515,6 +523,28 @@ defmodule QuacksWeb.GameLive do
         {:noreply, if(socket.assigns.game, do: open_reveal(socket), else: socket)}
     end
   end
+
+  # Round 38: the hint's main button ("Got it", "Next tip"). The fortune card's
+  # hint takes the place of Continue, so it also goes on (`next_slide/1`); a hint
+  # on a results step lets Auto go on again (`arm_tick/1`).
+  def handle_event("tip_done", %{"key" => key}, socket) do
+    case current_tip(socket.assigns) do
+      %{key: ^key} -> {:noreply, socket |> see_tip(key) |> after_tip(key)}
+      _tip -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("tip_done", _params, socket), do: {:noreply, socket}
+
+  # "No more tips" on a hint, and the menu's Tips row (On, Off, Show again).
+  def handle_event("tip_off", _params, socket),
+    do: {:noreply, socket |> put_tips(off: true) |> arm_tick()}
+
+  def handle_event("tips", %{"tips" => value}, socket),
+    do: {:noreply, socket |> put_tips(off: value == "off") |> arm_tick()}
+
+  def handle_event("tips_again", _params, socket),
+    do: {:noreply, put_tips(socket, off: false, seen: MapSet.new())}
 
   # A spectator takes back a seat that no page holds ("Rejoin as …"): the seat moves
   # to this browser's token (`GameServer.rejoin/4`) when the typed name matches.
@@ -651,8 +681,12 @@ defmodule QuacksWeb.GameLive do
 
   # Auto mode: the slide's time is up (a stale tick, from a slide left before, is
   # ignored).
-  def handle_info({:reveal_tick, ref}, %{assigns: %{reveal: %{tick: ref}}} = socket),
-    do: {:noreply, next_slide(socket)}
+  # Round 38: a hint on the card or a results step holds Auto until it closes.
+  def handle_info({:reveal_tick, ref}, %{assigns: %{reveal: %{tick: ref} = reveal}} = socket) do
+    if reveal_tip?(current_tip(socket.assigns)),
+      do: {:noreply, assign(socket, reveal: %{reveal | tick: nil})},
+      else: {:noreply, next_slide(socket)}
+  end
 
   def handle_info({:reveal_tick, _ref}, socket), do: {:noreply, socket}
 
@@ -1054,6 +1088,9 @@ defmodule QuacksWeb.GameLive do
   end
 
   def render(assigns) do
+    # Round 38: the first-time hint for this moment (`QuacksWeb.Tips`), or nil.
+    assigns = assign(assigns, :tip, placed_tip(assigns))
+
     ~H"""
     <Layouts.app flash={@flash} full style={seat_style(@colours)}>
       <.announcer log={@game.log} names={if @players > 1, do: @names} />
@@ -1066,6 +1103,7 @@ defmodule QuacksWeb.GameLive do
         id="game"
         class={["game-grid", @seat && @players > 1 && ["border-t-4", seat_border(@seat)]]}
         data-role={@seat && "my-seat"}
+        data-tip={@tip && @tip.key}
         phx-window-keydown="hotkey"
       >
         <header
@@ -1349,7 +1387,19 @@ defmodule QuacksWeb.GameLive do
               >
                 <.bowl chips={@game.players[@seat || 0].bowl} />
               </div>
-              <.bag_button :if={@me} count={length(@me.bag)} class="absolute right-0 bottom-0" />
+              <.bag_button
+                :if={@me}
+                count={length(@me.bag)}
+                class="absolute right-0 bottom-0"
+                tap={match?(%{key: "bag"}, @tip) && JS.push("tip_done", value: %{key: "bag"})}
+              />
+              <%!-- Round 38: a hint while the bottom context area is busy (a
+                   choice, the results) floats over the pot's lower band. --%>
+              <.tip_card
+                :if={@tip && @tip.place == :pot}
+                tip={@tip}
+                class="absolute! inset-x-1 bottom-1"
+              />
               <%!-- Mandrake: the white chip that went back hovers over the bag, with
                    an undo button that keeps it in the pot (`keep_white`). --%>
               <div
@@ -1545,6 +1595,8 @@ defmodule QuacksWeb.GameLive do
              64rem it is the foot of the context column. --%>
         <footer class="game-bar" data-area="bar">
           <div class="game-tray">
+            <%!-- Round 38: the first-time hint, over the pot's lower band. --%>
+            <.tip_card :if={@tip && @tip.place == :bar} tip={@tip} class={tip_shift(@tip.key)} />
             <section
               :if={extra_actions(@actions) != []}
               class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation"
@@ -1745,8 +1797,9 @@ defmodule QuacksWeb.GameLive do
                takes the place of Stop and Draw (hidden, like for a decision). It
                does what a tap on the card does (above the tap layer, `#card-tap`);
                Enter too (`hotkey`). --%>
+          <%!-- Round 38: the card's first-time hint takes Continue's place. --%>
           <.button
-            :if={card_continue?(assigns)}
+            :if={card_continue?(assigns) and not match?(%{key: "card"}, @tip)}
             id="card-continue"
             variant={:primary}
             class="relative z-50 min-h-12 w-full text-base touch-manipulation"
@@ -1938,6 +1991,7 @@ defmodule QuacksWeb.GameLive do
             phone={@phone}
             reduced={@reduced}
           />
+          <.tips_settings :if={@seat} on={tips_on?(@tips)} />
           <p>
             Seed
             <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>
@@ -4263,6 +4317,156 @@ defmodule QuacksWeb.GameLive do
        do: card_tap?(assigns)
 
   defp card_continue?(_assigns), do: false
+
+  # -- first-time hints (round 38, `QuacksWeb.Tips`) -----------------------------------
+
+  # The hint for this page now: only for a person's seat, once this browser sent
+  # its seen hints (`RevealSettings`), and while the tips are on.
+  defp current_tip(%{tips: %{off: false, seen: seen}, seat: seat, game: %Game{}} = assigns)
+       when is_integer(seat) do
+    if Map.has_key?(assigns.bots, seat), do: nil, else: Tips.pick(tip_moment(assigns), seen)
+  end
+
+  defp current_tip(_assigns), do: nil
+
+  # A choice with the card's rows over the bar: the hint goes over the pot.
+  defp placed_tip(assigns) do
+    case current_tip(assigns) do
+      %{key: "choice"} = tip -> if card_stage?(assigns), do: %{tip | place: :pot}, else: tip
+      tip -> tip
+    end
+  end
+
+  # The moment the page shows now (see `QuacksWeb.Tips`). An overlay over the page
+  # (the reveal overlay) has none: a hint would sit under it; nor has the grown
+  # card over the pot (its Continue goes first).
+  defp tip_moment(%{game: game, reveal: reveal} = assigns) do
+    cond do
+      Game.over?(game) -> %{phase: :none}
+      match?(%{key: {:card, _}, held: true}, reveal) -> card_moment(assigns)
+      tiles_playing?(reveal) -> tile_moment(assigns)
+      reveal != nil or card_continue?(assigns) -> %{phase: :none}
+      true -> play_moment(assigns)
+    end
+  end
+
+  # Nothing over the page: a choice in the bar, the shop, or the brew.
+  defp play_moment(%{game: game} = assigns) do
+    cond do
+      assigns.bar_choice != nil -> %{phase: :choice}
+      assigns.decision == :shop -> %{phase: :shop}
+      game.phase == :potions and :draw in assigns.actions -> brew_moment(assigns)
+      true -> %{phase: :none}
+    end
+  end
+
+  defp card_moment(assigns),
+    do: if(card_continue?(assigns), do: %{phase: :card}, else: %{phase: :none})
+
+  # On the tiles: the first step of the results, or "Round scored" with the score
+  # track at the top. A choice on the step on show is a choice.
+  defp tile_moment(%{reveal: reveal, game: game} = assigns) do
+    hold = tile_hold(assigns)
+    track? = game.rules.rats and length(game.seats) > 1
+
+    cond do
+      hold in [:chip_choice, :droplet_choice, :rubies] ->
+        %{phase: :choice}
+
+      hold != nil ->
+        %{phase: :none}
+
+      match?({:results, _}, reveal.key) and reveal.index == 1 ->
+        %{phase: :scoring, auto: assigns.reveal_mode == :auto}
+
+      track? and match?(%{kind: :standings}, tile_slide(reveal)) ->
+        %{phase: :scored}
+
+      true ->
+        %{phase: :none}
+    end
+  end
+
+  defp brew_moment(%{game: game, seat: seat, me: me}) do
+    %{
+      phase: :brew,
+      white: Game.white_sum(game, seat),
+      rats: me.rat_stone,
+      drawn: length(me.drawn)
+    }
+  end
+
+  # A hint in the bar's band keeps its targets in view: the card's hint stands
+  # where Continue was (it hides), the bag's hint goes down over the white meter
+  # (the bag is above it), the risk hint leaves the flask free on the left.
+  defp tip_shift("card"), do: "-mb-14"
+  defp tip_shift("bag"), do: "-mb-12"
+  defp tip_shift("risk"), do: "ml-[4.5rem]"
+  defp tip_shift(_key), do: nil
+
+  # The hints that hold the card or a results step (Auto waits for them).
+  defp reveal_tip?(%{key: key}), do: key in ["card", "scoring", "scored"]
+  defp reveal_tip?(_tip), do: false
+
+  # Round 38: what else closes the hint on show (it then counts as seen): any
+  # move (Draw too) or pick, a tap on the card or the results' Next and Skip, their
+  # keys, and a tap on a player tile for the players' hint. A lifecycle hook, so
+  # every event handler stays as it was.
+  defp tip_closer(event, _params, socket)
+       when event in ~w(action card_tap reveal_next reveal_skip reveal_close rubies_keep
+                        pot_pick essence_pick keep_white select),
+       do: {:cont, see_current_tip(socket, & &1)}
+
+  defp tip_closer("hotkey", %{"key" => key}, socket) when key in ["d", "s", "Enter", " "],
+    do: {:cont, see_current_tip(socket, & &1)}
+
+  defp tip_closer("open_player", _params, socket),
+    do: {:cont, see_current_tip(socket, &(&1 == "players"))}
+
+  defp tip_closer(_event, _params, socket), do: {:cont, socket}
+
+  defp see_current_tip(socket, closes?) do
+    case current_tip(socket.assigns) do
+      %{key: key} -> if closes?.(key), do: see_tip(socket, key), else: socket
+      nil -> socket
+    end
+  end
+
+  defp see_tip(socket, key),
+    do: put_tips(socket, seen: MapSet.put(socket.assigns.tips.seen, key))
+
+  # The tips change: keep them, and write them back to this browser (app.js).
+  defp put_tips(socket, changes) do
+    tips = Map.merge(socket.assigns.tips || Tips.from_browser(nil), Map.new(changes))
+
+    socket
+    |> assign(tips: tips)
+    |> push_event("quacks:tips", Tips.to_browser(tips))
+  end
+
+  defp browser_tips(stored, _tips) when is_map(stored), do: Tips.from_browser(stored)
+  defp browser_tips(_stored, tips), do: tips
+
+  defp tips_on?(%{off: true}), do: false
+  defp tips_on?(_tips), do: true
+
+  defp after_tip(%{assigns: %{reveal: %{held: true}}} = socket, "card"), do: next_slide(socket)
+  defp after_tip(socket, _key), do: arm_tick(socket)
+
+  # Auto mode: the step on show starts its timer again after a hint held it.
+  defp arm_tick(%{assigns: %{reveal: %{tick: nil, index: index} = reveal} = assigns} = socket) do
+    if reveal_mode(reveal, assigns) == :auto and tile_hold(assigns) == nil and
+         connected?(socket) do
+      tick = make_ref()
+      ms = slide_ms(reveal, Enum.at(reveal.slides, index), assigns.reveal_speed)
+      Process.send_after(self(), {:reveal_tick, tick}, ms)
+      assign(socket, reveal: %{reveal | tick: tick})
+    else
+      socket
+    end
+  end
+
+  defp arm_tick(socket), do: socket
 
   # The tap layer reads the card for screen readers (the big card is aria-hidden).
   defp card_tap_label(id) do

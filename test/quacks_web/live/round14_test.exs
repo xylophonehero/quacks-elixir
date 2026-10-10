@@ -205,7 +205,7 @@ defmodule QuacksWeb.Round14Test do
       assert js =~ ~s{style.setProperty("--beat-ms"}
 
       assert js =~
-               ~S|this.pushEvent("reveal_settings", {mode, speed, show, risk: loadRisk(), phone: phoneQuery.matches, reduced: reduced()})|
+               ~S|this.pushEvent("reveal_settings", {mode, speed, show, risk: loadRisk(), phone: phoneQuery.matches, reduced: reduced(), tips: loadTips()})|
     end
   end
 
