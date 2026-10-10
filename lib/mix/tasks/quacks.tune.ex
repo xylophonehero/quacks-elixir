@@ -25,6 +25,8 @@ defmodule Mix.Tasks.Quacks.Tune do
 
   use Mix.Task
 
+  alias Quacks.AI.Tune
+
   @impl true
   def run(argv) do
     Mix.Task.run("app.config")
@@ -47,7 +49,7 @@ defmodule Mix.Tasks.Quacks.Tune do
       )
 
     log = fn line -> Mix.shell().info("#{time()} #{line}") end
-    state = Quacks.AI.Tune.run([log: log] ++ opts)
+    state = Tune.run([log: log] ++ opts)
     log.("stopped at generation #{state["generation"]}")
   end
 

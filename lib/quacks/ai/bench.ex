@@ -75,16 +75,7 @@ defmodule Quacks.AI.Bench do
         if past?(deadline) do
           {:halt, acc}
         else
-          done =
-            chunk
-            |> Task.async_stream(&play_seed(bots, players, {seed, &1 + 1, 0}, game_opts),
-              max_concurrency: jobs,
-              timeout: :infinity,
-              ordered: true
-            )
-            |> Enum.map(fn {:ok, seed_result} -> seed_result end)
-
-          acc = acc ++ done
+          acc = acc ++ play_chunk(chunk, bots, players, seed, game_opts, jobs)
           seconds = (System.monotonic_time(:millisecond) - started) / 1000
           progress.(%{done: length(acc) * k, total: seeds * k, seconds: seconds})
           {:cont, acc}
@@ -139,6 +130,16 @@ defmodule Quacks.AI.Bench do
   defp past?(nil), do: false
   defp past?(deadline), do: System.monotonic_time(:millisecond) >= deadline
 
+  defp play_chunk(chunk, bots, players, seed, game_opts, jobs) do
+    chunk
+    |> Task.async_stream(&play_seed(bots, players, {seed, &1 + 1, 0}, game_opts),
+      max_concurrency: jobs,
+      timeout: :infinity,
+      ordered: true
+    )
+    |> Enum.map(fn {:ok, seed_result} -> seed_result end)
+  end
+
   # One seed: every rotation of the bots. Per rotation, per seat: {bot index, result}.
   defp play_seed(bots, players, seed, game_opts) do
     k = length(bots)
@@ -147,14 +148,17 @@ defmodule Quacks.AI.Bench do
     for r <- 0..(k - 1) do
       seating = lineup(indexed, players, r)
       {game, stats} = play(Enum.map(seating, &elem(&1, 0)), seed, game_opts)
-      scores = Game.score(game)
-      best = scores |> Map.values() |> Enum.max()
-      winners = Enum.count(scores, fn {_, vp} -> vp == best end)
+      seat_results(seating, Game.score(game), stats)
+    end
+  end
 
-      for {{_profile, i}, seat} <- Enum.with_index(seating) do
-        win = if scores[seat] == best, do: 1 / winners, else: 0.0
-        {i, Map.merge(stats[seat], %{vp: scores[seat], win: win})}
-      end
+  defp seat_results(seating, scores, stats) do
+    best = scores |> Map.values() |> Enum.max()
+    winners = Enum.count(scores, fn {_, vp} -> vp == best end)
+
+    for {{_profile, i}, seat} <- Enum.with_index(seating) do
+      win = if scores[seat] == best, do: 1 / winners, else: 0.0
+      {i, Map.merge(stats[seat], %{vp: scores[seat], win: win})}
     end
   end
 

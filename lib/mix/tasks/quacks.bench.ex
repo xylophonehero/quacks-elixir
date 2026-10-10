@@ -36,22 +36,28 @@ defmodule Mix.Tasks.Quacks.Bench do
     {opts, _, _} = OptionParser.parse(argv, strict: switches())
     bots = SimTask.parse_profiles(opts[:bots] || "balanced,balanced+strong")
 
-    bench_opts = [
-      bots: bots,
-      players: opts[:players] || max(length(bots), 2),
-      games: opts[:games] || 1000,
-      seed: opts[:seed] || 1,
-      jobs: opts[:jobs] || Bench.default_jobs(),
-      minutes: opts[:minutes],
-      rules: SimTask.parse_rules(opts[:rules] || ""),
-      expansions: SimTask.parse_expansions(opts[:expansions] || ""),
-      sets: SimTask.parse_sets(opts[:sets] || ""),
-      progress: if(opts[:quiet], do: fn _ -> :ok end, else: &progress/1)
-    ]
+    bench_opts =
+      [
+        bots: bots,
+        players: opts[:players] || max(length(bots), 2),
+        games: opts[:games] || 1000,
+        seed: opts[:seed] || 1,
+        jobs: opts[:jobs] || Bench.default_jobs(),
+        minutes: opts[:minutes],
+        progress: if(opts[:quiet], do: fn _ -> :ok end, else: &progress/1)
+      ] ++ game_options(opts)
 
     result = Bench.run(bench_opts)
     unless opts[:quiet], do: IO.write(:stderr, "\n")
     print(result, opts[:stats])
+  end
+
+  defp game_options(opts) do
+    [
+      rules: SimTask.parse_rules(opts[:rules] || ""),
+      expansions: SimTask.parse_expansions(opts[:expansions] || ""),
+      sets: SimTask.parse_sets(opts[:sets] || "")
+    ]
   end
 
   defp switches do

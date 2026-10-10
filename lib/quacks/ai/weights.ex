@@ -82,15 +82,15 @@ defmodule Quacks.AI.Weights do
          {:ok, profile} <- Profile.parse(base) do
       tuned =
         Enum.reduce(@spec_list, profile, fn {key, _, _, _}, acc ->
-          case Map.fetch(values, key_name(key)) do
-            {:ok, x} -> put(acc, key, x)
-            :error -> acc
-          end
+          put_value(acc, key, Map.fetch(values, key_name(key)))
         end)
 
       {:ok, %{tuned | name: path |> Path.basename(".json") |> String.to_atom()}}
     end
   end
+
+  defp put_value(profile, key, {:ok, x}), do: put(profile, key, x)
+  defp put_value(profile, _key, :error), do: profile
 
   defp read(path) do
     case File.read(path) do

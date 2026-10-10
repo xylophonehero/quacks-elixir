@@ -26,6 +26,8 @@ defmodule Quacks.AI.Profile do
     (`Quacks.AI.Choice`, a static value table).
   """
 
+  alias Quacks.AI.Weights
+
   @type name :: :cautious | :balanced | :reckless
   @type t :: %__MODULE__{
           name: name,
@@ -126,7 +128,7 @@ defmodule Quacks.AI.Profile do
       {:"balanced+ev", :ev, :heuristic}
   """
   @spec parse(String.t()) :: {:ok, t} | {:error, String.t()}
-  def parse("file:" <> path), do: Quacks.AI.Weights.load(String.trim(path))
+  def parse("file:" <> path), do: Weights.load(String.trim(path))
 
   def parse(text) do
     [base | mods] = text |> String.trim() |> String.split("+")
