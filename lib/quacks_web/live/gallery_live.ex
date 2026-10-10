@@ -75,7 +75,7 @@ defmodule QuacksWeb.GalleryLive do
                 {v.id}
               </a>
             </h3>
-            <div class="flex gap-4 overflow-x-auto pb-2">
+            <div class="flex flex-wrap gap-4 pb-2">
               <figure :for={w <- @widths} class="shrink-0 space-y-1">
                 <figcaption class="font-mono text-xs text-parchment-dim">{w}px</figcaption>
                 <div
