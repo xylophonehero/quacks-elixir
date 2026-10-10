@@ -1,18 +1,23 @@
 defmodule QuacksWeb.CardRevealTest do
   @moduledoc """
-  The fortune card over the pot: a plain card, a card with a result or a choice, the corner card that grows back, every player's chips under a card that draws chips, chip actions on every rung and the install hint.
+  The fortune card: once per round over the pot, a plain card, a card with a result or a choice for every seat, the corner card that grows back, the card face, every player's chips under a card that draws chips, chip actions on every rung and the install hint.
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
   import QuacksWeb.LiveHelpers
+  import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
+  alias Quacks.Game
   alias Quacks.Game.Fortune
   alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{CardRevealComponents, TileReveal}
+  alias Quacks.Rules.Fortune, as: RulesFortune
+  alias QuacksWeb.BarComponents
+  alias QuacksWeb.CardRevealComponents
+  alias QuacksWeb.PanelComponents
+  alias QuacksWeb.TileReveal
 
   defp solo(rules) do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, rules)
@@ -355,5 +360,156 @@ defmodule QuacksWeb.CardRevealTest do
       )
 
     refute html =~ "card-reveal-row"
+  end
+
+  # Play seat 0 of a solo game to the shop, with 30 coins to spend.
+
+  describe "fortune card" do
+    test "every card has a motif in its colour band's card, and a Kalam title" do
+      for %{id: id, name: name} <- RulesFortune.all() do
+        html = render_component(&PanelComponents.fortune_card/1, id: id)
+        assert count(html, "[data-role=fortune-card] [data-role=card-motif][data-motif]") == 1
+        assert html |> query("h2.font-hand") |> LazyHTML.text() =~ name
+      end
+    end
+
+    test "the motif fits the card: a die for Take a Chance, a flask for Cauldron Bubble" do
+      motif = fn id ->
+        (&PanelComponents.fortune_card/1)
+        |> render_component(id: id)
+        |> query("[data-role=card-motif]")
+        |> LazyHTML.attribute("data-motif")
+      end
+
+      assert motif.(:p12) == ["die"]
+      assert motif.(:b10) == ["flask"]
+      assert motif.(:p1) == ["sparkle"]
+    end
+
+    test "the flip keeps its ids; the back carries the pattern" do
+      html = render_component(&PanelComponents.fortune_card/1, id: :b7, flip: true)
+      assert count(html, "#card-flip-b7 .card-flip-inner .card-back[data-role=card-back]") == 1
+      assert count(html, "#card-flip-b7 .card-front [data-role=fortune-card]") == 1
+    end
+  end
+
+  # Take a seat from a page that closes at once (a browser that lost its cookie
+  # afterwards): the seat stays, but no page holds it.
+
+  test "a card's 'take one' chips carry their colour word" do
+    game =
+      Game.new(seed: {1, 2, 3}, fortune: false)
+      |> H.put(fortune_card: :p10, phase: :fortune_choice)
+
+    # Rat-a-Tat: take one 4-chip (or the VP)
+    actions = for colour <- [:blue, :red, :yellow], do: {:fortune, {:take, {colour, 4}}}
+
+    html =
+      render_component(&BarComponents.chip_picks/1,
+        actions: [{:fortune, :vp} | actions],
+        game: game,
+        me: game.players[0]
+      )
+
+    words =
+      html
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("[data-role=pick-colour]")
+      |> Enum.map(&LazyHTML.text/1)
+
+    assert Enum.map(words, &String.trim/1) == ~w(blue red yellow)
+  end
+
+  test "a decision waits for the round's new card, which opens it on close" do
+    {:ok, id} = GameServer.start(2, {1, 2, 3})
+    alice = open(browser(token("alice")), id)
+    _bob = open(browser(token("bob")), id)
+    alice |> element("button", "Start game") |> render_click()
+    replace_game(id, &H.put(&1, 0, droplet_moves: 1))
+
+    # Round 33: the droplet choice is in the bar; it waits for the card too.
+    refute has_element?(alice, "dialog#decision-droplet_choice")
+    assert has_element?(alice, "#pot-card-1 [data-role=card-caption]")
+    alice |> element("#card-tap") |> render_click()
+    assert has_element?(alice, "#bar-droplet button[data-choice=pot]")
+  end
+
+  # A player detail sheet renders its body once its chip in the players row is tapped.
+
+  # Seed 10,11,12 draws white 2, 3, 1: stop there for a shop with 7 coins.
+
+  # The rest of `to_shop_2/1` after one draw, then "Done" (round over).
+  defp to_shop_rest(view) do
+    for _ <- 1..2, do: view |> element("button[data-slot=draw]") |> render_click()
+    view |> element("button", "Stop") |> render_click()
+    skip_results(view)
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
+  end
+
+  test "a new fortune card opens once per round, and not without cards" do
+    {:ok, id} = GameServer.start(1, {10, 11, 12})
+    view = open(browser("solo"), id)
+    {:ok, %{game: %{fortune_card: card}}} = GameServer.get(id)
+
+    # round 22: the card hovers over the pot; round 24: no sheet, a tap goes on
+    assert has_element?(
+             view,
+             "[data-role=pot-area] #pot-card-1 [data-role=fortune-card]",
+             RulesFortune.card(card).name
+           )
+
+    refute has_element?(view, "[data-role=reveal]")
+    assert has_element?(view, "#card-tap")
+
+    # later renders keep the same card: it does not open again
+    view |> element("button[data-slot=draw]") |> render_click()
+    assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
+
+    view |> element("#card-tap") |> render_click()
+    refute has_element?(view, "#card-tap")
+    to_shop_rest(view)
+    assert has_element?(view, "li", "— Round 1 over —")
+    # Round 37: the last round's recap plays before the new card.
+    skip_results(view)
+    refute has_element?(view, "#pot-card-1")
+    assert has_element?(view, "#pot-card-2 [data-role=card-caption]")
+
+    {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, %{fortune: false})
+    view = open(browser("solo2"), id)
+    refute has_element?(view, "[data-role=reveal]")
+    refute has_element?(view, "[data-role=fortune-tile]")
+  end
+
+  # A 2-player game without fortune cards, started by alice.
+  defp duo_2(seed, rules) do
+    {:ok, id} = GameServer.start(2, seed, %{}, rules)
+    alice = open(browser("alice"), id)
+    bob = open(browser("bob"), id)
+    alice |> element("button", "Start game") |> render_click()
+    {id, alice, bob}
+  end
+
+  defp state(view, seat),
+    do:
+      view
+      |> element(~s([data-role=player-chip][data-seat="#{seat}"] [data-role=player-state]))
+      |> render()
+
+  test "a card choice opens for every seat at once; who answered sees who still decides" do
+    # seed 30,30,30 with 2 players deals a card with a choice for both seats
+    {_id, alice, bob} = duo_2({30, 30, 30}, %{})
+
+    # Round 31: the choice is in each seat's bar, no dialog.
+    for view <- [alice, bob] do
+      assert has_element?(view, "#bar-card-1 [data-choice=skip]")
+      refute has_element?(view, "dialog#card-round-1")
+    end
+
+    alice |> element("#bar-card-1 [data-choice=skip]") |> render_click()
+    refute has_element?(alice, "#bar-card-1")
+    refute has_element?(alice, "[data-role=turn]")
+    assert has_element?(bob, "#bar-card-1 [data-choice=skip]")
+    assert state(alice, 1) =~ "choosing"
   end
 end
