@@ -12,7 +12,7 @@ defmodule QuacksWeb.QaFixesTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{GameComponents, GameLive}
+  alias QuacksWeb.{BarComponents, GameText, PanelComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -126,7 +126,7 @@ defmodule QuacksWeb.QaFixesTest do
 
   describe "B6: a white pick that takes the pot over the limit" do
     defp picks_html(game, actions, pool) do
-      render_component(&GameLive.chip_picks/1,
+      render_component(&BarComponents.chip_picks/1,
         actions: actions,
         pool: pool,
         game: game,
@@ -232,11 +232,11 @@ defmodule QuacksWeb.QaFixesTest do
         {0, {:pot_vp, 3, 12}}
       ]
 
-      assert GameComponents.vp_breakdown(log, 0, 14) ==
+      assert GameText.vp_breakdown(log, 0, 14) ==
                [brewing: 3, witches: 4, cards: 4, pennies: 2, other: 1]
 
-      assert GameComponents.vp_part_name(:pennies) == "Unused pennies"
-      assert GameComponents.vp_part_hint(:other) =~ "no other part"
+      assert GameText.vp_part_name(:pennies) == "Unused pennies"
+      assert GameText.vp_part_hint(:other) =~ "no other part"
     end
 
     test "Second Chances logs the chips it put back; Stop and Stopped are one line" do
@@ -248,7 +248,7 @@ defmodule QuacksWeb.QaFixesTest do
       ]
 
       html =
-        render_component(&GameComponents.action_log/1, log: log, names: %{0 => "A", 1 => "B"})
+        render_component(&PanelComponents.action_log/1, log: log, names: %{0 => "A", 1 => "B"})
 
       assert html =~ "Second Chances: put back white 1, green 1"
       assert length(String.split(html, "B: Stopped<")) == 2

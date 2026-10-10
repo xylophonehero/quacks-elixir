@@ -8,7 +8,7 @@ defmodule QuacksWeb.MotionTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.PotComponents
 
   defp query(html, selector),
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
@@ -39,11 +39,11 @@ defmodule QuacksWeb.MotionTest do
 
   test "the droplet moves by its translate, not by a new node" do
     game = Game.new(seed: {1, 2, 3})
-    html = render_component(&GameComponents.pot/1, game: game)
+    html = render_component(&PotComponents.pot/1, game: game)
     [before] = query(html, "#droplet-0-lg") |> LazyHTML.attribute("style")
 
     game = put_in(game.players[0].droplet, 3)
-    html = render_component(&GameComponents.pot/1, game: game)
+    html = render_component(&PotComponents.pot/1, game: game)
     assert has_element_html?(html, ~s(#droplet-0-lg[data-index="3"]))
     [later] = query(html, "#droplet-0-lg") |> LazyHTML.attribute("style")
     assert before != later
@@ -55,13 +55,13 @@ defmodule QuacksWeb.MotionTest do
     game = put_in(game.players[1].rat_stone, 2)
     game = put_in(game.players[1].exploded?, true)
 
-    html = render_component(&GameComponents.pot/1, game: game, seat: 1, size: :sm)
+    html = render_component(&PotComponents.pot/1, game: game, seat: 1, size: :sm)
     assert ids(html, "[data-role=pot-chip]") == ["pot-chip-1-1-0-sm", "pot-chip-1-4-0-sm"]
     assert has_element_html?(html, "#pot-chip-1-4-0-sm[data-order='0']")
     assert has_element_html?(html, "#rat-1-sm[data-role=rat-stone]")
     assert has_element_html?(html, "#cracked-rim-1-sm [data-role=puff]")
 
-    html = render_component(&GameComponents.pot/1, game: game, seat: 1)
+    html = render_component(&PotComponents.pot/1, game: game, seat: 1)
     assert ids(html, "[data-role=pot-chip]") == ["pot-chip-1-1-0", "pot-chip-1-4-0"]
   end
 

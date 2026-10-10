@@ -173,6 +173,25 @@ Then a click in one view shows up in the other through the real GameServer and t
 real PubSub: `# Alice's draw reached Bob's page through PubSub`
 (`test/quacks_web/live/multiplayer_live_test.exs:58-62`).
 
+## UI snapshots
+
+`test/quacks_web/ui_snapshot_test.exs` (tag `:snapshot`) renders every gallery
+story (its default args and each preset), every screen and every scenario step,
+and compares the HTML with `test/snapshots/<group>/<story>/<preset or step>.html`.
+The HTML is normalised: one tag per line, attributes sorted, LiveView ids, tokens
+and text indentation removed, icon path data hashed.
+
+```
+mix test --only snapshot                      # compare
+UPDATE_SNAPSHOTS=1 mix test --only snapshot   # write them again (and delete stale ones)
+```
+
+Plain `mix test` leaves them out (`test_helper.exs`); `mix precommit` runs them
+as its last step. In one run with the rest of the suite they made lobby tests
+time out now and then (October 2026, cause not found). A failure names the
+story, shows the changed lines and writes the new HTML to the tmp dir. A refactor must leave every snapshot the same; a change that is
+meant to show must list the changed snapshots in its PR.
+
 ## `mix precommit`
 
 The alias in `mix.exs:88-94` runs, in order: `compile --warnings-as-errors`,

@@ -43,18 +43,31 @@ defmodule QuacksWeb.Round28Test do
     assert has_element?(alice, "dialog#decision-shop")
 
     {:buy, [chip]} = buy_of(game, 0)
-    alice |> element("#shop") |> render_change(%{"chips" => [QuacksWeb.GameLive.encode(chip)]})
-    assert has_element?(alice, "#shop input[checked][value='#{QuacksWeb.GameLive.encode(chip)}']")
+    alice |> element("#shop") |> render_change(%{"chips" => [QuacksWeb.ActionCode.encode(chip)]})
+
+    assert has_element?(
+             alice,
+             "#shop input[checked][value='#{QuacksWeb.ActionCode.encode(chip)}']"
+           )
 
     {:buy, [bob_chip]} = buy_of(game, 1)
-    bob |> element("#shop") |> render_change(%{"chips" => [QuacksWeb.GameLive.encode(bob_chip)]})
+
+    bob
+    |> element("#shop")
+    |> render_change(%{"chips" => [QuacksWeb.ActionCode.encode(bob_chip)]})
+
     bob |> element("[data-role=shop-buy]") |> render_click()
     assert {:ok, %{game: after_buy}} = GameServer.get(id)
     assert length(after_buy.log) > length(game.log)
 
     # alice's page got bob's buy, and her tick is still there
     _ = render(alice)
-    assert has_element?(alice, "#shop input[checked][value='#{QuacksWeb.GameLive.encode(chip)}']")
+
+    assert has_element?(
+             alice,
+             "#shop input[checked][value='#{QuacksWeb.ActionCode.encode(chip)}']"
+           )
+
     refute has_element?(alice, "[data-role=shop-buy][disabled]")
   end
 

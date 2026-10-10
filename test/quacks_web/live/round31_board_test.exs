@@ -25,7 +25,7 @@ defmodule QuacksWeb.Round31BoardTest do
       seat = game.players |> Map.keys() |> Enum.min()
 
       pot = fn opts ->
-        render_component(&QuacksWeb.GameComponents.pot/1, [game: game, seat: seat] ++ opts)
+        render_component(&QuacksWeb.PotComponents.pot/1, [game: game, seat: seat] ++ opts)
       end
 
       assert pot.(flask: :full) =~ ~s(data-mine="true")

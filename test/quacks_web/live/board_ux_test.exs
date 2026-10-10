@@ -5,7 +5,7 @@ defmodule QuacksWeb.BoardUxTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.{PotComponents, TileComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -47,7 +47,7 @@ defmodule QuacksWeb.BoardUxTest do
 
   test "two seats on one scoring space split the ring into two arcs" do
     game = Game.new(seed: {1, 2, 3}, players: 2)
-    html = render_component(&GameComponents.pot/1, game: game, rings: %{0 => 5, 1 => 5})
+    html = render_component(&PotComponents.pot/1, game: game, rings: %{0 => 5, 1 => 5})
 
     arcs = query(html, ~s([data-space="5"] [data-role=scoring-ring]))
     assert Enum.count(arcs) == 2
@@ -55,7 +55,7 @@ defmodule QuacksWeb.BoardUxTest do
     assert Enum.all?(LazyHTML.attribute(arcs, "stroke-dasharray"), &(&1 != nil))
 
     # alone on a space: one full ring, no dashes
-    html = render_component(&GameComponents.pot/1, game: game, rings: %{0 => 5, 1 => 9})
+    html = render_component(&PotComponents.pot/1, game: game, rings: %{0 => 5, 1 => 9})
     assert count(html, ~s{[data-space="9"] [data-role=scoring-ring]:not([stroke-dasharray])}) == 1
   end
 
@@ -64,15 +64,15 @@ defmodule QuacksWeb.BoardUxTest do
     game = put_in(game.players[1].exploded?, true)
 
     html =
-      render_component(&GameComponents.player_card/1, game: game, seat: 1, name: "Bob")
+      render_component(&TileComponents.player_card/1, game: game, seat: 1, name: "Bob")
 
     assert count(html, "[data-role=exploded-badge]") == 1
     assert count(html, ~s(svg[data-exploded="true"] [data-role=cracked-rim])) == 1
 
-    html = render_component(&GameComponents.player_chip/1, game: game, seat: 1, name: "Bob")
+    html = render_component(&TileComponents.player_chip/1, game: game, seat: 1, name: "Bob")
     assert count(html, "[data-role=player-state][data-state=exploded]") == 1
 
-    html = render_component(&GameComponents.pot/1, game: game, seat: 0)
+    html = render_component(&PotComponents.pot/1, game: game, seat: 0)
     assert count(html, ~s(svg[data-exploded="false"])) == 1
     assert count(html, "[data-role=cracked-rim]") == 0
   end
@@ -80,12 +80,12 @@ defmodule QuacksWeb.BoardUxTest do
   test "the flask is a button only while it can be used" do
     game = Game.new(seed: {1, 2, 3})
 
-    html = render_component(&GameComponents.pot/1, game: game, flask: :full)
+    html = render_component(&PotComponents.pot/1, game: game, flask: :full)
     assert count(html, ~s([data-role=flask][data-usable="false"][role=img])) == 1
     assert count(html, "[data-role=flask][phx-click]") == 0
 
     html =
-      render_component(&GameComponents.pot/1, game: game, flask: :full, flask_click: "abc")
+      render_component(&PotComponents.pot/1, game: game, flask: :full, flask_click: "abc")
 
     assert count(
              html,
@@ -93,7 +93,7 @@ defmodule QuacksWeb.BoardUxTest do
            ) == 1
 
     # other players' pots draw no flask
-    assert render_component(&GameComponents.pot/1, game: game, size: :sm)
+    assert render_component(&PotComponents.pot/1, game: game, size: :sm)
            |> count("[data-role=flask]") == 0
   end
 
@@ -134,7 +134,7 @@ defmodule QuacksWeb.BoardUxTest do
 
     # with one ruby there is nothing left to do after the buy: the round ends at once
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     refute has_element?(view, "#reveal-results-1")
     refute has_element?(view, "#sheet-player-0 [data-role=round-results]")
   end

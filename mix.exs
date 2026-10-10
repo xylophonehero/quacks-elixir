@@ -91,7 +91,9 @@ defmodule Quacks.MixProject do
         "deps.unlock --unused",
         "format --check-formatted",
         "credo --strict",
-        "test --warnings-as-errors"
+        "test --warnings-as-errors",
+        # The UI snapshots run on their own (test_helper.exs excludes them).
+        "cmd mix test --only snapshot"
       ]
     ]
   end

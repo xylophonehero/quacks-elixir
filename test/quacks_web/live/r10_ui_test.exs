@@ -9,7 +9,7 @@ defmodule QuacksWeb.R10UiTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.{PanelComponents, PotComponents, TileComponents}
 
   defp query(html, selector),
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
@@ -24,7 +24,7 @@ defmodule QuacksWeb.R10UiTest do
       game = put_in(game.players[0].droplet, 2)
 
       for size <- [:lg, :sm] do
-        html = render_component(&GameComponents.pot/1, game: game, size: size)
+        html = render_component(&PotComponents.pot/1, game: game, size: size)
         assert count(html, ~s(#droplet-0-#{size}[data-role=droplet][data-index="2"])) == 1
         assert count(html, ~s(#droplet-0-#{size} circle[r="19"])) == 1
       end
@@ -37,7 +37,7 @@ defmodule QuacksWeb.R10UiTest do
       game = put_in(game.players[1].drawn, [{{:white, 1}, 6}])
 
       for size <- [:lg, :sm] do
-        html = render_component(&GameComponents.pot/1, game: game, seat: 1, size: size)
+        html = render_component(&PotComponents.pot/1, game: game, seat: 1, size: size)
         assert count(html, "[data-role=rat]") == 3
         assert attrs(html, "[data-role=rat]", "data-index") == ~w(3 4 5)
         # Round 35: a rat's id names its space.
@@ -48,19 +48,19 @@ defmodule QuacksWeb.R10UiTest do
     end
 
     test "no rat pieces without rat tails" do
-      html = render_component(&GameComponents.pot/1, game: Game.new(seed: {1, 2, 3}))
+      html = render_component(&PotComponents.pot/1, game: Game.new(seed: {1, 2, 3}))
       assert count(html, "[data-role=rat]") == 0
     end
   end
 
   test "the fortune card and its header tile are portrait cards" do
-    html = render_component(&GameComponents.fortune_card/1, id: :b3)
+    html = render_component(&PanelComponents.fortune_card/1, id: :b3)
     assert count(html, "[data-role=fortune-card].card-portrait") == 1
 
-    html = render_component(&GameComponents.fortune_card/1, id: :b3, flip: true)
+    html = render_component(&PanelComponents.fortune_card/1, id: :b3, flip: true)
     assert count(html, "#card-flip-b3 [data-role=fortune-card].card-portrait") == 1
 
-    html = render_component(&GameComponents.fortune_tile/1, id: :b3)
+    html = render_component(&PanelComponents.fortune_tile/1, id: :b3)
     assert count(html, "[data-role=fortune-tile].card-portrait") == 1
     assert count(html, "[data-role=fortune-tile] [data-icon=bag]") == 1
   end
@@ -82,7 +82,7 @@ defmodule QuacksWeb.R10UiTest do
       game = Game.new(seed: {1, 2, 3}, players: 2)
       game = put_in(game.players[1].rubies, 3)
       game = put_in(game.players[1].flask, false)
-      html = render_component(&GameComponents.player_chip/1, game: game, seat: 1, name: "Bob")
+      html = render_component(&TileComponents.player_chip/1, game: game, seat: 1, name: "Bob")
 
       assert count(html, "[data-role=player-chip] [data-role=player-vp]") == 1
       assert html |> query("[data-role=player-rubies]") |> LazyHTML.text() =~ "3"
@@ -98,7 +98,7 @@ defmodule QuacksWeb.R10UiTest do
       game = put_in(game.players[1].rat_stone, 4)
       game = put_in(game.players[1].essence, 2)
       game = put_in(game.players[1].tube, 5)
-      html = render_component(&GameComponents.player_chip/1, game: game, seat: 1, name: "Bob")
+      html = render_component(&TileComponents.player_chip/1, game: game, seat: 1, name: "Bob")
 
       assert html |> query("[data-role=player-rats]") |> LazyHTML.text() =~ "4"
       assert html |> query("[data-role=player-essence]") |> LazyHTML.text() =~ "2"

@@ -9,7 +9,7 @@ defmodule QuacksWeb.MotionB3Test do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.PotComponents
 
   defp query(html, selector),
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
@@ -25,13 +25,13 @@ defmodule QuacksWeb.MotionB3Test do
   test "only your large pot carries the hook, the space positions and the ghost layer" do
     game = Game.new(seed: {1, 2, 3}, players: 2)
 
-    lg = render_component(&GameComponents.pot/1, game: game)
+    lg = render_component(&PotComponents.pot/1, game: game)
     assert ids(lg, "svg[phx-hook=PotMotion]") == ["pot-0-lg"]
     assert ids(lg, "#pot-0-lg > g[data-role=pot-fx][phx-update=ignore]") == ["pot-fx-0"]
     assert Enum.count(query(lg, "[data-space][data-x][data-y]")) == 54
     assert lg |> query(~s([data-space="0"])) |> LazyHTML.attribute("data-x") == ["0.0"]
 
-    sm = render_component(&GameComponents.pot/1, game: game, seat: 1, size: :sm)
+    sm = render_component(&PotComponents.pot/1, game: game, seat: 1, size: :sm)
     assert Enum.empty?(query(sm, "[phx-hook]"))
     assert Enum.empty?(query(sm, "[data-role=pot-fx], [data-space][data-x]"))
   end
@@ -41,7 +41,7 @@ defmodule QuacksWeb.MotionB3Test do
     white = {{:white, 2}, 5}
     first = %{game | log: [{0, {:drew, {:white, 2}, 5}} | game.log]}
     first = put_in(first.players[0].drawn, [white])
-    html = render_component(&GameComponents.pot/1, game: first)
+    html = render_component(&PotComponents.pot/1, game: first)
     assert ids(html, "[data-role=pot-chip]") == ["pot-chip-0-5-1"]
 
     # the flask puts the white back; the next chip lands on the same space
@@ -51,7 +51,7 @@ defmodule QuacksWeb.MotionB3Test do
     }
 
     again = put_in(again.players[0].drawn, [{{:orange, 1}, 5}])
-    html = render_component(&GameComponents.pot/1, game: again)
+    html = render_component(&PotComponents.pot/1, game: again)
     assert ids(html, "[data-role=pot-chip]") == ["pot-chip-0-5-2"]
     assert has_element_html?(html, ~s(#pot-chip-0-5-2[data-index="5"][data-order="0"]))
   end
@@ -75,7 +75,7 @@ defmodule QuacksWeb.MotionB3Test do
     refute_push_event(view, "quacks:vt", _)
     view |> element("button", "Stop") |> render_click()
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
 
     assert_push_event(view, "quacks:vt", %{})
     assert has_element?(view, "[data-role=round-counter]", "2 / 9")

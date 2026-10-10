@@ -12,7 +12,7 @@ defmodule QuacksWeb.Round36UiTest do
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
 
-  doctest QuacksWeb.GameComponents, import: true, only: [loop_start: 3]
+  doctest QuacksWeb.TileComponents, import: true, only: [loop_start: 3]
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -189,7 +189,7 @@ defmodule QuacksWeb.Round36UiTest do
 
       view
       |> element("#purple-buy-1")
-      |> render_change(%{"chips" => [QuacksWeb.GameLive.encode({:green, 1})]})
+      |> render_change(%{"chips" => [QuacksWeb.ActionCode.encode({:green, 1})]})
 
       view |> element(take) |> render_click()
       assert logged?(id, &match?({0, {:chip, {:buy, [{:green, 1}]}}}, &1))

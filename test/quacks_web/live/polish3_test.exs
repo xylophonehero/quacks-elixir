@@ -6,7 +6,7 @@ defmodule QuacksWeb.Polish3Test do
 
   alias Quacks.{Game, GameHelpers, GameServer}
   alias Quacks.Rules.{Alchemists, Fortune}
-  alias QuacksWeb.{AlchemistsComponents, GameComponents}
+  alias QuacksWeb.{AlchemistsComponents, PanelComponents, PotComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -86,7 +86,7 @@ defmodule QuacksWeb.Polish3Test do
   describe "fortune card" do
     test "every card has a motif in its colour band's card, and a Kalam title" do
       for %{id: id, name: name} <- Fortune.all() do
-        html = render_component(&GameComponents.fortune_card/1, id: id)
+        html = render_component(&PanelComponents.fortune_card/1, id: id)
         assert count(html, "[data-role=fortune-card] [data-role=card-motif][data-motif]") == 1
         assert html |> query("h2.font-hand") |> LazyHTML.text() =~ name
       end
@@ -94,7 +94,7 @@ defmodule QuacksWeb.Polish3Test do
 
     test "the motif fits the card: a die for Take a Chance, a flask for Cauldron Bubble" do
       motif = fn id ->
-        (&GameComponents.fortune_card/1)
+        (&PanelComponents.fortune_card/1)
         |> render_component(id: id)
         |> query("[data-role=card-motif]")
         |> LazyHTML.attribute("data-motif")
@@ -106,7 +106,7 @@ defmodule QuacksWeb.Polish3Test do
     end
 
     test "the flip keeps its ids; the back carries the pattern" do
-      html = render_component(&GameComponents.fortune_card/1, id: :b7, flip: true)
+      html = render_component(&PanelComponents.fortune_card/1, id: :b7, flip: true)
       assert count(html, "#card-flip-b7 .card-flip-inner .card-back[data-role=card-back]") == 1
       assert count(html, "#card-flip-b7 .card-front [data-role=fortune-card]") == 1
     end
@@ -141,11 +141,11 @@ defmodule QuacksWeb.Polish3Test do
 
   test "an exploded pot's brew is spoiled" do
     game = Game.new(seed: {1, 2, 3})
-    calm = render_component(&GameComponents.pot/1, game: game, seat: 0)
+    calm = render_component(&PotComponents.pot/1, game: game, seat: 0)
     assert count(calm, "[data-role=brew]:not([data-spoiled])") == 1
 
     game = GameHelpers.put(game, 0, exploded?: true)
-    html = render_component(&GameComponents.pot/1, game: game, seat: 0)
+    html = render_component(&PotComponents.pot/1, game: game, seat: 0)
     assert count(html, "[data-role=brew][data-spoiled]") == 1
     assert html |> query("[data-role=groove]") |> LazyHTML.attribute("stroke-opacity") == ["0.7"]
   end

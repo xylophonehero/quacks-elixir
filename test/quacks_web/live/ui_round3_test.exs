@@ -10,7 +10,7 @@ defmodule QuacksWeb.UiRound3Test do
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Fortune, PotTrack}
-  alias QuacksWeb.{GameComponents, GameLive}
+  alias QuacksWeb.{ActionCode, PotComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -103,7 +103,7 @@ defmodule QuacksWeb.UiRound3Test do
     for _ <- 1..2, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
-    render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
+    render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
   end
 
   test "the players row: one chip per seat, yours marked; a tap opens the detail sheet" do
@@ -162,7 +162,7 @@ defmodule QuacksWeb.UiRound3Test do
   end
 
   test "every space with VP shows its VP tag, at every screen width" do
-    html = render_component(&GameComponents.pot/1, game: Game.new(seed: {1, 2, 3}))
+    html = render_component(&PotComponents.pot/1, game: Game.new(seed: {1, 2, 3}))
     with_vp = Enum.count(0..PotTrack.last(), &(PotTrack.at(&1).vp > 0))
 
     assert count(html, "[data-role=vp-tag]") == with_vp
@@ -225,7 +225,7 @@ defmodule QuacksWeb.UiRound3Test do
   defp buy_orange(view) do
     view
     |> element("#shop")
-    |> render_change(%{"chips" => [GameLive.encode({:orange, 1})]})
+    |> render_change(%{"chips" => [ActionCode.encode({:orange, 1})]})
 
     view |> element("button[data-role=shop-buy]") |> render_click()
     view

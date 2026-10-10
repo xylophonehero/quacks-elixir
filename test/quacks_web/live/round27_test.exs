@@ -11,9 +11,9 @@ defmodule QuacksWeb.Round27Test do
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
   alias Quacks.Rules.PotTrack
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.TileComponents
 
-  doctest QuacksWeb.GameComponents, import: true, only: [seat_loop: 1]
+  doctest QuacksWeb.TileComponents, import: true, only: [seat_loop: 1]
 
   defp query(html, selector), do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
   defp count(html, selector), do: html |> query(selector) |> Enum.count()
@@ -21,7 +21,7 @@ defmodule QuacksWeb.Round27Test do
 
   defp tile(game, seat, opts \\ []) do
     render_component(
-      &GameComponents.player_chip/1,
+      &TileComponents.player_chip/1,
       [game: game, seat: seat, name: "Clara"] ++ opts
     )
   end
@@ -40,11 +40,11 @@ defmodule QuacksWeb.Round27Test do
     # The rows as seen on screen, left to right (nil: an empty cell).
     defp rows(n) do
       at =
-        Map.new(GameComponents.seat_loop(Enum.to_list(0..(n - 1))), fn {s, r, c} ->
+        Map.new(TileComponents.seat_loop(Enum.to_list(0..(n - 1))), fn {s, r, c} ->
           {{r, c}, s + 1}
         end)
 
-      cols = GameComponents.loop_columns(n)
+      cols = TileComponents.loop_columns(n)
       rows = at |> Map.keys() |> Enum.map(&elem(&1, 0)) |> Enum.uniq() |> Enum.sort()
       for row <- rows, do: for(col <- 1..cols, do: at[{row, col}])
     end
@@ -65,7 +65,7 @@ defmodule QuacksWeb.Round27Test do
     test "neighbours touch: each seat sits beside or above the next" do
       for n <- 2..8 do
         at =
-          Map.new(GameComponents.seat_loop(Enum.to_list(0..(n - 1))), fn {s, r, c} ->
+          Map.new(TileComponents.seat_loop(Enum.to_list(0..(n - 1))), fn {s, r, c} ->
             {s, {r, c}}
           end)
 
@@ -164,15 +164,15 @@ defmodule QuacksWeb.Round27Test do
     test "the furthest pot that did not explode; ties share the crown" do
       g = game(4) |> pot(0, 10) |> pot(1, 14) |> pot(2, 18) |> pot(3, 14)
       g = H.put(g, 2, exploded?: true)
-      assert GameComponents.round_leaders(g) == [1, 3]
+      assert TileComponents.round_leaders(g) == [1, 3]
 
       g = H.put(g, 2, explosion_choice: :witch)
-      assert GameComponents.round_leaders(g) == [2]
+      assert TileComponents.round_leaders(g) == [2]
     end
 
     test "nobody before a chip is drawn, and nobody solo" do
-      assert GameComponents.round_leaders(game(4)) == []
-      assert GameComponents.round_leaders(game(1) |> pot(0, 10)) == []
+      assert TileComponents.round_leaders(game(4)) == []
+      assert TileComponents.round_leaders(game(1) |> pot(0, 10)) == []
     end
 
     test "the page crowns the leader's tile" do

@@ -10,7 +10,7 @@ defmodule QuacksWeb.UiRound6Test do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.GameLive
+  alias QuacksWeb.{ActionCode, BarComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -24,7 +24,7 @@ defmodule QuacksWeb.UiRound6Test do
     do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> Enum.count()
 
   defp pick(action),
-    do: ~s(button[data-role=chip-pick][phx-value-action="#{GameLive.encode(action)}"])
+    do: ~s(button[data-role=chip-pick][phx-value-action="#{ActionCode.encode(action)}"])
 
   test "a seat that exploded and took the VP gets OK, then the rubies; no shop" do
     {id, view} = solo()
@@ -60,7 +60,7 @@ defmodule QuacksWeb.UiRound6Test do
     # Round 33: in the bar, the chips are buttons, then Return all (round 35: Skip).
     bar = "[data-role=bar-blue]"
     refute has_element?(view, "dialog#decision-blue_choice")
-    place = &~s(#{bar} button[phx-value-action="#{GameLive.encode({:place, &1})}"])
+    place = &~s(#{bar} button[phx-value-action="#{ActionCode.encode({:place, &1})}"])
     assert has_element?(view, "#{place.({:red, 1})} .chip-token")
     assert has_element?(view, place.({:white, 1}))
     assert has_element?(view, "#{bar} button[aria-label^='Crow skull: return all']", "Skip")
@@ -79,7 +79,11 @@ defmodule QuacksWeb.UiRound6Test do
     actions = Game.legal_actions(game, 0)
 
     html =
-      render_component(&GameLive.chip_picks/1, actions: actions, game: game, me: game.players[0])
+      render_component(&BarComponents.chip_picks/1,
+        actions: actions,
+        game: game,
+        me: game.players[0]
+      )
 
     chips =
       html
@@ -104,7 +108,7 @@ defmodule QuacksWeb.UiRound6Test do
     assert has_element?(view, "#{bar} [data-role=info-row] [aria-label='red 2']")
 
     for {kind, text} <- [place: "Place", keep: "Keep", return: "Return"] do
-      action = GameLive.encode({:red, {kind, {:red, 2}}})
+      action = ActionCode.encode({:red, {kind, {:red, 2}}})
       assert has_element?(view, ~s(#{bar} button[phx-value-action="#{action}"]), text)
     end
 

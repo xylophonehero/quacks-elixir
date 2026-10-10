@@ -14,7 +14,7 @@ defmodule QuacksWeb.Round35BoardTest do
         |> Enum.with_index()
         |> Enum.reduce(game, fn {vp, s}, g -> put_in(g.players[s].vp, vp) end)
 
-      render_component(&QuacksWeb.GameComponents.rat_track/1, game: game, names: %{})
+      render_component(&QuacksWeb.TrackComponents.rat_track/1, game: game, names: %{})
       |> LazyHTML.from_fragment()
     end
 
@@ -55,7 +55,7 @@ defmodule QuacksWeb.Round35BoardTest do
 
   describe "rats in the pot when the droplet moves" do
     alias Quacks.GameHelpers, as: H
-    alias QuacksWeb.GameComponents
+    alias QuacksWeb.{PotComponents, TrackComponents}
 
     defp rat_game do
       Game.new(seed: {1, 2, 3}, players: 2) |> H.put(1, rat_stone: 3, pot_index: 3)
@@ -63,29 +63,29 @@ defmodule QuacksWeb.Round35BoardTest do
 
     test "before the first draw the rats follow the droplet" do
       game = rat_game() |> Game.move_droplet(1, 1)
-      assert GameComponents.rat_spaces(game.players[1]) == [2, 3, 4]
+      assert TrackComponents.rat_spaces(game.players[1]) == [2, 3, 4]
       assert game.players[1].pot_index == 4
     end
 
     test "the first chip fixes the rat stone; a later move takes the first rat's space" do
       game = H.force_draws(rat_game(), 1, [{:white, 2}])
       assert game.players[1].mods.rat_end == 3
-      assert GameComponents.rat_spaces(game.players[1]) == [1, 2, 3]
+      assert TrackComponents.rat_spaces(game.players[1]) == [1, 2, 3]
 
       game = Game.move_droplet(game, 1, 1)
-      assert GameComponents.rat_spaces(game.players[1]) == [2, 3]
+      assert TrackComponents.rat_spaces(game.players[1]) == [2, 3]
       # Locoweed 5 still reads the distance moved at round start.
       assert game.players[1].rat_stone == 3
 
       game = Game.move_droplet(game, 1, 3)
-      assert GameComponents.rat_spaces(game.players[1]) == []
+      assert TrackComponents.rat_spaces(game.players[1]) == []
     end
 
     test "the pot draws one pebble per rat space, keyed by its space" do
       game = H.force_draws(rat_game(), 1, [{:white, 2}]) |> Game.move_droplet(1, 1)
 
       html =
-        render_component(&GameComponents.pot/1, game: game, seat: 1, size: :lg)
+        render_component(&PotComponents.pot/1, game: game, seat: 1, size: :lg)
         |> LazyHTML.from_fragment()
 
       rats = LazyHTML.query(html, "[data-role=rat]")
@@ -124,7 +124,7 @@ defmodule QuacksWeb.Round35BoardTest do
   describe "test tubes" do
     test "the ruby and the VP are icons, no VP text; the rack is shorter" do
       html =
-        render_component(&QuacksWeb.GameComponents.test_tubes/1, id: "t", tube: 0)
+        render_component(&QuacksWeb.PotComponents.test_tubes/1, id: "t", tube: 0)
         |> LazyHTML.from_fragment()
 
       assert html |> LazyHTML.query("[data-role=glass-ruby][data-icon=ruby]") |> Enum.count() > 0

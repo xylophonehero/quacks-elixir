@@ -9,7 +9,7 @@ defmodule QuacksWeb.UiRound4Test do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.PanelComponents
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -88,14 +88,14 @@ defmodule QuacksWeb.UiRound4Test do
   end
 
   test "the card band: blue is for this round, purple says nothing more" do
-    blue = render_component(&GameComponents.fortune_card/1, id: :b1)
-    purple = render_component(&GameComponents.fortune_card/1, id: :p1)
+    blue = render_component(&PanelComponents.fortune_card/1, id: :b1)
+    purple = render_component(&PanelComponents.fortune_card/1, id: :p1)
 
     assert blue =~ "Fortune teller · this round"
     assert purple =~ "Fortune teller"
     refute purple =~ "Fortune teller ·"
 
-    assert render_component(&GameComponents.fortune_card/1, id: :p1, choice: true) =~
+    assert render_component(&PanelComponents.fortune_card/1, id: :p1, choice: true) =~
              "resolve now"
   end
 
@@ -134,9 +134,9 @@ defmodule QuacksWeb.UiRound4Test do
     render(view)
 
     chip = {:orange, 1}
-    render_change(view, "select", %{"chips" => [QuacksWeb.GameLive.encode(chip)]})
+    render_change(view, "select", %{"chips" => [QuacksWeb.ActionCode.encode(chip)]})
 
-    checked = ~s(#shop input[value="#{QuacksWeb.GameLive.encode(chip)}"][checked])
+    checked = ~s(#shop input[value="#{QuacksWeb.ActionCode.encode(chip)}"][checked])
     assert has_element?(view, checked)
     assert has_element?(view, "#shop label.has-checked\\:ring-\\[3px\\] input[checked]")
     # yellow is not for sale in round 1: its tile is hatched, locked and disabled
@@ -149,14 +149,18 @@ defmodule QuacksWeb.UiRound4Test do
     offer = [[{:white, 1}, {:red, 2}], [{:place, {:blue, 1}}, :return_all, {:rubies, 2}]]
 
     html =
-      render_component(&QuacksWeb.GameLive.offer_books/1, id: "books-x", game: game, offer: offer)
+      render_component(&QuacksWeb.ShopComponents.offer_books/1,
+        id: "books-x",
+        game: game,
+        offer: offer
+      )
 
     assert html =~ ~s(popovertarget="books-x")
     assert html =~ ~s(data-book="red-2")
     assert html =~ ~s(data-book="blue-1")
     refute html =~ ~s(data-book="white)
 
-    assert render_component(&QuacksWeb.GameLive.offer_books/1,
+    assert render_component(&QuacksWeb.ShopComponents.offer_books/1,
              id: "y",
              game: game,
              offer: [:stop]

@@ -8,7 +8,8 @@ defmodule QuacksWeb.AlchemistsComponents do
   use Phoenix.Component
 
   import QuacksWeb.Icons, only: [patient_icon: 1, piece_icon: 1]
-  import QuacksWeb.GameComponents, only: [chip: 1, chip_name: 1, seat_colour: 1]
+  import QuacksWeb.ChipComponents, only: [chip: 1, seat_colour: 1]
+  import QuacksWeb.GameText, only: [chip_name: 1]
 
   alias Quacks.Game
   alias Quacks.Game.Essence

@@ -2,6 +2,33 @@
 
 [Back to the guide](../GUIDE.md)
 
+## Module map: which file owns what
+
+The game page's components are split by area of the page (October 2026; before, one
+`GameComponents` module and the choice components in `GameLive` held them all).
+Each module imports the ones it builds on: `ChipComponents` and `GameText` are the
+base, `BarComponents` imports most of the others. A function moves only with its
+area; the UI snapshots (`mix test --only snapshot`, chapter 8) show that a move
+changes no page.
+
+| File | Module (`QuacksWeb.`) | Owns |
+| --- | --- | --- |
+| `lib/quacks_web/components/chip_components.ex` (333 lines) | `ChipComponents` | `chip/1`, the bonus die (`die/1`, `die_face/1`, `replay_die/1`), `seat_dot/1`, the seat and palette colour classes (`seat_bg/1`, `seat_style/1`, ...) |
+| `lib/quacks_web/components/pot_components.ex` (1082 lines) | `PotComponents` | `pot/1` (chips, scoring ring, droplet, effects), `test_tubes/1` and its `.TubeDrop` hook, the flask, `bag/1`, `bag_button/1`, `chip_counts/1`, `aside/1`, `bowl/1` |
+| `lib/quacks_web/components/track_components.ex` (254 lines) | `TrackComponents` | `rat_track/1` (the score and rat track), `rat_spaces/1` |
+| `lib/quacks_web/components/tile_components.ex` (974 lines) | `TileComponents` | the players row: `player_chip/1`, `seat_loop/1`, `loop_start/3`, `loop_columns/1`, `round_leaders/1`, `crown/1`, `seat_state/2`; the sheet `player_card/1`, `bot_badge/1`, `ruby_badge/1`, `result_lines/1`, `explosion_icon/1` |
+| `lib/quacks_web/components/panel_components.ex` (890 lines) | `PanelComponents` | the books (`book_tile/1`, `book_list/1`, `books_in_play/1`, `book_info/3`, ...), `fold/1`, `house_rules/1`, the witches (`witch_card/1`, `witches_list/1`, `calls/2`), the fortune cards (`fortune_card/1`, `fortune_panel/1`, `fortune_tile/1`, `fortune_offer/1`, `blue_offer/1`), the log (`action_log/1`, `announcer/1`) |
+| `lib/quacks_web/components/bar_components.ex` (1838 lines) | `BarComponents` | the bottom bar: `action_bar/1` (Stop, flask, Draw), `fuse_meter/1`, `reward_line/1`, `round_phase/1`; every choice in the bar (`bar_choice/1`, `chip_picks/1`, `choice_grid/1`, `choice_button/1`, `chip_row/1`, `info_row/1`), `crow_panel/1` and its `.FromBag` hook, `action_label/3`, `pick_choices/0` |
+| `lib/quacks_web/components/shop_components.ex` (506 lines) | `ShopComponents` | `shop/1` (buy and rubies steps), `shop_rows/2`, `purple_buy/1`, `offer_books/1` |
+| `lib/quacks_web/game_text.ex` (598 lines) | `GameText` | the words, no markup: `label/1,2`, `log_lines/3`, `log_text/3`, `chip_name/1`, `phase_name/1`, `card_outcome/2`, `vp_breakdown/3`, `plural/3` |
+| `lib/quacks_web/action_code.ex` (30 lines) | `ActionCode` | `encode/1` and `decode/1`: an action term as a `phx-value-action` string and back |
+| `lib/quacks_web/live/game_live.ex` (3308 lines) | `GameLive` | the LiveView: mount, `handle_event/3`, `handle_info/2`, `render/1` (the page skeleton), `preview/3`, the reveal and the hints; also `copy_link/1` and the spectator note |
+
+Other component modules: `CoreComponents` (buttons, inputs, sheets),
+`AlchemistsComponents`, `SetupComponents` (the spell book), `RevealComponents`,
+`TileRevealComponents`, `CardRevealComponents`, `FinalComponents`,
+`TipComponents`, `BugReportComponents`, `ScenarioComponents`, `Icons`.
+
 ## Function components
 
 A function component is a function that takes `assigns` (a map) and returns a `~H`
@@ -44,7 +71,7 @@ def chip(assigns) do
 end
 ```
 
-(`lib/quacks_web/components/game_components.ex:153-213`, shortened)
+(`chip/1` in `lib/quacks_web/components/chip_components.ex`, shortened)
 
 | React | Phoenix |
 |---|---|
@@ -55,8 +82,8 @@ end
 | `props.children` | `slot :inner_block` and `{render_slot(@inner_block)}` |
 | `useMemo` | compute in the body and `assign/2` before `~H` |
 
-Components do not change state: "Rendering only: nothing in here changes game state"
-(`lib/quacks_web/components/game_components.ex:3-5`). A button in a component sends a
+Components do not change state: they only render the `Quacks.Game` struct that the
+LiveView gives them. A button in a component sends a
 `phx-click` to the LiveView that renders it.
 
 ### One slot table, three views: the patient's glasses (round 15)
@@ -364,7 +391,7 @@ The drawer replaced the tablet's CSS-only tabs (radio inputs and `:has()`, layou
 place.
 
 **The left column (≥ 80rem).** `#left-column` (`data-area="books"`), left of the
-pot, holds `books_in_play/1` (`lib/quacks_web/components/game_components.ex`, the
+pot, holds `books_in_play/1` (`lib/quacks_web/components/panel_components.ex`, the
 books in play in board order, `Chips.order/0`, chapter 7, `id="books-column"`)
 and, with The Herb Witches, the witches (`id="witches-column"`). Round 39: both
 are folds (see the round 39 section).
@@ -400,7 +427,7 @@ sideways: at 360 px eight tiles fit in two rows of four.
 
 ### The rat track (round 16, equal steps since round 22)
 
-`rat_track/1` (`lib/quacks_web/components/game_components.ex`) is a slim strip
+`rat_track/1` (`lib/quacks_web/components/track_components.ex`) is a slim strip
 under the name cards, inside the `players` area. It has a fixed height (`h-8` since round 24) and
 shows only while the rats rule is on with 2+ players, so it never comes and goes
 during a game and the pot below it does not move.
@@ -515,7 +542,7 @@ In dev, `phoenix_live_reload` remembers the last key that went down and, while i
 
 The pot is a spiral of 54 spaces, which needs floating-point maths. That code sits
 in the module body, outside any `def`, so it runs once when the module compiles
-(`lib/quacks_web/components/game_components.ex:112-142`). The result is stored in
+(`lib/quacks_web/components/pot_components.ex`). The result is stored in
 module attributes:
 
 ```elixir
@@ -524,7 +551,7 @@ module attributes:
 ```
 
 At runtime a space's position is a tuple lookup, `elem(@positions, index)`
-(`lib/quacks_web/components/game_components.ex:904-907`). In JS this would be a
+(`lib/quacks_web/components/pot_components.ex`). In JS this would be a
 `const POSITIONS = computeSpiral()` at module top level; here it does not even run
 at app start.
 
@@ -675,7 +702,7 @@ hairline inside. The presets are a grid of `.preset-card` buttons;
 Tailwind v4 scans the source for class names (`@source "../../lib/quacks_web"`,
 `assets/css/app.css:8`) and finds only *literal* strings. `"bg-player-#{seat}"` would
 build a class Tailwind never saw, so its CSS would not exist. So the seat classes
-are a map of full names (`lib/quacks_web/components/game_components.ex:47-58`):
+are a map of full names (`lib/quacks_web/components/chip_components.ex`):
 
 ```elixir
 # Seat colours (theme tokens `--color-player-N`, see `seat_style/1`), as full class
@@ -694,7 +721,7 @@ The theme defines 8 palette colours and one variable per seat
 (`assets/css/app.css:64-83`): `--color-seat-5: #e86a9e;` and
 `--color-player-0: var(--color-seat-0);`. Tailwind turns `--color-player-0` into
 `bg-player-0`. The page overrides the seat variables with one inline style
-(`lib/quacks_web/components/game_components.ex:780-784`):
+(`lib/quacks_web/components/chip_components.ex`):
 
 ```elixir
 def seat_style(colours),
@@ -779,14 +806,14 @@ element, so its CSS `animation` plays once. This is React's `key`.
 defp pot_chip_id(seat, index, placed, :lg), do: "pot-chip-#{seat}-#{index}-#{placed}"
 ```
 
-(`lib/quacks_web/components/game_components.ex:924-927`)
+(`lib/quacks_web/components/pot_components.ex`)
 
 `placed` counts the chips this seat placed on that space this game (from the log).
 A chip that lands where a returned chip was gets a new id, so it lands again
 (`test/quacks_web/live/motion_b3_test.exs:39`).
 
 The VP and ruby counters use the same idea the other way round
-(`stat/1`, `lib/quacks_web/components/game_components.ex:1372-1397`): the counter
+(`stat/1`, `lib/quacks_web/components/tile_components.ex`): the counter
 keeps its id and `style={"--n: #{@value}"}`, so CSS counts up from the old value;
 the inner `<span id={"#{@id}-#{@value}"}>` is new for each value, so its `stat-pop`
 keyframe plays. In React you write `<span key={value}>` to restart an animation.
@@ -842,7 +869,7 @@ turn the lines into what each place needs:
   scoring space.
 
 The templates write the beat into a CSS variable: `--beat` on each card counter
-(`card_count/1` in `lib/quacks_web/components/game_components.ex`), on each pot ring (`beat_ring/1`, lines 877-898), each pot effect (lines 509-549)
+(`card_count/1` in `lib/quacks_web/components/tile_components.ex`), on each pot ring (`beat_ring/1`, lines 877-898), each pot effect (lines 509-549)
 and each book (`book_line/1`, lines 2004-2016). One CSS formula turns every beat
 into a delay (`assets/css/app.css:981-994`):
 
@@ -1076,7 +1103,7 @@ taps it.
 
 "What it did" is `Reveal.card_outcomes/2`: the `{seat, {:fortune, id, outcome}}`
 log entries since the newest `{:fortune_drawn, id}`. No new engine data; the text
-is `GameComponents.card_outcome/2`, the log's own wording.
+is `GameText.card_outcome/2`, the log's own wording.
 
 The tap target is one `<button id="card-tap">`, `fixed inset-0 z-40`, over the page
 and under the dialogs' top layer: a tap anywhere goes on, and the pot does not move.
@@ -1280,12 +1307,12 @@ bar) never moves:
 - **Draw** (no "a chip") and Stop. After Stop the phase pill says "Waiting"; Draw
   stays greyed.
 - **The white meter row** holds the reward and the risk as icons
-  (`GameComponents.reward_line/1`): coin and count, laurel and VP, the ruby, then
+  (`BarComponents.reward_line/1`): coin and count, laurel and VP, the ruby, then
   the explosion icon with the menu's **Risk** setting (Off, Percent, Chips "3/14").
   The setting is one more `segments` row in `reveal_settings/1`; `RevealSettings`
   keeps it in `localStorage` (`quacks:risk`) and sends it with the others, so the
   server renders only the chosen form (no CSS toggles).
-- **A choice in the bar** (`GameLive.bar_choice/1`, assign `@bar_choice`): the
+- **A choice in the bar** (`BarComponents.bar_choice/1`, assign `@bar_choice`): the
   explosion's Take VP / Take coins, and the rubies step (Skip, test tube, flask,
   pot; "2" + ruby on each paying button, the seat's `ruby_price`; a disabled use
   says why). These decisions open no dialog (`open_waiting/1` skips them, and the
@@ -1312,7 +1339,7 @@ bar) never moves:
   the tiles and the pot. Measured at 392 px (8 players): the pot box stays at
   16,284 360x360 through the card, brewing, stopped, the evaluation, the rubies
   step, the shop and an explosion.
-- **The ruby badge** (`GameComponents.ruby_badge/1`) sits in the pot's top right
+- **The ruby badge** (`TileComponents.ruby_badge/1`) sits in the pot's top right
   corner (`pot-corner-right`), the kept Toadstool chips under it. It keeps the id
   `stat-rubies`, so `PotMotion` flies the scoring's rubies to it and it ticks on
   their beat (`stat_beats/3`, rubies only now).
@@ -1532,7 +1559,7 @@ Some motion needs a path or a measured target: a ruby flies from a chip to the
 ruby counter in the header, a returned chip flies to the flask or the bag. CSS
 cannot do this, because it does not know where the counter is. So your large pot
 carries a hook: `phx-hook={@size == :lg && "PotMotion"}`
-(`lib/quacks_web/components/game_components.ex:283`). The hook is in
+(`lib/quacks_web/components/pot_components.ex`). The hook is in
 `assets/js/app.js:80-197`.
 
 A hook is an object whose callbacks LiveView calls around each patch: `mounted`,
@@ -1570,7 +1597,7 @@ Why patches and client animation do not fight:
 - **The patch comes first.** The DOM is already final. The animation only moves the
   element from where it seemed to be to where it is. A tap never waits for it.
 - **Fixed ids** (above) make "new chip" mean "an id not in the snapshot". Each chip
-  also has `data-index` and `data-order` (`lib/quacks_web/components/game_components.ex:824-825`),
+  also has `data-index` and `data-order` (`lib/quacks_web/components/pot_components.ex`),
   each space has `data-x` and `data-y` (lines 371-372), and each pot effect carries
   its own `data-x`, `data-y` and `data-beat` (lines 515-520). The hook reads the
   positions from the server's spiral and measures only the target (the counter,
@@ -1579,7 +1606,7 @@ Why patches and client animation do not fight:
   later patch (a bot's draw) does not fly the same ruby again.
 - **Exits get their own layer.** LiveView has already removed a returned chip.
   `ghost` puts the detached element into `<g data-role="pot-fx" phx-update="ignore">`
-  (`lib/quacks_web/components/game_components.ex:551-552`), a layer that LiveView
+  (`lib/quacks_web/components/pot_components.ex`), a layer that LiveView
   promises not to patch, and removes it when the animation ends.
 - **One set of curves.** `easing("--ease-spring")` (`assets/js/app.js:77`) reads the
   CSS custom property, so CSS and JS use the same easing.
@@ -1719,7 +1746,7 @@ with no change.
 
 ### Round 36 (ui): chips to tap, pot targets, the purple buy sheet
 
-- **Chip row** (`GameLive.chip_row/1`): a choice among chips is the chips, as round
+- **Chip row** (`BarComponents.chip_row/1`): a choice among chips is the chips, as round
   buttons (`data-role="chip-option"`, `data-chip`, a card's `data-choice`); an
   upgrade shows its target on the edge (`chip-option-to`). Its inner block holds
   the buttons that follow (Done, Skip, ladders). Used by `:chip_choice` (G2, G5),
@@ -1739,7 +1766,7 @@ with no change.
 - **Everyone-card stage** (`CardRevealComponents.card_stage/1`): the grown card's
   rows in the `.results-stage` panel over the bar (`card_stage?/1`), yours first.
 - **Players row**: 2 half columns per column, each tile spans 2
-  (`GameComponents.loop_start/3`), so the short second row (5, 7 seats) is centred.
+  (`TileComponents.loop_start/3`), so the short second row (5, 7 seats) is centred.
 - **Peeked chip**: Mandrake V's peek (`peeked/2`) sits over the bag
   (`data-role="peek-chip"`, `.peek-rise`) until this seat's next draw or the round's end.
 - **Scoring pulse**: `PotMotion.scoringPulse` hides the new scoring space and ring
@@ -1845,7 +1872,7 @@ with no change.
   stage; both are gone, with `.chance-row`, `.result-row` and `.results-panel` in
   app.css. The bonus die of the overlay rolls in the bar's info row on every
   screen (`#info-die`).
-- **Folds.** `fold/1` (`GameComponents`) is a `<details>` with a `<summary>`
+- **Folds.** `fold/1` (`PanelComponents`) is a `<details>` with a `<summary>`
   title and a chevron (`group-open:rotate-180`), closed by default.
   `phx-mounted={JS.ignore_attributes(["open"])}` keeps the user's open or closed
   state when LiveView patches the page (without it a patch drops `open`). The

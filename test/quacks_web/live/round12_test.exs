@@ -88,7 +88,7 @@ defmodule QuacksWeb.Round12Test do
 
       view
       |> element("#shop")
-      |> render_change(%{"chips" => [QuacksWeb.GameLive.encode({:orange, 1})]})
+      |> render_change(%{"chips" => [QuacksWeb.ActionCode.encode({:orange, 1})]})
 
       assert has_element?(view, "[data-role=shop-buy].min-w-0 span.truncate", "Buy")
 

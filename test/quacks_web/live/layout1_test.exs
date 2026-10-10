@@ -11,7 +11,7 @@ defmodule QuacksWeb.Layout1Test do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.{PotComponents, ShopComponents, TileComponents}
 
   defp query(html, selector), do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
   defp count(html, selector), do: html |> query(selector) |> Enum.count()
@@ -21,7 +21,7 @@ defmodule QuacksWeb.Layout1Test do
 
   defp card(game, seat, opts \\ []) do
     render_component(
-      &GameComponents.player_chip/1,
+      &TileComponents.player_chip/1,
       [game: game, seat: seat, name: Keyword.get(opts, :name, "Lavinia")] ++ opts
     )
   end
@@ -211,13 +211,12 @@ defmodule QuacksWeb.Layout1Test do
 
   describe "the board's chip order" do
     alias Quacks.Rules.{Books, Chips}
-    alias QuacksWeb.GameLive
 
     test "one list: orange, blue, red, yellow, green, black, purple, locoweed" do
       assert Chips.order() -- [:white] ==
                [:orange, :blue, :red, :yellow, :green, :black, :purple, :locoweed]
 
-      rows = GameLive.shop_rows(nil, %{locoweed: 1})
+      rows = ShopComponents.shop_rows(nil, %{locoweed: 1})
       assert Enum.map(rows, &elem(hd(&1), 0)) == Chips.order() -- [:white]
 
       assert Enum.map(Books.in_play(nil, %{locoweed: 1}), &elem(&1, 0)) ==
@@ -228,7 +227,7 @@ defmodule QuacksWeb.Layout1Test do
 
     test "bag counts follow it too" do
       bag = [{:purple, 1}, {:white, 2}, {:black, 1}, {:green, 1}, {:white, 1}, {:orange, 1}]
-      html = render_component(&GameComponents.chip_counts/1, chips: bag)
+      html = render_component(&PotComponents.chip_counts/1, chips: bag)
 
       assert html |> query("[aria-label]") |> LazyHTML.attribute("aria-label") ==
                ["white 1", "white 2", "orange 1", "green 1", "black 1", "purple 1"]

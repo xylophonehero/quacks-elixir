@@ -1,0 +1,444 @@
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual" name="viewport"/>
+<meta content="" name="csrf-token"/>
+<meta content="#3e2a16" name="theme-color"/>
+<meta content="yes" name="mobile-web-app-capable"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
+<meta content="Quacks" name="apple-mobile-web-app-title"/>
+<link href="/manifest.webmanifest" rel="manifest"/>
+<link href="/images/pwa/apple-touch-icon.png" rel="apple-touch-icon"/>
+<title data-default="Quacks">tiles/tiles</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="/assets/css/app.css" phx-track-static="" rel="stylesheet"/>
+<script defer="" phx-track-static="" src="/assets/js/app.js" type="text/javascript">
+</script>
+</head>
+<body class="bg-wood-dark text-parchment antialiased">
+<svg aria-hidden="true" class="absolute" height="0" id="icon-sprite" width="0">
+<symbol id="icon-bag" viewBox="0 0 512 512">
+<path d="#hash:8dc7e4217f99" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-black" viewBox="0 0 512 512">
+<path d="#hash:27354e45f042" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-blue" viewBox="0 0 512 512">
+<path d="#hash:1e4ec277c55a" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-book" viewBox="0 0 512 512">
+<path d="#hash:3a34a8690632" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-carrot_nose" viewBox="0 0 512 512">
+<path d="#hash:b58f6fd5cce7" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-cauldron" viewBox="0 0 512 512">
+<path d="#hash:d653e1756699" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-chicken_eyes" viewBox="0 0 512 512">
+<path d="#hash:59af8f93a1e3" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-coin" viewBox="0 0 512 512">
+<path d="#hash:8973672ea52b" fill-rule="evenodd" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-die" viewBox="0 0 512 512">
+<path d="#hash:9a04ae45da3c" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-droplet" viewBox="0 0 512 512">
+<path d="#hash:ec0634d1e082" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-ear_worm" viewBox="0 0 512 512">
+<path d="#hash:fd7a21917388" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-explosion" viewBox="0 0 512 512">
+<path d="#hash:fa558936987c" fill="#d6322c" stroke-linejoin="round" stroke-width="12" stroke="#7a1410">
+</path>
+<path d="#hash:ee5463dfb6a6" fill="#f28a1e">
+</path>
+<path d="#hash:cb1676bbc9b3" fill="#ffd94a">
+</path>
+</symbol>
+<symbol id="icon-flask" viewBox="0 0 512 512">
+<path d="#hash:a334df7bc76c" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-forgetfulness" viewBox="0 0 512 512">
+<path d="#hash:d72a28adefa6" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-green" viewBox="0 0 512 512">
+<path d="#hash:22af1efdd719" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-locoweed" viewBox="0 0 512 512">
+<path d="#hash:220cbe959864" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-nervousness" viewBox="0 0 512 512">
+<path d="#hash:88ff549229ae" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-orange" viewBox="0 0 512 512">
+<path d="#hash:5b722b1c3841" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-penny" viewBox="0 0 512 512">
+<path d="#hash:b88cc55eb167" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-pot" viewBox="0 0 512 512">
+<path d="#hash:cbb19e49b69e" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-purple" viewBox="0 0 512 512">
+<path d="#hash:105545848940" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-rat" viewBox="0 0 512 512">
+<path d="#hash:9a99ed142512" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-red" viewBox="0 0 512 512">
+<path d="#hash:029f52480657" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-ruby" viewBox="0 0 512 512">
+<path d="#hash:3284009d91af" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-tube" viewBox="0 0 512 512">
+<path d="#hash:66d78db8cea1" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-vampirism" viewBox="0 0 512 512">
+<path d="#hash:1fdd051e7a6f" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-vp" viewBox="0 0 512 512">
+<path d="#hash:326df0056854" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-white" viewBox="0 0 512 512">
+<path d="#hash:2fca32a95de9" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-wing_ears" viewBox="0 0 512 512">
+<path d="#hash:591cde6eba7d" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-witch" viewBox="0 0 512 512">
+<path d="#hash:fe555ebf06e4" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-witch_hump" viewBox="0 0 512 512">
+<path d="#hash:52ca94e5764a" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-yellow" viewBox="0 0 512 512">
+<path d="#hash:067283cb6d6e" fill="currentColor">
+</path>
+</symbol>
+</svg>
+<div data-phx-main="" data-phx-session="" data-phx-static="" id="phx-ID">
+<main data-layout="full" style="">
+<div class="min-h-dvh" data-component="tiles" data-variant="tiles" id="gallery-frame">
+<div class="space-y-1 px-2 pt-2 lg:px-6">
+<nav aria-label="Players" class="replay-done -mx-2 grid gap-1 px-2 pt-1.5 pb-0.5" data-role="players-row" id="players-row" style="grid-template-columns: repeat(8, minmax(0, 1fr))">
+<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border-2 border-gold bg-gold/15 tile-lead" data-col="1" data-lead="true" data-role="player-chip" data-row="1" data-seat="0" data-you="true" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:0},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-0" style="grid-row: 1; grid-column: 1 / span 2" title="Ada" type="button">
+<span class="sr-only" data-role="player-name">
+Ada (you)
+</span>
+<span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
+<span class="relative shrink-0">
+<span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-0" data-role="seat-disc">
+A
+</span>
+<span class="absolute -top-3 left-1/2 -translate-x-1/2 drop-shadow-[0_0_3px_var(--color-gold)]" data-role="crown" title="Round leader: rolls the bonus die">
+<svg aria-hidden="true" class="size-3.5" data-icon="crown" viewBox="0 0 12 12">
+<path d="M1 9.5h10L10 3 7.6 6 6 2 4.4 6 2 3z" fill="var(--color-gold)" stroke-linejoin="round" stroke-width=".7" stroke="var(--color-wood-dark)">
+</path>
+</svg>
+<span class="sr-only">round leader</span>
+</span>
+</span>
+<span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
+<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="8" data-role="player-space" id="tile-space-0-8" title="Pot space (coins)">
+8<span class="sr-only"> pot space</span>
+</b>
+<span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label " data-role="player-vp" title="VP">
+<svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-vp">
+</use>
+</svg>
+<span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">1</span>
+<span class="sr-only">VP</span>
+</span>
+</span>
+</span>
+<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-0">
+<span class="relative h-full min-w-0 flex-1">
+<span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
+<span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
+<svg aria-hidden="true" class="size-2.5 text-ruby-light" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-ruby">
+</use>
+</svg>2
+<span class="sr-only">rubies</span>
+</span>
+<span class="flex items-center gap-px" data-role="player-droplet" title="Droplet">
+<svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-droplet">
+</use>
+</svg>0
+<span class="sr-only">droplet</span>
+</span>
+<span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
+<svg aria-hidden="true" class="size-2.5 text-potion-light" data-icon="flask" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-flask">
+</use>
+</svg>
+<span class="sr-only">flask full</span>
+</span>
+<span class="flex items-center gap-px" data-role="player-black" title="Black chips in the pot">
+<span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
+</span>0
+<span class="sr-only">black chips in the pot</span>
+</span>
+</span>
+</span>
+</span>
+</button>
+<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35 tile-boom" data-boom="true" data-col="2" data-role="player-chip" data-row="1" data-seat="1" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:1},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-1" style="grid-row: 1; grid-column: 3 / span 2" title="Bram" type="button">
+<span class="sr-only" data-role="player-name">
+Bram
+</span>
+<span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
+<span class="relative shrink-0">
+<span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-1" data-role="seat-disc">
+B
+</span>
+</span>
+<span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
+<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="10" data-role="player-space" id="tile-space-1-10" title="Pot space (coins)">
+10<span class="sr-only"> pot space</span>
+</b>
+<span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label " data-role="player-vp" title="VP">
+<svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-vp">
+</use>
+</svg>
+<span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">2</span>
+<span class="sr-only">VP</span>
+</span>
+</span>
+</span>
+<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-1">
+<span class="relative h-full min-w-0 flex-1">
+<span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
+<span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
+<svg aria-hidden="true" class="size-2.5 text-ruby-light" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-ruby">
+</use>
+</svg>1
+<span class="sr-only">rubies</span>
+</span>
+<span class="flex items-center gap-px" data-role="player-droplet" title="Droplet">
+<svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-droplet">
+</use>
+</svg>0
+<span class="sr-only">droplet</span>
+</span>
+<span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
+<svg aria-hidden="true" class="size-2.5 text-potion-light" data-icon="flask" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-flask">
+</use>
+</svg>
+<span class="sr-only">flask full</span>
+</span>
+<span class="flex items-center gap-px" data-role="player-black" title="Black chips in the pot">
+<span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
+</span>0
+<span class="sr-only">black chips in the pot</span>
+</span>
+</span>
+</span>
+</span>
+</button>
+<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35" data-col="3" data-role="player-chip" data-row="1" data-seat="2" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:2},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-2" style="grid-row: 1; grid-column: 5 / span 2" title="Cleo" type="button">
+<span class="sr-only" data-role="player-name">
+Cleo
+</span>
+<span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
+<span class="relative shrink-0">
+<span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-2" data-role="seat-disc">
+C
+</span>
+</span>
+<span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
+<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="2" data-role="player-space" id="tile-space-2-2" title="Pot space (coins)">
+2<span class="sr-only"> pot space</span>
+</b>
+<span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label " data-role="player-vp" title="VP">
+<svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-vp">
+</use>
+</svg>
+<span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">0</span>
+<span class="sr-only">VP</span>
+</span>
+</span>
+</span>
+<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-2">
+<span class="relative h-full min-w-0 flex-1">
+<span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
+<span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
+<svg aria-hidden="true" class="size-2.5 text-ruby-light" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-ruby">
+</use>
+</svg>1
+<span class="sr-only">rubies</span>
+</span>
+<span class="flex items-center gap-px" data-role="player-droplet" title="Droplet">
+<svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-droplet">
+</use>
+</svg>0
+<span class="sr-only">droplet</span>
+</span>
+<span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
+<svg aria-hidden="true" class="size-2.5 text-potion-light" data-icon="flask" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-flask">
+</use>
+</svg>
+<span class="sr-only">flask full</span>
+</span>
+<span class="flex items-center gap-px" data-role="player-black" title="Black chips in the pot">
+<span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
+</span>0
+<span class="sr-only">black chips in the pot</span>
+</span>
+</span>
+</span>
+</span>
+</button>
+<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35" data-col="4" data-role="player-chip" data-row="1" data-seat="3" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:3},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-3" style="grid-row: 1; grid-column: 7 / span 2" title="Dirk" type="button">
+<span class="sr-only" data-role="player-name">
+Dirk
+</span>
+<span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
+<span class="relative shrink-0">
+<span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-3" data-role="seat-disc">
+D
+</span>
+</span>
+<span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
+<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="6" data-role="player-space" id="tile-space-3-6" title="Pot space (coins)">
+6<span class="sr-only"> pot space</span>
+</b>
+<span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label " data-role="player-vp" title="VP">
+<svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-vp">
+</use>
+</svg>
+<span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">1</span>
+<span class="sr-only">VP</span>
+</span>
+</span>
+</span>
+<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-3">
+<span class="relative h-full min-w-0 flex-1">
+<span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
+<span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
+<svg aria-hidden="true" class="size-2.5 text-ruby-light" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-ruby">
+</use>
+</svg>2
+<span class="sr-only">rubies</span>
+</span>
+<span class="flex items-center gap-px" data-role="player-droplet" title="Droplet">
+<svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-droplet">
+</use>
+</svg>0
+<span class="sr-only">droplet</span>
+</span>
+<span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
+<svg aria-hidden="true" class="size-2.5 text-potion-light" data-icon="flask" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-flask">
+</use>
+</svg>
+<span class="sr-only">flask full</span>
+</span>
+<span class="flex items-center gap-px" data-role="player-black" title="Black chips in the pot">
+<span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
+</span>0
+<span class="sr-only">black chips in the pot</span>
+</span>
+</span>
+</span>
+</span>
+</button>
+</nav>
+</div>
+</div>
+</main>
+<div aria-live="polite" id="flash-group">
+<div class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-20 sm:left-4 sm:bottom-auto" hidden="" id="client-error" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;key&quot;:&quot;error&quot;},&quot;event&quot;:&quot;lv:clear-flash&quot;}],[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" phx-connected="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}],[&quot;set_attr&quot;,{&quot;attr&quot;:[&quot;hidden&quot;,&quot;&quot;]}]]" phx-disconnected="[[&quot;show&quot;,{&quot;time&quot;:300,&quot;to&quot;:&quot;.phx-client-error #client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-out&quot;,&quot;duration-300&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;]]}],[&quot;remove_attr&quot;,{&quot;to&quot;:&quot;.phx-client-error #client-error&quot;,&quot;attr&quot;:&quot;hidden&quot;}]]" phx-remove="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" role="alert">
+<div class="flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap border-red-300 bg-red-50 text-red-900">
+<span class="hero-exclamation-circle size-5 shrink-0">
+</span>
+<div>
+<p class="font-semibold">We can&#39;t find the internet</p>
+<p>
+Attempting to reconnect
+<span class="hero-arrow-path ml-1 size-3 motion-safe:animate-spin">
+</span>
+</p>
+</div>
+<div class="flex-1">
+</div>
+<button aria-label="close" class="group self-start cursor-pointer" type="button">
+<span class="hero-x-mark size-5 opacity-40 group-hover:opacity-70">
+</span>
+</button>
+</div>
+</div>
+<div class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-20 sm:left-4 sm:bottom-auto" hidden="" id="server-error" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;key&quot;:&quot;error&quot;},&quot;event&quot;:&quot;lv:clear-flash&quot;}],[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" phx-connected="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}],[&quot;set_attr&quot;,{&quot;attr&quot;:[&quot;hidden&quot;,&quot;&quot;]}]]" phx-disconnected="[[&quot;show&quot;,{&quot;time&quot;:300,&quot;to&quot;:&quot;.phx-server-error #server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-out&quot;,&quot;duration-300&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;]]}],[&quot;remove_attr&quot;,{&quot;to&quot;:&quot;.phx-server-error #server-error&quot;,&quot;attr&quot;:&quot;hidden&quot;}]]" phx-remove="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" role="alert">
+<div class="flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap border-red-300 bg-red-50 text-red-900">
+<span class="hero-exclamation-circle size-5 shrink-0">
+</span>
+<div>
+<p class="font-semibold">Something went wrong!</p>
+<p>
+Attempting to reconnect
+<span class="hero-arrow-path ml-1 size-3 motion-safe:animate-spin">
+</span>
+</p>
+</div>
+<div class="flex-1">
+</div>
+<button aria-label="close" class="group self-start cursor-pointer" type="button">
+<span class="hero-x-mark size-5 opacity-40 group-hover:opacity-70">
+</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>
