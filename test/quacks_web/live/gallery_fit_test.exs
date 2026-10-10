@@ -30,7 +30,7 @@ defmodule QuacksWeb.GalleryFitTest do
       |> Enum.with_index()
       |> Enum.reduce(game, fn {vp, s}, g -> put_in(g.players[s].vp, vp) end)
 
-    render_component(&QuacksWeb.GameComponents.rat_track/1, game: game, names: %{})
+    render_component(&QuacksWeb.TrackComponents.rat_track/1, game: game, names: %{})
     |> LazyHTML.from_fragment()
   end
 

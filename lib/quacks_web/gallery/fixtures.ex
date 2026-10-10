@@ -73,7 +73,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
         "track",
         "Score / rat track",
         110,
-        "GameComponents.rat_track/1",
+        "TrackComponents.rat_track/1",
         track_variants()
       ),
       component(

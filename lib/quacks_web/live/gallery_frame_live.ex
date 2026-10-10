@@ -19,7 +19,6 @@ defmodule QuacksWeb.GalleryFrameLive do
     only: [
       pot: 1,
       player_chip: 1,
-      rat_track: 1,
       fuse_meter: 1,
       reward_line: 1,
       seat_loop: 1,
@@ -27,6 +26,8 @@ defmodule QuacksWeb.GalleryFrameLive do
       loop_start: 3,
       round_leaders: 1
     ]
+
+  import QuacksWeb.TrackComponents, only: [rat_track: 1]
 
   import QuacksWeb.ChipComponents, only: [chip: 1]
 
