@@ -2543,7 +2543,7 @@ defmodule QuacksWeb.GameLive do
     assigns =
       assign(assigns,
         uses: ruby_uses(assigns.game),
-        price: assigns.me.ruby_price
+        witch?: assigns.me.rubies >= 1 and g4_call?(assigns.game, assigns.actions)
       )
 
     ~H"""
@@ -2587,12 +2587,28 @@ defmodule QuacksWeb.GameLive do
         data-ruby={use}
       >
         <span class="flex items-center gap-0.5 text-base tabular-nums">
-          {@price}<.piece_icon name={:ruby} class="size-4 text-ruby" />
+          {ruby_cost(use, @me)}<.piece_icon name={:ruby} class="size-4 text-ruby" />
           <.piece_icon name={ruby_icon(use)} class="ml-0.5 size-5" />
         </span>
         <span class="max-w-full truncate text-[11px] font-normal">
           {ruby_why(use, @me, @actions)}
         </span>
+      </.button>
+      <%!-- Round 37: the gold witch "Cheap rubies": each use then costs 1 ruby. --%>
+      <.button
+        :if={@witch?}
+        phx-click="action"
+        phx-value-action={encode({:witch, :gold})}
+        variant={:secondary}
+        class="flex-col gap-0! px-1! py-1! leading-tight"
+        aria-label="Call the gold witch: each ruby use costs 1 ruby"
+        title="Call the gold witch: each ruby use costs 1 ruby"
+        data-role="rubies-witch"
+      >
+        <span class="flex items-center gap-0.5 text-base">
+          <.piece_icon name={:witch} class="size-5 text-penny-gold" />
+        </span>
+        <span class="max-w-full truncate text-[11px] font-normal">Witch: 1 each</span>
       </.button>
     </section>
     """
@@ -3486,13 +3502,24 @@ defmodule QuacksWeb.GameLive do
   defp card_choice_hint(:return_all, _card, _me), do: "All to the bag"
   defp card_choice_hint(_choice, _card, _me), do: ""
 
-  # The ruby uses in the bar: the test tube is on the reverse pot side only.
+  # The ruby uses in the bar: the test tube is on the reverse pot side only. Round
+  # 37: round 9 (reverse side) offers the tube beside 2 rubies -> 1 VP.
+  defp ruby_uses(%Game{round: 9}), do: [:tube, :vp]
   defp ruby_uses(%Game{rules: %{pot_side: :back}}), do: [:tube, :flask, :droplet]
   defp ruby_uses(_game), do: [:flask, :droplet]
 
   defp ruby_icon(:tube), do: :tube
   defp ruby_icon(:flask), do: :flask
   defp ruby_icon(:droplet), do: :pot
+  defp ruby_icon(:vp), do: :vp
+
+  # Round 37: the gold witch G4 ("Cheap rubies") can be called in the rubies step.
+  defp g4_call?(%Game{witches: %{gold: :g4}}, actions), do: {:witch, :gold} in actions
+  defp g4_call?(_game, _actions), do: false
+
+  # What a ruby use costs now: 2 rubies -> 1 VP is always 2.
+  defp ruby_cost(:vp, _me), do: 2
+  defp ruby_cost(_use, me), do: me.ruby_price
 
   # The small line on a ruby button: what it does, or why it cannot.
   defp ruby_why(use, me, actions) do
@@ -3500,6 +3527,7 @@ defmodule QuacksWeb.GameLive do
       {:rubies, use} in actions -> ruby_what(use)
       use == :flask and me.flask -> "Flask full"
       use == :tube and me.tube >= TestTubes.last() -> "Tubes full"
+      me.rubies >= 1 and {:witch, :gold} in actions -> "Witch: 1 ruby"
       true -> "Too few rubies"
     end
   end
@@ -3507,6 +3535,7 @@ defmodule QuacksWeb.GameLive do
   defp ruby_what(:tube), do: "Test tube"
   defp ruby_what(:flask), do: "Refill flask"
   defp ruby_what(:droplet), do: "Droplet +1"
+  defp ruby_what(:vp), do: "1 VP"
 
   # The Buy button's Enter hint: from 64rem, and only when the shop bar is 24rem
   # wide (Done alone always has the room).
@@ -3925,7 +3954,7 @@ defmodule QuacksWeb.GameLive do
       me: me,
       selected: kept_selection(socket.assigns, game, phase, actions),
       decision: decision,
-      bar_choice: bar_choice(decision, actions),
+      bar_choice: bar_choice(decision, actions, me),
       all_actions: actions,
       actions: if(decision || skip_rubies, do: [], else: Enum.reject(actions, &witch?/1)),
       skip_rubies: skip_rubies,
@@ -4243,8 +4272,16 @@ defmodule QuacksWeb.GameLive do
 
   # Round 29: the choices that take the place of Stop and Draw in the bar (no sheet):
   # the explosion's, and the rubies step when no witch can be called there.
+  # Round 37: the gold witch G4 stays in the bar (her own button) while a ruby is
+  # left to spend at 1; any other witch call opens the sheet.
+  defp bar_choice(:rubies, actions, %Player{rubies: rubies}) do
+    bar? = fn action -> action == {:witch, :gold} and rubies >= 1 end
+    if Enum.any?(actions, &(witch?(&1) and not bar?.(&1))), do: nil, else: :rubies
+  end
+
+  defp bar_choice(decision, actions, _me), do: bar_choice(decision, actions)
+
   defp bar_choice(:explosion_choice, _actions), do: :explosion_choice
-  defp bar_choice(:rubies, actions), do: if(Enum.any?(actions, &witch?/1), do: nil, else: :rubies)
   # Round 31: the card's choice too (no sheet; the card stays over the pot).
   defp bar_choice(:fortune_choice, _actions), do: :fortune_choice
   # Round 33: the chip actions and the droplet's free move too, with an info row.
@@ -4386,7 +4423,8 @@ defmodule QuacksWeb.GameLive do
   defp ruby_due?(%{seat: seat, game: %Game{phase: :shopping, round: round}} = assigns)
        when is_integer(seat) and round < 9 do
     assigns.rubies_kept != round and
-      Enum.any?(assigns.all_actions, &match?({:rubies, use} when use != :vp, &1))
+      (Enum.any?(assigns.all_actions, &match?({:rubies, use} when use != :vp, &1)) or
+         (assigns.me.rubies >= 1 and g4_call?(assigns.game, assigns.all_actions)))
   end
 
   defp ruby_due?(_assigns), do: false

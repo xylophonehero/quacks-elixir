@@ -216,8 +216,9 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {:ok, _} = GameServer.apply(id, 0, :stop)
     {:ok, _} = GameServer.apply(id, 0, {:buy, []})
 
-    assert has_element?(view, "#decision-rubies [data-witch=g4]")
-    view |> element("#decision-rubies button", "Call the gold witch") |> render_click()
+    # Round 37: with a ruby to spend she is in the rubies bar, beside the uses
+    assert has_element?(view, "#bar-rubies [data-role=rubies-witch]")
+    view |> element("#bar-rubies [data-role=rubies-witch]") |> render_click()
     assert has_element?(view, "li", "Cheap rubies: droplet and flask cost 1 ruby")
     assert Game.legal_actions(elem(GameServer.get(id), 1).game, 0) |> List.last() == :end_round
   end

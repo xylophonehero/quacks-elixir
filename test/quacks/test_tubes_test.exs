@@ -117,6 +117,35 @@ defmodule Quacks.TestTubesTest do
     assert {me(g).droplet, me(g).droplet_moves} == {1, 0}
   end
 
+  test "round 9 (round 37): a glass for 2 rubies beside 2 rubies -> 1 VP" do
+    g = new(:back) |> put(round: 9, phase: :rubies, rubies: 3, tube: 3)
+
+    assert Enum.filter(Game.legal_actions(g), &match?({:rubies, _}, &1)) ==
+             [{:rubies, :vp}, {:rubies, :tube}]
+
+    g = apply!(g, {:rubies, :tube})
+    assert {me(g).rubies, me(g).tube, me(g).vp} == {1, 4, 2}
+    assert {0, {:tube, 4, {:vp, 2}}} in g.log
+    # 1 ruby left buys neither
+    refute Enum.any?(Game.legal_actions(g), &match?({:rubies, _}, &1))
+
+    # the front side and the last glass: VP only
+    front = new(:front) |> put(round: 9, phase: :rubies, rubies: 3)
+    assert Enum.filter(Game.legal_actions(front), &match?({:rubies, _}, &1)) == [{:rubies, :vp}]
+    last = new(:back) |> put(round: 9, phase: :rubies, rubies: 3, tube: 12)
+    assert Enum.filter(Game.legal_actions(last), &match?({:rubies, _}, &1)) == [{:rubies, :vp}]
+  end
+
+  test "round 9: a bot buys a glass only when it pays more than 1 VP" do
+    profile = Quacks.AI.Profile.get(:balanced)
+    g = new(:back) |> put(round: 9, phase: :rubies, rubies: 2, tube: 3)
+    legal = Game.legal_actions(g)
+    assert Quacks.AI.Shop.pick(g, 0, profile, legal) == {:rubies, :tube}
+
+    g = put(g, tube: 1)
+    assert Quacks.AI.Shop.pick(g, 0, profile, Game.legal_actions(g)) == {:rubies, :vp}
+  end
+
   test "back side: the shop waits for the choice before the round can end" do
     g = new(:back) |> put(phase: :rubies, rubies: 0, droplet_moves: 1)
     assert Game.legal_actions(g) == @choice
@@ -140,11 +169,6 @@ defmodule Quacks.TestTubesTest do
     assert {me(g).tube, me(g).droplet, me(g).droplet_moves} == {12, 1, 0}
     assert {0, {:tube, 12, {:vp, 4}}} in g.log
     assert Game.legal_actions(g) == [:draw]
-  end
-
-  test "round 9 offers no tube buy (rubies buy VP only)" do
-    g = new(:back) |> put(round: 9, phase: :rubies, rubies: 2)
-    assert Enum.filter(Game.legal_actions(g), &match?({:rubies, _}, &1)) == [{:rubies, :vp}]
   end
 
   describe "rubies with 2 players (Nick's round 4, 6, 7)" do
