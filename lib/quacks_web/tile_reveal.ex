@@ -19,7 +19,9 @@ defmodule QuacksWeb.TileReveal do
   # The overlay's slides the tiles play; the results table and the standings are
   # the tiles themselves.
   # Round 35: the standings slide too, as the last step ("Round scored").
-  @kinds [:die, :book, :space, :standings]
+  # Round 37 (item 4): no more. "Round scored" is the last step of the recap at the
+  # next round's start, after the shop step (`Reveal.recap_slides/1`).
+  @kinds [:die, :book, :space]
 
   # A step on the tiles lasts this many beats (`--beat-ms`, the Speed setting).
   @beats 5
@@ -130,6 +132,27 @@ defmodule QuacksWeb.TileReveal do
   def label(%{kind: :book, book: colour}), do: "#{String.capitalize(to_string(colour))} book"
   def label(%{kind: :space}), do: "Scoring space"
   def label(%{kind: :standings}), do: "Round scored"
+  def label(%{kind: :shop}), do: "Shop"
+
+  # Round 37: the result columns of a stage, in this order (`columns/1`).
+  @columns [:dice, :chip, :coins, :vp, :rubies, :droplet, :flask, :gain, :total]
+
+  @doc """
+  Round 37 (items 1-3): the result columns of the stage rows `rows`
+  (`stage_rows/3`), in a fixed order: one column for each kind of result that
+  some row has (e.g. the scoring space: coins, VP, rubies). The results stage
+  puts every row's result in its kind's column, so the numbers align.
+  """
+  @spec columns([stage_row]) :: [atom]
+  def columns(rows) do
+    kinds = rows |> Enum.flat_map(& &1.got) |> Enum.map(&cell_kind/1) |> MapSet.new()
+    Enum.filter(@columns, &(&1 in kinds))
+  end
+
+  @doc "The column of a result cell (`columns/1`); `:choosing` has none."
+  @spec cell_kind(cell) :: atom
+  def cell_kind(:choosing), do: :choosing
+  def cell_kind({kind, _}), do: kind
 
   @typedoc """
   One part of a results stage row (`stage_rows/2`): a reason or a result, drawn as
@@ -142,13 +165,14 @@ defmodule QuacksWeb.TileReveal do
           | {:text, String.t()}
           | {:dice, [term]}
           | {:chip, atom}
-          | {:vp | :rubies | :droplet | :coins, non_neg_integer}
+          | {:vp | :rubies | :droplet | :coins | :flask, non_neg_integer}
           | {:gain, integer}
           | {:total, integer}
           | {:rank, non_neg_integer}
           | :choosing
 
   @type stage_row :: %{
+          optional(:shift) => integer,
           seat: Game.seat(),
           why: [cell],
           got: [cell],
@@ -177,7 +201,9 @@ defmodule QuacksWeb.TileReveal do
         why: [{:rank, place}],
         got: [{:gain, r.vp - r.from_vp}, {:total, r.vp}],
         none: false,
-        lead: place == 0
+        lead: place == 0,
+        # Round 37 (item 3): rows up from the old place (FLIP, app.css `.stage-shift`).
+        shift: r.from_rank - r.rank
       }
     end
   end
@@ -215,6 +241,18 @@ defmodule QuacksWeb.TileReveal do
 
       why = if row[:exploded], do: [{:text, "exploded"}], else: []
       %{seat: s, why: why, got: got, none: got == [], lead: false}
+    end
+  end
+
+  # Round 37 (item 4): what each seat did in the last shop: the chips it bought,
+  # its droplet pushes and flask refills.
+  def stage_rows(game, %{kind: :shop, rows: rows}, _choosing) do
+    for s <- game.seats do
+      row = row_of(rows, s)
+      chips = Map.get(row, :chips, [])
+      got = for {k, n} <- [droplet: row[:droplets], flask: row[:flasks]], (n || 0) > 0, do: {k, n}
+      why = if chips == [], do: [], else: [{:chips, chips}]
+      %{seat: s, why: why, got: got, none: chips == [] and got == [], lead: false}
     end
   end
 
@@ -282,6 +320,17 @@ defmodule QuacksWeb.TileReveal do
     case Enum.find(rows, &(&1.seat == seat)) do
       nil -> []
       row -> space_badges(row)
+    end
+  end
+
+  # Round 37: the shop step shows the chips each seat bought on its tile.
+  def badges(%{kind: :shop, rows: rows}, seat) do
+    case Enum.find(rows, &(&1.seat == seat)) do
+      %{chips: chips, droplets: droplets} ->
+        Enum.map(chips, &{:bought, &1}) ++ if(droplets > 0, do: [{:droplet, droplets}], else: [])
+
+      _row ->
+        []
     end
   end
 
@@ -510,7 +559,8 @@ defmodule QuacksWeb.TileReveal do
   """
   @spec shop(Game.t(), Game.seat()) :: %{
           chips: [Quacks.Rules.Chips.chip()],
-          droplets: non_neg_integer
+          droplets: non_neg_integer,
+          flasks: non_neg_integer
         }
   def shop(%Game{phase: :shopping, log: log}, seat),
     do: shop_entries(Enum.take_while(log, &(not round_end?(&1))), seat)
@@ -528,11 +578,12 @@ defmodule QuacksWeb.TileReveal do
   defp shop_entries(round, seat) do
     %{
       chips: for({^seat, {:bought, chips}} <- Enum.reverse(round), chip <- chips, do: chip),
-      droplets: Enum.count(round, &droplet?(&1, seat))
+      droplets: Enum.count(round, &spent?(&1, seat, :droplet)),
+      flasks: Enum.count(round, &spent?(&1, seat, :flask))
     }
   end
 
-  defp droplet?({seat, {:rubies_spent, :droplet}}, seat), do: true
-  defp droplet?({seat, {:rubies_spent, :droplet, _price}}, seat), do: true
-  defp droplet?(_entry, _seat), do: false
+  defp spent?({seat, {:rubies_spent, what}}, seat, what), do: true
+  defp spent?({seat, {:rubies_spent, what, _price}}, seat, what), do: true
+  defp spent?(_entry, _seat, _what), do: false
 end

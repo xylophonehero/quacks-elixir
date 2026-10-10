@@ -131,7 +131,7 @@ defmodule Quacks.GameServer do
           names: %{Game.seat() => String.t()},
           colours: %{Game.seat() => colour},
           bots: %{Game.seat() => Profile.name()},
-          seen: %{Game.seat() => %{optional(:card | :results | :final) => 1..9}},
+          seen: %{Game.seat() => %{optional(:card | :results | :recap | :final) => 1..9}},
           creator: Game.seat() | nil,
           public: boolean,
           founder: Game.seat() | nil,
@@ -370,7 +370,7 @@ defmodule Quacks.GameServer do
   defp restore(_bundle, _opts), do: {:error, :invalid}
 
   defp decode_seen(kinds) do
-    for {kind, round} <- kinds, kind in ~w(card results final), into: %{} do
+    for {kind, round} <- kinds, kind in ~w(card results recap final), into: %{} do
       {String.to_existing_atom(kind), round}
     end
   end
@@ -544,13 +544,14 @@ defmodule Quacks.GameServer do
   def set_colour(id, seat, colour), do: call(id, {:set_colour, seat, colour})
 
   @doc """
-  `seat` closed the fortune card (`:card`), the round results (`:results`) or the
-  final scoring (`:final`, round 9) of `round` (the reveal overlay). The table
+  `seat` closed the fortune card (`:card`), the round results (`:results`), the
+  last round's recap at a round's start (`:recap`, round 37) or the final scoring (`:final`, round 9) of `round` (the reveal overlay). The table
   keeps it (`seen`), so a reload does not open them again.
   """
-  @spec ack(id, Game.seat(), :card | :results | :final, 1..9) :: :ok | {:error, :not_found}
+  @spec ack(id, Game.seat(), :card | :results | :recap | :final, 1..9) ::
+          :ok | {:error, :not_found}
   def ack(id, seat, kind, round)
-      when kind in [:card, :results, :final] and is_integer(round),
+      when kind in [:card, :results, :recap, :final] and is_integer(round),
       do: call(id, {:ack, seat, kind, round})
 
   @doc "Public games on this node that are still `:waiting` with a free seat, sorted by id."

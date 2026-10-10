@@ -61,27 +61,16 @@ defmodule QuacksWeb.Round35EvalTest do
       assert view |> element("[data-role=tile-step]") |> render() =~ TileReveal.label(first)
     end
 
-    test "the last step is Round scored: totals, the leader first with the lead" do
+    test "round 37: the last step is the scoring space; Round scored waits for the recap" do
       {_id, game, view} = duo()
       slides = game |> Reveal.slides(0) |> TileReveal.slides()
-      assert %{kind: :standings} = List.last(slides)
+      refute Enum.any?(slides, &(&1.kind == :standings))
+      assert %{kind: :space} = List.last(slides)
 
       for _ <- 2..length(slides)//1, do: next(view)
 
-      assert has_element?(view, "#results-stage[data-kind=standings]")
-
-      assert has_element?(
-               view,
-               "#results-stage [data-role=stage-row][data-lead] [data-cell=rank]"
-             )
-
-      assert has_element?(view, "#results-stage [data-cell=total]")
-      leader = Enum.max_by(game.seats, &Game.player(game, &1).vp)
-
-      assert has_element?(
-               view,
-               "#results-stage [data-role=stage-row][data-seat='#{leader}'][data-lead]"
-             )
+      assert has_element?(view, "#results-stage[data-kind=space]")
+      refute has_element?(view, "#results-stage[data-kind=standings]")
     end
 
     test "stage_rows: the space's coins, VP and ruby in one row; no result fades" do
@@ -230,18 +219,20 @@ defmodule QuacksWeb.Round35EvalTest do
     end
   end
 
-  describe "item 5: rubies before Round scored" do
+  # Round 37: the rubies step follows the last step (the scoring space), since
+  # "Round scored" moved to the recap after the shop.
+  describe "item 5: rubies at the results' end" do
     defp to_last_step(view, slides) do
-      for _ <- 2..(length(slides) - 1)//1, do: next(view)
+      for _ <- 2..length(slides)//1, do: next(view)
       view
     end
 
-    test "Next before Round scored asks for the rubies; Keep moves on; no rubies step after the buy" do
+    test "Next on the last step asks for the rubies; Keep goes to the shop; no rubies step after the buy" do
       {id, game, view} = duo()
       GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, rubies: 4))
       slides = game |> Reveal.slides(0) |> TileReveal.slides()
       to_last_step(view, slides)
-      refute has_element?(view, "#results-stage[data-kind=standings]")
+      assert has_element?(view, "#results-stage[data-kind=space]")
 
       next(view)
       assert has_element?(view, "#bar-rubies [data-role=rubies-keep]")
@@ -256,18 +247,17 @@ defmodule QuacksWeb.Round35EvalTest do
       assert has_element?(view, "#bar-rubies")
 
       view |> element("[data-role=rubies-keep]") |> render_click()
-      assert has_element?(view, "#results-stage[data-kind=standings]")
+      refute has_element?(view, "#results-stage")
       refute has_element?(view, "#bar-rubies")
 
       # After the buy, no second rubies step: the round ends for this seat.
-      next(view)
       render_click(view, "action", %{"action" => QuacksWeb.GameLive.encode({:buy, []})})
       refute has_element?(view, "#bar-rubies")
       {:ok, %{game: game}} = GameServer.get(id)
       assert game.round == 2 or Game.player(game, 0).phase == :ready
     end
 
-    test "the last ruby spent moves on to Round scored by itself" do
+    test "the last ruby spent ends the results by itself" do
       {id, game, view} = duo()
       GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, rubies: 2))
       slides = game |> Reveal.slides(0) |> TileReveal.slides()
@@ -275,16 +265,18 @@ defmodule QuacksWeb.Round35EvalTest do
       next(view)
 
       view |> element("#bar-rubies [data-ruby=droplet]") |> render_click()
-      assert has_element?(view, "#results-stage[data-kind=standings]")
+      refute has_element?(view, "#results-stage")
+      refute has_element?(view, "#bar-rubies")
     end
 
-    test "no ruby to spend: Next goes straight to Round scored" do
+    test "no ruby to spend: Next on the last step ends the results" do
       {id, game, view} = duo()
       GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, rubies: 1))
       slides = game |> Reveal.slides(0) |> TileReveal.slides()
       to_last_step(view, slides)
       next(view)
-      assert has_element?(view, "#results-stage[data-kind=standings]")
+      refute has_element?(view, "#results-stage")
+      refute has_element?(view, "#bar-rubies")
     end
   end
 

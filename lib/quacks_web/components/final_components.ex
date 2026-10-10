@@ -33,6 +33,8 @@ defmodule QuacksWeb.FinalComponents do
     assigns =
       assign(assigns,
         rows: rows,
+        cols: final_columns(rows),
+        shifts: shifts(rows),
         solo: length(rows) == 1,
         title: win_title(for(%{seat: s, place: 1} <- rows, do: s), assigns.seat, assigns.names)
       )
@@ -60,37 +62,46 @@ defmodule QuacksWeb.FinalComponents do
           <% end %>
         </h2>
       </header>
-      <ol class="flex min-h-0 flex-col gap-0.5" data-role="final-rows">
+      <ol
+        class="final-grid min-h-0"
+        style={"--cols: #{length(@cols)}"}
+        data-role="final-rows"
+      >
         <li
           :for={{row, i} <- Enum.with_index(@rows)}
           class={[
-            "final-row flex min-h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm",
+            "final-row rounded-md px-1.5 text-sm",
             if(row.place == 1, do: "bg-gold/30", else: "bg-parchment-deep/50"),
-            row.seat == @seat && "ring-2 ring-gold"
+            row.seat == @seat && "ring-2 ring-gold",
+            @shifts[row.seat] != 0 && "stage-shift"
           ]}
-          style={"--i: #{i}"}
+          style={"--i: #{i}; --shift: #{@shifts[row.seat]}"}
           data-seat={row.seat}
           data-place={row.place}
+          data-shift={@shifts[row.seat]}
           data-role="final-score"
         >
-          <span class="w-4 shrink-0 text-center font-hand text-lg leading-none font-bold">
+          <span class="w-4 text-center font-hand text-lg leading-none font-bold">
             {row.place}
           </span>
           <span
             class={[
-              "grid size-5 shrink-0 place-items-center rounded-full font-hand text-xs font-bold text-ink ring-1 ring-black/25",
+              "grid size-5 place-items-center rounded-full font-hand text-xs font-bold text-ink ring-1 ring-black/25",
               seat_bg(row.seat)
             ]}
             aria-hidden="true"
           >
             {String.first(name(@names, row.seat))}
           </span>
-          <span class="min-w-0 flex-1 truncate font-semibold">{name(@names, row.seat)}</span>
-          <.you_tag :if={row.seat == @seat} />
-          <.bot_badge :if={@bots[row.seat] && row.seat != @seat} compact />
-          <span class="flex shrink-0 gap-0.5" aria-label="Final scoring">
+          <span class="flex min-w-0 items-center gap-1">
+            <span class="min-w-0 truncate font-semibold">{name(@names, row.seat)}</span>
+            <.you_tag :if={row.seat == @seat} />
+            <.bot_badge :if={@bots[row.seat] && row.seat != @seat} compact />
+          </span>
+          <%!-- Round 37 (item 3): one column per kind of final part, so they align. --%>
+          <span :for={kind <- @cols} class="flex justify-end" data-col={kind}>
             <span
-              :for={{kind, n, vp} <- Enum.filter(row.parts, &(elem(&1, 2) > 0))}
+              :for={{^kind, n, vp} <- Enum.filter(row.parts, &(elem(&1, 2) > 0))}
               class="final-part inline-flex items-center rounded-full bg-parchment-light/80 px-1 text-xs font-bold tabular-nums ring-1 ring-ink/10"
               title={part_text(kind, n) <> " → #{vp} VP"}
               data-part={kind}
@@ -98,9 +109,9 @@ defmodule QuacksWeb.FinalComponents do
               <.piece_icon name={part_icon(kind)} class={["size-3", part_ink(kind)]} />+{vp}
             </span>
           </span>
-          <span class="flex w-12 shrink-0 items-center justify-end gap-0.5 font-hand text-xl leading-none font-bold">
+          <span class="flex items-center justify-end text-lg leading-none font-extrabold tabular-nums">
             <span
-              class="final-count tabular-nums"
+              class="final-count min-w-[3ch] text-right"
               style={"--n: #{row.vp}; --from: #{row.from_vp}"}
               data-role="final-vp"
               data-from={row.from_vp}
@@ -160,6 +171,27 @@ defmodule QuacksWeb.FinalComponents do
       </.button>
     </section>
     """
+  end
+
+  # Round 37 (item 3): the final parts' columns that some row has.
+  defp final_columns(rows) do
+    kinds = for row <- rows, {kind, _n, vp} <- row.parts, vp > 0, into: MapSet.new(), do: kind
+    Enum.filter([:coins, :rubies, :pennies], &(&1 in kinds))
+  end
+
+  # Round 37 (item 3): how many places each row moved up from the round-9 order
+  # (most VP first, then the lower seat) to the final one: the row starts there
+  # and moves to its final place once the VP have counted up (app.css).
+  defp shifts(rows) do
+    before =
+      rows
+      |> Enum.sort_by(&{-&1.from_vp, &1.seat})
+      |> Enum.with_index()
+      |> Map.new(fn {row, i} -> {row.seat, i} end)
+
+    rows
+    |> Enum.with_index()
+    |> Map.new(fn {row, i} -> {row.seat, before[row.seat] - i} end)
   end
 
   # Round 29 (F3): the chart marks this browser's own row.

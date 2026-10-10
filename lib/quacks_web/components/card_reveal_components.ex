@@ -10,7 +10,9 @@ defmodule QuacksWeb.CardRevealComponents do
   """
   use Phoenix.Component
   import QuacksWeb.Icons, only: [piece_icon: 1]
-  import QuacksWeb.GameComponents, only: [chip: 1, chip_name: 1, flea_reason: 1, seat_bg: 1]
+
+  import QuacksWeb.GameComponents,
+    only: [chip: 1, chip_name: 1, die: 1, flea_reason: 1, seat_bg: 1]
 
   alias Quacks.Game.Fortune
 
@@ -110,77 +112,69 @@ defmodule QuacksWeb.CardRevealComponents do
           {rule(@card)}
         </span>
       </header>
-      <ol class="space-y-0.5" data-role="stage-rows">
-        <li
-          :for={seat <- @seats}
-          id={"#{@id}-row-#{seat}"}
-          class={[
-            "stage-row flex min-h-7 items-center gap-1.5 rounded-md px-1 py-0.5",
-            @reveals[seat].best? && "bg-gold/35",
-            seat == @seat && "ring-1 ring-gold-deep/70"
-          ]}
-          data-role="card-reveal-row"
-          data-seat={seat}
-          data-me={seat == @seat && "true"}
-          data-best={@reveals[seat].best? && "true"}
-        >
-          <span
-            class={[
-              "grid size-5 shrink-0 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40",
-              seat_bg(seat)
-            ]}
-            aria-hidden="true"
-            data-role="seat-disc"
-          >
-            {initial(Map.get(@names, seat, "#{seat + 1}"))}
-          </span>
-          <span class="stage-name max-w-16 shrink-0 truncate text-xs font-semibold">
-            {name(@names, seat, @seat)}
-          </span>
-          <span class="flex min-w-0 flex-1 flex-wrap items-center gap-0.5" data-role="reveal-chips">
+      <QuacksWeb.TileRevealComponents.stage_list
+        id={"#{@id}-rows"}
+        rows={Enum.map(@seats, &%{seat: &1, row: @reveals[&1]})}
+        cols={[:result]}
+        names={@names}
+        seat={@seat}
+        you
+        row_role="card-reveal-row"
+        row_id={fn r -> "#{@id}-row-#{r.seat}" end}
+        row_class={fn r -> r.row.best? && "bg-gold/35" end}
+        row_attrs={
+          fn r ->
+            %{"data-me" => r.seat == @seat && "true", "data-best" => r.row.best? && "true"}
+          end
+        }
+      >
+        <:why :let={r}>
+          <span class="flex min-w-0 flex-wrap items-center gap-0.5" data-role="reveal-chips">
             <span
-              :for={{chip, i} <- Enum.with_index(if(@choice?, do: [], else: @reveals[seat].drew))}
+              :for={{chip, i} <- Enum.with_index(if(@choice?, do: [], else: r.row.drew))}
               class={[
                 "inline-flex rounded-full",
-                (traded?(@reveals[seat], chip, i) or placed?(@reveals[seat], chip, i)) &&
-                  "ring-2 ring-gold"
+                (traded?(r.row, chip, i) or placed?(r.row, chip, i)) && "ring-2 ring-gold"
               ]}
-              title={note(@card, @reveals[seat], @game, seat == @seat, chip, i)}
+              title={note(@card, r.row, @game, r.seat == @seat, chip, i)}
               data-role="reveal-chip"
             >
               <.chip chip={chip} size={:xs} />
             </span>
             <span
-              :if={@reveals[seat].number}
+              :if={r.row.number}
               class="ml-1 text-sm font-extrabold tabular-nums"
               title="Sum"
               data-role="reveal-number"
             >
-              = {@reveals[seat].number}
+              = {r.row.number}
+            </span>
+            <%!-- Round 37 (item 5): Take a Chance, the face each seat rolled. --%>
+            <span :if={r.row[:die]} class="stage-die" data-role="reveal-die">
+              <.die face={r.row.die} />
             </span>
           </span>
-          <span
-            class="stage-got flex shrink-0 items-center gap-1.5 font-hand text-lg leading-none font-bold"
-            data-role="reveal-result"
-          >
+        </:why>
+        <:got :let={{r, _col, _i}}>
+          <span class="stage-got flex items-center gap-1.5" data-role="reveal-result">
             <%= cond do %>
-              <% @reveals[seat].choosing? -> %>
+              <% r.row.choosing? -> %>
                 <span
                   class="animate-pulse font-sans text-xs font-semibold text-ink-soft"
                   data-cell="choosing"
                 >
                   choosing…
                 </span>
-              <% @reveals[seat].gains == [] -> %>
+              <% r.row.gains == [] -> %>
                 <span class="font-sans text-xs font-semibold text-ink-soft">
                   {if @choice?, do: "passed", else: none(@card)}
                 </span>
               <% true -> %>
-                <.gain :for={gain <- @reveals[seat].gains} gain={gain} size={:xs} />
+                <.gain :for={gain <- r.row.gains} gain={gain} size={:xs} />
             <% end %>
           </span>
-        </li>
-      </ol>
+        </:got>
+      </QuacksWeb.TileRevealComponents.stage_list>
     </section>
     """
   end
@@ -306,7 +300,7 @@ defmodule QuacksWeb.CardRevealComponents do
     <span class="flex items-center gap-0.5 tabular-nums" data-gain={@kind}>
       <span aria-hidden="true">{@text}</span><.piece_icon
         name={if(@kind == :rats, do: :rat, else: @kind)}
-        class="size-4"
+        class={["size-4", gain_ink(@kind)]}
       /><span class="sr-only">{@n} {@kind}</span>
     </span>
     """
@@ -350,7 +344,11 @@ defmodule QuacksWeb.CardRevealComponents do
   defp rule(:p8), do: "Lowest sum takes a blue 2. Everyone else takes a ruby."
   defp rule(:p13), do: "Each trades one chip up, or takes a green 1."
   defp rule(:b7), do: "Drawn on stopping: one may go on the pot."
+  defp rule(:p12), do: "Everyone rolled the bonus die."
   defp rule(card), do: if(Fortune.choice_card?(card), do: "What everyone took")
+
+  defp gain_ink(:droplet), do: "text-droplet"
+  defp gain_ink(_kind), do: nil
 
   defp count_text(1), do: "+"
   defp count_text(n) when n > 1, do: "+#{n}"
