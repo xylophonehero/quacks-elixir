@@ -108,8 +108,8 @@ defmodule Quacks.Scenarios.Script do
   """
   @spec play(t, (Game.t() -> boolean), keyword) :: t
   def play(%__MODULE__{} = s, until, opts \\ []) do
-    me = Keyword.get(opts, :me, fn _g, _legal -> nil end)
-    others = Keyword.get(opts, :others, fn _g, _seat, _legal -> nil end)
+    me = opts[:me] || fn _g, _legal -> nil end
+    others = opts[:others] || fn _g, _seat, _legal -> nil end
     goal = if opts[:script], do: until, else: fn s -> until.(game(s)) end
     loop(s, goal, me, others, 0)
   end

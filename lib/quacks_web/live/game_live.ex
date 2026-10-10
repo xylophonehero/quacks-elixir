@@ -4107,6 +4107,79 @@ defmodule QuacksWeb.GameLive do
   # `@all_actions` are every legal action of this seat; witch calls show on the witch
   # cards, so the bottom bar leaves them out. The silver witch S2's offer is a
   # decision of its own (`:witch_offer`).
+  @doc """
+  The game page's assigns for `game` with no `GameServer` (the gallery's screens
+  and scenario steps, `QuacksWeb.GalleryFrameLive`): what `mount/3` and
+  `put_game/2` assign, from a table made of the options, so `render/1` draws the
+  real page from a fixture.
+
+  Options: `seat` (default 0), `names` (seat => name), `bots` (a list of seats),
+  `seen` (the moments this seat has seen: `:all`, the default, opens no reveal; a
+  map such as `%{recap: 1}` lets the next moment's reveal open), `step` (the
+  results or recap step on show, on the tiles: a slide kind such as `:die`, or a
+  book colour). A waiting decision opens (`quacks:open`) when no reveal plays.
+  """
+  @spec preview(Phoenix.LiveView.Socket.t(), Game.t(), keyword) :: Phoenix.LiveView.Socket.t()
+  def preview(socket, %Game{} = game, opts \\ []) do
+    seats = game.seats
+
+    names =
+      Keyword.get_lazy(opts, :names, fn -> Map.new(seats, &{&1, GameServer.default_name(&1)}) end)
+
+    table = %{
+      players: length(seats),
+      names: names,
+      colours: Map.new(seats, &{&1, &1}),
+      bots: Map.new(Keyword.get(opts, :bots, []), &{&1, :balanced}),
+      creator: 0,
+      rejoinable: [],
+      debug: nil,
+      sets: game.sets,
+      patients: nil,
+      patient_picks: %{}
+    }
+
+    socket
+    |> assign(
+      id: "gallery",
+      token: nil,
+      seat: Keyword.get(opts, :seat, 0),
+      seed: {0, 0, 0},
+      copied: false,
+      open_sheet: nil,
+      seen: Keyword.get(opts, :seen, :all),
+      reveal: nil,
+      card_grown: false,
+      card_toast: nil,
+      reveal_mode: :step,
+      reveal_speed: :normal,
+      risk: :percent,
+      reveal_show: :tiles,
+      reduced: false,
+      rubies_kept: nil,
+      tips: nil
+    )
+    |> new_report()
+    |> assign_table(table)
+    |> put_game(game)
+    |> preview_step(opts[:step])
+    |> preview_open()
+  end
+
+  # As on the page, a waiting decision opens once no reveal plays (`close_reveal/1`).
+  defp preview_open(%{assigns: %{reveal: nil}} = socket), do: open_waiting(socket)
+  defp preview_open(socket), do: socket
+
+  defp preview_step(%{assigns: %{reveal: %{tiles: true, slides: slides}}} = socket, step)
+       when step != nil do
+    case Enum.find_index(slides, &(&1.kind == step or &1[:book] == step)) do
+      nil -> socket
+      i -> show_slide(socket, i + 1)
+    end
+  end
+
+  defp preview_step(socket, _step), do: socket
+
   defp put_game(socket, nil) do
     assign(socket,
       game: nil,

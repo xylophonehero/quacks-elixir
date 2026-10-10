@@ -1701,7 +1701,7 @@ defmodule Quacks.GameServer do
   end
 
   # A scenario table's report names the scenario and the action it was at, so a
-  # builder can open the same step (`/dev/scenarios`, docs/guide/12-scenarios.md).
+  # builder can open the same step (`/dev/scenarios`, docs/guide/12-gallery.md).
   defp put_scenario(bundle, %{scenario: %{"key" => key}, at: at}),
     do: Map.put(bundle, :scenario, %{key: key, at: at})
 
