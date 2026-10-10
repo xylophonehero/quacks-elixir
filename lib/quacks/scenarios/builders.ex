@@ -283,17 +283,7 @@ defmodule Quacks.Scenarios.Builders do
       Game.phase(g, 0) == :blue_choice and Enum.any?(Game.player(g, 0).pending, blue?)
     end
 
-    me = fn g, legal ->
-      case Game.phase(g, 0) do
-        :shop ->
-          legal
-          |> Enum.filter(&match?({:buy, _}, &1))
-          |> Enum.max_by(&blues(&1, blue?), fn -> nil end)
-
-        phase ->
-          chip_move(phase, g, legal, nil)
-      end
-    end
+    me = fn g, legal -> crow_move(Game.phase(g, 0), g, legal, blue?) end
 
     search(opts, fn seed ->
       s = Script.new(seed, 2, sets: %{blue: 1}, rules: %{fortune: false})
@@ -326,7 +316,14 @@ defmodule Quacks.Scenarios.Builders do
     end)
   end
 
-  defp blues({:buy, chips}, blue?), do: Enum.count(chips, blue?)
+  # You: in the shop, the buy with the most crow skulls; else as a book scenario.
+  defp crow_move(:shop, _g, legal, blue?) do
+    legal
+    |> Enum.filter(&match?({:buy, _}, &1))
+    |> Enum.max_by(fn {:buy, chips} -> Enum.count(chips, blue?) end, fn -> nil end)
+  end
+
+  defp crow_move(phase, g, legal, _blue?), do: chip_move(phase, g, legal, nil)
 
   @doc """
   The reverse pot side in round 9: you keep your rubies until round 9's shop, then
