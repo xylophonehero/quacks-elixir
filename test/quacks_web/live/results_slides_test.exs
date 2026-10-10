@@ -4,7 +4,6 @@ defmodule QuacksWeb.ResultsSlidesTest do
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
-  import QuacksWeb.LiveHelpers, except: [count: 2]
   alias Quacks.Game
   alias Quacks.GameHelpers, as: H
   alias QuacksWeb.{PanelComponents, TileComponents}
