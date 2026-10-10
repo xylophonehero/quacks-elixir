@@ -1543,16 +1543,15 @@ defmodule QuacksWeb.GameLive do
               </section>
             </div>
           </.dialog_sheet>
-          <%!-- Round 36: Ghost's breath V's buys: a sheet like the shop's. --%>
-          <.dialog_sheet
+          <%!-- Round 36: Ghost's breath V's buys. Round 39: a panel in the context
+               area, no sheet; its purse and Take are in the bar. --%>
+          <.purple_buy
             :if={(buys = purple_buys(assigns)) != []}
-            id={"decision-purple-buy-#{@game.round}"}
-            label="Ghost's breath"
-            side={:panel}
-            pot
-          >
-            <.purple_buy buys={buys} selected={@selected} game={@game} me={@me} />
-          </.dialog_sheet>
+            buys={buys}
+            selected={@selected}
+            game={@game}
+            me={@me}
+          />
           <.sheet
             :if={@game.witches}
             id="sheet-witches"
@@ -1713,6 +1712,7 @@ defmodule QuacksWeb.GameLive do
             me={@me}
             seat={@seat}
             pot_pick={@pot_pick}
+            selected={@selected}
           />
           <.bar_choice
             :if={tile_hold(assigns) == :droplet_choice}
@@ -1817,6 +1817,7 @@ defmodule QuacksWeb.GameLive do
             me={@me}
             seat={@seat}
             pot_pick={@pot_pick}
+            selected={@selected}
           />
           <section
             :if={
@@ -2152,11 +2153,14 @@ defmodule QuacksWeb.GameLive do
 
   @doc """
   Round 36: Ghost's breath V (purple Set 5, The Herb Witches): the VP of the
-  purple spaces buy chips, as in the shop. The chips any buy may take, in the
-  shop's rows, as tiles to tick (the shop's `select` and `@selected`): up to two of
-  different colours, a tile that no buy allows with the ticked ones is greyed.
-  "Take" sends the ticked buy (`{:chip, {:buy, chips}}`); the sheet's × leaves the
-  choice in the bar ("Choose chips" opens it again, Done passes).
+  purple spaces buy chips, as in the shop. Round 39 (Nick): a panel in the context
+  area, not a sheet: from 64rem in the context column over the bar, below it over
+  the pot's lower band, from the bar up (app.css `.pick-panel`). It shows every chip
+  of the shop as a tile to tick (the shop's `select` and `@selected`): up to two of
+  different colours. A tile that no buy allows with the ticked ones (too dear, or
+  not with the other tick) is greyed and says why. The purse and Take are in the
+  bar (`bar_choice/1`, `:chip_choice`), so nothing scrolls under them. On a phone
+  the panel folds to its title (`.pick-folded`) to show the pot.
   """
   attr :buys, :list, required: true, doc: "the `{:chip, {:buy, chips}}` actions"
   attr :selected, :list, required: true
@@ -2165,100 +2169,107 @@ defmodule QuacksWeb.GameLive do
 
   def purple_buy(assigns) do
     %{buys: buys, game: game, me: me, selected: selected} = assigns
-    chips = buys |> Enum.flat_map(fn {:chip, {:buy, chips}} -> chips end) |> MapSet.new()
+    {coins, remaining} = purple_purse(me, selected, game.sets)
+    actions = Enum.map(buys, fn {:chip, buy} -> buy end)
 
-    rows =
-      for row <- shop_rows(game.expansion, game.sets),
-          r = Enum.filter(row, &(&1 in chips)),
-          r != [],
-          do: r
+    tiles =
+      for chip <- List.flatten(shop_rows(game.expansion, game.sets)) do
+        price = Chips.price(chip, game.sets)
+        %{chip: chip, price: price, off: purple_off(chip, price, remaining, selected, actions)}
+      end
 
-    coins =
-      Enum.find_value(me.chip_choices, 0, fn
-        {:purple_buy, n} -> n
-        _choice -> nil
-      end)
-
-    total = selected |> Enum.map(&Chips.price(&1, game.sets)) |> Enum.sum()
-
-    assigns =
-      assign(assigns,
-        rows: rows,
-        coins: coins,
-        remaining: coins - total,
-        take: {:chip, {:buy, selected}},
-        actions: Enum.map(buys, fn {:chip, buy} -> buy end)
-      )
+    assigns = assign(assigns, tiles: tiles, coins: coins, id: "purple-buy-panel-#{game.round}")
 
     ~H"""
-    <section class="space-y-2" aria-label="Ghost's breath: take chips" data-role="purple-buy">
-      <h2 class="sheet-head text-xl font-bold">Ghost's breath</h2>
-      <p class="text-sm">
-        Your purple spaces pay {@coins} coins. Tap up to two chips of different colours.
-      </p>
-      <form id={"purple-buy-#{@game.round}"} phx-change="select" class="space-y-2">
-        <ul :for={row <- @rows} class="grid grid-cols-3 gap-1.5" data-role="purple-buy-row">
-          <li :for={chip <- row} class="min-w-0">
-            <label class={[
-              "relative flex min-h-12 min-w-0 items-center gap-1.5 rounded-lg bg-parchment-light px-2 text-sm",
-              "ring-1 ring-ink/20 select-none touch-manipulation",
-              "transition-[scale,box-shadow,background-color] duration-150 ease-out",
-              "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink",
-              "has-focus-visible:outline-3 has-focus-visible:outline-droplet",
-              if(blocked?(chip, @selected, @actions),
-                do: "opacity-40",
-                else: "cursor-pointer active:scale-[0.96]"
-              )
-            ]}>
-              <input
-                type="checkbox"
-                name="chips[]"
-                value={encode(chip)}
-                checked={chip in @selected}
-                disabled={blocked?(chip, @selected, @actions)}
-                class="peer sr-only"
-                aria-label={chip_name(chip)}
-              />
-              <span
-                class="absolute -top-2 -right-2 hidden size-5 items-center justify-center rounded-full bg-ink text-gold shadow peer-checked:flex"
-                data-role="tile-check"
-              >
-                <.icon name="hero-check" class="size-3.5" />
-              </span>
-              <.chip chip={chip} size={:md} />
-              <span
-                class="ml-auto inline-flex shrink-0 items-center gap-1 font-semibold tabular-nums text-ink-soft"
-                data-role="price"
-              >
-                {Chips.price(chip, @game.sets)}<span class="book-coin" /><span class="sr-only">coins</span>
-              </span>
-            </label>
-          </li>
-        </ul>
-      </form>
-      <div
-        class="sticky bottom-0 z-10 -mx-4 mt-3 flex min-w-0 items-center gap-2 bg-parchment px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_12px_-10px_rgb(0_0_0/0.35)] *:min-h-12"
-        data-role="purple-buy-footer"
-      >
-        <p
-          class="flex min-w-0 shrink items-center gap-1 font-hand text-xl leading-none font-bold whitespace-nowrap tabular-nums"
-          data-role="purple-buy-total"
-          aria-label={"#{@coins} coins, #{@remaining} left after this"}
+    <section
+      id={@id}
+      class="pick-panel paper"
+      aria-label="Ghost's breath: take chips"
+      data-role="purple-buy"
+    >
+      <div class="flex items-start gap-2">
+        <div class="min-w-0 flex-1">
+          <h2 class="font-hand text-xl leading-tight font-bold">Ghost's breath</h2>
+          <p class="text-sm" data-role="purple-buy-hint">
+            Your purple spaces pay {@coins} coins: up to two chips of different colours.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="-m-1 grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-ink-soft transition-[color,rotate] duration-150 ease-out hit-44 hover:text-ink lg:hidden [.pick-folded_&]:rotate-180"
+          phx-click={
+            JS.toggle_class("pick-folded", to: "##{@id}")
+            |> JS.toggle_attribute({"aria-expanded", "false", "true"})
+          }
+          aria-expanded="true"
+          aria-controls={"purple-buy-#{@game.round}"}
+          aria-label="Show or hide the chips"
+          data-role="purple-buy-fold"
         >
-          <span class="book-coin" />{@coins}<span class="text-base text-ink-soft">→</span>{@remaining}
-        </p>
-        <.button
-          phx-click="action"
-          phx-value-action={encode(@take)}
-          disabled={@take not in @buys}
-          class="ml-auto min-w-28"
-          data-role="purple-buy-take"
-        >
-          Take
-        </.button>
+          <.icon name="hero-chevron-down" class="size-5" />
+        </button>
       </div>
+      <form
+        id={"purple-buy-#{@game.round}"}
+        phx-change="select"
+        class="pick-tiles mt-2 grid grid-cols-5 gap-1.5"
+      >
+        <label
+          :for={t <- @tiles}
+          class={[
+            "relative flex min-w-0 flex-col items-center gap-0.5 rounded-lg bg-parchment-light px-1 pt-1.5 pb-1 text-sm",
+            "ring-1 ring-ink/20 select-none touch-manipulation",
+            "transition-[scale,box-shadow,background-color,opacity] duration-150 ease-out",
+            "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink",
+            "has-focus-visible:outline-3 has-focus-visible:outline-droplet",
+            if(t.off, do: "opacity-40 grayscale", else: "cursor-pointer active:scale-[0.96]")
+          ]}
+          title={t.off || "#{chip_name(t.chip)}: #{t.price} coins"}
+          data-role={if t.off, do: "purple-buy-off", else: "purple-buy-tile"}
+          data-chip={chip_name(t.chip)}
+        >
+          <input
+            type="checkbox"
+            name="chips[]"
+            value={encode(t.chip)}
+            checked={t.chip in @selected}
+            disabled={t.off != nil}
+            class="peer sr-only"
+            aria-label={t.off || "#{chip_name(t.chip)}, #{t.price} coins"}
+          />
+          <span
+            class="absolute -top-2 -right-2 hidden size-5 items-center justify-center rounded-full bg-ink text-gold shadow peer-checked:flex"
+            data-role="tile-check"
+          >
+            <.icon name="hero-check" class="size-3.5" />
+          </span>
+          <.chip chip={t.chip} size={:md} />
+          <span
+            class="inline-flex items-center gap-0.5 font-semibold tabular-nums text-ink-soft"
+            data-role="price"
+          >
+            {t.price}<span class="book-coin" /><span class="sr-only">coins</span>
+          </span>
+        </label>
+      </form>
     </section>
     """
+  end
+
+  # Round 39: Ghost's breath V's coins and what is left after the ticked chips.
+  defp purple_purse(me, selected, sets) do
+    coins = Enum.find_value(me.chip_choices, 0, &(match?({:purple_buy, _}, &1) && elem(&1, 1)))
+    {coins, coins - (selected |> Enum.map(&Chips.price(&1, sets)) |> Enum.sum())}
+  end
+
+  # Round 39: why a Ghost's breath V tile is greyed, or nil while it can be ticked.
+  defp purple_off(chip, price, remaining, selected, actions) do
+    cond do
+      not blocked?(chip, selected, actions) -> nil
+      price > remaining -> "#{chip_name(chip)}: #{price} coins, you have #{remaining} left"
+      {:buy, [chip]} not in actions -> "#{chip_name(chip)}: not in the shop this round"
+      true -> "#{chip_name(chip)}: not with your other chip"
+    end
   end
 
   @doc """
@@ -2556,6 +2567,10 @@ defmodule QuacksWeb.GameLive do
     default: nil,
     doc: "round 36: the pot chip tapped for its choices (`:chip_choice`)"
 
+  attr :selected, :list,
+    default: [],
+    doc: "round 39: Ghost's breath V's ticked chips (`:chip_choice`)"
+
   def bar_choice(%{choice: :explosion_choice} = assigns) do
     space = PotTrack.at(Player.scoring_index(assigns.me))
     assigns = assign(assigns, space: space, final?: assigns.game.round == 9)
@@ -2781,7 +2796,7 @@ defmodule QuacksWeb.GameLive do
   # Round 36: the chips to choose are chips to tap (`chip_row/1`): G2's and G5's
   # chips here, a pot chip's choice (P4, locoweed V) on the chip in the pot
   # (`pot_targets/1`; a chip with more than one choice shows them here once
-  # tapped, `@pot_pick`), Ghost's breath V's buys in their sheet (`purple_buy/1`).
+  # tapped, `@pot_pick`), Ghost's breath V's buys in the context area's panel (`purple_buy/1`).
   # The ladders (P2, G4) and Done stay buttons.
   def bar_choice(%{choice: :chip_choice} = assigns) do
     %{actions: actions, game: game, me: me} = assigns
@@ -2812,6 +2827,8 @@ defmodule QuacksWeb.GameLive do
           Enum.map(rungs, &rung_title/1)
       )
 
+    {coins, remaining} = purple_purse(me, assigns.selected, game.sets)
+
     assigns =
       assign(assigns,
         items: items,
@@ -2819,7 +2836,9 @@ defmodule QuacksWeb.GameLive do
         options: options,
         picked: pick != [] && assigns.pot_pick,
         tap?: targets != [],
-        buys?: buys != []
+        buys?: buys != [],
+        coins: coins,
+        remaining: remaining
       )
 
     ~H"""
@@ -2857,14 +2876,27 @@ defmodule QuacksWeb.GameLive do
         >
           Back
         </.button>
-        <.sheet_button
+        <%!-- Round 39: Ghost's breath V's purse and Take; its chips are in the
+             context area's panel (`purple_buy/1`). --%>
+        <p
           :if={@buys? and !@picked}
-          for={"decision-purple-buy-#{@game.round}"}
-          class="min-h-12 touch-manipulation px-4"
-          data-role="purple-buy-open"
+          class="flex shrink-0 items-center gap-1 font-hand text-xl leading-none font-bold whitespace-nowrap text-parchment tabular-nums"
+          data-role="purple-buy-total"
+          aria-label={"#{@coins} coins, #{@remaining} left after this"}
         >
-          Choose chips
-        </.sheet_button>
+          <span class="book-coin" />{@coins}<span class="text-base text-parchment-dim">→</span>{@remaining}
+        </p>
+        <.button
+          :if={@buys? and !@picked}
+          phx-click="action"
+          phx-value-action={encode({:chip, {:buy, @selected}})}
+          disabled={{:chip, {:buy, @selected}} not in @actions}
+          variant={:primary}
+          class="min-h-12 min-w-24 flex-1 touch-manipulation px-4"
+          data-role="purple-buy-take"
+        >
+          {if @selected == [], do: "Take", else: "Take #{length(@selected)}"}
+        </.button>
         <.choice_button
           :for={item <- @items}
           :if={!@picked}

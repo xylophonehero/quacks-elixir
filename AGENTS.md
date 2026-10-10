@@ -1,11 +1,10 @@
-This is a solo-play implementation of *The Quacks of Quedlinburg* in Phoenix LiveView. Glossary: `docs/CONTEXT.md`. Rules research: `docs/research/`.
+This is *The Quacks of Quedlinburg* in Phoenix LiveView. Glossary: `docs/CONTEXT.md`. Rules research: `docs/research/`.
 
 ## Project guidelines
 
 - The game engine is pure: `Quacks.Game` exposes `apply/2` that returns `{:ok, game} | {:error, reason}`. No processes, no GenServer, no DB in the engine.
 - RNG state lives in the game struct and is advanced with the `:rand` `_s` API (`:rand.uniform_s/2`, `:rand.seed_s/1`). **Never** use `Enum.random`, `Enum.shuffle`, or `:rand.uniform/1` in the engine.
 - Rules data (chip prices, pot track, ingredient books) lives in plain data modules, not in logic.
-- No fortune teller cards in phase 1.
 - Styling is plain Tailwind v4 only. daisyUI was removed; do not add it back.
 - Tidewave MCP runs with `mix phx.server`. Register it once: `claude mcp add --transport http tidewave http://localhost:4000/tidewave/mcp` (do not pick "Authenticate"). Check with `/mcp`.
 - Run `mix precommit` before finishing any change.
