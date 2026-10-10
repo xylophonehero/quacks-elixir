@@ -1,16 +1,11 @@
-defmodule QuacksWeb.Round38TipsTest do
+defmodule QuacksWeb.HintsTest do
   @moduledoc """
-  Round 38: the first-time hints (tour design T2). A hint shows once its browser
-  sent its seen hints; "Got it", a Draw or a tap on the lit area closes it, "No
-  more tips" and the menu turn them off, "Show again" brings them back.
+  The first-time hints: when a hint shows, what closes it and No more hints.
   """
   use QuacksWeb.ConnCase, async: true
-
   import Phoenix.LiveViewTest
-
+  import QuacksWeb.LiveHelpers
   alias Quacks.GameServer
-
-  defp browser(token), do: init_test_session(build_conn(), player_token: token)
 
   defp solo(rules \\ %{fortune: false}) do
     {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, rules)
