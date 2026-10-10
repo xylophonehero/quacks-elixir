@@ -1,8 +1,9 @@
-defmodule QuacksWeb.GameComponents do
+defmodule QuacksWeb.BarComponents do
   @moduledoc """
-  Function components that draw a `Quacks.Game` struct. Rendering only: nothing in
-  here changes game state. The LiveView passes the struct in; each component reads
-  the fields it needs.
+  The bottom bar and the header: the round and phase (round_phase/1), the white
+  fuse above Stop and Draw (fuse_meter/1) and the reward and risk line
+  (reward_line/1). Rendering only, as every component module of the game page
+  (module map: `docs/guide/06-components.md`).
   """
   use Phoenix.Component
 

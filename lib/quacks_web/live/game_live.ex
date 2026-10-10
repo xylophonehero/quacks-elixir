@@ -99,7 +99,7 @@ defmodule QuacksWeb.GameLive do
   use QuacksWeb, :live_view
 
   import QuacksWeb.ActionCode
-  import QuacksWeb.GameComponents
+  import QuacksWeb.BarComponents
   import QuacksWeb.ChipComponents
   import QuacksWeb.GameText
   import QuacksWeb.PanelComponents

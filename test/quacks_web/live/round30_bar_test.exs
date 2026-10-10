@@ -11,7 +11,7 @@ defmodule QuacksWeb.Round30BarTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.PotTrack
-  alias QuacksWeb.{GameComponents, TileComponents}
+  alias QuacksWeb.{BarComponents, TileComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -78,8 +78,8 @@ defmodule QuacksWeb.Round30BarTest do
     end
 
     test "the ruby slot is always there: dim without a ruby, lit with one" do
-      without = render_component(&GameComponents.reward_line/1, game: game_with_ruby(false))
-      with = render_component(&GameComponents.reward_line/1, game: game_with_ruby(true))
+      without = render_component(&BarComponents.reward_line/1, game: game_with_ruby(false))
+      with = render_component(&BarComponents.reward_line/1, game: game_with_ruby(true))
 
       assert without =~ ~r/data-role="reward-ruby" data-ruby="false"/
       assert without =~ "opacity-25"
@@ -89,13 +89,13 @@ defmodule QuacksWeb.Round30BarTest do
     end
 
     test "the numbers have fixed widths" do
-      html = render_component(&GameComponents.reward_line/1, game: game_with_ruby(false))
+      html = render_component(&BarComponents.reward_line/1, game: game_with_ruby(false))
       assert html =~ "tabular-nums"
       assert html =~ ~s(<span class="min-w-[2ch] text-left">)
       assert html =~ ~s(class="min-w-[4.5ch] text-left")
 
       chips =
-        render_component(&GameComponents.reward_line/1, game: game_with_ruby(false), risk: :chips)
+        render_component(&BarComponents.reward_line/1, game: game_with_ruby(false), risk: :chips)
 
       assert chips =~ ~s(class="min-w-[5ch] text-left")
     end
@@ -114,7 +114,7 @@ defmodule QuacksWeb.Round30BarTest do
   describe "one red explosion icon" do
     test "the bar's risk and an exploded tile use the same red icon" do
       g = Game.new(seed: {1, 2, 3}, fortune: false)
-      bar = render_component(&GameComponents.reward_line/1, game: g)
+      bar = render_component(&BarComponents.reward_line/1, game: g)
       assert bar =~ ~r/class="text-ruby size-5"[^>]*data-icon="explosion"/
 
       g = Quacks.GameHelpers.put(g, exploded?: true)

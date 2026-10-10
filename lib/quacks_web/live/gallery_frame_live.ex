@@ -15,7 +15,7 @@ defmodule QuacksWeb.GalleryFrameLive do
   """
   use QuacksWeb, :live_view
 
-  import QuacksWeb.GameComponents, only: [fuse_meter: 1, reward_line: 1]
+  import QuacksWeb.BarComponents, only: [fuse_meter: 1, reward_line: 1]
 
   import QuacksWeb.TileComponents,
     only: [player_chip: 1, seat_loop: 1, loop_columns: 1, loop_start: 3, round_leaders: 1]
