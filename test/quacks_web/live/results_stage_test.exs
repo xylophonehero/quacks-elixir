@@ -1,18 +1,17 @@
-defmodule QuacksWeb.Round35EvalTest do
+defmodule QuacksWeb.ResultsStageTest do
   @moduledoc """
-  Round 35 (eval): the results stage (direction A) in the band above the bar's
-  buttons: one row per player for the step on show, the reason and the result
-  as icons; the bonus die rolls on its row; the last step is "Round scored".
+  The round results in the results stage over the bar: one row per player per step, the bonus die, Auto, rubies at the end, each choice on its own book step, the recap after the shop and the evaluation in the desktop context column.
   """
   use QuacksWeb.ConnCase, async: true
-
   import Phoenix.LiveViewTest
-
-  alias Quacks.{Game, GameServer}
+  import Quacks.GameHelpers, only: [replace_game: 2]
+  import QuacksWeb.LiveHelpers
+  import QuacksWeb.RevealHelpers
   alias Quacks.GameHelpers
+  alias Quacks.GameHelpers, as: H
+  alias Quacks.GameServer
+  alias Quacks.{Game, GameServer}
   alias QuacksWeb.{Reveal, TileReveal}
-
-  defp browser(token), do: init_test_session(build_conn(), player_token: token)
 
   defp to_phase(id, phases) do
     Enum.find_value(1..160, fn _ ->
@@ -48,7 +47,7 @@ defmodule QuacksWeb.Round35EvalTest do
 
   defp next(view), do: view |> element("[data-role=tile-next]") |> render_click()
 
-  describe "item 1: the results stage" do
+  describe "the results stage" do
     test "shows the first step at once, one row per player" do
       {_id, game, view} = duo()
       [first | _] = game |> Reveal.slides(0) |> TileReveal.slides()
@@ -151,7 +150,7 @@ defmodule QuacksWeb.Round35EvalTest do
     end
   end
 
-  describe "item 2: the bonus die rolls on its row" do
+  describe "the bonus die rolls on its row" do
     test "each roller's row ends with its dice; the others fade" do
       game = %{seats: [0, 1, 2], players: %{}}
 
@@ -197,7 +196,7 @@ defmodule QuacksWeb.Round35EvalTest do
     end
   end
 
-  describe "item 3: Auto is the default" do
+  describe "Auto is the default" do
     # The setting lives in this browser (`RevealSettings` in app.js): with nothing
     # saved it sends Auto; Step stays in the settings.
     test "app.js sends Auto when nothing is saved" do
@@ -221,7 +220,7 @@ defmodule QuacksWeb.Round35EvalTest do
 
   # Round 37: the rubies step follows the last step (the scoring space), since
   # "Round scored" moved to the recap after the shop.
-  describe "item 5: rubies at the results' end" do
+  describe "rubies at the results' end" do
     defp to_last_step(view, slides) do
       for _ <- 2..length(slides)//1, do: next(view)
       view
@@ -280,7 +279,7 @@ defmodule QuacksWeb.Round35EvalTest do
     end
   end
 
-  describe "items 6 and 7: each choice on its own book step" do
+  describe "each choice on its own book step" do
     # Seat 0 ends on a green 2 and a purple 1 (G2 and P2: choices) with one black
     # chip more than seat 1 (the Hawkmoth: a free droplet move, reverse pot side).
     defp choices_game(settings_first \\ true) do
@@ -413,7 +412,7 @@ defmodule QuacksWeb.Round35EvalTest do
     end
   end
 
-  describe "item 8: a chip as a result" do
+  describe "a chip as a result" do
     test "a chip with no value has its icon in the centre and no badge" do
       html = render_component(&QuacksWeb.ChipComponents.chip/1, chip: {:green, nil}, size: :sm)
       doc = LazyHTML.from_fragment(html)
@@ -424,6 +423,375 @@ defmodule QuacksWeb.Round35EvalTest do
         render_component(&QuacksWeb.ChipComponents.chip/1, chip: {:green, 2}, size: :sm)
 
       assert with_value =~ "chip-value"
+    end
+  end
+
+  defp to_phase_2(id, phases) do
+    Enum.find_value(1..200, fn _ ->
+      {:ok, %{game: game}} = GameServer.get(id)
+
+      if game.phase in phases do
+        game
+      else
+        seat = Enum.find(game.seats, &(Game.legal_actions(game, &1) -- [:resume] != []))
+        actions = Game.legal_actions(game, seat) -- [:resume]
+        pick = [:stop, :chip_done, {:explosion_choice, :vp}, :draw, {:buy, []}, :end_round]
+        {:ok, _} = GameServer.apply(id, seat, Enum.find(pick, hd(actions), &(&1 in actions)))
+        nil
+      end
+    end)
+  end
+
+  defp tiles_2(view) do
+    render_hook(view, "reveal_settings", %{
+      "mode" => "step",
+      "speed" => "normal",
+      "show" => "tiles"
+    })
+  end
+
+  # Two seats play round 1 to its end (the shop done), so round 2 begins.
+  defp round_two do
+    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+    {:ok, alice, _html} = live(browser("alice-#{id}"), ~p"/g/#{id}")
+    {:ok, _bob, _html} = live(browser("bob-#{id}"), ~p"/g/#{id}")
+    tiles_2(alice)
+    {:ok, _} = GameServer.begin(id, "alice-#{id}")
+    for _ <- 1..4, seat <- [0, 1], do: GameServer.apply(id, seat, :draw)
+    to_phase_2(id, [:shopping])
+    # Alice closes the round's results (on the tiles) and shops.
+    if has_element?(alice, "[data-role=tile-skip]"),
+      do: alice |> element("[data-role=tile-skip]") |> render_click()
+
+    for seat <- [0, 1] do
+      {:ok, _} = GameServer.apply(id, seat, {:buy, [{:orange, 1}]})
+      {:ok, %{game: g}} = GameServer.get(id)
+      if :end_round in Game.legal_actions(g, seat), do: GameServer.apply(id, seat, :end_round)
+    end
+
+    {:ok, %{game: game}} = GameServer.get(id)
+    assert game.round == 2
+    {id, game, alice}
+  end
+
+  describe "one row grid for every panel" do
+    test "columns: one per kind of result, in a fixed order" do
+      rows = [
+        %{seat: 0, why: [], got: [vp: 2, coins: 6], none: false, lead: false},
+        %{seat: 1, why: [], got: [rubies: 1], none: false, lead: false},
+        %{seat: 2, why: [], got: [:choosing], none: false, lead: false}
+      ]
+
+      assert TileReveal.columns(rows) == [:coins, :vp, :rubies]
+    end
+
+    test "the scoring space: every row has a cell in each column" do
+      {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, view, _html} = live(browser("alice-#{id}"), ~p"/g/#{id}")
+      {:ok, _} = GameServer.begin(id, "alice-#{id}")
+      for _ <- 1..4, seat <- [0, 1], do: GameServer.apply(id, seat, :draw)
+      game = to_phase_2(id, [:shopping])
+      tiles_2(view)
+      slides = game |> Reveal.slides(0) |> TileReveal.slides()
+      for _ <- 2..length(slides)//1, do: next(view)
+
+      assert has_element?(view, "#results-stage[data-kind=space] ol.stage-grid")
+      space = List.last(slides)
+      cols = game |> TileReveal.stage_rows(space) |> TileReveal.columns()
+
+      for s <- game.seats, col <- cols do
+        assert has_element?(
+                 view,
+                 "#results-stage [data-role=stage-row][data-seat='#{s}'] [data-role=stage-got][data-col=#{col}]"
+               )
+      end
+    end
+
+    test "Round scored rows know how many places they moved (FLIP)" do
+      slide = %{
+        kind: :standings,
+        rows: [
+          %{seat: 0, from_rank: 0, rank: 1, from_vp: 5, vp: 6},
+          %{seat: 1, from_rank: 1, rank: 0, from_vp: 4, vp: 9}
+        ]
+      }
+
+      assert [%{seat: 1, shift: 1, lead: true}, %{seat: 0, shift: -1}] =
+               TileReveal.stage_rows(%{seats: [0, 1]}, slide)
+    end
+  end
+
+  describe "the recap after the shop" do
+    test "recap_slides: the shop, then Round scored of the last round" do
+      {_id, game, _view} = round_two()
+
+      assert [%{kind: :shop, round: 1} = shop, %{kind: :standings, round: 1} = standings] =
+               Reveal.recap_slides(game)
+
+      assert Enum.all?(shop.rows, &({:orange, 1} in &1.chips))
+
+      for row <- standings.rows,
+          do: assert(row.vp == Game.player(game, row.seat).vp)
+    end
+
+    test "no recap in round 1, in the shop or at the game's end" do
+      game = Game.new(seed: {1, 2, 3}, players: 1, fortune: false)
+      assert Reveal.recap_slides(game) == []
+      assert Reveal.recap_slides(%{game | round: 3, phase: :shopping}) == []
+      assert Reveal.recap_slides(%{game | round: 9, phase: :over}) == []
+    end
+
+    test "a shop where nobody bought anything has no step" do
+      game = Game.new(seed: {1, 2, 3}, players: 2, fortune: false)
+      assert [%{kind: :standings}] = Reveal.recap_slides(%{game | round: 2})
+    end
+
+    test "the round begins with the shop step, then Round scored, then the round" do
+      {id, _game, view} = round_two()
+
+      assert has_element?(view, "#results-stage[data-kind=shop]")
+      assert has_element?(view, "[data-role=tile-step]", "Shop")
+      assert has_element?(view, "#results-stage [data-role=stage-row] [data-cell=chips]")
+
+      next(view)
+      assert has_element?(view, "#results-stage[data-kind=standings]")
+      assert has_element?(view, "#results-stage [data-cell=total]")
+      assert has_element?(view, "[data-role=tile-next]", "Next round")
+
+      next(view)
+      refute has_element?(view, "#results-stage")
+      assert {:ok, %{seen: %{0 => %{recap: 1}}}} = GameServer.get(id)
+
+      # Seen: a reload does not show it again.
+      {:ok, again, _html} = live(browser("alice-#{id}"), ~p"/g/#{id}")
+      tiles_2(again)
+      refute has_element?(again, "#results-stage")
+    end
+  end
+
+  describe "Take a Chance shows every roll" do
+    test "card_reveals: a row per seat with its face and what it gave" do
+      game = Game.new(seed: {1, 2, 3}, players: 2, fortune: false)
+
+      game = %{
+        game
+        | fortune_card: :p12,
+          log: [{1, {:fortune, :p12, :ruby}}, {0, {:fortune, :p12, {:vp, 2}}} | game.log]
+      }
+
+      assert %{0 => %{die: {:vp, 2}, gains: [{:vp, 2}]}, 1 => %{die: :ruby, gains: [rubies: 1]}} =
+               Reveal.card_reveals(game)
+    end
+
+    test "after the card, the panel shows each seat's die" do
+      {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, view, _html} = live(browser("alice-#{id}"), ~p"/g/#{id}")
+      {:ok, _bob, _html} = live(browser("bob-#{id}"), ~p"/g/#{id}")
+      {:ok, _} = GameServer.begin(id, "alice-#{id}")
+
+      GameHelpers.replace_game(id, fn g ->
+        %{
+          g
+          | fortune_card: :p12,
+            log: [{1, {:fortune, :p12, :droplet}}, {0, {:fortune, :p12, {:vp, 1}}} | g.log]
+        }
+      end)
+
+      render_click(view, "card_tap", %{})
+      _ = render(view)
+
+      assert has_element?(view, "[data-role=card-stage][data-card=p12] [data-role=reveal-die]")
+
+      for s <- [0, 1],
+          do: assert(has_element?(view, "[data-role=card-reveal-row][data-seat='#{s}']"))
+    end
+  end
+
+  describe "Flea Market waits after the choice" do
+    test "after the trade the card stays with everyone's rows and Continue" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3})
+      {:ok, view, _html} = live(browser("solo"), ~p"/g/#{id}")
+
+      GameHelpers.replace_game(id, fn g ->
+        g
+        |> GameHelpers.put(0, bag: [{:green, 1}, {:white, 1}, {:orange, 1}, {:red, 1}])
+        |> GameHelpers.put(0, drawn: [], pending: [])
+        |> GameHelpers.put(fortune_deck: [:p13], round: 2)
+        |> Game.start_round()
+      end)
+
+      skip_results(view)
+
+      {:ok, %{game: game}} = GameServer.get(id)
+      trade = Enum.find(Game.legal_actions(game, 0), &match?({:fortune, {:upgrade, _}}, &1))
+      render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode(trade)})
+      {:ok, %{game: game}} = GameServer.get(id)
+      assert Game.player(game, 0).phase == :potions
+
+      assert has_element?(view, "[data-role=card-stage][data-card=p13]")
+      assert has_element?(view, "[data-role=card-reveal-row][data-seat='0']")
+    end
+  end
+
+  describe "the final scores in columns" do
+    test "each part has its column and rows that moved say so" do
+      {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, %{fortune: false})
+      {:ok, view, _html} = live(browser("alice-#{id}"), ~p"/g/#{id}")
+      {:ok, _bob, _html} = live(browser("bob-#{id}"), ~p"/g/#{id}")
+      {:ok, _} = GameServer.begin(id, "alice-#{id}")
+
+      GameHelpers.replace_game(id, fn g ->
+        g
+        |> GameHelpers.put(0, vp: 30)
+        |> GameHelpers.put(1, vp: 31)
+        |> Map.put(:phase, :over)
+        |> Map.put(:round, 9)
+        |> Map.put(:log, [
+          {1, {:final_conversion, 10, 2, 2, 1}},
+          {0, {:final_conversion, 0, 0, 0, 0}} | g.log
+        ])
+      end)
+
+      _ = render(view)
+      # Seat 1: 28 + 3 = 31 passes seat 0's 30 (round 9 order: 30, 28): it moves up one place.
+      assert has_element?(view, "[data-role=final-score][data-seat='1'][data-shift='1']")
+      assert has_element?(view, "[data-role=final-score][data-seat='0'][data-shift='-1']")
+      assert has_element?(view, "[data-role=final-score] [data-col=coins]")
+      assert has_element?(view, "[data-role=final-score] [data-col=rubies]")
+    end
+  end
+
+  defp herb_solo do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false}, :herb_witches)
+    {:ok, view, _html} = live(browser("r39-#{System.unique_integer()}"), ~p"/g/#{id}")
+    {id, view}
+  end
+
+  # A solo game in the shop phase of round 1: the results wait to play.
+  defp solo_results do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+    {:ok, view, _html} = live(browser("r39-solo-#{System.unique_integer()}"), ~p"/g/#{id}")
+
+    replace_game(id, fn g ->
+      g = put_in(g.players[0].drawn, [{{:green, 1}, 12}, {{:purple, 1}, 11}])
+      g = %{g | log: [{0, {:purple, 1, :vp}}, {0, {:green_rubies, 1}}, {:round_end, 0}]}
+      H.put(g, 0, phase: :shop, coins: 10)
+    end)
+
+    {id, view}
+  end
+
+  # A desktop browser's settings (no phone flag since round 39).
+  defp desktop(view),
+    do: render_hook(view, "reveal_settings", %{"mode" => "step", "speed" => "normal"})
+
+  describe "the evaluation in the context column" do
+    test "a desktop browser plays the steps in the results stage over the bar, no overlay" do
+      {_id, view} = solo_results()
+      desktop(view)
+
+      refute has_element?(view, "[data-role=reveal]")
+      refute has_element?(view, "dialog[id^=reveal-]")
+      assert has_element?(view, "footer[data-area=bar] #results-stage")
+      assert has_element?(view, "footer[data-area=bar] #tile-stage [data-role=tile-skip]")
+      assert has_element?(view, "footer[data-area=bar] #tile-stage [data-role=tile-next]")
+
+      # Next steps through to the shop panel in the context column.
+      Enum.find(1..10, fn _ ->
+        view |> element("[data-role=tile-next]") |> render_click()
+        not has_element?(view, "#tile-stage")
+      end)
+
+      refute has_element?(view, "#results-stage")
+      assert has_element?(view, "[data-role=side-column] dialog#decision-shop[data-side=panel]")
+    end
+
+    test "the menu has no Results choice any more" do
+      {_id, view} = solo_results()
+      refute has_element?(view, "#reveal-settings [name=show]")
+      refute has_element?(view, "#reveal-settings [name=phone]")
+      refute has_element?(view, "#reveal-settings", "Overlay")
+    end
+  end
+
+  describe "no results panel next to the stage" do
+    test "the context column has no evaluation list while the steps play" do
+      {_id, view} = solo_results()
+      desktop(view)
+
+      assert has_element?(view, "#results-stage")
+      refute has_element?(view, "[data-role=results-panel]")
+      refute has_element?(view, "[data-role=result-row]")
+    end
+  end
+
+  describe "the left column" do
+    test "the books and the witches are folded blocks, closed by default" do
+      {_id, view} = herb_solo()
+
+      assert has_element?(view, "#left-column.hidden.xl\\:flex[data-area=books]")
+      assert has_element?(view, "#left-column > details#books-column:not([open])")
+      assert has_element?(view, "#left-column > details#witches-column:not([open])")
+
+      assert has_element?(
+               view,
+               "#witches-column > summary[data-role=fold-title]",
+               "Herb witches"
+             )
+
+      # The page keeps a fold open across patches.
+      assert has_element?(view, ~s(#witches-column[phx-mounted*="ignore_attrs"]))
+      assert has_element?(view, ~s(#books-column[phx-mounted*="ignore_attrs"]))
+
+      for witch <- ~w(s2 c4 g4),
+          do: assert(has_element?(view, "#witches-column [data-witch=#{witch}]"))
+    end
+
+    test "a witch is called from the left column; the title counts the calls" do
+      {_id, view} = herb_solo()
+
+      assert has_element?(view, "#witches-column [data-role=witches-callable]", "1 to call")
+
+      view |> element("#witches-column [data-witch=s2] button", "Call") |> render_click()
+
+      assert has_element?(
+               view,
+               "#bar-pick-witch_offer [data-role=info-row]",
+               "The silver witch drew:"
+             )
+
+      refute has_element?(view, "#witches-column [data-role=witches-callable]")
+    end
+
+    test "from 80rem the context column's witches sheet hides (app.css)" do
+      {_id, view} = herb_solo()
+      assert has_element?(view, "[data-role=side-column] > #sheet-witches.sheet-left-xl")
+      # 64-80rem: the title is light on the dark column.
+      assert has_element?(view, "#sheet-witches [data-role=witches-title].lg\\:text-parchment")
+
+      css = File.read!("assets/css/app.css")
+      assert css =~ ~s([data-role="side-column"] > .sheet-inline-lg.sheet-left-xl)
+    end
+
+    test "no herb witches: no witches fold" do
+      {_id, view} = solo_results()
+      assert has_element?(view, "#left-column > #books-column")
+      refute has_element?(view, "#witches-column")
+    end
+  end
+
+  describe "one list of a card's results" do
+    test "Take a Chance has no old list of rolls in the context column" do
+      {id, view} = herb_solo()
+
+      replace_game(id, fn g ->
+        %{g | fortune_card: :p12, log: [{0, {:fortune, :p12, {:vp, 2}}} | g.log]}
+      end)
+
+      refute has_element?(view, "[data-role=chance-panel]")
+      css = File.read!("assets/css/app.css")
+      refute css =~ ".chance-row"
+      refute css =~ ".results-panel"
     end
   end
 end
