@@ -186,8 +186,10 @@ mix test --only snapshot                      # compare
 UPDATE_SNAPSHOTS=1 mix test --only snapshot   # write them again (and delete stale ones)
 ```
 
-A failure names the story, shows the changed lines and writes the new HTML to
-the tmp dir. A refactor must leave every snapshot the same; a change that is
+Plain `mix test` leaves them out (`test_helper.exs`); `mix precommit` runs them
+as its last step. In one run with the rest of the suite they made lobby tests
+time out now and then (October 2026, cause not found). A failure names the
+story, shows the changed lines and writes the new HTML to the tmp dir. A refactor must leave every snapshot the same; a change that is
 meant to show must list the changed snapshots in its PR.
 
 ## `mix precommit`
