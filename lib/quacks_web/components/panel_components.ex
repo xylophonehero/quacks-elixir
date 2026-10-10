@@ -7,6 +7,9 @@ defmodule QuacksWeb.PanelComponents do
   """
   use Phoenix.Component
 
+  import QuacksWeb.CoreComponents, only: [button: 1]
+  import QuacksWeb.ActionCode
+
   alias Phoenix.LiveView.JS
   alias Quacks.Game
   alias Quacks.Rules.{Books, Chips}
@@ -825,4 +828,63 @@ defmodule QuacksWeb.PanelComponents do
     <p id="announcer" class="sr-only" aria-live="polite" data-role="announcer">{@line}</p>
     """
   end
+
+  @doc "The witches as `{penny colour, id}`, in the order of the rulebook's pennies: copper, silver, gold (round 14)."
+  @spec witches(Game.t()) :: [{atom, atom}]
+  def witches(game), do: for(c <- [:copper, :silver, :gold], do: {c, game.witches[c]})
+
+  @doc """
+  The 3 witch cards with their call buttons: the witches sheet (the context
+  column from 64rem) and, from 80rem, the left column (round 39).
+  """
+  attr :game, Game, required: true
+  attr :me, :any, required: true
+  attr :seat, :any, required: true
+  attr :actions, :list, required: true
+  attr :class, :any, default: nil
+
+  def witches_list(assigns) do
+    ~H"""
+    <section class={["space-y-2", @class]} aria-label="Herb witches">
+      <.witch_card
+        :for={{colour, id} <- witches(@game)}
+        id={id}
+        spent={@me != nil and not @me.pennies[colour]}
+      >
+        <div :if={@seat} class="flex flex-wrap gap-2 *:min-h-11">
+          <.button
+            :for={action <- calls(@actions, colour)}
+            phx-click="action"
+            phx-value-action={encode(action)}
+            variant={:secondary}
+          >
+            {call_text(action)}
+          </.button>
+        </div>
+      </.witch_card>
+    </section>
+    """
+  end
+
+  @doc "How many witches this seat can call now (the left column's title says so)."
+  @spec callable_witches(Game.t(), [Game.action()]) :: non_neg_integer
+  def callable_witches(game, actions),
+    do: Enum.count(witches(game), fn {colour, _id} -> calls(actions, colour) != [] end)
+
+  @doc """
+  The calls a witch card offers: the plain call, and S3's two choices. Choices
+  that belong to a dialog (S2's offer, the copper choices in the shop) stay there.
+  """
+  @spec calls([Game.action()], atom) :: [Game.action()]
+  def calls(actions, colour) do
+    Enum.filter(actions, fn
+      {:witch, ^colour} -> true
+      {:witch, ^colour, n} -> is_integer(n)
+      _ -> false
+    end)
+  end
+
+  defp call_text({:witch, _colour}), do: "Call"
+  defp call_text({:witch, _colour, 1}), do: "Call: the last white back"
+  defp call_text({:witch, _colour, n}), do: "Call: the last #{n} whites back"
 end

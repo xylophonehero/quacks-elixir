@@ -5,7 +5,7 @@ defmodule QuacksWeb.GameLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Chips
-  alias QuacksWeb.{ActionCode, GameLive, GameText, PotComponents}
+  alias QuacksWeb.{ActionCode, BarComponents, GameText, PotComponents}
 
   @pot_chip "[data-role=pot-chip]"
 
@@ -234,7 +234,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert Game.legal_actions(game) == [{:place, {:white, 1}}, :return_all]
 
     html =
-      render_component(&GameLive.chip_picks/1,
+      render_component(&BarComponents.chip_picks/1,
         actions: Game.legal_actions(game),
         pool: game.players[0].pending,
         game: game,
@@ -306,7 +306,7 @@ defmodule QuacksWeb.GameLiveTest do
     assert html |> LazyHTML.query("[data-role=shop-row] [aria-label]") |> Enum.count() ==
              length(Chips.shop())
 
-    assert GameLive.shop_rows() |> List.flatten() |> Enum.sort() == Chips.shop()
+    assert BarComponents.shop_rows() |> List.flatten() |> Enum.sort() == Chips.shop()
     # no visible checkboxes: each box is hidden inside its tile, with a check glyph
     assert html |> LazyHTML.query("#shop input[type=checkbox]:not(.sr-only)") |> Enum.empty?()
 

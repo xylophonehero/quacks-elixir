@@ -149,14 +149,18 @@ defmodule QuacksWeb.UiRound4Test do
     offer = [[{:white, 1}, {:red, 2}], [{:place, {:blue, 1}}, :return_all, {:rubies, 2}]]
 
     html =
-      render_component(&QuacksWeb.GameLive.offer_books/1, id: "books-x", game: game, offer: offer)
+      render_component(&QuacksWeb.BarComponents.offer_books/1,
+        id: "books-x",
+        game: game,
+        offer: offer
+      )
 
     assert html =~ ~s(popovertarget="books-x")
     assert html =~ ~s(data-book="red-2")
     assert html =~ ~s(data-book="blue-1")
     refute html =~ ~s(data-book="white)
 
-    assert render_component(&QuacksWeb.GameLive.offer_books/1,
+    assert render_component(&QuacksWeb.BarComponents.offer_books/1,
              id: "y",
              game: game,
              offer: [:stop]

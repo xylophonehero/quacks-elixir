@@ -26,7 +26,14 @@ defmodule QuacksWeb.GalleryFrameLive do
 
   import QuacksWeb.ChipComponents, only: [chip: 1]
 
-  alias QuacksWeb.{CardRevealComponents, GameLive, TileRevealComponents, TipComponents}
+  alias QuacksWeb.{
+    BarComponents,
+    CardRevealComponents,
+    GameLive,
+    TileRevealComponents,
+    TipComponents
+  }
+
   alias QuacksWeb.Gallery.Stories
 
   # The choices that put an info row in the fuse row's place (as `GameLive` does).
@@ -173,7 +180,7 @@ defmodule QuacksWeb.GalleryFrameLive do
     ~H"""
     <.bottom tip={@tip && @tip.key}>
       <:context :if={@crow?}>
-        <GameLive.crow_panel actions={@actions} game={@game} me={@me} />
+        <BarComponents.crow_panel actions={@actions} game={@game} me={@me} />
       </:context>
       <div class="game-tray">
         <TipComponents.tip_card :if={@tip} tip={@tip} class={tip_shift(@tip.key)} />
@@ -186,7 +193,7 @@ defmodule QuacksWeb.GalleryFrameLive do
         <.fuse_meter game={@game} seat={@seat} />
         <.reward_line game={@game} seat={@seat} />
       </div>
-      <GameLive.bar_choice
+      <BarComponents.bar_choice
         :if={@choice}
         choice={@choice}
         actions={@actions}

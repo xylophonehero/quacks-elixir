@@ -11,7 +11,7 @@ defmodule QuacksWeb.Layout1Test do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{GameLive, PotComponents, TileComponents}
+  alias QuacksWeb.{BarComponents, PotComponents, TileComponents}
 
   defp query(html, selector), do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
   defp count(html, selector), do: html |> query(selector) |> Enum.count()
@@ -216,7 +216,7 @@ defmodule QuacksWeb.Layout1Test do
       assert Chips.order() -- [:white] ==
                [:orange, :blue, :red, :yellow, :green, :black, :purple, :locoweed]
 
-      rows = GameLive.shop_rows(nil, %{locoweed: 1})
+      rows = BarComponents.shop_rows(nil, %{locoweed: 1})
       assert Enum.map(rows, &elem(hd(&1), 0)) == Chips.order() -- [:white]
 
       assert Enum.map(Books.in_play(nil, %{locoweed: 1}), &elem(&1, 0)) ==

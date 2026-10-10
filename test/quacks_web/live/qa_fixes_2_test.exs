@@ -13,7 +13,7 @@ defmodule QuacksWeb.QaFixes2Test do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{AlchemistsComponents, GameLive, PanelComponents}
+  alias QuacksWeb.{AlchemistsComponents, BarComponents, PanelComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -157,7 +157,7 @@ defmodule QuacksWeb.QaFixes2Test do
     actions = for colour <- [:blue, :red, :yellow], do: {:fortune, {:take, {colour, 4}}}
 
     html =
-      render_component(&GameLive.chip_picks/1,
+      render_component(&BarComponents.chip_picks/1,
         actions: [{:fortune, :vp} | actions],
         game: game,
         me: game.players[0]

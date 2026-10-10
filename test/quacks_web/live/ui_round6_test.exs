@@ -10,7 +10,7 @@ defmodule QuacksWeb.UiRound6Test do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{ActionCode, GameLive}
+  alias QuacksWeb.{ActionCode, BarComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -79,7 +79,11 @@ defmodule QuacksWeb.UiRound6Test do
     actions = Game.legal_actions(game, 0)
 
     html =
-      render_component(&GameLive.chip_picks/1, actions: actions, game: game, me: game.players[0])
+      render_component(&BarComponents.chip_picks/1,
+        actions: actions,
+        game: game,
+        me: game.players[0]
+      )
 
     chips =
       html

@@ -41,7 +41,9 @@ defmodule QuacksWeb.Round33ContextTest do
           render_component(
             fn assigns ->
               ~H"""
-              <QuacksWeb.GameLive.choice_grid count={@n}><span>x</span></QuacksWeb.GameLive.choice_grid>
+              <QuacksWeb.BarComponents.choice_grid count={@n}>
+                <span>x</span>
+              </QuacksWeb.BarComponents.choice_grid>
               """
             end,
             n: n

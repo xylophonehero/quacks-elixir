@@ -12,7 +12,7 @@ defmodule QuacksWeb.QaFixesTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{GameLive, GameText, PanelComponents}
+  alias QuacksWeb.{BarComponents, GameText, PanelComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -126,7 +126,7 @@ defmodule QuacksWeb.QaFixesTest do
 
   describe "B6: a white pick that takes the pot over the limit" do
     defp picks_html(game, actions, pool) do
-      render_component(&GameLive.chip_picks/1,
+      render_component(&BarComponents.chip_picks/1,
         actions: actions,
         pool: pool,
         game: game,

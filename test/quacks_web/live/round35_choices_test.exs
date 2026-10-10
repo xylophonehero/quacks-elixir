@@ -86,7 +86,7 @@ defmodule QuacksWeb.Round35ChoicesTest do
       # witch acts there), so the shop itself is checked here.
       {id, _view} = solo(%{})
       game = replace_game(id, &H.put(&1, phase: :shop, coins: 2))
-      html = render_component(&QuacksWeb.GameLive.shop/1, game: game, seat: 0, selected: [])
+      html = render_component(&QuacksWeb.BarComponents.shop/1, game: game, seat: 0, selected: [])
       doc = LazyHTML.from_fragment(html)
 
       assert doc |> LazyHTML.query("[data-role=shop-done]") |> LazyHTML.text() =~ "Nothing to buy"

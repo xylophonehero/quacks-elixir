@@ -5,7 +5,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.{Chips, Witches}
-  alias QuacksWeb.{GameLive, GameText, SetupComponents}
+  alias QuacksWeb.{BarComponents, GameText, SetupComponents}
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "hw-#{System.unique_integer()}")}
@@ -111,7 +111,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
              "Call the copper witch"
            )
 
-    assert GameLive.shop_rows(:herb_witches) |> List.flatten() |> Enum.sort() ==
+    assert BarComponents.shop_rows(:herb_witches) |> List.flatten() |> Enum.sort() ==
              Chips.shop(:herb_witches)
   end
 

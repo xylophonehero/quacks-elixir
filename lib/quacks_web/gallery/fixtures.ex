@@ -66,7 +66,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
         "bar",
         "Bottom context bar",
         520,
-        "the bar: Draw/Stop, GameLive.bar_choice/1, TipComponents.tip_card/1",
+        "the bar: Draw/Stop, BarComponents.bar_choice/1, TipComponents.tip_card/1",
         bar_variants()
       ),
       component(
@@ -334,7 +334,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
     ]
   end
 
-  # `choice`: the `GameLive.bar_choice/1` the page shows for the seat's phase.
+  # `choice`: the `BarComponents.bar_choice/1` the page shows for the seat's phase.
   defp bar(g, opts \\ []) do
     me = g.players[0]
     actions = Game.legal_actions(g, 0)
