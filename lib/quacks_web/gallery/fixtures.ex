@@ -325,6 +325,10 @@ defmodule QuacksWeb.Gallery.Fixtures do
       {"crow-5", "Crow skull: 5 chips (the 5th by hand)", fn -> crow(5) end},
       {"mandrake", "Mandrake: put the white chip back?", &mandrake/0},
       {"explosion", "Exploded: VP or coins", fn -> bar(draws(new(1), 0, boom())) end},
+      {"explosion-silver-witch", "Exploded with the silver witch (Herb Witches)",
+       fn ->
+         bar(draws(new(1, expansions: [:herb_witches], witches: %{silver: :s4}), 0, boom()))
+       end},
       {"chip-choice", "Chip choice: green book II", &chip_choice/0},
       {"rubies-gold-witch", "Rubies with the gold witch (Herb Witches)", &rubies_g4/0},
       {"tip-brew", "Hint: first brew", fn -> tip(draws(new(1), 0, mid_brew()), "brew") end},

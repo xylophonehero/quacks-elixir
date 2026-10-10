@@ -270,6 +270,62 @@ defmodule Quacks.Scenarios.Builders do
   # -- other rules -------------------------------------------------------------------------
 
   @doc """
+  A crow skull chain (blue book 1): you buy crow skulls in every shop until one
+  draws another crow skull. 2 players. Steps: offer (the first offer has a crow
+  skull), chain (you placed it: its own offer replaces the first) and placed (you
+  placed a chip from the second offer).
+  """
+  @spec crow_chain(keyword) :: {:ok, Script.t()} | {:error, term}
+  def crow_chain(opts \\ []) do
+    blue? = &match?({:blue, _}, &1)
+
+    offer? = fn g ->
+      Game.phase(g, 0) == :blue_choice and Enum.any?(Game.player(g, 0).pending, blue?)
+    end
+
+    me = fn g, legal -> crow_move(Game.phase(g, 0), g, legal, blue?) end
+
+    search(opts, fn seed ->
+      s = Script.new(seed, 2, sets: %{blue: 1}, rules: %{fortune: false})
+      s = Script.play(s, offer?, me: me)
+      round = Script.game(s).round
+      first = Game.player(Script.game(s), 0).pending
+      crow = Enum.find(first, blue?)
+
+      s
+      |> mark("offer", opts,
+        note: "The crow skull's offer has another crow skull (#{chip_name(crow)}).",
+        check: offer?,
+        sees: ["[data-role=bar-blue] [data-pool-chip]"]
+      )
+      |> Script.act(0, {:place, crow})
+      |> mark("chain", opts,
+        note: "That crow skull draws its own offer: only its chips are on the cloth.",
+        check: fn g ->
+          p = Game.player(g, 0)
+          (p.phase == :blue_choice and crow in Game.pot_chips(g, 0)) or "no second offer"
+        end,
+        sees: ["[data-role=bar-blue] [data-pool-chip]"]
+      )
+      |> then(fn s -> Script.act(s, 0, {:place, hd(Game.player(Script.game(s), 0).pending)}) end)
+      |> mark("placed", opts,
+        note: "You placed a chip from the second offer.",
+        check: fn g -> Game.player(g, 0).pending == [] end
+      )
+      |> results(round, Keyword.put(opts, :me, me))
+    end)
+  end
+
+  # You: in the shop, the buy with the most crow skulls; else as a book scenario.
+  defp crow_move(:shop, _g, legal, blue?) do
+    legal
+    |> Enum.filter(&match?({:buy, _}, &1))
+    |> Enum.max_by(fn {:buy, chips} -> Enum.count(chips, blue?) end, fn -> nil end)
+  end
+
+  defp crow_move(phase, g, legal, _blue?), do: chip_move(phase, g, legal, nil)
+
+  @doc """
   The reverse pot side in round 9: you keep your rubies until round 9's shop, then
   move the test-tube droplet with 2 of them. 2 players. Steps: shop (round 9's
   shop), tube (the glass paid its bonus) and final (the game is over).

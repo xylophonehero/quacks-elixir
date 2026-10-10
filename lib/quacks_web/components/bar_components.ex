@@ -263,11 +263,16 @@ defmodule QuacksWeb.BarComponents do
   attr :me, Player, required: true
 
   def crow_panel(assigns) do
-    assigns = assign(assigns, chips: crow_chips(assigns), skip?: :return_all in assigns.actions)
+    assigns =
+      assign(assigns,
+        chips: crow_chips(assigns),
+        offer: crow_offer(assigns.me),
+        skip?: :return_all in assigns.actions
+      )
 
     ~H"""
     <section
-      id={"crow-panel-#{@game.round}"}
+      id={"crow-panel-#{@game.round}-#{@offer}"}
       phx-hook=".FromBag"
       class="paper hidden shrink-0 flex-col gap-3 rounded-2xl border-4 border-iron p-3 text-ink lg:flex"
       aria-label="Crow skull: place one chip in the pot, or return them all to the bag"
@@ -286,7 +291,7 @@ defmodule QuacksWeb.BarComponents do
         <span class="blue-cloth absolute inset-0 rounded-xl" aria-hidden="true" />
         <button
           :for={c <- @chips}
-          id={"crow-chip-#{@game.round}-#{c.id}"}
+          id={"crow-chip-#{@game.round}-#{@offer}-#{c.id}"}
           type="button"
           phx-click={c.action && "action"}
           phx-value-action={c.action && encode(c.action)}
@@ -314,6 +319,11 @@ defmodule QuacksWeb.BarComponents do
     </section>
     """
   end
+
+  # Round 42 (Nick: blank spaces in a chain): a crow skull placed from an offer
+  # starts a new offer. The offer's elements get new ids (the pot's chip count), so
+  # the `.FromBag` hook mounts again and no chip keeps the old offer's fade-out.
+  defp crow_offer(%Player{drawn: drawn}), do: length(drawn)
 
   # The crow skull's drawn chips, each with its action (nil: it cannot go in now).
   defp crow_chips(%{actions: actions, game: game, me: me}) do
@@ -378,12 +388,21 @@ defmodule QuacksWeb.BarComponents do
 
   def bar_choice(%{choice: :explosion_choice} = assigns) do
     space = PotTrack.at(Player.scoring_index(assigns.me))
-    assigns = assign(assigns, space: space, final?: assigns.game.round == 9)
+
+    assigns =
+      assign(assigns,
+        space: space,
+        final?: assigns.game.round == 9,
+        witch?: s4_call?(assigns.game, assigns.actions)
+      )
 
     ~H"""
     <section
       id={"bar-explosion-#{@game.round}"}
-      class="bar-choice bar-choice-late grid grid-cols-2 gap-2 *:min-h-12 *:touch-manipulation"
+      class={[
+        "bar-choice bar-choice-late grid gap-2 *:min-h-12 *:touch-manipulation",
+        if(@witch?, do: "grid-cols-3", else: "grid-cols-2")
+      ]}
       aria-label="Your pot exploded: take the victory points or the coins"
       data-role="bar-explosion"
     >
@@ -396,9 +415,11 @@ defmodule QuacksWeb.BarComponents do
         data-choice="vp"
       >
         <span class="flex items-center gap-1 text-base">
-          <.piece_icon name={:vp} class="size-5" /> Take VP +{@space.vp}
+          <.piece_icon name={:vp} class="size-5" /> {if @witch?, do: "VP", else: "Take VP"} +{@space.vp}
         </span>
-        <span class="text-xs font-normal opacity-80">Score now, no coins</span>
+        <span class="text-xs font-normal opacity-80">
+          {if @witch?, do: "No coins", else: "Score now, no coins"}
+        </span>
       </.button>
       <.button
         phx-click="action"
@@ -409,11 +430,29 @@ defmodule QuacksWeb.BarComponents do
         data-choice="buy"
       >
         <span class="flex items-center gap-1 text-base">
-          <.piece_icon name={:coin} class="size-5" /> Take coins {@space.coins}
+          <.piece_icon name={:coin} class="size-5" />
+          {if @witch?, do: "Coins", else: "Take coins"} {@space.coins}
         </span>
         <span class="text-xs font-normal opacity-80">
           {if @final?, do: "Turn into VP at the end", else: "Shop, no VP"}
         </span>
+      </.button>
+      <%!-- Round 42 (Nick): the silver witch "No explosion penalty" (S4): VP and
+           coins, as if the pot did not explode. As the gold witch in the rubies bar. --%>
+      <.button
+        :if={@witch?}
+        phx-click="action"
+        phx-value-action={encode({:witch, :silver})}
+        variant={:secondary}
+        class="flex-col gap-0! px-2! py-1! leading-tight"
+        aria-label="Call the silver witch: no explosion penalty, take the VP and the coins"
+        title="Call the silver witch: no explosion penalty, take the VP and the coins"
+        data-role="explosion-witch"
+      >
+        <span class="flex items-center gap-1 text-base">
+          <.piece_icon name={:witch} class="size-5 text-penny-silver" /> Witch
+        </span>
+        <span class="text-xs font-normal opacity-80">VP and coins</span>
       </.button>
     </section>
     """
@@ -821,11 +860,16 @@ defmodule QuacksWeb.BarComponents do
   # choice is a panel in the context column (`crow_panel/1`) and the bar keeps
   # Stop and Draw (disabled) with the white track.
   def bar_choice(%{choice: :blue_choice} = assigns) do
-    assigns = assign(assigns, chips: crow_chips(assigns), skip?: :return_all in assigns.actions)
+    assigns =
+      assign(assigns,
+        chips: crow_chips(assigns),
+        offer: crow_offer(assigns.me),
+        skip?: :return_all in assigns.actions
+      )
 
     ~H"""
     <section
-      id={"bar-blue-#{@game.round}"}
+      id={"bar-blue-#{@game.round}-#{@offer}"}
       phx-hook=".FromBag"
       phx-remove={JS.transition("bar-to-bag", time: 520)}
       class="bar-choice flex flex-col gap-1.5 lg:hidden"
@@ -877,7 +921,7 @@ defmodule QuacksWeb.BarComponents do
           />
           <button
             :for={c <- @chips}
-            id={"blue-chip-#{@game.round}-#{c.id}"}
+            id={"blue-chip-#{@game.round}-#{@offer}-#{c.id}"}
             type="button"
             phx-click={c.action && "action"}
             phx-value-action={c.action && encode(c.action)}
@@ -1431,6 +1475,10 @@ defmodule QuacksWeb.BarComponents do
   """
   def g4_call?(%Game{witches: %{gold: :g4}}, actions), do: {:witch, :gold} in actions
   def g4_call?(_game, _actions), do: false
+
+  @doc "Round 42: can the seat call the silver witch \"No explosion penalty\" (S4) now?"
+  def s4_call?(%Game{witches: %{silver: :s4}}, actions), do: {:witch, :silver} in actions
+  def s4_call?(_game, _actions), do: false
 
   # What a ruby use costs now: 2 rubies -> 1 VP is always 2.
   defp ruby_cost(:vp, _me), do: 2
