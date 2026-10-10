@@ -89,8 +89,12 @@ defmodule QuacksWeb.UiSnapshotTest do
         expected = File.read!(path)
 
         if expected != html do
+          actual = Path.join([System.tmp_dir!(), "quacks-snapshots", name <> ".html"])
+          File.mkdir_p!(Path.dirname(actual))
+          File.write!(actual, html)
+
           flunk("""
-          snapshot #{name} changed (#{Path.relative_to_cwd(path)}):
+          snapshot #{name} changed (#{Path.relative_to_cwd(path)}; now: #{actual}):
           #{diff(expected, html)}
           UPDATE_SNAPSHOTS=1 mix test --only snapshot accepts the change.
           """)
