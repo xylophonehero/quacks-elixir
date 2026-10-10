@@ -1410,7 +1410,11 @@ bar) never moves:
   when a ruby buys something (`ruby_step_action?/1`). Round 9's `{:rubies, :vp}`
   is no step: the seat's "Done" converts what it keeps (`final_conversion`), so a
   round-9 seat with no witch to call ends its round after the evaluation
-  (`auto_done/2`).
+  (`auto_done/2`). Round 37: on the reverse pot side round 9 offers a glass
+  (`{:rubies, :tube}`), so the step shows there with two uses, tube and 1 VP
+  (`ruby_uses/1`). The gold witch G4 ("Cheap rubies") has her own button at the end
+  of the rubies bar (`data-role=rubies-witch`) while the seat has a ruby;
+  `bar_choice/3` keeps the bar for her, and only another witch call opens the sheet.
 
 ### Round 33: the bar as the context area
 

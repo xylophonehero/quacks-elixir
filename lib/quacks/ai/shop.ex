@@ -2,19 +2,26 @@ defmodule Quacks.AI.Shop do
   @moduledoc """
   The bot in its shop step (`docs/research/ai-opponents.md` §3.3): buy the best
   scored `{:buy, chips}`, then spend rubies by the profile's `ruby_plan`, then
-  `:end_round`. Round 9: `{:rubies, :vp}` while it can.
+  `:end_round`. Round 9: `{:rubies, :vp}` while it can; on the reverse pot side a
+  test-tube glass first when the next glass pays more than 1 VP.
   """
 
   alias Quacks.AI.Profile
   alias Quacks.{Game, Player}
+  alias Quacks.Rules.TestTubes
 
   @two_chip_bonus 0.5
   @penalty 2.0
 
   @doc "The next shop action for `seat` out of `legal`."
   @spec pick(Game.t(), Game.seat(), Profile.t(), [Game.action()]) :: Game.action()
-  def pick(%{round: 9}, _seat, _profile, legal),
-    do: if({:rubies, :vp} in legal, do: {:rubies, :vp}, else: :end_round)
+  def pick(%{round: 9} = game, seat, _profile, legal) do
+    cond do
+      {:rubies, :tube} in legal and glass_vp(game, seat) > 1 -> {:rubies, :tube}
+      {:rubies, :vp} in legal -> {:rubies, :vp}
+      true -> :end_round
+    end
+  end
 
   def pick(game, seat, profile, legal) do
     case for {:buy, chips} <- legal, do: chips do
@@ -76,5 +83,13 @@ defmodule Quacks.AI.Shop do
   defp owned(game, seat) do
     p = Game.player(game, seat)
     p.bag ++ Player.pot_chips(p) ++ p.bowl
+  end
+
+  # The VP of the seat's next test-tube glass (0: no VP there).
+  defp glass_vp(game, seat) do
+    case TestTubes.bonus(Game.player(game, seat).tube + 1) do
+      {:vp, n} -> n
+      _other -> 0
+    end
   end
 end

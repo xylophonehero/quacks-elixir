@@ -220,11 +220,13 @@ The research measured the EV rule and the scored choices as a little stronger
 example `Profile.parse("balanced+ev+scored")`, in place of the atom. No decider
 code changes.
 
-**Brewing in one go (round 36).** In the potions phase of rounds 1–8 a bot gets
-no tick. While a human still draws it waits, and its tile shows "brewing". When
-the last human stops or explodes, the server calls `decide/4` and
-`Session.apply/3` in a loop (`brew_bots/2`, `lib/quacks/game_server.ex:1284-1335`):
-bot 1 to its stop, then bot 2, and every pot appears in one update. The decider
+**Brewing with your draws (round 37).** In the potions phase of rounds 1–8 a bot
+gets no tick. Each human draw makes every bot that still brews take one step in
+the same server call (`step_bots/4`, `bot_step/3`): `decide/4` and
+`Session.apply/3` up to its next draw or stop. The human's chip and all the bot
+chips appear in one update. With 2+ humans the bots step once every human that
+still draws has drawn. When the last human stops or explodes, the server brews the
+rest in a loop (`brew_bots/2`): bot 1 to its stop, then bot 2, in one update. The decider
 does not know about this: it sees the same game it would see on a tick, with the
 humans' chips already drawn. It cannot be planned early on a copy, as the shop is,
 because each draw takes the next number from the shared `game.rng`; applied in
