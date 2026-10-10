@@ -8,6 +8,7 @@ defmodule Quacks.AI.Shop do
 
   alias Quacks.AI.Profile
   alias Quacks.{Game, Player}
+  alias Quacks.Rules.TestTubes
 
   @two_chip_bonus 0.5
   @penalty 2.0
@@ -86,7 +87,7 @@ defmodule Quacks.AI.Shop do
 
   # The VP of the seat's next test-tube glass (0: no VP there).
   defp glass_vp(game, seat) do
-    case Quacks.Rules.TestTubes.bonus(Game.player(game, seat).tube + 1) do
+    case TestTubes.bonus(Game.player(game, seat).tube + 1) do
       {:vp, n} -> n
       _other -> 0
     end

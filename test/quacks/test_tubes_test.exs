@@ -3,6 +3,7 @@ defmodule Quacks.TestTubesTest do
 
   import Quacks.GameHelpers
 
+  alias Quacks.AI.{Profile, Shop}
   alias Quacks.Game
   alias Quacks.Game.{Evaluation, Fortune}
   alias Quacks.Rules.TestTubes
@@ -137,13 +138,13 @@ defmodule Quacks.TestTubesTest do
   end
 
   test "round 9: a bot buys a glass only when it pays more than 1 VP" do
-    profile = Quacks.AI.Profile.get(:balanced)
+    profile = Profile.get(:balanced)
     g = new(:back) |> put(round: 9, phase: :rubies, rubies: 2, tube: 3)
     legal = Game.legal_actions(g)
-    assert Quacks.AI.Shop.pick(g, 0, profile, legal) == {:rubies, :tube}
+    assert Shop.pick(g, 0, profile, legal) == {:rubies, :tube}
 
     g = put(g, tube: 1)
-    assert Quacks.AI.Shop.pick(g, 0, profile, Game.legal_actions(g)) == {:rubies, :vp}
+    assert Shop.pick(g, 0, profile, Game.legal_actions(g)) == {:rubies, :vp}
   end
 
   test "back side: the shop waits for the choice before the round can end" do
