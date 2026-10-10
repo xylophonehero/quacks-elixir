@@ -120,6 +120,8 @@ defmodule QuacksWeb.Round39DeskTest do
     test "from 80rem the context column's witches sheet hides (app.css)" do
       {_id, view} = herb_solo()
       assert has_element?(view, "[data-role=side-column] > #sheet-witches.sheet-left-xl")
+      # 64-80rem: the title is light on the dark column.
+      assert has_element?(view, "#sheet-witches [data-role=witches-title].lg\\:text-parchment")
 
       css = File.read!("assets/css/app.css")
       assert css =~ ~s([data-role="side-column"] > .sheet-inline-lg.sheet-left-xl)
