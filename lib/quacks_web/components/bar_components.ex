@@ -1454,7 +1454,7 @@ defmodule QuacksWeb.BarComponents do
 
   # Round 28: under a Flea Market chip that cannot go up, the reason.
   defp blocked_reason(%Game{fortune_card: :p13} = game, [chip]) do
-    case Quacks.Game.Fortune.flea_block(game, chip) do
+    case Fortune.flea_block(game, chip) do
       nil -> nil
       reason -> flea_reason(reason)
     end
