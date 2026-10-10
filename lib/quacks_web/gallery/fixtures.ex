@@ -80,7 +80,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
         "chip",
         "Chip",
         1450,
-        "GameComponents.chip/1: every colour x size x value",
+        "ChipComponents.chip/1: every colour x size x value",
         chip_variants()
       )
     ]

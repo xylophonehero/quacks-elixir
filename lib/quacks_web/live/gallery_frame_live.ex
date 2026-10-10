@@ -17,7 +17,6 @@ defmodule QuacksWeb.GalleryFrameLive do
 
   import QuacksWeb.GameComponents,
     only: [
-      chip: 1,
       pot: 1,
       player_chip: 1,
       rat_track: 1,
@@ -28,6 +27,8 @@ defmodule QuacksWeb.GalleryFrameLive do
       loop_start: 3,
       round_leaders: 1
     ]
+
+  import QuacksWeb.ChipComponents, only: [chip: 1]
 
   alias QuacksWeb.{CardRevealComponents, GameLive, TileRevealComponents, TipComponents}
   alias QuacksWeb.Gallery.Stories

@@ -10,7 +10,7 @@ defmodule QuacksWeb.ScoringTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, Replay}
+  alias QuacksWeb.{ChipComponents, GameComponents, Replay}
 
   # Newest first, like the engine: die → black → green → purple → scoring space.
   @log [
@@ -84,7 +84,7 @@ defmodule QuacksWeb.ScoringTest do
     game = game()
     [die | _] = Replay.beats(game, 0)
 
-    html = render_component(&GameComponents.replay_die/1, lines: [die], class: "flex")
+    html = render_component(&ChipComponents.replay_die/1, lines: [die], class: "flex")
 
     assert has?(
              html,

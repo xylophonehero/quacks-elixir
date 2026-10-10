@@ -49,7 +49,9 @@ defmodule QuacksWeb.LobbyLive do
   """
   use QuacksWeb, :live_view
 
-  import QuacksWeb.GameComponents, only: [bot_badge: 1, palette_bg: 1, book_ink: 1]
+  import QuacksWeb.GameComponents, only: [bot_badge: 1, book_ink: 1]
+
+  import QuacksWeb.ChipComponents, only: [palette_bg: 1]
 
   import QuacksWeb.SetupComponents,
     only: [

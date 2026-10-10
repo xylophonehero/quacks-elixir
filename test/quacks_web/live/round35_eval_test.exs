@@ -415,13 +415,13 @@ defmodule QuacksWeb.Round35EvalTest do
 
   describe "item 8: a chip as a result" do
     test "a chip with no value has its icon in the centre and no badge" do
-      html = render_component(&QuacksWeb.GameComponents.chip/1, chip: {:green, nil}, size: :sm)
+      html = render_component(&QuacksWeb.ChipComponents.chip/1, chip: {:green, nil}, size: :sm)
       doc = LazyHTML.from_fragment(html)
       assert doc |> LazyHTML.query("[data-role=chip-value]") |> Enum.count() == 0
       refute html =~ "-translate-x-"
 
       with_value =
-        render_component(&QuacksWeb.GameComponents.chip/1, chip: {:green, 2}, size: :sm)
+        render_component(&QuacksWeb.ChipComponents.chip/1, chip: {:green, 2}, size: :sm)
 
       assert with_value =~ "chip-value"
     end

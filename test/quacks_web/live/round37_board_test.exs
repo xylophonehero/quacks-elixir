@@ -12,7 +12,7 @@ defmodule QuacksWeb.Round37BoardTest do
   alias Quacks.Game
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.{ChipComponents, GameComponents}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -48,7 +48,7 @@ defmodule QuacksWeb.Round37BoardTest do
   describe "item 7: the value badge at every chip size" do
     test "each size with a badge places and sizes it" do
       for {size, class} <- [sm: "size-4", md: "size-[18px]", lg: "size-5"] do
-        html = render_component(&GameComponents.chip/1, chip: {:white, 3}, size: size)
+        html = render_component(&ChipComponents.chip/1, chip: {:white, 3}, size: size)
 
         [badge] =
           html

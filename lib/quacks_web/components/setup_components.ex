@@ -15,15 +15,9 @@ defmodule QuacksWeb.SetupComponents do
   import QuacksWeb.Icons, only: [piece_icon: 1]
 
   import QuacksWeb.GameComponents,
-    only: [
-      book_info: 2,
-      book_seal: 1,
-      book_tiers: 1,
-      book_tile: 1,
-      chip: 1,
-      palette_bg: 1,
-      roman: 1
-    ]
+    only: [book_info: 2, book_seal: 1, book_tiers: 1, book_tile: 1, roman: 1]
+
+  import QuacksWeb.ChipComponents, only: [chip: 1, palette_bg: 1]
 
   alias Phoenix.LiveView.JS
   alias Quacks.Game

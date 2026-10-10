@@ -11,7 +11,7 @@ defmodule QuacksWeb.TileRevealComponents do
 
   import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
   import QuacksWeb.CoreComponents, only: [button: 1]
-  import QuacksWeb.GameComponents, only: [chip: 1, die: 1, die_face: 1, seat_bg: 1]
+  import QuacksWeb.ChipComponents, only: [chip: 1, die: 1, die_face: 1, seat_bg: 1]
 
   alias Quacks.Rules.Fortune
   alias QuacksWeb.TileReveal
