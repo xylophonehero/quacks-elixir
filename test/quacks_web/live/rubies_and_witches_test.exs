@@ -6,7 +6,9 @@ defmodule QuacksWeb.RubiesAndWitchesTest do
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
   import QuacksWeb.LiveHelpers, except: [open: 2]
+  import QuacksWeb.LiveHelpers, except: [open: 2]
   import QuacksWeb.RevealHelpers
+  alias Quacks.Game
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
 
@@ -45,7 +47,7 @@ defmodule QuacksWeb.RubiesAndWitchesTest do
     assert has_element?(alice, "#bar-rubies button[data-ruby=tube]:not([disabled])")
   end
 
-  test "round 9: no rubies step; the rubies turn into VP at the seat's end" do
+  test "no rubies step; the rubies turn into VP at the seat's end" do
     {id, alice} = duo()
     rubies_step(id, alice, 9, rubies: 4, coins: 0)
     refute has_element?(alice, "#bar-rubies")
@@ -94,7 +96,7 @@ defmodule QuacksWeb.RubiesAndWitchesTest do
     {id, open(id)}
   end
 
-  test "G4: the rubies step offers the witch; then each use costs 1 ruby" do
+  test "the rubies step offers the witch; then each use costs 1 ruby" do
     {id, view} = solo(%{}, :herb_witches)
 
     replace_game(id, fn g ->
@@ -173,7 +175,7 @@ defmodule QuacksWeb.RubiesAndWitchesTest do
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)
     end
 
-    test "the end of the game (round 31): the score chart over the pot, no overlay" do
+    test "the end of the game: the score chart over the pot, no overlay" do
       {id, view, _token} = solo_results()
       render_hook(view, "reveal_close", %{})
 
@@ -356,7 +358,7 @@ defmodule QuacksWeb.RubiesAndWitchesTest do
   end
 
   describe "the menu" do
-    test "round 29: has no App line; the seed stays" do
+    test "has no App line; the seed stays" do
       {_id, view} = herb_solo()
       refute has_element?(view, "#app-status")
       refute render(view) =~ "install prompt"
@@ -368,11 +370,87 @@ defmodule QuacksWeb.RubiesAndWitchesTest do
   end
 
   describe "name cards" do
-    test "show no name text (round 28): the initial, the name for screen readers" do
+    test "show no name text: the initial, the name for screen readers" do
       {_id, view} = herb_solo()
       assert has_element?(view, "[data-role=player-chip] > [data-role=player-name].sr-only")
       refute has_element?(view, "[data-role=player-name-text]")
       refute render(view) =~ "wrap-anywhere"
+    end
+  end
+
+  defp open_2(conn, id) do
+    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+    view
+  end
+
+  test "the rubies step waits for the round results to close" do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+    view = open_2(browser("rubies-#{System.unique_integer()}"), id)
+
+    replace_game(
+      id,
+      &H.put(&1, 0, phase: :shop, exploded?: true, explosion_choice: :vp, rubies: 2)
+    )
+
+    # Round 29: the rubies wait in the bar, under the results.
+    assert has_element?(view, "#bar-rubies")
+    refute has_element?(view, "dialog#decision-rubies")
+  end
+
+  # Take a seat from a page that closes at once (a browser that lost its cookie
+  # afterwards): the seat stays, but no page holds it.
+
+  describe "the rubies step" do
+    test "with nothing to spend the round ends by itself once the replay played" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+      view = open_2(browser(token("rubies")), id)
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 1))
+
+      refute has_element?(view, "dialog#decision-rubies")
+      refute has_element?(view, "[data-role=decision-button]")
+      # the results play on the tiles: the round waits
+      assert {:ok, %{game: %Game{round: 1}}} = GameServer.get(id)
+      assert has_element?(view, "#tile-stage")
+
+      # QA 3, N4: no bare "Done" after the replay
+      skip_results(view)
+      assert {:ok, %{game: %Game{round: 2}}} = GameServer.get(id)
+    end
+
+    test "with a ruby option it opens" do
+      {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+      view = open_2(browser(token("rubies")), id)
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 2))
+      skip_results(view)
+
+      # Round 29: the choice is in the bar.
+      assert has_element?(view, "#bar-rubies button[data-ruby=droplet]")
+    end
+  end
+
+  defp solo_2 do
+    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
+    {id, open_2(browser(token("solo")), id)}
+  end
+
+  describe "no bare Done" do
+    test "a ruby spend that leaves nothing to do ends the seat's round" do
+      {id, view} = solo_2()
+      replace_game(id, &H.put(&1, 0, phase: :rubies, coins: 0, rubies: 2))
+      render_hook(view, "seen", %{"kind" => "results", "round" => 1})
+
+      view
+      |> element("#bar-rubies button[data-ruby=droplet]")
+      |> render_click()
+
+      assert {:ok, %{game: %Game{round: 2}}} = GameServer.get(id)
+      refute has_element?(view, "[data-role=round-done]")
+    end
+
+    test "while the beats play the seat waits" do
+      {id, _view} = solo_2()
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 0))
+      assert {:ok, %{game: %Game{round: 1}}} = GameServer.get(id)
     end
   end
 end
