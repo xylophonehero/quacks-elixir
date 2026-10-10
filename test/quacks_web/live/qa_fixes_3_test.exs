@@ -168,19 +168,16 @@ defmodule QuacksWeb.QaFixes3Test do
     refute has_element?(view, ".stat-tick[data-from]")
   end
 
-  # Round 11: from 64rem the die rolls in the results panel of the context column;
-  # phones keep it in the bar's tray. Nothing sits on the pot's corner any more.
-  test "Q6: from 64rem the bonus die rolls in the results panel, not on the pot" do
+  # Round 39: no results panel in the context column; the overlay's die rolls in
+  # the bar's info row on every screen. Nothing sits on the pot's corner any more.
+  test "Q6: the bonus die rolls in the bar's info row, not on the pot" do
     {id, view} = solo()
     replace_game(id, &scored/1)
 
-    assert has_element?(
-             view,
-             "[data-role=side-column] > [data-role=results-panel].lg\\:block [data-role=result-row][data-kind=die] [data-role=die]"
-           )
+    refute has_element?(view, "[data-role=results-panel]")
 
-    # Round 33: phones show it in the bar's info row, not in the tray.
-    assert has_element?(view, "footer #info-die.lg\\:hidden [data-role=replay-die]")
+    # Round 33: in the bar's info row, not in the tray.
+    assert has_element?(view, "footer #info-die [data-role=replay-die]")
     refute has_element?(view, ".game-tray [data-role=replay-die]")
     refute has_element?(view, "[data-role=replay-die-corner]")
 

@@ -54,33 +54,18 @@ defmodule QuacksWeb.Round28TilesTest do
     )
   end
 
-  describe "phones" do
-    test "play the results on the tiles, whatever the Results choice says" do
-      {_id, view} = duo_results()
-      settings(view, %{"show" => "overlay", "phone" => true})
+  # Round 39: phones and larger screens alike play the results on the tiles.
+  describe "every screen" do
+    test "plays the results on the tiles; the menu has no Results choice" do
+      for extra <- [%{"show" => "overlay", "phone" => true}, %{"phone" => false}] do
+        {_id, view} = duo_results()
+        settings(view, extra)
 
-      refute has_element?(view, "[data-role=reveal]")
-      assert has_element?(view, "#tile-stage[data-kind]")
-      # The choice hides on a phone; the form says it is a phone.
-      refute has_element?(view, "#reveal-settings [data-role=reveal-show]")
-      assert has_element?(view, "#reveal-settings [data-role=reveal-show-phone]")
-      assert has_element?(view, ~s(#reveal-settings input[name=phone][value=true]))
-    end
-
-    test "a larger screen keeps the overlay by default" do
-      {_id, view} = duo_results()
-      settings(view, %{"show" => "overlay", "phone" => false})
-
-      assert has_element?(view, "[data-role=reveal]")
-      refute has_element?(view, "#tile-stage")
-      assert has_element?(view, "#reveal-show-overlay[checked]")
-    end
-
-    test "a form change without the Results choice keeps the choice" do
-      {_id, view} = duo_results()
-      settings(view, %{"show" => "tiles", "phone" => false})
-      settings(view, %{"phone" => "false"})
-      assert has_element?(view, "#reveal-show-tiles[checked]")
+        refute has_element?(view, "[data-role=reveal]")
+        assert has_element?(view, "#tile-stage[data-kind]")
+        refute has_element?(view, "#reveal-settings [data-role=reveal-show]")
+        refute has_element?(view, "#reveal-settings [name=phone]")
+      end
     end
   end
 

@@ -46,19 +46,18 @@ defmodule QuacksWeb.Round27EvalTest do
     {id, alice}
   end
 
-  test "the Results setting: the overlay by default, On tiles plays the steps on the tiles" do
+  # Round 39: no Results setting; once the browser's settings come, every screen
+  # plays the steps on the tiles (an old saved "overlay" changes nothing).
+  test "the browser's settings play the steps on the tiles, never in the overlay" do
     {_id, view} = duo_results()
-    assert has_element?(view, "#reveal-show-overlay[checked]")
-    assert has_element?(view, "[data-role=reveal]")
-    refute has_element?(view, "#tile-stage")
+    refute has_element?(view, "#reveal-settings [name=show]")
 
     render_hook(view, "reveal_settings", %{
       "mode" => "step",
       "speed" => "normal",
-      "show" => "tiles"
+      "show" => "overlay"
     })
 
-    assert has_element?(view, "#reveal-show-tiles[checked]")
     refute has_element?(view, "[data-role=reveal]")
     assert has_element?(view, "#tile-stage[data-kind]")
     # The tiles show the running totals while the steps play.

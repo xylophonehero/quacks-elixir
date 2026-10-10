@@ -331,23 +331,20 @@ One trap: CSS written in `app.css` outside a layer beats every Tailwind utility.
 rule is inside `@layer components` (`assets/css/app.css:679`).
 
 **The context column (64rem).** `<aside class="context-column" data-area="context">`
-(`lib/quacks_web/live/game_live.ex:1181`) holds what happens now, top to bottom:
-the fortune teller card, the Take a Chance rolls (`chance_panel/1`, line 2770), the
-round results while they play (`results_panel/1`, line 2806), the decision panel and
-the witches. Below 64rem it is `display: contents` and holds only the sheets. The
+(`lib/quacks_web/live/game_live.ex`) holds what happens now, top to bottom:
+the fortune teller card, the decision panel and the witches (64-80rem; from 80rem
+they are in the left column, round 39). Below 64rem it is `display: contents` and
+holds only the sheets. Round 39 removed the Take a Chance rolls (`chance_panel/1`)
+and the results panel (`results_panel/1`): the results stage over the bar shows
+both now. The
 bar (`<footer class="game-bar" data-area="bar">`, line 1428) is its foot from 64rem:
 Draw is the large button, Stop and a flask button sit under it. An exploded pot
 shows "Your pot exploded" and the next step there.
 
-The results panel reuses the replay beats: `result_rows/3` (line 2733) takes every
-seat's bonus die lines and this seat's other lines from `QuacksWeb.Replay.beats/3`,
-and each row gets `style="--beat: N"`, the same formula as the update chips. Round
+Until round 39 a results panel here reused the replay beats. Round
 11 changed the replay order: the bonus dice of the whole table roll first, one
 after the other in seat order, two beats each (`dice_slots/2`,
-`lib/quacks_web/replay.ex:59`); then every seat's other lines start together. The
-Take a Chance card is not part of the replay (its rolls come at the round's start),
-so its rows use their own `--chance-step` (`.chance-row`, `assets/css/app.css:896`)
-and are not cut short by `.replay-done`.
+`lib/quacks_web/replay.ex:59`); then every seat's other lines start together.
 
 **The books drawer (48–80rem).** Below 80rem there is no books column. The header's
 Books button (with a count badge) opens `#sheet-books`, a popover with the class
@@ -366,10 +363,11 @@ The drawer replaced the tablet's CSS-only tabs (radio inputs and `:has()`, layou
 2). Tabs hid the decision behind a second tap; the drawer leaves the decision in
 place.
 
-**The books column (≥ 80rem).** `books_in_play/1`
-(`lib/quacks_web/components/game_components.ex`) lists the books in play in board
-order (`Chips.order/0`, chapter 7), left of the pot (`id="books-column"`,
-`data-area="books"`).
+**The left column (≥ 80rem).** `#left-column` (`data-area="books"`), left of the
+pot, holds `books_in_play/1` (`lib/quacks_web/components/game_components.ex`, the
+books in play in board order, `Chips.order/0`, chapter 7, `id="books-column"`)
+and, with The Herb Witches, the witches (`id="witches-column"`). Round 39: both
+are folds (see the round 39 section).
 
 ### The player tiles: a seat loop (round 27)
 
@@ -1831,6 +1829,31 @@ with no change.
   `gains`), so the card grows after its tap and `card_stage/1` shows each die.
 - **Flea Market** (P13): after this seat's trade the card grows with every row
   and Continue (`chose_card?/3`), like the choice cards.
+
+### Round 39 (desk): the evaluation in the context column, folds on the left
+
+- **No overlay for the results.** The menu has no Results row any more, and
+  app.js sends no `show` or `phone`. The `reveal_settings` event sets
+  `reveal_show: :tiles` on every screen, so the evaluation plays on the tiles
+  and in the results stage over the bar. From 64rem the bar is the foot of the
+  context column, so the steps (with Skip and Next) are in the context column
+  and the pot stays free. The overlay code stays: it is the mount default until
+  the browser's settings arrive (the first push), and about 50 older tests drive
+  the results through it. A later round can remove it with those tests.
+- **One list per result.** The Take a Chance rolls (`chance_panel/1`) and the
+  results panel (`results_panel/1`, "Round N: evaluation") showed the same as the
+  stage; both are gone, with `.chance-row`, `.result-row` and `.results-panel` in
+  app.css. The bonus die of the overlay rolls in the bar's info row on every
+  screen (`#info-die`).
+- **Folds.** `fold/1` (`GameComponents`) is a `<details>` with a `<summary>`
+  title and a chevron (`group-open:rotate-180`), closed by default.
+  `phx-mounted={JS.ignore_attributes(["open"])}` keeps the user's open or closed
+  state when LiveView patches the page (without it a patch drops `open`). The
+  books (`#books-column`) and the witches (`#witches-column`) use it in the left
+  column. The witches' title counts the witches this seat can call now
+  ("1 to call", `callable_witches/2`). `witches_list/1` draws the cards and their
+  call buttons for the fold and for `#sheet-witches`; from 80rem app.css hides the
+  sheet in the context column (`.sheet-left-xl`), so each width shows one copy.
 
 ## Component gallery (dev only)
 

@@ -76,10 +76,6 @@ const loadReveal = () => {
 }
 const setBeat = speed => document.documentElement.style.setProperty("--beat-ms", beatMs[speed] || beatMs.normal)
 setBeat(loadReveal().speed)
-// Round 28: on a phone (under Tailwind's `sm`, 40rem) the results always play on
-// the tiles; the server needs the width, so the hook sends it, and again when it
-// crosses `sm` (a turned phone).
-const phoneQuery = window.matchMedia("(max-width: 39.999rem)")
 // Round 38: the first-time hints this browser has seen (`QuacksWeb.Tips`). They go
 // to the server with the settings below; the server sends them back (`quacks:tips`)
 // when a hint closes or the menu's Tips row changes.
@@ -96,28 +92,25 @@ const RevealSettings = {
   mounted() {
     // Round 29: the risk beside the white meter (Off, Percent, Chips) in `quacks:risk`.
     const loadRisk = () => { try { return localStorage.getItem("quacks:risk") || "percent" } catch (_e) { return "percent" } }
-    const send = ({mode, speed, show}) => {
+    const send = ({mode, speed}) => {
       setBeat(speed)
-      this.pushEvent("reveal_settings", {mode, speed, show, risk: loadRisk(), phone: phoneQuery.matches, reduced: reduced(), tips: loadTips()})
+      this.pushEvent("reveal_settings", {mode, speed, risk: loadRisk(), reduced: reduced(), tips: loadTips()})
     }
     const current = () => {
       const saved = loadReveal()
-      return {mode: saved.mode || "auto", speed: saved.speed || "normal", show: saved.show || "overlay"}
+      return {mode: saved.mode || "auto", speed: saved.speed || "normal"}
     }
     this.el.addEventListener("change", () => {
       const form = new FormData(this.el)
-      const settings = {mode: form.get("mode") || "auto", speed: form.get("speed") || "normal", show: form.get("show") || current().show}
+      const settings = {mode: form.get("mode") || "auto", speed: form.get("speed") || "normal"}
       try {
         localStorage.setItem("quacks:reveal", JSON.stringify(settings))
         localStorage.setItem("quacks:risk", form.get("risk") || "percent")
       } catch (_e) {}
       setBeat(settings.speed)
     })
-    this.onPhone = () => send(current())
-    phoneQuery.addEventListener("change", this.onPhone)
     send(current())
-  },
-  destroyed() { phoneQuery.removeEventListener("change", this.onPhone) }
+  }
 }
 
 // Round 29: your own explosion buzzes the phone once (`boom` in game_live), and
