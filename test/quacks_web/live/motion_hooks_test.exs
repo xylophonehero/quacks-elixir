@@ -1,12 +1,15 @@
 defmodule QuacksWeb.MotionHooksTest do
   @moduledoc """
-  What the motion hooks need from the server: the chip flight, the view transition and the animation data attributes.
+  What the motion hooks need from the server: the chip flight, the view transition, the round title card, the exploded fuse and the animation data attributes.
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import QuacksWeb.LiveHelpers
+  import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
-  alias Quacks.{Game, GameServer}
+  alias Quacks.Game
+  alias Quacks.GameHelpers
+  alias Quacks.GameServer
   alias QuacksWeb.PotComponents
 
   defp ids(html, selector), do: html |> query(selector) |> LazyHTML.attribute("id")
@@ -163,7 +166,7 @@ defmodule QuacksWeb.MotionHooksTest do
     assert has_element?(view, "[data-role=round-counter]", "2 / 9")
   end
 
-  test "the CSS names the round counter and (round 22) the card; the hook is small and honours reduced motion" do
+  test "the CSS names the round counter and the card; the hook is small and honours reduced motion" do
     css = File.read!(Path.expand("../../../assets/css/app.css", __DIR__))
     assert css =~ "view-transition-name: round-counter"
     # round 22: the card's name only while a `card` transition runs
@@ -182,5 +185,34 @@ defmodule QuacksWeb.MotionHooksTest do
     assert byte_size(hook) < 12_500
     assert hook =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
     assert js =~ "!reduced()"
+  end
+
+  defp solo(seed) do
+    {:ok, id} = GameServer.start(1, seed)
+    {:ok, view, _html} = live(browser("solo"), ~p"/g/#{id}")
+    {id, view}
+  end
+
+  # Play seat 0 of a solo game to the shop, with 30 coins to spend.
+
+  defp game(id) do
+    {:ok, %{game: game}} = GameServer.get(id)
+    game
+  end
+
+  describe "round moments" do
+    test "a Round N title card enters once per round, and a tap hides it" do
+      {_id, view} = solo({1, 2, 3})
+      assert has_element?(view, "#round-title-1[data-role=round-title][phx-click]", "1")
+    end
+
+    test "the fuse says when the pot exploded, so it can burst" do
+      {id, view} = solo({1, 2, 3})
+      assert has_element?(view, ~s(#fuse-meter[data-exploded="false"]))
+
+      GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, exploded?: true))
+      send(view.pid, {:game, id, game(id)})
+      assert has_element?(view, ~s(#fuse-meter[data-exploded="true"]))
+    end
   end
 end
