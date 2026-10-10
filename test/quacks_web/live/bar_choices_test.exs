@@ -1,14 +1,17 @@
 defmodule QuacksWeb.BarChoicesTest do
   @moduledoc """
-  The choices in the bar: the crow skull's chips, the toadstools beside the pot, the shop always buys, Choices Choices as a chip row, chip choices as chips, Ghost's breath V in a sheet, pot chips as targets and an everyone-card's results.
+  The choices in the bar: the crow skull's chips, a white pick over the limit, the toadstools beside the pot, the shop always buys, Choices Choices as a chip row, chip choices as chips, Ghost's breath V in a sheet, Mandrake, pot chips as targets and an everyone-card's results.
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
   import QuacksWeb.LiveHelpers
+  import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
+  alias Quacks.{Game, GameServer}
+  alias QuacksWeb.BarComponents
 
   defp solo(rules) do
     {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, Map.merge(%{fortune: false}, rules))
@@ -411,6 +414,94 @@ defmodule QuacksWeb.BarChoicesTest do
       assert has_element?(view, "#{stage} [data-role=card-reveal-row][data-me=true]", "You")
       assert has_element?(view, "#{stage} [data-role=reveal-result] [data-gain=rubies]")
       refute has_element?(view, "[data-role=pot-card] [data-role=card-reveals]")
+    end
+  end
+
+  describe "a white pick that takes the pot over the limit" do
+    defp picks_html(game, actions, pool) do
+      render_component(&BarComponents.chip_picks/1,
+        actions: actions,
+        pool: pool,
+        game: game,
+        me: game.players[0]
+      )
+    end
+
+    test "the crow skull warns 'explodes!' on that chip only" do
+      game =
+        Game.new(seed: {1, 2, 3}, fortune: false)
+        |> H.put(drawn: [{{:white, 3}, 3}, {{:white, 2}, 5}])
+
+      html =
+        picks_html(game, [{:place, {:white, 3}}, {:place, {:white, 1}}], [
+          {:white, 3},
+          {:white, 1}
+        ])
+
+      doc = LazyHTML.from_fragment(html)
+      assert [warning] = Enum.to_list(LazyHTML.query(doc, "[data-role=explode-warning]"))
+      assert LazyHTML.text(warning) =~ "explodes!"
+      assert html =~ ~s(data-over="explodes")
+      assert html =~ "Crow skull: place white 3: explodes the pot"
+      # the safe chip says what a tap does
+      assert LazyHTML.text(LazyHTML.query(doc, "[data-role=pick-verb]")) =~ "Place"
+    end
+
+    test "Safety Procedure says the chip goes over the limit but cannot explode" do
+      game =
+        Game.new(seed: {1, 2, 3}, fortune: false)
+        |> H.put(fortune_card: :b7, drawn: [{{:white, 3}, 3}, {{:white, 2}, 5}])
+
+      html =
+        picks_html(game, [{:fortune, {:place, {:white, 3}}}, {:fortune, :return_all}], [
+          {:white, 3}
+        ])
+
+      assert html =~ "over 7, safe"
+      assert html =~ ~s(data-over="safe")
+      refute html =~ "explodes!"
+    end
+  end
+
+  defp duo(rules \\ %{fortune: false}) do
+    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, rules)
+    alice = open(browser("alice-#{id}"), id)
+    bob = open(browser("bob-#{id}"), id)
+    {:ok, _} = GameServer.begin(id, "alice-#{id}")
+    {id, alice, bob}
+  end
+
+  describe "Mandrake" do
+    test "the server put the white chip back; the button keeps it, once" do
+      {id, alice, bob} = duo()
+
+      replace_game(id, fn g ->
+        H.put(g, 0, drawn: [{{:white, 1}, 1}], pot_index: 1, bag: [{:yellow, 1}])
+      end)
+
+      alice |> element("button[data-slot=draw]") |> render_click()
+      refute has_element?(alice, "#decision-yellow_choice")
+      assert has_element?(alice, "[data-role=mandrake-undo] #keep-white")
+      refute has_element?(bob, "#keep-white")
+
+      alice |> element("#keep-white") |> render_click()
+      refute has_element?(alice, "#keep-white")
+      {:ok, %{game: game}} = GameServer.get(id)
+      assert Game.pot_chips(game, 0) == [{:yellow, 1}, {:white, 1}]
+    end
+
+    test "the button goes once another seat acts" do
+      {id, alice, bob} = duo()
+
+      replace_game(id, fn g ->
+        H.put(g, 0, drawn: [{{:white, 1}, 1}], pot_index: 1, bag: [{:yellow, 1}])
+      end)
+
+      alice |> element("button[data-slot=draw]") |> render_click()
+      assert has_element?(alice, "#keep-white")
+      bob |> element("button[data-slot=draw]") |> render_click()
+      refute has_element?(alice, "#keep-white")
+      assert GameServer.keep_white(id, 0) == {:error, :too_late}
     end
   end
 end
