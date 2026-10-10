@@ -93,9 +93,9 @@ defmodule QuacksWeb.Gallery.Stories do
   @doc "The story and args that took the place of an old variant id, or nil."
   @spec claimed(String.t(), String.t()) :: {story, map} | nil
   def claimed(group, variant) do
-    with %{stories: stories} <- Enum.find(catalog(), &(&1.id == group)) do
-      Enum.find_value(stories, fn s -> if a = s.claims[variant], do: {s, a} end)
-    end
+    with %{stories: stories} <- Enum.find(catalog(), &(&1.id == group)),
+         %{claims: claims} = s <- Enum.find(stories, &Map.has_key?(&1.claims, variant)),
+         do: {s, claims[variant]}
   end
 
   @doc "The story's args for the raw URL params `params`."

@@ -7,6 +7,8 @@ defmodule QuacksWeb.Plugs.GalleryTest do
   # Changes the app env: not async.
   use QuacksWeb.ConnCase, async: false
 
+  alias QuacksWeb.Plugs.Gallery
+
   @paths [
     "/dev/gallery",
     "/dev/gallery/tiles/tiles?players=8",
@@ -40,6 +42,6 @@ defmodule QuacksWeb.Plugs.GalleryTest do
     Application.put_env(:quacks, :gallery, false)
 
     assert {:halt, %{redirected: {:redirect, %{to: "/"}}}} =
-             QuacksWeb.Plugs.Gallery.on_mount(:default, %{}, %{}, %Phoenix.LiveView.Socket{})
+             Gallery.on_mount(:default, %{}, %{}, %Phoenix.LiveView.Socket{})
   end
 end

@@ -14,12 +14,13 @@ defmodule QuacksWeb.ScenarioController do
   use QuacksWeb, :controller
 
   alias Quacks.{GameServer, Scenarios}
+  alias QuacksWeb.Gallery.Stories
 
   def index(conn, _params) do
     [first | _] = Scenarios.all()
 
     redirect(conn,
-      to: "/dev/gallery/scenario-#{first.kind}/#{QuacksWeb.Gallery.Stories.scenario_id(first)}"
+      to: "/dev/gallery/scenario-#{first.kind}/#{Stories.scenario_id(first)}"
     )
   end
 

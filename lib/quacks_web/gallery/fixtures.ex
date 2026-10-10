@@ -17,6 +17,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
 
   alias Quacks.Game
   alias Quacks.Rules.Chips
+  alias Quacks.Scenarios.Script
   alias QuacksWeb.{Reveal, TileReveal, Tips}
 
   @short ~w(Ada Bram Cleo Dirk Edda Finn Gwen Hugo)
@@ -584,8 +585,8 @@ defmodule QuacksWeb.Gallery.Fixtures do
   @doc "The game over: bots play every seat through round 9 (`Quacks.Scenarios.Script`)."
   @spec over_screen(map) :: map
   def over_screen(%{"players" => n} = a) do
-    s = Quacks.Scenarios.Script.new({20, 26, 10}, n, rules: %{fortune: false})
-    screen(Quacks.Scenarios.Script.game(Quacks.Scenarios.Script.play(s, &Game.over?/1)), a)
+    s = Script.new({20, 26, 10}, n, rules: %{fortune: false})
+    screen(Script.game(Script.play(s, &Game.over?/1)), a)
   end
 
   defp screen(g, a, opts \\ []) do

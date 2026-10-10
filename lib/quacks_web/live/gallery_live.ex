@@ -86,19 +86,13 @@ defmodule QuacksWeb.GalleryLive do
   # `/dev/gallery/:component/:variant`; `/dev/gallery` (`?c=` picks the group)
   # shows its first story.
   defp pick(catalog, %{"component" => gid, "variant" => sid}) do
-    with %{} = g <- Enum.find(catalog, &(&1.id == gid)) do
-      case Enum.find(g.stories, &(&1.id == sid)) do
-        %{} = s ->
-          {:ok, g, s}
+    g = Enum.find(catalog, &(&1.id == gid))
+    s = g && Enum.find(g.stories, &(&1.id == sid))
 
-        nil ->
-          case Stories.claimed(gid, sid) do
-            {s, args} -> {:claimed, s, args}
-            nil -> :error
-          end
-      end
-    else
-      _ -> :error
+    cond do
+      s -> {:ok, g, s}
+      claim = g && Stories.claimed(gid, sid) -> Tuple.insert_at(claim, 0, :claimed)
+      true -> :error
     end
   end
 
