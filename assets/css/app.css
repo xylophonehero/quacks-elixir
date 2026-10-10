@@ -757,6 +757,13 @@ body {
   }
 }
 
+/* Round 39: from 80rem the witches are in the left column (`#witches-column`). */
+@media (width >= 80rem) {
+  [data-role="side-column"] > .sheet-inline-lg.sheet-left-xl {
+    display: none;
+  }
+}
+
 /* Round 11: the game page is one grid with named areas. Each block in game_live.ex
    names its area (`data-area`); these templates place them per layout. The pot's
    area spans only tracks whose size never depends on what comes and goes, so the
@@ -1268,59 +1275,6 @@ body {
    bottom padding, the bar keeps only the safe area (round 11, E). */
 .sheet:has([data-role="shop-footer"]) {
   padding-bottom: 0;
-}
-
-/* Take a Chance in the context column (64rem): the dice land one after the other
-   (two 300 ms steps each), after the "Round N" title. Not tied to the replay, so
-   `.replay-done` does not cut it short. */
-:root {
-  --chance-lead: 900ms;
-  --chance-step: 300ms;
-}
-
-.chance-row {
-  --chance-at: calc(var(--chance-lead) + var(--beat) * var(--chance-step));
-  animation: update-in 220ms var(--ease-spring) both;
-  animation-delay: var(--chance-at);
-}
-
-.chance-row .die-strip {
-  animation: die-roll var(--die-roll) steps(7, jump-none) both;
-  animation-delay: var(--chance-at);
-}
-
-.chance-row .die {
-  animation: die-land 220ms var(--ease-spring);
-  animation-delay: calc(var(--chance-at) + var(--die-roll));
-}
-
-.chance-row .chance-text {
-  animation: fade-in 160ms var(--ease-out) both;
-  animation-delay: calc(var(--chance-at) + var(--die-roll));
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chance-row,
-  .chance-row * {
-    animation: none !important;
-  }
-}
-
-/* The round results in the context column (64rem): each book line shows on its
-   beat, the same formula as the card counters; the dice use `.replay-die`. */
-.result-row {
-  animation: update-in 320ms var(--ease-spring) both;
-  animation-delay: calc(var(--beat-lead) + var(--beat) * var(--beat-step));
-}
-
-:root:has(#players-row.replay-done) .results-panel {
-  display: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .result-row {
-    animation: none;
-  }
 }
 
 /* Layout 2: a book lights up on the replay beat of its line, in step with the

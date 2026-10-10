@@ -28,11 +28,12 @@ defmodule QuacksWeb.GameLive do
 
   From 64rem the right column is the context space (layouts 1 and 2): the
   decision, only while one waits, as a non-modal panel (`dialog_sheet` with
-  `side`), then the witches. The card's dialog does not open there unless it holds
-  a choice. From 80rem (desktop) the fortune teller tops that column
-  (`fortune_panel/1`, it plays a reveal when a new card comes) and the books in
-  play are a column left of the pot (`books_in_play/1`; a book lights up on its
-  replay beat). From 64 to 80rem (tablet) the fortune teller sits in full under the
+  `side`), then the witches; the bar at its foot plays the results' steps (round
+  39). The card's dialog does not open there unless it holds a choice. From 80rem
+  (desktop) the fortune teller tops that column (`fortune_panel/1`, it plays a
+  reveal when a new card comes) and a column left of the pot holds the books in
+  play (`books_in_play/1`; a book lights up on its replay beat) and the witches,
+  each folded until a click opens it (`fold/1`, round 39). From 64 to 80rem (tablet) the fortune teller sits in full under the
   pot and the right column has two CSS-only tabs, "Decision" and "Books"; a new
   decision checks "Decision". Below 64rem the same dialogs are bottom sheets; a tap on the dimmed
   backdrop or × closes one to look at the pot, and while a decision waits, one
@@ -46,7 +47,9 @@ defmodule QuacksWeb.GameLive do
 
   The reveal overlay (round 14, `QuacksWeb.Reveal`, `reveal_overlay/1`): the round's
   card at its start, the evaluation when the shop phase begins and the final
-  scoring at the end, one slide at a time, per browser (`@reveal`). Next, Skip,
+  scoring at the end, one slide at a time, per browser (`@reveal`). Round 39: once
+  the browser sends its settings the evaluation plays on the tiles on every
+  screen; the overlay is only the default until then. Next, Skip,
   Enter, Space, Esc; Auto mode advances on a server timer. Under it each name
   card's VP and ruby counters tick on their replay beats. Its end marks the moment
   seen (`GameServer.ack/4`) and opens the waiting shop or decision. A seat that can
@@ -68,7 +71,7 @@ defmodule QuacksWeb.GameLive do
   who they wait for. A stopped player's Stop button becomes Resume.
 
   With The Herb Witches the page also shows the 3 witches (a sheet on phones, the
-  right column on large screens) with a button to call one when the engine allows
+  right column from 64rem, the left column from 80rem) with a button to call one when the engine allows
   it. The overflow bowl shows under the pot once it has chips.
 
   With the reverse pot side (`pot_side: :back`) the test-tube rack shows under the
@@ -156,8 +159,6 @@ defmodule QuacksWeb.GameLive do
            reveal_speed: :normal,
            risk: :percent,
            reveal_show: :overlay,
-           reveal_choice: :overlay,
-           phone: false,
            reduced: false,
            rubies_kept: nil,
            tips: nil
@@ -475,10 +476,9 @@ defmodule QuacksWeb.GameLive do
     mode = if params["mode"] == "auto" and not reduced, do: :auto, else: :step
     speed = Enum.find(Reveal.speeds(), :normal, &(Atom.to_string(&1) == params["speed"]))
 
-    choice = reveal_choice(params["show"], socket.assigns.reveal_choice)
-    # Round 28: phones always play the results on the tiles (no overlay).
-    phone = Map.get(params, "phone", socket.assigns.phone) in [true, "true"]
-    show = if phone, do: :tiles, else: choice
+    # Round 39: every screen plays the results on the tiles and their stage (no
+    # overlay over the pot). The overlay stays only until this first push.
+    show = :tiles
     # Round 29: the risk shown beside the white meter (`quacks:risk` in this browser).
     risk =
       Enum.find(
@@ -496,9 +496,7 @@ defmodule QuacksWeb.GameLive do
         reveal_mode: mode,
         reveal_speed: speed,
         reveal_show: show,
-        reveal_choice: choice,
         risk: risk,
-        phone: phone,
         reduced: reduced,
         tips: tips
       )
@@ -1227,14 +1225,29 @@ defmodule QuacksWeb.GameLive do
           <.spectator_note rejoinable={@rejoinable} names={@names} />
         </div>
 
-        <%!-- Desktop (80rem): the books in play, a column left of the pot. --%>
-        <.books_in_play
-          id="books-column"
-          game={@game}
-          beats={book_beats(@game, @seat, @seen)}
-          class="hidden pt-2 pb-3 pl-4 xl:flex"
+        <%!-- Desktop (80rem): a column left of the pot with the books in play and
+             (round 39) the herb witches, each folded until a click opens it. So
+             the context column has room for the evaluation. --%>
+        <div
+          id="left-column"
+          class="hidden min-h-0 flex-col gap-2 overflow-y-auto pt-2 pb-3 pl-4 xl:flex"
           data-area="books"
-        />
+        >
+          <.books_in_play id="books-column" game={@game} beats={book_beats(@game, @seat, @seen)} />
+          <.fold :if={@game.witches} id="witches-column" label="Herb witches">
+            <:title>
+              <.piece_icon name={:witch} class="size-4 self-center" /> Herb witches
+              <span
+                :if={(n = callable_witches(@game, @all_actions)) > 0}
+                class="rounded-full bg-gold px-2 font-sans text-xs leading-5 font-bold text-ink"
+                data-role="witches-callable"
+              >
+                {n} to call
+              </span>
+            </:title>
+            <.witches_list game={@game} me={@me} seat={@seat} actions={@all_actions} />
+          </.fold>
+        </div>
 
         <div class="pot-column flex min-h-0 flex-col px-4 py-1 lg:px-6 lg:py-2" data-area="pot">
           <.flask_strip
@@ -1451,26 +1464,15 @@ defmodule QuacksWeb.GameLive do
         </div>
 
         <%!-- The context area (64rem): what happens now. The fortune teller on top,
-             the round's results while they play, the decision while one waits,
-             then the witches. Below 64rem it is `display: contents` and holds only
-             the sheets. --%>
+             the decision while one waits, then the witches (64-80rem). The bar at
+             its foot plays the results' steps (round 39: on every screen). Below
+             64rem it is `display: contents` and holds only the sheets. --%>
         <aside class="context-column" data-area="context" data-role="side-column">
           <.fortune_panel
             :if={@game.fortune_card}
             id={"fortune-panel-#{@game.round}"}
             card={@game.fortune_card}
             class="hidden shrink-0 lg:flex"
-          />
-          <.chance_panel
-            :if={@game.fortune_card == :p12 and @game.phase in [:potions, :fortune_choice]}
-            id={"chance-#{@game.round}"}
-            rolls={chance_rolls(@game, @seat, @names)}
-          />
-          <.results_panel
-            :if={replaying?(@game, @seen)}
-            id={"results-#{@game.round}"}
-            rows={result_rows(@game, @seat, @names)}
-            round={@game.round}
           />
           <%!-- The decision: a panel here from 64rem, a bottom sheet below. The shop
                    waits for the update chips, a decision for a new card (they hand
@@ -1552,39 +1554,29 @@ defmodule QuacksWeb.GameLive do
             game={@game}
             me={@me}
           />
+          <%!-- From 80rem the witches are in the left column instead (round 39). --%>
           <.sheet
             :if={@game.witches}
             id="sheet-witches"
             label="Herb witches"
-            class="sheet-pot"
+            class="sheet-pot sheet-left-xl"
             inline_lg
           >
             <%!-- The title row holds the × (it floats right), so it never squeezes the
                  first card (round 14). --%>
             <h2
-              class="sheet-head min-h-8 font-hand text-2xl leading-8 font-bold"
+              class="sheet-head min-h-8 font-hand text-2xl leading-8 font-bold lg:text-parchment"
               data-role="witches-title"
             >
               Herb witches
             </h2>
-            <section class="clear-both space-y-2 pt-1" aria-label="Herb witches">
-              <.witch_card
-                :for={{colour, id} <- witches(@game)}
-                id={id}
-                spent={@me != nil and not @me.pennies[colour]}
-              >
-                <div :if={@seat} class="flex flex-wrap gap-2 *:min-h-11">
-                  <.button
-                    :for={action <- calls(@all_actions, colour)}
-                    phx-click="action"
-                    phx-value-action={encode(action)}
-                    variant={:secondary}
-                  >
-                    {call_text(action)}
-                  </.button>
-                </div>
-              </.witch_card>
-            </section>
+            <.witches_list
+              game={@game}
+              me={@me}
+              seat={@seat}
+              actions={@all_actions}
+              class="clear-both pt-1"
+            />
           </.sheet>
         </aside>
 
@@ -1652,13 +1644,13 @@ defmodule QuacksWeb.GameLive do
               </.sheet_button>
             </section>
           </div>
-          <%!-- Phones: the bonus die (from 64rem it rolls in the results panel).
-               Round 33: in the info row over the step bar, no overlay over the
-               test tubes. --%>
+          <%!-- The bonus die while the overlay plays the results (only until the
+               browser's settings come, round 39). Round 33: in the info row over
+               the step bar, no overlay over the test tubes. --%>
           <div
             :if={replaying?(@game, @seen) and die_step?(@reveal)}
             id="info-die"
-            class="flex flex-col gap-1 lg:hidden"
+            class="flex flex-col gap-1"
             data-role="info-row"
           >
             <.replay_die
@@ -1987,9 +1979,7 @@ defmodule QuacksWeb.GameLive do
           <.reveal_settings
             mode={@reveal_mode}
             speed={@reveal_speed}
-            show={@reveal_choice}
             risk={@risk}
-            phone={@phone}
             reduced={@reduced}
           />
           <.tips_settings :if={@seat} on={tips_on?(@tips)} />
@@ -4838,11 +4828,6 @@ defmodule QuacksWeb.GameLive do
     end)
   end
 
-  # The Results choice from the settings; none sent (the phone form): keep it.
-  defp reveal_choice("tiles", _current), do: :tiles
-  defp reveal_choice(nil, current), do: current
-  defp reveal_choice(_show, _current), do: :overlay
-
   # The rat track follows the tiles' running VP while the steps play.
   defp tile_vps(game, reveal),
     do: Map.new(tile_totals(game, reveal), fn {s, totals} -> {s, totals.vp} end)
@@ -4864,134 +4849,6 @@ defmodule QuacksWeb.GameLive do
   defp close_label(%{key: {:results, 9}}, _decision, true), do: "Continue"
   defp close_label(%{key: {:results, _}}, _decision, true), do: "Done"
   defp close_label(_reveal, _decision, _skip), do: "Close"
-
-  # The results panel's rows (64rem, while the replay plays): every seat's bonus
-  # die, one after the other (Take a Chance), then this seat's own lines: the books
-  # of step B, the scoring space, the card. Each row keeps its replay beat
-  # (`Replay.beats/3`), so the panel, the pot and the name cards play in step.
-  defp result_rows(game, seat, names) do
-    dice =
-      for s <- game.seats, line <- Replay.beats(game, s), line.kind == :die do
-        Map.merge(line, %{seat: s, who: if(s == seat, do: "You", else: name(names, s))})
-      end
-
-    mine =
-      for line <- (seat && Replay.beats(game, seat)) || [], line.kind != :die do
-        Map.merge(line, %{seat: seat, who: nil})
-      end
-
-    Enum.sort_by(dice ++ mine, & &1.beat)
-  end
-
-  # Take a Chance (card p12): every seat rolled the bonus die at the round's start.
-  # `[{seat, who, face}]` in seat order, from the log (the engine logs one roll each).
-  defp chance_rolls(game, seat, names) do
-    rolls =
-      game.log
-      |> Enum.take_while(&(not match?({:round_end, _}, &1)))
-      |> Enum.flat_map(fn
-        {s, {:fortune, :p12, face}} -> [{s, face}]
-        _entry -> []
-      end)
-      |> Map.new()
-
-    for s <- game.seats,
-        face = rolls[s],
-        do: {s, if(s == seat, do: "You", else: name(names, s)), face}
-  end
-
-  # The rolls of Take a Chance in the context column (64rem), one die after the
-  # other: each lands, then its reward shows (`.chance-row` in app.css, two steps
-  # of 300 ms each). The id names the round, so it plays once when it enters.
-  attr :id, :string, required: true
-  attr :rolls, :list, required: true
-
-  defp chance_panel(assigns) do
-    ~H"""
-    <section
-      :if={@rolls != []}
-      id={@id}
-      class="paper hidden shrink-0 rounded-xl px-3 py-2 shadow-md lg:block"
-      aria-label="Take a Chance"
-      data-role="chance-panel"
-    >
-      <h2 class="font-hand text-xl leading-tight font-bold">Take a Chance</h2>
-      <ol class="mt-1.5 space-y-1.5">
-        <li
-          :for={{{seat, who, face}, i} <- Enum.with_index(@rolls)}
-          class="chance-row flex items-center gap-2 text-sm"
-          style={"--beat: #{2 * i}"}
-          data-beat={2 * i}
-          data-role="chance-roll"
-          data-seat={seat}
-        >
-          <.die face={face} />
-          <span class="chance-text inline-flex min-w-0 items-center gap-1 font-semibold">
-            <.seat_dot seat={seat} />{who}: {die_text(face)}
-          </span>
-        </li>
-      </ol>
-    </section>
-    """
-  end
-
-  # Round results in the context column (64rem): the dice land, then each book's
-  # result shows on its beat (`.result-row` in app.css; at once with reduced motion
-  # or after Skip). Phones keep the die in the bar and the chips on the name cards.
-  attr :id, :string, required: true
-  attr :rows, :list, required: true
-  attr :round, :integer, required: true
-
-  defp results_panel(assigns) do
-    ~H"""
-    <section
-      :if={@rows != []}
-      id={@id}
-      class="results-panel paper hidden shrink-0 rounded-xl px-3 py-2 shadow-md lg:block"
-      aria-label="Round results"
-      data-role="results-panel"
-    >
-      <h2 class="font-hand text-xl leading-tight font-bold">Round {@round}: evaluation</h2>
-      <ol class="mt-1.5 space-y-1.5">
-        <li
-          :for={row <- @rows}
-          class={[
-            "flex items-center gap-2 text-sm",
-            if(row.kind == :die, do: "replay-die", else: "result-row")
-          ]}
-          style={"--beat: #{row.beat}"}
-          data-role="result-row"
-          data-kind={row.kind}
-          data-seat={row.seat}
-          data-beat={row.beat}
-        >
-          <%= if row.kind == :die do %>
-            <.die face={row.face} />
-            <span class="replay-die-text min-w-0 font-semibold">
-              <span :if={row.who} class="mr-1 inline-flex items-center gap-1">
-                <.seat_dot seat={row.seat} />{row.who}:
-              </span>{row.text}
-            </span>
-          <% else %>
-            <span class="grid size-9 shrink-0 place-items-center rounded-full bg-parchment-deep/70">
-              <.ingredient_icon
-                :if={row.kind in [:green, :black, :purple]}
-                colour={row.kind}
-                class={["size-6", book_ink(row.kind)]}
-              />
-              <.icon
-                :if={row.kind not in [:green, :black, :purple]}
-                name="hero-sparkles"
-                class="size-5 text-ink-soft"
-              />
-            </span>
-            <span class="min-w-0 font-semibold">{row.text}</span>
-          <% end %>
-        </li>
-      </ol>
-    </section>
-    """
-  end
 
   # While the replay plays: on which beat each book lights up, `%{colour => beat}`
   # (the first line of a green, black or purple book).
@@ -5337,6 +5194,41 @@ defmodule QuacksWeb.GameLive do
   # The witches in penny order: silver, copper, gold.
   # Copper, silver, gold: the order of the rulebook's pennies (round 14).
   defp witches(game), do: for(c <- [:copper, :silver, :gold], do: {c, game.witches[c]})
+
+  # The 3 witch cards with their call buttons: the witches sheet (the context
+  # column from 64rem) and, from 80rem, the left column (round 39).
+  attr :game, Game, required: true
+  attr :me, :any, required: true
+  attr :seat, :any, required: true
+  attr :actions, :list, required: true
+  attr :class, :any, default: nil
+
+  defp witches_list(assigns) do
+    ~H"""
+    <section class={["space-y-2", @class]} aria-label="Herb witches">
+      <.witch_card
+        :for={{colour, id} <- witches(@game)}
+        id={id}
+        spent={@me != nil and not @me.pennies[colour]}
+      >
+        <div :if={@seat} class="flex flex-wrap gap-2 *:min-h-11">
+          <.button
+            :for={action <- calls(@actions, colour)}
+            phx-click="action"
+            phx-value-action={encode(action)}
+            variant={:secondary}
+          >
+            {call_text(action)}
+          </.button>
+        </div>
+      </.witch_card>
+    </section>
+    """
+  end
+
+  # How many witches this seat can call now (the left column's title says so).
+  defp callable_witches(game, actions),
+    do: Enum.count(witches(game), fn {colour, _id} -> calls(actions, colour) != [] end)
 
   # The witches that `actions` can call, for the decision dialog.
   defp witches_acting(%{witches: nil}, _actions), do: []
