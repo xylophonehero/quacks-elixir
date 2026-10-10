@@ -7,6 +7,7 @@ defmodule QuacksWeb.Round30BarTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.{Game, GameServer}
@@ -144,6 +145,8 @@ defmodule QuacksWeb.Round30BarTest do
         |> Quacks.GameHelpers.put(fortune_deck: [:p8], round: 2)
         |> Game.start_round()
       end)
+
+      skip_results(alice)
 
       # Round 31: the rows show under the grown card over the pot, no sheet; the
       # next Continue shrinks it.

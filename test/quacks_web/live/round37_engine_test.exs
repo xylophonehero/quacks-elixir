@@ -6,6 +6,7 @@ defmodule QuacksWeb.Round37EngineTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.GameHelpers, as: H
@@ -30,6 +31,8 @@ defmodule QuacksWeb.Round37EngineTest do
       |> H.put(phase: :rubies, rubies: 1, flask: false)
     end)
 
+    skip_results(view)
+
     # 1 ruby: the uses wait for the witch, and say so
     assert has_element?(view, "#bar-rubies [data-role=rubies-witch]")
     assert has_element?(view, "#bar-rubies button[data-ruby=droplet][disabled]", "Witch: 1 ruby")
@@ -52,6 +55,7 @@ defmodule QuacksWeb.Round37EngineTest do
   test "round 9 on the reverse side: a glass beside 2 rubies -> 1 VP" do
     {id, view} = solo(%{pot_side: :back})
     replace_game(id, &H.put(&1, round: 9, phase: :rubies, rubies: 3, tube: 3))
+    skip_results(view)
 
     assert has_element?(view, "#bar-rubies button[data-ruby=vp]", "1 VP")
     refute has_element?(view, "#bar-rubies button[data-ruby=flask]")

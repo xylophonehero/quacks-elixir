@@ -7,6 +7,7 @@ defmodule QuacksWeb.UiRound3Test do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.{Game, GameServer, Player}
   alias Quacks.Rules.{Fortune, PotTrack}
@@ -30,6 +31,7 @@ defmodule QuacksWeb.UiRound3Test do
   defp to_shop(view) do
     for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
+    skip_results(view)
     view
   end
 
@@ -89,6 +91,8 @@ defmodule QuacksWeb.UiRound3Test do
     refute has_element?(view, "#card-tap")
     to_shop_rest(view)
     assert has_element?(view, "li", "— Round 1 over —")
+    # Round 37: the last round's recap plays before the new card.
+    skip_results(view)
     refute has_element?(view, "#pot-card-1")
     assert has_element?(view, "#pot-card-2 [data-role=card-caption]")
 
@@ -102,6 +106,7 @@ defmodule QuacksWeb.UiRound3Test do
   defp to_shop_rest(view) do
     for _ <- 1..2, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
+    skip_results(view)
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
     render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
   end

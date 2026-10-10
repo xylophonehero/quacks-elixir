@@ -6,6 +6,7 @@ defmodule QuacksWeb.UiRound6Test do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.{Game, GameServer}
@@ -44,6 +45,7 @@ defmodule QuacksWeb.UiRound6Test do
   test "a seat with no coins to spend skips the shop too; with coins it shops" do
     {id, view} = solo()
     replace_game(id, &H.put(&1, 0, phase: :shop, coins: 0, rubies: 2))
+    skip_results(view)
     refute has_element?(view, "dialog#decision-shop")
     assert has_element?(view, "#bar-rubies")
 

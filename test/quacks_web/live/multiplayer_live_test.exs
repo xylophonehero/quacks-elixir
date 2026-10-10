@@ -94,7 +94,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     # both get the round results: each its own reveal overlay (round 14), and the
     # replay plays on the name cards (round 12: no update chips)
     for view <- [alice, bob] do
-      assert has_element?(view, "dialog#reveal-results-1 [data-role=reveal-slide]")
+      assert has_element?(view, "#tile-stage")
       refute has_element?(view, "[data-role=update-chip]")
     end
 
