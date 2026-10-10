@@ -206,11 +206,31 @@ act and the game can change. Each bot seat has at most one pending tick number i
 `bot_ticks`. The guard accepts only that number; the second clause drops any stale
 tick. (`:erlang.map_get/2` is allowed in a guard; `Map.get/2` is not.)
 
-**Brews in one go (round 36).** In the potions phase of rounds 1–8 a bot gets
-no tick at all (`held?/1`, `lib/quacks/game_server.ex:1281-1282`). While a human
-seat still draws, the bots wait; their tiles show "brewing" and no chips, because
-they have drawn none. When the last human seat stops or explodes, the next
-`schedule_bots/1` calls `brew_bots/2` first (`lib/quacks/game_server.ex:1284-1335`):
+**Bots step with your draws (round 37).** In the potions phase of rounds 1–8 a
+bot gets no tick at all (`held?/1`). Round 36 made the bots wait until every human
+stopped; Nick wanted to see them brew while he draws, but without one update per
+bot draw. So now `server_call({:apply, ...})` runs `step_bots/4` before `acted/1`:
+
+```elixir
+%{state | session: session}
+|> step_bots(seat, action, sent)
+|> acted()
+|> reply_game()
+```
+
+A human `:draw` goes into `state.drawn` (a `MapSet`). When every human seat that
+still draws (`drawing?/2`) is in it, each bot that still brews takes one
+`bot_step/3`: `AI.decide/4` and `Session.apply/3` until it made its next `:draw`
+or `:stop` and no question about that chip is open (`mid_draw?/2`: Mandrake, crow
+skull, ...). Then `drawn` is empty again. Solo: every draw steps the bots. Two
+humans: the bots step once per round of human draws; a human who stopped no longer
+counts, so the one still drawing steps them with each draw. The steps run before
+`auto_return/1`, so the session that `keep_white/2` goes back to holds them too.
+It is all one call: one broadcast (`reply_game/1`), one file write (`stored/2`),
+one log entry per bot action.
+
+**The rest in one go (round 36).** When the last human seat stops or explodes,
+the next `schedule_bots/1` calls `brew_bots/2` first:
 
 ```elixir
 with true <- held?(game),
@@ -232,8 +252,8 @@ bot's pot, and `stored/2` schedules one file write. Each action still goes throu
 `Session.apply/3`, so the log, replay and a bug report's bundle hold every draw.
 
 Two effects on play. The draws on the shared `game.rng` come in a new order:
-the humans first, then the bots. And a stopped human cannot `:resume` after a bot's
-draw any more, because the bots stop in the same call. Round 9 keeps its ticks: the
+each human draw, then the bot steps in seat order. And when the last human stops,
+the bots finish in the same call, so nobody can `:resume` after the bots stopped. Round 9 keeps its ticks: the
 stir already makes every seat draw together. A tick that arrives from an earlier
 phase is dropped by `held?/1`; a tick that runs `schedule_bots/1` and so brews
 broadcasts too (`broadcast_changed/2`).
@@ -456,6 +476,7 @@ sequenceDiagram
   LV->>GS: GenServer.call {:apply, 0, :draw}
   GS->>E: Session.apply -> Game.apply(game, 0, :draw)
   E-->>GS: {:ok, game}
+  GS->>GS: step_bots: every brewing bot draws once (AI.decide, Session.apply)
   GS->>GS: acted: auto_return, flush, schedule_bots (bots held: no tick)
   GS->>PS: broadcast {:game, id, game}
   GS-->>LV: {:ok, game}

@@ -425,7 +425,7 @@ defmodule Quacks.GameServerTest do
       assert Enum.any?(game.log, &match?({1, :draw}, &1))
     end
 
-    test "bots brew in one go once the human stops, in one broadcast" do
+    test "bots step with each human draw, in one broadcast, and finish when the human stops" do
       {:ok, id} = GameServer.start(3, {4, 5, 6})
       {:ok, 0} = GameServer.claim_seat(id, "a")
       {:ok, 1} = GameServer.add_bot(id, "a")
@@ -434,33 +434,36 @@ defmodule Quacks.GameServerTest do
       {:ok, game} = GameServer.begin(id, "a")
       [{pid, _}] = Registry.lookup(Quacks.GameRegistry, id)
       assert game.phase == :potions
-
-      # the human draws: the bots wait, with no tick and no draw
-      {:ok, _} = GameServer.apply(id, 0, :draw)
-      {:ok, _} = GameServer.apply(id, 0, :draw)
-      state = :sys.get_state(pid)
-      assert state.bot_ticks == %{}
-      assert bot_draws(state.session.game) == 0
-
-      # the human stops: both bots brew to the end in this one call and one broadcast
       :ok = Phoenix.PubSub.subscribe(Quacks.PubSub, "game:" <> id)
+
+      # each human draw: every bot that still brews draws (or stops) once, no ticks,
+      # and the page hears one game for all of it
+      for _ <- 1..2 do
+        {:ok, before} = GameServer.get(id)
+        {:ok, game} = GameServer.apply(id, 0, :draw)
+        assert_receive {:game, ^id, ^game}
+        refute_receive {:game, ^id, _}, 50
+        assert :sys.get_state(pid).bot_ticks == %{}
+
+        for bot <- [1, 2], brewing?(before.game, bot) do
+          new = Enum.take(game.log, length(game.log) - length(before.game.log))
+          assert Enum.count(new, &(&1 in [{bot, :draw}, {bot, :stop}])) == 1
+        end
+      end
+
+      # the human stops: the bots brew to the end in this one call and one broadcast
       {:ok, game} = GameServer.apply(id, 0, :stop)
-      assert bot_draws(game) > 0 and Enum.any?(game.log, &match?({2, :draw}, &1))
       assert game.phase != :potions or game.round > 1
       assert_receive {:game, ^id, ^game}
       refute_receive {:game, ^id, _}, 50
-
-      # the log keeps every draw: bot 1 brews to its stop before bot 2 draws
-      brew = game.log |> Enum.reverse() |> Enum.filter(&match?({s, _} when s in [1, 2], &1))
-      {first, [next | _]} = Enum.split_while(brew, &match?({1, _}, &1))
-      assert first != [] and match?({2, _}, next)
+      assert bot_draws(game) >= 2
 
       # the bundle (game file, bug report) replays to the same game
       {:ok, bundle} = GameServer.bundle(id)
       assert {:ok, %{game: ^game}} = Quacks.Session.from_bundle(bundle)
     end
 
-    test "with two humans the bots wait for the last one to stop" do
+    test "with two humans the bots step once per round of human draws" do
       {:ok, id} = GameServer.start(3, {4, 5, 6})
       {:ok, 0} = GameServer.claim_seat(id, "a")
       {:ok, 1} = GameServer.claim_seat(id, "b")
@@ -468,15 +471,24 @@ defmodule Quacks.GameServerTest do
       {:ok, _table} = GameServer.configure(id, "a", %{rules: %{fortune: false}})
       {:ok, _game} = GameServer.begin(id, "a")
 
-      {:ok, _} = GameServer.apply(id, 0, :draw)
+      # seat 0 draws: seat 1 has not drawn yet, the bot waits
+      {:ok, game} = GameServer.apply(id, 0, :draw)
+      refute Enum.any?(game.log, &match?({2, _}, &1))
+      # seat 1 draws: every human drew once, the bot steps
+      {:ok, game} = GameServer.apply(id, 1, :draw)
+      assert Enum.count(game.log, &(&1 in [{2, :draw}, {2, :stop}])) == 1
+
+      # seat 0 stops; seat 1 alone draws now, so each of its draws steps the bot
       {:ok, _} = GameServer.apply(id, 0, :stop)
       {:ok, game} = GameServer.apply(id, 1, :draw)
-      refute Enum.any?(game.log, &match?({2, _}, &1))
+
+      if brewing?(game, 2),
+        do: assert(Enum.count(game.log, &(&1 in [{2, :draw}, {2, :stop}])) == 2)
+
       # a stopped human may still resume while the other one draws
       assert :resume in Game.legal_actions(game, 0)
 
       {:ok, game} = GameServer.apply(id, 1, :stop)
-      assert Enum.any?(game.log, &match?({2, :draw}, &1))
       # the bot's brew ended the soft stops: nobody resumes after seeing it
       refute :resume in Game.legal_actions(game, 0)
     end
@@ -595,6 +607,9 @@ defmodule Quacks.GameServerTest do
   end
 
   defp bot_draws(game), do: Enum.count(game.log, &(&1 == {1, :draw}))
+
+  # The bot seat still brews (its next action is a draw or its stop).
+  defp brewing?(game, seat), do: Game.player(game, seat).phase == :potions
 
   defp send_ticks(pid, ticks),
     do: Enum.each(ticks, fn {seat, tick} -> send(pid, {:bot, seat, tick}) end)
