@@ -5,7 +5,7 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
   import Quacks.GameHelpers, only: [force_draws: 2]
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.{GameComponents, GameText}
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "sets-#{System.unique_integer()}")}
@@ -92,12 +92,12 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
 
     for {book, detail} <- effects,
         entry <- [{:effect, book, detail}, {1, {:effect, book, detail}}] do
-      refute GameComponents.label(entry) =~ ~r/^[:{]/
+      refute GameText.label(entry) =~ ~r/^[:{]/
     end
 
-    for action <- actions, do: refute(GameComponents.label(action) =~ ~r/^[:{]/)
+    for action <- actions, do: refute(GameText.label(action) =~ ~r/^[:{]/)
 
-    assert GameComponents.label({:effect, {:blue, 2}, :protected_explosion}) ==
+    assert GameText.label({:effect, {:blue, 2}, :protected_explosion}) ==
              "Crow skull: protected, kept VP and coins"
   end
 
@@ -108,6 +108,6 @@ defmodule QuacksWeb.IngredientSetsLiveTest do
 
     html = render_component(&GameComponents.aside/1, chips: g.players[0].aside)
     assert html =~ "Beside the pot" and html =~ ~s(aria-label="red 2")
-    assert GameComponents.label({:red, {:place, {:red, 2}}}) =~ "place red 2"
+    assert GameText.label({:red, {:place, {:red, 2}}}) =~ "place red 2"
   end
 end

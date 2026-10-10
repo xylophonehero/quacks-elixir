@@ -5,7 +5,7 @@ defmodule QuacksWeb.FortuneLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Fortune
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.GameText
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "fortune-#{System.unique_integer()}")}
@@ -88,12 +88,12 @@ defmodule QuacksWeb.FortuneLiveTest do
 
   test "every fortune action shape has a human label, for every card" do
     for choice <- @card_actions, card <- [nil | Fortune.ids(4)] do
-      refute GameComponents.label({:fortune, choice}, card) =~ ~r/^[:{]/
+      refute GameText.label({:fortune, choice}, card) =~ ~r/^[:{]/
     end
 
-    assert GameComponents.label({:fortune, :vp}, :p6) == "Score 4 VP"
+    assert GameText.label({:fortune, :vp}, :p6) == "Score 4 VP"
 
-    assert GameComponents.label({:fortune, {:take, {:green, 1}}}, :p3) ==
+    assert GameText.label({:fortune, {:take, {:green, 1}}}, :p3) ==
              "Trade 1 ruby for green 1"
   end
 
@@ -118,15 +118,15 @@ defmodule QuacksWeb.FortuneLiveTest do
     ]
 
     for outcome <- outcomes do
-      line = GameComponents.label({:fortune, :p1, outcome})
+      line = GameText.label({:fortune, :p1, outcome})
       assert "Choices, Choices: " <> text = line
       refute text =~ ~r/^[:{]/
     end
 
-    assert GameComponents.label({:fortune_drawn, :b7}) == "Fortune teller: Safety Procedure"
-    assert GameComponents.label({:fortune_skipped, :p7}) =~ "Infestation"
+    assert GameText.label({:fortune_drawn, :b7}) == "Fortune teller: Safety Procedure"
+    assert GameText.label({:fortune_skipped, :p7}) =~ "Infestation"
 
-    assert GameComponents.label({:fortune, :p11, :droplet}) ==
+    assert GameText.label({:fortune, :p11, :droplet}) ==
              "Decisions, Decisions...: droplet +2"
   end
 

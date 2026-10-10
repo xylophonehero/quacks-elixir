@@ -5,7 +5,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.{Chips, Witches}
-  alias QuacksWeb.{GameComponents, GameLive, SetupComponents}
+  alias QuacksWeb.{GameLive, GameText, SetupComponents}
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "hw-#{System.unique_integer()}")}
@@ -194,17 +194,17 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
       ] ++ witch_events ++ for({book, detail} <- effects, do: {:effect, book, detail})
 
     for term <- actions ++ events do
-      refute GameComponents.label(term) =~ ~r/^[:{]/, "no label for #{inspect(term)}"
+      refute GameText.label(term) =~ ~r/^[:{]/, "no label for #{inspect(term)}"
     end
 
     for id <- Enum.flat_map([:silver, :copper, :gold], &Witches.ids/1),
         do: assert(Map.has_key?(outcomes, id))
 
-    assert GameComponents.label({:witch, :g4, :ruby_price}) ==
+    assert GameText.label({:witch, :g4, :ruby_price}) ==
              "Cheap rubies: droplet and flask cost 1 ruby"
 
-    assert GameComponents.phase_name(:witch_choice) == "Gold witch"
-    assert GameComponents.chip_name({:locoweed, 1}) == "locoweed"
+    assert GameText.phase_name(:witch_choice) == "Gold witch"
+    assert GameText.chip_name({:locoweed, 1}) == "locoweed"
   end
 
   test "the gold witch choice is a dialog with her card", %{conn: conn} do

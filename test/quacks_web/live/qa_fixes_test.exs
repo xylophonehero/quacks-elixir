@@ -12,7 +12,7 @@ defmodule QuacksWeb.QaFixesTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.GameHelpers, as: H
-  alias QuacksWeb.{GameComponents, GameLive}
+  alias QuacksWeb.{GameComponents, GameLive, GameText}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -232,11 +232,11 @@ defmodule QuacksWeb.QaFixesTest do
         {0, {:pot_vp, 3, 12}}
       ]
 
-      assert GameComponents.vp_breakdown(log, 0, 14) ==
+      assert GameText.vp_breakdown(log, 0, 14) ==
                [brewing: 3, witches: 4, cards: 4, pennies: 2, other: 1]
 
-      assert GameComponents.vp_part_name(:pennies) == "Unused pennies"
-      assert GameComponents.vp_part_hint(:other) =~ "no other part"
+      assert GameText.vp_part_name(:pennies) == "Unused pennies"
+      assert GameText.vp_part_hint(:other) =~ "no other part"
     end
 
     test "Second Chances logs the chips it put back; Stop and Stopped are one line" do

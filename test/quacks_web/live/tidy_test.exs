@@ -12,7 +12,7 @@ defmodule QuacksWeb.TidyTest do
 
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.{GameComponents, GameText}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -56,8 +56,8 @@ defmodule QuacksWeb.TidyTest do
     end
 
     test "buttons keep the imperative" do
-      assert GameComponents.label({:buy, []}) == "Buy nothing"
-      assert GameComponents.label(:use_flask) == "Use flask"
+      assert GameText.label({:buy, []}) == "Buy nothing"
+      assert GameText.label(:use_flask) == "Use flask"
     end
   end
 

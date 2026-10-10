@@ -5,7 +5,7 @@ defmodule QuacksWeb.GameLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Chips
-  alias QuacksWeb.{ActionCode, GameComponents, GameLive}
+  alias QuacksWeb.{ActionCode, GameComponents, GameLive, GameText}
 
   @pot_chip "[data-role=pot-chip]"
 
@@ -344,29 +344,29 @@ defmodule QuacksWeb.GameLiveTest do
 
   test "every engine action in the choice phases has a human label" do
     for action <- [:return_white, :keep, {:place, {:white, 1}}, :return_all] do
-      refute GameComponents.label(action) =~ ~r/^[:{]/
+      refute GameText.label(action) =~ ~r/^[:{]/
     end
   end
 
   test "every scoring event has a human label" do
-    assert GameComponents.label({:green_rubies, 2}) == "Garden spider: +2 rubies"
-    assert GameComponents.label({:green_rubies, 1}) == "Garden spider: +1 ruby"
+    assert GameText.label({:green_rubies, 2}) == "Garden spider: +2 rubies"
+    assert GameText.label({:green_rubies, 1}) == "Garden spider: +1 ruby"
 
-    assert GameComponents.label({:purple, 2, :vp1_ruby}) ==
+    assert GameText.label({:purple, 2, :vp1_ruby}) ==
              "Ghost's breath (tier 2): +1 VP, +1 ruby"
 
-    assert GameComponents.label({:black, :droplet}) == "Hawkmoth: droplet +1"
-    assert GameComponents.label({:black, :droplet_ruby}) == "Hawkmoth: droplet +1, +1 ruby"
-    assert GameComponents.label({:rats, 3}) == "Rats: 3 tails"
-    assert GameComponents.label({:pot_ruby, 24}) == "Scoring space 24: +1 ruby"
-    assert GameComponents.label({:pot_vp, 8, 24}) == "Scoring space 24: +8 VP"
-    assert GameComponents.label({:round_end, 4}) == "— Round 4 over —"
+    assert GameText.label({:black, :droplet}) == "Hawkmoth: droplet +1"
+    assert GameText.label({:black, :droplet_ruby}) == "Hawkmoth: droplet +1, +1 ruby"
+    assert GameText.label({:rats, 3}) == "Rats: 3 tails"
+    assert GameText.label({:pot_ruby, 24}) == "Scoring space 24: +1 ruby"
+    assert GameText.label({:pot_vp, 8, 24}) == "Scoring space 24: +8 VP"
+    assert GameText.label({:round_end, 4}) == "— Round 4 over —"
 
-    assert GameComponents.label({:final_conversion, 17, 3, 5, 2}) ==
+    assert GameText.label({:final_conversion, 17, 3, 5, 2}) ==
              "Final: 17 coins → 3 VP, 5 rubies → 2 VP"
 
     for event <- [{:purple, 1, :vp1}, {:purple, 3, :vp2_droplet}] do
-      refute GameComponents.label(event) =~ ~r/^[:{]/
+      refute GameText.label(event) =~ ~r/^[:{]/
     end
   end
 end

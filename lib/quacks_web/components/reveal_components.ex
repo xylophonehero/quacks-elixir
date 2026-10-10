@@ -15,15 +15,9 @@ defmodule QuacksWeb.RevealComponents do
   import QuacksWeb.CoreComponents, only: [button: 1, dialog_sheet: 1, kbd: 1]
   import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
 
-  import QuacksWeb.GameComponents,
-    only: [
-      book_info: 2,
-      book_ink: 1,
-      card_outcome: 2,
-      chip: 1,
-      die: 1,
-      seat_dot: 1
-    ]
+  import QuacksWeb.GameComponents, only: [book_info: 2, book_ink: 1, chip: 1, die: 1, seat_dot: 1]
+
+  import QuacksWeb.GameText, only: [card_outcome: 2]
 
   import QuacksWeb.CardRevealComponents, only: [card_reveals: 1]
   alias Phoenix.LiveView.JS

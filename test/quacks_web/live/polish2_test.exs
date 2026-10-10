@@ -6,7 +6,7 @@ defmodule QuacksWeb.Polish2Test do
 
   alias Quacks.{Game, GameHelpers, GameServer}
   alias Quacks.Rules.Chips
-  alias QuacksWeb.{ActionCode, GameComponents}
+  alias QuacksWeb.{ActionCode, GameText}
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)
 
@@ -182,7 +182,7 @@ defmodule QuacksWeb.Polish2Test do
 
       for {seat, vp} <- final_game() |> Game.score() do
         assert final_game().log
-               |> GameComponents.vp_breakdown(seat, vp)
+               |> GameText.vp_breakdown(seat, vp)
                |> Enum.map(&elem(&1, 1))
                |> Enum.sum() == vp
       end
