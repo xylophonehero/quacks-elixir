@@ -772,10 +772,7 @@ defmodule Quacks.Game.Fortune do
         []
 
       true ->
-        case for(c <- [:silver, :copper, :gold], Map.get(p.pennies, c) == true, do: {:penny, c}) do
-          [] -> []
-          pennies -> pennies ++ [:skip]
-        end
+        pennies(p)
     end
   end
 
@@ -985,6 +982,14 @@ defmodule Quacks.Game.Fortune do
     |> Enum.filter(fn {c, v} -> c != :white and v in [2, 4] end)
     |> Enum.uniq()
     |> Enum.sort()
+  end
+
+  # AP7: the unspent pennies to give, and the pass.
+  defp pennies(p) do
+    case for(c <- [:silver, :copper, :gold], Map.get(p.pennies, c) == true, do: {:penny, c}) do
+      [] -> []
+      pennies -> pennies ++ [:skip]
+    end
   end
 
   # AB1: the pot chip `seat` picked to swap, or nil.

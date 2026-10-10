@@ -395,8 +395,10 @@ defmodule Quacks.Game do
         else: box
 
     rng = :rand.seed_s(:exsss, seed)
-    card_expansions = if rules.alch_cards, do: expansions, else: MapSet.new()
-    deck = if rules.fortune, do: Fortune.deck(rng, n, card_expansions), else: []
+
+    deck =
+      if rules.fortune, do: Fortune.deck(rng, n, card_expansions(rules, expansions)), else: []
+
     player = %{Player.new(bag) | rubies: rules.starting_rubies}
 
     player =
@@ -426,6 +428,10 @@ defmodule Quacks.Game do
       do: game |> Essence.setup() |> Essence.prepick(opts[:patients]),
       else: start_round(game)
   end
+
+  # The expansions that add Fortune Teller cards: none with `alch_cards: false`.
+  defp card_expansions(%{alch_cards: true}, expansions), do: expansions
+  defp card_expansions(_rules, _expansions), do: MapSet.new()
 
   # The host's picks replace the dealt witch of their colour (nil: dealt). The deal
   # itself runs first either way, so the game's random stream does not change.

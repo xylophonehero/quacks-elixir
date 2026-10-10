@@ -126,12 +126,12 @@ defmodule Quacks.AI do
   defp white_return(%{game: game, seat: seat, legal: legal} = ctx) do
     case last_chip(Game.player(game, seat)) do
       {:white, w} ->
-        cond do
-          {:fortune, :return_white} in legal and again?(ctx, w, 0.0) ->
-            {:fortune, :return_white}
+        # B10 and AB5 return the white for free.
+        free = Enum.find(legal, &(&1 in [{:fortune, :return_white}, {:fortune, :return_white3}]))
 
-          {:fortune, :return_white3} in legal and again?(ctx, w, 0.0) ->
-            {:fortune, :return_white3}
+        cond do
+          free != nil and again?(ctx, w, 0.0) ->
+            free
 
           :use_flask in legal and flask?(ctx, w) ->
             :use_flask

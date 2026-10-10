@@ -160,8 +160,8 @@ defmodule Quacks.Rules.Fortune do
     ab7: :alchemists,
     ab9: :alchemists
   }
-  # TODO(alch-cards): Visit from a witch (an extra witch for one round) needs a new
-  # mechanic; it is not in the deck yet.
+  # Not built yet (see `docs/research/alchemists-fortune-cards.md` §6): Visit from a
+  # witch needs a new mechanic (an extra witch for one round); never in a deck.
   @not_built [:ab8]
 
   @ids Enum.map(@cards, &elem(&1, 0))
