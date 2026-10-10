@@ -64,7 +64,9 @@ A tuple, not a list: `elem/2` reads index `n` in constant time; `Enum.at/2` on a
 walks `n` elements.
 
 Attributes are private to the module. Other modules call a function:
-`PotTrack.last/0`, `Chips.starting_bag/0`. A function also lets the module change its
+`PotTrack.last/0`, `Chips.starting_bag/0`. Round 37: `PotTrack.last_chip/0` (52)
+is the last space a chip covers and `PotTrack.chip_index/1` clamps a move to it;
+`last/0` (53, the spoon) stays the last scoring space, what a chip on 52 pays. A function also lets the module change its
 storage later without breaking callers.
 
 ### Code in an attribute runs at compile time

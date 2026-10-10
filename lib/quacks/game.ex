@@ -618,11 +618,14 @@ defmodule Quacks.Game do
   end
 
   # Round 9: 2 rubies buy 1 VP; droplet and flask are worth nothing any more.
-  defp ruby_actions(%{round: @rounds}, %Player{rubies: rubies}),
-    do: if(rubies >= 2, do: [{:rubies, :vp}], else: [])
+  # Round 37: on the reverse pot side a test-tube glass too (its bonus can be VP).
+  defp ruby_actions(%{round: @rounds} = g, %Player{rubies: rubies, ruby_price: price} = p) do
+    if(rubies >= 2, do: [{:rubies, :vp}], else: []) ++
+      if(tube?(g, p) and rubies >= price, do: [{:rubies, :tube}], else: [])
+  end
 
   defp ruby_actions(g, %Player{rubies: rubies, flask: flask, ruby_price: price} = p) do
-    tube? = g.rules.pot_side == :back and p.tube < TestTubes.last()
+    tube? = tube?(g, p)
 
     if rubies >= price,
       do:
@@ -631,6 +634,9 @@ defmodule Quacks.Game do
           if(flask, do: [], else: [{:rubies, :flask}]),
       else: []
   end
+
+  # The test-tube droplet can still move (reverse pot side, not on the last glass).
+  defp tube?(g, p), do: g.rules.pot_side == :back and p.tube < TestTubes.last()
 
   @doc false
   # The seat may still buy chips (and use the copper witches C1, C3): before round 9,

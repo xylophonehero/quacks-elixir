@@ -2549,7 +2549,7 @@ defmodule QuacksWeb.GameLive do
     assigns =
       assign(assigns,
         uses: ruby_uses(assigns.game),
-        price: assigns.me.ruby_price
+        witch?: assigns.me.rubies >= 1 and g4_call?(assigns.game, assigns.actions)
       )
 
     ~H"""
@@ -2593,12 +2593,28 @@ defmodule QuacksWeb.GameLive do
         data-ruby={use}
       >
         <span class="flex items-center gap-0.5 text-base tabular-nums">
-          {@price}<.piece_icon name={:ruby} class="size-4 text-ruby" />
+          {ruby_cost(use, @me)}<.piece_icon name={:ruby} class="size-4 text-ruby" />
           <.piece_icon name={ruby_icon(use)} class="ml-0.5 size-5" />
         </span>
         <span class="max-w-full truncate text-[11px] font-normal">
           {ruby_why(use, @me, @actions)}
         </span>
+      </.button>
+      <%!-- Round 37: the gold witch "Cheap rubies": each use then costs 1 ruby. --%>
+      <.button
+        :if={@witch?}
+        phx-click="action"
+        phx-value-action={encode({:witch, :gold})}
+        variant={:secondary}
+        class="flex-col gap-0! px-1! py-1! leading-tight"
+        aria-label="Call the gold witch: each ruby use costs 1 ruby"
+        title="Call the gold witch: each ruby use costs 1 ruby"
+        data-role="rubies-witch"
+      >
+        <span class="flex items-center gap-0.5 text-base">
+          <.piece_icon name={:witch} class="size-5 text-penny-gold" />
+        </span>
+        <span class="max-w-full truncate text-[11px] font-normal">Witch: 1 each</span>
       </.button>
     </section>
     """
@@ -2907,6 +2923,9 @@ defmodule QuacksWeb.GameLive do
   # over it). They come out of the bag one by one (`.FromBag`, WAAPI from the bag
   # to their place, 140 ms apart); on a tap the chips not chosen go back into the
   # bag while the row leaves (`phx-remove`, `.bar-to-bag`). Reduced motion: fades.
+  # Round 37: the crow skull chip first (as an evaluation step shows its book's
+  # chip), then the drawn chips on a cloth with "Add a chip to the pot" on it.
+  # Four chips and Skip fit in one row at 360 px; from five the chips are smaller.
   def bar_choice(%{choice: :blue_choice} = assigns) do
     %{actions: actions, game: game, me: me} = assigns
     picks = Enum.filter(actions, &(pick_chips(&1) != []))
@@ -2923,14 +2942,19 @@ defmodule QuacksWeb.GameLive do
         }
       end
 
-    assigns = assign(assigns, chips: chips, skip?: :return_all in actions)
+    assigns =
+      assign(assigns,
+        chips: chips,
+        skip?: :return_all in actions,
+        size: if(length(chips) > 4, do: :md, else: :lg)
+      )
 
     ~H"""
     <section
       id={"bar-blue-#{@game.round}"}
       phx-hook=".FromBag"
       phx-remove={JS.transition("bar-to-bag", time: 520)}
-      class="bar-choice flex min-h-12 items-center gap-1.5"
+      class="bar-choice flex min-h-12 items-center gap-2"
       aria-label="Crow skull: place one chip in the pot, or return them all to the bag"
       data-role="bar-blue"
     >
@@ -2959,26 +2983,51 @@ defmodule QuacksWeb.GameLive do
           }
         }
       </script>
-      <button
-        :for={c <- @chips}
-        id={"blue-chip-#{@game.round}-#{c.id}"}
-        type="button"
-        phx-click={c.action && "action"}
-        phx-value-action={c.action && encode(c.action)}
-        disabled={is_nil(c.action)}
-        class="pool-chip relative z-10 rounded-full touch-manipulation transition-transform duration-100 ease-out active:scale-95 disabled:opacity-40"
-        aria-label={c.label}
-        title={c.label}
-        data-pool-chip
+      <span
+        class="grid size-9 shrink-0 place-items-center"
+        title="Crow skull"
+        data-role="blue-book"
       >
-        <.chip chip={c.chip} size={:lg} />
-      </button>
+        <.chip chip={{:blue, nil}} size={:md} />
+      </span>
+      <div
+        class="relative flex min-w-0 shrink flex-col items-center gap-0.5 px-1.5 pt-1 pb-1.5"
+        data-role="blue-tray"
+      >
+        <span
+          class="blue-cloth absolute inset-0 rounded-xl"
+          aria-hidden="true"
+          data-role="blue-cloth"
+        />
+        <span
+          class="relative text-tag leading-none font-semibold whitespace-nowrap text-parchment"
+          data-role="blue-hint"
+        >
+          Add a chip to the pot
+        </span>
+        <span class="relative flex items-center gap-1">
+          <button
+            :for={c <- @chips}
+            id={"blue-chip-#{@game.round}-#{c.id}"}
+            type="button"
+            phx-click={c.action && "action"}
+            phx-value-action={c.action && encode(c.action)}
+            disabled={is_nil(c.action)}
+            class="pool-chip relative z-10 rounded-full touch-manipulation transition-transform duration-100 ease-out active:scale-95 disabled:opacity-40"
+            aria-label={c.label}
+            title={c.label}
+            data-pool-chip
+          >
+            <.chip chip={c.chip} size={@size} />
+          </button>
+        </span>
+      </div>
       <.button
         :if={@skip?}
         phx-click="action"
         phx-value-action={encode(:return_all)}
         variant={:secondary}
-        class="ml-auto min-h-12 touch-manipulation px-4"
+        class="ml-auto min-h-12 shrink-0 touch-manipulation px-3"
         aria-label={action_label(:return_all, @game, @me)}
         data-role="blue-skip"
       >
@@ -3492,13 +3541,24 @@ defmodule QuacksWeb.GameLive do
   defp card_choice_hint(:return_all, _card, _me), do: "All to the bag"
   defp card_choice_hint(_choice, _card, _me), do: ""
 
-  # The ruby uses in the bar: the test tube is on the reverse pot side only.
+  # The ruby uses in the bar: the test tube is on the reverse pot side only. Round
+  # 37: round 9 (reverse side) offers the tube beside 2 rubies -> 1 VP.
+  defp ruby_uses(%Game{round: 9}), do: [:tube, :vp]
   defp ruby_uses(%Game{rules: %{pot_side: :back}}), do: [:tube, :flask, :droplet]
   defp ruby_uses(_game), do: [:flask, :droplet]
 
   defp ruby_icon(:tube), do: :tube
   defp ruby_icon(:flask), do: :flask
   defp ruby_icon(:droplet), do: :pot
+  defp ruby_icon(:vp), do: :vp
+
+  # Round 37: the gold witch G4 ("Cheap rubies") can be called in the rubies step.
+  defp g4_call?(%Game{witches: %{gold: :g4}}, actions), do: {:witch, :gold} in actions
+  defp g4_call?(_game, _actions), do: false
+
+  # What a ruby use costs now: 2 rubies -> 1 VP is always 2.
+  defp ruby_cost(:vp, _me), do: 2
+  defp ruby_cost(_use, me), do: me.ruby_price
 
   # The small line on a ruby button: what it does, or why it cannot.
   defp ruby_why(use, me, actions) do
@@ -3506,6 +3566,7 @@ defmodule QuacksWeb.GameLive do
       {:rubies, use} in actions -> ruby_what(use)
       use == :flask and me.flask -> "Flask full"
       use == :tube and me.tube >= TestTubes.last() -> "Tubes full"
+      me.rubies >= 1 and {:witch, :gold} in actions -> "Witch: 1 ruby"
       true -> "Too few rubies"
     end
   end
@@ -3513,6 +3574,7 @@ defmodule QuacksWeb.GameLive do
   defp ruby_what(:tube), do: "Test tube"
   defp ruby_what(:flask), do: "Refill flask"
   defp ruby_what(:droplet), do: "Droplet +1"
+  defp ruby_what(:vp), do: "1 VP"
 
   # The Buy button's Enter hint: from 64rem, and only when the shop bar is 24rem
   # wide (Done alone always has the room).
@@ -3931,7 +3993,7 @@ defmodule QuacksWeb.GameLive do
       me: me,
       selected: kept_selection(socket.assigns, game, phase, actions),
       decision: decision,
-      bar_choice: bar_choice(decision, actions),
+      bar_choice: bar_choice(decision, actions, me),
       all_actions: actions,
       actions: if(decision || skip_rubies, do: [], else: Enum.reject(actions, &witch?/1)),
       skip_rubies: skip_rubies,
@@ -4282,8 +4344,16 @@ defmodule QuacksWeb.GameLive do
 
   # Round 29: the choices that take the place of Stop and Draw in the bar (no sheet):
   # the explosion's, and the rubies step when no witch can be called there.
+  # Round 37: the gold witch G4 stays in the bar (her own button) while a ruby is
+  # left to spend at 1; any other witch call opens the sheet.
+  defp bar_choice(:rubies, actions, %Player{rubies: rubies}) do
+    bar? = fn action -> action == {:witch, :gold} and rubies >= 1 end
+    if Enum.any?(actions, &(witch?(&1) and not bar?.(&1))), do: nil, else: :rubies
+  end
+
+  defp bar_choice(decision, actions, _me), do: bar_choice(decision, actions)
+
   defp bar_choice(:explosion_choice, _actions), do: :explosion_choice
-  defp bar_choice(:rubies, actions), do: if(Enum.any?(actions, &witch?/1), do: nil, else: :rubies)
   # Round 31: the card's choice too (no sheet; the card stays over the pot).
   defp bar_choice(:fortune_choice, _actions), do: :fortune_choice
   # Round 33: the chip actions and the droplet's free move too, with an info row.
@@ -4428,7 +4498,8 @@ defmodule QuacksWeb.GameLive do
   defp ruby_due?(%{seat: seat, game: %Game{phase: :shopping, round: round}} = assigns)
        when is_integer(seat) and round < 9 do
     assigns.rubies_kept != round and
-      Enum.any?(assigns.all_actions, &match?({:rubies, use} when use != :vp, &1))
+      (Enum.any?(assigns.all_actions, &match?({:rubies, use} when use != :vp, &1)) or
+         (assigns.me.rubies >= 1 and g4_call?(assigns.game, assigns.all_actions)))
   end
 
   defp ruby_due?(_assigns), do: false

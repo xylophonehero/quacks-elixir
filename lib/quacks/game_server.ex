@@ -39,12 +39,17 @@ defmodule Quacks.GameServer do
   `:bot_delay` ms, 700 by default): the bot makes one action through
   `Quacks.Session`, every page hears it, and the next tick follows.
 
-  Bot brews in one go (round 36): in the potions phase (rounds 1–8) a bot gets no
-  tick. While a human seat still draws, the bots wait and their tiles show
-  "brewing" with no chips. When the last human seat stops or explodes,
-  `brew_bots/1` plays every bot's whole brew at once, bot after bot in seat order,
-  through `Quacks.Session` (the log keeps each draw), and the pages hear one
-  `{:game, id, game}` for all of it. Round 9 (stir) keeps its ticks.
+  Bots brew with your draws (round 37; round 36 brewed them only at the end): in
+  the potions phase (rounds 1–8) a bot gets no tick. When a human draws, every bot
+  that still brews takes its next step in the same call (`step_bots/4`): one draw
+  (or its stop), with the choices that draw asks for, bot after bot in seat order.
+  The human's draw and all the bot steps go out as one `{:game, id, game}`, like
+  round 9's stir. With 2+ humans the bots step once per round of human draws: when
+  every human seat that still draws has drawn since the last step (`drawn`). When
+  the last human seat stops or explodes, `brew_bots/1` plays the rest of every
+  bot's brew at once, again in one broadcast. Each bot action goes through
+  `Quacks.Session` (one log entry per draw), so a replay is the same game; the call
+  schedules one game-file write. Round 9 (stir) keeps its ticks.
 
   Decisions revealed together: in the phases where every seat decides at the same
   time (`:fortune_choice`, `:chip_choice`, `:witch_choice`, `:shopping`), a bot
@@ -650,6 +655,7 @@ defmodule Quacks.GameServer do
           bot_ticks: %{},
           queued: %{},
           auto_keep: nil,
+          drawn: MapSet.new(),
           seen: %{},
           pages: %{},
           away: %{},
@@ -732,7 +738,8 @@ defmodule Quacks.GameServer do
         debug: %{debug | at: at},
         bot_ticks: %{},
         queued: %{},
-        auto_keep: nil
+        auto_keep: nil,
+        drawn: MapSet.new()
     }
 
     reply_game(schedule_bots(state))
@@ -756,8 +763,14 @@ defmodule Quacks.GameServer do
 
     reply =
       case result do
-        {:ok, session} -> reply_game(acted(%{state | session: session}))
-        error -> {:reply, error, state, @idle_timeout}
+        {:ok, session} ->
+          %{state | session: session}
+          |> step_bots(seat, action, sent)
+          |> acted()
+          |> reply_game()
+
+        error ->
+          {:reply, error, state, @idle_timeout}
       end
 
     log_action(state.id, seat, action, elem(result, 0), engine_us, sent)
@@ -1249,7 +1262,8 @@ defmodule Quacks.GameServer do
 
   # Every bot seat that can act and has no tick pending gets one. In a concurrent
   # phase where a human still decides, a bot plans instead (no tick). In the potions
-  # phase (rounds 1-8) the bots brew in one go (`brew_bots/1`), never by tick. While
+  # phase (rounds 1-8) the bots step with the human draws, then brew the rest in one go
+  # (`step_bots/4`, `brew_bots/1`), never by tick. While
   # a human's Mandrake answer can be taken back, bots wait.
   defp schedule_bots(%{session: nil} = state), do: state
   defp schedule_bots(%{debug: %{frozen: true}} = state), do: state
@@ -1277,10 +1291,74 @@ defmodule Quacks.GameServer do
     end)
   end
 
-  # The potions phase of rounds 1-8: bots act only in `brew_bots/1`. Round 9 has its
+  # The potions phase of rounds 1-8: bots act only in `step_bots/4` and `brew_bots/1`. Round 9 has its
   # own lockstep (stir), so the bots tick there.
   defp held?(%Game{phase: :potions, round: round}) when round < 9, do: true
   defp held?(_game), do: false
+
+  # Round 37: a human's action in the potions phase (rounds 1-8). A `:draw` counts
+  # in `drawn`; once every human seat that still draws has drawn, each bot that
+  # still brews takes one step (`bot_step/3`) and `drawn` starts again. With no
+  # human drawing any more, `brew_bots/1` (from `schedule_bots/1`) does the rest.
+  defp step_bots(%{debug: %{frozen: true}} = state, _seat, _action, _started), do: state
+
+  defp step_bots(state, seat, action, started) do
+    game = state.session.game
+    humans = game.seats -- Map.keys(state.bots)
+    drawn = if action == :draw, do: MapSet.put(state.drawn, seat), else: state.drawn
+    drawing = Enum.filter(humans, &drawing?(game, &1))
+
+    cond do
+      not held?(game) ->
+        %{state | drawn: MapSet.new()}
+
+      seat not in humans ->
+        state
+
+      drawing != [] and MapSet.size(drawn) > 0 and Enum.all?(drawing, &(&1 in drawn)) ->
+        state.bots
+        |> Map.keys()
+        |> Enum.sort()
+        |> Enum.filter(&drawing?(game, &1))
+        |> Enum.reduce(%{state | drawn: MapSet.new()}, &bot_step(&2, &1, started))
+
+      true ->
+        %{state | drawn: drawn}
+    end
+  end
+
+  # One step of a bot's brew: its actions up to and with its next draw or stop,
+  # and the choices that draw asks for (Mandrake, crow skull, ...).
+  @step_budget 20
+  defp bot_step(state, seat, started, budget \\ @step_budget)
+  defp bot_step(state, _seat, _started, 0), do: state
+
+  defp bot_step(state, seat, started, budget) do
+    profile = Profile.get(state.bots[seat])
+
+    with {action, rng} <- AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
+         {engine_us, {:ok, session}} <- :timer.tc(Session, :apply, [state.session, seat, action]) do
+      log_action(state.id, seat, {:bot, action}, :ok, engine_us, started)
+      state = %{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)}
+      game = session.game
+
+      if action in [:draw, :stop] and not mid_draw?(game, seat),
+        do: state,
+        else: bot_step(state, seat, started, budget - 1)
+    else
+      _none_or_error -> state
+    end
+  end
+
+  # The seat answers a question about the chip it just drew.
+  defp mid_draw?(game, seat),
+    do:
+      Game.player(game, seat).phase in [
+        :yellow_choice,
+        :blue_choice,
+        :chip_choice,
+        :essence_offer
+      ]
 
   # Round 36: once no human seat draws any more, every bot's whole brew in one go.
   # The first bot (seat order) that has an action takes it through `Session.apply/3`,

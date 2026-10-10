@@ -1410,7 +1410,11 @@ bar) never moves:
   when a ruby buys something (`ruby_step_action?/1`). Round 9's `{:rubies, :vp}`
   is no step: the seat's "Done" converts what it keeps (`final_conversion`), so a
   round-9 seat with no witch to call ends its round after the evaluation
-  (`auto_done/2`).
+  (`auto_done/2`). Round 37: on the reverse pot side round 9 offers a glass
+  (`{:rubies, :tube}`), so the step shows there with two uses, tube and 1 VP
+  (`ruby_uses/1`). The gold witch G4 ("Cheap rubies") has her own button at the end
+  of the rubies bar (`data-role=rubies-witch`) while the seat has a ruby;
+  `bar_choice/3` keeps the bar for her, and only another witch call opens the sheet.
 
 ### Round 33: the bar as the context area
 
@@ -1742,7 +1746,28 @@ with no change.
   (`data-role="peek-chip"`, `.peek-rise`) until this seat's next draw or the round's end.
 - **Scoring pulse**: `PotMotion.scoringPulse` hides the new scoring space and ring
   during the draw's flight, then pops them with one ping ring. No flight (reduced
-  motion), no pulse.
+  motion), no pulse. Round 37 replaced it (`scoringMove`, below).
+
+### Round 37 (board): the crow skull row, large badges, the ring, the spoon
+
+- **Crow skull row** (`bar_choice(:blue_choice)`): the crow skull chip first
+  (`data-role="blue-book"`, `{:blue, nil}` at `:md`, as a tile step shows its
+  book), then a cloth (`blue-tray`, `.blue-cloth` in app.css) with the hint "Add a
+  chip to the pot" (`blue-hint`) over the drawn chips, then Skip. Four `:lg` chips
+  and Skip fit at 360 px; from five chips they are `:md`. When the row leaves
+  (`.bar-to-bag`) the cloth and the hint fade and the chips fly to the bag.
+- **Value badge at `:lg`**: `chip/1` had no badge classes for `:lg`, so the value
+  sat unplaced and unsized over the icon (the crow skull's and the chip row's
+  chips). Each size with a badge now places and sizes it (`:lg`: `size-5 text-sm`).
+- **Scoring ring on a draw** (`PotMotion.scoringMove`): `snapshot()` copies this
+  seat's marks (the gold space and the ring) before the patch (`oldMarks`). After
+  a draw's flight starts, the copies sit on their old space in the `pot-fx` layer
+  and shrink to 0.85 as they fade out (220 ms); the new marks wait for the chip to
+  land (460 ms), then grow from 0.85 to 1 as they fade in (280 ms). Reduced
+  motion: no flight, so none.
+- **The spoon** (index 53): `pot/1` draws no disc there (`data-spoon`), only its
+  coins and VP, so the scoring ring and the gold space can still mark it. No chip
+  lands on it (`PotTrack.last_chip/0`, see 07-rules-as-data).
 
 
 ### Round 37 (eval): one row grid, the recap after the shop

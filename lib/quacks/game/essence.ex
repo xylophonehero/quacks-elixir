@@ -523,7 +523,7 @@ defmodule Quacks.Game.Essence do
   defp valid?({:hump, _}, p), do: p.essence >= @cost.hump
   defp valid?(_offer, _p), do: false
 
-  defp next_ruby(i), do: Enum.find((i + 1)..PotTrack.last()//1, &PotTrack.at(&1).ruby?)
+  defp next_ruby(i), do: Enum.find((i + 1)..PotTrack.last_chip()//1, &PotTrack.at(&1).ruby?)
 
   defp answer(g, _seat, :pass, _offer), do: g
 
@@ -541,7 +541,7 @@ defmodule Quacks.Game.Essence do
   defp answer(g, seat, :double, {:wing, _}) do
     g
     |> Game.update_player(seat, fn %{drawn: [{{:white, v} = chip, i} | rest]} = p ->
-      j = min(i + v, PotTrack.last())
+      j = PotTrack.chip_index(i + v)
       %{p | drawn: [{chip, j} | rest], pot_index: j}
     end)
     |> spend(seat, @cost.double, :double)

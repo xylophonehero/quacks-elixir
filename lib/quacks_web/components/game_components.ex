@@ -194,7 +194,8 @@ defmodule QuacksWeb.GameComponents do
         class={[
           "absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink",
           @size == :sm && "-right-1 -bottom-1 size-4 text-tag ring-1",
-          @size == :md && "-right-1 -bottom-1 size-[18px] text-tag ring-2"
+          @size == :md && "-right-1 -bottom-1 size-[18px] text-tag ring-2",
+          @size == :lg && "-right-0.5 -bottom-0.5 size-5 text-sm ring-2"
         ]}
         data-role="chip-value"
       >
@@ -394,9 +395,13 @@ defmodule QuacksWeb.GameComponents do
         data-x={@size == :lg && elem(elem(positions(), index), 0)}
         data-y={@size == :lg && elem(elem(positions(), index), 1)}
         transform={translate(index)}
+        data-spoon={index == spoon() && "true"}
       >
         <title :if={@size == :lg}>{space_title(index)}</title>
+        <%!-- Round 37: the spoon (53) is not a space a chip covers: no disc, only
+             its coins and VP, so it still shows as the scoring space. --%>
         <circle
+          :if={index != spoon()}
           r="22"
           fill="var(--color-potion-light)"
           stroke="var(--color-potion-deep)"
@@ -1258,11 +1263,19 @@ defmodule QuacksWeb.GameComponents do
     end)
   end
 
+  defp space_title(53) do
+    space = PotTrack.at(53)
+    "The spoon (past the last space): #{space.coins} coins, #{space.vp} VP"
+  end
+
   defp space_title(index) do
     space = PotTrack.at(index)
     ruby = if space.ruby?, do: ", ruby", else: ""
     "Space #{index}: #{space.coins} coins, #{space.vp} VP#{ruby}"
   end
+
+  # Round 37: the spoon, the last index of the track, which no chip covers.
+  defp spoon, do: PotTrack.last()
 
   # Each chip remembers the space it landed on, so the pot just reads it back.
   # The value is `{chip, order}`: `order` is the chip's position in `drawn`.

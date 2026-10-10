@@ -26,9 +26,9 @@ defmodule Quacks.HerbWitchesTest do
   defp effect?(g, seat \\ 0, book, detail), do: {seat, {:effect, book, detail}} in g.log
   defp effects(g, seat, book), do: for({^seat, {:effect, ^book, d}} <- g.log, do: d)
 
-  # A chip on the last space, ready for the next draw to overflow.
+  # A chip on the last space (52, before the spoon), ready for the next draw to overflow.
   defp on_spoon(g, seat \\ 0),
-    do: put(g, seat, drawn: [{{:orange, 1}, 53}], pot_index: 53)
+    do: put(g, seat, drawn: [{{:orange, 1}, 52}], pot_index: 52)
 
   describe "the expansion flag" do
     test "stored on the game, logged first; the base game is unchanged" do
@@ -285,7 +285,7 @@ defmodule Quacks.HerbWitchesTest do
   describe "the overflow bowl" do
     test "chips after the last space go in the bowl, without actions" do
       g = new(%{blue: 5}) |> on_spoon() |> force_draws([{:orange, 1}, {:blue, 1}])
-      assert me(g).bowl == [{:blue, 1}, {:orange, 1}] and me(g).pot_index == 53
+      assert me(g).bowl == [{:blue, 1}, {:orange, 1}] and me(g).pot_index == 52
       assert length(me(g).drawn) == 1 and me(g).vp == 0
       assert {0, {:overflow, {:blue, 1}}} in g.log
     end
@@ -300,7 +300,7 @@ defmodule Quacks.HerbWitchesTest do
 
     test "the flask takes back a white chip from the bowl" do
       g = new() |> on_spoon() |> force_draws([{:white, 2}]) |> apply!(:use_flask)
-      assert me(g).bowl == [] and {:white, 2} in me(g).bag and me(g).pot_index == 53
+      assert me(g).bowl == [] and {:white, 2} in me(g).bag and me(g).pot_index == 52
     end
 
     test "step D: spoon VP plus half the bowl's values, rounded down" do
@@ -318,7 +318,7 @@ defmodule Quacks.HerbWitchesTest do
     end
 
     test "an exploded player who buys gets no bowl VP" do
-      g = new() |> put(drawn: [{{:white, 3}, 53}, {{:white, 3}, 49}], pot_index: 53)
+      g = new() |> put(drawn: [{{:white, 3}, 52}, {{:white, 3}, 49}], pot_index: 52)
       g = g |> force_draws([{:white, 2}]) |> apply!({:explosion_choice, :buy})
       refute Enum.any?(g.log, &match?({0, {:bowl, _, _}}, &1))
     end
@@ -339,7 +339,7 @@ defmodule Quacks.HerbWitchesTest do
     test "a blue (Set 1) on the last space loses its offer" do
       two_blues = [drawn: [{{:orange, 1}, 51}], pot_index: 51, bag: [{:blue, 2}, {:blue, 2}]]
       g = new() |> put(two_blues) |> apply!(:draw)
-      assert me(g).pot_index == 53 and Game.phase(g, 0) == :potions and me(g).pending == []
+      assert me(g).pot_index == 52 and Game.phase(g, 0) == :potions and me(g).pending == []
 
       # without the overflow bowl it still offers
       base =
