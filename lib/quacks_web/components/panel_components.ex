@@ -481,6 +481,7 @@ defmodule QuacksWeb.PanelComponents do
       :starting_rubies,
       :round6_white,
       :fortune,
+      :alch_cards,
       :rats,
       :black_solo,
       :black_rule,
@@ -503,6 +504,7 @@ defmodule QuacksWeb.PanelComponents do
   defp rule_label({:starting_rubies, n}), do: "#{n} starting rubies"
   defp rule_label({:round6_white, false}), do: "no round-6 white"
   defp rule_label({:fortune, false}), do: "no Fortune Teller cards"
+  defp rule_label({:alch_cards, false}), do: "no Alchemists cards"
   defp rule_label({:rats, false}), do: "no rats"
   defp rule_label({:black_solo, :droplet_ruby}), do: "solo black pays a ruby"
   defp rule_label({:black_rule, :standings}), do: "black chips by standings"

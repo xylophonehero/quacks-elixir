@@ -1,8 +1,15 @@
 defmodule Quacks.Rules.Fortune do
   @moduledoc """
-  The 24 Fortune Teller cards: 11 blue (a rule for the whole round) and 13 purple
-  (resolved once before the round). Names and texts from `docs/research/rulebook.md`
-  §5. ⚠️ That list is a fan transcription of the North Star English edition.
+  The 24 Fortune Teller cards of the base game: 11 blue (a rule for the whole round)
+  and 13 purple (resolved once before the round). Names and texts from
+  `docs/research/rulebook.md` §5. ⚠️ That list is a fan transcription of the North
+  Star English edition.
+
+  The Alchemists box adds 20 cards (`:ap1`…`:ap10` purple, `:ab1`…`:ab10` blue;
+  `docs/research/alchemists-fortune-cards.md`, Schmidt English text): 14 for any
+  game, 3 that need The Herb Witches (`expansion: :herb_witches`) and 3 that need
+  The Alchemists (`expansion: :alchemists`). They are in the deck only when The
+  Alchemists is in play (and the house rule `alch_cards` is on).
 
   The rules live in `Quacks.Game.Fortune`; this module is data only.
   """
@@ -32,7 +39,33 @@ defmodule Quacks.Rules.Fortune do
           | :p11
           | :p12
           | :p13
-  @type card :: %{id: id, colour: :blue | :purple, name: String.t(), text: String.t()}
+          | :ap1
+          | :ap2
+          | :ap3
+          | :ap4
+          | :ap5
+          | :ap6
+          | :ap7
+          | :ap8
+          | :ap9
+          | :ap10
+          | :ab1
+          | :ab2
+          | :ab3
+          | :ab4
+          | :ab5
+          | :ab6
+          | :ab7
+          | :ab8
+          | :ab9
+          | :ab10
+  @type card :: %{
+          id: id,
+          colour: :blue | :purple,
+          name: String.t(),
+          text: String.t(),
+          expansion: nil | :alchemists | :herb_witches
+        }
 
   @cards [
     {:b1, "Bubbling Over",
@@ -74,15 +107,72 @@ defmodule Quacks.Rules.Fortune do
      "Move your droplet marker 2 spaces forward OR take a purple token."},
     {:p12, "Take a Chance", "Everyone rolls the bonus die once and gets the reward shown."},
     {:p13, "Flea Market",
-     "Draw 4 tokens from your bag. You can trade one in for the next higher value of the same colour from the supply. If not possible, take a green 1 instead. Put all tokens back."}
+     "Draw 4 tokens from your bag. You can trade one in for the next higher value of the same colour from the supply. If not possible, take a green 1 instead. Put all tokens back."},
+    # The Alchemists box (Schmidt English card text).
+    {:ap1, "Spoiled for choice",
+     "Choose: Receive 1 ruby, 1 die roll and 3 additional rat-tails OR 1 red 2-chip."},
+    {:ap2, "Ruby fever",
+     "Each player immediately draws one chip from the bag and takes as many rubies as the value of the chip drawn. Then return the chips to the bag and begin the Preparation Phase."},
+    {:ap3, "Give and take",
+     "You can surrender 1, 2, or 4 rubies. Take a 1-chip, 2-chip, or 4-chip (any color except purple) in return OR take 2 rubies."},
+    {:ap4, "Rich offerings",
+     "Choose: Receive 8 additional rat-tails OR roll 4 times OR move your droplet forward 3 spaces."},
+    {:ap5, "A small donation",
+     "If you have 2 or more rat-tails in your cauldron at the start of a round, you may roll the die once."},
+    {:ap6, "A rat to cherish",
+     "You may surrender up to 3 rubies. For each ruby you surrender, you receive 3 additional rat-tails."},
+    {:ap7, "A quick exchange",
+     "You may surrender one of your witch pennies in exchange for a chip of your choice."},
+    {:ap8, "Neighbor in need",
+     "Choose: The player to your left may permanently remove a white 1-chip OR take a chip of their choice."},
+    {:ap9, "Useful rodent",
+     "You may forgo 2, 4, or 6 rat-tails and take a 1-chip, 2-chip, or 4-chip in exchange (any color except purple)."},
+    {:ap10, "A powerful tipple",
+     "You may move your droplet back 1 or 2 spaces and take a 2-chip or 4-chip in exchange."},
+    {:ab1, "From good to better",
+     "After you STOP: you can permanently remove 1 colored 2-chip or 4-chip from your cauldron. Take another 2-chip or 4-chip from the supply pile in exchange and place it in the same position."},
+    {:ab2, "Sale",
+     "If you buy 2 chips in this round, you receive the cheaper one a second time for free."},
+    {:ab3, "The white blessing",
+     "After you STOP: If the last chip in your cauldron is white, receive as many victory points as the value indicated on that chip."},
+    {:ab4, "A rat's blessing",
+     "In this round, your purchasing power increases by twice the number of rat-tails in your cauldron."},
+    {:ab5, "A good neighborhood",
+     "If your cauldron has not exploded yet, you may return your white 3-chip to your bag at ANY time. If you do so, the player to your left receives 2 rubies."},
+    {:ab6, "A blessing in disguise",
+     "If your cauldron explodes in this round, your essence increases by 2 additional spaces."},
+    {:ab7, "Essential essence",
+     "The player(s) whose essence has the highest value after the Essence Phase may roll the die once OR refill their flask."},
+    {:ab8, "Visit from a witch",
+     "Immediately draw a random herb witch from the ones not currently in play. Each player may use this once in this round for free."},
+    {:ab9, "All's well that ends well.",
+     "Your essence increases by the number of spaces corresponding to the value of the last chip in your cauldron."},
+    {:ab10, "A joyful reunion",
+     "At the end of the round, one of your witch pennies is returned to you."}
   ]
 
+  # The Alchemists box: the cards with an expansion symbol.
+  @needs %{
+    ap7: :herb_witches,
+    ab8: :herb_witches,
+    ab10: :herb_witches,
+    ab6: :alchemists,
+    ab7: :alchemists,
+    ab9: :alchemists
+  }
+  # TODO(alch-cards): Neighbor in need (cross-seat choice) and Visit from a witch (an
+  # extra witch for one round) need a new mechanic; they are not in the deck yet.
+  @not_built [:ap8, :ab8]
+
   @ids Enum.map(@cards, &elem(&1, 0))
+  @base Enum.reject(@ids, &String.starts_with?(Atom.to_string(&1), "a"))
+  @box @ids -- @base
 
-  # Rulebook §6.2: cards that need other players are not in a solo deck.
-  @not_solo [:p4, :p5, :p8, :b2]
+  # Rulebook §6.2: cards that need other players are not in a solo deck. The
+  # Alchemists box: our solo game has no rats and no left neighbour.
+  @not_solo [:p4, :p5, :p8, :b2, :ap5, :ap6, :ap8, :ap9, :ab4]
 
-  @doc "All 24 cards, blue first."
+  @doc "All 44 cards: the 24 base cards (blue first), then the 20 of The Alchemists."
   @spec all() :: [card]
   def all, do: Enum.map(@ids, &card/1)
 
@@ -90,12 +180,29 @@ defmodule Quacks.Rules.Fortune do
   @spec card(id) :: card
   def card(id) do
     {^id, name, text} = List.keyfind(@cards, id, 0)
-    colour = if String.starts_with?(Atom.to_string(id), "b"), do: :blue, else: :purple
-    %{id: id, colour: colour, name: name, text: text}
+    colour = if Atom.to_string(id) =~ ~r/^a?b/, do: :blue, else: :purple
+    %{id: id, colour: colour, name: name, text: text, expansion: @needs[id]}
   end
 
-  @doc "The card ids in a deck for `players` players: solo leaves out four cards."
-  @spec ids(1..8) :: [id]
-  def ids(1), do: @ids -- @not_solo
-  def ids(_players), do: @ids
+  @doc "Whether `id` is one of the 20 cards of The Alchemists box."
+  @spec alchemists?(id) :: boolean
+  def alchemists?(id), do: id in @box
+
+  @doc """
+  The card ids in a deck for `players` players with `expansions` in play: solo
+  leaves out the cards that need other players. The Alchemists box cards only with
+  The Alchemists (its 3 witch cards also need The Herb Witches).
+  """
+  @spec ids(1..8, Enumerable.t()) :: [id]
+  def ids(players, expansions \\ []) do
+    expansions = MapSet.new(expansions)
+
+    box =
+      if :alchemists in expansions,
+        do: Enum.filter(@box -- @not_built, &(@needs[&1] in [nil | MapSet.to_list(expansions)])),
+        else: []
+
+    ids = @base ++ box
+    if players == 1, do: ids -- @not_solo, else: ids
+  end
 end

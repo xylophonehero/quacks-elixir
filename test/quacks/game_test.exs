@@ -697,7 +697,10 @@ defmodule Quacks.GameTest do
           action = Enum.at(actions, rem(div(pick, 7), length(actions)))
           next = apply!(g, seat, action)
           assert_chips_conserved(g, next, seat, action)
-          assert Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
+
+          assert g.fortune_card == :ap10 or
+                   Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
+
           assert Enum.all?(g.seats, &(me(next, &1).tube in me(g, &1).tube..12))
           assert Enum.all?(g.seats, &(me(next, &1).pot_index <= 53)) and next.round in 1..9
           {:cont, next}
@@ -755,6 +758,7 @@ defmodule Quacks.GameTest do
       explode_above: integer(5..9),
       round6_white: boolean(),
       fortune: boolean(),
+      alch_cards: boolean(),
       rats: boolean(),
       black_solo: member_of([:droplet, :droplet_ruby]),
       black_rule: member_of([:neighbours, :standings]),

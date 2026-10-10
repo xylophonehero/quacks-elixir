@@ -88,6 +88,7 @@ defmodule Quacks.Game do
     explode_above: 5..9,
     round6_white: [true, false],
     fortune: [true, false],
+    alch_cards: [true, false],
     rats: [true, false],
     black_solo: [:droplet, :droplet_ruby],
     black_rule: [:neighbours, :standings],
@@ -101,6 +102,7 @@ defmodule Quacks.Game do
     explode_above: 7,
     round6_white: true,
     fortune: true,
+    alch_cards: true,
     rats: true,
     black_solo: :droplet,
     black_rule: :neighbours,
@@ -146,6 +148,14 @@ defmodule Quacks.Game do
           | :keep
           | {:place, Chips.chip()}
           | :return_all
+          | :bundle
+          | :rats
+          | :rolls
+          | {:cherish, 1..3}
+          | {:exchange, WitchCards.colour(), Chips.chip()}
+          | {:better, Chips.chip(), Chips.chip()}
+          | :keep
+          | :return_white3
           | {:explosion_choice, :vp | :buy}
           | {:buy, [Chips.chip()]}
           | {:rubies, :droplet | :tube | :flask | :vp | :skip}
@@ -309,11 +319,14 @@ defmodule Quacks.Game do
   `:limited` plays with the box's counts. `overflow: true` (default) puts chips past
   the last space in the overflow bowl; `false` keeps them on the last space.
   `pot_side: :back` plays the reverse side of the pot (the test-tube track).
+  `alch_cards: true` (default) adds the 20 Fortune Teller cards of The Alchemists box
+  to the deck when The Alchemists is in play (see `Quacks.Rules.Fortune.ids/2`).
   """
   @type rules :: %{
           explode_above: 5..9,
           round6_white: boolean,
           fortune: boolean,
+          alch_cards: boolean,
           rats: boolean,
           black_solo: :droplet | :droplet_ruby,
           black_rule: :neighbours | :standings,
@@ -381,7 +394,8 @@ defmodule Quacks.Game do
         else: box
 
     rng = :rand.seed_s(:exsss, seed)
-    deck = if rules.fortune, do: Fortune.deck(rng, n), else: []
+    card_expansions = if rules.alch_cards, do: expansions, else: MapSet.new()
+    deck = if rules.fortune, do: Fortune.deck(rng, n, card_expansions), else: []
     player = %{Player.new(bag) | rubies: rules.starting_rubies}
 
     player =
@@ -719,8 +733,11 @@ defmodule Quacks.Game do
 
   # -- shopping: every seat at once, all in one step ----------------------------------
 
-  defp step(%{phase: :shopping} = g, seat, {:buy, chips}),
-    do: g |> buy(seat, chips) |> done_buying(seat)
+  defp step(%{phase: :shopping} = g, seat, {:buy, chips}) do
+    free = Fortune.sale(g, chips)
+    g = Enum.reduce(free, g, &record(&2, seat, {:fortune, :ab2, {:free, &1}}))
+    g |> buy(seat, chips, free) |> done_buying(seat)
+  end
 
   defp step(%{phase: :shopping} = g, seat, {:rubies, :vp}) do
     g
