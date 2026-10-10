@@ -1,17 +1,141 @@
-defmodule QuacksWeb.Round14Test do
+defmodule QuacksWeb.RubiesAndWitchesTest do
   @moduledoc """
-  Round 14 playtest fixes: the witches sheet has a title row and the order copper,
-  silver, gold; the menu's "App" line; name cards on one line.
+  The rubies step, the toasts of a card without a choice, the gold witch Cheap rubies, the test tube in round 9, the reveal overlay and settings, the herb witch pickers, the witches sheet and the menu.
   """
   use QuacksWeb.ConnCase, async: true
-
   import Phoenix.LiveViewTest
   import Quacks.GameHelpers, only: [replace_game: 2]
-
+  import QuacksWeb.LiveHelpers, except: [open: 2]
+  import QuacksWeb.RevealHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
 
-  defp browser(name), do: init_test_session(build_conn(), player_token: name)
+  defp duo(rules \\ %{}) do
+    {:ok, id} = GameServer.start(2, {1, 2, 3}, %{}, Map.merge(%{fortune: false}, rules))
+    {:ok, alice, _html} = live(browser("alice-#{id}"), ~p"/g/#{id}")
+    {:ok, _bob, _html} = live(browser("bob-#{id}"), ~p"/g/#{id}")
+    alice |> element("button", "Start game") |> render_click()
+    {id, alice}
+  end
+
+  # Seat 0 at its rubies step (the buy done) in `round`, after the evaluation.
+  defp rubies_step(id, alice, round, fields) do
+    replace_game(id, &(&1 |> H.put(round: round) |> H.put(0, [phase: :rubies] ++ fields)))
+    render_hook(alice, "seen", %{"kind" => "results", "round" => round})
+  end
+
+  test "rounds 1 to 8: the rubies step shows with enough rubies" do
+    {id, alice} = duo()
+    rubies_step(id, alice, 4, rubies: 2, flask: false)
+    assert has_element?(alice, "#bar-rubies button[data-ruby=droplet]:not([disabled])")
+    assert has_element?(alice, "#bar-rubies button[data-ruby=flask]:not([disabled])")
+  end
+
+  test "rounds 1 to 8: too few rubies, no step: the seat's round ends by itself" do
+    {id, alice} = duo()
+    rubies_step(id, alice, 4, rubies: 1)
+    refute has_element?(alice, "#bar-rubies")
+    {:ok, %{game: game}} = GameServer.get(id)
+    assert game.players[0].phase == :ready
+  end
+
+  test "the reverse pot side offers the test tube in the step" do
+    {id, alice} = duo(%{pot_side: :back})
+    rubies_step(id, alice, 4, rubies: 2)
+    assert has_element?(alice, "#bar-rubies button[data-ruby=tube]:not([disabled])")
+  end
+
+  test "round 9: no rubies step; the rubies turn into VP at the seat's end" do
+    {id, alice} = duo()
+    rubies_step(id, alice, 9, rubies: 4, coins: 0)
+    refute has_element?(alice, "#bar-rubies")
+    {:ok, %{game: game}} = GameServer.get(id)
+    assert %{rubies: 0, phase: :ready} = game.players[0]
+  end
+
+  describe "no full-height sheets" do
+    test "a decision opens over the pot, not as a bottom sheet" do
+      {id, alice} = duo()
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
+      assert has_element?(alice, "dialog#decision-shop[data-pot=true][data-side=panel]")
+    end
+
+    test "the shop opens over the pot; its purse and buttons sit in the bar" do
+      {id, alice} = duo()
+      replace_game(id, &H.put(&1, 0, phase: :shop, coins: 15))
+      assert has_element?(alice, "dialog#decision-shop[data-pot=true] [data-role=shop-footer]")
+      css = File.read!("assets/css/app.css")
+      assert css =~ ~s(.sheet[data-pot][open] [data-role="shop-footer"] {\n    position: fixed;)
+    end
+
+    test "the player sheets cover the pot, not the screen" do
+      {_id, alice} = duo()
+      assert has_element?(alice, "#sheet-player-0.sheet-pot[popover]")
+      assert has_element?(alice, "#sheet-player-1.sheet-pot[popover]")
+    end
+
+    test "the CSS anchors the overlay to the pot column; app.js opens it non-modal" do
+      css = File.read!("assets/css/app.css")
+      assert css =~ ~s([data-area="pot"] {\n  anchor-name: --pot-area;)
+      assert css =~ "position-anchor: --pot-area;"
+      js = File.read!("assets/js/app.js")
+      assert js =~ "side || d.dataset.pot ? d.show() : d.showModal()"
+    end
+  end
+
+  defp open(id) do
+    conn = init_test_session(build_conn(), player_token: "solo-#{System.unique_integer()}")
+    {:ok, view, _html} = live(conn, ~p"/g/#{id}")
+    view
+  end
+
+  defp solo(rules, expansion \\ nil) do
+    {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, Map.put(rules, :fortune, false), expansion)
+    {id, open(id)}
+  end
+
+  test "G4: the rubies step offers the witch; then each use costs 1 ruby" do
+    {id, view} = solo(%{}, :herb_witches)
+
+    replace_game(id, fn g ->
+      %{g | witches: %{g.witches | gold: :g4}}
+      |> H.put(phase: :rubies, rubies: 1, flask: false)
+    end)
+
+    skip_results(view)
+
+    # 1 ruby: the uses wait for the witch, and say so
+    assert has_element?(view, "#bar-rubies [data-role=rubies-witch]")
+    assert has_element?(view, "#bar-rubies button[data-ruby=droplet][disabled]", "Witch: 1 ruby")
+
+    view |> element("#bar-rubies [data-role=rubies-witch]") |> render_click()
+
+    refute has_element?(view, "#bar-rubies [data-role=rubies-witch]")
+
+    view
+    |> element(~s(#bar-rubies button[data-ruby=droplet][aria-label="Spend 1 ruby: droplet +1"]))
+    |> render_click()
+
+    {:ok, %{game: game}} = GameServer.get(id)
+    # nothing left to spend: the round ended after the move
+    assert %{rubies: 0, droplet: 1} = game.players[0]
+    assert {0, {:witch, :g4, :ruby_price}} in game.log
+    assert {0, {:rubies_spent, :droplet, 1}} in game.log
+  end
+
+  test "round 9 on the reverse side: a glass beside 2 rubies -> 1 VP" do
+    {id, view} = solo(%{pot_side: :back})
+    replace_game(id, &H.put(&1, round: 9, phase: :rubies, rubies: 3, tube: 3))
+    skip_results(view)
+
+    assert has_element?(view, "#bar-rubies button[data-ruby=vp]", "1 VP")
+    refute has_element?(view, "#bar-rubies button[data-ruby=flask]")
+
+    view |> element("#bar-rubies button[data-ruby=tube]") |> render_click()
+
+    {:ok, %{game: game}} = GameServer.get(id)
+    assert %{rubies: 1, tube: 4, vp: 2} = game.players[0]
+  end
 
   defp herb_solo do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false}, :herb_witches)
