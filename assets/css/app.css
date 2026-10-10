@@ -863,6 +863,65 @@ body {
   animation-delay: calc(var(--roll, 0) * var(--die-roll));
 }
 
+/* Round 39 (Nick): Ghost's breath V's chips in the context area, no sheet
+   (`purple_buy/1`). Below 64rem a panel over the pot's lower band, from the bar up
+   (anchored to the pot like `.sheet[data-pot]`), so the pot never moves; the
+   chevron folds it to its title. From 64rem a panel in the context column, over
+   the bar. The purse and Take are in the bar: nothing scrolls under them. */
+.pick-panel {
+  position: fixed;
+  z-index: 30;
+  inset: auto 0.5rem calc(var(--bar-h) + max(0.75rem, env(safe-area-inset-bottom)));
+  max-width: 40rem;
+  margin: 0 auto;
+  max-height: calc(100dvh - 16rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.625rem 0.75rem 0.75rem;
+  border: 3px solid var(--color-iron);
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+  animation: update-in 220ms var(--ease-spring) both;
+}
+
+@supports (anchor-name: --a) {
+  .pick-panel {
+    position-anchor: --pot-area;
+    inset: auto anchor(right) anchor(bottom) anchor(left);
+    max-height: calc(anchor-size(height) - 0.5rem);
+    margin: 0.25rem 0.5rem;
+  }
+}
+
+.pick-panel.pick-folded .pick-tiles {
+  display: none;
+}
+
+@media (width >= 64rem) {
+  /* It keeps its height (the witches under it shrink and scroll), so every
+     chip shows at once. */
+  .pick-panel {
+    position: static;
+    flex: 0 0 auto;
+    min-height: auto;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border-width: 4px;
+    box-shadow: none;
+  }
+
+  .pick-panel.pick-folded .pick-tiles {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pick-panel {
+    animation: none;
+  }
+}
+
 /* Round 37 (items 1-3): every results panel's rows share one grid: the seat
    disc, the name, the reason, then one column per kind of result. Each row is a
    subgrid, so counts, chips and numbers stand in one line whatever the names. */

@@ -169,6 +169,7 @@ const PotMotion = {
     else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0])
     else if (added.length <= 2) added.forEach(c => this.land(c))
     if (!newRound) this.ratsOut()
+    if (!newRound && !reduced()) this.scoringMove(this.wait)
     this.hop(this.el.querySelector("[data-role=droplet]"))
     const brew = this.el.querySelector("[data-role=flask-brew]")
     if (brew && !this.full && !reduced())
@@ -243,7 +244,7 @@ const PotMotion = {
     this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
     this.rats = [...this.el.querySelectorAll("[data-role=rat]")]
     this.full = !!this.el.querySelector("[data-role=flask-brew]")
-    this.oldMarks = this.marks().map(m => ({copy: m.cloneNode(), index: m.closest("[data-space]").dataset.space}))
+    this.oldMarks = this.marks().map(m => ({copy: m.cloneNode(), index: m.closest("[data-space]").dataset.space, k: this.key(m)}))
     this.round = this.el.dataset.round
     this.bagged = !!this.el.dataset.bagged
     if (this.bagged) bagRound = this.round
@@ -289,27 +290,26 @@ const PotMotion = {
       {transform: at(p, p, 0.96), opacity: 1, offset: 0.9, easing: easing("--ease-spring")},
       {transform: at(p, p, 1), opacity: 1},
     ], {duration: 460, easing: "linear"}).finished.catch(() => {}).finally(() => { g.remove(); hide.cancel() })
-    if (s0 !== 1) this.scoringMove(460)
+    this.wait = 460
   },
-  // Round 37 (replaces round 36's pulse): this seat's scoring marks (the gold
-  // space and its ring). At the draw the old ones shrink a little and fade out
-  // (ghost copies on their old space); when the chip has landed (`after` ms) the
-  // new ones grow by the same amount as they fade in. Only after a draw's flight,
-  // so reduced motion has none.
-  marks() {
-    return [...this.el.querySelectorAll(`[data-role=next-space], [data-role=scoring-ring][data-seat="${this.el.id.split("-")[1]}"]`)]
-  },
+  // Round 37/39: the scoring marks (gold space, every seat's ring). A changed one
+  // shrinks and fades out (a ghost on its old space); the new one grows in when
+  // your chip lands (`wait`), else at once. Reduced motion: none.
+  marks() { return [...this.el.querySelectorAll("[data-role=next-space], [data-role=scoring-ring]")] },
+  key: m => m.closest("[data-space]").dataset.space + m.outerHTML,
   scoringMove(after) {
-    const ease = easing("--ease-out"), now = this.marks()
-    const here = now[0]?.closest("[data-space]").dataset.space
-    this.oldMarks.forEach(({copy, index}) => {
-      if (index === here) return
+    const ease = easing("--ease-out"), now = this.marks(), was = new Set(this.oldMarks.map(o => o.k))
+    const keys = new Set(now.map(this.key))
+    this.wait = 0
+    this.oldMarks.forEach(({copy, index, k}) => {
+      if (keys.has(k)) return
       copy.removeAttribute("data-role")
       const g = this.top(copy, this.pos(index))
       copy.animate([{scale: 1, opacity: 1}, {scale: 0.85, opacity: 0}], {duration: 220, easing: ease, fill: "forwards"})
         .finished.catch(() => {}).finally(() => g.remove())
     })
     now.forEach(m => {
+      if (was.has(this.key(m))) return
       m.getAnimations().forEach(a => a.cancel())
       m.animate([{scale: 0.85, opacity: 0}, {scale: 1, opacity: 1}],
         {duration: 280, delay: after, easing: ease, fill: "backwards"})

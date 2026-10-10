@@ -89,7 +89,8 @@ defmodule QuacksWeb.Round37BoardTest do
     test "the old marks shrink and fade, the new ones grow and fade in after the landing" do
       js = File.read!("assets/js/app.js")
 
-      assert js =~ "if (s0 !== 1) this.scoringMove(460)"
+      # round 39: the flight sets the wait; `updated` moves the marks
+      assert js =~ "this.wait = 460"
       refute js =~ "scoringPulse"
       assert js =~ "[{scale: 1, opacity: 1}, {scale: 0.85, opacity: 0}]"
       assert js =~ "[{scale: 0.85, opacity: 0}, {scale: 1, opacity: 1}]"

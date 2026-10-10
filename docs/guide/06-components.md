@@ -1768,6 +1768,35 @@ with no change.
   lands on it (`PotTrack.last_chip/0`, see 07-rules-as-data).
 
 
+### Round 39 (shop): chips in the context area, every ring moves
+
+- **Purple buy panel** (`purple_buy/1`, replaces the round 36 sheet): Ghost's
+  breath V's chips are a panel in the context area (`#purple-buy-panel-N`,
+  `.pick-panel` in app.css), not a `dialog_sheet`. Below 64rem it is fixed over
+  the pot's lower band, from the bar up (anchored to `--pot-area` like
+  `.sheet[data-pot]`), so the pot does not move; the chevron
+  (`purple-buy-fold`, `JS.toggle_class("pick-folded")`) folds it to its title.
+  From 64rem it is a panel in the context column that keeps its height (the
+  witches under it shrink). It shows every chip of the shop (`shop_rows/2`) in a
+  5-column grid; a tile that no buy allows with the ticked chips is greyed
+  (`purple-buy-off`) and its `title` says why (`purple_off/5`: too dear, not in
+  the shop this round, not with your other chip).
+- **Purse and Take in the bar**: `bar_choice(:chip_choice)` takes `selected` and
+  shows `purple-buy-total` (coins → left, `purple_purse/3`) and
+  `purple-buy-take` ("Take N") in place of "Choose chips". The panel has no
+  footer, so nothing scrolls under a sticky bar (the round 36 bug: the sheet's
+  bottom padding let chips show under its sticky footer).
+- **The shop** is a different component (`shop/1`) and stays a sheet: its footer
+  is flush (`.sheet:has([data-role="shop-footer"])` drops the padding) and below
+  64rem it is fixed in the bar's place, so it has no such overlap.
+- **Every ring moves** (`PotMotion.scoringMove`): `marks()` takes the gold space
+  and the ring of every seat. Each mark has a key (its space and its
+  `outerHTML`); after each patch the marks whose key changed fade out (ghost copy)
+  and the new ones grow in. Your draw's flight sets `wait` (460 ms), so the bots'
+  rings, which step with your draw (round 37), reappear with yours; any other
+  update (another human's draw) moves them at once. Not on a new round; reduced
+  motion: none.
+
 ### Round 37 (eval): one row grid, the recap after the shop
 
 - **One row grid** (`TileRevealComponents.stage_list/1`): every results panel
