@@ -7,6 +7,7 @@ defmodule QuacksWeb.Round36UiTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.GameHelpers, as: H
@@ -125,7 +126,7 @@ defmodule QuacksWeb.Round36UiTest do
       |> H.apply!({:explosion_choice, :buy})
     end)
 
-    {id, view}
+    {id, play_until(view, "[data-role=bar-chip-actions]")}
   end
 
   defp logged?(id, pattern) do

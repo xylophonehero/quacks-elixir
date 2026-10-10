@@ -1860,13 +1860,12 @@ with no change.
 ### Round 39 (desk): the evaluation in the context column, folds on the left
 
 - **No overlay for the results.** The menu has no Results row any more, and
-  app.js sends no `show` or `phone`. The `reveal_settings` event sets
-  `reveal_show: :tiles` on every screen, so the evaluation plays on the tiles
-  and in the results stage over the bar. From 64rem the bar is the foot of the
-  context column, so the steps (with Skip and Next) are in the context column
-  and the pot stays free. The overlay code stays: it is the mount default until
-  the browser's settings arrive (the first push), and about 50 older tests drive
-  the results through it. A later round can remove it with those tests.
+  app.js sends no `show` or `phone`. The evaluation plays on the tiles and in
+  the results stage over the bar on every screen. From 64rem the bar is the
+  foot of the context column, so the steps (with Skip and Next) are in the
+  context column and the pot stays free. October 2026: the overlay's results
+  mode (the mount default until the browser's settings came) is gone; tests
+  end the results with `skip_results/1` (`test/support/reveal_helpers.ex`).
 - **One list per result.** The Take a Chance rolls (`chance_panel/1`) and the
   results panel (`results_panel/1`, "Round N: evaluation") showed the same as the
   stage; both are gone, with `.chance-row`, `.result-row` and `.results-panel` in

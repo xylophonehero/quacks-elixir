@@ -48,14 +48,14 @@ defmodule QuacksWeb.QaFixesTest do
       for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
       view |> element("button", "Stop") |> render_click()
 
-      assert has_element?(view, "dialog#reveal-results-1")
+      assert has_element?(view, "#tile-stage")
       refute has_element?(view, "#players-row.replay-done")
       refute auto_open?(view, "#decision-shop")
 
       render_hook(view, "seen", %{"kind" => "results", "round" => 1})
 
       reloaded = open(browser(token), id)
-      refute has_element?(reloaded, "dialog#reveal-results-1")
+      refute has_element?(reloaded, "#tile-stage")
       assert has_element?(reloaded, "#players-row.replay-done")
       refute has_element?(reloaded, "[data-role=replay-timer]")
       assert auto_open?(reloaded, "#decision-shop")
@@ -80,7 +80,6 @@ defmodule QuacksWeb.QaFixesTest do
       &H.put(&1, 0, phase: :shop, exploded?: true, explosion_choice: :vp, rubies: 2)
     )
 
-    assert has_element?(view, "dialog#reveal-results-1")
     # Round 29: the rubies wait in the bar, under the results.
     assert has_element?(view, "#bar-rubies")
     refute has_element?(view, "dialog#decision-rubies")

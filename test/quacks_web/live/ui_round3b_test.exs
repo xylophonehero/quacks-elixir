@@ -6,6 +6,7 @@ defmodule QuacksWeb.UiRound3bTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.GameHelpers, as: H
@@ -43,6 +44,8 @@ defmodule QuacksWeb.UiRound3bTest do
       |> H.put(0, bag: [{:orange, 1}, {:orange, 1}])
       |> H.put(1, drawn: [{{:orange, 1}, 2}], pot_index: 2, bag: [{:white, 1}, {:orange, 1}])
     end)
+
+    skip_results(alice)
 
     for view <- [alice, bob] do
       assert has_element?(view, "[data-role=stir]", "Stir! Everyone draws together.")
@@ -97,7 +100,7 @@ defmodule QuacksWeb.UiRound3bTest do
 
     replace_game(id, &(&1 |> H.put(round: 9) |> H.put(0, rubies: 3)))
     refute has_element?(alice, "dialog#decision-shop")
-    assert has_element?(alice, "dialog#reveal-results-9")
+    assert has_element?(alice, "#tile-stage")
     # Round 31: no rubies step in round 9: the rubies turn into VP by themselves
     # once the evaluation was seen.
     refute has_element?(alice, "#bar-rubies")

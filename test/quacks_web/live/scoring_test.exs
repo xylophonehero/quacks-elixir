@@ -103,7 +103,7 @@ defmodule QuacksWeb.ScoringTest do
     refute has?(html, ".stat-tick[data-beat]")
   end
 
-  test "a scored round plays on the pot; the reveal overlay's end ends it" do
+  test "a scored round plays on the pot while the results play on the tiles" do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     {:ok, view, _html} = live(init_test_session(build_conn(), player_token: "solo"), ~p"/g/#{id}")
 
@@ -117,13 +117,11 @@ defmodule QuacksWeb.ScoringTest do
     assert length(query(html, "#pot-0-lg [data-role=ruby-flight]") |> Enum.to_list()) ==
              Enum.count(Replay.pot_effects(lines), &(&1.kind == :ruby))
 
-    assert has?(html, "#reveal-next") and has?(html, "#pot-0-lg[phx-hook=PotMotion]")
+    assert has?(html, "#tile-stage") and has?(html, "#pot-0-lg[phx-hook=PotMotion]")
 
     for %{kind: kind, beat: beat} <- Replay.updates(game, 0), kind == :rubies do
       assert has?(html, ~s(#stat-#{kind}[data-beat="#{beat}"]))
     end
-
-    if Enum.any?(lines, &(&1.kind == :die)), do: assert(has?(html, "[data-role=replay-die]"))
 
     # a new replay clears the `replay-done` JS added at the end of the last one
     assert has?(

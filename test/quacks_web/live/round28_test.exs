@@ -2,6 +2,7 @@ defmodule QuacksWeb.Round28Test do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.{Game, GameHelpers, GameServer}
 
@@ -82,6 +83,8 @@ defmodule QuacksWeb.Round28Test do
       |> GameHelpers.put(fortune_deck: [:p13], round: 2)
       |> Game.start_round()
     end)
+
+    skip_results(view)
 
     view
   end

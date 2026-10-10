@@ -7,6 +7,7 @@ defmodule QuacksWeb.MotionB3Test do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.{Game, GameServer}
   alias QuacksWeb.PotComponents
@@ -74,6 +75,7 @@ defmodule QuacksWeb.MotionB3Test do
     for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     refute_push_event(view, "quacks:vt", _)
     view |> element("button", "Stop") |> render_click()
+    skip_results(view)
     # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
     render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
 

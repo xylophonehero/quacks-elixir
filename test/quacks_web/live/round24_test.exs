@@ -8,6 +8,7 @@ defmodule QuacksWeb.Round24Test do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.GameHelpers, as: H
@@ -185,7 +186,7 @@ defmodule QuacksWeb.Round24Test do
         |> H.apply!({:explosion_choice, :buy})
       end)
 
-      view
+      play_until(view, "[data-role=bar-chip-actions]")
     end
 
     # Round 33: the chip actions are a step in the bar (info row + buttons), no sheet.

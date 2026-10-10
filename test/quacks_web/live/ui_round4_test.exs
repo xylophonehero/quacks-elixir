@@ -99,34 +99,6 @@ defmodule QuacksWeb.UiRound4Test do
              "resolve now"
   end
 
-  test "the reveal overlay comes first; the shop opens when it closes" do
-    {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
-    view = open(browser("solo"), id)
-    to_shop(id)
-    render(view)
-
-    # the overlay shows and hands over to the shop, which waits
-    assert has_element?(view, "dialog#reveal-results-1")
-    assert has_element?(view, "#reveal-next")
-    assert has_element?(view, "dialog#decision-shop #shop")
-    refute has_element?(view, "dialog#decision-shop[phx-mounted*='quacks:modal']")
-    # the footer still opens the shop at any time
-    assert has_element?(view, "footer [data-role=decision-button]")
-
-    # a reload while the overlay shows starts it again at the first slide
-    view |> element("#reveal-next") |> render_click()
-    view = open(browser("solo"), id)
-    assert has_element?(view, "dialog#reveal-results-1 #reveal-slide-0")
-    refute has_element?(view, "dialog#decision-shop[phx-mounted*='quacks:modal']")
-
-    # the last slide's button opens the shop
-    view |> element("#reveal-skip") |> render_click()
-    assert has_element?(view, "#reveal-next", "To the shop")
-    view |> element("#reveal-next") |> render_click()
-    refute has_element?(view, "[data-role=reveal]")
-    assert_push_event(view, "quacks:open", %{to: "#decision-shop"})
-  end
-
   test "shop tiles: a tapped chip is outlined with a check, the others dim" do
     {:ok, id} = GameServer.start(1, {1, 2, 3}, %{}, %{fortune: false})
     view = open(browser("solo"), id)

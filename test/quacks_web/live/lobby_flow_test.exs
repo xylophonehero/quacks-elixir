@@ -3,6 +3,7 @@ defmodule QuacksWeb.LobbyFlowTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.GameServer
 
@@ -104,10 +105,11 @@ defmodule QuacksWeb.LobbyFlowTest do
       Enum.reduce([0, 1], g, &Quacks.GameHelpers.put(&2, &1, coins: 30))
     end)
 
-    # both shops wait for the reveal overlay (round 14)
+    # both shops wait for the results on the tiles
     for view <- [alice, bob] do
       assert has_element?(view, "dialog#decision-shop")
-      assert has_element?(view, "dialog#reveal-results-1")
+      assert has_element?(view, "#tile-stage")
+      skip_results(view)
     end
 
     # everyone shops at once: no state while shopping, a tick when ready

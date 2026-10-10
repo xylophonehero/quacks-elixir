@@ -419,7 +419,7 @@ defmodule Quacks.Scenarios.Builders do
         mark(s, "results", opts,
           note: "Round #{round}'s results.",
           check: fn g -> g.phase in [:shopping, :over] or g.round > round end,
-          sees: ["#reveal-results-#{round}"]
+          sees: ["#results-stage"]
         )
   end
 

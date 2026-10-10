@@ -7,6 +7,7 @@ defmodule QuacksWeb.Layout1Test do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.{Game, GameServer}
@@ -167,6 +168,7 @@ defmodule QuacksWeb.Layout1Test do
       assert has_element?(view, "footer [data-role=bar-blue]")
 
       replace_game(id, &H.put(&1, 0, phase: :shop, coins: 10))
+      skip_results(view)
       assert has_element?(view, "[data-role=decision-button]", "Back to shop")
       # round 14: the reveal overlay ends the replay, not this button
       refute has_element?(view, "[data-role=decision-button][phx-click*=seen]")

@@ -8,11 +8,8 @@ defmodule QuacksWeb.Round18Test do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
-  import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.Game
-  alias Quacks.GameHelpers, as: H
-  alias Quacks.GameServer
   alias QuacksWeb.{Reveal, RevealComponents}
 
   # Newest first. Seat 0: die, green, purple, the scoring space and a card; seat 1:
@@ -92,51 +89,6 @@ defmodule QuacksWeb.Round18Test do
 
       # no running strip on this slide: the rows say it
       assert before |> LazyHTML.query("[data-role=reveal-strip]") |> Enum.count() == 0
-    end
-  end
-
-  defp browser(name), do: init_test_session(build_conn(), player_token: name)
-
-  # A solo reverse-side game in the shop of round 1 with its reveal unseen.
-  defp solo_shop(fields) do
-    {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, %{fortune: false, pot_side: :back})
-    {:ok, view, _html} = live(browser("r18-#{System.unique_integer()}"), ~p"/g/#{id}")
-
-    replace_game(id, fn g ->
-      g = put_in(g.players[0].drawn, [{{:green, 1}, 12}])
-      g = %{g | log: [{0, {:green_rubies, 1}}, {:round_end, 0}]}
-      H.put(g, 0, [phase: :shop, coins: 10] ++ fields)
-    end)
-
-    {id, view}
-  end
-
-  describe "in the LiveView" do
-    test "the standings slide settles on the server's tick" do
-      {_id, view} = solo_shop([])
-      view |> element("#reveal-skip") |> render_click()
-      assert has_element?(view, "[data-role=reveal-standings][data-settled=false]")
-
-      %{settle: ref} = :sys.get_state(view.pid).socket.assigns.reveal
-      assert is_reference(ref)
-      send(view.pid, {:reveal_settle, ref})
-      assert has_element?(view, "[data-role=reveal-standings][data-settled=true]")
-    end
-
-    test "the droplet choice waits under the reveal and opens after it" do
-      {_id, view} = solo_shop(droplet_moves: 1)
-
-      assert has_element?(view, "#reveal-slide-0")
-      # Round 33: the choice is in the bar (no dialog), under the reveal.
-      refute has_element?(view, "dialog#decision-droplet_choice")
-
-      view |> element("#reveal-skip") |> render_click()
-      assert has_element?(view, "[data-role=reveal-slide][data-kind=standings]")
-      assert has_element?(view, "#reveal-next", "Move the droplet")
-      view |> element("#reveal-next") |> render_click()
-
-      refute has_element?(view, "[data-role=reveal]")
-      assert has_element?(view, "#bar-droplet button[data-choice=tube]")
     end
   end
 
