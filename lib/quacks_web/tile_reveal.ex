@@ -66,11 +66,29 @@ defmodule QuacksWeb.TileReveal do
         for c <- [:green, :purple],
             c not in have,
             choosing(game, c) != [],
-            do: %{kind: :book, book: c, set: Map.get(game.sets, c, 1), rows: [], gains: %{}}
+            do: %{
+              kind: :book,
+              book: c,
+              set: Map.get(game.sets, c, 1),
+              rows: waiting_rows(game, c),
+              gains: %{}
+            }
 
       Enum.sort_by(slides ++ waiting, &rank/1)
     else
       slides
+    end
+  end
+
+  # Round 44: a book step that waits for choices shows each choosing seat's chips
+  # that count (green: of the last two chips; purple: all in the pot), so green
+  # II and V show the values the choice depends on.
+  defp waiting_rows(game, colour) do
+    for s <- choosing(game, colour) do
+      drawn = game |> Game.player(s) |> Map.fetch!(:drawn) |> Enum.map(&elem(&1, 0))
+      drawn = if colour == :green, do: Enum.take(drawn, 2), else: drawn
+      chips = drawn |> Enum.filter(&(elem(&1, 0) == colour)) |> Enum.reverse()
+      %{seat: s, scored: false, chips: chips}
     end
   end
 
@@ -159,7 +177,7 @@ defmodule QuacksWeb.TileReveal do
   icons by `QuacksWeb.TileRevealComponents.results_stage/1`.
   """
   @type cell ::
-          {:count, non_neg_integer, atom}
+          {:stack, atom, [Quacks.Rules.Chips.chip() | {atom, nil}]}
           | {:beats, [Game.seat()], :both | :some | :tie}
           | {:chips, [Quacks.Rules.Chips.chip()]}
           | {:text, String.t()}
@@ -224,11 +242,13 @@ defmodule QuacksWeb.TileReveal do
     end
   end
 
-  def stage_rows(game, %{kind: :book, book: colour, rows: rows}, choosing) do
+  def stage_rows(game, %{kind: :book, book: colour, rows: rows} = slide, choosing) do
+    set = Map.get(slide, :set, 1)
+
     for s <- game.seats do
       row = row_of(rows, s)
       got = book_got(row, colour, s in choosing)
-      %{seat: s, why: book_why(row, colour), got: got, none: got == [], lead: false}
+      %{seat: s, why: book_why(row, colour, set), got: got, none: got == [], lead: false}
     end
   end
 
@@ -260,8 +280,10 @@ defmodule QuacksWeb.TileReveal do
 
   defp row_of(rows, seat), do: Enum.find(rows, %{}, &(&1.seat == seat))
 
-  # Black book I: the black count and whom it beats ("2 [black] > both").
-  defp book_why(%{chips: chips, compare: [_ | _] = targets, scored: scored}, :black) do
+  # Round 44: a book row's chips are a count and a stack of its chips
+  # (`{:stack, colour, chips}`), the values hidden unless the book's scoring uses
+  # them (`values?/2`). Black book I adds whom the count beats ("2 [black] > both").
+  defp book_why(%{chips: chips, compare: [_ | _] = targets, scored: scored}, :black, set) do
     mine = length(chips)
     beaten = for {t, n} <- targets, mine > n, do: t
 
@@ -280,11 +302,25 @@ defmodule QuacksWeb.TileReveal do
           []
       end
 
-    [{:count, mine, :black} | beats]
+    [stack(chips, :black, set) | beats]
   end
 
-  defp book_why(%{chips: [_ | _] = chips}, _colour), do: [{:chips, chips}]
-  defp book_why(_row, _colour), do: []
+  defp book_why(%{chips: [_ | _] = chips}, colour, set), do: [stack(chips, colour, set)]
+  defp book_why(_row, _colour, _set), do: []
+
+  defp stack(chips, colour, set) do
+    chips = if values?(colour, set), do: chips, else: Enum.map(chips, &{elem(&1, 0), nil})
+    {:stack, colour, chips}
+  end
+
+  @doc """
+  Round 44: whether the book of `colour` at `set` scores by its chips' values, so
+  the results stage shows them: green II (the value picks the chip), green III
+  (the sum of the values), green V (a chip worth at most the green).
+  """
+  @spec values?(atom, pos_integer) :: boolean
+  def values?(:green, set) when set in [2, 3, 5], do: true
+  def values?(_colour, _set), do: false
 
   defp book_got(_row, _colour, true), do: [:choosing]
 

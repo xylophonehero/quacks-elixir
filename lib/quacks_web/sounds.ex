@@ -100,6 +100,23 @@ defmodule QuacksWeb.Sounds do
     end
   end
 
+  @doc """
+  Round 44 (Nick): the sound of a chip that lands in the pot `moved` spaces on
+  from the chip before it. Locoweed has one value, so its sound goes by how far it
+  moved (`chip-locoweed-1` to `-6`, more is 6); every other chip by its value
+  (`chip_sound/2`).
+
+      iex> QuacksWeb.Sounds.pot_sound({:locoweed, 1}, 9, ["chip-locoweed-1", "chip-locoweed-6"])
+      "chip-locoweed-6"
+  """
+  @spec pot_sound(Chips.chip(), integer | nil, [String.t()]) :: String.t()
+  def pot_sound(chip, moved, files \\ @files)
+
+  def pot_sound({:locoweed, _}, moved, files) when is_integer(moved),
+    do: chip_sound({:locoweed, moved |> max(1) |> min(6)}, files)
+
+  def pot_sound(chip, _moved, files), do: chip_sound(chip, files)
+
   @doc "The fortune teller's new card: `fortune.m4a`, else the synth `chime`."
   @spec fortune_sound() :: String.t()
   def fortune_sound, do: if("fortune" in @files, do: "fortune", else: "chime")

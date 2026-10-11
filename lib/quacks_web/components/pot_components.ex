@@ -311,6 +311,7 @@ defmodule QuacksWeb.PotComponents do
           :if={chip}
           chip={elem(chip, 0)}
           order={elem(chip, 1)}
+          moved={elem(chip, 2)}
           seat={@seat}
           index={index}
           placed={placed}
@@ -712,6 +713,7 @@ defmodule QuacksWeb.PotComponents do
   attr :placed, :integer, required: true, doc: "how many chips were placed on this space"
   attr :size, :atom, required: true
   attr :beat, :integer, default: nil, doc: "the replay beat this chip lights up on"
+  attr :moved, :integer, default: nil, doc: "spaces from the chip before (locoweed's sound)"
 
   attr :target, :map,
     default: nil,
@@ -730,7 +732,7 @@ defmodule QuacksWeb.PotComponents do
       data-role="pot-chip"
       data-order={@order}
       data-index={@index}
-      data-sound={@size == :lg && QuacksWeb.Sounds.chip_sound(@chip)}
+      data-sound={@size == :lg && QuacksWeb.Sounds.pot_sound(@chip, @moved)}
       aria-label={if @target, do: @target.label, else: "#{@colour} #{@value}"}
       role={@target && "button"}
       tabindex={@target && "0"}
@@ -895,12 +897,18 @@ defmodule QuacksWeb.PotComponents do
   defp spoon, do: PotTrack.last()
 
   # Each chip remembers the space it landed on, so the pot just reads it back.
-  # The value is `{chip, order}`: `order` is the chip's position in `drawn`.
-  defp chips_by_index(%{drawn: drawn}),
-    do:
-      drawn
-      |> Enum.with_index()
-      |> Map.new(fn {{chip, index}, order} -> {index, {chip, order}} end)
+  # The value is `{chip, order, moved}`: `order` is the chip's position in `drawn`,
+  # `moved` how many spaces it went on from the chip before (the first chip: from
+  # the start space), for the locoweed's sound (round 44).
+  defp chips_by_index(%{drawn: drawn} = p) do
+    start = p.mods.rat_end || p.droplet
+    from = Enum.map(tl(drawn ++ [nil]), fn prev -> if prev, do: elem(prev, 1), else: start end)
+
+    drawn
+    |> Enum.zip(from)
+    |> Enum.with_index()
+    |> Map.new(fn {{{chip, index}, from}, order} -> {index, {chip, order, index - from}} end)
+  end
 
   @doc """
   What is left in the bag, as a count per kind of chip. The bag's order is hidden:

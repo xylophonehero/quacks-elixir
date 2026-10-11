@@ -25,17 +25,22 @@ defmodule QuacksWeb.TileRevealComponents do
   """
   def tile_news(assigns) do
     ~H"""
-    <.badge :for={item <- @items} badge={item} />
+    <.badge :for={{item, i} <- Enum.with_index(@items)} badge={item} i={i} />
     """
   end
 
   attr :badge, :any, required: true
+  attr :i, :integer, default: 0, doc: "the item's place on the line"
 
+  # Round 44: a die face waits until its die in the results stage lands
+  # (app.css `.tile-news-die`; the dice of a seat roll one after the other).
   defp badge(%{badge: {:die, face}} = assigns) do
     assigns = assign(assigns, face: face)
 
     ~H"""
-    <.die_face face={@face} class="size-3.5" />
+    <span class="tile-news-die flex" style={"--roll: #{@i}"} data-gain="die">
+      <.die_face face={@face} class="size-3.5" />
+    </span>
     """
   end
 
@@ -418,16 +423,50 @@ defmodule QuacksWeb.TileRevealComponents do
   defp initial(name),
     do: name |> String.trim() |> String.first() |> Kernel.||("?") |> String.upcase()
 
+  # The most chips a stack shows; its count says how many there are.
+  @stack_max 6
+
   attr :cell, :any, required: true
   attr :names, :map, default: %{}
   attr :i, :integer, default: 0
 
-  defp cell(%{cell: {:count, n, colour}} = assigns) do
-    assigns = assign(assigns, n: n, colour: colour)
+  # Round 44 (Nick): a book's chips, the same in the black, green and purple
+  # steps: the count, then the chips at the size that fits the icon as a stack
+  # that overlaps (the first chip on top, so a value badge stays in view). The
+  # values show only where the book scores by them (`TileReveal.values?/2`). No
+  # chip (black book I): the count 0 and one chip of the colour.
+  defp cell(%{cell: {:stack, colour, chips}} = assigns) do
+    shown = if chips == [], do: [{colour, nil}], else: Enum.take(chips, @stack_max)
+
+    assigns =
+      assign(assigns,
+        n: length(chips),
+        colour: colour,
+        shown: Enum.with_index(shown),
+        values: Enum.any?(chips, &(elem(&1, 1) != nil)),
+        top: @stack_max
+      )
 
     ~H"""
-    <span class="flex items-center gap-0.5 font-semibold" data-cell="count">
-      {@n}<.chip chip={{@colour, nil}} size={:sm} />
+    <span
+      class="flex items-center gap-1 leading-none font-semibold"
+      data-cell="stack"
+      data-colour={@colour}
+    >
+      <span class="min-w-[1ch] text-right tabular-nums" data-role="stack-count">{@n}</span>
+      <span class={["flex items-center pr-1", @values && "pb-1"]} data-role="stack-chips">
+        <span
+          :for={{chip, i} <- @shown}
+          class={[
+            "relative flex rounded-full ring-1 ring-black/40",
+            i > 0 && if(@values, do: "-ml-0.5", else: "-ml-2")
+          ]}
+          style={"z-index: #{@top - i}"}
+          data-role="stack-chip"
+        >
+          <.chip chip={chip} size={:sm} />
+        </span>
+      </span>
     </span>
     """
   end
@@ -451,12 +490,13 @@ defmodule QuacksWeb.TileRevealComponents do
     """
   end
 
+  # Round 44 (Nick): the chips bought in the shop, with their icon and value.
   defp cell(%{cell: {:chips, chips}} = assigns) do
     assigns = assign(assigns, chips: Enum.take(chips, 4), more: length(chips) > 4)
 
     ~H"""
-    <span class="flex items-center gap-0.5" data-cell="chips">
-      <.chip :for={chip <- @chips} chip={chip} size={:xs} />
+    <span class="flex items-center gap-1.5 pr-1 pb-1" data-cell="chips">
+      <.chip :for={chip <- @chips} chip={chip} size={:sm} />
       <span :if={@more} class="text-xs">…</span>
     </span>
     """

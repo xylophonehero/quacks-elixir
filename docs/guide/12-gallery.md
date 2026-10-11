@@ -67,9 +67,10 @@ An old variant URL that a story with args took over (for example
 | Group | Story | Args |
 |---|---|---|
 | Results panel | Results: die / black / green / purple / scoring space | `players 2..8`, `long_names`, `exploded 0..7`, `vp_digits 1..3` |
+| | Results: black / green / purple (also) | `many_chips` (stacks of chips), `green_set 1..2` (green II: the values show while the seats choose) |
 | | Recap: the shop | `players 2..8`, `long_names` |
 | | Recap: round scored | `players 2..8`, `long_names`, `vp_digits 1..3` |
-| | Take a Chance | `players 2..8` |
+| | Take a Chance | `players 2..8` (each result shows when its die lands) |
 | Pot board | Brewing: the scoring ring | `chips 0..6` |
 | Player tiles | Player tiles | `players 1..8`, `state brewing\|stopped\|exploded\|shop\|done`, `long_names`, `vp_digits 1..3`, `bots` |
 | Bottom bar | Crow skull | `chips 1..5` |

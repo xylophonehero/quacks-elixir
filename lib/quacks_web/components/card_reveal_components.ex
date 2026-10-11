@@ -157,7 +157,7 @@ defmodule QuacksWeb.CardRevealComponents do
           </span>
         </:why>
         <:got :let={{r, _col, _i}}>
-          <span class="stage-got flex items-center gap-1.5" data-role="reveal-result">
+          <span class="stage-got flex items-center gap-1.5 pr-1" data-role="reveal-result">
             <%= cond do %>
               <% r.row.choosing? -> %>
                 <span
@@ -171,7 +171,8 @@ defmodule QuacksWeb.CardRevealComponents do
                   {if @choice?, do: "passed", else: none(@card)}
                 </span>
               <% true -> %>
-                <.gain :for={gain <- r.row.gains} gain={gain} size={:xs} />
+                <%!-- Round 44 (Nick): a chip gained at the size that shows its icon. --%>
+                <.gain :for={gain <- r.row.gains} gain={gain} size={:sm} />
             <% end %>
           </span>
         </:got>
