@@ -255,6 +255,13 @@ defmodule QuacksWeb.TileRevealComponents do
   (app.css `.results-stage`), so the pot never moves.
   """
   def results_stage(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :cues,
+        QuacksWeb.Sounds.replay(assigns.slide, Enum.map(assigns.rows, & &1.seat))
+      )
+
     ~H"""
     <section
       id="results-stage"
@@ -278,6 +285,16 @@ defmodule QuacksWeb.TileRevealComponents do
           {if @collapsed && @note, do: elem(@note, 1), else: hint(@slide)}
         </span>
       </header>
+      <%!-- The scoring replay: the black, green and purple steps play each row's
+           chip sound as its result lands (`QuacksWeb.Sounds.replay/2`). --%>
+      <span
+        :if={@cues != []}
+        id={"stage-sound-#{@index}"}
+        phx-hook="SoundReplay"
+        data-cues={Jason.encode!(@cues)}
+        hidden
+        data-role="stage-sound"
+      ></span>
       <.stage_list
         :if={!@collapsed}
         id={"stage-rows-#{@index}"}

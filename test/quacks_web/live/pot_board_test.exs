@@ -259,7 +259,9 @@ defmodule QuacksWeb.PotBoardTest do
     test "app.js flies one new chip from the bag, with no flight under reduced motion" do
       js = File.read!("assets/js/app.js")
 
-      assert js =~ "this.el.dataset.mine && this.bag()) this.fly(added[0])"
+      assert js =~
+               "this.el.dataset.mine && this.bag()) this.fly(added[0]), potSound.draw(this.el, added[0])"
+
       assert js =~ ~r/fly\(chip[^{]*\{\n\s+if \(reduced\(\)\) return/
     end
   end

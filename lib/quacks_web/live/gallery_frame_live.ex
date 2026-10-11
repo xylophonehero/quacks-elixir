@@ -26,6 +26,8 @@ defmodule QuacksWeb.GalleryFrameLive do
 
   import QuacksWeb.ChipComponents, only: [chip: 1]
 
+  import QuacksWeb.SoundComponents, only: [sound_settings: 1]
+
   alias QuacksWeb.{
     BarComponents,
     CardRevealComponents,
@@ -35,6 +37,7 @@ defmodule QuacksWeb.GalleryFrameLive do
   }
 
   alias QuacksWeb.Gallery.Stories
+  alias QuacksWeb.Sounds
 
   # The choices that put an info row in the fuse row's place (as `GameLive` does).
   @info_choices [
@@ -277,6 +280,71 @@ defmodule QuacksWeb.GalleryFrameLive do
         </div>
       </section>
     </div>
+    """
+  end
+
+  # The Sounds story: a button per sound (app.js `quacks:sound`), the game's
+  # moments first, then every chip with the sound it plays (its own file, or the
+  # fallback), and the menu's Sound row to set the volume.
+  defp frame(%{view: :sounds} = assigns) do
+    assigns =
+      assign(assigns,
+        moments: [
+          {"boom", "Explosion"},
+          {"bloop", "Droplet moves"},
+          {"ruby", "Ruby"},
+          {Sounds.fortune_sound(), "Fortune teller"},
+          {"gameover", "Game over"}
+        ],
+        chips: Enum.map(Sounds.gallery_chips(), &{&1, Sounds.chip_sound(&1)})
+      )
+
+    ~H"""
+    <div class="mx-auto max-w-xl space-y-4 p-3" data-role="sounds">
+      <p class="text-sm text-parchment-dim">
+        Tap a button to hear it at its game level. Sound must be On. iPhone: the silent switch mutes the game.
+      </p>
+      <section class="paper space-y-2 rounded-lg p-3 text-ink">
+        <.sound_settings id="gallery-sound-settings" />
+      </section>
+      <section class="space-y-1.5">
+        <h2 class="font-mono text-xs text-parchment-dim">moments</h2>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <.sound_button :for={{name, label} <- @moments} name={name} label={label} />
+        </div>
+      </section>
+      <section class="space-y-1.5">
+        <h2 class="font-mono text-xs text-parchment-dim">your draw: every chip</h2>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <.sound_button :for={{chip, name} <- @chips} name={name} chip={chip} />
+        </div>
+      </section>
+    </div>
+    """
+  end
+
+  attr :name, :string, required: true
+  attr :label, :string, default: nil
+  attr :chip, :any, default: nil
+
+  defp sound_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      id={"sound-#{if @chip, do: "chip-#{elem(@chip, 0)}-#{elem(@chip, 1)}", else: @name}"}
+      class="paper flex min-h-12 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-ink shadow-sm ring-1 ring-black/20 transition hover:brightness-105 active:scale-[0.97]"
+      phx-click={JS.dispatch("quacks:sound", detail: %{name: @name})}
+      data-role="sound-button"
+      data-sound={@name}
+    >
+      <.chip :if={@chip} chip={@chip} size={:sm} />
+      <span class="min-w-0 flex-1">
+        <span class="block font-semibold">
+          {if @chip, do: "#{elem(@chip, 0)} #{elem(@chip, 1)}", else: @label}
+        </span>
+        <span class="block truncate font-mono text-[11px] text-ink-soft">{@name}</span>
+      </span>
+    </button>
     """
   end
 

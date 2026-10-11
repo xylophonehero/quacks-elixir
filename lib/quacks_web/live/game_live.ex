@@ -116,6 +116,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.RevealComponents
   import QuacksWeb.TileRevealComponents
   import QuacksWeb.TipComponents
+  import QuacksWeb.SoundComponents
   import QuacksWeb.ScenarioComponents
 
   alias Quacks.{Game, GameServer, Player}
@@ -1276,6 +1277,13 @@ defmodule QuacksWeb.GameLive do
                 bots={@bots}
                 seat={@seat}
               />
+              <%!-- The game-over jingle, once per tab (app.js `SoundCue`). --%>
+              <.sound_cue
+                :if={Game.over?(@game)}
+                id="sound-gameover"
+                sound="gameover"
+                once={"#{@id}-gameover"}
+              />
               <%!-- Round 29: your own explosion's beat (app.css `.boom`); the hook
                    buzzes the phone once (app.js `Boom`). --%>
               <p
@@ -1350,6 +1358,14 @@ defmodule QuacksWeb.GameLive do
                   visitor={@game.visitor}
                   flip_id="pot-card-flip"
                   flip={!@card_grown}
+                />
+                <%!-- The new card's crystal ball, once per round (not when the corner
+                     card grows again). --%>
+                <.sound_cue
+                  :if={match?(%{key: {:card, _}}, @reveal)}
+                  id={"sound-fortune-#{@game.round}"}
+                  sound={QuacksWeb.Sounds.fortune_sound()}
+                  once={"#{@id}-fortune-#{@game.round}"}
                 />
                 <%!-- Round 30: every player's chips under the grown card. Round 31:
                      also while the card's choice waits in the bar (Flea Market), and
@@ -1969,6 +1985,7 @@ defmodule QuacksWeb.GameLive do
             reduced={@reduced}
           />
           <.tips_settings :if={@seat} on={tips_on?(@tips)} />
+          <.sound_settings />
           <p>
             Seed
             <.link navigate={~p"/?seed=#{seed_param(@seed)}"} class="underline">{seed_param(@seed)}</.link>

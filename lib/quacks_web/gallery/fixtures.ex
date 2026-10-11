@@ -82,6 +82,13 @@ defmodule QuacksWeb.Gallery.Fixtures do
         1450,
         "ChipComponents.chip/1: every colour x size x value",
         chip_variants()
+      ),
+      component(
+        "sounds",
+        "Sounds",
+        900,
+        "QuacksWeb.Sounds + assets/js/sound.js: one button per sound, at its game gain",
+        [{"all", "Every sound", fn -> %{view: :sounds} end}]
       )
     ]
   end

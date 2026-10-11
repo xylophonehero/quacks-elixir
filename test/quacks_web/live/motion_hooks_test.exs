@@ -181,8 +181,9 @@ defmodule QuacksWeb.MotionHooksTest do
     # flask fill to 9 500; round 34's move in the pot (green III) to 10 000; round
     # 35's rat that the droplet takes and the chips to the bag to 11 500; round
     # 36's scoring space pulse after the draw to 12 500; round 37's ring that
-    # shrinks and grows takes the pulse's place within it
-    assert byte_size(hook) < 12_500
+    # shrinks and grows takes the pulse's place within it; the sound calls (draw,
+    # droplet, ruby; the logic is in sound.js) to 13 000
+    assert byte_size(hook) < 13_000
     assert hook =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
     assert js =~ "!reduced()"
   end

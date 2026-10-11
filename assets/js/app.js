@@ -24,6 +24,7 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/quacks"
 import topbar from "../vendor/topbar"
+import {play as playSound, potSound, SoundCue, SoundReplay, SoundSettings} from "./sound"
 
 // "Report a problem" (bug_report_components.ex): keep the last 10 console errors,
 // and on submit put them with the browser details in the form's hidden field.
@@ -114,12 +115,14 @@ const RevealSettings = {
 }
 
 // Round 29: your own explosion buzzes the phone once (`boom` in game_live), and
-// nothing else does. Once per game and round: a reload does not buzz again.
+// nothing else does. Once per game and round: a reload does not buzz again. The
+// explosion sound plays with the buzz (sound.js).
 const Boom = {
   mounted() {
     const key = `quacks:boom:${this.el.dataset.key}`
     try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1") } catch (_e) {}
     if (typeof navigator.vibrate === "function") navigator.vibrate([40, 30, 90])
+    playSound("boom", {pitch: 0.02})
   }
 }
 
@@ -166,11 +169,12 @@ const PotMotion = {
     else if (moved) this.fly(added[0], this.pos(gone[0].dataset.index), 1, 40)
     else if (gone.length === 1 && added.length === 0)
       this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
-    else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0])
+    else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0]), potSound.draw(this.el, added[0])
     else if (added.length <= 2) added.forEach(c => this.land(c))
     if (!newRound) this.ratsOut()
     if (!newRound && !reduced()) this.scoringMove(this.wait)
     this.hop(this.el.querySelector("[data-role=droplet]"))
+    newRound || potSound.drop(this.el, this.drop)
     const brew = this.el.querySelector("[data-role=flask-brew]")
     if (brew && !this.full && !reduced())
       brew.animate([{transform: "translateY(34px)"}, {transform: "none"}], {duration: 700, easing: easing("--ease-out")})
@@ -186,11 +190,13 @@ const PotMotion = {
     const step = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--beat-ms")) || 450
     const ms = name => name === "--beat-step" ? step : step * 2 / 3
     this.el.querySelectorAll("[data-role=ruby-flight]").forEach(f => {
-      if (this.flown.has(f.id) || reduced() || !counter) return
+      if (this.flown.has(f.id) || !counter) return
       this.flown.add(f.id)
+      const delay = ms("--beat-lead") + f.dataset.beat * ms("--beat-step") + +f.dataset.wait + f.dataset.n * 90
+      potSound.ruby(this.el, delay + 550)
+      if (reduced()) return
       const p = {x: +f.dataset.x, y: +f.dataset.y}, t = this.centre(counter)
       const dx = t.x - p.x, dy = t.y - p.y
-      const delay = ms("--beat-lead") + f.dataset.beat * ms("--beat-step") + +f.dataset.wait + f.dataset.n * 90
       f.firstElementChild.animate([
         {transform: "translate(0px, 0px) scale(1)", opacity: 0, easing: easing("--ease-out")},
         {transform: "translate(0px, -12px) scale(1.3)", opacity: 1, offset: 0.23, easing: easing("--ease-in-out")},
@@ -351,7 +357,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 6000,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, Boom, ConfigMemory, NameMemory, PotMotion, RevealSettings},
+  hooks: {...colocatedHooks, Boom, ConfigMemory, NameMemory, PotMotion, RevealSettings, SoundCue, SoundReplay, SoundSettings},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
   // is in a field, on a control that Space/Enter already press, or whether a modal
   // dialog is open. The server decides from that; no key logic here.
