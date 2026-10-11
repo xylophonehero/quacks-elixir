@@ -5,7 +5,7 @@ defmodule Quacks.AITest do
   import Quacks.GameHelpers
 
   alias Quacks.AI
-  alias Quacks.AI.{Names, Odds, Profile, Sim}
+  alias Quacks.AI.{Names, Odds, Profile, Sim, Weights}
   alias Quacks.Game
 
   doctest AI
@@ -56,8 +56,24 @@ defmodule Quacks.AITest do
     end
   end
 
-  test "Profile has three named profiles" do
-    assert Profile.all() == [:cautious, :balanced, :reckless]
+  # Round 43 (Nick): the table bots play the tuned weights of priv/bots/tuned.json.
+  test "the expert profile is the tuned weights file" do
+    {:ok, tuned} = Weights.load("priv/bots/tuned.json")
+    expert = Profile.get(:expert)
+
+    assert %Profile{name: :expert, label: "Expert"} = expert
+
+    assert %{expert | name: :tuned, bot_name: nil, label: nil} == %{
+             tuned
+             | bot_name: nil,
+               label: nil
+           }
+
+    assert {expert.stop_rule, expert.choice_rule} == {:ev, :scored}
+  end
+
+  test "Profile has four named profiles" do
+    assert Profile.all() == [:cautious, :balanced, :reckless, :expert]
     assert Profile.names().balanced == "Steady Sam"
 
     assert %Profile{name: :reckless, bot_name: "Bold Bruno", label: "Reckless"} =
