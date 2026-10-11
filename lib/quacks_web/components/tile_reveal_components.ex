@@ -475,7 +475,7 @@ defmodule QuacksWeb.TileRevealComponents do
     """
   end
 
-  defp cell(%{cell: {kind, n}} = assigns) when kind in [:vp, :rubies, :droplet, :coins] do
+  defp cell(%{cell: {kind, n}} = assigns) when kind in [:vp, :rubies, :droplet, :coins, :flask] do
     assigns = assign(assigns, kind: kind, n: n)
 
     ~H"""

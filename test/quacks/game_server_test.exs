@@ -332,7 +332,7 @@ defmodule Quacks.GameServerTest do
       assert GameServer.add_bot(id, "a") == {:ok, 1}
       assert GameServer.add_bot(id, "a") == {:ok, 2}
       {:ok, table} = GameServer.get(id)
-      assert table.bots == %{1 => :balanced, 2 => :balanced}
+      assert table.bots == %{1 => :expert, 2 => :expert}
       # generated names (from the seed), different at the table
       assert table.names[1] in Names.all() and table.names[2] in Names.all()
       assert table.names[1] != table.names[2]
@@ -346,7 +346,7 @@ defmodule Quacks.GameServerTest do
       assert GameServer.remove_bot(id, "a", 1) == :ok
       assert GameServer.remove_bot(id, "a", 0) == {:error, :not_a_bot}
       {:ok, table} = GameServer.get(id)
-      assert table.bots == %{2 => :balanced}
+      assert table.bots == %{2 => :expert}
       refute Map.has_key?(table.names, 1)
 
       # names stay unique
@@ -402,14 +402,14 @@ defmodule Quacks.GameServerTest do
       {:ok, %Game{seats: [0, 1]}} = GameServer.begin(id, "a")
 
       {:ok, table} = GameServer.get(id)
-      assert {table.bots, table.names[1]} == {%{1 => :balanced}, name}
+      assert {table.bots, table.names[1]} == {%{1 => :expert}, name}
 
       play_with_bots(id, 0)
       {:ok, new_id} = GameServer.play_again(id, "a")
       {:ok, table} = GameServer.get(new_id)
 
       assert {table.status, table.bots, table.names[1]} ==
-               {:waiting, %{1 => :balanced}, name}
+               {:waiting, %{1 => :expert}, name}
     end
 
     test "1 human and 1 bot play to the end, the human stopping each round" do

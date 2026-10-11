@@ -2161,7 +2161,7 @@ defmodule QuacksWeb.GameLive do
       players: length(seats),
       names: names,
       colours: Map.new(seats, &{&1, &1}),
-      bots: Map.new(Keyword.get(opts, :bots, []), &{&1, :balanced}),
+      bots: Map.new(Keyword.get(opts, :bots, []), &{&1, :expert}),
       creator: 0,
       rejoinable: [],
       debug: nil,

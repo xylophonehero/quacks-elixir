@@ -31,7 +31,7 @@ defmodule Quacks.DebugReplayTest do
     assert table.status == :playing
     assert table.game == replay_prefix(bundle, 2)
     assert table.names == %{0 => "Ann", 1 => bundle["names"] |> Enum.at(1)}
-    assert table.bots == %{1 => :balanced}
+    assert table.bots == %{1 => :expert}
     assert table.debug == %{at: 2, total: total, frozen: true}
     assert {:ok, 0} = GameServer.claim_seat(id, "dev")
     assert {:error, :full} = GameServer.claim_seat(id, "someone else")
