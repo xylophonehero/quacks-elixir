@@ -535,6 +535,22 @@ defmodule QuacksWeb.ResultsStageTest do
           do: assert(row.vp == Game.player(game, row.seat).vp)
     end
 
+    test "the shop step shows droplet and flask refills (thpxis crash)" do
+      slide = %{kind: :shop, rows: [%{seat: 0, chips: [], droplets: 1, flasks: 1}]}
+      rows = TileReveal.stage_rows(%{seats: [0]}, slide, nil)
+
+      html =
+        render_component(&QuacksWeb.TileRevealComponents.results_stage/1,
+          rows: rows,
+          slide: slide,
+          index: 0,
+          names: %{0 => "Nick"}
+        )
+
+      assert html =~ ~s(data-cell="flask")
+      assert html =~ ~s(data-cell="droplet")
+    end
+
     test "no recap in round 1, in the shop or at the game's end" do
       game = Game.new(seed: {1, 2, 3}, players: 1, fortune: false)
       assert Reveal.recap_slides(game) == []
