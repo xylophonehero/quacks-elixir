@@ -65,7 +65,7 @@ defmodule QuacksWeb.FortuneLiveTest do
   end
 
   test "multiplayer: every seat with a card choice gets its buttons at once" do
-    game = Game.new(seed: {30, 30, 30}, players: 2)
+    game = Game.new(seed: {86, 86, 86}, players: 2)
     assert game.phase == :fortune_choice
     assert [{:fortune, _} | _] = Game.legal_actions(game, 0)
     assert [{:fortune, _} | _] = Game.legal_actions(game, 1)

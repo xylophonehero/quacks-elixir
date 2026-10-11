@@ -497,8 +497,8 @@ defmodule QuacksWeb.CardRevealTest do
       |> render()
 
   test "a card choice opens for every seat at once; who answered sees who still decides" do
-    # seed 30,30,30 with 2 players deals a card with a choice for both seats
-    {_id, alice, bob} = duo_2({30, 30, 30}, %{})
+    # seed 86,86,86 with 2 players deals a card with a choice for both seats
+    {_id, alice, bob} = duo_2({86, 86, 86}, %{})
 
     # Round 31: the choice is in each seat's bar, no dialog.
     for view <- [alice, bob] do

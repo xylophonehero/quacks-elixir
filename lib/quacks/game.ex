@@ -127,6 +127,8 @@ defmodule Quacks.Game do
             expansion: nil,
             expansions: MapSet.new(),
             witches: nil,
+            visitor: nil,
+            visited: [],
             patients: nil
 
   @type seat :: 0..4
@@ -166,8 +168,8 @@ defmodule Quacks.Game do
           | {:red, {:place | :keep | :return, Chips.chip()}}
           | {:chip, chip_choice}
           | :chip_done
-          | {:witch, WitchCards.colour()}
-          | {:witch, WitchCards.colour(), term}
+          | {:witch, WitchCards.colour() | :visit}
+          | {:witch, WitchCards.colour() | :visit, term}
           | :witch_done
           | {:patient, Alchemists.id()}
           | {:essence, essence_choice}
@@ -279,7 +281,9 @@ defmodule Quacks.Game do
   @typedoc """
   What happened, newest first. Player events are tagged with their seat; the only
   game-wide entries are `{:expansion, x}` (the first entries of an expansion game, The
-  Herb Witches first), `{:patients, ids}` (The Alchemists' deal), `{:fortune_drawn, id}` and `{:fortune_skipped, id}` at the start of a round and
+  Herb Witches first), `{:patients, ids}` (The Alchemists' deal), `{:fortune_drawn, id}` and `{:fortune_skipped, id}` at the start of a round,
+  `{:visitor, id}` (AB8 Visit from a witch: the witch that visits this round) and
+  `{:visitor_left, id}` (she leaves at the end of the round), and
   `{:round_end, round}`, the last event of every round.
   `Quacks.Session` replays from its own action list, not this.
   """
@@ -290,6 +294,8 @@ defmodule Quacks.Game do
           | {:patients, [Alchemists.id()]}
           | {:fortune_drawn, Quacks.Rules.Fortune.id()}
           | {:fortune_skipped, Quacks.Rules.Fortune.id()}
+          | {:visitor, WitchCards.id()}
+          | {:visitor_left, WitchCards.id()}
   @type t :: %__MODULE__{
           round: 1..9,
           phase: phase,
@@ -305,6 +311,8 @@ defmodule Quacks.Game do
           expansion: nil | :herb_witches,
           expansions: MapSet.t(expansion),
           witches: nil | %{WitchCards.colour() => WitchCards.id()},
+          visitor: nil | WitchCards.id(),
+          visited: [seat],
           patients: nil | [Alchemists.id()]
         }
   @type expansion :: :herb_witches | :alchemists
@@ -320,8 +328,10 @@ defmodule Quacks.Game do
   `:limited` plays with the box's counts. `overflow: true` (default) puts chips past
   the last space in the overflow bowl; `false` keeps them on the last space.
   `pot_side: :back` plays the reverse side of the pot (the test-tube track).
-  `alch_cards: true` (default) adds the 20 Fortune Teller cards of The Alchemists box
-  to the deck when The Alchemists is in play (see `Quacks.Rules.Fortune.ids/2`).
+  `alch_cards: true` (default) adds the Fortune Teller cards of The Alchemists box to
+  the deck: its 14 general cards in every game, its expansion cards when their
+  expansion is in play (see `Quacks.Rules.Fortune.ids/2`); `false` plays the 24 base
+  cards only.
   """
   @type rules :: %{
           explode_above: 5..9,
@@ -397,7 +407,7 @@ defmodule Quacks.Game do
     rng = :rand.seed_s(:exsss, seed)
 
     deck =
-      if rules.fortune, do: Fortune.deck(rng, n, card_expansions(rules, expansions)), else: []
+      if rules.fortune, do: Fortune.deck(rng, n, expansions, rules.alch_cards), else: []
 
     player = %{Player.new(bag) | rubies: rules.starting_rubies}
 
@@ -428,10 +438,6 @@ defmodule Quacks.Game do
       do: game |> Essence.setup() |> Essence.prepick(opts[:patients]),
       else: start_round(game)
   end
-
-  # The expansions that add Fortune Teller cards: none with `alch_cards: false`.
-  defp card_expansions(%{alch_cards: true}, expansions), do: expansions
-  defp card_expansions(_rules, _expansions), do: MapSet.new()
 
   # The host's picks replace the dealt witch of their colour (nil: dealt). The deal
   # itself runs first either way, so the game's random stream does not change.
@@ -832,11 +838,11 @@ defmodule Quacks.Game do
     do: phase in [:potions, :yellow_choice, :blue_choice, :chip_choice, :essence_offer]
 
   defp end_round(%{round: @rounds} = g),
-    do: record(%{g | phase: :over}, {:round_end, @rounds})
+    do: g |> Witches.leave() |> Map.put(:phase, :over) |> record({:round_end, @rounds})
 
   defp end_round(g) do
     round = g.round + 1
-    g = record(g, {:round_end, g.round})
+    g = g |> Witches.leave() |> record({:round_end, g.round})
 
     g =
       Enum.reduce(g.seats, g, fn seat, g ->

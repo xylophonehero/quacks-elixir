@@ -113,7 +113,7 @@ defmodule Quacks.Scenarios do
   # -- the catalog ----------------------------------------------------------------------
 
   defp cards do
-    # Every card that can be in a deck (the Alchemists box cards not built yet are not).
+    # Every card that can be in a deck with both expansions.
     playable = Fortune.ids(4, [:alchemists, :herb_witches])
 
     for %{id: id, name: name, colour: colour} <- Fortune.all(), id in playable do
@@ -194,6 +194,7 @@ defmodule Quacks.Scenarios do
       "card/p12" => take_a_chance(),
       "card/p13" => flea_market(),
       "card/p6" => boomberry_cleanse(),
+      "card/ab8" => visit_from_a_witch(),
       "chip/blue/1" => crow_skull(),
       "chip/yellow/1" => mandrake(),
       "chip/purple/5" => ghosts_breath_v(),
@@ -268,6 +269,47 @@ defmodule Quacks.Scenarios do
       }
     ]
   end
+
+  # AB8 (round 43): a witch not in play visits; you call her as soon as she may act
+  # (a seed where she helps you in round 2).
+  defp visit_from_a_witch do
+    me = fn _g, legal ->
+      Enum.find(legal, &match?({:witch, :visit}, &1)) ||
+        Enum.find(legal, &match?({:witch, :visit, _}, &1))
+    end
+
+    [
+      sees: %{"reveal" => ["#pot-card-2 [data-role=card-visitor]"]},
+      me: me,
+      then: fn s ->
+        s = Script.play(s, &(visit_called?(&1) or &1.round > 2), me: me)
+        if not visit_called?(Script.game(s)), do: throw({:miss, :no_visit})
+        # A silver witch is called while brewing: her step goes before the results.
+        at = Enum.find(0..Script.at(s), &visit_called?(Script.game_at(s, &1)))
+
+        s =
+          Script.mark(s, "called",
+            at: at,
+            note: "You called the visiting witch, for free.",
+            check: &visit_called?/1,
+            sees: ["[data-role=witch-card][data-visit]"]
+          )
+
+        %{s | steps: Enum.sort_by(s.steps, & &1.at)}
+      end,
+      checks: %{
+        "reveal" => fn g ->
+          (g.visitor != nil and g.visitor not in Map.values(g.witches)) or
+            "no visiting witch, or she is in play"
+        end
+      }
+    ]
+  end
+
+  defp visit_called?(g),
+    do:
+      Enum.any?(g.log, &match?({0, {:witch, :visit}}, &1)) or
+        Enum.any?(g.log, &match?({0, {:witch, :visit, _}}, &1))
 
   defp crow_skull do
     [

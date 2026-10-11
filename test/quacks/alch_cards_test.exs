@@ -50,24 +50,39 @@ defmodule Quacks.AlchCardsTest do
       assert Enum.count(box, &(&1.expansion == :alchemists)) == 3
     end
 
-    test "the box cards are in the deck only with The Alchemists" do
-      assert length(Cards.ids(4)) == 24
-      # 14 + 3 Alchemists; AB8 (Herb Witches) is not built yet.
-      assert length(Cards.ids(4, [:alchemists])) == 24 + 17
-      assert length(Cards.ids(4, [:alchemists, :herb_witches])) == 24 + 19
+    test "the 14 general cards are in every deck, the others with their expansion" do
+      general = for %{id: id, expansion: nil} <- Cards.all(), Cards.alchemists?(id), do: id
+      assert length(general) == 14
+      assert length(Cards.ids(4)) == 24 + 14
+      assert Enum.all?(general, &(&1 in Cards.ids(4)))
+      assert length(Cards.ids(4, [:alchemists])) == 24 + 14 + 3
+      assert length(Cards.ids(4, [:herb_witches])) == 24 + 14 + 3
+      assert length(Cards.ids(4, [:alchemists, :herb_witches])) == 24 + 20
+      assert :ab8 in Cards.ids(4, [:herb_witches])
+      refute :ab8 in Cards.ids(4, [:alchemists])
+      refute :ab6 in Cards.ids(4, [:herb_witches])
       solo = Cards.ids(1, [:alchemists, :herb_witches])
       assert Enum.all?([:ap5, :ap6, :ap8, :ap9, :ab4], &(&1 not in solo))
-      refute :ab8 in Cards.ids(4, [:alchemists, :herb_witches])
+      assert :ab8 in solo
+    end
+
+    test "the base game deck has the general box cards" do
+      g = Game.new(seed: @seed, players: 2)
+      deck = [g.fortune_card | g.fortune_deck]
+      assert length(deck) == 24 + 14
+      refute Enum.any?(deck, &(Cards.card(&1).expansion != nil))
     end
 
     test "the alch_cards house rule takes them out" do
-      on = Game.new(seed: @seed, expansions: [:alchemists], players: 2)
+      for expansions <- [[], [:alchemists], [:herb_witches]] do
+        on = Game.new(seed: @seed, expansions: expansions, players: 2)
 
-      off =
-        Game.new(seed: @seed, expansions: [:alchemists], players: 2, rules: %{alch_cards: false})
+        off =
+          Game.new(seed: @seed, expansions: expansions, players: 2, rules: %{alch_cards: false})
 
-      assert Enum.any?(on.fortune_deck, &Cards.alchemists?/1)
-      refute Enum.any?(off.fortune_deck, &Cards.alchemists?/1)
+        assert Enum.any?(on.fortune_deck, &Cards.alchemists?/1)
+        refute Enum.any?(off.fortune_deck, &Cards.alchemists?/1)
+      end
     end
   end
 

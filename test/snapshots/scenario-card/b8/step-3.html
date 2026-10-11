@@ -220,8 +220,8 @@ Y
 </span>
 </span>
 <span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
-<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="12" data-role="player-space" id="tile-space-0-12" title="Pot space (coins)">
-12<span class="sr-only"> pot space</span>
+<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="14" data-role="player-space" id="tile-space-0-14" title="Pot space (coins)">
+14<span class="sr-only"> pot space</span>
 </b>
 <span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label " data-role="player-vp" title="VP">
 <svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
@@ -229,8 +229,8 @@ Y
 </use>
 </svg>
 <span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">
-<span class="tile-count" id="tile-vp-0-0" style="--n: 0; --from: 0">
-<span class="sr-only">0</span>
+<span class="tile-count" id="tile-vp-0-2" style="--n: 2; --from: 2">
+<span class="sr-only">2</span>
 </span>
 </span>
 <span class="sr-only">VP</span>
@@ -266,21 +266,14 @@ Y
 </span>
 <span class="flex items-center gap-px" data-role="player-black" title="Black chips in the pot">
 <span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
-</span>0
+</span>1
 <span class="sr-only">black chips in the pot</span>
-</span>
-<span class="flex items-center gap-px" data-role="player-rats" title="Rat tails">
-<svg aria-hidden="true" class="size-3 text-parchment-dim" data-icon="rat" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-rat">
-</use>
-</svg>1
-<span class="sr-only">rat tails</span>
 </span>
 </span>
 </span>
 </span>
 </button>
-<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35 tile-lead" data-col="2" data-lead="true" data-role="player-chip" data-row="1" data-seat="1" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:1},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-1" style="grid-row: 1; grid-column: 3 / span 2" title="Bot 1" type="button">
+<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35 tile-boom" data-boom="true" data-col="2" data-role="player-chip" data-row="1" data-seat="1" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:1},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-1" style="grid-row: 1; grid-column: 3 / span 2" title="Bot 1" type="button">
 <span class="sr-only" data-role="player-name">
 Bot 1, bot
 </span>
@@ -289,32 +282,12 @@ Bot 1, bot
 <span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-1" data-role="seat-disc">
 B
 </span>
-<span class="absolute -top-3 left-1/2 -translate-x-1/2 drop-shadow-[0_0_3px_var(--color-gold)]" data-role="crown" title="Round leader: rolls the bonus die">
-<svg aria-hidden="true" class="size-3.5" data-icon="crown" viewBox="0 0 12 12">
-<path d="M1 9.5h10L10 3 7.6 6 6 2 4.4 6 2 3z" fill="var(--color-gold)" stroke-linejoin="round" stroke-width=".7" stroke="var(--color-wood-dark)">
-</path>
-</svg>
-<span class="sr-only">round leader</span>
-</span>
 <span aria-hidden="true" class="hero-cpu-chip-micro absolute -right-1.5 -bottom-1 size-2.5 text-parchment-dim" data-role="bot-badge">
-</span>
-<span class="absolute -top-3 left-[calc(50%+0.4rem)] z-10 flex gap-px drop-shadow-[0_1px_2px_rgb(0_0_0/0.6)]" data-late="true" data-role="tile-die">
-<svg class="size-3.5" data-face="vp1" data-role="die-face" viewBox="0 0 48 48">
-<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
-</rect>
-<svg aria-hidden="true" class="text-gold" data-icon="vp" fill="currentColor" height="34" viewBox="0 0 512 512" width="34" x="7" y="7">
-<use href="#icon-vp">
-</use>
-</svg>
-<text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="20" font-weight="700" text-anchor="middle" x="24" y="25">
-1
-</text>
-</svg>
 </span>
 </span>
 <span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
-<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="15" data-role="player-space" id="tile-space-1-15" title="Pot space (coins)">
-15<span class="sr-only"> pot space</span>
+<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="14" data-role="player-space" id="tile-space-1-14" title="Pot space (coins)">
+14<span class="sr-only"> pot space</span>
 </b>
 <span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label " data-role="player-vp" title="VP">
 <svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
@@ -322,15 +295,15 @@ B
 </use>
 </svg>
 <span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">
-<span class="tile-count" id="tile-vp-1-1" style="--n: 1; --from: 0">
-<span class="sr-only">1</span>
+<span class="tile-count" id="tile-vp-1-2" style="--n: 2; --from: 2">
+<span class="sr-only">2</span>
 </span>
 </span>
 <span class="sr-only">VP</span>
 </span>
 </span>
 </span>
-<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-news="true" data-role="tile-line" id="tile-line-1-2-1">
+<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-1">
 <span class="relative h-full min-w-0 flex-1">
 <span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
 <span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
@@ -347,7 +320,7 @@ B
 <svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-droplet">
 </use>
-</svg>1
+</svg>2
 <span class="sr-only">droplet</span>
 </span>
 <span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
@@ -359,34 +332,14 @@ B
 </span>
 <span class="flex items-center gap-px" data-role="player-black" title="Black chips in the pot">
 <span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
-</span>0
+</span>1
 <span class="sr-only">black chips in the pot</span>
 </span>
-<span class="flex items-center gap-px" data-role="player-rats" title="Rat tails">
-<svg aria-hidden="true" class="size-3 text-parchment-dim" data-icon="rat" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-rat">
-</use>
-</svg>1
-<span class="sr-only">rat tails</span>
-</span>
-</span>
-<span class="tile-news absolute inset-0 flex items-center gap-1 overflow-hidden text-tag font-bold whitespace-nowrap tabular-nums" data-role="tile-news">
-<svg class="size-3.5" data-face="vp1" data-role="die-face" viewBox="0 0 48 48">
-<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
-</rect>
-<svg aria-hidden="true" class="text-gold" data-icon="vp" fill="currentColor" height="34" viewBox="0 0 512 512" width="34" x="7" y="7">
-<use href="#icon-vp">
-</use>
-</svg>
-<text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="20" font-weight="700" text-anchor="middle" x="24" y="25">
-1
-</text>
-</svg>
 </span>
 </span>
 </span>
 </button>
-<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35" data-col="3" data-role="player-chip" data-row="1" data-seat="2" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:2},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-2" style="grid-row: 1; grid-column: 5 / span 2" title="Bot 2" type="button">
+<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35 tile-lead" data-col="3" data-lead="true" data-role="player-chip" data-row="1" data-seat="2" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:2},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-2" style="grid-row: 1; grid-column: 5 / span 2" title="Bot 2" type="button">
 <span class="sr-only" data-role="player-name">
 Bot 2, bot
 </span>
@@ -395,7 +348,22 @@ Bot 2, bot
 <span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-2" data-role="seat-disc">
 B
 </span>
+<span class="absolute -top-3 left-1/2 -translate-x-1/2 drop-shadow-[0_0_3px_var(--color-gold)]" data-role="crown" title="Round leader: rolls the bonus die">
+<svg aria-hidden="true" class="size-3.5" data-icon="crown" viewBox="0 0 12 12">
+<path d="M1 9.5h10L10 3 7.6 6 6 2 4.4 6 2 3z" fill="var(--color-gold)" stroke-linejoin="round" stroke-width=".7" stroke="var(--color-wood-dark)">
+</path>
+</svg>
+<span class="sr-only">round leader</span>
+</span>
 <span aria-hidden="true" class="hero-cpu-chip-micro absolute -right-1.5 -bottom-1 size-2.5 text-parchment-dim" data-role="bot-badge">
+</span>
+<span class="absolute -top-3 left-[calc(50%+0.4rem)] z-10 flex gap-px drop-shadow-[0_1px_2px_rgb(0_0_0/0.6)]" data-late="true" data-role="tile-die">
+<svg class="size-3.5" data-face="droplet" data-role="die-face" viewBox="0 0 48 48">
+<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
+</rect>
+<path d="M24 6 L35.7 21.4 A13 13 0 1 1 12.3 21.4 Z" fill="var(--color-droplet)" stroke-linejoin="round" stroke-width="2" stroke="#1f3f8a">
+</path>
+</svg>
 </span>
 </span>
 <span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
@@ -416,7 +384,7 @@ B
 </span>
 </span>
 </span>
-<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-2">
+<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-news="true" data-role="tile-line" id="tile-line-2-2-1">
 <span class="relative h-full min-w-0 flex-1">
 <span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
 <span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
@@ -424,8 +392,8 @@ B
 <use href="#icon-ruby">
 </use>
 </svg>
-<span class="tile-count" id="tile-rubies-2-0" style="--n: 0; --from: 0">
-<span class="sr-only">0</span>
+<span class="tile-count" id="tile-rubies-2-1" style="--n: 1; --from: 1">
+<span class="sr-only">1</span>
 </span>
 <span class="sr-only">rubies</span>
 </span>
@@ -433,7 +401,7 @@ B
 <svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-droplet">
 </use>
-</svg>1
+</svg>2
 <span class="sr-only">droplet</span>
 </span>
 <span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
@@ -449,39 +417,35 @@ B
 <span class="sr-only">black chips in the pot</span>
 </span>
 </span>
+<span class="tile-news absolute inset-0 flex items-center gap-1 overflow-hidden text-tag font-bold whitespace-nowrap tabular-nums" data-role="tile-news">
+<svg class="size-3.5" data-face="droplet" data-role="die-face" viewBox="0 0 48 48">
+<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
+</rect>
+<path d="M24 6 L35.7 21.4 A13 13 0 1 1 12.3 21.4 Z" fill="var(--color-droplet)" stroke-linejoin="round" stroke-width="2" stroke="#1f3f8a">
+</path>
+</svg>
+</span>
 </span>
 </span>
 </button>
 </nav>
-<div aria-label="Rat track, leader first: You 0 VP, 1 rat; Bot 1 1 VP, 1 rat; Bot 2 2 VP, 0 rats" class="relative h-8 select-none " data-role="rat-track" data-steps="2" id="rat-track" role="img">
-<span class="absolute top-3.5 h-px rounded-full bg-parchment/35" style="left: calc(0.5rem + (100% - 1rem) * 0.25); right: calc(0.5rem + (100% - 1rem) * 0.25)">
+<div aria-label="Rat track, leader first: You 2 VP, 0 rats; Bot 1 2 VP, 0 rats; Bot 2 2 VP, 0 rats" class="relative h-8 select-none " data-role="rat-track" data-steps="1" id="rat-track" role="img">
+<span class="absolute top-3.5 h-px rounded-full bg-parchment/35" style="left: calc(0.5rem + (100% - 1rem) * 0.5); right: calc(0.5rem + (100% - 1rem) * 0.5)">
 </span>
-<span class="absolute top-3.5 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-parchment-dim" data-role="track-rat" data-vp="1" style="left: calc(0.5rem + (100% - 1rem) * 0.5)">
-<svg aria-hidden="true" class="size-3" data-icon="rat" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-rat">
-</use>
-</svg>
-</span>
-<span class="absolute top-3.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none" data-role="track-dot" data-seat="2" data-step="0" data-vp="2" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.25) + 0.0px)" title="Bot 2: 2 VP">
-<span class="block rounded-full bg-player-2 size-2.5 ring-1 ring-black/40">
-</span>
-</span>
-<span class="absolute top-3.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none" data-role="track-dot" data-seat="1" data-step="1" data-vp="1" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.75) + -3.5px)" title="Bot 1: 1 VP">
-<span class="block rounded-full bg-player-1 size-2.5 ring-1 ring-black/40">
-</span>
-</span>
-<span class="absolute top-3.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none" data-role="track-dot" data-seat="0" data-step="1" data-vp="0" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.75) + 3.5px)" title="You: 0 VP">
+<span class="absolute top-3.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none" data-role="track-dot" data-seat="0" data-step="0" data-vp="2" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.5) + -7.0px)" title="You: 2 VP">
 <span class="block rounded-full bg-player-0 size-3 ring-2 ring-parchment/80">
 </span>
 </span>
-<span aria-hidden="true" class="absolute top-3.5 -translate-x-1/2 text-tag leading-none font-bold tabular-nums transition-[left] duration-500 ease-out motion-reduce:transition-none -translate-y-[calc(100%+0.4rem)] text-parchment-light" data-role="leader-vp" data-seats="2" data-vp="2" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.25) + 0.0px)">
+<span class="absolute top-3.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none" data-role="track-dot" data-seat="1" data-step="0" data-vp="2" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.5) + 0.0px)" title="Bot 1: 2 VP">
+<span class="block rounded-full bg-player-1 size-2.5 ring-1 ring-black/40">
+</span>
+</span>
+<span class="absolute top-3.5 -translate-x-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out motion-reduce:transition-none" data-role="track-dot" data-seat="2" data-step="0" data-vp="2" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.5) + 7.0px)" title="Bot 2: 2 VP">
+<span class="block rounded-full bg-player-2 size-2.5 ring-1 ring-black/40">
+</span>
+</span>
+<span aria-hidden="true" class="absolute top-3.5 -translate-x-1/2 text-tag leading-none font-bold tabular-nums transition-[left] duration-500 ease-out motion-reduce:transition-none -translate-y-[calc(100%+0.4rem)] text-parchment-light" data-role="leader-vp" data-seats="0 1 2" data-vp="2" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.5) + 0.0px)">
 2
-</span>
-<span aria-hidden="true" class="absolute top-3.5 -translate-x-1/2 text-tag leading-none font-bold tabular-nums transition-[left] duration-500 ease-out motion-reduce:transition-none -translate-y-[calc(100%+0.4rem)] text-parchment" data-role="track-vp" data-seats="1" data-vp="1" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.75) + -3.5px)">
-1
-</span>
-<span aria-hidden="true" class="absolute top-3.5 -translate-x-1/2 text-tag leading-none font-bold tabular-nums transition-[left] duration-500 ease-out motion-reduce:transition-none translate-y-[0.4rem] text-parchment" data-below="true" data-role="track-vp" data-seats="0" data-vp="0" style="left: calc(calc(0.5rem + (100% - 1rem) * 0.75) + 3.5px)">
-0
 </span>
 </div>
 </div>
@@ -605,7 +569,7 @@ Evaluation
 </article>
 </li>
 <li>
-<article class="paper relative overflow-hidden rounded-xl py-1.5 pr-2 pl-3 text-left before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-(--c) " data-book="black-1" data-colour="black" data-role="book-line" style="--c: var(--color-chip-black)">
+<article class="paper relative overflow-hidden rounded-xl py-1.5 pr-2 pl-3 text-left before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-(--c) book-beat" data-book="black-1" data-colour="black" data-role="book-line" style="--c: var(--color-chip-black); --beat: 2">
 <div class="flex min-w-0 items-center gap-1.5">
 <svg aria-hidden="true" class="size-6 shrink-0 text-chip-black" data-icon="black" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-black">
@@ -754,20 +718,20 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 3
 </text>
 </g>
-<g aria-label="orange 1" class="" data-index="3" data-order="5" data-role="pot-chip" id="pot-chip-0-3-1">
-<circle fill="var(--color-chip-orange)" r="19" stroke-width="2.5" stroke="rgb(0 0 0 / 0.4)">
+<g aria-label="white 2" class="" data-index="3" data-order="7" data-role="pot-chip" id="pot-chip-0-3-1">
+<circle fill="var(--color-chip-white)" r="19" stroke-width="2.5" stroke="#9a9a94">
 </circle>
 <path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
 </path>
-<svg aria-hidden="true" class="text-ink" data-icon="orange" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
-<use href="#icon-orange">
+<svg aria-hidden="true" class="text-ink" data-icon="white" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
+<use href="#icon-white">
 </use>
 </svg>
 <g data-role="chip-value">
 <circle cx="9" cy="9" fill="var(--color-parchment-light)" r="10.5" stroke-width="2" stroke="var(--color-ink)">
 </circle>
 <text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="16" font-weight="700" text-anchor="middle" x="9" y="9">
-1
+2
 </text>
 </g>
 </g>
@@ -781,13 +745,13 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 4
 </text>
 </g>
-<g aria-label="white 1" class="" data-index="4" data-order="4" data-role="pot-chip" id="pot-chip-0-4-1">
-<circle fill="var(--color-chip-white)" r="19" stroke-width="2.5" stroke="#9a9a94">
+<g aria-label="green 1" class="" data-index="4" data-order="6" data-role="pot-chip" id="pot-chip-0-4-1">
+<circle fill="var(--color-chip-green)" r="19" stroke-width="2.5" stroke="rgb(0 0 0 / 0.4)">
 </circle>
 <path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
 </path>
-<svg aria-hidden="true" class="text-ink" data-icon="white" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
-<use href="#icon-white">
+<svg aria-hidden="true" class="text-ink" data-icon="green" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
+<use href="#icon-green">
 </use>
 </svg>
 <g data-role="chip-value">
@@ -811,6 +775,23 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 <use href="#icon-ruby">
 </use>
 </svg>
+</g>
+<g aria-label="black 1" class="" data-index="5" data-order="5" data-role="pot-chip" id="pot-chip-0-5-2">
+<circle fill="var(--color-chip-black)" r="19" stroke-width="2.5" stroke="rgb(0 0 0 / 0.4)">
+</circle>
+<path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
+</path>
+<svg aria-hidden="true" class="text-white" data-icon="black" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
+<use href="#icon-black">
+</use>
+</svg>
+<g data-role="chip-value">
+<circle cx="9" cy="9" fill="var(--color-parchment-light)" r="10.5" stroke-width="2" stroke="var(--color-ink)">
+</circle>
+<text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="16" font-weight="700" text-anchor="middle" x="9" y="9">
+1
+</text>
+</g>
 </g>
 </g>
 <g data-space="6" data-x="-77.8" data-y="-13.0" transform="translate(-77.8 -13.0)">
@@ -846,7 +827,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </text>
 </g>
 </g>
-<g aria-label="white 3" class="" data-index="7" data-order="3" data-role="pot-chip" id="pot-chip-0-7-1">
+<g aria-label="white 2" class="" data-index="7" data-order="4" data-role="pot-chip" id="pot-chip-0-7-2">
 <circle fill="var(--color-chip-white)" r="19" stroke-width="2.5" stroke="#9a9a94">
 </circle>
 <path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
@@ -859,7 +840,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 <circle cx="9" cy="9" fill="var(--color-parchment-light)" r="10.5" stroke-width="2" stroke="var(--color-ink)">
 </circle>
 <text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="16" font-weight="700" text-anchor="middle" x="9" y="9">
-3
+2
 </text>
 </g>
 </g>
@@ -876,6 +857,23 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 <circle fill="url(#vp-gold-0)" r="9" stroke-width="1" stroke="#7a5a10">
 </circle>
 <text dy="0.35em" fill="#3a2508" font-size="12" font-weight="700" text-anchor="middle">
+1
+</text>
+</g>
+</g>
+<g aria-label="white 1" class="" data-index="8" data-order="3" data-role="pot-chip" id="pot-chip-0-8-2">
+<circle fill="var(--color-chip-white)" r="19" stroke-width="2.5" stroke="#9a9a94">
+</circle>
+<path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
+</path>
+<svg aria-hidden="true" class="text-ink" data-icon="white" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
+<use href="#icon-white">
+</use>
+</svg>
+<g data-role="chip-value">
+<circle cx="9" cy="9" fill="var(--color-parchment-light)" r="10.5" stroke-width="2" stroke="var(--color-ink)">
+</circle>
+<text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="16" font-weight="700" text-anchor="middle" x="9" y="9">
 1
 </text>
 </g>
@@ -901,20 +899,20 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </use>
 </svg>
 </g>
-<g aria-label="white 2" class="" data-index="9" data-order="2" data-role="pot-chip" id="pot-chip-0-9-1">
-<circle fill="var(--color-chip-white)" r="19" stroke-width="2.5" stroke="#9a9a94">
+<g aria-label="orange 1" class="" data-index="9" data-order="2" data-role="pot-chip" id="pot-chip-0-9-1">
+<circle fill="var(--color-chip-orange)" r="19" stroke-width="2.5" stroke="rgb(0 0 0 / 0.4)">
 </circle>
 <path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
 </path>
-<svg aria-hidden="true" class="text-ink" data-icon="white" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
-<use href="#icon-white">
+<svg aria-hidden="true" class="text-ink" data-icon="orange" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
+<use href="#icon-orange">
 </use>
 </svg>
 <g data-role="chip-value">
 <circle cx="9" cy="9" fill="var(--color-parchment-light)" r="10.5" stroke-width="2" stroke="var(--color-ink)">
 </circle>
 <text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="16" font-weight="700" text-anchor="middle" x="9" y="9">
-2
+1
 </text>
 </g>
 </g>
@@ -935,7 +933,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </text>
 </g>
 </g>
-<g aria-label="white 1" class="" data-index="10" data-order="1" data-role="pot-chip" id="pot-chip-0-10-1">
+<g aria-label="white 1" class="" data-index="10" data-order="1" data-role="pot-chip" id="pot-chip-0-10-2">
 <circle fill="var(--color-chip-white)" r="19" stroke-width="2.5" stroke="#9a9a94">
 </circle>
 <path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
@@ -969,23 +967,6 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </text>
 </g>
 </g>
-<g aria-label="white 1" class="" data-index="11" data-order="0" data-role="pot-chip" id="pot-chip-0-11-1">
-<circle fill="var(--color-chip-white)" r="19" stroke-width="2.5" stroke="#9a9a94">
-</circle>
-<path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
-</path>
-<svg aria-hidden="true" class="text-ink" data-icon="white" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
-<use href="#icon-white">
-</use>
-</svg>
-<g data-role="chip-value">
-<circle cx="9" cy="9" fill="var(--color-parchment-light)" r="10.5" stroke-width="2" stroke="var(--color-ink)">
-</circle>
-<text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="16" font-weight="700" text-anchor="middle" x="9" y="9">
-1
-</text>
-</g>
-</g>
 <circle aria-label="scoring space" data-role="scoring-ring" data-seat="2" fill="none" pathLength="100" r="26" stroke-dashoffset="-0.0" stroke-width="5" stroke="var(--color-player-2)" transform="rotate(-90)">
 </circle>
 </g>
@@ -993,9 +974,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 <title>Space 12: 12 coins, 2 VP</title>
 <circle fill="var(--color-potion-light)" r="22" stroke-width="2" stroke="var(--color-potion-deep)">
 </circle>
-<circle data-role="next-space" fill-opacity="0.35" fill="var(--color-gold)" r="22">
-</circle>
-<g>
+<g data-passed="true" opacity="0.45">
 <text class="tabular-nums" dy="0.35em" fill-opacity="0.75" fill="var(--color-ink)" font-size="17" font-weight="600" text-anchor="middle">
 12
 </text>
@@ -1007,14 +986,12 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </text>
 </g>
 </g>
-<circle aria-label="scoring space" data-role="scoring-ring" data-seat="0" fill="none" pathLength="100" r="26" stroke-dashoffset="-0.0" stroke-width="5" stroke="var(--color-player-0)" transform="rotate(-90)">
-</circle>
 </g>
 <g data-space="13" data-x="100.9" data-y="-42.6" transform="translate(100.9 -42.6)">
 <title>Space 13: 13 coins, 2 VP, ruby</title>
 <circle fill="var(--color-potion-light)" r="22" stroke-width="2" stroke="var(--color-potion-deep)">
 </circle>
-<g>
+<g data-passed="true" opacity="0.45">
 <text class="tabular-nums" dy="0.35em" fill-opacity="0.75" fill="var(--color-ink)" font-size="17" font-weight="600" text-anchor="middle">
 13
 </text>
@@ -1030,10 +1007,29 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </use>
 </svg>
 </g>
+<g aria-label="white 3" class="" data-index="13" data-order="0" data-role="pot-chip" id="pot-chip-0-13-1">
+<circle fill="var(--color-chip-white)" r="19" stroke-width="2.5" stroke="#9a9a94">
+</circle>
+<path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
+</path>
+<svg aria-hidden="true" class="text-ink" data-icon="white" fill="currentColor" height="22" viewBox="0 0 512 512" width="22" x="-14" y="-14">
+<use href="#icon-white">
+</use>
+</svg>
+<g data-role="chip-value">
+<circle cx="9" cy="9" fill="var(--color-parchment-light)" r="10.5" stroke-width="2" stroke="var(--color-ink)">
+</circle>
+<text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="16" font-weight="700" text-anchor="middle" x="9" y="9">
+3
+</text>
+</g>
+</g>
 </g>
 <g data-space="14" data-x="75.0" data-y="-84.9" transform="translate(75.0 -84.9)">
 <title>Space 14: 14 coins, 3 VP</title>
 <circle fill="var(--color-potion-light)" r="22" stroke-width="2" stroke="var(--color-potion-deep)">
+</circle>
+<circle data-role="next-space" fill-opacity="0.35" fill="var(--color-gold)" r="22">
 </circle>
 <g>
 <text class="tabular-nums" dy="0.35em" fill-opacity="0.75" fill="var(--color-ink)" font-size="17" font-weight="600" text-anchor="middle">
@@ -1047,6 +1043,10 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </text>
 </g>
 </g>
+<circle aria-label="scoring space" data-role="scoring-ring" data-seat="0" fill="none" pathLength="100" r="26" stroke-dasharray="47.0 53.0" stroke-dashoffset="-0.0" stroke-width="5" stroke="var(--color-player-0)" transform="rotate(-90)">
+</circle>
+<circle aria-label="scoring space" data-role="scoring-ring" data-seat="1" fill="none" pathLength="100" r="26" stroke-dasharray="47.0 53.0" stroke-dashoffset="-50.0" stroke-width="5" stroke="var(--color-player-1)" transform="rotate(-90)">
+</circle>
 </g>
 <g data-space="15" data-x="33.4" data-y="-112.0" transform="translate(33.4 -112.0)">
 <title>Space 15: 15 coins, 3 VP</title>
@@ -1064,8 +1064,6 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </text>
 </g>
 </g>
-<circle aria-label="scoring space" data-role="scoring-ring" data-seat="1" fill="none" pathLength="100" r="26" stroke-dashoffset="-0.0" stroke-width="5" stroke="var(--color-player-1)" transform="rotate(-90)">
-</circle>
 </g>
 <g data-space="16" data-x="-15.8" data-y="-119.3" transform="translate(-15.8 -119.3)">
 <title>Space 16: 15 coins, 3 VP, ruby</title>
@@ -1765,18 +1763,6 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 <path d="M0 -13 L6.2 -2.6 A7 7 0 1 1 -6.2 -2.6 Z" fill-opacity="0.92" fill="var(--color-parchment-light)" stroke-linejoin="round" stroke-width="1.5" stroke="#1f3f8a" transform="translate(0 3)">
 </path>
 </g>
-<g data-index="2" data-role="rat-stone" data-tails="1" id="rat-0-lg">
-<g aria-label="rat" data-index="2" data-role="rat" id="rat-0-lg-2" style="translate: 54.2px 0.5px">
-<g class="rat-pebble">
-<circle fill="#8b9097" r="19" stroke-width="2.5" stroke="var(--color-iron-dark)">
-</circle>
-<svg aria-hidden="true" class="text-parchment-light" data-icon="rat" fill="currentColor" height="24" viewBox="0 0 512 512" width="24" x="-12" y="-12">
-<use href="#icon-rat">
-</use>
-</svg>
-</g>
-</g>
-</g>
 <g aria-label="Flask full" class="" data-role="flask" data-usable="false" id="flask-0" role="img" transform="translate(-222 214)">
 <defs>
 <clipPath id="flask-body-0-lg">
@@ -1845,7 +1831,7 @@ Lucky Devil
 </div>
 </dl>
 </div>
-<button aria-keyshortcuts="b" aria-label="Bag: 5 chips. Show what is in it" class="size-14 touch-manipulation drop-shadow-[0_2px_3px_rgb(0_0_0/0.5)] transition-transform duration-100 ease-out active:scale-95 absolute right-0 bottom-0" data-role="bag-button" popovertarget="sheet-bag" title="Bag (b)" type="button">
+<button aria-keyshortcuts="b" aria-label="Bag: 2 chips. Show what is in it" class="size-14 touch-manipulation drop-shadow-[0_2px_3px_rgb(0_0_0/0.5)] transition-transform duration-100 ease-out active:scale-95 absolute right-0 bottom-0" data-role="bag-button" popovertarget="sheet-bag" title="Bag (b)" type="button">
 <svg aria-hidden="true" class="size-full" viewBox="0 0 48 48">
 <defs>
 <linearGradient id="bag-cloth" x1="0" x2="0" y1="0" y2="1">
@@ -1878,7 +1864,7 @@ Lucky Devil
 <circle cx="30" cy="15" fill="var(--color-parchment-dim)" r="1.8">
 </circle>
 <text fill="var(--color-parchment-light)" font-size="15" font-weight="700" text-anchor="middle" x="24" y="36">
-5
+2
 </text>
 </svg>
 <span class="absolute -right-1 -bottom-1 inline-flex size-6 items-center justify-center rounded-full bg-parchment text-ink ring-1 ring-ink-soft">
@@ -1923,7 +1909,7 @@ Fortune teller · this round
 <section aria-label="Shop" class="space-y-2">
 <h2 class="sheet-head text-xl font-bold">Shop</h2>
 <div class="rounded-md bg-parchment-deep/60 px-2 py-1" data-role="shop-bag">
-<h3 class="text-tag font-semibold text-ink-soft">Your chips: 11</h3>
+<h3 class="text-tag font-semibold text-ink-soft">Your chips: 10</h3>
 <ul class="mt-1 flex flex-wrap gap-x-2 gap-y-1">
 <li class="flex items-center gap-0.5 text-sm">
 <span aria-label="white 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
@@ -1971,12 +1957,12 @@ Fortune teller · this round
 1
 </span>
 </span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×2</span>
+<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
 </li>
 <li class="flex items-center gap-0.5 text-sm">
-<span aria-label="red 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-red text-white" data-chip-icon="red">
-<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="red" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-red">
+<span aria-label="green 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-green text-ink" data-chip-icon="green">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-green">
 </use>
 </svg>
 <span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
@@ -1986,9 +1972,9 @@ Fortune teller · this round
 <span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
 </li>
 <li class="flex items-center gap-0.5 text-sm">
-<span aria-label="green 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-green text-ink" data-chip-icon="green">
-<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-green">
+<span aria-label="black 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-black text-white border border-iron" data-chip-icon="black">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="black" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-black">
 </use>
 </svg>
 <span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
@@ -2495,8 +2481,8 @@ green 2
 </label>
 </li>
 <li class="min-w-0">
-<label class="relative flex min-h-12 min-w-0 items-center gap-1.5 rounded-lg bg-parchment-light px-2 text-sm ring-1 ring-ink/20 select-none touch-manipulation transition-[scale,box-shadow,background-color] duration-150 ease-out has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink has-focus-visible:outline-3 has-focus-visible:outline-droplet opacity-40">
-<input class="peer sr-only" disabled="" name="chips[]" type="checkbox" value="g2gCdwVncmVlbmEE"/>
+<label class="relative flex min-h-12 min-w-0 items-center gap-1.5 rounded-lg bg-parchment-light px-2 text-sm ring-1 ring-ink/20 select-none touch-manipulation transition-[scale,box-shadow,background-color] duration-150 ease-out has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink has-focus-visible:outline-3 has-focus-visible:outline-droplet cursor-pointer active:scale-[0.96]">
+<input class="peer sr-only" name="chips[]" type="checkbox" value="g2gCdwVncmVlbmEE"/>
 <span class="absolute -top-2 -right-2 hidden size-5 items-center justify-center rounded-full bg-ink text-gold shadow peer-checked:flex" data-role="tile-check">
 <span class="hero-check size-3.5">
 </span>
@@ -2711,9 +2697,9 @@ Purple Set 1
 </form>
 </div>
 <div class="@container/shop-bar sticky bottom-0 z-10 -mx-4 mt-3 flex min-w-0 items-center gap-2 bg-parchment px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_12px_-10px_rgb(0_0_0/0.35)] *:min-h-12" data-role="shop-footer">
-<p aria-label="12 coins, 12 left after this buy" class="flex min-w-0 shrink items-center gap-1 font-hand text-xl leading-none font-bold whitespace-nowrap tabular-nums " data-role="shop-total">
+<p aria-label="14 coins, 14 left after this buy" class="flex min-w-0 shrink items-center gap-1 font-hand text-xl leading-none font-bold whitespace-nowrap tabular-nums " data-role="shop-total">
 <span class="book-coin">
-</span>12<span class="text-base text-ink-soft">→</span>12
+</span>14<span class="text-base text-ink-soft">→</span>14
 </p>
 <button class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 min-w-0 flex-1 px-3 whitespace-nowrap" data-role="shop-buy" disabled="" phx-click="action" phx-value-action="g2gCdwNidXlq">
 <span class="truncate">Buy</span>
@@ -2756,7 +2742,7 @@ You
 <span class="stage-col flex items-center justify-end gap-1 text-base leading-none font-extrabold tabular-nums" data-col="dice" data-role="stage-got">
 </span>
 </li>
-<li class="stage-row rounded-md px-1 py-0.5 " data-role="stage-row" data-seat="1" id="stage-row-1-1" style="">
+<li class="stage-row rounded-md px-1 py-0.5 opacity-45" data-none="true" data-role="stage-row" data-seat="1" id="stage-row-1-1" style="">
 <span aria-hidden="true" class="grid size-5 shrink-0 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-1" data-role="seat-disc">
 B
 </span>
@@ -2764,60 +2750,38 @@ B
 Bot 1
 </span>
 <span class="flex min-w-0 items-center gap-1 text-sm" data-role="stage-why">
+<span class="truncate text-xs text-ink-soft italic" data-cell="text">exploded</span>
+</span>
+<span class="stage-col flex items-center justify-end gap-1 text-base leading-none font-extrabold tabular-nums" data-col="dice" data-role="stage-got">
+</span>
+</li>
+<li class="stage-row rounded-md px-1 py-0.5 " data-role="stage-row" data-seat="2" id="stage-row-1-2" style="">
+<span aria-hidden="true" class="grid size-5 shrink-0 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-2" data-role="seat-disc">
+B
+</span>
+<span class="stage-name line-clamp-2 text-xs leading-3 font-semibold break-words" data-role="stage-name" title="Bot 2">
+Bot 2
+</span>
+<span class="flex min-w-0 items-center gap-1 text-sm" data-role="stage-why">
 <span class="truncate text-xs text-ink-soft italic" data-cell="text">furthest</span>
 </span>
 <span class="stage-col flex items-center justify-end gap-1 text-base leading-none font-extrabold tabular-nums" data-col="dice" data-role="stage-got">
 <span class="flex items-center gap-1" data-cell="dice">
 <span class="stage-die" style="--roll: 0">
-<span aria-hidden="true" class="die" data-face="vp1" data-role="die">
+<span aria-hidden="true" class="die" data-face="droplet" data-role="die">
 <svg class="die-strip" viewBox="0 0 48 336">
 <g transform="translate(0 0)">
 <rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
 </rect>
-<svg aria-hidden="true" class="text-ruby" data-icon="ruby" fill="currentColor" height="30" viewBox="0 0 512 512" width="30" x="9" y="9">
-<use href="#icon-ruby">
+<svg aria-hidden="true" class="text-gold" data-icon="vp" fill="currentColor" height="34" viewBox="0 0 512 512" width="34" x="7" y="7">
+<use href="#icon-vp">
 </use>
 </svg>
+<text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="20" font-weight="700" text-anchor="middle" x="24" y="25">
+1
+</text>
 </g>
 <g transform="translate(0 48)">
-<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
-</rect>
-<path d="M24 6 L35.7 21.4 A13 13 0 1 1 12.3 21.4 Z" fill="var(--color-droplet)" stroke-linejoin="round" stroke-width="2" stroke="#1f3f8a">
-</path>
-</g>
-<g transform="translate(0 96)">
-<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
-</rect>
-<circle cx="24" cy="24" fill="var(--color-chip-orange)" r="15" stroke-width="2" stroke="rgb(0 0 0 / 0.4)">
-</circle>
-<svg aria-hidden="true" class="text-ink" data-icon="orange" fill="currentColor" height="18" viewBox="0 0 512 512" width="18" x="15" y="15">
-<use href="#icon-orange">
-</use>
-</svg>
-</g>
-<g transform="translate(0 144)">
-<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
-</rect>
-<svg aria-hidden="true" class="text-gold" data-icon="vp" fill="currentColor" height="34" viewBox="0 0 512 512" width="34" x="7" y="7">
-<use href="#icon-vp">
-</use>
-</svg>
-<text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="20" font-weight="700" text-anchor="middle" x="24" y="25">
-1
-</text>
-</g>
-<g transform="translate(0 192)">
-<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
-</rect>
-<svg aria-hidden="true" class="text-gold" data-icon="vp" fill="currentColor" height="34" viewBox="0 0 512 512" width="34" x="7" y="7">
-<use href="#icon-vp">
-</use>
-</svg>
-<text dy="0.36em" fill="var(--color-ink)" font-family="var(--font-hand)" font-size="20" font-weight="700" text-anchor="middle" x="24" y="25">
-1
-</text>
-</g>
-<g transform="translate(0 240)">
 <rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
 </rect>
 <svg aria-hidden="true" class="text-gold" data-icon="vp" fill="currentColor" height="34" viewBox="0 0 512 512" width="34" x="7" y="7">
@@ -2828,7 +2792,31 @@ Bot 1
 2
 </text>
 </g>
-<g transform="translate(0 288)">
+<g transform="translate(0 96)">
+<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
+</rect>
+<svg aria-hidden="true" class="text-ruby" data-icon="ruby" fill="currentColor" height="30" viewBox="0 0 512 512" width="30" x="9" y="9">
+<use href="#icon-ruby">
+</use>
+</svg>
+</g>
+<g transform="translate(0 144)">
+<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
+</rect>
+<path d="M24 6 L35.7 21.4 A13 13 0 1 1 12.3 21.4 Z" fill="var(--color-droplet)" stroke-linejoin="round" stroke-width="2" stroke="#1f3f8a">
+</path>
+</g>
+<g transform="translate(0 192)">
+<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
+</rect>
+<circle cx="24" cy="24" fill="var(--color-chip-orange)" r="15" stroke-width="2" stroke="rgb(0 0 0 / 0.4)">
+</circle>
+<svg aria-hidden="true" class="text-ink" data-icon="orange" fill="currentColor" height="18" viewBox="0 0 512 512" width="18" x="15" y="15">
+<use href="#icon-orange">
+</use>
+</svg>
+</g>
+<g transform="translate(0 240)">
 <rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
 </rect>
 <svg aria-hidden="true" class="text-gold" data-icon="vp" fill="currentColor" height="34" viewBox="0 0 512 512" width="34" x="7" y="7">
@@ -2839,22 +2827,16 @@ Bot 1
 1
 </text>
 </g>
+<g transform="translate(0 288)">
+<rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
+</rect>
+<path d="M24 6 L35.7 21.4 A13 13 0 1 1 12.3 21.4 Z" fill="var(--color-droplet)" stroke-linejoin="round" stroke-width="2" stroke="#1f3f8a">
+</path>
+</g>
 </svg>
 </span>
 </span>
 </span>
-</span>
-</li>
-<li class="stage-row rounded-md px-1 py-0.5 opacity-45" data-none="true" data-role="stage-row" data-seat="2" id="stage-row-1-2" style="">
-<span aria-hidden="true" class="grid size-5 shrink-0 place-items-center rounded-full text-[10px] leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-2" data-role="seat-disc">
-B
-</span>
-<span class="stage-name line-clamp-2 text-xs leading-3 font-semibold break-words" data-role="stage-name" title="Bot 2">
-Bot 2
-</span>
-<span class="flex min-w-0 items-center gap-1 text-sm" data-role="stage-why">
-</span>
-<span class="stage-col flex items-center justify-end gap-1 text-base leading-none font-extrabold tabular-nums" data-col="dice" data-role="stage-got">
 </span>
 </li>
 </ol>
@@ -2874,7 +2856,7 @@ Bot 2
 Bonus die
 </span>
 <span class="text-tag text-parchment-dim tabular-nums">
-Step 1 of 2
+Step 1 of 3
 </span>
 </span>
 </p>
@@ -2905,14 +2887,19 @@ Next
 <span>Bot 2: Scoring space 11: +2 VP</span>
 </li>
 <li class="flex items-baseline gap-1.5">
-<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
+<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-0" data-role="seat-dot" data-seat="0">
 </span>
-<span>Bot 1: Scoring space 15: +3 VP</span>
+<span>You: Hawkmoth: droplet +1</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
-<span>Bot 1: Bonus die: 1 VP</span>
+<span>Bot 1: Hawkmoth: droplet +1</span>
+</li>
+<li class="flex items-baseline gap-1.5">
+<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
+</span>
+<span>Bot 2: Bonus die: droplet +1</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
@@ -2922,52 +2909,57 @@ Next
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
 </span>
-<span>Bot 2: Drew white 1 → space 10</span>
+<span>Bot 2: Drew white 2 → space 10</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
 </span>
-<span>Bot 2: Drew white 1 → space 9</span>
+<span>Bot 2: Drew white 2 → space 8</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
 </span>
-<span>Bot 2: Drew orange 1 → space 8</span>
+<span>Bot 2: Drew white 1 → space 6</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
 </span>
-<span>Bot 2: Drew white 3 → space 7</span>
+<span>Bot 2: Drew white 1 → space 5</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
 </span>
-<span>Bot 2: Drew white 2 → space 4</span>
+<span>Bot 2: Drew white 1 → space 4</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
 </span>
-<span>Bot 2: Drew red 1 → space 2</span>
+<span>Bot 2: Drew orange 1 → space 3</span>
+</li>
+<li class="flex items-baseline gap-1.5">
+<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
+</span>
+<span>Bot 2: Drew green 1 → space 2</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
-<span>Bot 1: Stopped</span>
+<span>Bot 1: Exploded: took the coins</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
-<span>Bot 1: Drew white 1 → space 14</span>
+<span>Bot 1: Exploded (white 8)</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
-<span>Bot 1: Drew white 2 → space 13</span>
+<span>Bot 1: Drew white 3 → space 13</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
-<span>Bot 1: Drew red 1 → space 11</span>
+<span>Bot 1: Drew white 1 → space 10</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
@@ -2977,27 +2969,17 @@ Next
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
-<span>Bot 1: Drew orange 1 → space 8</span>
+<span>Bot 1: Drew black 1 → space 8</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
-<span>Bot 1: Drew orange 1 → space 7</span>
+<span>Bot 1: Drew green 1 → space 7</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
-<span>Bot 1: Drew white 2 → space 6</span>
-</li>
-<li class="flex items-baseline gap-1.5">
-<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
-</span>
-<span>Bot 1: Drew green 1 → space 4</span>
-</li>
-<li class="flex items-baseline gap-1.5">
-<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
-</span>
-<span>Bot 1: Drew white 1 → space 3</span>
+<span>Bot 1: Drew white 1 → space 6</span>
 </li>
 </ol>
 </div>
@@ -3008,7 +2990,7 @@ Next
 </span>
 </button>
 <div class="paper rounded-lg p-3">
-<h2 class="sheet-head text-lg font-bold">Bag (5 chips)</h2>
+<h2 class="sheet-head text-lg font-bold">Bag (2 chips)</h2>
 <ul class="mt-1 flex flex-wrap gap-2">
 <li class="flex items-center gap-0.5 text-sm">
 <span aria-label="white 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
@@ -3020,55 +3002,7 @@ Next
 1
 </span>
 </span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
-</li>
-<li class="flex items-center gap-0.5 text-sm">
-<span aria-label="white 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
-<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-white">
-</use>
-</svg>
-<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-[18px] text-tag ring-2" data-role="chip-value">
-2
-</span>
-</span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
-</li>
-<li class="flex items-center gap-0.5 text-sm">
-<span aria-label="orange 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-orange text-ink" data-chip-icon="orange">
-<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="orange" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-orange">
-</use>
-</svg>
-<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-[18px] text-tag ring-2" data-role="chip-value">
-1
-</span>
-</span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
-</li>
-<li class="flex items-center gap-0.5 text-sm">
-<span aria-label="red 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-red text-white" data-chip-icon="red">
-<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="red" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-red">
-</use>
-</svg>
-<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-[18px] text-tag ring-2" data-role="chip-value">
-1
-</span>
-</span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
-</li>
-<li class="flex items-center gap-0.5 text-sm">
-<span aria-label="green 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-green text-ink" data-chip-icon="green">
-<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-green">
-</use>
-</svg>
-<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-[18px] text-tag ring-2" data-role="chip-value">
-1
-</span>
-</span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
+<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×2</span>
 </li>
 </ul>
 </div>
