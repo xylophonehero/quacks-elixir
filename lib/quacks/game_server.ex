@@ -32,8 +32,8 @@ defmodule Quacks.GameServer do
   back with `rejoin/4` and the seat's name (a browser that lost its cookie). Pages
   hear `{:names, id, names}` when a seat comes or goes, and `{:rejoined, id, seat}`.
 
-  Bots: while `:waiting` the host may put a bot (`Quacks.AI`, always the `:balanced`
-  profile, a name from `Quacks.AI.Names`) in a free seat (`add_bot/3`) and take it out again
+  Bots: while `:waiting` the host may put a bot (`Quacks.AI`, since round 43 always
+  the `:expert` profile, a name from `Quacks.AI.Names`) in a free seat (`add_bot/3`) and take it out again
   (`remove_bot/3`). A bot holds a seat like a browser does. Once the game is
   `:playing`, each bot seat that can act gets a tick (`{:bot, seat, tick}`, after
   `:bot_delay` ms, 700 by default): the bot makes one action through
@@ -96,7 +96,7 @@ defmodule Quacks.GameServer do
   @idle_timeout :timer.hours(2)
   @rejoin_after_ms :timer.seconds(30)
   @max_bots 7
-  @bot_profile :balanced
+  @bot_profile :expert
   @lobby_topic "lobby"
   @write_delay 500
   @finished_ttl :timer.hours(1)
@@ -535,7 +535,7 @@ defmodule Quacks.GameServer do
   def fill_bots(id, token), do: call(id, {:fill_bots, token})
 
   @doc """
-  The host puts a bot (profile `:balanced`) in the free `seat` (nil: the lowest free
+  The host puts a bot (profile `:expert`) in the free `seat` (nil: the lowest free
   seat), while `:waiting`. Each bot gets a name from `Quacks.AI.Names` that is not at
   the table yet (picked with the table's rng) and the next free colour. At most
   #{@max_bots} bots.

@@ -200,6 +200,7 @@ defmodule Quacks.Scenarios do
       "chip/black/1" => black_book(),
       "chip/green/1" => green_book(),
       "witch/gold/g1" => gold_witch_g1(),
+      "witch/silver/s1" => silver_witch_s1(),
       "witch/silver/s4" => silver_witch_s4(),
       "rule/tube9" => [],
       "rule/crow-chain" => []
@@ -287,6 +288,11 @@ defmodule Quacks.Scenarios do
 
   # Round 42 (Nick): the silver witch is in the explosion's choice bar, next to VP
   # and coins.
+  # Round 43 (Nick): the silver witch S1 (flask after the explosion) too.
+  defp silver_witch_s1 do
+    [sees: %{"call" => ["footer [data-role=bar-explosion] [data-witch=s1]"]}]
+  end
+
   defp silver_witch_s4 do
     [sees: %{"call" => ["footer [data-role=bar-explosion] [data-role=explosion-witch]"]}]
   end
