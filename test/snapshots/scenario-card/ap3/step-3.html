@@ -18,7 +18,7 @@
 <script defer="" phx-track-static="" src="/assets/js/app.js" type="text/javascript">
 </script>
 </head>
-<body class="bg-wood-dark text-parchment antialiased">
+<body class="bg-wood-dark text-parchment antialiased" data-sounds="">
 <svg aria-hidden="true" class="absolute" height="0" id="icon-sprite" width="0">
 <symbol id="icon-bag" viewBox="0 0 512 512">
 <path d="#hash:8dc7e4217f99" fill="currentColor">
@@ -918,7 +918,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 1
 </text>
 </g>
-<g aria-label="white 1" class="" data-index="1" data-order="0" data-role="pot-chip" id="pot-chip-0-1-2">
+<g aria-label="white 1" class="" data-index="1" data-order="0" data-role="pot-chip" data-sound="" id="pot-chip-0-1-2">
 <circle fill="var(--color-chip-white)" r="19" stroke-width="2.5" stroke="#9a9a94">
 </circle>
 <path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
@@ -2683,6 +2683,38 @@ Fortune teller
 Show again
 
 </button>
+</form>
+<form aria-label="Sound" class="space-y-2 text-sm" data-preview="" data-role="sound-settings" id="sound-settings" phx-hook="SoundSettings" phx-update="ignore">
+<fieldset>
+<legend class="mb-1 font-semibold">Sound</legend>
+<div class="segmented flex gap-1 rounded-lg bg-parchment-deep p-1">
+<label class="relative flex min-h-10 flex-1 cursor-pointer items-center justify-center px-2 py-1 text-center leading-tight">
+<input checked="" class="segment" id="sound-settings-on-on" name="on" type="radio" value="on"/>
+<span class="relative">On</span>
+</label>
+<label class="relative flex min-h-10 flex-1 cursor-pointer items-center justify-center px-2 py-1 text-center leading-tight">
+<input class="segment" id="sound-settings-on-off" name="on" type="radio" value="off"/>
+<span class="relative">Off</span>
+</label>
+</div>
+</fieldset>
+<fieldset>
+<legend class="mb-1 font-semibold">Volume</legend>
+<div class="segmented flex gap-1 rounded-lg bg-parchment-deep p-1">
+<label class="relative flex min-h-10 flex-1 cursor-pointer items-center justify-center px-2 py-1 text-center leading-tight">
+<input class="segment" id="sound-settings-volume-0.4" name="volume" type="radio" value="0.4"/>
+<span class="relative">Low</span>
+</label>
+<label class="relative flex min-h-10 flex-1 cursor-pointer items-center justify-center px-2 py-1 text-center leading-tight">
+<input checked="" class="segment" id="sound-settings-volume-0.7" name="volume" type="radio" value="0.7"/>
+<span class="relative">Medium</span>
+</label>
+<label class="relative flex min-h-10 flex-1 cursor-pointer items-center justify-center px-2 py-1 text-center leading-tight">
+<input class="segment" id="sound-settings-volume-1" name="volume" type="radio" value="1"/>
+<span class="relative">High</span>
+</label>
+</div>
+</fieldset>
 </form>
 <p>
 Seed

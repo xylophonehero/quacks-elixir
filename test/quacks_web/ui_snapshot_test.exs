@@ -112,6 +112,9 @@ defmodule QuacksWeb.UiSnapshotTest do
     |> String.replace(~r/"phx-[A-Za-z0-9_-]{16}"/, ~s("phx-ID"))
     |> String.replace(~r/data-phx-session="[^"]*"/, ~s(data-phx-session=""))
     |> String.replace(~r/data-phx-static="[^"]*"/, ~s(data-phx-static=""))
+    # The sound names depend on the files in priv/static/sounds (`QuacksWeb.Sounds`,
+    # tested in sounds_test.exs): a new sound file changes no snapshot.
+    |> String.replace(~r/data-(sounds?|cues|preview)="[^"]*"/, ~s(data-\\1=""))
     |> String.replace(~r/name="csrf-token" content="[^"]*"/, ~s(name="csrf-token" content=""))
     |> String.replace(~r/name="_csrf_token" value="[^"]*"/, ~s(name="_csrf_token" value=""))
     |> String.replace(~r/ d="([^"]{80,})"/, fn attr -> ~s( d="#hash:#{short_hash(attr)}") end)

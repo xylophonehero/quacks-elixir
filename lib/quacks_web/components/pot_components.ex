@@ -730,6 +730,7 @@ defmodule QuacksWeb.PotComponents do
       data-role="pot-chip"
       data-order={@order}
       data-index={@index}
+      data-sound={@size == :lg && QuacksWeb.Sounds.chip_sound(@chip)}
       aria-label={if @target, do: @target.label, else: "#{@colour} #{@value}"}
       role={@target && "button"}
       tabindex={@target && "0"}
