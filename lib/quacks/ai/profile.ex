@@ -26,6 +26,8 @@ defmodule Quacks.AI.Profile do
     (`Quacks.AI.Choice`, a static value table).
   """
 
+  alias Quacks.AI.Weights
+
   @type name :: :cautious | :balanced | :reckless
   @type t :: %__MODULE__{
           name: name,
@@ -104,6 +106,7 @@ defmodule Quacks.AI.Profile do
 
   @variants %{
     "ev" => [stop_rule: :ev],
+    "strong" => [stop_rule: :ev, choice_rule: :scored],
     "flaskev" => [flask_rule: :ev],
     "random" => [choice_rule: :random],
     "scored" => [choice_rule: :scored],
@@ -115,8 +118,9 @@ defmodule Quacks.AI.Profile do
 
   @doc """
   A profile from text, for the simulator: a name with `+` modifiers, e.g.
-  `"balanced+ev+flaskev"` (`ev`, `flaskev`, `random`, `scored`, `d1`..`d5` for
-  `ev_depth`). The struct's `name` is the whole text as an atom, so the simulator
+  `"balanced+ev+flaskev"` (`ev`, `flaskev`, `random`, `scored`, `strong` (`ev` and
+  `scored`), `d1`..`d5` for `ev_depth`). `"file:priv/bots/tuned.json"` loads a
+  weights file (`Quacks.AI.Weights`). The struct's `name` is the whole text as an atom, so the simulator
   tells the variants apart.
 
       iex> {:ok, p} = Quacks.AI.Profile.parse("balanced+ev")
@@ -124,6 +128,8 @@ defmodule Quacks.AI.Profile do
       {:"balanced+ev", :ev, :heuristic}
   """
   @spec parse(String.t()) :: {:ok, t} | {:error, String.t()}
+  def parse("file:" <> path), do: Weights.load(String.trim(path))
+
   def parse(text) do
     [base | mods] = text |> String.trim() |> String.split("+")
     known = Map.new(all(), &{Atom.to_string(&1), &1})

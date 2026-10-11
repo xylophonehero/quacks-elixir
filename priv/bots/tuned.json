@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "opponent": "balanced+strong",
+    "generation": 158,
+    "mean_fitness": 1.342222222222222
+  },
+  "values": {
+    "black_max": 1,
+    "coin_weight.1": 1.301,
+    "coin_weight.2": 1.394,
+    "coin_weight.3": 1.172,
+    "coin_weight.4": 1.277,
+    "coin_weight.5": 1.275,
+    "coin_weight.6": 0.439,
+    "coin_weight.7": 0.727,
+    "coin_weight.8": 0.107,
+    "coin_weight.9": 0.639,
+    "colour_weight.black": 3.773,
+    "colour_weight.blue": 1.711,
+    "colour_weight.green": 1.031,
+    "colour_weight.orange": 0.862,
+    "colour_weight.purple": 1.678,
+    "colour_weight.red": 1.153,
+    "colour_weight.yellow": 0.358,
+    "droplet_first": 1,
+    "droplet_until": 6,
+    "explode_vp_from": 8,
+    "flask_min_white": 3,
+    "purple_from": 4,
+    "ruby_value": 1.424,
+    "value_weight.1": 1.272,
+    "value_weight.2": 1.11,
+    "value_weight.4": 5.13,
+    "value_weight.6": 4.016
+  },
+  "base": "balanced+strong"
+}
