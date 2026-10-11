@@ -329,6 +329,11 @@ defmodule QuacksWeb.Gallery.Fixtures do
        fn ->
          bar(draws(new(1, expansions: [:herb_witches], witches: %{silver: :s4}), 0, boom()))
        end},
+      {"explosion-visit-witch", "Exploded with a visiting S4 (AB8 Visit from a witch)",
+       fn ->
+         g = new(1, expansions: [:herb_witches], witches: %{silver: :s1})
+         bar(draws(%{g | fortune_card: :ab8, visitor: :s4}, 0, boom()))
+       end},
       {"explosion-silver-witch-s1", "Exploded with the silver witch S1: flask (Herb Witches)",
        fn ->
          bar(draws(new(1, expansions: [:herb_witches], witches: %{silver: :s1}), 0, boom()))
@@ -589,6 +594,26 @@ defmodule QuacksWeb.Gallery.Fixtures do
   @doc "The shop after round 1 (the results seen). Args: players, long_names."
   @spec shop_screen(map) :: map
   def shop_screen(%{"players" => n} = a), do: screen(brewed_round(n, round_opts(a)), a)
+
+  @doc """
+  AB8 Visit from a witch: witch `witch` visits (the own witches are S2, C1 and G2;
+  the card and the visitor are set by hand) at her moment: silver S3 while brewing,
+  S1 and S4 after an explosion, copper and G4 in the shop, G1 in the gold choice.
+  """
+  @spec visit_screen(map) :: map
+  def visit_screen(%{"players" => n, "witch" => witch} = a) do
+    id = String.to_existing_atom(witch)
+    g = new(n, expansions: [:herb_witches], witches: %{silver: :s2, copper: :c1, gold: :g2})
+    screen(visit_moment(%{g | fortune_card: :ab8, visitor: id}, id), a)
+  end
+
+  defp visit_moment(g, id) when id in [:s1, :s4], do: draws(g, 0, boom())
+  defp visit_moment(g, :s3), do: draws(g, 0, [{:orange, 1}, {:white, 2}, {:white, 1}])
+
+  defp visit_moment(g, _id) do
+    mine = [{:orange, 1}, {:green, 1}, {:blue, 1}, {:white, 1}]
+    finish_round(g, for(s <- g.seats, do: if(s == 0, do: mine, else: [{:orange, 1}])))
+  end
 
   @doc "The game over: bots play every seat through round 9 (`Quacks.Scenarios.Script`)."
   @spec over_screen(map) :: map

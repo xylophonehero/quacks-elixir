@@ -25,6 +25,9 @@ defmodule Quacks.AI do
   # The phases that `choice_rule` decides.
   @choices [:fortune_choice, :chip_choice, :witch_choice, :essence_choice]
   @scored_cards [:ap1, :ap3, :ap4, :ap6, :ap7, :ap8, :ap9, :ap10, :ab1]
+  # AB8 Visit from a witch: the visiting witches whose free call only gains (no
+  # explosion penalty, double coins, coins for rubies). The bot calls them at once.
+  @free_gains [:s4, :c2, :c4]
 
   @doc """
   The bot's own rng for `seat` in a game with seed `seed`; separate from the game rng.
@@ -57,7 +60,7 @@ defmodule Quacks.AI do
   defp choose(:potions, ctx, rng), do: {potions(ctx), rng}
   defp choose(:yellow_choice, _ctx, rng), do: {:return_white, rng}
   defp choose(:blue_choice, ctx, rng), do: {blue(ctx), rng}
-  defp choose(:explosion_choice, ctx, rng), do: {explosion(ctx), rng}
+  defp choose(:explosion_choice, ctx, rng), do: {free_visit(ctx) || explosion(ctx), rng}
 
   defp choose(:red_choice, ctx, rng),
     do: {first(ctx.legal, &match?({:red, {:place, _}}, &1)), rng}
@@ -80,7 +83,9 @@ defmodule Quacks.AI do
   defp choose(:droplet_choice, ctx, rng),
     do: {first(ctx.legal, &(&1 == {:droplet, :tube})) || hd(ctx.legal), rng}
 
-  defp choose(:shop, ctx, rng), do: {Shop.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
+  defp choose(:shop, ctx, rng),
+    do: {free_visit(ctx) || Shop.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
+
   defp choose(:patient_choice, ctx, rng), do: {patient(ctx.legal), rng}
   defp choose(:essence_choice, ctx, rng), do: {Enum.max_by(ctx.legal, &space/1), rng}
   defp choose(:essence_bonus, ctx, rng), do: {essence_bonus(ctx), rng}
@@ -89,6 +94,11 @@ defmodule Quacks.AI do
     do: {first(ctx.legal, &(&1 == {:essence, :hump})) || {:essence, :pass}, rng}
 
   defp choose(_phase, ctx, rng), do: {hd(ctx.legal), rng}
+
+  defp free_visit(%{game: %{visitor: id}, legal: legal}) when id in @free_gains,
+    do: if({:witch, :visit} in legal, do: {:witch, :visit})
+
+  defp free_visit(_ctx), do: nil
 
   # -- potions: draw or stop ----------------------------------------------------------
 

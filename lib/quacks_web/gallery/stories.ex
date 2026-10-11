@@ -432,6 +432,21 @@ defmodule QuacksWeb.Gallery.Stories do
         ]
       ),
       screen("shop", "Shop", [int("players", 1, 8, 4), names], &Fixtures.shop_screen/1),
+      screen(
+        "visit",
+        "Visit from a witch (AB8)",
+        [
+          int("players", 1, 8, 2),
+          enum("witch", ~w(s3 s4 s1 c3 c2 g1 g4), "c3"),
+          names
+        ],
+        &Fixtures.visit_screen/1,
+        presets: [
+          {"silver-s3", "Silver S3 while brewing", %{"witch" => "s3"}},
+          {"silver-s4", "Silver S4 after an explosion", %{"witch" => "s4"}},
+          {"gold-g1", "Gold G1 in the gold choice", %{"witch" => "g1"}}
+        ]
+      ),
       screen("over", "Game over", [int("players", 1, 8, 4), names], &Fixtures.over_screen/1)
     ]
   end

@@ -39,7 +39,8 @@ defmodule Quacks.Scenarios.Builders do
   The card `id` is round 2's card (a seed whose deck has it second), 3 players.
   Steps: reveal (round 2 starts: the card and what it did for everyone), resolve
   (only for a card with a choice: every seat answered), brew (your first draw of
-  round 2, the card in the corner) and results (round 2's evaluation).
+  round 2, the card in the corner) and results (round 2's evaluation). `then:` (a
+  function of the script) adds steps after the results.
   """
   @spec card(Fortune.id(), keyword) :: {:ok, Script.t()} | {:error, term}
   def card(id, opts \\ []) do
@@ -86,7 +87,8 @@ defmodule Quacks.Scenarios.Builders do
             sees: ["#corner-card"]
           )
 
-        results(s, 2, opts)
+        s = results(s, 2, opts)
+        if then = opts[:then], do: then.(s), else: s
       end,
       400
     )

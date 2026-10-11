@@ -88,6 +88,7 @@ defmodule QuacksWeb.GameText do
   defp log_label({:essence, {:swap, chip}}), do: "Chicken eyes: swapped #{chip_name(chip)}"
   defp log_label({:essence, {:place, chip}}), do: "Nervousness: placed #{chip_name(chip)}"
   defp log_label({:essence, :pass}), do: "Essence: passed"
+  defp log_label({:witch, :visit}), do: "Called the visiting witch (free)"
   defp log_label({:witch, colour}), do: "Called the #{colour} witch"
 
   defp log_label({:witch, :silver, {:place, chip}}),
@@ -105,6 +106,7 @@ defmodule QuacksWeb.GameText do
   defp narrated_by_event?({:essence, {:buy, _chip}}), do: true
   defp narrated_by_event?({:witch, :silver, n}) when is_integer(n), do: true
   defp narrated_by_event?({:witch, :copper, _choice}), do: true
+  defp narrated_by_event?({:witch, :visit, _choice}), do: true
   defp narrated_by_event?({:buy, [_ | _]}), do: true
   defp narrated_by_event?({:rubies, _}), do: true
   defp narrated_by_event?({:droplet, :tube}), do: true
@@ -353,7 +355,24 @@ defmodule QuacksWeb.GameText do
   def label({:essence_spent, n, what}), do: "Spent #{n} essence: #{essence_use(what)}"
 
   def label({:display, chips}), do: "Nervousness: laid out #{chip_list(chips)}"
+  def label({:witch, :visit}), do: "Call the visiting witch (free)"
   def label({:witch, colour}), do: "Call the #{colour} witch"
+
+  def label({:witch, :visit, n}) when is_integer(n),
+    do: "Visiting witch: return the last #{plural(n, "white chip", "#{n} white chips")}"
+
+  def label({:witch, :visit, {:upgrade, chips}}),
+    do: "Visiting witch: upgrade #{Enum.map_join(chips, " + ", &chip_name/1)}"
+
+  def label({:witch, :visit, {:buy, chips, copy}}),
+    do:
+      "Visiting witch: buy #{Enum.map_join(chips, " + ", &chip_name/1)}, free #{chip_name(copy)}"
+
+  def label({:visitor, id}),
+    do:
+      "Visit from a witch: #{Witches.card(id).title} (#{Witches.card(id).colour}) visits this round"
+
+  def label({:visitor_left, id}), do: "Visit from a witch: #{Witches.card(id).title} left"
 
   def label({:witch, :silver, n}) when is_integer(n),
     do: "Silver witch: return the last #{plural(n, "white chip", "#{n} white chips")}"

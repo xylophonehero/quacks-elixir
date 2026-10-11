@@ -34,10 +34,13 @@ defmodule Quacks.FortuneTest do
     test "a solo deck leaves out the cards that need other players" do
       rng = :rand.seed_s(:exsss, @seed)
       solo = Fortune.deck(rng, 1)
-      assert length(solo) == 20
+      # 20 base cards and 9 of the 14 general box cards.
+      assert length(solo) == 20 + 9
       assert Enum.sort(solo) == Enum.sort(Cards.ids(1))
       assert Enum.all?([:p4, :p5, :p8, :b2], &(&1 not in solo))
-      assert length(Fortune.deck(rng, 4)) == 24
+      assert length(Fortune.deck(rng, 4)) == 24 + 14
+      assert length(Fortune.deck(rng, 4, [], false)) == 24
+      assert length(Fortune.deck(rng, 1, [], false)) == 20
       assert Fortune.deck(rng, 4) == Fortune.deck(rng, 4)
     end
 
@@ -45,7 +48,7 @@ defmodule Quacks.FortuneTest do
       g = Game.new(seed: @seed)
       assert g.fortune_card != nil
       assert {:fortune_drawn, g.fortune_card} in g.log
-      assert length(g.fortune_deck) == 19
+      assert length(g.fortune_deck) == 20 + 9 - 1
       assert g.rng == new().rng
     end
 

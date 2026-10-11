@@ -15,7 +15,7 @@ defmodule QuacksWeb.ShopComponents do
 
   alias Phoenix.LiveView.JS
   alias Quacks.{Game, Player}
-  alias Quacks.Rules.{Books, Chips}
+  alias Quacks.Rules.{Books, Chips, Witches}
   alias QuacksWeb.BarComponents
 
   # The colours with an ingredient book (white has none), for `offer_books/1`.
@@ -171,7 +171,12 @@ defmodule QuacksWeb.ShopComponents do
     me = assigns.game.players[assigns.seat]
     total = assigns.selected |> Enum.map(&Chips.price(&1, sets)) |> Enum.sum()
     actions = Game.legal_actions(assigns.game, assigns.seat)
-    copper = copper_actions(actions, assigns.selected)
+    copper = copper_actions(actions, assigns.selected, :copper)
+    # AB8: a visiting copper witch has her own card, free this round.
+    visit =
+      if copper_visitor?(assigns.game),
+        do: copper_actions(actions, assigns.selected, :visit),
+        else: []
 
     assigns =
       assign(assigns,
@@ -180,7 +185,9 @@ defmodule QuacksWeb.ShopComponents do
         buying?: Enum.any?(actions, &match?({:buy, _}, &1)),
         affordable?: Enum.any?(actions, &match?({:buy, [_ | _]}, &1)),
         copper: copper,
-        others: Enum.reject(actions, &(match?({:buy, _}, &1) or &1 in [:end_round | copper])),
+        visit: visit,
+        others:
+          Enum.reject(actions, &(match?({:buy, _}, &1) or &1 in [:end_round | copper ++ visit])),
         owned: Player.pot_chips(me) ++ me.bowl ++ me.bag,
         sets: sets,
         rows: shop_rows(assigns.game.expansion, sets),
@@ -300,10 +307,20 @@ defmodule QuacksWeb.ShopComponents do
           </div>
         </form>
       </div>
-      <.witch_card :if={@copper != []} id={@game.witches.copper}>
+      <.witch_card
+        :for={
+          {id, calls, visit?} <- [
+            {@game.witches[:copper], @copper, false},
+            {@game.visitor, @visit, true}
+          ]
+        }
+        :if={calls != []}
+        id={id}
+        visit={visit?}
+      >
         <div class="flex flex-col gap-2 *:min-h-11">
           <.button
-            :for={action <- @copper}
+            :for={action <- calls}
             phx-click="action"
             phx-value-action={encode(action)}
             variant={:secondary}
@@ -311,7 +328,7 @@ defmodule QuacksWeb.ShopComponents do
           >
             <%!-- Round 36: C1's pot chips as chips, then what it does. --%>
             <span
-              :if={match?({:witch, :copper, {:upgrade, _}}, action)}
+              :if={match?({:witch, _, {:upgrade, _}}, action)}
               class="inline-flex shrink-0 items-center gap-1.5"
               data-role="copper-chips"
             >
@@ -369,7 +386,11 @@ defmodule QuacksWeb.ShopComponents do
     <section :if={@step == :rubies} class="space-y-2" aria-label="Spend rubies">
       <h2 class="sheet-head text-xl font-bold">Spend rubies</h2>
       <div class="space-y-2" data-role="shop-rubies">
-        <.witch_card :for={id <- BarComponents.witches_acting(@game, @others)} id={id} />
+        <.witch_card
+          :for={id <- BarComponents.witches_acting(@game, @others)}
+          id={id}
+          visit={id == @game.visitor}
+        />
         <p class="flex items-center gap-1.5 text-sm">
           <.icon name="hero-sparkles" class="size-4 text-ruby" />
           You have {@me.rubies} {if @me.rubies == 1, do: "ruby", else: "rubies"}.
@@ -419,16 +440,19 @@ defmodule QuacksWeb.ShopComponents do
   @doc false
   def ruby_options?(actions), do: Enum.any?(actions, &match?({:rubies, _}, &1))
 
-  # The copper witch buttons in the shop. C3 (a buy with a free copy) shows only for
-  # the chips ticked now.
-  defp copper_actions(actions, selected) do
+  # The copper witch buttons in the shop (`tag` :copper, or AB8's :visit). C3 (a buy
+  # with a free copy) shows only for the chips ticked now.
+  defp copper_actions(actions, selected, tag) do
     Enum.filter(actions, fn
-      {:witch, :copper, {:buy, chips, _copy}} -> chips == selected
-      {:witch, :copper, _} -> true
-      {:witch, :copper} -> true
+      {:witch, ^tag, {:buy, chips, _copy}} -> chips == selected
+      {:witch, ^tag, _} -> true
+      {:witch, ^tag} -> true
       _ -> false
     end)
   end
+
+  defp copper_visitor?(%Game{visitor: nil}), do: false
+  defp copper_visitor?(%Game{visitor: id}), do: Witches.card(id).colour == :copper
 
   @doc """
   The shop's chips as rows, one per colour in the board's order (`Chips.order/0`:

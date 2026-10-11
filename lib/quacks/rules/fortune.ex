@@ -8,8 +8,9 @@ defmodule Quacks.Rules.Fortune do
   The Alchemists box adds 20 cards (`:ap1`…`:ap10` purple, `:ab1`…`:ab10` blue;
   `docs/research/alchemists-fortune-cards.md`, Schmidt English text): 14 for any
   game, 3 that need The Herb Witches (`expansion: :herb_witches`) and 3 that need
-  The Alchemists (`expansion: :alchemists`). They are in the deck only when The
-  Alchemists is in play (and the house rule `alch_cards` is on).
+  The Alchemists (`expansion: :alchemists`). The 14 are in every deck (the base game
+  too); a card with an expansion is in the deck only when that expansion is in play.
+  The house rule `alch_cards: false` takes all 20 out (`Quacks.Game`).
 
   The rules live in `Quacks.Game.Fortune`; this module is data only.
   """
@@ -160,9 +161,6 @@ defmodule Quacks.Rules.Fortune do
     ab7: :alchemists,
     ab9: :alchemists
   }
-  # Not built yet (see `docs/research/alchemists-fortune-cards.md` §6): Visit from a
-  # witch needs a new mechanic (an extra witch for one round); never in a deck.
-  @not_built [:ab8]
 
   @ids Enum.map(@cards, &elem(&1, 0))
   @base Enum.reject(@ids, &String.starts_with?(Atom.to_string(&1), "a"))
@@ -189,20 +187,19 @@ defmodule Quacks.Rules.Fortune do
   def alchemists?(id), do: id in @box
 
   @doc """
-  The card ids in a deck for `players` players with `expansions` in play: solo
-  leaves out the cards that need other players. The Alchemists box cards only with
-  The Alchemists (its 3 witch cards also need The Herb Witches).
+  The card ids in a deck for `players` players with `expansions` in play: the 24
+  base cards and the 14 general box cards, plus each box card whose expansion is in
+  play. Solo leaves out the cards that need other players.
   """
   @spec ids(1..8, Enumerable.t()) :: [id]
   def ids(players, expansions \\ []) do
     expansions = MapSet.new(expansions)
-
-    box =
-      if :alchemists in expansions,
-        do: Enum.filter(@box -- @not_built, &(@needs[&1] in [nil | MapSet.to_list(expansions)])),
-        else: []
-
+    box = Enum.filter(@box, &(@needs[&1] == nil or MapSet.member?(expansions, @needs[&1])))
     ids = @base ++ box
     if players == 1, do: ids -- @not_solo, else: ids
   end
+
+  @doc "The 24 base card ids (the deck with the house rule `alch_cards: false`)."
+  @spec base_ids(1..8) :: [id]
+  def base_ids(players), do: if(players == 1, do: @base -- @not_solo, else: @base)
 end

@@ -57,6 +57,8 @@ defmodule Quacks.AI.Choice do
   def value({:fortune, choice}, game, seat, profile), do: fortune(choice, game, seat, profile)
   def value({:chip, choice}, game, seat, profile), do: chip(choice, game, seat, profile)
   def value({:witch, :gold}, _game, _seat, _profile), do: 1.0
+  # AB8: the visiting witch costs no penny.
+  def value({:witch, :visit}, _game, _seat, _profile), do: 2.0
   def value({:essence, {:space, n}}, _game, _seat, _profile), do: n
   def value(_pass, _game, _seat, _profile), do: 0
 

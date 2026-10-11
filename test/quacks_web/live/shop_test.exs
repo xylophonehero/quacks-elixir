@@ -286,8 +286,8 @@ defmodule QuacksWeb.ShopTest do
 
   # Round 31: no dialog: the card hovers over the pot, its choices are the bar.
   test "a card with a choice: the card over the pot, the choices in the bar" do
-    # seed 30,30,30 with 2 players deals a purple card with a choice for both seats
-    {:ok, id} = GameServer.start(2, {30, 30, 30})
+    # seed 86,86,86 with 2 players deals a purple card with a choice for both seats
+    {:ok, id} = GameServer.start(2, {86, 86, 86})
     alice = open(browser("alice"), id)
     _bob = open(browser("bob"), id)
     alice |> element("button", "Start game") |> render_click()

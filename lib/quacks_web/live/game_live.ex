@@ -1345,7 +1345,12 @@ defmodule QuacksWeb.GameLive do
               >
                 <%!-- Round 25: the grown corner card has no flip; the card
                      transition alone grows it (the shrink played backwards). --%>
-                <.fortune_card id={@game.fortune_card} flip_id="pot-card-flip" flip={!@card_grown} />
+                <.fortune_card
+                  id={@game.fortune_card}
+                  visitor={@game.visitor}
+                  flip_id="pot-card-flip"
+                  flip={!@card_grown}
+                />
                 <%!-- Round 30: every player's chips under the grown card. Round 31:
                      also while the card's choice waits in the bar (Flea Market), and
                      after the new card's tap (`next_slide/1` grows it). --%>
@@ -1463,6 +1468,7 @@ defmodule QuacksWeb.GameLive do
             :if={@game.fortune_card}
             id={"fortune-panel-#{@game.round}"}
             card={@game.fortune_card}
+            visitor={@game.visitor}
             class="hidden shrink-0 lg:flex"
           />
           <%!-- The decision: a panel here from 64rem, a bottom sheet below. The shop
@@ -1512,7 +1518,11 @@ defmodule QuacksWeb.GameLive do
               >
                 {hint}
               </p>
-              <.witch_card :for={id <- witches_acting(@game, @all_actions)} id={id} />
+              <.witch_card
+                :for={id <- witches_acting(@game, @all_actions)}
+                id={id}
+                visit={id == @game.visitor}
+              />
               <.chip_picks actions={@all_actions} game={@game} me={@me} />
               <section
                 class={[
@@ -1875,7 +1885,16 @@ defmodule QuacksWeb.GameLive do
         class="sheet-pot"
       >
         <%!-- A wrapper: the sheet flattens a `.paper` child, and the card keeps its edge. --%>
-        <div class="pt-8 pb-2"><.fortune_card id={@game.fortune_card} /></div>
+        <div class="pt-8 pb-2">
+          <.fortune_card id={@game.fortune_card} visitor={@game.visitor} />
+        </div>
+        <%!-- AB8 Visit from a witch: her full rule (her call is with the witches). --%>
+        <.witch_card
+          :if={@game.visitor}
+          id={@game.visitor}
+          visit
+          spent={@seat in @game.visited}
+        />
         <.card_reveals
           id="sheet-fortune-reveals"
           card={@game.fortune_card}
@@ -2224,7 +2243,7 @@ defmodule QuacksWeb.GameLive do
       me: me,
       selected: kept_selection(socket.assigns, game, phase, actions),
       decision: decision,
-      bar_choice: bar_choice(decision, actions, me),
+      bar_choice: bar_choice(decision, actions, me, game.visitor),
       all_actions: actions,
       actions: if(decision || skip_rubies, do: [], else: Enum.reject(actions, &witch?/1)),
       skip_rubies: skip_rubies,
@@ -2728,12 +2747,14 @@ defmodule QuacksWeb.GameLive do
   # the explosion's, and the rubies step when no witch can be called there.
   # Round 37: the gold witch G4 stays in the bar (her own button) while a ruby is
   # left to spend at 1; any other witch call opens the sheet.
-  defp bar_choice(:rubies, actions, %Player{rubies: rubies}) do
-    bar? = fn action -> action == {:witch, :gold} and rubies >= 1 end
+  # AB8: a visiting G4 too.
+  defp bar_choice(:rubies, actions, %Player{rubies: rubies}, visitor) do
+    g4 = if visitor == :g4, do: [{:witch, :gold}, {:witch, :visit}], else: [{:witch, :gold}]
+    bar? = fn action -> action in g4 and rubies >= 1 end
     if Enum.any?(actions, &(witch?(&1) and not bar?.(&1))), do: nil, else: :rubies
   end
 
-  defp bar_choice(decision, actions, _me), do: bar_choice(decision, actions)
+  defp bar_choice(decision, actions, _me, _visitor), do: bar_choice(decision, actions)
 
   defp bar_choice(:explosion_choice, _actions), do: :explosion_choice
   # Round 31: the card's choice too (no sheet; the card stays over the pot).
@@ -3253,11 +3274,13 @@ defmodule QuacksWeb.GameLive do
 
   defp shop_action?({:buy, [_ | _]}), do: true
   defp shop_action?({:witch, :copper, _}), do: true
+  # AB8: a visiting copper witch's choice (C1, C3; the shop is her only moment).
+  defp shop_action?({:witch, :visit, choice}) when is_tuple(choice), do: true
   defp shop_action?(_action), do: false
 
   # The shop dialog has the buys and copper witches in `shop/1`; the rest are buttons.
   defp dialog_actions(actions, :shop),
-    do: Enum.reject(actions, &(match?({:buy, _}, &1) or match?({:witch, :copper, _}, &1)))
+    do: Enum.reject(actions, &(match?({:buy, _}, &1) or shop_action?(&1)))
 
   defp dialog_actions(actions, _decision), do: actions
 

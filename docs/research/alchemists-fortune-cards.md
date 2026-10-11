@@ -157,14 +157,27 @@ P4 with the rat part doing nothing, or skip them too — Nick to decide.
 
 ## 6. Implementation status (2026-10-11, branch `alch-cards`)
 
-Built with the recommendations of §3 (Nick: "go with your recommendations"): 19 of the 20 cards.
+Built with the recommendations of §3 (Nick: "go with your recommendations"): all 20 cards (B8 in round 43).
 Engine: `Quacks.Game.Fortune`; data and deck filter: `Quacks.Rules.Fortune`; tests:
 `test/quacks/alch_cards_test.exs`.
 
-- **TODO: B8 Visit from a witch (`:ab8`) is not built.** It needs a new mechanic: an extra witch,
-  drawn at random from the ones not in `game.witches`, that every seat may call once this round
-  without a penny, with the timing of her colour. `Quacks.Rules.Fortune` keeps it out of every
-  deck (`@not_built`), and the scenario catalog leaves it out.
+- **B8 Visit from a witch (`:ab8`) is built (round 43, branch `r43-cards`).** Engine:
+  `Quacks.Game.Witches.visit/1` and `leave/1`; tests: `test/quacks/visit_witch_test.exs`. Our
+  readings:
+  - The visiting witch comes from all 9 witches that are not in `game.witches`, of any colour
+    (not only of one colour). The draw uses the game's `rng` (`:rand.uniform_s/2`).
+  - Each seat may call her once this round, for free (`{:witch, :visit}`,
+    `{:witch, :visit, choice}`). Her colour gives the moment, as for the own witch of that
+    colour (silver while brewing or in the explosion choice, copper in the shop, gold G1–G3
+    after step B, G4 in the shop). The pennies do not change. A spent penny of her colour does
+    not stop the visit.
+  - A seat with two gold witches (its own and the visitor) may call both in the same gold choice.
+  - She leaves at the end of the round (log `{:visitor_left, id}`).
+  - Bots call her as a normal witch (gold G1–G3), and also call a free S4, C2 or C4 at once.
+- **The deck (round 43, Nick: "Mix in all the fortune cards. Add the expansion related ones when
+  using the expansion")**: the 14 general box cards are in every deck, also the base game. A card
+  with a symbol is in the deck only when its expansion is in play. The house rule `alch_cards:
+  false` plays with the 24 base cards only.
 - Our readings where §3 left a choice: B9 = the spaces the last chip moved (German); B7 picks for
   the player (an empty flask is refilled, else one roll); B10 returns the gold penny first, then
   copper, then silver; B5 only for a white 3 that is the newest pot chip; B1 only after a stop

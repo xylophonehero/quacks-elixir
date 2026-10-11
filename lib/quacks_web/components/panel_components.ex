@@ -535,13 +535,17 @@ defmodule QuacksWeb.PanelComponents do
   @doc """
   A herb witch card: a band in her penny colour, her title and her rule. A witch
   whose penny this player has spent is greyed out. The slot holds her buttons.
+  `visit`: AB8's visiting witch, free this round (no penny); `spent` then means the
+  player called her.
 
   ## Examples
 
       <.witch_card id={:s2} spent={false} />
+      <.witch_card id={:c3} visit />
   """
   attr :id, :atom, required: true, doc: "a witch id from `Quacks.Rules.Witches`"
   attr :spent, :boolean, default: false, doc: "this player has spent her penny"
+  attr :visit, :boolean, default: false, doc: "AB8: she visits this round, free"
   slot :inner_block
 
   def witch_card(assigns) do
@@ -550,16 +554,25 @@ defmodule QuacksWeb.PanelComponents do
     ~H"""
     <section
       class={["paper overflow-hidden rounded-lg text-sm", @spent && "opacity-50 grayscale"]}
-      aria-label={"#{@card.colour} witch"}
+      aria-label={if @visit, do: "visiting #{@card.colour} witch", else: "#{@card.colour} witch"}
       data-role="witch-card"
       data-witch={@id}
+      data-visit={@visit}
     >
       <div class={[
         "flex items-center gap-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink",
         penny_class(@card.colour)
       ]}>
         <.piece_icon name={:witch} class="size-4" /> {@card.colour} witch
-        <span class="ml-auto inline-flex items-center gap-1 normal-case">
+        <span
+          :if={@visit}
+          class="ml-auto inline-flex items-center gap-1 rounded-full bg-parchment-light/80 px-1.5 normal-case"
+          data-role="witch-visit"
+        >
+          <QuacksWeb.CoreComponents.icon name="hero-sparkles-mini" class="size-3.5" />
+          {if @spent, do: "visit used", else: "visit · free this round"}
+        </span>
+        <span :if={!@visit} class="ml-auto inline-flex items-center gap-1 normal-case">
           <.piece_icon name={:penny} class="size-4" />
           {if @spent, do: "penny spent", else: "1 penny"}
         </span>
@@ -574,6 +587,9 @@ defmodule QuacksWeb.PanelComponents do
   end
 
   defp penny_class(colour), do: @pennies[colour]
+  defp penny_text(:silver), do: "text-penny-silver"
+  defp penny_text(:copper), do: "text-penny-copper"
+  defp penny_text(:gold), do: "text-penny-gold"
 
   @doc """
   The strip of a chip offer: a title, the chips (the slot; `GameLive` renders them
@@ -644,6 +660,10 @@ defmodule QuacksWeb.PanelComponents do
   attr :id, :atom, required: true, doc: "a card id from `Quacks.Rules.Fortune`"
   attr :choice, :boolean, default: false, doc: "the card asks this player a choice now"
 
+  attr :visitor, :atom,
+    default: nil,
+    doc: "AB8 Visit from a witch: the visiting witch's id (a strip at the card's foot)"
+
   attr :flip, :boolean,
     default: false,
     doc:
@@ -665,7 +685,7 @@ defmodule QuacksWeb.PanelComponents do
           </span>
         </div>
         <div class="card-front">
-          <.fortune_card id={@id} choice={@choice} />
+          <.fortune_card id={@id} choice={@choice} visitor={@visitor} />
         </div>
       </div>
     </div>
@@ -709,6 +729,18 @@ defmodule QuacksWeb.PanelComponents do
         <h2 class="font-hand text-xl leading-tight font-bold text-balance">{@card.name}</h2>
         <p class="min-h-0 overflow-y-auto leading-snug text-pretty text-ink-soft">{@card.text}</p>
       </div>
+      <p
+        :if={@visitor}
+        class={[
+          "flex items-center justify-center gap-1 px-2 py-1 text-xs leading-tight font-semibold text-ink",
+          penny_class(Witches.card(@visitor).colour)
+        ]}
+        data-role="card-visitor"
+        data-witch={@visitor}
+      >
+        <.piece_icon name={:witch} class="size-4 shrink-0" />
+        <span class="truncate">Visiting: {Witches.card(@visitor).title}</span>
+      </p>
     </section>
     """
   end
@@ -721,6 +753,7 @@ defmodule QuacksWeb.PanelComponents do
   """
   attr :id, :string, required: true
   attr :card, :atom, required: true, doc: "`game.fortune_card`"
+  attr :visitor, :atom, default: nil, doc: "AB8: the visiting witch's id"
   attr :class, :any, default: nil
 
   def fortune_panel(assigns) do
@@ -760,6 +793,17 @@ defmodule QuacksWeb.PanelComponents do
         <div class="min-w-0">
           <h2 class="font-hand text-xl leading-tight font-bold">{@info.name}</h2>
           <p class="text-sm leading-snug text-pretty text-ink-soft">{@info.text}</p>
+          <p
+            :if={@visitor}
+            class="mt-1 flex items-center gap-1 text-sm font-semibold"
+            data-role="card-visitor"
+            data-witch={@visitor}
+          >
+            <.piece_icon
+              name={:witch}
+              class={["size-4 shrink-0", penny_text(Witches.card(@visitor).colour)]}
+            /> Visiting: {Witches.card(@visitor).title}
+          </p>
         </div>
       </div>
       <span class="fortune-sparkle" aria-hidden="true" />
@@ -851,9 +895,16 @@ defmodule QuacksWeb.PanelComponents do
     """
   end
 
-  @doc "The witches as `{penny colour, id}`, in the order of the rulebook's pennies: copper, silver, gold (round 14)."
+  @doc """
+  The witches as `{penny colour, id}`, in the order of the rulebook's pennies: copper,
+  silver, gold (round 14). AB8 Visit from a witch: the visiting witch last, as
+  `{:visit, id}`.
+  """
   @spec witches(Game.t()) :: [{atom, atom}]
-  def witches(game), do: for(c <- [:copper, :silver, :gold], do: {c, game.witches[c]})
+  def witches(game) do
+    own = for c <- [:copper, :silver, :gold], do: {c, game.witches[c]}
+    if game.visitor, do: own ++ [{:visit, game.visitor}], else: own
+  end
 
   @doc """
   The 3 witch cards with their call buttons: the witches sheet (the context
@@ -871,7 +922,8 @@ defmodule QuacksWeb.PanelComponents do
       <.witch_card
         :for={{colour, id} <- witches(@game)}
         id={id}
-        spent={@me != nil and not @me.pennies[colour]}
+        visit={colour == :visit}
+        spent={@me != nil and spent?(@game, @seat, @me, colour)}
       >
         <div :if={@seat} class="flex flex-wrap gap-2 *:min-h-11">
           <.button
@@ -887,6 +939,9 @@ defmodule QuacksWeb.PanelComponents do
     </section>
     """
   end
+
+  defp spent?(game, seat, _me, :visit), do: seat in game.visited
+  defp spent?(_game, _seat, me, colour), do: not me.pennies[colour]
 
   @doc "How many witches this seat can call now (the left column's title says so)."
   @spec callable_witches(Game.t(), [Game.action()]) :: non_neg_integer
@@ -906,6 +961,7 @@ defmodule QuacksWeb.PanelComponents do
     end)
   end
 
+  defp call_text({:witch, :visit}), do: "Call for free"
   defp call_text({:witch, _colour}), do: "Call"
   defp call_text({:witch, _colour, 1}), do: "Call: the last white back"
   defp call_text({:witch, _colour, n}), do: "Call: the last #{n} whites back"

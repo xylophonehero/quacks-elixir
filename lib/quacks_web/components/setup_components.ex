@@ -520,7 +520,7 @@ defmodule QuacksWeb.SetupComponents do
           type="checkbox"
           id="rules-alch_cards"
           name="rules[alch_cards]"
-          label="The Alchemists' 20 cards (with The Alchemists)"
+          label="The Alchemists' box cards (20 extra Fortune Teller cards)"
           value={@rules.alch_cards}
           class="switch"
         />

@@ -16,7 +16,7 @@ defmodule Quacks.Game.Fortune do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.{Essence, Evaluation, Potions}
+  alias Quacks.Game.{Essence, Evaluation, Potions, Witches}
   alias Quacks.Player
   alias Quacks.Rules.{Chips, ScoringTrack}
   alias Quacks.Rules.Fortune, as: Cards
@@ -74,12 +74,15 @@ defmodule Quacks.Game.Fortune do
   @doc """
   The deck for `players`, shuffled with a jump of the game's `rng`: the deck comes
   from the seed but leaves the game's own random stream untouched, so a seed draws
-  the same chips with or without cards.
+  the same chips with or without cards. `box?: false` (the house rule `alch_cards:
+  false`) leaves out the 20 cards of The Alchemists box.
   """
-  @spec deck(:rand.state(), 1..8, Enumerable.t()) :: [Cards.id()]
-  def deck(rng, players, expansions \\ []) do
+  @spec deck(:rand.state(), 1..8, Enumerable.t(), boolean) :: [Cards.id()]
+  def deck(rng, players, expansions \\ [], box? \\ true) do
+    ids = if box?, do: Cards.ids(players, expansions), else: Cards.base_ids(players)
+
     {keyed, _rng} =
-      Enum.map_reduce(Cards.ids(players, expansions), :rand.jump(rng), fn id, rng ->
+      Enum.map_reduce(ids, :rand.jump(rng), fn id, rng ->
         {u, rng} = :rand.uniform_s(rng)
         {{u, id}, rng}
       end)
@@ -96,8 +99,12 @@ defmodule Quacks.Game.Fortune do
 
     if id in @solo_skip and length(g.seats) == 1,
       do: g |> Game.record({:fortune_skipped, id}) |> draw(),
-      else: Game.record(%{g | fortune_card: id}, {:fortune_drawn, id})
+      else: %{g | fortune_card: id} |> Game.record({:fortune_drawn, id}) |> visit(id)
   end
+
+  # AB8 Visit from a witch: a witch not in play visits this round.
+  defp visit(g, :ab8), do: Witches.visit(g)
+  defp visit(g, _id), do: g
 
   @doc """
   Resolve the round's card, then place the rats (`Game.rats/1`): a purple card's

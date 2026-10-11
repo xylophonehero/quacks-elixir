@@ -446,7 +446,7 @@ defmodule QuacksWeb.BarComponents do
       <.button
         :if={@witch?}
         phx-click="action"
-        phx-value-action={encode({:witch, :silver})}
+        phx-value-action={encode(witch_action(@game, @actions, @witch, :silver))}
         variant={:secondary}
         class="flex-col gap-0! px-2! py-1! leading-tight"
         aria-label={explosion_witch_label(@witch)}
@@ -522,7 +522,7 @@ defmodule QuacksWeb.BarComponents do
       <.button
         :if={@witch?}
         phx-click="action"
-        phx-value-action={encode({:witch, :gold})}
+        phx-value-action={encode(g4_action(@game, @actions))}
         variant={:secondary}
         class="flex-col gap-0! px-1! py-1! leading-tight"
         aria-label="Call the gold witch: each ruby use costs 1 ruby"
@@ -1515,17 +1515,28 @@ defmodule QuacksWeb.BarComponents do
   @doc """
   Round 37: the gold witch G4 ("Cheap rubies") can be called in the rubies step.
   """
-  def g4_call?(%Game{witches: %{gold: :g4}}, actions), do: {:witch, :gold} in actions
-  def g4_call?(_game, _actions), do: false
+  def g4_call?(game, actions), do: g4_action(game, actions) != nil
+
+  # The call of witch `id` in `actions`: her own colour's, or (AB8) the visit's.
+  defp g4_action(game, actions), do: witch_action(game, actions, :g4, :gold)
+
+  defp witch_action(%Game{witches: witches, visitor: visitor}, actions, id, colour) do
+    cond do
+      witches[colour] == id and {:witch, colour} in actions -> {:witch, colour}
+      visitor == id and {:witch, :visit} in actions -> {:witch, :visit}
+      true -> nil
+    end
+  end
+
+  defp witch_action(_game, _actions, _id, _colour), do: nil
 
   @doc """
   Round 43: the silver witch the seat can call in the explosion bar now: `:s4` (no
-  explosion penalty), `:s1` (flask after the explosion) or nil.
+  explosion penalty), `:s1` (flask after the explosion) or nil. Her own or (AB8) the
+  visiting one.
   """
-  def explosion_witch(%Game{witches: %{silver: id}}, actions) when id in [:s1, :s4],
-    do: if({:witch, :silver} in actions, do: id)
-
-  def explosion_witch(_game, _actions), do: nil
+  def explosion_witch(game, actions),
+    do: Enum.find([:s4, :s1], &witch_action(game, actions, &1, :silver))
 
   defp explosion_witch_label(:s4),
     do: "Call the silver witch: no explosion penalty, take the VP and the coins"
@@ -1543,11 +1554,20 @@ defmodule QuacksWeb.BarComponents do
   # The small line on a ruby button: what it does, or why it cannot.
   defp ruby_why(use, me, actions) do
     cond do
-      {:rubies, use} in actions -> ruby_what(use)
-      use == :flask and me.flask -> "Flask full"
-      use == :tube and me.tube >= TestTubes.last() -> "Tubes full"
-      me.rubies >= 1 and {:witch, :gold} in actions -> "Witch: 1 ruby"
-      true -> "Too few rubies"
+      {:rubies, use} in actions ->
+        ruby_what(use)
+
+      use == :flask and me.flask ->
+        "Flask full"
+
+      use == :tube and me.tube >= TestTubes.last() ->
+        "Tubes full"
+
+      me.rubies >= 1 and Enum.any?([{:witch, :gold}, {:witch, :visit}], &(&1 in actions)) ->
+        "Witch: 1 ruby"
+
+      true ->
+        "Too few rubies"
     end
   end
 
@@ -1929,6 +1949,11 @@ defmodule QuacksWeb.BarComponents do
 
   def action_label({:explosion_choice, :buy}, _game, me),
     do: "Take coins (#{PotTrack.at(Player.scoring_index(me)).coins} to spend)"
+
+  # AB8: only the visiting gold witch is left (the own gold penny is spent).
+  def action_label(:witch_done, %Game{visitor: v}, %{pennies: %{gold: false}})
+      when v in [:g1, :g2, :g3],
+      do: "No thanks"
 
   def action_label(action, game, _me), do: label(action, game.fortune_card)
 
