@@ -24,9 +24,10 @@ defmodule Quacks.FortuneTest do
     do: Enum.filter(Game.legal_actions(g, seat), &match?({:fortune, _}, &1))
 
   describe "the deck" do
-    test "24 cards, 11 blue and 13 purple" do
-      assert length(Cards.all()) == 24
-      assert Enum.count(Cards.all(), &(&1.colour == :blue)) == 11
+    test "24 base cards, 11 blue and 13 purple" do
+      base = Enum.reject(Cards.all(), &Cards.alchemists?(&1.id))
+      assert length(base) == 24
+      assert Enum.count(base, &(&1.colour == :blue)) == 11
       assert Cards.card(:p6).name == "Boomberry Cleanse"
     end
 

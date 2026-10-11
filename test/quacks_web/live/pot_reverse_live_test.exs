@@ -3,6 +3,7 @@ defmodule QuacksWeb.PotReverseLiveTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.GameHelpers, as: H
@@ -78,6 +79,7 @@ defmodule QuacksWeb.PotReverseLiveTest do
   test "the rubies step offers the pot droplet and the next glass" do
     {id, view} = solo_back()
     replace_game(id, &H.put(&1, phase: :rubies, rubies: 2, tube: 2))
+    skip_results(view)
 
     # Round 29: the rubies are in the bar; the full text is the button's label.
     assert has_element?(

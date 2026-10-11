@@ -56,7 +56,7 @@ defmodule Quacks.CardRevealsTest do
     test "reveal_card?/1: the cards that draw chips for each seat" do
       assert Enum.filter(Quacks.Rules.Fortune.all(), &Fortune.reveal_card?(&1.id))
              |> Enum.map(& &1.id)
-             |> Enum.sort() == [:b7, :p13, :p8]
+             |> Enum.sort() == [:ap2, :b7, :p13, :p8]
 
       refute Fortune.reveal_card?(nil)
     end

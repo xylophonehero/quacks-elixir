@@ -597,7 +597,9 @@ defmodule Quacks.Game.Evaluation do
 
     g = bowl(g, seat, choice)
 
-    Game.update_player(g, seat, &%{&1 | coins: if(choice == :vp, do: 0, else: space.coins)})
+    g
+    |> Game.update_player(seat, &%{&1 | coins: if(choice == :vp, do: 0, else: space.coins)})
+    |> Fortune.after_payout(seat)
   end
 
   # Overflow bowl (step D): half the bowl's chip values, rounded down, as VP. ⚠️ Not
