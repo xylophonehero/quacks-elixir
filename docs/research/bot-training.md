@@ -7,8 +7,8 @@ Tags: **[M]** = measured on this engine with `mix quacks.bench`. **[S]** = from 
 
 - **Do not start with a neural network.** Quacks is a small game for a computer: the bag is open, the odds are exact, and one game takes about 1 ms to play. The cheap methods are not used up yet, and they give most of the strength.
 - **Recommended path:** (1) a benchmark that measures every change (done: `mix quacks.bench`); (2) the best rules that we have together (done: `balanced+strong`); (3) tune the numbers of the bot by self-play (done: `mix quacks.tune`); (4) only when the gains stop: a small learned value function, trained from self-play data.
-- **Results tonight** (§4, §5): `balanced+strong` wins **30.3 % ± 1.5** of 4-player games against three table bots (parity 25 %). The tuned bot wins **TUNED_VS_BALANCED** against the table bots and **TUNED_VS_STRONG** against three `balanced+strong` bots.
-- **Cost:** the training ran for about 105 minutes on 4 of the 10 cores under `nice -n 10`. No new dependencies.
+- **Results tonight** (§4, §5): `balanced+strong` wins **30.3 % ± 1.5** of 4-player games against three table bots (parity 25 %). The tuned bot wins ****39.3 % ± 1.5** of 4-player games (parity 25 %) and **66.1 % ± 2.1** of 2-player games (parity 50 %)** against the table bots and ****36.2 % ± 1.4** (4-player) and **58.4 % ± 2.1** (2-player)** against three `balanced+strong` bots.
+- **Cost:** the training ran for 102 minutes (158 generations, about 2.6 million games) on 4 of the 10 cores under `nice -n 10`. No new dependencies. The tuned bot needs 5 µs per decision, the same as `balanced+strong`.
 
 ## 1. What makes Quacks hard (and easy) for a bot
 
@@ -67,7 +67,18 @@ The research in `jev-plan.md` found two better rules, but the table bots still u
 | 1 | 2 | **54.6 ± 2.1** (50) | 56.4 ± 0.5 vs 54.8 | 37.8 vs 34.6 |
 | 2 | 2 | **54.8 ± 2.1** (50) | 56.4 vs 54.8 | 37.8 vs 34.6 |
 
-4000 games (4-player) and 2000 games (2-player) per line, `--jobs 2`. Time per decision: 5 µs mean (table bot: 3 µs). The GameServer can use it with no code change in the decider: store `Profile.parse("balanced+strong")` in place of the atom `:balanced`.
+4000 games (4-player) and 2000 games (2-player) per line, `--jobs 2`.
+
+Which part gives the gain (seed 3, 4000 four-player games, 1 vs 3 `balanced`):
+
+| Variant | Win % | VP | Explosion % |
+|---|---|---|---|
+| `balanced+ev` (draw/stop only) | 28.7 ± 1.3 | 53.0 ± 0.4 | 37.2 |
+| `balanced+scored` (choices only) | 27.2 ± 1.3 | 52.3 ± 0.4 | 38.5 |
+| `balanced+strong+flaskev` | 30.2 ± 1.4 | 53.7 ± 0.4 | 35.7 |
+
+- **[M]** The draw/stop rule is the biggest single gain, the choices add a smaller one, and the two add up. The EV flask rule adds nothing (as in `jev-plan.md`), so `+strong` keeps the heuristic flask.
+- **[M]** After this, the shop is the weakest part: its weights are guesses, and the draw/stop rule is already exact to 3 draws. So the training (§5) tunes mainly the shop and the value of coins per round. Time per decision: 5 µs mean (table bot: 3 µs). The GameServer can use it with no code change in the decider: store `Profile.parse("balanced+strong")` in place of the atom `:balanced`.
 
 ## 5. Training by parameter search (`mix quacks.tune`)
 
@@ -87,7 +98,40 @@ This is the *cross-entropy method*, a simple evolution strategy. It needs no gra
 nice -n 10 mix quacks.tune --minutes 105 --jobs 4
 ```
 
-TRAINING_RESULTS
+Run 2026-10-10, 23:18–01:01 BST, `--jobs 4`, under `nice -n 10`, opponent `balanced+strong`, base game (Set 1 books, no expansions).
+
+- Generations 1–69: `--seeds 100` (600 games per candidate, about 18 s per generation). The score rose fast: on new seeds, generation 11 already won 31.1 % (4p) against `balanced+strong`.
+- Generations 70–158: resumed from the checkpoint with `--seeds 300` (1800 games per candidate, 45–95 s per generation; slower when other jobs ran on the Mac, because of `nice`). Less luck in the score, so the search could make finer steps: generation 92 won 32.3 % (4p) and 60.6 % (2p) on new seeds; generation 158 more (below).
+- The spread of the search fell to its floor (0.02) after about 15 generations; after that the search moves slowly. The training score (`mean fitness`, 1.34 at the end) reads higher than the score on new seeds (about 1.31); trust the benchmark, not the training line.
+
+**Benchmark of the result** (`priv/bots/tuned.json`, generation 158) on seeds that the training never used (101 and 202), `--jobs 4`:
+
+| Opponents | Players | Seed | Tuned win % (parity) | VP (tuned vs others) | Explosion % |
+|---|---|---|---|---|---|
+| 3 × `balanced` (table bot) | 4 | 101 | **39.3 ± 1.5** (25) | 54.8 ± 0.4 vs 51.2 | 36.2 vs 39.4 |
+| | 4 | 202 | **39.5 ± 1.5** (25) | 54.9 vs 51.2 | 36.2 vs 39.4 |
+| 3 × `balanced+strong` | 4 | 101 | **36.2 ± 1.4** (25) | 54.5 ± 0.4 vs 52.2 | 37.5 vs 38.7 |
+| | 4 | 202 | **36.2 ± 1.5** (25) | 54.6 vs 52.3 | 37.6 vs 38.7 |
+| `balanced` | 2 | 101 | **66.1 ± 2.1** (50) | 57.6 ± 0.5 vs 53.0 | 36.1 vs 34.5 |
+| | 2 | 202 | **65.9 ± 2.1** (50) | 57.6 vs 53.1 | 36.1 vs 34.5 |
+| `balanced+strong` | 2 | 101 | **58.4 ± 2.1** (50) | 56.4 ± 0.5 vs 54.1 | 37.7 vs 38.9 |
+| | 2 | 202 | **58.4 ± 2.1** (50) | 56.4 vs 54.2 | 37.6 vs 38.9 |
+| 2 × `balanced` | 3 | 101 | **48.9 ± 1.7** (33.3) | 54.9 vs 50.9 | 36.2 vs 38.5 |
+| 5 × `balanced` | 6 | 101 | **30.1 ± 1.6** (16.7) | 55.4 vs 51.5 | 35.8 vs 41.0 |
+| 3 × `balanced+strong`, Herb Witches + Alchemists | 4 | 101 | 27.8 ± 1.9 (25) | 78.9 ± 0.9 vs 78.5 | 35.3 vs 36.6 |
+
+4000 games per 4-player line, 2000 per 2-player line, 3000 for 3 and 6 players, 2000 with the expansions.
+
+- **[M]** Against the table bot, the tuned bot wins 1.6× its fair share at 4 players and 2 of 3 games at 2 players. It also gains at 3 and 6 players, which the training never played.
+- **[M]** With the expansions the gain is small (27.8 % ± 1.9, parity 25): the training used only the base game. Tune with `--expansions` in a later run (needs a small code change: `Quacks.AI.Tune` does not pass game options yet).
+- **What changed** (compared with `balanced`, readable in the JSON): coins keep a high value up to round 5 (1.28 per coin in rounds 4 and 5, against 1.0 and 0.8 before) and in round 7 (0.73 against 0.25), so the bot takes more risk for coins in the middle rounds; an explosion takes coins up to round 7 (`explode_vp_from` 7 → 8); the shop likes 4-chips much more (value weight 3.2 → 5.1) and 2-chips less (1.7 → 1.1), likes black (3.8) and blue (1.7) and dislikes yellow (0.36); purple drops from 3.0 to 1.7 and waits for round 4; a ruby is worth 1.4 VP (was 1.0).
+- **Still improving at the stop?** Slowly. The last 30 generations moved the score within the noise. A longer run will likely gain 1–2 points more, not 10.
+
+**Resume command** (the checkpoint is `priv/bots/tune-checkpoint.json`, not committed; a copy of it is needed to go on):
+
+```
+nice -n 10 mix quacks.tune --minutes 60 --jobs 4 --seeds 300
+```
 
 ## 6. How to run the training
 
@@ -104,7 +148,8 @@ Everything runs on the laptop, on the CPU, with no new dependencies.
 ### 6.2 Commands
 
 ```sh
-# 1. Train: about 20 s per generation; the gains came in the first 30-60 minutes.
+# 1. Train: about 20 s per generation with --seeds 100, 45 s with --seeds 300.
+#    Most of the gain came in the first 30 minutes.
 nice -n 10 mix quacks.tune --minutes 60 --jobs 4
 
 # Go on from where it stopped (the same command; it reads the checkpoint):
@@ -125,7 +170,7 @@ nice -n 10 mix quacks.bench --jobs 4 --games 2000 --players 2 --seed 101 --bots 
 ### 6.3 Where the results go
 
 - `priv/bots/tune-checkpoint.json`: the state of the search (generation, mean, spread, history). Not committed (`.gitignore`).
-- `priv/bots/tuned.json`: the weights (27 numbers, readable), written after every generation. Committed only after review and a benchmark on new seeds.
+- `priv/bots/tuned.json`: the weights (27 numbers, readable), written after every generation. Commit it only after a benchmark on new seeds. Tonight's result (generation 158) is committed because it wins clearly (§5.2); a new run overwrites it, so check `git diff priv/bots/tuned.json` before you commit again.
 - The progress lines (`gen 12: mean fitness 1.19, best 1.32, spread 0.022, 15 s`) go to the terminal. *Mean fitness* is the score of the current best guess (1.0 = as good as the opponent); it jumps up and down by about ±0.1 from luck, so look at the trend over 10 generations.
 
 ### 6.4 Using a trained bot at the table (later)
@@ -134,7 +179,7 @@ nice -n 10 mix quacks.bench --jobs 4 --games 2000 --players 2 --seed 101 --bots 
 
 ## 7. Next steps
 
-1. Use `balanced+strong` (or the tuned weights) for the table bots after Nick's review.
+1. Use the tuned weights for the table bots after Nick's review (an `:expert` profile, §6.4). They beat the table bot at 2, 3, 4 and 6 players.
 2. Tune against a mix of opponents (`--opponent` per run, or a future option for a mixed field) so the bot does not over-fit to one style; check at 3 and 5 players too.
 3. Shop rollouts (option B) for the last 3 rounds, where few futures are left and the value of a buy is easy to simulate.
 4. Only then a learned value function for the shop (option D, §2.1): self-play data from the tuned bot, a ridge model first.
