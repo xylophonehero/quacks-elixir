@@ -388,12 +388,14 @@ defmodule QuacksWeb.BarComponents do
 
   def bar_choice(%{choice: :explosion_choice} = assigns) do
     space = PotTrack.at(Player.scoring_index(assigns.me))
+    witch = explosion_witch(assigns.game, assigns.actions)
 
     assigns =
       assign(assigns,
         space: space,
         final?: assigns.game.round == 9,
-        witch?: s4_call?(assigns.game, assigns.actions)
+        witch: witch,
+        witch?: witch != nil
       )
 
     ~H"""
@@ -438,21 +440,24 @@ defmodule QuacksWeb.BarComponents do
         </span>
       </.button>
       <%!-- Round 42 (Nick): the silver witch "No explosion penalty" (S4): VP and
-           coins, as if the pot did not explode. As the gold witch in the rubies bar. --%>
+           coins, as if the pot did not explode. Round 43 (Nick): or "Flask after the
+           explosion" (S1): the last white back, brew on. As the gold witch in the
+           rubies bar. --%>
       <.button
         :if={@witch?}
         phx-click="action"
         phx-value-action={encode({:witch, :silver})}
         variant={:secondary}
         class="flex-col gap-0! px-2! py-1! leading-tight"
-        aria-label="Call the silver witch: no explosion penalty, take the VP and the coins"
-        title="Call the silver witch: no explosion penalty, take the VP and the coins"
+        aria-label={explosion_witch_label(@witch)}
+        title={explosion_witch_label(@witch)}
         data-role="explosion-witch"
+        data-witch={@witch}
       >
         <span class="flex items-center gap-1 text-base">
           <.piece_icon name={:witch} class="size-5 text-penny-silver" /> Witch
         </span>
-        <span class="text-xs font-normal opacity-80">VP and coins</span>
+        <span class="text-xs font-normal opacity-80">{explosion_witch_hint(@witch)}</span>
       </.button>
     </section>
     """
@@ -1513,9 +1518,23 @@ defmodule QuacksWeb.BarComponents do
   def g4_call?(%Game{witches: %{gold: :g4}}, actions), do: {:witch, :gold} in actions
   def g4_call?(_game, _actions), do: false
 
-  @doc "Round 42: can the seat call the silver witch \"No explosion penalty\" (S4) now?"
-  def s4_call?(%Game{witches: %{silver: :s4}}, actions), do: {:witch, :silver} in actions
-  def s4_call?(_game, _actions), do: false
+  @doc """
+  Round 43: the silver witch the seat can call in the explosion bar now: `:s4` (no
+  explosion penalty), `:s1` (flask after the explosion) or nil.
+  """
+  def explosion_witch(%Game{witches: %{silver: id}}, actions) when id in [:s1, :s4],
+    do: if({:witch, :silver} in actions, do: id)
+
+  def explosion_witch(_game, _actions), do: nil
+
+  defp explosion_witch_label(:s4),
+    do: "Call the silver witch: no explosion penalty, take the VP and the coins"
+
+  defp explosion_witch_label(:s1),
+    do: "Call the silver witch: use the flask, put the last white chip back and brew on"
+
+  defp explosion_witch_hint(:s4), do: "VP and coins"
+  defp explosion_witch_hint(:s1), do: "Flask, brew on"
 
   # What a ruby use costs now: 2 rubies -> 1 VP is always 2.
   defp ruby_cost(:vp, _me), do: 2
