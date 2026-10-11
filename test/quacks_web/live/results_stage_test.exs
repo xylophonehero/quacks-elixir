@@ -13,6 +13,7 @@ defmodule QuacksWeb.ResultsStageTest do
   alias Quacks.GameServer
   alias QuacksWeb.Reveal
   alias QuacksWeb.TileReveal
+  alias QuacksWeb.TileRevealComponents
 
   defp to_phase(id, phases) do
     Enum.find_value(1..160, fn _ ->
@@ -90,6 +91,78 @@ defmodule QuacksWeb.ResultsStageTest do
              ] = TileReveal.stage_rows(game, space)
     end
 
+    test "stage_rows: a book's chips show their values only where the book scores by them" do
+      game = %{seats: [0]}
+
+      row = %{
+        seat: 0,
+        scored: true,
+        chips: [{:green, 1}, {:green, 4}],
+        vp: 0,
+        rubies: 1,
+        droplet: 0
+      }
+
+      [r] = TileReveal.stage_rows(game, %{kind: :book, book: :green, set: 1, rows: [row]})
+      assert r.why == [{:stack, :green, [green: nil, green: nil]}]
+
+      for set <- [2, 3, 5] do
+        [r] = TileReveal.stage_rows(game, %{kind: :book, book: :green, set: set, rows: [row]})
+        assert r.why == [{:stack, :green, [green: 1, green: 4]}]
+      end
+
+      purple = %{row | chips: [{:purple, 1}, {:purple, 1}, {:purple, 1}]}
+      [r] = TileReveal.stage_rows(game, %{kind: :book, book: :purple, set: 6, rows: [purple]})
+      assert r.why == [{:stack, :purple, List.duplicate({:purple, nil}, 3)}]
+    end
+
+    test "a stack: the count, then the chips at :sm, overlapping; values only if given" do
+      html =
+        render_component(&TileRevealComponents.results_stage/1,
+          rows: [
+            %{
+              seat: 0,
+              why: [{:stack, :black, [black: nil, black: nil, black: nil]}],
+              got: [],
+              none: false,
+              lead: false
+            },
+            %{
+              seat: 1,
+              why: [{:stack, :green, [green: 2, green: 4]}],
+              got: [],
+              none: false,
+              lead: false
+            },
+            %{seat: 2, why: [{:stack, :black, []}], got: [], none: true, lead: false}
+          ],
+          slide: %{kind: :book, book: :black, rows: []},
+          index: 1,
+          names: %{}
+        )
+
+      doc = LazyHTML.from_fragment(html)
+
+      count = fn seat ->
+        doc |> LazyHTML.query("[data-seat='#{seat}'] [data-role=stack-count]") |> LazyHTML.text()
+      end
+
+      chips = fn seat ->
+        doc
+        |> LazyHTML.query("[data-seat='#{seat}'] [data-role=stack-chip] .chip-token")
+        |> Enum.count()
+      end
+
+      values = fn seat ->
+        doc |> LazyHTML.query("[data-seat='#{seat}'] [data-role=chip-value]") |> Enum.count()
+      end
+
+      assert {count.(0), chips.(0), values.(0)} == {"3", 3, 0}
+      assert {count.(1), chips.(1), values.(1)} == {"2", 2, 2}
+      # No chip: the count 0 and one chip of the colour.
+      assert {count.(2), chips.(2)} == {"0", 1}
+    end
+
     test "stage_rows: black book I says the black count and whom it beats" do
       game = %{seats: [0, 1, 2]}
       chips = fn n -> List.duplicate({:black, 1}, n) end
@@ -129,10 +202,11 @@ defmodule QuacksWeb.ResultsStageTest do
       }
 
       [a, b, c] = TileReveal.stage_rows(game, book)
-      assert a.why == [{:count, 2, :black}, {:beats, [1, 2], :both}]
+      # Round 44: a stack of the black chips, no values.
+      assert a.why == [{:stack, :black, [black: nil, black: nil]}, {:beats, [1, 2], :both}]
       assert a.got == [rubies: 1, droplet: 1]
-      assert b.why == [{:count, 1, :black}, {:beats, [2], :some}]
-      assert c.why == [{:count, 0, :black}]
+      assert b.why == [{:stack, :black, [black: nil]}, {:beats, [2], :some}]
+      assert c.why == [{:stack, :black, []}]
       assert c.none
     end
 
@@ -411,6 +485,31 @@ defmodule QuacksWeb.ResultsStageTest do
       refute Enum.any?(kinds, &(elem(&1, 0) in [:space, :standings]))
       assert TileReveal.choosing(game, :green) == [0]
     end
+
+    test "a green II step that waits shows the choosing seat's greens with their values" do
+      {_id, game, _view} = choices_game()
+      slides = TileReveal.live(game, Reveal.result_slides(game))
+      green = Enum.find(slides, &(&1[:book] == :green))
+
+      [row | _] = TileReveal.stage_rows(game, green, TileReveal.choosing(game, :green))
+      assert row.seat == 0
+      assert row.why == [{:stack, :green, [green: 2]}]
+      assert row.got == [:choosing]
+    end
+  end
+
+  describe "a die face on a tile" do
+    test "waits for its die: each face has its roll's place (app.css `.tile-news-die`)" do
+      html =
+        render_component(&TileRevealComponents.tile_news/1,
+          items: [{:die, {:vp, 1}}, {:die, :droplet}]
+        )
+
+      doc = LazyHTML.from_fragment(html)
+      dice = LazyHTML.query(doc, ".tile-news-die")
+      assert Enum.count(dice) == 2
+      assert html =~ "--roll: 0" and html =~ "--roll: 1"
+    end
   end
 
   describe "a chip as a result" do
@@ -551,6 +650,26 @@ defmodule QuacksWeb.ResultsStageTest do
       assert html =~ ~s(data-cell="droplet")
     end
 
+    test "the shop step: the chips bought at :sm, with icon and value" do
+      slide = %{kind: :shop, rows: [%{seat: 0, chips: [{:blue, 2}, {:orange, 1}], droplets: 0}]}
+      rows = TileReveal.stage_rows(%{seats: [0]}, slide, nil)
+
+      html =
+        render_component(&QuacksWeb.TileRevealComponents.results_stage/1,
+          rows: rows,
+          slide: slide,
+          index: 0,
+          names: %{0 => "Nick"}
+        )
+
+      doc = LazyHTML.from_fragment(html)
+      chips = LazyHTML.query(doc, "[data-cell=chips] .chip-token")
+      assert Enum.count(chips) == 2
+
+      assert doc |> LazyHTML.query("[data-cell=chips] [data-role=chip-value]") |> Enum.count() ==
+               2
+    end
+
     test "no recap in round 1, in the shop or at the game's end" do
       game = Game.new(seed: {1, 2, 3}, players: 1, fortune: false)
       assert Reveal.recap_slides(game) == []
@@ -598,6 +717,28 @@ defmodule QuacksWeb.ResultsStageTest do
 
       assert %{0 => %{die: {:vp, 2}, gains: [{:vp, 2}]}, 1 => %{die: :ruby, gains: [rubies: 1]}} =
                Reveal.card_reveals(game)
+    end
+
+    test "the pumpkin gained is an :sm chip (its icon); the result waits for the die" do
+      row = %{die: :orange, gains: [{:chip, {:orange, 1}}], drew: [], number: nil}
+      row = Map.merge(row, %{best?: false, choosing?: false})
+
+      html =
+        render_component(&QuacksWeb.CardRevealComponents.card_stage/1,
+          id: "card-stage",
+          card: :p12,
+          reveals: %{0 => row},
+          order: [0],
+          seat: 0,
+          names: %{0 => "Nick"}
+        )
+
+      doc = LazyHTML.from_fragment(html)
+      gain = LazyHTML.query(doc, "[data-role=reveal-result] [data-gain=chip]")
+      assert gain |> LazyHTML.query(".chip-token[data-chip-icon=orange]") |> Enum.count() == 1
+      # app.css: `.stage-row:has(.stage-die) .stage-got` waits for `--die-roll`.
+      assert doc |> LazyHTML.query(".stage-row .stage-die") |> Enum.count() == 1
+      assert doc |> LazyHTML.query(".stage-row .stage-got") |> Enum.count() == 1
     end
 
     test "after the card, the panel shows each seat's die" do

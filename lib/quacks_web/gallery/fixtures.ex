@@ -154,13 +154,15 @@ defmodule QuacksWeb.Gallery.Fixtures do
   defp results(n, kind, opts \\ []) do
     names = names(n, opts[:names])
     g = brewed_round(n, opts)
-    slides = TileReveal.slides(Reveal.result_slides(g))
+    # Green II stops at the seats' chip choices: the steps so far (`TileReveal.live/2`).
+    slides = TileReveal.live(g, Reveal.result_slides(g))
     stage(g, slides, kind, names)
   end
 
   defp stage(g, slides, kind, names) do
     i = Enum.find_index(slides, &step?(&1, kind)) || raise "no #{kind} step"
     slide = Enum.at(slides, i)
+    choosing = if slide.kind == :book, do: TileReveal.choosing(g, slide.book), else: []
 
     %{
       view: :stage,
@@ -168,7 +170,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
       names: names,
       seat: 0,
       slide: slide,
-      rows: TileReveal.stage_rows(g, slide),
+      rows: TileReveal.stage_rows(g, slide, choosing),
       index: i + 1,
       reveal: %{slides: slides, index: i + 1, tiles: true},
       collapsed: false,
@@ -541,7 +543,9 @@ defmodule QuacksWeb.Gallery.Fixtures do
 
   defp round_opts(a) do
     vp = %{1 => nil, 2 => 20, 3 => 100}[a["vp_digits"] || 1]
-    [names: long(a), vp: vp] ++ if(a["exploded"], do: [exploded: a["exploded"]], else: [])
+
+    [names: long(a), vp: vp, many: a["many_chips"] == true, green_set: a["green_set"] || 1] ++
+      if(a["exploded"], do: [exploded: a["exploded"]], else: [])
   end
 
   defp long(%{"long_names" => true}), do: :long
@@ -675,9 +679,11 @@ defmodule QuacksWeb.Gallery.Fixtures do
   # Each seat draws its chips, then every seat ends its brew (stop, take the VP of an
   # explosion); the engine scores the round. Stops at a choice (`:chip_choice`) or
   # the shop.
+  @settle [:stop, {:explosion_choice, :vp}, :return_all, :keep]
+
   defp finish_round(g, plans) do
     g = plans |> Enum.with_index() |> Enum.reduce(g, fn {chips, s}, g -> draws(g, s, chips) end)
-    settle(g, [:stop, {:explosion_choice, :vp}, :return_all, :keep])
+    settle(g, @settle)
   end
 
   defp settle(g, picks) do
@@ -701,7 +707,11 @@ defmodule QuacksWeb.Gallery.Fixtures do
   # different spaces, with black, green and purple chips so every book step has
   # rows. `vp:` adds that many VP to every seat first (by hand).
   defp brewed_round(n, opts) do
-    g = new(n, rules: %{fortune: opts[:fortune] || false})
+    g =
+      new(n,
+        rules: %{fortune: opts[:fortune] || false},
+        sets: %{green: Keyword.get(opts, :green_set, 1)}
+      )
 
     g =
       if vp = opts[:vp],
@@ -709,8 +719,23 @@ defmodule QuacksWeb.Gallery.Fixtures do
         else: g
 
     exploded = min(Keyword.get(opts, :exploded, if(n > 2, do: 1, else: 0)), n - 1)
-    plans = for s <- g.seats, do: if(s in 1..exploded//1, do: boom(), else: plan(s))
+    many = opts[:many] || false
+    plans = for s <- g.seats, do: brew_plan(s, s in 1..exploded//1, many)
     finish_round(g, plans)
+  end
+
+  defp brew_plan(_s, true, _many), do: boom()
+  defp brew_plan(s, false, true), do: many(s)
+  defp brew_plan(s, false, false), do: plan(s)
+
+  # Round 44: a brew with many black, purple and green chips, so a book step shows
+  # stacks (seat by seat 1, 2, 3, 0 black, 1..3 purple; two greens of different
+  # values last, for green II).
+  defp many(s) do
+    List.duplicate({:black, 1}, rem(s + 1, 4)) ++
+      [{:white, 1}] ++
+      List.duplicate({:purple, 1}, 1 + rem(s + 2, 3)) ++
+      [Enum.at([{:green, 1}, {:green, 2}, {:green, 4}], rem(s, 3)), {:green, 2}]
   end
 
   defp plan(s) do

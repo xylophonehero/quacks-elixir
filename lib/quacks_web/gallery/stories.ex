@@ -218,10 +218,17 @@ defmodule QuacksWeb.Gallery.Stories do
             end
           )
 
+        # Round 44: a book step's chips as a stack: many chips, and green II
+        # (its values show).
+        book_args =
+          if kind in [:black, :green, :purple],
+            do: [bool("many_chips"), int("green_set", 1, 2, 1)],
+            else: []
+
         arg_story(
           "step-#{id}",
           "Results: #{label}",
-          round_args,
+          round_args ++ book_args,
           &Fixtures.results_story(kind, &1),
           %{
             claims: claims,
@@ -363,11 +370,19 @@ defmodule QuacksWeb.Gallery.Stories do
 
   # Purple needs seat 1's brew (it explodes with 2 players): no 2-player preset.
   defp results_presets(step) do
+    book? = step in ~w(black green purple)
+
     [
       step != "purple" && {"2p", "2 players", %{"players" => 2}},
       {"8p-long", "8 long names, 3-digit VP",
        %{"players" => 8, "long_names" => true, "vp_digits" => 3}},
-      {"3-exploded", "5 players, 3 exploded", %{"exploded" => 3}}
+      {"3-exploded", "5 players, 3 exploded", %{"exploded" => 3}},
+      book? && {"many", "Many chips (stacks)", %{"many_chips" => true}},
+      book? && {"2p-many", "2 players, many chips", %{"players" => 2, "many_chips" => true}},
+      book? &&
+        {"8p-many", "8 players, many chips", %{"players" => 8, "many_chips" => true}},
+      step == "green" &&
+        {"green-2", "Green II: the values show", %{"many_chips" => true, "green_set" => 2}}
     ]
     |> Enum.filter(& &1)
   end

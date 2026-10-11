@@ -872,6 +872,12 @@ body {
   animation-delay: calc(var(--roll, 0) * var(--die-roll));
 }
 
+/* Round 44 (Nick): a row whose die rolls (Take a Chance) shows its result only
+   after the die lands. */
+.results-stage .stage-row:has(.stage-die) .stage-got {
+  animation-delay: calc(var(--die-roll) + 240ms + var(--got, 0) * 120ms);
+}
+
 /* Round 39 (Nick): Ghost's breath V's chips in the context area, no sheet
    (`purple_buy/1`). Below 64rem a panel over the pot's lower band, from the bar up
    (anchored to the pot like `.sheet[data-pot]`), so the pot never moves; the
@@ -3181,6 +3187,12 @@ html:active-view-transition-type(card) .card-caption {
 .tile-line[data-news] .tile-totals {
   animation: tile-totals calc(var(--beat-ms, 450) * 5ms) var(--ease-out, ease-out) both;
 }
+/* Round 44: on the die step a face comes only when its die in the results stage
+   lands (`.results-stage .stage-die`: one roll after the other). */
+.tile-line[data-news] .tile-news-die {
+  animation: update-in 220ms var(--ease-spring) both;
+  animation-delay: calc((var(--roll, 0) + 1) * var(--die-roll));
+}
 /* A total counts from the step's old value (`--from`) to the new one (`--n`, the
    `@property` of the stats strip) as the badge folds in, after 3.5 beats. */
 @keyframes tile-count {
@@ -3199,6 +3211,7 @@ html:active-view-transition-type(card) .card-caption {
 .tile-count::after { content: counter(n); }
 @media (prefers-reduced-motion: reduce) {
   .tile-count { animation: none; }
+  .tile-line[data-news] .tile-news-die { animation: none; }
   /* No motion: the line still swaps, as a plain fade. */
   .tile-line[data-news] .tile-news { animation-name: tile-news-fade; }
   .tile-line[data-news] .tile-totals { animation-name: tile-totals-fade; }

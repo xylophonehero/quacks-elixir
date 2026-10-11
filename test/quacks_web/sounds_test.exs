@@ -58,6 +58,18 @@ defmodule QuacksWeb.SoundsTest do
       assert Sounds.chip_sound({:purple, nil}, @files) == "plop"
     end
 
+    test "locoweed sounds by how far it moved (1..6), the others by value" do
+      files = for n <- 1..6, do: "chip-locoweed-#{n}"
+      files = ["chip-white-1" | files]
+
+      assert Sounds.pot_sound({:locoweed, 1}, 1, files) == "chip-locoweed-1"
+      assert Sounds.pot_sound({:locoweed, 1}, 4, files) == "chip-locoweed-4"
+      assert Sounds.pot_sound({:locoweed, 1}, 11, files) == "chip-locoweed-6"
+      assert Sounds.pot_sound({:locoweed, 1}, 0, files) == "chip-locoweed-1"
+      assert Sounds.pot_sound({:locoweed, 1}, nil, files) == "chip-locoweed-1"
+      assert Sounds.pot_sound({:white, 1}, 5, files) == "chip-white-1"
+    end
+
     test "every chip of the game is listed once" do
       chips = Sounds.chips()
       assert length(chips) == length(Enum.uniq(chips))

@@ -340,13 +340,18 @@ defmodule QuacksWeb.GalleryFrameLive do
       <.chip :if={@chip} chip={@chip} size={:sm} />
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">
-          {if @chip, do: "#{elem(@chip, 0)} #{elem(@chip, 1)}", else: @label}
+          {chip_label(@chip) || @label}
         </span>
         <span class="block truncate font-mono text-[11px] text-ink-soft">{@name}</span>
       </span>
     </button>
     """
   end
+
+  # Round 44: a locoweed's sound goes by how far it moved, not by its value.
+  defp chip_label(nil), do: nil
+  defp chip_label({:locoweed, n}), do: "locoweed, moved #{n}"
+  defp chip_label({colour, value}), do: "#{colour} #{value}"
 
   attr :tip, :string, default: nil
   slot :context, doc: "from 64rem: the context column's panel, over the bar"
