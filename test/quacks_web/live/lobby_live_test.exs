@@ -140,11 +140,11 @@ defmodule QuacksWeb.LobbyLiveTest do
     assert has_element?(view, "[data-role=preset-label]", "Custom")
     refute has_element?(view, "[data-role=preset][aria-pressed=true]")
 
-    # A preset turns on the expansion it needs.
-    view |> element("#preset-strategic") |> render_click()
-    assert has_element?(view, "#expansion[checked]")
+    # Books five and six are available without enabling witch coins.
+    view |> element("#preset-set5") |> render_click()
+    refute has_element?(view, "#expansion[checked]")
     assert books(view)["green"] == "5"
-    assert books(view)["purple"] == "4"
+    assert books(view)["purple"] == "5"
 
     # The saved config brings the preset back.
     render_hook(view, "load_config", %{

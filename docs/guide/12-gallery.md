@@ -75,12 +75,17 @@ An old variant URL that a story with args took over (for example
 | Player tiles | Player tiles | `players 1..8`, `state brewing\|stopped\|exploded\|shop\|done`, `long_names`, `vp_digits 1..3`, `bots` |
 | Bottom bar | Crow skull | `chips 1..5` |
 | Score track | Score / rat track | `players 2..8`, `spread early\|tied\|above-50\|big-gaps` |
+| Setup | Ingredient presets | `preset` (any of the 14 numbered or themed mixes), `witches` (Herb Witches on/off) |
 | Screens | Brewing | `players 1..8`, `long_names` |
 | | A choice | `players 1..8`, `choice crow\|mandrake\|chip_choice\|explosion`, `long_names` |
 | | Evaluation step | `players 2..8`, `step die\|black\|green\|purple\|space`, `long_names`, `exploded 0..7` |
 | | Round scored | `players 2..8`, `step standings\|shop`, `long_names`, `vp_digits 1..3` |
 | | Shop, Game over | `players 1..8`, `long_names` |
 | Scenarios | every item | `step 1..n`, `players 2..5` |
+
+The setup story at `/dev/gallery/setup/presets` renders the lobby's Ingredient
+books page. Its named presets show witch coins enabled and numbered Sets 5/6;
+check both coin states at 360/392/1280 when changing setup presets.
 
 Every other component variant is a story with no args. Some args reach no such
 state (a purple book step with no purple chip, a scenario whose goal no seed

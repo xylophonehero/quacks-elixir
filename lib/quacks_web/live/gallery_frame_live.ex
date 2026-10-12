@@ -103,6 +103,20 @@ defmodule QuacksWeb.GalleryFrameLive do
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   @impl true
+  def render(%{view: :setup} = assigns) do
+    ~H"""
+    <div
+      id="gallery-frame"
+      class="contents"
+      data-component={@component}
+      data-variant={@variant}
+      data-view="setup"
+    >
+      {QuacksWeb.LobbyLive.render(@lobby)}
+    </div>
+    """
+  end
+
   def render(%{view: :screen} = assigns) do
     ~H"""
     <div
