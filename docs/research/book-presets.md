@@ -1,6 +1,67 @@
 # Ingredient-book presets
 
-Goal: 6–8 one-tap book presets for the configure screen. Compiled 2026-10-07; round 25 adds the BGG mixes below and replaces the round-22 proposal.
+## Current presets (2026-10-12)
+
+The app offers **14 presets**: the numbered Sets 1–6 and eight themed mixes from
+[SolviKaaber's Reddit comment](https://www.reddit.com/r/boardgames/comments/l2lnb0/comment/gk969b4/).
+The comment was read directly through the connected web search tool on 2026-10-12.
+These replace Combo mix, Big bags, Ruby heavy and Strategic. The older research
+below is retained as history, not the current preset specification.
+
+The source describes themed combinations, with three of eight tried at the time.
+Its numbered coloured books mean Sets 1–6; black, locoweed and witches are named
+by their effects. The table uses **app book numbers and witch IDs**.
+
+| Name | orange | green | blue | red | yellow | purple | black | locoweed | gold | silver | copper |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Beginner (Set 1) | 1 | 1 | 1 | 1 | 1 | 1 | 1 | – | – | – | – |
+| Set 2 | 1 | 2 | 2 | 2 | 2 | 2 | 1 | – | – | – | – |
+| Set 3 | 1 | 3 | 3 | 3 | 3 | 3 | 1 | – | – | – | – |
+| Set 4 | 1 | 4 | 4 | 4 | 4 | 4 | 1 | – | – | – | – |
+| Set 5 | 2 | 5 | 5 | 5 | 5 | 5 | 2 | 1 | – | – | – |
+| Set 6 | 2 | 6 | 6 | 6 | 6 | 6 | 3 | 2 | – | – | – |
+| All About Cherry Bombs | 2 | 3 | 6 | 4 | 3 | 4 | 3 | 2 | g2 | s3 | c1 |
+| Playing It Safe | 2 | 5 | 2 | 2 | 1 | 5 | 2 | 1 | g4 | s1 | c3 |
+| Worship the Big Pump | 2 | 2 | 5 | 1 | 2 | 5 | 2 | 2 | g1 | s4 | c2 |
+| Ruby Roulette | 2 | 1 | 6 | 6 | 6 | 1 | 1 | 2 | g3 | s2 | c4 |
+| Points Galore | 2 | 6 | 4 | 6 | 5 | 3 | 3 | 2 | g1 | s2 | c2 |
+| Get Your Upgrades | 2 | 2 | 1 | 5 | 4 | 4 | 3 | 1 | g2 | s4 | c1 |
+| Let The Stars Align | 2 | 4 | 3 | 3 | 2 | 6 | 3 | 2 | g3 | s2 | c1 |
+| Loser Strategy | 2 | 6 | 6 | 2 | 2 | 5 | 2 | 1 | g2 | s4 | c1 |
+
+### Source translations
+
+- Every themed mix uses the source's small-and-large pumpkin book: orange 2.
+- Black "original" is app 1; "give to left" is app 2 (printed HW Set 5);
+  "furthest ahead" is app 3 (printed HW Set 6).
+- Locoweed "Ratstone" is app 1; "Copy" is app 2.
+- Bronze witches are called copper in the app. Upgrade is c1, double coins c2,
+  another copy of a bought chip c3, coins for each ruby c4. Loser Strategy's
+  "Choose one of the chips" means c1's option to upgrade any one chip.
+- Silver flask after explosion is s1, draw six chips s2, return the last two
+  whites s3, no explosion penalties s4.
+- Gold points for different colours is g1; points for coloured chips in the bag
+  g2; rubies from a ruby scoring space g3; cheaper droplet/flask spending g4.
+
+### Conditional witch coins
+
+Book selection never enables an expansion. Every preset's books, including
+Sets 5/6, can be selected with Herb Witches off. A themed preset applies its
+specified witch cards only when **Herb Witches is enabled**. Enabling it with
+matching preset books applies those cards; disabling it clears the picks and
+omits witch coins from the saved settings and game creation. Re-enabling then
+restores the matching preset's cards. A manual witch change while enabled makes
+a themed setup Custom. Numbered sets specify no witches, so selecting one leaves
+the enabled expansion's cards Random.
+
+The source also suggests optional Fortune Teller cards (explicitly skippable),
+a starting ruby and a blue Set 1 price nerf in Get Your Upgrades. This change
+does **not** curate the fortune deck, change starting resources or change prices.
+Random remains a separate action.
+
+## Historical research
+
+Original goal: 6–8 one-tap book presets for the configure screen. Compiled 2026-10-07; round 25 adds the BGG mixes below and replaces the round-22 proposal.
 ⚠️ = not verified against an official source, or a design choice of this note.
 
 ## Sources

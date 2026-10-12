@@ -220,17 +220,26 @@ defmodule QuacksWeb.LobbyLive do
 
   def handle_event("sets", form, socket) do
     books = parse_books(form)
+    enabling? = books.expansion == :herb_witches and not socket.assigns.expansion
+    preset = BookPresets.match(books.sets)
+
+    witches =
+      cond do
+        books.expansion != :herb_witches -> %{}
+        enabling? and preset != nil -> preset.witches
+        true -> books.witches
+      end
 
     {:noreply,
      change(socket,
        sets: books.sets,
-       witches: books.witches,
+       witches: witches,
        expansion: books.expansion == :herb_witches,
        alchemists: books.expansions == [:alchemists]
      )}
   end
 
-  # A preset's books; it also turns on the expansions it needs.
+  # A preset changes books and, only when enabled, its optional witch picks.
   def handle_event("preset", %{"id" => id}, socket) do
     case BookPresets.get(id) do
       nil ->
@@ -242,8 +251,8 @@ defmodule QuacksWeb.LobbyLive do
         {:noreply,
          change(socket,
            sets: preset.sets,
-           expansion: a.expansion or :herb_witches in preset.expansions,
-           alchemists: a.alchemists or :alchemists in preset.expansions
+           witches: if(a.expansion, do: preset.witches, else: %{}),
+           rolled: nil
          )}
     end
   end
@@ -279,7 +288,7 @@ defmodule QuacksWeb.LobbyLive do
        public: saved["public"] != false,
        sets: books.sets,
        rolled: if(saved["preset"] == "random", do: books.sets),
-       witches: books.witches,
+       witches: if(books.expansion == :herb_witches, do: books.witches, else: %{}),
        expansion: books.expansion == :herb_witches,
        alchemists: books.expansions == [:alchemists],
        rules: saved |> saved_rules() |> parse_rules()
@@ -357,7 +366,7 @@ defmodule QuacksWeb.LobbyLive do
       players: a.players,
       sets: form.(a.sets),
       rules: form.(a.rules),
-      witches: form.(a.witches),
+      witches: if(a.expansion, do: form.(a.witches), else: %{}),
       expansion: a.expansion,
       alchemists: a.alchemists,
       public: a.public,
@@ -370,7 +379,7 @@ defmodule QuacksWeb.LobbyLive do
   # The preset the books are now: a preset's id, "random" (the last roll) or nil
   # (Custom).
   defp preset_id(a) do
-    case BookPresets.match(a.sets) do
+    case BookPresets.match(a.sets, a.witches, a.expansion) do
       nil -> if a.rolled == a.sets, do: "random"
       preset -> to_string(preset.id)
     end
@@ -398,6 +407,37 @@ defmodule QuacksWeb.LobbyLive do
   defp drop_extra_bots(socket) do
     players = socket.assigns.players
     assign(socket, bots: MapSet.filter(socket.assigns.bots, &(&1 in 1..(players - 1)//1)))
+  end
+
+  @doc false
+  def preview(args) do
+    preset = BookPresets.get(args["preset"])
+    expansion = args["witches"]
+
+    %{
+      __changed__: %{},
+      flash: %{},
+      page_title: "Setup presets",
+      token: nil,
+      seed: {1, 2, 3},
+      patient: :random,
+      games: [],
+      players: 2,
+      bots: MapSet.new(),
+      name: "",
+      colour: 0,
+      public: true,
+      sets: preset.sets,
+      rolled: nil,
+      witches: if(expansion, do: preset.witches, else: %{}),
+      expansion: expansion,
+      alchemists: false,
+      rules: Game.default_rules(),
+      step: "books",
+      colour_page: nil,
+      entry_depth: 1,
+      turned: false
+    }
   end
 
   # -- pages --------------------------------------------------------------------------
@@ -1045,10 +1085,10 @@ defmodule QuacksWeb.LobbyLive do
                 {preset.blurb}
               </span>
               <span
-                :for={exp <- preset.expansions}
+                :if={map_size(preset.witches) > 0}
                 class="mt-1 inline-block rounded-full bg-ink/10 px-1.5 text-[10px] font-semibold"
               >
-                {if exp == :alchemists, do: "Alchemists", else: "Herb Witches"}
+                {if @expansion, do: "Includes witch coins", else: "Witch coins if enabled"}
               </span>
             </button>
           </li>

@@ -20,9 +20,11 @@ defmodule QuacksWeb.Gallery.Stories do
   """
 
   alias Quacks.Game
+  alias Quacks.Rules.BookPresets
   alias Quacks.Scenarios
   alias Quacks.Scenarios.Script
   alias QuacksWeb.Gallery.Fixtures
+  alias QuacksWeb.LobbyLive
 
   @typedoc """
   One arg: `name` (its URL key), `type` (`:int` with `min`/`max`, `:bool`, or
@@ -80,7 +82,36 @@ defmodule QuacksWeb.Gallery.Stories do
         }
       end
 
-    components ++ [%{id: "screens", title: "Screens", stories: screens()}] ++ scenario_groups()
+    setup =
+      story(
+        "setup",
+        "presets",
+        "Ingredient presets",
+        "LobbyLive: numbered and themed presets",
+        :screen,
+        [
+          enum(
+            "preset",
+            Enum.map(BookPresets.all(), &to_string(&1.id)),
+            "cherry_bombs"
+          ),
+          bool("witches")
+        ],
+        fn args -> %{view: :setup, lobby: LobbyLive.preview(args)} end,
+        %{
+          presets: [
+            {"coins", "With witch coins", %{"witches" => true}},
+            {"set5", "Numbered Set 5", %{"preset" => "set5"}},
+            {"set6", "Numbered Set 6", %{"preset" => "set6"}}
+          ]
+        }
+      )
+
+    components ++
+      [
+        %{id: "setup", title: "Setup", stories: [setup]},
+        %{id: "screens", title: "Screens", stories: screens()}
+      ] ++ scenario_groups()
   end
 
   @doc "The story `id` of group `group`, or nil."
