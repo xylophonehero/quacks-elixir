@@ -1,37 +1,28 @@
 defmodule Quacks.Rules.BookPresets do
   @moduledoc """
-  Ready-made sets of ingredient books ("presets") for the spell book's Ingredient
-  books page. Sources and reasons: `docs/research/book-presets.md`. Sets 1–4 are the
-  rulebook's own sets; the other four are mixes that players recommend on the
-  BoardGameGeek forums (round 25), each with its thread in the research note.
-  "Random" is not a preset: the page rolls a random book per colour.
-
-  `sets` uses the books form's shape (`QuacksWeb.SetupComponents.parse_sets/2`):
-  orange 1 and "no locoweed" are left out, black is always in. `expansions` are the
-  expansions a preset turns on. `source` says where the mix comes from.
+  Numbered ingredient sets and SolviKaaber's eight themed Reddit combinations.
+  Sources and book/coin translations: `docs/research/book-presets.md`.
+  Books never enable an expansion. Optional witch picks apply only while
+  The Herb Witches is enabled. Random is a separate roll, not a fixed preset.
   """
 
-  @type id ::
-          :beginner | :set2 | :set3 | :set4 | :combo | :big_bags | :ruby_heavy | :strategic
   @type preset :: %{
-          id: id,
+          id: atom,
           name: String.t(),
           blurb: String.t(),
-          sets: %{atom => 1..6},
-          expansions: [:herb_witches | :alchemists],
+          sets: map,
+          witches: map,
           source: String.t()
         }
-
-  @base %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}
   @set fn n -> %{green: n, blue: n, red: n, yellow: n, purple: n, black: 1} end
-
+  @reddit "https://www.reddit.com/r/boardgames/comments/l2lnb0/comment/gk969b4/"
   @presets [
     %{
       id: :beginner,
       name: "Beginner (Set 1)",
       blurb: "The rulebook's first game.",
-      sets: @base,
-      expansions: [],
+      sets: @set.(1),
+      witches: %{},
       source: "Rulebook, Set 1"
     },
     %{
@@ -39,7 +30,7 @@ defmodule Quacks.Rules.BookPresets do
       name: "Set 2",
       blurb: "Safe pots, red held back, chips that grow your bag.",
       sets: @set.(2),
-      expansions: [],
+      witches: %{},
       source: "Rulebook, Set 2"
     },
     %{
@@ -47,7 +38,7 @@ defmodule Quacks.Rules.BookPresets do
       name: "Set 3",
       blurb: "Rubies on ruby spaces and a higher white limit.",
       sets: @set.(3),
-      expansions: [],
+      witches: %{},
       source: "Rulebook, Set 3"
     },
     %{
@@ -55,69 +46,109 @@ defmodule Quacks.Rules.BookPresets do
       name: "Set 4",
       blurb: "Pay rubies to move, chip upgrades, fast yellows.",
       sets: @set.(4),
-      expansions: [],
+      witches: %{},
       source: "Rulebook, Set 4"
     },
-    # BGG thread 2311359 ("the most effective" of several groups' setups).
     %{
-      id: :combo,
-      name: "Combo mix",
-      blurb: "Mandrakes raise the white limit, spiders reward exactly 7 white.",
-      sets: %{green: 3, blue: 1, red: 1, yellow: 3, purple: 3, black: 1},
-      expansions: [],
-      source: "boardgamegeek.com/thread/2311359"
+      id: :set5,
+      name: "Set 5",
+      blurb: "Plan first chips, pumpkin points and a second shop.",
+      sets: Map.merge(@set.(5), %{orange: 2, black: 2, locoweed: 1}),
+      witches: %{},
+      source: "Rulebook, Set 5"
     },
-    # BGG thread 2227558 ("I like big bags and I can not lie").
     %{
-      id: :big_bags,
-      name: "Big bags",
-      blurb: "Greens and purples that put more chips in your bag.",
-      sets: %{green: 2, blue: 2, red: 1, yellow: 3, purple: 2, black: 1},
-      expansions: [],
-      source: "boardgamegeek.com/thread/2227558"
+      id: :set6,
+      name: "Set 6",
+      blurb: "Bonus rolls, ruby rewards and chips held for later.",
+      sets: Map.merge(@set.(6), %{orange: 2, black: 3, locoweed: 2}),
+      witches: %{},
+      source: "Rulebook, Set 6"
     },
-    # BGG thread 2227558 ("Ruby Heavy", and "Cheap As Chips" with yellow 4).
     %{
-      id: :ruby_heavy,
-      name: "Ruby heavy",
-      blurb: "Rubies from green, blue and purple chips.",
-      sets: %{green: 1, blue: 3, red: 2, yellow: 4, purple: 1, black: 1},
-      expansions: [],
-      source: "boardgamegeek.com/thread/2227558"
+      id: :cherry_bombs,
+      name: "All About Cherry Bombs",
+      blurb: "Raise the white limit and make cherry bombs work for you.",
+      sets: %{orange: 2, purple: 4, green: 3, yellow: 3, red: 4, blue: 6, black: 3, locoweed: 2},
+      witches: %{gold: :g2, silver: :s3, copper: :c1},
+      source: @reddit
     },
-    # BGG thread 2589332 ("possibly the most strategic and balanced setup").
     %{
-      id: :strategic,
-      name: "Strategic",
-      blurb: "Plan next round's first chips, double a move, VP for pumpkins.",
-      sets: %{orange: 2, green: 5, blue: 5, red: 2, yellow: 2, purple: 4, black: 2},
-      expansions: [:herb_witches],
-      source: "boardgamegeek.com/thread/2589332"
+      id: :playing_safe,
+      name: "Playing It Safe",
+      blurb: "Protect your pot and plan the next round.",
+      sets: %{orange: 2, purple: 5, green: 5, yellow: 1, red: 2, blue: 2, black: 2, locoweed: 1},
+      witches: %{gold: :g4, silver: :s1, copper: :c3},
+      source: @reddit
+    },
+    %{
+      id: :big_pump,
+      name: "Worship the Big Pump",
+      blurb: "Build around pumpkins and their colourful companions.",
+      sets: %{orange: 2, purple: 5, green: 2, yellow: 2, red: 1, blue: 5, black: 2, locoweed: 2},
+      witches: %{gold: :g1, silver: :s4, copper: :c2},
+      source: @reddit
+    },
+    %{
+      id: :ruby_roulette,
+      name: "Ruby Roulette",
+      blurb: "Collect rubies, then spend them for bigger moves.",
+      sets: %{orange: 2, purple: 1, green: 1, yellow: 6, red: 6, blue: 6, black: 1, locoweed: 2},
+      witches: %{gold: :g3, silver: :s2, copper: :c4},
+      source: @reddit
+    },
+    %{
+      id: :points_galore,
+      name: "Points Galore",
+      blurb: "Turn chip draws and bonus rolls into victory points.",
+      sets: %{orange: 2, purple: 3, green: 6, yellow: 5, red: 6, blue: 4, black: 3, locoweed: 2},
+      witches: %{gold: :g1, silver: :s2, copper: :c2},
+      source: @reddit
+    },
+    %{
+      id: :upgrades,
+      name: "Get Your Upgrades",
+      blurb: "Grow your chips and put stronger ingredients in your bag.",
+      sets: %{orange: 2, purple: 4, green: 2, yellow: 4, red: 5, blue: 1, black: 3, locoweed: 1},
+      witches: %{gold: :g2, silver: :s4, copper: :c1},
+      source: @reddit
+    },
+    %{
+      id: :stars_align,
+      name: "Let The Stars Align",
+      blurb: "Line up chip order and ruby spaces for rewards.",
+      sets: %{orange: 2, purple: 6, green: 4, yellow: 2, red: 3, blue: 3, black: 3, locoweed: 2},
+      witches: %{gold: :g3, silver: :s2, copper: :c1},
+      source: @reddit
+    },
+    %{
+      id: :loser_strategy,
+      name: "Loser Strategy",
+      blurb: "Use rat tails and bonus rolls to catch the leaders.",
+      sets: %{orange: 2, purple: 5, green: 6, yellow: 2, red: 2, blue: 6, black: 2, locoweed: 1},
+      witches: %{gold: :g2, silver: :s4, copper: :c1},
+      source: @reddit
     }
   ]
 
-  @doc "Every preset, in the order the page shows them."
+  @doc "Every preset in display order."
   @spec all() :: [preset]
   def all, do: @presets
 
-  @doc """
-  The preset with the id `id` (an atom or the page's string), or nil.
-
-      iex> Quacks.Rules.BookPresets.get("set3").sets.blue
-      3
-      iex> Quacks.Rules.BookPresets.get("nope")
-      nil
-  """
-  @spec get(id | String.t()) :: preset | nil
+  @doc "Find a preset by its atom or string id."
+  @spec get(atom | String.t()) :: preset | nil
   def get(id), do: Enum.find(@presets, &(to_string(&1.id) == to_string(id)))
 
-  @doc """
-  The preset whose books are exactly `sets` (the books form's shape), or nil
-  ("Custom").
-
-      iex> Quacks.Rules.BookPresets.match(%{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}).id
-      :beginner
-  """
+  @doc "Find the preset whose books exactly match the form's settings."
   @spec match(map) :: preset | nil
   def match(sets), do: Enum.find(@presets, &(&1.sets == sets))
+
+  @doc "With Herb Witches enabled, themed presets also require their witch picks."
+  @spec match(map, map, boolean) :: preset | nil
+  def match(sets, witches, herb_witches?) do
+    Enum.find(@presets, fn preset ->
+      preset.sets == sets and
+        (not herb_witches? or preset.witches == %{} or preset.witches == witches)
+    end)
+  end
 end
