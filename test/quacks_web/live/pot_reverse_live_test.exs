@@ -3,6 +3,7 @@ defmodule QuacksWeb.PotReverseLiveTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
   import Quacks.GameHelpers, only: [replace_game: 2]
 
   alias Quacks.GameHelpers, as: H
@@ -24,7 +25,7 @@ defmodule QuacksWeb.PotReverseLiveTest do
 
   test "the Options checkbox turns the reverse side on; the rack shows under the pot" do
     conn = browser("host")
-    {:ok, view, _html} = live(conn, ~p"/?step=expansions")
+    {:ok, view, _html} = live(conn, ~p"/?step=players")
     refute has_element?(view, "#rules-pot_side[checked]")
 
     view |> element("#options") |> render_change(%{"rules" => %{"pot_side" => "true"}})
@@ -59,14 +60,16 @@ defmodule QuacksWeb.PotReverseLiveTest do
     {id, view} = solo_back()
     replace_game(id, &H.put(&1, droplet_moves: 1))
 
-    assert has_element?(view, "dialog#decision-droplet_choice [data-role=droplet-choice]")
-    assert has_element?(view, "#decision-droplet_choice button", "Pot droplet +1")
+    # Round 33: no sheet: the info row and two buttons in the bar.
+    refute has_element?(view, "dialog#decision-droplet_choice")
+    assert has_element?(view, "#bar-droplet [data-role=info-row]", "A free move")
+    assert has_element?(view, "#bar-droplet button[aria-label='Pot droplet +1']", "Pot droplet")
 
     view
-    |> element("#decision-droplet_choice button", "Test tube (bonus: 1 ruby)")
+    |> element("#bar-droplet button[aria-label='Test tube (bonus: 1 ruby)']", "Bonus: 1 ruby")
     |> render_click()
 
-    refute has_element?(view, "#decision-droplet_choice")
+    refute has_element?(view, "#bar-droplet")
     assert has_element?(view, ~s(svg[data-role=test-tubes][data-tube="1"]))
     assert has_element?(view, ~s([data-role=glass][data-filled="true"]))
     assert {:ok, %{game: game}} = GameServer.get(id)
@@ -76,11 +79,18 @@ defmodule QuacksWeb.PotReverseLiveTest do
   test "the rubies step offers the pot droplet and the next glass" do
     {id, view} = solo_back()
     replace_game(id, &H.put(&1, phase: :rubies, rubies: 2, tube: 2))
+    skip_results(view)
 
-    assert has_element?(view, "#decision-rubies button", "Spend 2 rubies: pot droplet +1")
+    # Round 29: the rubies are in the bar; the full text is the button's label.
+    assert has_element?(
+             view,
+             ~s(#bar-rubies button[data-ruby=droplet][aria-label="Spend 2 rubies: pot droplet +1"])
+           )
 
     view
-    |> element("#decision-rubies button", "Spend 2 rubies: test tube (bonus: blue 1 chip)")
+    |> element(
+      ~S|#bar-rubies button[data-ruby=tube][aria-label="Spend 2 rubies: test tube (bonus: blue 1 chip)"]|
+    )
     |> render_click()
 
     assert has_element?(view, ~s(svg[data-role=test-tubes][data-tube="3"]))

@@ -3,7 +3,7 @@
 [Back to the guide](../GUIDE.md)
 
 A bot is a pure function. It reads the game, picks one action from
-`legal_actions/2` and gives it back. The GameServer (chapter 4) calls it on a timer
+`legal_actions/2` and gives it back. The GameServer (chapter 4) calls it on a timer (a brew: in one loop)
 and applies the action through `Session.apply/3`, as for a human click. This
 chapter is about the function.
 
@@ -220,13 +220,18 @@ The research measured the EV rule and the scored choices as a little stronger
 example `Profile.parse("balanced+ev+scored")`, in place of the atom. No decider
 code changes.
 
-**Brewing in lockstep.** In the potions phase a bot gets one tick per action, 700 ms
-apart. It may `:draw` only while it has drawn fewer chips this round than the human
-who drew most (`capped?/3`, `lib/quacks/game_server.ex:915-926`). So a bot brews
-draw for draw beside the humans and never runs ahead. The decider does not know
-about the cap: the server just does not ask it. When every human has stopped, the
-cap is off and the bot finishes at tick speed. Round 9 has no cap, because the
-stir already makes all seats draw together.
+**Brewing with your draws (round 37).** In the potions phase of rounds 1–8 a bot
+gets no tick. Each human draw makes every bot that still brews take one step in
+the same server call (`step_bots/4`, `bot_step/3`): `decide/4` and
+`Session.apply/3` up to its next draw or stop. The human's chip and all the bot
+chips appear in one update. With 2+ humans the bots step once every human that
+still draws has drawn. When the last human stops or explodes, the server brews the
+rest in a loop (`brew_bots/2`): bot 1 to its stop, then bot 2, in one update. The decider
+does not know about this: it sees the same game it would see on a tick, with the
+humans' chips already drawn. It cannot be planned early on a copy, as the shop is,
+because each draw takes the next number from the shared `game.rng`; applied in
+order, the draws are the real ones. Round 9 keeps its ticks, because the stir
+already makes all seats draw together.
 
 **Choices in concurrent phases: plans.** In the fortune, chip, witch and shop
 phases every seat decides at the same time. There the server calls `decide/4` in a
@@ -265,3 +270,29 @@ The columns are mean VP, its spread, win rate, explosion rate overall and per
 round, then mean coins per round and chips bought per game. To compare two
 profiles, run the same seed with each and read the two rows. The research docs
 show the tables that chose today's numbers.
+
+## The benchmark and the training: `mix quacks.bench`, `mix quacks.tune`
+
+`mix quacks.sim` prints a lot of numbers for one run. To decide "is bot A stronger
+than bot B?" you need a confidence interval, and that is the job of
+`Quacks.AI.Bench` (`lib/quacks/ai/bench.ex`):
+
+```
+nice -n 10 mix quacks.bench --games 4000 --players 4 --jobs 4 --bots balanced+strong,balanced,balanced,balanced
+```
+
+- **Duplicate seating.** Each seed is played once per rotation of the bots
+  (`lineup/3`), so each bot gets the same chips in each seat. Two equal bots come
+  out at exactly 50/50.
+- **One seed is one sample.** The ± columns are 95 % intervals over the seeds, not
+  over the games, because the games of one seed are not independent.
+- **Capped.** `Task.async_stream/3` with `max_concurrency: jobs` (default half the
+  cores), and `--minutes` for a time budget.
+
+`Quacks.AI.Tune` (`lib/quacks/ai/tune.ex`) uses the benchmark as its score. It
+changes 27 numbers of a profile (`Quacks.AI.Weights.spec/0`), plays each variant
+against the base bot, and moves towards the best variants (the cross-entropy
+method). It saves a checkpoint after every generation, so `mix quacks.tune` goes on
+where it stopped. The result is a JSON file of numbers;
+`Profile.parse("file:priv/bots/tuned.json")` turns it back into a profile. The
+process, the numbers and the commands are in `docs/research/bot-training.md`.

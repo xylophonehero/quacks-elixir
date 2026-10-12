@@ -5,7 +5,7 @@ defmodule QuacksWeb.FortuneLiveTest do
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.Fortune
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.GameText
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "fortune-#{System.unique_integer()}")}
@@ -32,38 +32,40 @@ defmodule QuacksWeb.FortuneLiveTest do
     {:ok, view, _html} = live_game(conn, {30, 30, 30})
     assert has_element?(view, "[data-role=fortune-card][data-colour=purple]", "Boomberry Cleanse")
     assert has_element?(view, "dd", "Fortune teller")
-    assert has_element?(view, "button[data-slot=draw][disabled]", "Draw a chip")
+    # Round 31: the card's choice takes the place of Stop and Draw.
+    refute has_element?(view, "button[data-slot=draw]")
 
-    view |> element("button", "Score 4 VP") |> render_click()
+    view |> element("[data-role=bar-card] button[aria-label='Score 4 VP']") |> render_click()
 
     assert has_element?(view, "li", "Boomberry Cleanse: +4 VP")
-    refute has_element?(view, "button[data-slot=draw][disabled]")
+    assert has_element?(view, "button[data-slot=draw]:not([disabled])")
     assert has_element?(view, "dd", "Brewing")
   end
 
   test "P13 Flea Market shows the 4 drawn chips (seed 2,2,2)", %{conn: conn} do
     {:ok, view, _html} = live_game(conn, {2, 2, 2})
-    assert has_element?(view, "[aria-label='Fortune teller offer']", "Flea Market drew:")
-    assert view |> render() |> count("[data-role=offer-chip]") == 4
+    # Round 31: the drawn chips show in the rows over the pot, the trades in the bar.
+    mine = "[id^=card-stage] [data-me] [data-role=reveal-chip]"
+    assert view |> render() |> count(mine) == 4
 
     assert has_element?(
              view,
-             "button[data-role=chip-pick][aria-label='Trade green 1 for the next value up']"
+             "[data-role=bar-card] button[aria-label='Trade green 1 for the next value up']"
            )
   end
 
   test "B7 Safety Procedure: stopping offers chips to place (seed 1,2,3)", %{conn: conn} do
     {:ok, view, _html} = live_game(conn, {1, 2, 3})
-    view |> element("button", "Draw a chip") |> render_click()
+    view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
-    assert has_element?(view, "[aria-label='Fortune teller offer']", "Safety Procedure drew:")
-    view |> element("button", "Safety Procedure: return all to the bag") |> render_click()
+    assert has_element?(view, "[data-role=bar-card] [data-choice=place]")
+    view |> element("[data-role=bar-card] [data-choice=return_all]") |> render_click()
     assert has_element?(view, "li", "Safety Procedure: returned all chips to the bag")
   end
 
   test "multiplayer: every seat with a card choice gets its buttons at once" do
-    game = Game.new(seed: {30, 30, 30}, players: 2)
+    game = Game.new(seed: {86, 86, 86}, players: 2)
     assert game.phase == :fortune_choice
     assert [{:fortune, _} | _] = Game.legal_actions(game, 0)
     assert [{:fortune, _} | _] = Game.legal_actions(game, 1)
@@ -86,12 +88,12 @@ defmodule QuacksWeb.FortuneLiveTest do
 
   test "every fortune action shape has a human label, for every card" do
     for choice <- @card_actions, card <- [nil | Fortune.ids(4)] do
-      refute GameComponents.label({:fortune, choice}, card) =~ ~r/^[:{]/
+      refute GameText.label({:fortune, choice}, card) =~ ~r/^[:{]/
     end
 
-    assert GameComponents.label({:fortune, :vp}, :p6) == "Score 4 VP"
+    assert GameText.label({:fortune, :vp}, :p6) == "Score 4 VP"
 
-    assert GameComponents.label({:fortune, {:take, {:green, 1}}}, :p3) ==
+    assert GameText.label({:fortune, {:take, {:green, 1}}}, :p3) ==
              "Trade 1 ruby for green 1"
   end
 
@@ -116,15 +118,15 @@ defmodule QuacksWeb.FortuneLiveTest do
     ]
 
     for outcome <- outcomes do
-      line = GameComponents.label({:fortune, :p1, outcome})
+      line = GameText.label({:fortune, :p1, outcome})
       assert "Choices, Choices: " <> text = line
       refute text =~ ~r/^[:{]/
     end
 
-    assert GameComponents.label({:fortune_drawn, :b7}) == "Fortune teller: Safety Procedure"
-    assert GameComponents.label({:fortune_skipped, :p7}) =~ "Infestation"
+    assert GameText.label({:fortune_drawn, :b7}) == "Fortune teller: Safety Procedure"
+    assert GameText.label({:fortune_skipped, :p7}) =~ "Infestation"
 
-    assert GameComponents.label({:fortune, :p11, :droplet}) ==
+    assert GameText.label({:fortune, :p11, :droplet}) ==
              "Decisions, Decisions...: droplet +2"
   end
 

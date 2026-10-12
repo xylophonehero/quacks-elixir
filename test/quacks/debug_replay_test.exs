@@ -31,7 +31,7 @@ defmodule Quacks.DebugReplayTest do
     assert table.status == :playing
     assert table.game == replay_prefix(bundle, 2)
     assert table.names == %{0 => "Ann", 1 => bundle["names"] |> Enum.at(1)}
-    assert table.bots == %{1 => :balanced}
+    assert table.bots == %{1 => :expert}
     assert table.debug == %{at: 2, total: total, frozen: true}
     assert {:ok, 0} = GameServer.claim_seat(id, "dev")
     assert {:error, :full} = GameServer.claim_seat(id, "someone else")
@@ -41,6 +41,15 @@ defmodule Quacks.DebugReplayTest do
     assert {:ok, _} = GameServer.seek(id, 1)
     {:ok, %{game: game, debug: %{at: 1}}} = GameServer.get(id)
     assert game == replay_prefix(bundle, 1)
+  end
+
+  test "the seat the browser takes is no bot (round 29)" do
+    bundle = bundle()
+    {:ok, id} = GameServer.start_from_bundle(bundle, token: "dev", seat: 1)
+    {:ok, table} = GameServer.get(id)
+
+    assert table.bots == %{}
+    assert {:ok, 1} = GameServer.claim_seat(id, "dev")
   end
 
   test "frozen bots do not act until unfrozen" do
@@ -56,10 +65,14 @@ defmodule Quacks.DebugReplayTest do
     refute_receive {:game, ^id, _}, 50
     {:ok, %{game: ^after_draw}} = GameServer.get(id)
 
+    # Unfrozen, the bot brews in one go once the human stops (round 36).
     :ok = GameServer.set_frozen(id, false)
     assert_receive {:game, ^id, _}
+    {:ok, _} = GameServer.apply(id, 0, :stop)
     assert_receive {:game, ^id, %Game{} = game}, 500
-    assert length(game.log) > length(after_draw.log)
+
+    assert Enum.count(game.log, &match?({1, :draw}, &1)) >
+             Enum.count(after_draw.log, &match?({1, :draw}, &1))
   end
 
   test "a normal table is not a debug table; a bad bundle is refused" do

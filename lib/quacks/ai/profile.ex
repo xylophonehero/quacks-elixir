@@ -1,7 +1,9 @@
 defmodule Quacks.AI.Profile do
   @moduledoc """
   How a bot plays, as data (`docs/research/ai-opponents.md` §3.2). `get/1` returns one
-  of three profiles: `:cautious`, `:balanced`, `:reckless`.
+  of four profiles: `:cautious`, `:balanced`, `:reckless` and `:expert` (round 43: the
+  tuned weights of `priv/bots/tuned.json`, `Quacks.AI.Expert`; the table bots play
+  it).
 
   - `max_bust`: per round, the highest chance of an explosion at which the bot still
     draws. `margin_shift` moves it up per VP behind the best other player (down when
@@ -26,7 +28,9 @@ defmodule Quacks.AI.Profile do
     (`Quacks.AI.Choice`, a static value table).
   """
 
-  @type name :: :cautious | :balanced | :reckless
+  alias Quacks.AI.{Expert, Weights}
+
+  @type name :: :cautious | :balanced | :reckless | :expert
   @type t :: %__MODULE__{
           name: name,
           bot_name: String.t(),
@@ -83,12 +87,17 @@ defmodule Quacks.AI.Profile do
     flask_cost: 2.0
   ]
 
-  @names %{cautious: "Careful Clara", balanced: "Steady Sam", reckless: "Bold Bruno"}
-  @labels %{cautious: "Cautious", balanced: "Balanced", reckless: "Reckless"}
+  @names %{
+    cautious: "Careful Clara",
+    balanced: "Steady Sam",
+    reckless: "Bold Bruno",
+    expert: "Expert Esme"
+  }
+  @labels %{cautious: "Cautious", balanced: "Balanced", reckless: "Reckless", expert: "Expert"}
 
-  @doc "Every profile name, from careful to bold."
+  @doc "Every profile name, from careful to bold, then the tuned `:expert`."
   @spec all() :: [name]
-  def all, do: [:cautious, :balanced, :reckless]
+  def all, do: [:cautious, :balanced, :reckless, :expert]
 
   @doc "The bot's display name per profile, e.g. `%{balanced: \"Steady Sam\", ...}`."
   @spec names() :: %{name => String.t()}
@@ -100,10 +109,13 @@ defmodule Quacks.AI.Profile do
 
   @doc "The profile called `name`."
   @spec get(name) :: t
+  def get(:expert), do: Expert.profile()
+
   def get(name), do: %{fields(name) | name: name, bot_name: @names[name], label: @labels[name]}
 
   @variants %{
     "ev" => [stop_rule: :ev],
+    "strong" => [stop_rule: :ev, choice_rule: :scored],
     "flaskev" => [flask_rule: :ev],
     "random" => [choice_rule: :random],
     "scored" => [choice_rule: :scored],
@@ -115,8 +127,9 @@ defmodule Quacks.AI.Profile do
 
   @doc """
   A profile from text, for the simulator: a name with `+` modifiers, e.g.
-  `"balanced+ev+flaskev"` (`ev`, `flaskev`, `random`, `scored`, `d1`..`d5` for
-  `ev_depth`). The struct's `name` is the whole text as an atom, so the simulator
+  `"balanced+ev+flaskev"` (`ev`, `flaskev`, `random`, `scored`, `strong` (`ev` and
+  `scored`), `d1`..`d5` for `ev_depth`). `"file:priv/bots/tuned.json"` loads a
+  weights file (`Quacks.AI.Weights`). The struct's `name` is the whole text as an atom, so the simulator
   tells the variants apart.
 
       iex> {:ok, p} = Quacks.AI.Profile.parse("balanced+ev")
@@ -124,6 +137,8 @@ defmodule Quacks.AI.Profile do
       {:"balanced+ev", :ev, :heuristic}
   """
   @spec parse(String.t()) :: {:ok, t} | {:error, String.t()}
+  def parse("file:" <> path), do: Weights.load(String.trim(path))
+
   def parse(text) do
     [base | mods] = text |> String.trim() |> String.split("+")
     known = Map.new(all(), &{Atom.to_string(&1), &1})

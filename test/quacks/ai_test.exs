@@ -5,7 +5,7 @@ defmodule Quacks.AITest do
   import Quacks.GameHelpers
 
   alias Quacks.AI
-  alias Quacks.AI.{Names, Odds, Profile, Sim}
+  alias Quacks.AI.{Names, Odds, Profile, Sim, Weights}
   alias Quacks.Game
 
   doctest AI
@@ -37,8 +37,43 @@ defmodule Quacks.AITest do
     end
   end
 
-  test "Profile has three named profiles" do
-    assert Profile.all() == [:cautious, :balanced, :reckless]
+  describe "Odds counts (round 29: the risk setting's 3/14)" do
+    test "bust_count/3 gives the bad whites and the bag size" do
+      bag = [{:white, 1}, {:white, 1}, {:white, 1}, {:white, 3}, {:green, 1}]
+      assert Odds.bust_count(bag, 5, 7) == {1, 5}
+      assert Odds.bust_count(bag, 7, 7) == {4, 5}
+      assert Odds.bust_count([], 7, 7) == {0, 0}
+    end
+
+    test "next_draw_count/2 matches next_draw/2" do
+      game =
+        Game.new(seed: @seed, fortune: false)
+        |> force_draws([{:white, 3}, {:white, 2}])
+        |> put(bag: [{:white, 3}, {:white, 1}, {:orange, 1}])
+
+      assert Odds.next_draw_count(game, 0) == {1, 3}
+      assert Odds.next_draw(game, 0) == 1 / 3
+    end
+  end
+
+  # Round 43 (Nick): the table bots play the tuned weights of priv/bots/tuned.json.
+  test "the expert profile is the tuned weights file" do
+    {:ok, tuned} = Weights.load("priv/bots/tuned.json")
+    expert = Profile.get(:expert)
+
+    assert %Profile{name: :expert, label: "Expert"} = expert
+
+    assert %{expert | name: :tuned, bot_name: nil, label: nil} == %{
+             tuned
+             | bot_name: nil,
+               label: nil
+           }
+
+    assert {expert.stop_rule, expert.choice_rule} == {:ev, :scored}
+  end
+
+  test "Profile has four named profiles" do
+    assert Profile.all() == [:cautious, :balanced, :reckless, :expert]
     assert Profile.names().balanced == "Steady Sam"
 
     assert %Profile{name: :reckless, bot_name: "Bold Bruno", label: "Reckless"} =
@@ -74,6 +109,42 @@ defmodule Quacks.AITest do
 
     full = game |> force_draws([{:white, 3}, {:white, 3}])
     assert action(put(full, phase: :blue_choice, pending: [{:white, 2}])) == :return_all
+  end
+
+  describe "crow skull offer of a white" do
+    # White 3 and white 1 in the pot (4), the blue 1 drew a white 2.
+    defp white_offer(round, bag) do
+      Game.new(seed: @seed, fortune: false)
+      |> force_draws([{:white, 3}, {:white, 1}])
+      |> put(round: round, phase: :blue_choice, pending: [{:white, 2}], bag: bag)
+    end
+
+    test "goes back when it makes the next draw riskier, even within the policy" do
+      # At 4 nothing in the bag explodes; at 6 the other white 2 does (1 in 4).
+      game = white_offer(3, [{:white, 2}, {:white, 1}, {:orange, 1}, {:green, 1}])
+      for name <- Profile.all(), do: assert(action(game, 0, name) == :return_all)
+    end
+
+    test "goes in when the next draw is as safe without it" do
+      game = white_offer(3, [{:white, 1}, {:orange, 1}, {:green, 1}])
+      assert action(game) == {:place, {:white, 2}}
+    end
+
+    test "goes in when the bot stops anyway: its spaces are free" do
+      # White 3 and white 2 in the pot (5), a white 1 offered: 2 in 4 explode
+      # without it, 3 in 4 with it; the cautious bot stops at either in round 9.
+      game =
+        Game.new(seed: @seed, fortune: false)
+        |> force_draws([{:white, 3}, {:white, 2}])
+        |> put(
+          round: 9,
+          phase: :blue_choice,
+          pending: [{:white, 1}],
+          bag: [{:white, 3}, {:white, 3}, {:white, 2}, {:orange, 1}]
+        )
+
+      assert action(game, 0, :cautious) == {:place, {:white, 1}}
+    end
   end
 
   test "explosion: coins early, VP late, always VP in round 9" do

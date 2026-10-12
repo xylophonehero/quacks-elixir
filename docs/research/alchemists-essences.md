@@ -294,7 +294,7 @@ the fortune teller cards can only be used with "The Herb Witches" or "The Alchem
 extension. You will recognize these cards by the symbol at the bottom right. Cards not bearing a
 symbol can also be used with the basic game without any of the game extensions."
 
-**The card texts are not in the rulebook and could not be found online.** A6 gives the 20 German
+**Superseded (2026-10-11): the full English texts of all 20 cards are in `alchemists-fortune-cards.md`, read from the real card faces (Nick's TTS mod).** The card texts are not in the rulebook. A6 gives the 20 German
 titles, transcribed from the box; the original poster says 6 cards carry an expansion symbol. A7
 says: "Cards making reference to purple and yellow chips, or to Essence, are only available if they
 are in play; otherwise draw again." English titles below are our translation, not the official ones.

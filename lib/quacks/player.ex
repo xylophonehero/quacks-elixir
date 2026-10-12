@@ -3,6 +3,10 @@ defmodule Quacks.Player do
   One seat at the table: the bag, the pot, the resources and the player's own state
   inside the potions phase. `Quacks.Game` keeps one per seat in `players`.
 
+  `rat_stone` is how far the rat stone moved past the droplet at round start;
+  `mods.rat_end` is its space once the round's first chip is in the pot (nil before),
+  so a later droplet move does not move it.
+
   `phase` is the player's own state while the game is in `:potions` or `:shopping`,
   and marks the seats that still answer in the concurrent choice phases
   (`:fortune_choice`, `:chip_choice`, `:witch_choice`).
@@ -30,8 +34,9 @@ defmodule Quacks.Player do
   above 0, `Quacks.Game.phase/2` is `:droplet_choice`.
 
   `bowl` is the overflow bowl (The Herb Witches): chips drawn after a chip sits on the
-  last space (53), newest first. They have no action and are not in the pot, but white
-  bowl chips count toward the explosion. They go back in the bag at the end of the round.
+  last space (52; the spoon, 53, is never covered), newest first. They have no action
+  and are not in the pot, but white bowl chips count toward the explosion. They go back
+  in the bag at the end of the round.
 
   The Alchemists (`Quacks.Game.Essence`): `patient` is the seat's patient (nil until
   chosen), `essence` the essence marker (0..10; set in the essence phase, spent by
@@ -72,7 +77,13 @@ defmodule Quacks.Player do
             essence: 0,
             essence_pending: nil,
             display: [],
-            mods: %{explode_above: 0, next_chip_x2: false, white1_plus1: false, protect: 0}
+            mods: %{
+              explode_above: 0,
+              next_chip_x2: false,
+              white1_plus1: false,
+              protect: 0,
+              rat_end: nil
+            }
 
   @type phase ::
           :potions
@@ -168,7 +179,8 @@ defmodule Quacks.Player do
           explode_above: 0 | 8 | 9,
           next_chip_x2: boolean,
           white1_plus1: boolean,
-          protect: non_neg_integer
+          protect: non_neg_integer,
+          rat_end: non_neg_integer | nil
         }
 
   @doc "A player at the start of the game with `bag`."

@@ -133,7 +133,7 @@ defmodule Quacks.AI.Expectimax do
   end
 
   defp outcome({whites, coloured, index, sum}, {:white, w}, depth, ctx, memo) do
-    index = min(index + w, PotTrack.last())
+    index = PotTrack.chip_index(index + w)
 
     if sum + w > ctx.limit,
       do: {explosion(index, ctx), memo},
@@ -141,7 +141,7 @@ defmodule Quacks.AI.Expectimax do
   end
 
   defp outcome({whites, coloured, index, sum}, {:coloured, v}, depth, ctx, memo) do
-    index = min(index + v, PotTrack.last())
+    index = PotTrack.chip_index(index + v)
     best({whites, take(coloured, v), index, sum}, depth - 1, ctx, memo)
   end
 

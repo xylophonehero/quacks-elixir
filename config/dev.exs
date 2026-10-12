@@ -45,6 +45,9 @@ config :quacks, QuacksWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :quacks, dev_routes: true
 
+# The gallery and the scenarios, `/dev/gallery` (`QuacksWeb.Plugs.Gallery`).
+config :quacks, gallery: true
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
 

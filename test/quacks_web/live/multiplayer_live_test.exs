@@ -33,7 +33,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
 
     alice |> element("button", "Start game") |> render_click()
     assert {:ok, %{status: :playing}} = GameServer.get(id)
-    assert has_element?(bob, "button", "Draw a chip")
+    assert has_element?(bob, "button[data-slot=draw]", "Draw")
   end
 
   test "a page closed before the start frees its seat" do
@@ -61,8 +61,8 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "brewing")
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=player-state]), "brewing")
 
-    alice |> element("button", "Draw a chip") |> render_click()
-    bob |> element("button", "Draw a chip") |> render_click()
+    alice |> element("button[data-slot=draw]") |> render_click()
+    bob |> element("button[data-slot=draw]") |> render_click()
     # Alice's draw reached Bob's page through PubSub
     assert has_element?(bob, ~s(article[data-seat="0"] [data-role=pot-chip]))
     assert has_element?(bob, "li", ~r/^Player 1: Drew white \d/)
@@ -84,7 +84,7 @@ defmodule QuacksWeb.MultiplayerLiveTest do
       # everyone shops at once, each in their own shop dialog
       refute has_element?(view, "[data-role=turn]")
       assert has_element?(view, "dialog#decision-shop")
-      assert has_element?(view, "[data-role=shop-done]")
+      assert has_element?(view, "[data-role=shop-buy]")
     end
 
     refute has_element?(bob, "button", "Undo")
@@ -94,14 +94,15 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     # both get the round results: each its own reveal overlay (round 14), and the
     # replay plays on the name cards (round 12: no update chips)
     for view <- [alice, bob] do
-      assert has_element?(view, "dialog#reveal-results-1 [data-role=reveal-slide]")
+      assert has_element?(view, "#tile-stage")
       refute has_element?(view, "[data-role=update-chip]")
     end
 
     assert has_element?(bob, ~s([data-role=player-chip][popovertarget="sheet-player-0"]))
 
     # bob is done shopping first (1 ruby: nothing to spend, so he is ready at once)
-    bob |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(bob, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     refute has_element?(bob, "[data-role=turn]")
     assert has_element?(alice, "dialog#decision-shop")
   end

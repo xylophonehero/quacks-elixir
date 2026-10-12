@@ -14,7 +14,7 @@ defmodule QuacksWeb.Replay do
   """
 
   alias Quacks.Game
-  alias QuacksWeb.GameComponents
+  alias QuacksWeb.GameText
 
   @typedoc "What a line concerns on the pot: a chip's space index or a marker."
   @type mark :: non_neg_integer | :droplet | :ring | :essence
@@ -213,7 +213,7 @@ defmodule QuacksWeb.Replay do
 
     %{
       beat: beat,
-      text: GameComponents.label(entry),
+      text: GameText.label(entry),
       kind: kind,
       vp: vp,
       rubies: rubies,

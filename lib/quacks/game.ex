@@ -72,9 +72,10 @@ defmodule Quacks.Game do
 
   @rounds 9
 
-  # Reverse pot side (round 18): in the evaluation's choice phases a seat's droplet
-  # moves wait; they come in the shop, after the round's results are logged.
-  @droplets_wait [:chip_choice, :witch_choice]
+  # Reverse pot side (round 18): in the gold witches' phase a seat's droplet moves
+  # wait; they come in the shop. Round 35: in the chip actions' choices they come
+  # first (rulebook §3.2 B: black, then green and purple; the die before them all).
+  @droplets_wait [:witch_choice]
   # Rulebook §4: yellow enters the shop in round 2, purple in round 3.
   @from_round %{yellow: 2, purple: 3}
   # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
@@ -87,6 +88,7 @@ defmodule Quacks.Game do
     explode_above: 5..9,
     round6_white: [true, false],
     fortune: [true, false],
+    alch_cards: [true, false],
     rats: [true, false],
     black_solo: [:droplet, :droplet_ruby],
     black_rule: [:neighbours, :standings],
@@ -100,6 +102,7 @@ defmodule Quacks.Game do
     explode_above: 7,
     round6_white: true,
     fortune: true,
+    alch_cards: true,
     rats: true,
     black_solo: :droplet,
     black_rule: :neighbours,
@@ -124,6 +127,8 @@ defmodule Quacks.Game do
             expansion: nil,
             expansions: MapSet.new(),
             witches: nil,
+            visitor: nil,
+            visited: [],
             patients: nil
 
   @type seat :: 0..4
@@ -145,6 +150,15 @@ defmodule Quacks.Game do
           | :keep
           | {:place, Chips.chip()}
           | :return_all
+          | :bundle
+          | :rats
+          | :rolls
+          | {:cherish, 1..3}
+          | {:penny, WitchCards.colour()}
+          | {:swap, Chips.chip()}
+          | {:gift, :white | :chip}
+          | :keep
+          | :return_white3
           | {:explosion_choice, :vp | :buy}
           | {:buy, [Chips.chip()]}
           | {:rubies, :droplet | :tube | :flask | :vp | :skip}
@@ -154,8 +168,8 @@ defmodule Quacks.Game do
           | {:red, {:place | :keep | :return, Chips.chip()}}
           | {:chip, chip_choice}
           | :chip_done
-          | {:witch, WitchCards.colour()}
-          | {:witch, WitchCards.colour(), term}
+          | {:witch, WitchCards.colour() | :visit}
+          | {:witch, WitchCards.colour() | :visit, term}
           | :witch_done
           | {:patient, Alchemists.id()}
           | {:essence, essence_choice}
@@ -267,7 +281,9 @@ defmodule Quacks.Game do
   @typedoc """
   What happened, newest first. Player events are tagged with their seat; the only
   game-wide entries are `{:expansion, x}` (the first entries of an expansion game, The
-  Herb Witches first), `{:patients, ids}` (The Alchemists' deal), `{:fortune_drawn, id}` and `{:fortune_skipped, id}` at the start of a round and
+  Herb Witches first), `{:patients, ids}` (The Alchemists' deal), `{:fortune_drawn, id}` and `{:fortune_skipped, id}` at the start of a round,
+  `{:visitor, id}` (AB8 Visit from a witch: the witch that visits this round) and
+  `{:visitor_left, id}` (she leaves at the end of the round), and
   `{:round_end, round}`, the last event of every round.
   `Quacks.Session` replays from its own action list, not this.
   """
@@ -278,6 +294,8 @@ defmodule Quacks.Game do
           | {:patients, [Alchemists.id()]}
           | {:fortune_drawn, Quacks.Rules.Fortune.id()}
           | {:fortune_skipped, Quacks.Rules.Fortune.id()}
+          | {:visitor, WitchCards.id()}
+          | {:visitor_left, WitchCards.id()}
   @type t :: %__MODULE__{
           round: 1..9,
           phase: phase,
@@ -293,6 +311,8 @@ defmodule Quacks.Game do
           expansion: nil | :herb_witches,
           expansions: MapSet.t(expansion),
           witches: nil | %{WitchCards.colour() => WitchCards.id()},
+          visitor: nil | WitchCards.id(),
+          visited: [seat],
           patients: nil | [Alchemists.id()]
         }
   @type expansion :: :herb_witches | :alchemists
@@ -308,11 +328,16 @@ defmodule Quacks.Game do
   `:limited` plays with the box's counts. `overflow: true` (default) puts chips past
   the last space in the overflow bowl; `false` keeps them on the last space.
   `pot_side: :back` plays the reverse side of the pot (the test-tube track).
+  `alch_cards: true` (default) adds the Fortune Teller cards of The Alchemists box to
+  the deck: its 14 general cards in every game, its expansion cards when their
+  expansion is in play (see `Quacks.Rules.Fortune.ids/2`); `false` plays the 24 base
+  cards only.
   """
   @type rules :: %{
           explode_above: 5..9,
           round6_white: boolean,
           fortune: boolean,
+          alch_cards: boolean,
           rats: boolean,
           black_solo: :droplet | :droplet_ruby,
           black_rule: :neighbours | :standings,
@@ -380,7 +405,10 @@ defmodule Quacks.Game do
         else: box
 
     rng = :rand.seed_s(:exsss, seed)
-    deck = if rules.fortune, do: Fortune.deck(rng, n), else: []
+
+    deck =
+      if rules.fortune, do: Fortune.deck(rng, n, expansions, rules.alch_cards), else: []
+
     player = %{Player.new(bag) | rubies: rules.starting_rubies}
 
     player =
@@ -538,8 +566,8 @@ defmodule Quacks.Game do
   def legal_actions(%__MODULE__{players: players}, seat) when not is_map_key(players, seat),
     do: []
 
-  # Reverse pot side: a waiting droplet move comes first, in any phase but the
-  # evaluation's choices (round 18: they wait for the shop, after the reveal).
+  # Reverse pot side: a waiting droplet move comes first, in any phase but the gold
+  # witches' (`@droplets_wait`).
   def legal_actions(%__MODULE__{phase: phase, players: players} = g, seat) when phase != :over do
     case players[seat] do
       %Player{droplet_moves: n} when n > 0 and phase not in @droplets_wait ->
@@ -593,9 +621,11 @@ defmodule Quacks.Game do
       else: []
   end
 
-  # Two steps: first the buy (once, not in round 9), then the rubies and "Done". The
-  # rubies come last, never before the buy (`{:buy, []}` buys nothing). A seat whose
-  # coins buy nothing starts at the rubies ("buy nothing" stays legal). Witches in both.
+  # Two steps: first the buy (once, not in round 9), then the rubies and "Done"
+  # (`{:buy, []}` buys nothing). A seat whose coins buy nothing starts at the rubies
+  # ("buy nothing" stays legal). Witches in both. Round 35: the ruby uses are legal
+  # in the buy step too (rulebook F after E, but coins and rubies do not pay for each
+  # other's step): the page asks for them before the round's last results step.
   defp phase_actions(%__MODULE__{phase: :shopping} = g, seat) do
     case player(g, seat) do
       %Player{phase: :shop} = p ->
@@ -606,7 +636,8 @@ defmodule Quacks.Game do
           do:
             Enum.map(buys, &{:buy, &1}) ++
               ruby_actions(g, p) ++ Witches.legal_actions(g, seat) ++ [:end_round],
-          else: Enum.map(buys, &{:buy, &1}) ++ Witches.legal_actions(g, seat)
+          else:
+            Enum.map(buys, &{:buy, &1}) ++ ruby_actions(g, p) ++ Witches.legal_actions(g, seat)
 
       %Player{phase: :ready} ->
         []
@@ -614,11 +645,14 @@ defmodule Quacks.Game do
   end
 
   # Round 9: 2 rubies buy 1 VP; droplet and flask are worth nothing any more.
-  defp ruby_actions(%{round: @rounds}, %Player{rubies: rubies}),
-    do: if(rubies >= 2, do: [{:rubies, :vp}], else: [])
+  # Round 37: on the reverse pot side a test-tube glass too (its bonus can be VP).
+  defp ruby_actions(%{round: @rounds} = g, %Player{rubies: rubies, ruby_price: price} = p) do
+    if(rubies >= 2, do: [{:rubies, :vp}], else: []) ++
+      if(tube?(g, p) and rubies >= price, do: [{:rubies, :tube}], else: [])
+  end
 
   defp ruby_actions(g, %Player{rubies: rubies, flask: flask, ruby_price: price} = p) do
-    tube? = g.rules.pot_side == :back and p.tube < TestTubes.last()
+    tube? = tube?(g, p)
 
     if rubies >= price,
       do:
@@ -627,6 +661,9 @@ defmodule Quacks.Game do
           if(flask, do: [], else: [{:rubies, :flask}]),
       else: []
   end
+
+  # The test-tube droplet can still move (reverse pot side, not on the last glass).
+  defp tube?(g, p), do: g.rules.pot_side == :back and p.tube < TestTubes.last()
 
   @doc false
   # The seat may still buy chips (and use the copper witches C1, C3): before round 9,
@@ -709,8 +746,11 @@ defmodule Quacks.Game do
 
   # -- shopping: every seat at once, all in one step ----------------------------------
 
-  defp step(%{phase: :shopping} = g, seat, {:buy, chips}),
-    do: g |> buy(seat, chips) |> done_buying(seat)
+  defp step(%{phase: :shopping} = g, seat, {:buy, chips}) do
+    free = Fortune.sale(g, chips)
+    g = Enum.reduce(free, g, &record(&2, seat, {:fortune, :ab2, {:free, &1}}))
+    g |> buy(seat, chips, free) |> done_buying(seat)
+  end
 
   defp step(%{phase: :shopping} = g, seat, {:rubies, :vp}) do
     g
@@ -798,11 +838,11 @@ defmodule Quacks.Game do
     do: phase in [:potions, :yellow_choice, :blue_choice, :chip_choice, :essence_offer]
 
   defp end_round(%{round: @rounds} = g),
-    do: record(%{g | phase: :over}, {:round_end, @rounds})
+    do: g |> Witches.leave() |> Map.put(:phase, :over) |> record({:round_end, @rounds})
 
   defp end_round(g) do
     round = g.round + 1
-    g = record(g, {:round_end, g.round})
+    g = g |> Witches.leave() |> record({:round_end, g.round})
 
     g =
       Enum.reduce(g.seats, g, fn seat, g ->
@@ -816,17 +856,21 @@ defmodule Quacks.Game do
     start_round(%{g | round: round, phase: :potions})
   end
 
-  # Rulebook §3 steps 1–2: the Fortune Teller card, the rats, then the purple card.
-  # The Alchemists: a rat-tail glass adds to the rats; Nervousness lays out its chips.
+  # Rulebook §3 steps 1–2: the Fortune Teller card, then the rats. A purple card's
+  # VP (its choices included) count for the rats, so `Fortune.resolve/1` places them
+  # once the card is through (`rats/1`); only the cards about the rats (Infestation,
+  # Good Start) find them placed first (round 28). Nervousness lays out its chips.
   @doc false
   def start_round(g) do
     g
     |> Fortune.draw()
-    |> place_rats()
-    |> Essence.rats()
     |> Fortune.resolve()
     |> Essence.display()
   end
+
+  @doc false
+  # The round's rats; The Alchemists: a rat-tail glass adds to them.
+  def rats(g), do: g |> place_rats() |> Essence.rats()
 
   # Rulebook §7: 5 coins or 2 rubies buy 1 VP, as often as you like. Whatever the seat
   # still has at its round-9 "Done" converts by itself.

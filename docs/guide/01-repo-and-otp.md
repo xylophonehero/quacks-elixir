@@ -39,7 +39,7 @@ The split between `lib/quacks` and `lib/quacks_web` is the most important line i
 the repo. `lib/quacks` does not know that a browser exists. `lib/quacks_web` does
 not know a single game rule. Phoenix generated this split; the project keeps it
 strict, with one known exception: `Quacks.BugReports` borrows the log wording from
-`QuacksWeb.GameComponents` (chapter 4).
+the component modules (`lib/quacks_web/components/`) (chapter 4).
 
 ## What "OTP app" means
 

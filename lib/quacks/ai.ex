@@ -24,6 +24,10 @@ defmodule Quacks.AI do
   @shift_cap 0.10
   # The phases that `choice_rule` decides.
   @choices [:fortune_choice, :chip_choice, :witch_choice, :essence_choice]
+  @scored_cards [:ap1, :ap3, :ap4, :ap6, :ap7, :ap8, :ap9, :ap10, :ab1]
+  # AB8 Visit from a witch: the visiting witches whose free call only gains (no
+  # explosion penalty, double coins, coins for rubies). The bot calls them at once.
+  @free_gains [:s4, :c2, :c4]
 
   @doc """
   The bot's own rng for `seat` in a game with seed `seed`; separate from the game rng.
@@ -56,7 +60,7 @@ defmodule Quacks.AI do
   defp choose(:potions, ctx, rng), do: {potions(ctx), rng}
   defp choose(:yellow_choice, _ctx, rng), do: {:return_white, rng}
   defp choose(:blue_choice, ctx, rng), do: {blue(ctx), rng}
-  defp choose(:explosion_choice, ctx, rng), do: {explosion(ctx), rng}
+  defp choose(:explosion_choice, ctx, rng), do: {free_visit(ctx) || explosion(ctx), rng}
 
   defp choose(:red_choice, ctx, rng),
     do: {first(ctx.legal, &match?({:red, {:place, _}}, &1)), rng}
@@ -69,12 +73,19 @@ defmodule Quacks.AI do
 
   defp choose(:chip_choice, ctx, rng), do: {first(ctx.legal, &(&1 != :chip_done)), rng}
   defp choose(:witch_choice, ctx, rng), do: {first(ctx.legal, &(&1 != :witch_done)), rng}
+  # The Alchemists box cards: the scored pick (their choices have a price).
+  defp choose(:fortune_choice, %{game: %{fortune_card: id}} = ctx, rng)
+       when id in @scored_cards,
+       do: {Choice.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
+
   defp choose(:fortune_choice, ctx, rng), do: random(undominated(ctx), rng)
   # Reverse pot side: the test tube while it is legal (until glass 12), else the pot.
   defp choose(:droplet_choice, ctx, rng),
     do: {first(ctx.legal, &(&1 == {:droplet, :tube})) || hd(ctx.legal), rng}
 
-  defp choose(:shop, ctx, rng), do: {Shop.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
+  defp choose(:shop, ctx, rng),
+    do: {free_visit(ctx) || Shop.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
+
   defp choose(:patient_choice, ctx, rng), do: {patient(ctx.legal), rng}
   defp choose(:essence_choice, ctx, rng), do: {Enum.max_by(ctx.legal, &space/1), rng}
   defp choose(:essence_bonus, ctx, rng), do: {essence_bonus(ctx), rng}
@@ -83,6 +94,11 @@ defmodule Quacks.AI do
     do: {first(ctx.legal, &(&1 == {:essence, :hump})) || {:essence, :pass}, rng}
 
   defp choose(_phase, ctx, rng), do: {hd(ctx.legal), rng}
+
+  defp free_visit(%{game: %{visitor: id}, legal: legal}) when id in @free_gains,
+    do: if({:witch, :visit} in legal, do: {:witch, :visit})
+
+  defp free_visit(_ctx), do: nil
 
   # -- potions: draw or stop ----------------------------------------------------------
 
@@ -120,9 +136,12 @@ defmodule Quacks.AI do
   defp white_return(%{game: game, seat: seat, legal: legal} = ctx) do
     case last_chip(Game.player(game, seat)) do
       {:white, w} ->
+        # B10 and AB5 return the white for free.
+        free = Enum.find(legal, &(&1 in [{:fortune, :return_white}, {:fortune, :return_white3}]))
+
         cond do
-          {:fortune, :return_white} in legal and again?(ctx, w, 0.0) ->
-            {:fortune, :return_white}
+          free != nil and again?(ctx, w, 0.0) ->
+            free
 
           :use_flask in legal and flask?(ctx, w) ->
             :use_flask
@@ -166,17 +185,37 @@ defmodule Quacks.AI do
 
   # -- on-draw choices ----------------------------------------------------------------
 
-  # Blue: the coloured chip that moves furthest; a white only when it cannot explode.
-  defp blue(%{game: game, seat: seat, legal: legal}) do
+  # Blue: the coloured chip that moves furthest; a white only when it cannot explode
+  # and (round 41) it adds no risk: the next draw's bust chance stays as it is, or
+  # the bot stops anyway. Else the white goes back (the bag keeps it either way).
+  defp blue(%{game: game, seat: seat, legal: legal} = ctx) do
     room = Potions.explode_above(game, seat) - Game.white_sum(game, seat)
     places = for {:place, chip} <- legal, do: chip
     {whites, coloured} = Enum.split_with(places, &match?({:white, _}, &1))
-    safe = Enum.filter(whites, fn {:white, w} -> w <= room end)
+    safe = Enum.filter(whites, fn {:white, w} -> w <= room and no_risk?(ctx, {:white, w}) end)
 
     case Enum.sort_by(coloured, &elem(&1, 1), :desc) ++ Enum.sort_by(safe, &elem(&1, 1), :desc) do
       [] -> :return_all
       [chip | _] -> {:place, chip}
     end
+  end
+
+  # Placing `chip` adds no risk: the next draw is as safe as without it, or the bot
+  # would stop without it too (then the chip's spaces are free).
+  defp no_risk?(%{game: game, seat: seat} = ctx, chip) do
+    with {:ok, placed} <- Game.apply(game, seat, {:place, chip}),
+         {:ok, back} <- Game.apply(game, seat, :return_all) do
+      Odds.next_draw(placed, seat) <= Odds.next_draw(back, seat) or not draws?(ctx, back)
+    else
+      _ -> false
+    end
+  end
+
+  defp draws?(%{seat: seat} = ctx, game) do
+    p = Odds.next_draw(game, seat)
+
+    Game.phase(game, seat) == :potions and :draw in Game.legal_actions(game, seat) and
+      (p == 0 or draw?(%{ctx | game: game}, p))
   end
 
   # Coins (a buy) early, VP late; round 9 always VP.

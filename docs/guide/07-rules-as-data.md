@@ -12,7 +12,7 @@ The `Quacks.Game.*` modules hold the logic that reads them.
 | `Quacks.Rules.ScoringTrack` | where the rat tails are | `place_rats/1` |
 | `Quacks.Rules.Chips` | prices per set, the supply, the starting bag, the board order | the shop, `Game.new/1`, every chip list in the UI |
 | `Quacks.Rules.Books` | the book texts, triggers, tiers | the UI only |
-| `Quacks.Rules.Fortune` | 24 card names and texts | `Game.Fortune`, the UI |
+| `Quacks.Rules.Fortune` | 44 card names and texts (24 base, 20 of The Alchemists box with their expansion symbol), the deck filter `ids/2` | `Game.Fortune`, the UI |
 | `Quacks.Rules.Witches` | 12 witch cards, the deal | `Game.Witches`, the UI |
 | `Quacks.Rules.TestTubes` | the 12 glass bonuses | reverse pot side |
 | `Quacks.Rules.Alchemists` | 8 patients, their essence slots, the deal | `Game.Essence`, the UI |
@@ -64,7 +64,9 @@ A tuple, not a list: `elem/2` reads index `n` in constant time; `Enum.at/2` on a
 walks `n` elements.
 
 Attributes are private to the module. Other modules call a function:
-`PotTrack.last/0`, `Chips.starting_bag/0`. A function also lets the module change its
+`PotTrack.last/0`, `Chips.starting_bag/0`. Round 37: `PotTrack.last_chip/0` (52)
+is the last space a chip covers and `PotTrack.chip_index/1` clamps a move to it;
+`last/0` (53, the spoon) stays the last scoring space, what a chip on 52 pays. A function also lets the module change its
 storage later without breaking callers.
 
 ### Code in an attribute runs at compile time
@@ -154,7 +156,7 @@ like `sort((a, b) => a.colourIndex - b.colourIndex || a.value - b.value)` in JS.
 The readers: `Books.in_play/2` (`lib/quacks/rules/books.ex:261-274`), the shop rows
 and the chip picks in `GameLive` (`lib/quacks_web/live/game_live.ex:2199-2208` and
 `chip_order/1`, line 2416), the bag counts (`chip_counts/1`,
-`lib/quacks_web/components/game_components.ex:976-977`) and the spell book's
+`lib/quacks_web/components/pot_components.ex`) and the spell book's
 book tiles (`SetupComponents.book_colours/0`,
 `lib/quacks_web/components/setup_components.ex:404`). To change the order, change one
 line; the doctests show the new order.
@@ -221,7 +223,7 @@ tuple, glass 0 to 12 (`lib/quacks/rules/test_tubes.ex:12-14`):
 
 `bonus/1` is `elem(@glasses, glass)` and `last/0` is `tuple_size(@glasses) - 1`, so
 the end of the track follows the data. The engine (`Game.move_droplet/3`,
-chapter 2) and the pot component (`lib/quacks_web/components/game_components.ex:471`)
+chapter 2) and the pot component (`lib/quacks_web/components/pot_components.ex`)
 both read `TestTubes.last()`, never a literal 12.
 
 ## House rules are data too

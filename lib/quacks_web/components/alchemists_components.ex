@@ -8,7 +8,8 @@ defmodule QuacksWeb.AlchemistsComponents do
   use Phoenix.Component
 
   import QuacksWeb.Icons, only: [patient_icon: 1, piece_icon: 1]
-  import QuacksWeb.GameComponents, only: [chip: 1, chip_name: 1, seat_colour: 1]
+  import QuacksWeb.ChipComponents, only: [chip: 1, seat_colour: 1]
+  import QuacksWeb.GameText, only: [chip_name: 1]
 
   alias Quacks.Game
   alias Quacks.Game.Essence
@@ -22,7 +23,8 @@ defmodule QuacksWeb.AlchemistsComponents do
   wooden shelf, filled in the seat colour up to the essence marker, a big filled
   vial with its number. Under the shelf each space shows what its glass pays
   (`glass_rewards/1`). `:lg` (above your pot) starts with the patient badge, a
-  button for `#sheet-patient`; `:sm` sits in the player sheet's patient block
+  button for `#sheet-patient` (round 35: below 40rem the icon only, the name in its
+  tooltip); `:sm` sits in the player sheet's patient block
   (`patient_panel/1`). While the essence pays for actions this round, the marker
   wears a gold ring.
 
@@ -60,9 +62,10 @@ defmodule QuacksWeb.AlchemistsComponents do
         type="button"
         popovertarget="sheet-patient"
         aria-label={"Patient: #{@patient.name}"}
+        title={@patient.name}
         data-role="patient-badge"
         class={[
-          "inline-flex h-10 max-w-[8.5rem] shrink-0 items-center gap-1.5 rounded-full pr-3 pl-1",
+          "inline-flex h-10 max-w-[8.5rem] shrink-0 items-center gap-1.5 rounded-full px-1 sm:pr-3",
           "bg-iron-dark text-xs font-semibold text-parchment ring-1 ring-iron touch-manipulation",
           "transition-transform duration-150 ease-out active:scale-[0.96]"
         ]}
@@ -70,7 +73,8 @@ defmodule QuacksWeb.AlchemistsComponents do
         <span class="grid size-8 shrink-0 place-items-center rounded-full bg-(--bead) text-ink ring-1 ring-black/25">
           <.patient_icon id={@p.patient} class="size-6" />
         </span>
-        <span class="truncate">{@patient.name}</span>
+        <%!-- Round 35: phones show the icon only; the name is in the tooltip and the sheet. --%>
+        <span class="hidden truncate sm:inline" data-role="patient-name">{@patient.name}</span>
       </button>
       <div class="min-w-0 flex-1">
         <%!-- A rack of 11 vials on a wooden shelf, like the test tubes. --%>
@@ -330,7 +334,7 @@ defmodule QuacksWeb.AlchemistsComponents do
   @spec preview_space(Game.t(), Game.seat()) :: 0..10 | nil
   def preview_space(%{phase: :potions} = game, seat) do
     {_reach, parts} = Essence.count(game, seat)
-    min(parts.colours + parts.locoweed + parts.white7, Alchemists.max_space())
+    min(parts.colours + parts.locoweed + parts.white7 + parts.card, Alchemists.max_space())
   end
 
   def preview_space(_game, _seat), do: nil
@@ -564,7 +568,7 @@ defmodule QuacksWeb.AlchemistsComponents do
   def patient_picks(assigns) do
     ~H"""
     <section class="space-y-3" data-role="patient-choice">
-      <h2 class="text-xl font-bold">Choose your patient</h2>
+      <h2 class="sheet-head text-xl font-bold">Choose your patient</h2>
       <p class="text-sm text-ink-soft">
         Each round you collect essence. Your marker moves along the patient's card, and you get the bonus under the marker. Tap a patient to take it.
       </p>
@@ -607,7 +611,7 @@ defmodule QuacksWeb.AlchemistsComponents do
 
     ~H"""
     <section class="space-y-3" data-role="essence-choice">
-      <h2 class="text-xl font-bold">Essence: you reach space {@reach}</h2>
+      <h2 class="sheet-head text-xl font-bold">Essence: you reach space {@reach}</h2>
       <ul :if={@parts} class="flex flex-wrap gap-1.5 text-xs" data-role="essence-parts">
         <li :for={part <- parts_text(@parts)} class="rounded-full bg-ink/10 px-2 py-0.5 font-semibold">
           {part}
@@ -665,7 +669,8 @@ defmodule QuacksWeb.AlchemistsComponents do
       parts.locoweed > 0 && "+#{parts.locoweed} locoweed",
       parts.white7 > 0 && "+1 white 7",
       parts.neighbours > 0 &&
-        "+#{parts.neighbours} #{if parts.neighbours == 1, do: "neighbour", else: "neighbours"} exploded"
+        "+#{parts.neighbours} #{if parts.neighbours == 1, do: "neighbour", else: "neighbours"} exploded",
+      Map.get(parts, :card, 0) > 0 && "+#{parts.card} card"
     ]
     |> Enum.filter(& &1)
   end

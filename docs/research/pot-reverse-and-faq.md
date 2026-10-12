@@ -86,8 +86,12 @@ The chip colours are fixed, so the chip uses the book of the current Ingredient 
 - **End of the track:** ⚠️ not stated. After glass 12 the test-tube droplet cannot move. Propose: then
   only the pot droplet can take the move.
 - **End of game:** no end-game effect. The bonus is immediate. VP from the glasses count like any
-  other VP. In round 9 the rubies shop action is 2 rubies → 1 VP only (rulebook), so a droplet buy
-  is not offered then; a die or chip move in round 9 may still go to a glass (⚠️ our reading).
+  other VP. In round 9 the rulebook's rubies action is 2 rubies → 1 VP, and a pot droplet is worth
+  nothing then; a die or chip move in round 9 may still go to a glass (⚠️ our reading).
+  **Round 37 (Nick's decision):** in round 9 the test tube is offered beside 2 rubies → 1 VP:
+  2 rubies (the normal ruby price) move the test-tube droplet 1 glass and pay its bonus, because a
+  glass can give more VP (2, 3 or 4). The pot droplet and the flask stay off in round 9. Rubies
+  left at "Done" still convert 2 → 1 VP. ⚠️ House reading: the rulebook does not say this.
 - **Chips from glasses:** they go into the bag at once. With `supply: :limited`, no chip if the
   supply is empty (⚠️ same as other gains).
 

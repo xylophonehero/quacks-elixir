@@ -24,6 +24,7 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/quacks"
 import topbar from "../vendor/topbar"
+import {play as playSound, potSound, SoundCue, SoundReplay, SoundSettings} from "./sound"
 
 // "Report a problem" (bug_report_components.ex): keep the last 10 console errors,
 // and on submit put them with the browser details in the form's hidden field.
@@ -76,44 +77,57 @@ const loadReveal = () => {
 }
 const setBeat = speed => document.documentElement.style.setProperty("--beat-ms", beatMs[speed] || beatMs.normal)
 setBeat(loadReveal().speed)
+// Round 38: the first-time hints this browser has seen (`QuacksWeb.Tips`). They go
+// to the server with the settings below; the server sends them back (`quacks:tips`)
+// when a hint closes or the menu's Tips row changes.
+const loadTips = () => {
+  try {
+    const tips = JSON.parse(localStorage.getItem("quacks:tips"))
+    return tips && tips.v === 1 ? tips : {v: 1, seen: [], off: false}
+  } catch (_e) { return {v: 1, seen: [], off: false} }
+}
+window.addEventListener("phx:quacks:tips", e => {
+  try { localStorage.setItem("quacks:tips", JSON.stringify(e.detail)) } catch (_e) {}
+})
 const RevealSettings = {
   mounted() {
+    // Round 29: the risk beside the white meter (Off, Percent, Chips) in `quacks:risk`.
+    const loadRisk = () => { try { return localStorage.getItem("quacks:risk") || "percent" } catch (_e) { return "percent" } }
     const send = ({mode, speed}) => {
       setBeat(speed)
-      this.pushEvent("reveal_settings", {mode, speed, reduced: reduced()})
+      this.pushEvent("reveal_settings", {mode, speed, risk: loadRisk(), reduced: reduced(), tips: loadTips()})
+    }
+    const current = () => {
+      const saved = loadReveal()
+      return {mode: saved.mode || "auto", speed: saved.speed || "normal"}
     }
     this.el.addEventListener("change", () => {
       const form = new FormData(this.el)
-      const settings = {mode: form.get("mode") || "step", speed: form.get("speed") || "normal"}
-      try { localStorage.setItem("quacks:reveal", JSON.stringify(settings)) } catch (_e) {}
+      const settings = {mode: form.get("mode") || "auto", speed: form.get("speed") || "normal"}
+      try {
+        localStorage.setItem("quacks:reveal", JSON.stringify(settings))
+        localStorage.setItem("quacks:risk", form.get("risk") || "percent")
+      } catch (_e) {}
       setBeat(settings.speed)
     })
-    const saved = loadReveal()
-    send({mode: saved.mode || "step", speed: saved.speed || "normal"})
+    send(current())
   }
 }
 
-// The menu's "App" line (round 14): which install rule fails on a phone that shows
-// no Install button. The worker, the display mode and whether Chrome fired
-// `beforeinstallprompt` on this page (`installFired`, set below).
-let installFired = false
-const AppStatus = {
+// Round 29: your own explosion buzzes the phone once (`boom` in game_live), and
+// nothing else does. Once per game and round: a reload does not buzz again. The
+// explosion sound plays with the buzz (sound.js).
+const Boom = {
   mounted() {
-    this.show = () => this.render()
-    this.show()
-    window.addEventListener("quacks:install", this.show)
-    navigator.serviceWorker?.addEventListener("controllerchange", this.show)
-    document.getElementById("sheet-menu")?.addEventListener("toggle", this.show)
-  },
-  destroyed() { window.removeEventListener("quacks:install", this.show) },
-  async render() {
-    const reg = await navigator.serviceWorker?.getRegistration().catch(() => null)
-    const worker = reg?.active ? "active" : (reg?.installing || reg?.waiting) ? "installing" : "none"
-    const display = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true ? "standalone" : "browser"
-    const prompt = installFired || document.documentElement.dataset.install === "ready" ? "fired" : "not fired"
-    this.el.textContent = `App: worker: ${worker} · display: ${display} · install prompt: ${prompt}`
-  },
+    const key = `quacks:boom:${this.el.dataset.key}`
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1") } catch (_e) {}
+    if (typeof navigator.vibrate === "function") navigator.vibrate([40, 30, 90])
+    playSound("boom", {pitch: 0.02})
+  }
 }
+
+// Whether Chrome fired `beforeinstallprompt` on this page (set below).
+let installFired = false
 
 // The large pot's motion (docs/research/animations.md §3 B3, round 10). Every patch
 // already shows the final pot; this only plays WAAPI `transform`/`opacity` on top, so
@@ -121,7 +135,10 @@ const AppStatus = {
 // little above, then the pop); a chip that leaves flies as a ghost to the flask (or
 // the bag); at a new round the old chips fade and the new rats slide in from the
 // droplet. The scoring sequence's rubies fly to the ruby counter on their beats.
+// Round 31: your own draw flies from the bag to its space (`fly`).
 // Reduced motion: fades only, no flights.
+// Round 35: until when the chips fly to the bag, and the round they flew in.
+let bagUntil = 0, bagRound = null
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 const easing = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 const at = (p, o, s = 1) => `translate(${p.x - o.x}px, ${p.y - o.y}px) scale(${s})`
@@ -140,13 +157,27 @@ const PotMotion = {
     const added = chips.filter(c => !this.chips.has(c.id))
     const gone = [...this.chips.values()].filter(c => !c.isConnected)
     const flask = this.full && !this.el.querySelector("[data-role=flask-brew]")
-    if (this.el.dataset.round !== this.round) {
+    // Round 34: the same chip (its draw order) on a new space moved in the pot
+    // (green III): it flies from its old space, not from the bag.
+    const moved = gone.length === 1 && added.length === 1 && gone[0].dataset.order === added[0].dataset.order
+    const newRound = this.el.dataset.round !== this.round
+    if (newRound) {
       gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, null, i * 20))
       this.ratsIn()
     }
+    else if (this.el.dataset.bagged && !this.bagged) this.toBag(gone)
+    else if (moved) this.fly(added[0], this.pos(gone[0].dataset.index), 1, 40)
     else if (gone.length === 1 && added.length === 0)
       this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
+    else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0]), potSound.draw(this.el, added[0])
     else if (added.length <= 2) added.forEach(c => this.land(c))
+    if (!newRound) this.ratsOut()
+    if (!newRound && !reduced()) this.scoringMove(this.wait)
+    this.hop(this.el.querySelector("[data-role=droplet]"))
+    newRound || potSound.drop(this.el, this.drop)
+    const brew = this.el.querySelector("[data-role=flask-brew]")
+    if (brew && !this.full && !reduced())
+      brew.animate([{transform: "translateY(34px)"}, {transform: "none"}], {duration: 700, easing: easing("--ease-out")})
     this.snapshot()
     this.flights()
   },
@@ -159,11 +190,13 @@ const PotMotion = {
     const step = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--beat-ms")) || 450
     const ms = name => name === "--beat-step" ? step : step * 2 / 3
     this.el.querySelectorAll("[data-role=ruby-flight]").forEach(f => {
-      if (this.flown.has(f.id) || reduced() || !counter) return
+      if (this.flown.has(f.id) || !counter) return
       this.flown.add(f.id)
+      const delay = ms("--beat-lead") + f.dataset.beat * ms("--beat-step") + +f.dataset.wait + f.dataset.n * 90
+      potSound.ruby(this.el, delay + 550)
+      if (reduced()) return
       const p = {x: +f.dataset.x, y: +f.dataset.y}, t = this.centre(counter)
       const dx = t.x - p.x, dy = t.y - p.y
-      const delay = ms("--beat-lead") + f.dataset.beat * ms("--beat-step") + +f.dataset.wait + f.dataset.n * 90
       f.firstElementChild.animate([
         {transform: "translate(0px, 0px) scale(1)", opacity: 0, easing: easing("--ease-out")},
         {transform: "translate(0px, -12px) scale(1.3)", opacity: 1, offset: 0.23, easing: easing("--ease-in-out")},
@@ -187,10 +220,40 @@ const PotMotion = {
         {duration: 240, delay: 200 + i * 60, fill: "backwards", easing: easing("--ease-out")})
     })
   },
+  // Round 35: the round goes to the shop: every chip flies off the pot into the bag,
+  // first drawn first (staggered, top layer); the shop opens after (`bagUntil`).
+  toBag(gone) {
+    const n = gone.length, step = Math.min(60, 600 / Math.max(n, 1))
+    gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, this.centre(this.bag()), i * step))
+    if (n && !reduced()) bagUntil = performance.now() + 260 + n * step
+  },
+  // Round 35: the droplet took a rat's space (a move after the first draw). That
+  // rat fades out where it was as the droplet lands; the others stay put.
+  ratsOut() {
+    this.rats.forEach(rat => {
+      if (rat.isConnected) return
+      rat.style.translate = ""
+      this.ghost(rat, null, reduced() ? 0 : 300)
+    })
+  },
+  // Round 32, rubies paid for the droplet (`data-hop`): it hops from its old space
+  // to the new one on a low arc, 520 ms, over the CSS slide. A refill fills the flask.
+  hop(d) {
+    if (reduced() || !d?.dataset.hop || d.dataset.index === this.drop) return
+    const a = this.pos(this.drop), b = this.pos(d.dataset.index)
+    d.animate([{translate: `${a.x}px ${a.y}px`},
+      {translate: `${(a.x + b.x) / 2}px ${(a.y + b.y) / 2 - 28}px`, scale: 1.3, offset: 0.5},
+      {translate: `${b.x}px ${b.y}px`}], {duration: 520, easing: easing("--ease-in-out")})
+  },
   snapshot() {
+    this.drop = this.el.querySelector("[data-role=droplet]")?.dataset.index
     this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
+    this.rats = [...this.el.querySelectorAll("[data-role=rat]")]
     this.full = !!this.el.querySelector("[data-role=flask-brew]")
+    this.oldMarks = this.marks().map(m => ({copy: m.cloneNode(), index: m.closest("[data-space]").dataset.space, k: this.key(m)}))
     this.round = this.el.dataset.round
+    this.bagged = !!this.el.dataset.bagged
+    if (this.bagged) bagRound = this.round
   },
   pos(i) { const g = this.el.querySelector(`[data-space="${i}"]`).dataset; return {x: +g.x, y: +g.y} },
   bag() { return document.querySelector("[data-role=bag-button]") },
@@ -212,15 +275,67 @@ const PotMotion = {
       {transform: "translate(0px, 0px) scale(1)", opacity: 1},
     ], {duration: 350})
   },
+  // Round 31, a draw (the mirror of `ghost` to the bag): the new chip comes out of
+  // the bag small, flies on an arc above both ends and lands on its space with the
+  // pop, 460 ms. Only your own pot (`data-mine`); reduced motion: no flight.
+  // A copy flies in the top layer (`top`); the chip hides until it lands.
+  // A move in the pot passes its old space as `b`, full size (`s0`), a lower arc.
+  fly(chip, b = this.centre(this.bag()), s0 = 0.55, lift = 70) {
+    if (reduced()) return
+    chip.getAnimations().forEach(a => a.cancel())
+    const p = this.pos(chip.dataset.index)
+    const c = {x: (b.x + p.x) / 2, y: Math.min(b.y, p.y) - lift}
+    const arc = t => ({x: (1 - t) ** 2 * b.x + 2 * (1 - t) * t * c.x + t * t * p.x,
+                       y: (1 - t) ** 2 * b.y + 2 * (1 - t) * t * c.y + t * t * p.y})
+    const steps = [0, 0.2, 0.4, 0.6, 0.8, 1]
+    const copy = chip.cloneNode(true), g = this.top(copy, p)
+    copy.removeAttribute("id")
+    const hide = chip.animate([{opacity: 0}, {opacity: 0}], {duration: 460})
+    copy.animate([
+      ...steps.map(t => ({transform: at(arc(t), p, s0 + (1.15 - s0) * t), opacity: t || s0 === 1 ? 1 : 0, offset: t * 0.8})),
+      {transform: at(p, p, 0.96), opacity: 1, offset: 0.9, easing: easing("--ease-spring")},
+      {transform: at(p, p, 1), opacity: 1},
+    ], {duration: 460, easing: "linear"}).finished.catch(() => {}).finally(() => { g.remove(); hide.cancel() })
+    this.wait = 460
+  },
+  // Round 37/39: the scoring marks (gold space, every seat's ring). A changed one
+  // shrinks and fades out (a ghost on its old space); the new one grows in when
+  // your chip lands (`wait`), else at once. Reduced motion: none.
+  marks() { return [...this.el.querySelectorAll("[data-role=next-space], [data-role=scoring-ring]")] },
+  key: m => m.closest("[data-space]").dataset.space + m.outerHTML,
+  scoringMove(after) {
+    const ease = easing("--ease-out"), now = this.marks(), was = new Set(this.oldMarks.map(o => o.k))
+    const keys = new Set(now.map(this.key))
+    this.wait = 0
+    this.oldMarks.forEach(({copy, index, k}) => {
+      if (keys.has(k)) return
+      copy.removeAttribute("data-role")
+      const g = this.top(copy, this.pos(index))
+      copy.animate([{scale: 1, opacity: 1}, {scale: 0.85, opacity: 0}], {duration: 220, easing: ease, fill: "forwards"})
+        .finished.catch(() => {}).finally(() => g.remove())
+    })
+    now.forEach(m => {
+      if (was.has(this.key(m))) return
+      m.getAnimations().forEach(a => a.cancel())
+      m.animate([{scale: 0.85, opacity: 0}, {scale: 1, opacity: 1}],
+        {duration: 280, delay: after, easing: ease, fill: "backwards"})
+    })
+  },
+  // `el` at space `p` in the top `pot-fx` layer: SVG paints in DOM order, so a
+  // flight there passes over the later spaces.
+  top(el, p) {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g")
+    g.setAttribute("transform", `translate(${p.x} ${p.y})`)
+    g.append(el)
+    this.el.querySelector("[data-role=pot-fx]").append(g)
+    return g
+  },
   // A chip that left, put back where it was (out of LiveView's way) to fly to
   // `target`, or, without one, to fade out after `delay` ms.
   ghost(el, target, delay = 0) {
-    const fx = this.el.querySelector("[data-role=pot-fx]"), p = this.pos(el.dataset.index)
-    const g = document.createElementNS("http://www.w3.org/2000/svg", "g")
-    g.setAttribute("transform", `translate(${p.x} ${p.y})`)
+    const p = this.pos(el.dataset.index)
     el.removeAttribute("id")
-    g.append(el)
-    fx.append(g)
+    const g = this.top(el, p)
     el.getAnimations().forEach(a => a.cancel())
     const fade = reduced() || !target
     const frames = fade
@@ -240,9 +355,9 @@ const queue = p => { vtQueue = p; p.then(() => { if (vtQueue === p) vtQueue = nu
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: 6000,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, AppStatus, ConfigMemory, NameMemory, PotMotion, RevealSettings},
+  hooks: {...colocatedHooks, Boom, ConfigMemory, NameMemory, PotMotion, RevealSettings, SoundCue, SoundReplay, SoundSettings},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
   // is in a field, on a control that Space/Enter already press, or whether a modal
   // dialog is open. The server decides from that; no key logic here.
@@ -291,12 +406,17 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 const wide = matchMedia("(min-width: 64rem)")
 const sideOpen = d => {
   if (d.open) return
+  // Round 35: the shop waits for the chips to fly into the bag.
+  const bagging = document.querySelector(".pot-lg[data-bagged]")
+  const wait = bagging && bagRound !== bagging.dataset.round ? 30 : bagUntil - performance.now()
+  if (wait > 0) return setTimeout(() => sideOpen(d), wait)
   // The books drawer stays open when a decision comes; the decision opens after it.
   const books = document.querySelector("#sheet-books:popover-open")
   if (books) return books.addEventListener("toggle", () => sideOpen(d), {once: true})
   const side = wide.matches && d.dataset.side
   if (side === "hidden") return closed(d)
-  side ? d.show() : d.showModal()
+  // Round 31: a `data-pot` dialog covers the pot in place, non-modal, on phones too.
+  side || d.dataset.pot ? d.show() : d.showModal()
 }
 // A closed dialog may run its `on_close` JS and hand over to the next one
 // (`then_open` on `dialog_sheet`).
@@ -313,7 +433,7 @@ const moving = new WeakSet()
 // taps on its lower part (round 13). Open the modals again, in page order, so the
 // last one (the new card) stays on top.
 function remodal() {
-  const modals = [...document.querySelectorAll("dialog[open]")].filter(d => !(wide.matches && d.dataset.side))
+  const modals = [...document.querySelectorAll("dialog[open]")].filter(d => !(wide.matches && d.dataset.side) && !d.dataset.pot)
   if (modals.every(d => d.matches(":modal"))) return
   modals.forEach(d => { moving.add(d); d.close(); d.showModal() })
 }
@@ -359,12 +479,24 @@ window.addEventListener("phx:quacks:reload", () => {
 // The b hotkey (`hotkey` in game_live.ex): the server asks to toggle a popover sheet.
 window.addEventListener("phx:quacks:toggle", e => document.getElementById(e.detail.id)?.togglePopover())
 // A "Copy link" button asks for its text on the clipboard (see `copy_link` in game_live.ex).
+// Round 35: an opened block (the shop's book text) scrolls its sheet only as far
+// as needed to show all of it, once its 150 ms "in" transition has shown it (a
+// scroll during the transition stops short). Hidden again (closed): nothing.
+window.addEventListener("quacks:reveal", ({target}) => setTimeout(() => {
+  if (target.checkVisibility ? !target.checkVisibility() : target.offsetParent === null) return
+  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches
+  target.scrollIntoView({block: "nearest", behavior: smooth ? "smooth" : "auto"})
+}, 160))
 window.addEventListener("quacks:copy", e => navigator.clipboard?.writeText(e.detail.text))
-// Share the result (round 22): the phone's share sheet, else copy text and link.
-window.addEventListener("quacks:share", ({detail: {text, url}}) => {
-  if (navigator.share) navigator.share({text, url}).catch(() => {})
+// Share the result (round 22) or the game's link (round 29, with a title): the
+// phone's share sheet, else copy text and link.
+window.addEventListener("quacks:share", ({detail: {title, text, url}}) => {
+  if (navigator.share) navigator.share({title, text, url}).catch(() => {})
   else navigator.clipboard?.writeText(`${text} ${url}`)
 })
+// Round 29: with a share sheet, Share is the waiting panel's main button and Copy
+// link steps back (app.css `.share-only`, `.share-fallback`).
+if (navigator.share) document.documentElement.dataset.share = "true"
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

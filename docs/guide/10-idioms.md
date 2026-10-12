@@ -59,7 +59,7 @@ this way and handles both error shapes in one `else`
 (`lib/quacks_web/live/game_live.ex:136-145`, quoted in chapter 5).
 
 The bot tick uses `with` for a chain where the first step is a boolean
-(`lib/quacks/game_server.ex:763-768`): `with false <- capped?(...), {action, rng} <- AI.decide(...), ...`.
+(`lib/quacks/game_server.ex:1078-1101`): `with false <- held?(...), {action, rng} <- AI.decide(...), ...`.
 Any value can be a pattern, not only `{:ok, _}`.
 
 ## Pipelines

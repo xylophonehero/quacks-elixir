@@ -2,8 +2,6 @@ defmodule QuacksWeb.RevealTest do
   @moduledoc "Round 14 A: the reveal overlay's slides (`QuacksWeb.Reveal`), pure."
   use ExUnit.Case, async: true
 
-  import Phoenix.LiveViewTest, only: [render_component: 2]
-
   alias Quacks.Game
   alias QuacksWeb.Reveal
 
@@ -44,7 +42,8 @@ defmodule QuacksWeb.RevealTest do
     game = Game.new(seed: {1, 2, 3})
     assert Reveal.moment(game) == {:card, 1}
     assert Reveal.moment(%{game | phase: :shopping}) == {:results, 1}
-    assert Reveal.moment(%{game | phase: :over, round: 9}) == {:final, 9}
+    # Round 31: the end is the score chart over the pot, no moment.
+    assert Reveal.moment(%{game | phase: :over, round: 9}) == nil
     assert Reveal.moment(Game.new(seed: {1, 2, 3}, rules: %{fortune: false})) == nil
   end
 
@@ -54,7 +53,7 @@ defmodule QuacksWeb.RevealTest do
     assert card == game.fortune_card
   end
 
-  test "the results: one slide per scoring step, every seat on it, then the table" do
+  test "the results: one slide per scoring step, every seat on it, then the standings (no table)" do
     slides = Reveal.slides(results_game(), 0)
 
     assert Enum.map(slides, &{&1.kind, &1[:book]}) == [
@@ -63,14 +62,13 @@ defmodule QuacksWeb.RevealTest do
              {:book, :green},
              {:book, :purple},
              {:space, nil},
-             {:results, nil},
              {:standings, nil}
            ]
 
-    [die, black, green, purple, space, results, _standings] = slides
+    [die, black, green, purple, space, _standings] = slides
 
     # every slide has a row per seat, in VP order
-    for slide <- [die, black, green, purple, space, results],
+    for slide <- [die, black, green, purple, space],
         do: assert(Enum.map(slide.rows, & &1.seat) == [0, 1])
 
     assert [%{rolls: [%{face: {:vp, 2}, vp: 2}], vp: 2}, %{rolls: [], vp: 0}] = die.rows
@@ -91,23 +89,6 @@ defmodule QuacksWeb.RevealTest do
     # the scoring space: coins, VP, the ruby landing
     assert [%{seat: 0, vp: 3, rubies: 1}, %{seat: 1, vp: 2, rubies: 0}] = space.rows
     assert space.gains == %{0 => {3, 1}, 1 => {2, 0}}
-
-    # the table: no space column; the card waits in the details
-    assert %{round: 1, rows: [row0, row1]} = results
-    refute Map.has_key?(row0, :space)
-
-    assert %{
-             seat: 0,
-             vp: 3,
-             ruby: true,
-             die: [{:vp, 2}],
-             updates: [_ | _],
-             pot: [green: 2, black: 1, purple: 2]
-           } = row0
-
-    assert [%{kind: :card, vp: 1}] = row0.extra
-    assert %{seat: 1, vp: 2, ruby: false, die: [], extra: []} = row1
-    assert results.gains == %{0 => {1, 0}, 1 => {0, 0}}
   end
 
   test "a step nobody scores in has no slide: no black lines, no black slide" do
@@ -158,33 +139,15 @@ defmodule QuacksWeb.RevealTest do
     assert [%{seat: 0, scored: false}, %{seat: 1, scored: true, vp: 2, chips: [{:blue, 2}]}] =
              blue.rows
 
-    # not twice: the table's details leave it out
-    assert slides
-           |> Enum.at(-2)
-           |> Map.fetch!(:rows)
-           |> Enum.all?(&(&1.extra |> Enum.all?(fn l -> l.kind != :other end)))
+    # not twice: the standings carry only what no step showed
+    assert %{kind: :standings, gains: %{1 => {0, 0}}} = List.last(slides)
   end
 
-  test "a results row's card line says its reward once (the log line's text)" do
+  test "round 28: the standings carry the card's VP that no step showed" do
     game = results_game()
-    slides = Reveal.slides(game, 0)
-
-    html =
-      render_component(&QuacksWeb.RevealComponents.reveal_overlay/1,
-        reveal: %{key: {:results, 1}, slides: slides, index: length(slides) - 2},
-        names: %{0 => "Ann", 1 => "Bo"},
-        seat: 0
-      )
-
-    [extra] =
-      html
-      |> LazyHTML.from_fragment()
-      |> LazyHTML.query("[data-role=reveal-extra]")
-      |> Enum.to_list()
-
-    text = extra |> LazyHTML.text() |> String.trim()
-    assert text == QuacksWeb.GameComponents.label({:fortune, :b1, {:vp, 1}})
-    refute text =~ "("
+    game = put_in(game.players[0].vp, 9)
+    game = put_in(game.players[1].vp, 2)
+    assert List.last(Reveal.slides(game, 0)).gains == %{0 => {1, 0}, 1 => {0, 0}}
   end
 
   test "the running results: every slide's standings, the gains highlighted" do
@@ -197,16 +160,15 @@ defmodule QuacksWeb.RevealTest do
     [die | _] = slides
     assert die.standings == [%{seat: 0, vp: 4, gain: 2}, %{seat: 1, vp: 0, gain: 0}]
 
-    results = Enum.at(slides, -2)
-    assert results.standings == [%{seat: 0, vp: 9, gain: 1}, %{seat: 1, vp: 2, gain: 0}]
+    standings = List.last(slides)
+    assert standings.standings == [%{seat: 0, vp: 9, gain: 1}, %{seat: 1, vp: 2, gain: 0}]
 
     # the space slide before it brought both seats' space VP
-    space = Enum.at(slides, -3)
+    space = Enum.at(slides, -2)
     assert space.standings == [%{seat: 0, vp: 8, gain: 3}, %{seat: 1, vp: 2, gain: 2}]
-    assert Enum.map(results.rows, & &1.seat) == [0, 1]
   end
 
-  test "the results slide ranks by VP, a tie to fewer rubies" do
+  test "the step slides rank by VP, a tie to fewer rubies" do
     game = results_game()
     game = put_in(game.players[0].vp, 20)
     game = put_in(game.players[1].vp, 20)
@@ -215,7 +177,13 @@ defmodule QuacksWeb.RevealTest do
     assert %{rows: [%{seat: 1}, %{seat: 0}]} = game |> Reveal.slides(0) |> Enum.at(-2)
   end
 
-  test "the end of the game: the final scoring, the standings, then the podium" do
+  test "round 29: round 9's results end on the last step, no standings slide" do
+    slides = Reveal.slides(%{results_game() | round: 9}, 0)
+    assert List.last(slides).kind == :space
+    refute Enum.any?(slides, &(&1.kind == :standings))
+  end
+
+  test "round 31: the final rows for the score chart, in final order" do
     game = Game.new(seed: {1, 2, 3}, players: 2)
     game = put_in(game.players[0].vp, 40)
     game = put_in(game.players[1].vp, 44)
@@ -229,20 +197,18 @@ defmodule QuacksWeb.RevealTest do
 
     game = %{game | log: log, phase: :over, round: 9}
 
-    assert [
-             %{kind: :final, rows: rows},
-             %{kind: :standings, last: false, rows: standings},
-             %{kind: :podium, ranked: ranked}
-           ] = Reveal.slides(game, 0)
+    assert Reveal.slides(game, 0) == []
 
-    assert [%{seat: 0, coins: 4, coins_vp: 0}, %{seat: 1, rubies_vp: 1, pennies_vp: 2}] = rows
-    assert ranked == [{1, 44, 1}, {0, 40, 2}]
-
-    # Round 22: the standings go from before the final scoring to the end.
+    # The rows start at the round-9 totals and end on the final ones, with the
+    # parts that took them there (a part that gave nothing and counted nothing:
+    # no part).
     assert [
-             %{seat: 0, from_vp: 40, vp: 40},
-             %{seat: 1, from_vp: 40, vp: 44, from_rank: 1, rank: 0}
-           ] = standings
+             %{seat: 1, from_vp: 40, vp: 44, place: 1, parts: parts1},
+             %{seat: 0, from_vp: 40, vp: 40, place: 2, parts: parts0}
+           ] = Reveal.final_rows(game)
+
+    assert parts0 == [{:coins, 4, 0}, {:rubies, 1, 0}]
+    assert parts1 == [{:coins, 7, 1}, {:rubies, 3, 1}, {:pennies, nil, 2}]
   end
 
   test "Auto times scale with the speed" do

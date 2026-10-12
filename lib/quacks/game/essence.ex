@@ -27,7 +27,7 @@ defmodule Quacks.Game.Essence do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.{Evaluation, Potions}
+  alias Quacks.Game.{Evaluation, Fortune, Potions}
   alias Quacks.Player
   alias Quacks.Rules.{Alchemists, Chips, PotTrack}
 
@@ -261,7 +261,9 @@ defmodule Quacks.Game.Essence do
   end
 
   defp close(g) do
-    if Enum.any?(g.seats, &(Game.player(g, &1).phase in @open)), do: g, else: Evaluation.run(g)
+    if Enum.any?(g.seats, &(Game.player(g, &1).phase in @open)),
+      do: g,
+      else: g |> Fortune.after_essence() |> Evaluation.run()
   end
 
   # -- the essence phase ---------------------------------------------------------------
@@ -290,7 +292,7 @@ defmodule Quacks.Game.Essence do
       end)
 
     if g.round == @last_round,
-      do: g |> final(order, reaches) |> Evaluation.run(),
+      do: g |> final(order, reaches) |> Fortune.after_essence() |> Evaluation.run(),
       else: order |> Enum.reduce(%{g | phase: :essence}, &reach(&2, &1, reaches)) |> close()
   end
 
@@ -321,11 +323,18 @@ defmodule Quacks.Game.Essence do
   @doc """
   The reached space and its parts for `seat`: the colours in the pot (not white), +1
   per locoweed with locoweed book III, +1 when the white chips in the pot add up to
-  exactly 7, +1 per exploded neighbour (solo: none). At most 10.
+  exactly 7, +1 per exploded neighbour (solo: none), plus the round's card
+  (`Quacks.Game.Fortune.essence_bonus/2`: AB6, AB9). At most 10.
   """
   @spec count(Game.t(), Game.seat()) ::
           {0..10,
-           %{colours: non_neg_integer, locoweed: non_neg_integer, white7: 0 | 1, neighbours: 0..2}}
+           %{
+             colours: non_neg_integer,
+             locoweed: non_neg_integer,
+             white7: 0 | 1,
+             neighbours: 0..2,
+             card: non_neg_integer
+           }}
   def count(g, seat) do
     chips = Game.pot_chips(g, seat)
     colours = chips |> Enum.map(&elem(&1, 0)) |> Enum.uniq() |> Enum.count(&(&1 != :white))
@@ -335,8 +344,17 @@ defmodule Quacks.Game.Essence do
 
     white7 = if Enum.sum(for {:white, v} <- chips, do: v) == 7, do: 1, else: 0
     neighbours = Enum.count(neighbours(g, seat), &Game.player(g, &1).exploded?)
-    parts = %{colours: colours, locoweed: locoweed, white7: white7, neighbours: neighbours}
-    {min(colours + locoweed + white7 + neighbours, Alchemists.max_space()), parts}
+    card = Fortune.essence_bonus(g, seat)
+
+    parts = %{
+      colours: colours,
+      locoweed: locoweed,
+      white7: white7,
+      neighbours: neighbours,
+      card: card
+    }
+
+    {min(colours + locoweed + white7 + neighbours + card, Alchemists.max_space()), parts}
   end
 
   # The seats left and right; with 2 players the one opponent once.
@@ -523,7 +541,7 @@ defmodule Quacks.Game.Essence do
   defp valid?({:hump, _}, p), do: p.essence >= @cost.hump
   defp valid?(_offer, _p), do: false
 
-  defp next_ruby(i), do: Enum.find((i + 1)..PotTrack.last()//1, &PotTrack.at(&1).ruby?)
+  defp next_ruby(i), do: Enum.find((i + 1)..PotTrack.last_chip()//1, &PotTrack.at(&1).ruby?)
 
   defp answer(g, _seat, :pass, _offer), do: g
 
@@ -541,7 +559,7 @@ defmodule Quacks.Game.Essence do
   defp answer(g, seat, :double, {:wing, _}) do
     g
     |> Game.update_player(seat, fn %{drawn: [{{:white, v} = chip, i} | rest]} = p ->
-      j = min(i + v, PotTrack.last())
+      j = PotTrack.chip_index(i + v)
       %{p | drawn: [{chip, j} | rest], pot_index: j}
     end)
     |> spend(seat, @cost.double, :double)

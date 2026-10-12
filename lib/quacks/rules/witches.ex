@@ -101,6 +101,10 @@ defmodule Quacks.Rules.Witches do
   @spec card(id) :: card
   def card(id), do: Map.fetch!(@by_id, id)
 
+  @doc "All 12 witch ids."
+  @spec ids() :: [id]
+  def ids, do: Enum.map(@cards, & &1.id)
+
   @doc "The 4 witch ids of one colour."
   @spec ids(colour) :: [id]
   def ids(colour), do: for(%{colour: ^colour, id: id} <- @cards, do: id)

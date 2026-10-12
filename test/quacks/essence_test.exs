@@ -172,7 +172,12 @@ defmodule Quacks.EssenceTest do
   describe "the essence phase" do
     test "runs after the last stop, before the evaluation; marker reset first" do
       g = game(:forgetfulness) |> put(essence: 5) |> brew([{:orange, 1}, {:green, 1}]) |> stop()
-      assert logged?(g, {:essence, 2, %{colours: 2, locoweed: 0, white7: 0, neighbours: 0}})
+
+      assert logged?(
+               g,
+               {:essence, 2, %{colours: 2, locoweed: 0, white7: 0, neighbours: 0, card: 0}}
+             )
+
       assert me(g).essence == 2 and g.phase == :shopping
 
       log = Enum.reverse(g.log)

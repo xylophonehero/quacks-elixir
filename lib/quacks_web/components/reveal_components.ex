@@ -15,18 +15,13 @@ defmodule QuacksWeb.RevealComponents do
   import QuacksWeb.CoreComponents, only: [button: 1, dialog_sheet: 1, kbd: 1]
   import QuacksWeb.Icons, only: [ingredient_icon: 1, piece_icon: 1]
 
-  import QuacksWeb.GameComponents,
-    only: [
-      book_info: 2,
-      book_ink: 1,
-      card_outcome: 2,
-      chip: 1,
-      die: 1,
-      die_face: 1,
-      seat_bg: 1,
-      seat_dot: 1
-    ]
+  import QuacksWeb.PanelComponents, only: [book_info: 2, book_ink: 1]
 
+  import QuacksWeb.ChipComponents, only: [chip: 1, die: 1, seat_dot: 1]
+
+  import QuacksWeb.GameText, only: [card_outcome: 2]
+
+  import QuacksWeb.CardRevealComponents, only: [card_reveals: 1]
   alias Phoenix.LiveView.JS
   alias Quacks.Rules.Fortune
   alias QuacksWeb.Reveal
@@ -42,9 +37,6 @@ defmodule QuacksWeb.RevealComponents do
   attr :auto_ms, :integer, default: nil, doc: "the slide's time in Auto mode, nil in Step mode"
   attr :close_label, :string, default: "Close"
 
-  slot :podium,
-    doc: "round 22: the game-over screen (podium, results, Play again) on the final podium slide"
-
   def reveal_overlay(assigns) do
     %{key: {kind, round}, slides: slides, index: index} = assigns.reveal
 
@@ -54,9 +46,7 @@ defmodule QuacksWeb.RevealComponents do
         slide: Enum.at(slides, index),
         count: length(slides),
         last?: index == length(slides) - 1,
-        card?: kind == :card,
-        # Round 22: the game's last slide holds the game-over actions: no Next.
-        actions?: kind == :final and index == length(slides) - 1 and assigns.podium != []
+        card?: kind == :card
       )
 
     ~H"""
@@ -90,7 +80,8 @@ defmodule QuacksWeb.RevealComponents do
         </ol>
         <.strip
           :if={
-            @slide[:standings] not in [nil, []] and @slide.kind not in [:card, :podium, :standings]
+            @slide[:standings] not in [nil, []] and
+              @slide.kind not in [:card, :standings]
           }
           rows={@slide.standings}
           names={@names}
@@ -105,14 +96,11 @@ defmodule QuacksWeb.RevealComponents do
           data-role="reveal-timer"
           aria-hidden="true"
         />
-        <%!-- A tap anywhere on the slide is Next (not on the game's last slide). --%>
+        <%!-- A tap anywhere on the slide is Next. --%>
         <div
           id="reveal-stage"
-          class={[
-            "reveal-stage flex flex-1 flex-col justify-center py-3",
-            not @actions? && "cursor-pointer"
-          ]}
-          phx-click={not @actions? && "reveal_next"}
+          class="reveal-stage flex flex-1 cursor-pointer flex-col justify-center py-3"
+          phx-click="reveal_next"
           data-role="reveal-stage"
           aria-live="polite"
         >
@@ -122,9 +110,7 @@ defmodule QuacksWeb.RevealComponents do
             data-role="reveal-slide"
             data-kind={@slide.kind}
           >
-            {if @actions?, do: render_slot(@podium)}
             <.slide
-              :if={not @actions?}
               slide={@slide}
               names={@names}
               seat={@seat}
@@ -132,7 +118,7 @@ defmodule QuacksWeb.RevealComponents do
             />
           </div>
         </div>
-        <footer :if={not @actions?} class="flex gap-2 *:min-h-12" data-role="reveal-bar">
+        <footer class="flex gap-2 *:min-h-12" data-role="reveal-bar">
           <.button
             :if={not @last?}
             id="reveal-skip"
@@ -160,7 +146,6 @@ defmodule QuacksWeb.RevealComponents do
 
   defp title({:card, round}), do: "Round #{round}: the fortune teller"
   defp title({:results, round}), do: "Round #{round}: evaluation"
-  defp title({:final, _}), do: "Final scoring"
 
   attr :slide, :map, required: true
   attr :names, :map, required: true
@@ -175,19 +160,36 @@ defmodule QuacksWeb.RevealComponents do
     assigns =
       assign(assigns,
         info: Fortune.card(assigns.slide.card),
-        outcomes: Map.get(assigns.slide, :outcomes, [])
+        outcomes: Map.get(assigns.slide, :outcomes, []),
+        reveals: Map.get(assigns.slide, :reveals, %{})
       )
 
     ~H"""
     <div class="text-center" data-role="reveal-card-name">
       <h2 class="font-hand text-2xl leading-tight font-bold">{@info.name}</h2>
       <p class="sr-only">{@info.text}</p>
-      <ul :if={@outcomes != []} class="mt-2 space-y-1" data-role="card-outcomes">
+      <.card_reveals
+        :if={@reveals != %{}}
+        id={"reveal-card-reveals-#{@slide.round}"}
+        card={@slide.card}
+        reveals={@reveals}
+        order={@slide.order}
+        seat={@seat}
+        names={@names}
+        class="mt-2"
+      />
+      <ul
+        :if={@outcomes != [] and @reveals == %{}}
+        class="mt-2 space-y-1"
+        data-role="card-outcomes"
+      >
         <li
           :for={outcome <- @outcomes}
-          class="mx-auto w-fit rounded-full bg-ink/10 px-3 py-1 text-base font-semibold"
+          class="mx-auto flex w-fit items-center gap-1.5 rounded-full bg-ink/10 px-3 py-1 text-base font-semibold"
           data-role="card-outcome"
         >
+          <%!-- Round 30: a chip the card gave shows as its chip image too. --%>
+          <.chip :if={match?({:take, _}, outcome)} chip={elem(outcome, 1)} size={:sm} />
           {card_outcome(outcome, @slide.card)}
         </li>
       </ul>
@@ -244,7 +246,7 @@ defmodule QuacksWeb.RevealComponents do
       <.step_rows :let={row} rows={@slide.rows} names={@names} seat={@seat} scored={& &1.scored}>
         <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span
-            class="inline-flex items-center gap-1 text-xs font-bold tabular-nums"
+            class="inline-flex items-center gap-1.5 text-xs font-bold tabular-nums"
             aria-label={"#{length(row.chips)} counted"}
             data-role="reveal-chips"
           >
@@ -315,136 +317,6 @@ defmodule QuacksWeb.RevealComponents do
     """
   end
 
-  # Round 18: a real <table> (columns hold even without a utility class, see the
-  # guide), the rows in VP order. The name may wrap; the update chips sit small
-  # under it. The card, essence and witch lines wait in a closed "Details".
-  defp slide(%{slide: %{kind: :results}} = assigns) do
-    assigns =
-      assign(assigns,
-        colours: assigns.slide.rows |> List.first(%{pot: []}) |> Map.get(:pot) |> Keyword.keys(),
-        extras: for(row <- assigns.slide.rows, line <- row.extra, do: {row.seat, line})
-      )
-
-    ~H"""
-    <div class="space-y-2">
-      <h2 class="text-center font-hand text-3xl leading-tight font-bold">
-        Round {@slide.round} results
-      </h2>
-      <div class="max-h-[min(54dvh,30rem)] overflow-y-auto overscroll-contain">
-        <table
-          class="reveal-table w-full table-fixed border-collapse text-sm"
-          data-role="reveal-results"
-        >
-          <colgroup>
-            <col class="w-4" />
-            <col />
-            <col class="w-9" />
-            <col class="w-7" />
-            <col class="w-6" />
-            <col class="w-7" />
-            <col class={if length(@colours) > 3, do: "w-[6.5rem]", else: "w-20"} />
-          </colgroup>
-          <thead class="text-[10px] font-semibold tracking-tight text-ink-soft">
-            <tr>
-              <th scope="col"><span class="sr-only">Rank</span></th>
-              <th scope="col" class="text-left">Player</th>
-              <th scope="col" title="Coins">
-                <.piece_icon
-                  name={:coin}
-                  class="inline size-4 text-gold drop-shadow-[0_0_0.75px_#7a5a10]"
-                /><span class="sr-only">Coins</span>
-              </th>
-              <th scope="col" title="VP">
-                <.piece_icon name={:vp} class="inline size-4 text-gold" /><span class="sr-only">VP</span>
-              </th>
-              <th scope="col" title="Ruby">
-                <.piece_icon name={:ruby} class="inline size-3.5 text-ruby" /><span class="sr-only">Ruby</span>
-              </th>
-              <th scope="col" title="Bonus die">
-                <.piece_icon name={:die} class="inline size-4" /><span class="sr-only">Bonus die</span>
-              </th>
-              <th scope="col" title="Chips in the pot">
-                <span class="sr-only">Chips in the pot</span>
-                <span class="inline-flex gap-2" aria-hidden="true">
-                  <.ingredient_icon
-                    :for={c <- @colours}
-                    colour={c}
-                    class={["size-3.5", book_ink(c)]}
-                  />
-                </span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              :for={{row, i} <- Enum.with_index(@slide.rows)}
-              class="reveal-row border-t border-ink/10 align-top"
-              style={"--i: #{i}"}
-              data-seat={row.seat}
-              data-role="reveal-result"
-            >
-              <td class="py-1.5 font-hand text-base leading-5 text-ink-soft">{i + 1}</td>
-              <td class="py-1.5 pr-1 text-left">
-                <span class="flex items-start gap-1.5 leading-5 font-semibold">
-                  <.seat_dot seat={row.seat} class="mt-1" />
-                  <span class="min-w-0 break-words">{short_name(@names, row.seat, @seat)}</span>
-                </span>
-                <span :if={row.updates != []} class="mt-0.5 flex flex-wrap gap-0.5">
-                  <span
-                    :for={update <- row.updates}
-                    class={[
-                      "inline-flex items-center gap-0.5 rounded-full px-1 text-[10px] leading-4 font-bold",
-                      update_class(update.kind)
-                    ]}
-                    data-kind={update.kind}
-                  >
-                    <.piece_icon
-                      :if={update.kind in [:rubies, :droplet]}
-                      name={if update.kind == :rubies, do: :ruby, else: :droplet}
-                      class="size-2.5"
-                    />
-                    {short_update_text(update, row)}
-                  </span>
-                </span>
-              </td>
-              <td class="py-1.5 text-center leading-5 font-bold tabular-nums">{row.coins}</td>
-              <td class="py-1.5 text-center leading-5 font-bold tabular-nums">{row.vp}</td>
-              <td class="py-1.5 text-center leading-5">
-                <.piece_icon :if={row.ruby} name={:ruby} class="inline size-3.5 text-ruby" />
-                <span :if={!row.ruby} class="text-ink-soft">–</span>
-              </td>
-              <td class="py-1.5 text-center leading-5" data-role="reveal-die-cell">
-                <%!-- Up to three faces in a column, no taller than two lines. --%>
-                <span :if={row.die != []} class="inline-flex flex-col items-center gap-px">
-                  <.die_face :for={face <- row.die} face={face} class={die_size(length(row.die))} />
-                </span>
-                <span :if={row.die == []} class="text-ink-soft">–</span>
-              </td>
-              <td class="py-1.5 text-center leading-5">
-                <.pot_counts counts={row.pot} small />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <details :if={@extras != []} class="reveal-details mt-2 text-xs" data-role="reveal-details">
-          <summary class="cursor-pointer py-1 font-semibold text-ink-soft">
-            Details ({length(@extras)})
-          </summary>
-          <ul class="space-y-0.5 pb-1">
-            <li
-              :for={{s, line} <- @extras}
-              class="flex items-start gap-1.5 leading-snug"
-              data-role="reveal-extra"
-            >
-              <.seat_dot seat={s} class="mt-0.5" /><span>{line.text}</span>
-            </li>
-          </ul>
-        </details>
-      </div>
-    </div>
-    """
-  end
-
   # Round 18: the totals after the round. The rows stay in seat order in the DOM; each
   # row's `--rank` puts it in its slot (`transform`, app.css `.standings-row`). The
   # first render uses the old ranks and VP; the server's settle tick (GameLive,
@@ -507,68 +379,6 @@ defmodule QuacksWeb.RevealComponents do
     """
   end
 
-  defp slide(%{slide: %{kind: :final}} = assigns) do
-    ~H"""
-    <div class="space-y-3">
-      <h2 class="text-center font-hand text-3xl leading-tight font-bold">Coins, rubies, pennies</h2>
-      <ul class="space-y-1.5 text-sm" data-role="reveal-final">
-        <li
-          :for={{row, i} <- Enum.with_index(@slide.rows)}
-          class="reveal-row space-y-0.5 rounded-md bg-parchment-deep/50 px-2 py-1.5"
-          style={"--i: #{i}"}
-          data-seat={row.seat}
-        >
-          <p class="flex items-center gap-1.5 font-semibold">
-            <.seat_dot seat={row.seat} />
-            <span class="min-w-0 flex-1 truncate">{short_name(@names, row.seat, @seat)}</span>
-            <span class="font-hand text-lg tabular-nums">{row.vp} VP</span>
-          </p>
-          <p class="text-xs text-ink-soft">
-            {row.coins} coins → {row.coins_vp} VP · {row.rubies} {if row.rubies == 1,
-              do: "ruby",
-              else: "rubies"} → {row.rubies_vp} VP<span :if={row.pennies_vp > 0}> · pennies {row.pennies_vp} VP</span>
-          </p>
-        </li>
-      </ul>
-    </div>
-    """
-  end
-
-  defp slide(%{slide: %{kind: :podium}} = assigns) do
-    ~H"""
-    <div class="space-y-3 text-center">
-      <h2 class="win-shimmer font-hand text-3xl leading-tight font-bold">
-        {winner(@slide.ranked, @names, @seat)}
-      </h2>
-      <ol class="space-y-1.5 text-left" data-role="reveal-podium">
-        <li
-          :for={{{seat, vp, place}, i} <- Enum.with_index(@slide.ranked)}
-          class={[
-            "reveal-row flex items-center gap-2 rounded-md px-2 py-1.5",
-            if(place == 1, do: "bg-gold/40 ring-1 ring-gold", else: "bg-parchment-deep/50")
-          ]}
-          style={"--i: #{length(@slide.ranked) - 1 - i}"}
-          data-seat={seat}
-          data-place={place}
-        >
-          <span class="w-5 font-hand text-lg font-bold">{place}</span>
-          <span class={[
-            "grid size-7 place-items-center rounded-full font-hand font-bold text-ink ring-1 ring-black/25",
-            seat_bg(seat)
-          ]}>
-            {String.first(short_name(@names, seat, nil))}
-          </span>
-          <span class="min-w-0 flex-1 truncate font-semibold">
-            {short_name(@names, seat, @seat)}
-          </span>
-          <.piece_icon :if={place == 1} name={:vp} class="size-5 text-gold" />
-          <span class="font-hand text-xl font-bold tabular-nums">{vp} VP</span>
-        </li>
-      </ol>
-    </div>
-    """
-  end
-
   # The running results (round 16): one chip per seat in VP order, its VP so far and
   # what this slide added. A fixed height, so the slide does not move. Each slide
   # has its own ids, so the gain pops in once per slide.
@@ -609,38 +419,6 @@ defmodule QuacksWeb.RevealComponents do
         </span>
       </li>
     </ol>
-    """
-  end
-
-  # The black, green and purple chips in a pot: an icon and a number each.
-  attr :counts, :list, required: true, doc: "`[{colour, n}]`"
-  attr :class, :any, default: nil
-  attr :small, :boolean, default: false, doc: "the results table: tight, small icons"
-
-  defp pot_counts(assigns) do
-    ~H"""
-    <span
-      class={[
-        "inline-flex items-center gap-1.5 text-xs font-semibold tabular-nums",
-        @class
-      ]}
-      aria-label={Enum.map_join(@counts, ", ", fn {c, n} -> "#{n} #{c}" end)}
-      data-role="reveal-pot"
-    >
-      <span
-        :for={{colour, n} <- @counts}
-        class={[
-          "inline-flex items-center",
-          if(@small, do: "gap-px", else: "gap-0.5"),
-          n == 0 && "opacity-45"
-        ]}
-      >
-        <.ingredient_icon
-          colour={colour}
-          class={[if(@small, do: "size-3", else: "size-4"), book_ink(colour)]}
-        />{n}
-      </span>
-    </span>
     """
   end
 
@@ -795,51 +573,27 @@ defmodule QuacksWeb.RevealComponents do
   defp icon(true), do: "size-3.5"
   defp icon(false), do: "size-5"
 
-  defp die_size(1), do: "size-5"
-  defp die_size(2), do: "size-4"
-  defp die_size(_n), do: "size-3"
-
-  defp update_class(:exploded), do: "bg-ruby/15 text-ruby"
-  defp update_class(:stopped), do: "bg-ink/10 text-ink-soft"
-  defp update_class(:vp), do: "bg-gold/60"
-  defp update_class(:rubies), do: "bg-ruby/15 text-ruby"
-  defp update_class(:droplet), do: "bg-droplet/20"
-
-  # An exploded seat's chip also says what it took.
-  defp update_text(%{kind: :exploded}, %{choice: choice}) when choice in [:vp, :buy],
-    do: "exploded: took the #{choice(choice)}"
-
-  defp update_text(update, _row), do: update.text
-
-  # The results table's chips are small: "exploded: coins".
-  defp short_update_text(%{kind: :exploded}, %{choice: choice}) when choice in [:vp, :buy],
-    do: "exploded: #{choice(choice)}"
-
-  defp short_update_text(update, row), do: update_text(update, row)
-
   defp choice(:vp), do: "VP"
   defp choice(:buy), do: "coins"
 
   defp short_name(_names, seat, seat), do: "You"
   defp short_name(names, seat, _me), do: Map.get(names, seat, "Player #{seat + 1}")
 
-  defp winner(ranked, names, me) do
-    case for({seat, _vp, 1} <- ranked, do: seat) do
-      [^me] -> "You win!"
-      [seat] -> "#{short_name(names, seat, nil)} wins!"
-      seats -> "#{Enum.map_join(seats, " and ", &short_name(names, &1, me))} share the win!"
-    end
-  end
-
   @doc """
   The menu's reveal settings, a form (`#reveal-settings`, event
-  `"reveal_settings"`): Step or Auto, and the speed. `RevealSettings` (app.js)
+  `"reveal_settings"`): Step or Auto, the speed, the risk beside the white meter
+  (round 29: Off, Percent or Chips). `RevealSettings` (app.js)
   keeps them in this browser and sends them on mount. With reduced motion only
   Step.
   """
   attr :mode, :atom, required: true, values: [:step, :auto]
   attr :speed, :atom, required: true, values: Reveal.speeds()
   attr :reduced, :boolean, default: false
+
+  attr :risk, :atom,
+    default: :percent,
+    values: [:off, :percent, :chips],
+    doc: "round 29: the explosion risk beside the white meter"
 
   def reveal_settings(assigns) do
     ~H"""
@@ -863,6 +617,12 @@ defmodule QuacksWeb.RevealComponents do
         legend="Speed"
         value={@speed}
         options={[normal: "Normal", slow: "Slow", slower: "Slower"]}
+      />
+      <.segments
+        name="risk"
+        legend="Risk"
+        value={@risk}
+        options={[off: "Off", percent: "Percent", chips: "Chips"]}
       />
     </form>
     """

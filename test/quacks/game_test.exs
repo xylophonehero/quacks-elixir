@@ -90,10 +90,17 @@ defmodule Quacks.GameTest do
     assert PotTrack.at(99) == PotTrack.at(53)
   end
 
-  test "chips past the spoon land on the spoon" do
+  test "round 37: chips past the last space land on it (52), the spoon (53) scores" do
     g = new() |> put(droplet: 50, pot_index: 50) |> force_draws([{:white, 3}, {:white, 3}])
-    assert me(g).pot_index == 53
+    assert me(g).pot_index == 52
+    assert Enum.all?(me(g).drawn, fn {_chip, i} -> i <= PotTrack.last_chip() end)
     assert Game.scoring_index(g) == 53
+
+    # a chip exactly on the last space: the next one goes in the overflow bowl
+    g = new() |> put(droplet: 49, pot_index: 49) |> force_draws([{:white, 3}, {:white, 1}])
+    assert [{{:white, 3}, 52}] = me(g).drawn
+    assert me(g).bowl == [{:white, 1}]
+    assert {0, {:pot_vp, 15, 53}} in apply!(g, :stop).log
   end
 
   test "stopping rolls the die and pays the scoring space" do
@@ -624,12 +631,18 @@ defmodule Quacks.GameTest do
   end
 
   describe "the shop" do
-    test "the buy first, once; then the rubies and Done" do
+    # Round 35: the ruby uses are legal in the buy step too (the page asks for them
+    # before the round's last results step); Done only after the buy.
+    test "the buy first, once; the rubies before or after it; then Done" do
       g = put(new(), phase: :shop, coins: 8, rubies: 4, flask: false)
       actions = Game.legal_actions(g)
       assert {:buy, [{:green, 1}, {:orange, 1}]} in actions and {:buy, []} in actions
-      refute Enum.any?(actions, &(match?({:rubies, _}, &1) or &1 == :end_round))
-      assert {:error, _} = Game.apply(g, {:rubies, :flask})
+      assert {:rubies, :flask} in actions and {:rubies, :droplet} in actions
+      refute :end_round in actions
+
+      early = apply!(g, {:rubies, :flask})
+      assert me(early).flask and me(early).rubies == 2 and not me(early).bought?
+      assert {:buy, [{:orange, 1}]} in Game.legal_actions(early)
 
       g = apply!(g, {:buy, [{:orange, 1}]})
       assert me(g).bought? and Game.phase(g, 0) == :shop
@@ -684,7 +697,10 @@ defmodule Quacks.GameTest do
           action = Enum.at(actions, rem(div(pick, 7), length(actions)))
           next = apply!(g, seat, action)
           assert_chips_conserved(g, next, seat, action)
-          assert Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
+
+          assert g.fortune_card == :ap10 or
+                   Enum.all?(g.seats, &(me(next, &1).droplet >= me(g, &1).droplet))
+
           assert Enum.all?(g.seats, &(me(next, &1).tube in me(g, &1).tube..12))
           assert Enum.all?(g.seats, &(me(next, &1).pot_index <= 53)) and next.round in 1..9
           {:cont, next}
@@ -742,6 +758,7 @@ defmodule Quacks.GameTest do
       explode_above: integer(5..9),
       round6_white: boolean(),
       fortune: boolean(),
+      alch_cards: boolean(),
       rats: boolean(),
       black_solo: member_of([:droplet, :droplet_ruby]),
       black_rule: member_of([:neighbours, :standings]),

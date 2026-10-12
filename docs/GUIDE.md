@@ -51,14 +51,15 @@ flowchart LR
 | 1 | [Map of the repo and the OTP app](guide/01-repo-and-otp.md) | folders, the supervision tree, how `mix phx.server` boots, dev / test / prod |
 | 2 | [The pure engine as a state machine](guide/02-engine.md) | structs, `apply/3`, `legal_actions/2`, phases, a draw step by step, expansions as a `MapSet`, `move_droplet/3`, RNG in the struct |
 | 3 | [Sessions, log and replay](guide/03-session-log-replay.md) | seed + actions = the game, undo, bundles (`Session.bundle/1`, `from_bundle/2`), the log as UI data |
-| 4 | [GameServer and client syncing](guide/04-gameserver.md) | one GenServer per game, PubSub, seats, host and founder, presence (`absent`, `rejoin/4`), `seen`, bot ticks and lockstep, bot plans in concurrent phases, the Mandrake answer with undo, a bot's own rng, bot names, socket GC, `Quacks.BugReports` (Req, ETS rate limit), debug tables |
+| 4 | [GameServer and client syncing](guide/04-gameserver.md) | one GenServer per game, PubSub, seats, host and founder, presence (`absent`, `rejoin/4`), `seen`, bot ticks, bot brews in one go, bot plans in concurrent phases, the Mandrake answer with undo, a bot's own rng, bot names, socket GC, `Quacks.BugReports` (Req, ETS rate limit), debug tables |
 | 5 | [Routes and the LiveView lifecycle](guide/05-liveview.md) | router, `mount`, events, broadcasts, encoded actions, derived assigns, `"seen"` acknowledgements, `:not_found`, the report form, `/debug/replay`, `mix quacks.replay`, the scrubber |
-| 6 | [Components](guide/06-components.md) | function components, HEEx, native dialogs, the side panel, one grid with named areas, the context column, the books drawer and column, hotkeys, the SVG pot, compile-time icons, Tailwind tricks, motion (ids, `--beat` on cards, pot and books, the `PotMotion` hook and ruby flights, a view transition, reduced motion), the PWA with no service worker |
+| 6 | [Components](guide/06-components.md) | function components, HEEx, native dialogs, the side panel, one grid with named areas, the context column, the books drawer and column, hotkeys, the SVG pot, compile-time icons, Tailwind tricks, motion (ids, `--beat` on cards, pot and books, the `PotMotion` hook and ruby flights, a view transition, reduced motion), the PWA with no service worker, the dev-only component gallery |
 | 7 | [Rules as data](guide/07-rules-as-data.md) | `Quacks.Rules.*`, module attributes, why data is not logic, one board order (`Chips.order/0`), patients and test tubes |
 | 8 | [Tests](guide/08-tests.md) | ExUnit, helpers, StreamData properties, LiveViewTest, `mix precommit`, the simulator |
 | 9 | [The agentic workflow and a cheat sheet](guide/09-workflow.md) | handoffs, worktrees, verification; "where to look when..." |
 | 10 | [Elixir idioms you met](guide/10-idioms.md) | pattern matching, `with`, pipes, guards, specs, Credo |
-| 11 | [The bots](guide/11-bots.md) | the `Decider` behaviour, profiles as data, exact odds, expected value with memoisation, the choice scorer, the bot at a table (flags, lockstep, plans, names), the simulator |
+| 11 | [The bots](guide/11-bots.md) | the `Decider` behaviour, profiles as data, exact odds, expected value with memoisation, the choice scorer, the bot at a table (flags, brews in one go, plans, names), the simulator |
+| 12 | [Gallery: stories, args, screens, scenarios](guide/12-gallery.md) | `/dev/gallery` (dev, test, staging): stories with args and presets, full game screens, the scenarios step by step; the live scenario game, the scenario test, snapshots, how a builder reproduces and fixes a bug |
 
 Read 1, 2 and 4 first. They hold the architecture. The rest you can read in any order.
 
@@ -71,12 +72,12 @@ Read 1, 2 and 4 first. They hold the architecture. The rest you can read in any 
 | `switch (action.type)` | several function clauses with pattern matching (`defp step(...)`, `lib/quacks/game.ex:624`) |
 | Server state store (a backend) | `Quacks.GameServer`, a GenServer (`lib/quacks/game_server.ex:72`) |
 | WebSocket subscription | `Phoenix.PubSub.subscribe/2` in `mount/3` (`lib/quacks_web/live/game_live.ex:119`) |
-| Component props | `attr :name, :type` on a function component (`lib/quacks_web/components/game_components.ex:153`) |
+| Component props | `attr :name, :type` on a function component (`chip/1` in `lib/quacks_web/components/chip_components.ex`) |
 | `children` | `slot :inner_block` and `render_slot/1` (`lib/quacks_web/components/core_components.ex:108`) |
 | `useState` | none in components; state lives in the LiveView's `assigns` |
 | Derived state / selectors | `put_game/2` computes `@me`, `@decision`, `@actions` once per update (`lib/quacks_web/live/game_live.ex:2513`) |
 | TS `interface` for a module | a behaviour: `@callback` in `Quacks.AI.Decider` (`lib/quacks/ai/decider.ex:11`) |
-| `key` on a list item | the element `id`, e.g. `pot_chip_id/4` (`lib/quacks_web/components/game_components.ex:927`) |
+| `key` on a list item | the element `id`, e.g. `pot_chip_id/4` (`lib/quacks_web/components/pot_components.ex`) |
 | Framer Motion `layout` / FLIP | the `PotMotion` hook with the Web Animations API (`assets/js/app.js:80`) |
 | `staggerChildren` / delayed sequence | `--beat` from `QuacksWeb.Replay`, one CSS delay formula (`assets/css/app.css:981-994`) |
 | Optimistic UI (show first, sync later) | the reverse: the first patch is final, CSS delays only *show* it on the beats (chapter 6) |

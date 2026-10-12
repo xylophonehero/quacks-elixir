@@ -99,3 +99,36 @@ Also checked:
 Confidence is high, so this is not necessary. To confirm on the physical box, take one
 photo of the bottom-left corner of the main board (spaces 1 to 11). That is the only
 section where the old and new lists differ.
+
+## Above 50: the tails repeat on each lap (round 34, 2026-10-09)
+
+Nick's round-scored screen showed a leader on 68, others on 51 and 39, and no rats
+between 51 and 68. The engine stopped at the printed list (no tail above 48).
+
+Rule used now: **there is a tail after `t + 50 * k` for each printed `t` and each lap
+`k >= 0`.** So after 51, 54, 57, 60, 62, 64, ..., 98, then 101, 104, and so on. Still
+no tail between 50 and 51 (the corner from space 50 to space 1) and none after 99.
+
+Sources and reasoning:
+
+1. **Rulebook (Schmidt English 2024, S1), component list, PDF p. 1: "0 / 50-seals"**, and
+   setup, PDF p. 2: "The 4 seal tiles go on the 4 seal spaces with the '0' facing up." The
+   track has only the spaces 1 to 50 (see "Board layout notes" above). A marker that
+   passes 50 goes on round the same track from space 1, and the seal tile flips to its
+   "50" side to keep the score. A marker on 68 VP stands on the printed space 18.
+2. **Rulebook, "Rat-tails" (PDF p. 3): "each player counts the number of rat-tails between
+   them and the leading player on the Scoring Track."** The count is of the tails
+   printed on the board between the two markers. On the second lap the markers stand
+   on the same printed spaces as `vp - 50`, so the tails between them are the printed
+   tails shifted by 50. When the leader has lapped and the other player has not (39
+   vs 68), the path from 39 runs over the tails after 40..48, the 50/1 corner (no
+   tail), then the tails after 1..17 on the second lap: 5 + 7 = 12 rats.
+3. **LeQuacks** (S above) covers 0..50 only; it has no rule for a lap. No official
+   text says "tails do not count above 50", and the board has no other track to use.
+
+Confidence: HIGH that tails count above 50 (the board loops and the rule counts the
+printed tails between markers). The formula `t + 50 * k` follows from the board.
+
+Code: `Quacks.Rules.ScoringTrack.tails_between/2` and `rat_tails/2` (doctests for
+`rat_tails(51, 68) == 7` and `rat_tails(39, 68) == 12`); the rat track UI uses
+`tails_between/2`.

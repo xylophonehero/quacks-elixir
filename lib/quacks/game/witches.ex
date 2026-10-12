@@ -22,12 +22,22 @@ defmodule Quacks.Game.Witches do
   ended with `{:witch, :silver, :return_all}` (the penny is already spent then).
   `:witch_done` passes in `:witch_choice`. Every call logs `{seat, {:witch, id,
   outcome}}`.
+
+  AB8 Visit from a witch (`docs/research/alchemists-fortune-cards.md` §6): when the
+  card comes up, `visit/1` draws one witch at random from the 9 not in
+  `game.witches` (any colour) into `game.visitor`. This round every seat may call
+  her once, without a penny, at the moment her colour allows: `{:witch, :visit}` and
+  `{:witch, :visit, choice}` (the same choices as her own colour's).
+  `game.visited` holds the seats that called her; the pennies stay as they are. She leaves at the
+  end of the round (`leave/1`). A seat may call both gold witches in
+  `:witch_choice`: it decides until no gold call is left or it passes.
   """
 
   alias Quacks.Game
   alias Quacks.Game.{Evaluation, Potions}
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
+  alias Quacks.Rules.Witches, as: WitchCards
 
   # C1: one level up. ⚠️ Only colours with 2- and 4-chips (not white, orange, locoweed).
   @upgrade for c <- [:green, :blue, :red, :yellow],
@@ -59,8 +69,42 @@ defmodule Quacks.Game.Witches do
           action <- actions(g, p, id),
           do: action
 
-    offer ++ called
+    offer ++ called ++ visit_actions(g, seat, p)
   end
+
+  # AB8: the visiting witch, once per seat, at her colour's moment, for free.
+  defp visit_actions(%{visitor: nil}, _seat, _p), do: []
+
+  defp visit_actions(%{visitor: id} = g, seat, p) do
+    if seat not in g.visited and now?(g, seat, p, WitchCards.card(id).colour),
+      do: Enum.map(actions(g, p, id), &as_visit/1),
+      else: []
+  end
+
+  defp as_visit({:witch, _colour}), do: {:witch, :visit}
+  defp as_visit({:witch, _colour, choice}), do: {:witch, :visit, choice}
+
+  @doc """
+  AB8 Visit from a witch: one witch not in `game.witches` (any colour), drawn with
+  the game's `rng`, visits this round (`game.visitor`, logged `{:visitor, id}`).
+  Without The Herb Witches nothing happens.
+  """
+  @spec visit(Game.t()) :: Game.t()
+  def visit(%{witches: nil} = g), do: g
+
+  def visit(g) do
+    free = WitchCards.ids() -- Map.values(g.witches)
+    {i, rng} = :rand.uniform_s(length(free), g.rng)
+    id = Enum.at(free, i - 1)
+    Game.record(%{g | visitor: id, visited: [], rng: rng}, {:visitor, id})
+  end
+
+  @doc "The end of the round: the visiting witch leaves (`{:visitor_left, id}`)."
+  @spec leave(Game.t()) :: Game.t()
+  def leave(%{visitor: nil} = g), do: g
+
+  def leave(%{visitor: id} = g),
+    do: Game.record(%{g | visitor: nil, visited: []}, {:visitor_left, id})
 
   # Is it the right moment for a witch of this colour?
   defp now?(%{phase: :potions}, _seat, p, :silver),
@@ -163,10 +207,16 @@ defmodule Quacks.Game.Witches do
   def step(g, seat, {:witch, :silver, :return_all}), do: return_offer(g, seat)
 
   def step(g, seat, {:witch, colour}),
-    do: g |> spend(seat, colour) |> call(seat, g.witches[colour])
+    do: g |> spend(seat, colour) |> call(seat, witch(g, colour))
 
   def step(g, seat, {:witch, colour, choice}),
-    do: g |> spend(seat, colour) |> call(seat, g.witches[colour], choice)
+    do: g |> spend(seat, colour) |> call(seat, witch(g, colour), choice)
+
+  defp witch(g, :visit), do: g.visitor
+  defp witch(g, colour), do: g.witches[colour]
+
+  # The visiting witch costs no penny: the seat's one visit is used.
+  defp spend(g, seat, :visit), do: %{g | visited: [seat | g.visited]}
 
   defp spend(g, seat, colour),
     do: Game.update_player(g, seat, &%{&1 | pennies: %{&1.pennies | colour => false}})
@@ -218,9 +268,10 @@ defmodule Quacks.Game.Witches do
         _ -> Game.update_player(g, seat, &%{&1 | vp: &1.vp + n})
       end
 
-    g
-    |> log(seat, id, if(id == :g3, do: {:rubies, n}, else: {:vp, n}))
-    |> gold_done(seat)
+    g = log(g, seat, id, if(id == :g3, do: {:rubies, n}, else: {:vp, n}))
+
+    # AB8: the visiting gold witch may still be there for this seat (or the own one).
+    if legal_actions(g, seat) == [], do: gold_done(g, seat), else: g
   end
 
   # G4: 1 ruby per droplet or flask for the rest of this shop.

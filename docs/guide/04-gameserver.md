@@ -187,14 +187,14 @@ draw. When the tick arrives (`lib/quacks/game_server.ex:757-779`):
 def handle_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
     when :erlang.map_get(seat, ticks) == tick do
   ...
-  with false <- capped?(state, state.session.game, seat),
+  with false <- held?(state.session.game),
        false <- humans_deciding?(state, state.session.game),
        nil <- state.auto_keep,
        {action, rng} <- AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
        {:ok, session} <- Session.apply(state.session, seat, action) do
 ```
 
-The body is one `with` chain: not capped, no human still decides in a concurrent
+The body is one `with` chain: not held (below), no human still decides in a concurrent
 phase, no Mandrake answer open, `AI.decide/4` picks an action, `Session.apply/3`
 applies it, then `acted/1` and the broadcast. `with` can match on any value, not
 only `{:ok, _}`: `false <-` and `nil <-` are plain checks. Any other tick falls
@@ -206,16 +206,57 @@ act and the game can change. Each bot seat has at most one pending tick number i
 `bot_ticks`. The guard accepts only that number; the second clause drops any stale
 tick. (`:erlang.map_get/2` is allowed in a guard; `Map.get/2` is not.)
 
-**Lockstep.** Bots draw faster than humans. `capped?/3` stops a bot from drawing
-more chips this round than the human who drew most
-(`lib/quacks/game_server.ex:915-926`). A capped bot gets no tick; the next human
-action schedules it again. The cap is on only while a human still brews
-(`brewing?/1`, lines 928-930): when every human has stopped, the bots draw on at
-tick speed.
+**Bots step with your draws (round 37).** In the potions phase of rounds 1–8 a
+bot gets no tick at all (`held?/1`). Round 36 made the bots wait until every human
+stopped; Nick wanted to see them brew while he draws, but without one update per
+bot draw. So now `server_call({:apply, ...})` runs `step_bots/4` before `acted/1`:
 
-Lockstep makes a bot brew at human speed: draw for draw, never ahead of the
-fastest human. Round 9 has no cap, because the stir (chapter 2) already makes every
-seat pick together.
+```elixir
+%{state | session: session}
+|> step_bots(seat, action, sent)
+|> acted()
+|> reply_game()
+```
+
+A human `:draw` goes into `state.drawn` (a `MapSet`). When every human seat that
+still draws (`drawing?/2`) is in it, each bot that still brews takes one
+`bot_step/3`: `AI.decide/4` and `Session.apply/3` until it made its next `:draw`
+or `:stop` and no question about that chip is open (`mid_draw?/2`: Mandrake, crow
+skull, ...). Then `drawn` is empty again. Solo: every draw steps the bots. Two
+humans: the bots step once per round of human draws; a human who stopped no longer
+counts, so the one still drawing steps them with each draw. The steps run before
+`auto_return/1`, so the session that `keep_white/2` goes back to holds them too.
+It is all one call: one broadcast (`reply_game/1`), one file write (`stored/2`),
+one log entry per bot action.
+
+**The rest in one go (round 36).** When the last human seat stops or explodes,
+the next `schedule_bots/1` calls `brew_bots/2` first:
+
+```elixir
+with true <- held?(game),
+     false <- Enum.any?(game.seats -- Map.keys(state.bots), &drawing?(game, &1)),
+     {seat, action, rng, engine_us, session} <- next_brew(state) do
+  log_action(state.id, seat, {:bot, action}, :ok, engine_us, started)
+  state = %{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)}
+  brew_bots(state, started, budget - 1)
+else
+  _no_brew -> state
+end
+```
+
+`next_brew/1` asks the bots in seat order and takes the first that has an action,
+so bot 1 brews to its stop, then bot 2. The last stop settles every soft stop
+(chapter 2), and a bot may then act once more (red chips beside the pot). It all
+runs inside the human's `:stop` call: `reply_game/1` sends one broadcast with every
+bot's pot, and `stored/2` schedules one file write. Each action still goes through
+`Session.apply/3`, so the log, replay and a bug report's bundle hold every draw.
+
+Two effects on play. The draws on the shared `game.rng` come in a new order:
+each human draw, then the bot steps in seat order. And when the last human stops,
+the bots finish in the same call, so nobody can `:resume` after the bots stopped. Round 9 keeps its ticks: the
+stir already makes every seat draw together. A tick that arrives from an earlier
+phase is dropped by `held?/1`; a tick that runs `schedule_bots/1` and so brews
+broadcasts too (`broadcast_changed/2`).
 
 ## Decisions revealed together: bot plans
 
@@ -420,7 +461,7 @@ Every GC is now a full sweep. The live data of the process is only a few KB, so
 that is cheap, and the process stays near 0.4 MB. A value of 20 was not enough
 (4.7 MB after 30 diffs). See **live socket** in `docs/CONTEXT.md`.
 
-## Sequence: a human draws, the bots follow
+## Sequence: a human draws and stops, the bots brew
 
 ```mermaid
 sequenceDiagram
@@ -435,17 +476,22 @@ sequenceDiagram
   LV->>GS: GenServer.call {:apply, 0, :draw}
   GS->>E: Session.apply -> Game.apply(game, 0, :draw)
   E-->>GS: {:ok, game}
-  GS->>GS: acted: auto_return, flush, schedule_bots (send_after {:bot, 1, 7})
+  GS->>GS: step_bots: every brewing bot draws once (AI.decide, Session.apply)
+  GS->>GS: acted: auto_return, flush, schedule_bots (bots held: no tick)
   GS->>PS: broadcast {:game, id, game}
   GS-->>LV: {:ok, game}
   LV-->>B: HTML diff
   PS-->>LV: {:game, id, game} (same game, skipped)
   PS-->>LV2: {:game, id, game}
-  Note over GS: 700 ms later
-  GS->>GS: handle_info {:bot, 1, 7}
-  GS->>E: AI.decide, then Game.apply(game, 1, :draw)
-  GS->>PS: broadcast {:game, id, game}
-  PS-->>LV: {:game, id, game}
+  B->>LV: phx-click "action" (encoded :stop)
+  LV->>GS: GenServer.call {:apply, 0, :stop}
+  GS->>E: Session.apply -> Game.apply(game, 0, :stop)
+  GS->>GS: schedule_bots -> brew_bots
+  loop every bot, seat order, until no bot acts
+    GS->>E: AI.decide, then Session.apply(session, bot, action)
+  end
+  GS->>PS: one broadcast {:game, id, game}
+  GS-->>LV: {:ok, game}
   PS-->>LV2: {:game, id, game}
 ```
 
@@ -575,7 +621,7 @@ Each check gives `:ok` or `{:error, reason}`, and the first error falls out of t
   `<details>` block with one regex.
 
 **A known smell.** `log_words/1` (lines 165-173) calls
-`QuacksWeb.GameComponents.log_text/3`, so `lib/quacks` (the core) depends on
+`QuacksWeb.GameText.log_text/3`, so `lib/quacks` (the core) depends on
 `lib/quacks_web` (the UI) for the wording of the log. The usual direction is the
 other way: the web layer calls the core, never back. It works, because both are in
 one Mix app, and the report must use the words the player saw. A cleaner split
@@ -615,3 +661,46 @@ passes them to `Session.new/3`, and `Game.new/1` applies each as that seat's
 (`Session.encode_opts/1`), and the session's bundle keeps them for replay. A play
 again resets them to Random (solo: no picks, the choice comes in the game).
 `valid?/2` checks the settings with seed `{1, 2, 3}`, so it leaves the picks out.
+
+## Action timing in the log (round 28)
+
+Each applied action writes one line from `GameServer` (`log_action/6`), and each
+LiveView event one line from `QuacksWeb.Telemetry.log_event/4` (a handler on
+`[:phoenix, :live_view, :handle_event, :stop]`):
+
+```
+action game=wjyliq seat=0 action=draw result=ok engine_ms=0.02 total_ms=0.41
+action game=wjyliq seat=1 action=bot:draw result=ok engine_ms=0.02 total_ms=0.30
+live_event view=GameLive event=action ms=0.62
+```
+
+- `engine_ms`: the time in `Session.apply/3` (the engine).
+- `total_ms`: for a human, from the moment the LiveView process sent the call
+  (`GameServer.apply/3` puts `System.monotonic_time/0` in the message) until the
+  reply: the wait in the game's mailbox, the engine, the bots' plans and the
+  broadcast. For a bot, from its tick.
+- `live_event ms`: the server's `handle_event`, with the `GameServer` call in it; not
+  the render, not the network.
+
+A line at 50 ms or more is `:info`; the rest are `:debug`, which prod does not
+print. So on prod only slow moves show:
+
+```
+fly logs -a quacks | grep -E "action |live_event"
+```
+
+### What a draw costs (measured 2026-10-09)
+
+Round 8 of a 2-player game, local dev machine: `Game.apply` 0.02 ms,
+`legal_actions` under 0.01 ms, `Odds.next_draw` under 0.01 ms, `handle_event` 0.15 to
+0.25 ms, one render 0.5 to 0.8 ms. In the browser (local) the reply comes 17 to 25
+ms after the click and the patch is in the DOM in the same frame. The server is not
+where a slow draw comes from.
+
+The size of the patch was the one large cost we could prove. Before round 28 a draw
+sent about 19 KB to the drawing tab and about 14 KB to every other tab for each
+other seat's move, because `pot/1` set the track's fixed geometry and the per-space
+data as assigns inside the component: a function component's own assigns count as
+changed on every render, so all 54 spaces went out each move. The pot now loops
+over `track/5` entries with `:key={index}`, and the geometry comes from functions:
+about 11 to 13 KB for the drawing tab, about 7 KB for the others.

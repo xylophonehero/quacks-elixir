@@ -139,7 +139,7 @@ defmodule Quacks.Game.Potions do
   def step(g, seat, {:chip, :yellow_ruby}) do
     g
     |> Game.update_player(seat, fn %{drawn: [{chip, i} | rest]} = p ->
-      i = min(i + 3, PotTrack.last())
+      i = PotTrack.chip_index(i + 3)
       %{p | rubies: p.rubies - 1, drawn: [{chip, i} | rest], pot_index: i}
     end)
     |> Game.effect(seat, {:yellow, 6}, {:extra, 3})
@@ -324,13 +324,13 @@ defmodule Quacks.Game.Potions do
   # House rule `overflow` (default): a chip after a chip on the last space goes in the
   # bowl. Without it the chip stays on the last space.
   defp overflow?(%{rules: %{overflow: false}}, _p), do: false
-  defp overflow?(_g, %Player{drawn: drawn}), do: match?([{_, 53} | _], drawn)
+  defp overflow?(_g, %Player{drawn: drawn}), do: match?([{_, i} | _] when i >= 52, drawn)
 
   # Overflow bowl: on the last space an action for the next chip is lost (the next chip
   # goes in the bowl). Blue Set 1 (the offer) and Y2 (next chip double).
   defp next_chip_lost(%{rules: %{overflow: true}} = g, seat, book)
        when book in [{:blue, 1}, {:yellow, 2}] do
-    if Game.player(g, seat).pot_index == PotTrack.last(), do: :bowl, else: book
+    if Game.player(g, seat).pot_index >= PotTrack.last_chip(), do: :bowl, else: book
   end
 
   defp next_chip_lost(_g, _seat, book), do: book
@@ -476,7 +476,7 @@ defmodule Quacks.Game.Potions do
       {[{_, v} = peek], g} ->
         g
         |> Game.update_player(seat, fn %{drawn: [{chip, i} | rest]} = p ->
-          i = min(i + v, PotTrack.last())
+          i = PotTrack.chip_index(i + v)
           %{p | drawn: [{chip, i} | rest], pot_index: i, bag: [peek | p.bag]}
         end)
         |> Game.effect(seat, book, {:peek, peek})
@@ -520,7 +520,7 @@ defmodule Quacks.Game.Potions do
   # remember the space it landed on, so the page can draw it there. Y2 doubles the
   # whole move of the next chip, once. `acting` and `book` give the move (see
   # `acting/3`); a chip for the overflow bowl (`:bowl`) just goes in.
-  defp place(g, seat, chip, _acting, :bowl), do: put_on_pot(g, seat, chip, PotTrack.last())
+  defp place(g, seat, chip, _acting, :bowl), do: put_on_pot(g, seat, chip, PotTrack.last_chip())
 
   defp place(g, seat, chip, {_, value} = acting, book) do
     p = Game.player(g, seat)
@@ -543,7 +543,15 @@ defmodule Quacks.Game.Potions do
     Enum.reduce(effects, g, fn {book, detail}, g -> Game.effect(g, seat, book, detail) end)
   end
 
-  # The chip lands on `index` (clamped to the last space) and becomes the newest chip.
+  # Round 35: the first chip in the pot fixes the rat stone's space; a later droplet
+  # move does not move it (rulebook §3 step 2).
+  defp fix_rats(%{drawn: [], rat_stone: n} = p) when n > 0,
+    do: put_in(p.mods.rat_end, Player.start_index(p))
+
+  defp fix_rats(p), do: p
+
+  # The chip lands on `index` (clamped to the last space a chip can cover, 52) and
+  # becomes the newest chip.
   # With `overflow` and a chip already on the last space, it goes in the bowl.
   defp put_on_pot(g, seat, chip, index) do
     if overflow?(g, Game.player(g, seat)) do
@@ -551,10 +559,13 @@ defmodule Quacks.Game.Potions do
       |> Game.update_player(seat, &%{&1 | bowl: [chip | &1.bowl]})
       |> Game.record(seat, {:overflow, chip})
     else
-      index = min(index, PotTrack.last())
+      index = PotTrack.chip_index(index)
 
       g
-      |> Game.update_player(seat, &%{&1 | drawn: [{chip, index} | &1.drawn], pot_index: index})
+      |> Game.update_player(
+        seat,
+        &%{fix_rats(&1) | drawn: [{chip, index} | &1.drawn], pot_index: index}
+      )
       |> Game.record(seat, {:drew, chip, index})
     end
   end

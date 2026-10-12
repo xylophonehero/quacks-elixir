@@ -7,7 +7,7 @@ There are two lists of "what happened" in this codebase. They have different job
 | | `Session.actions` | `Game.log` |
 |---|---|---|
 | Holds | the input: `{seat, action}` pairs | the narration: actions *and* the events they caused |
-| Used for | replay, undo and the bug report bundle | the UI: the log sheet, the update chips, labels, bot lockstep, the bug report text |
+| Used for | replay, undo and the bug report bundle | the UI: the log sheet, the update chips, labels, the bug report text |
 | Lives in | `%Quacks.Session{}` | `%Quacks.Game{}` |
 | Order | newest first | newest first |
 
@@ -162,8 +162,8 @@ scoring space". The UI needs both.
 
 ### Who reads the log
 
-- **The log sheet.** `GameComponents.action_log/1` turns each entry into text with
-  `label/1` (`lib/quacks_web/components/game_components.ex:2464-2479`, the lines
+- **The log sheet.** `PanelComponents.action_log/1` turns each entry into text with
+  `label/1` (`lib/quacks_web/components/panel_components.ex`, the lines
   come from `log_lines/3` at 2512-2518). It hides actions that an event already
   tells, so the log does not say things twice:
 
@@ -173,13 +173,13 @@ scoring space". The UI needs both.
   defp narrated_by_event?({:rubies, _}), do: true
   ```
 
-  (three of the clauses, `lib/quacks_web/components/game_components.ex:2572-2593`)
+  (three of the clauses, `lib/quacks_web/game_text.ex`)
 
   The same lines go into a bug report: `log_text/3` (line 2509) gives the newest
   lines as plain strings.
 
 - **Labels.** `label/1` has one clause per entry shape
-  (`lib/quacks_web/components/game_components.ex:2895-3044`), for example
+  (`lib/quacks_web/game_text.ex`), for example
   `def label({:drew, chip, index}), do: "Drew #{chip_name(chip)} → space #{index}"`
   (line 2930). The same function labels buttons, because an action is also a log
   entry. The last clause, `def label(other), do: inspect(other)` (line 3044), keeps
@@ -206,10 +206,6 @@ scoring space". The UI needs both.
 
 - **The essence preview.** `essence_parts/2` finds the newest `{:essence, reach,
   parts}` entry for this seat (`lib/quacks_web/live/game_live.ex:2681-2686`).
-
-- **Bot lockstep.** `GameServer.round_draws/1` counts `{seat, :draw}` entries since
-  the last round end, so a bot never draws more chips than the human who drew most
-  (`lib/quacks/game_server.ex:933-941`).
 
 ## Why "the log is the truth the UI reads"
 

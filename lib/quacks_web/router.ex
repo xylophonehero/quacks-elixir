@@ -49,4 +49,26 @@ defmodule QuacksWeb.Router do
       live_dashboard "/dashboard", metrics: QuacksWeb.Telemetry
     end
   end
+
+  # The gallery (`QuacksWeb.GalleryLive`: stories with args, screens, scenarios) and
+  # the scenarios' live games. In every build; `QuacksWeb.Plugs.Gallery` answers 404
+  # unless the runtime flag `:gallery` is on (dev, test, staging; not prod).
+  pipeline :gallery do
+    plug QuacksWeb.Plugs.Gallery
+  end
+
+  scope "/dev", QuacksWeb do
+    pipe_through [:browser, :gallery]
+
+    live_session :gallery, on_mount: QuacksWeb.Plugs.Gallery do
+      live "/gallery", GalleryLive
+      live "/gallery/:component/:variant", GalleryLive
+      live "/gallery/frame/:component/:variant", GalleryFrameLive
+    end
+
+    # Scenarios (`Quacks.Scenarios`): the index goes to the gallery; one item opens
+    # as a live game on the game page.
+    get "/scenarios", ScenarioController, :index
+    get "/scenarios/:kind/*id", ScenarioController, :show
+  end
 end

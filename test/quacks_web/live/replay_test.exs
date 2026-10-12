@@ -6,9 +6,10 @@ defmodule QuacksWeb.ReplayTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, Replay}
+  alias QuacksWeb.{PotComponents, Replay, TileComponents}
 
   # Newest first, like the engine: die → black → green → purple → scoring space.
   @log [
@@ -84,7 +85,7 @@ defmodule QuacksWeb.ReplayTest do
   test "the pot lights the marked chips, the droplet and the scoring ring on their beat" do
     game = game()
     beats = game |> Replay.beats(0) |> Replay.highlights()
-    html = render_component(&GameComponents.pot/1, game: game, beats: beats)
+    html = render_component(&PotComponents.pot/1, game: game, beats: beats)
 
     assert has?(
              html,
@@ -101,7 +102,7 @@ defmodule QuacksWeb.ReplayTest do
     assert has?(html, ~s([data-space="#{ring}"] [data-role=beat-ring][data-beat="5"]))
     refute has?(html, "[data-role=pot-chip][data-index='5'] [data-role=beat-ring]")
 
-    html = render_component(&GameComponents.pot/1, game: game)
+    html = render_component(&PotComponents.pot/1, game: game)
     refute has?(html, "[data-role=beat-ring]")
   end
 
@@ -125,7 +126,7 @@ defmodule QuacksWeb.ReplayTest do
     game = game()
 
     html =
-      render_component(&GameComponents.player_chip/1,
+      render_component(&TileComponents.player_chip/1,
         game: game,
         seat: 0,
         name: "Ann",
@@ -138,7 +139,7 @@ defmodule QuacksWeb.ReplayTest do
     assert has?(html, ".stat-tick")
 
     html =
-      render_component(&GameComponents.player_chip/1,
+      render_component(&TileComponents.player_chip/1,
         game: game,
         seat: 0,
         name: "Ann",
@@ -149,7 +150,7 @@ defmodule QuacksWeb.ReplayTest do
   end
 
   test "the player sheet lists the result lines with the die face and the totals" do
-    html = render_component(&GameComponents.result_lines/1, game: game(), seat: 0)
+    html = render_component(&TileComponents.result_lines/1, game: game(), seat: 0)
     assert length(query(html, "[data-role=result-line]") |> Enum.to_list()) == 6
 
     assert has?(
@@ -165,11 +166,11 @@ defmodule QuacksWeb.ReplayTest do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     {:ok, view, _html} = live(init_test_session(build_conn(), player_token: "solo"), ~p"/g/#{id}")
 
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
-    # round 14: the reveal overlay holds the replay open; its end ends it
-    assert has_element?(view, "dialog#reveal-results-1 [data-role=reveal-slide]")
+    # the results on the tiles hold the replay open; their end ends it
+    assert has_element?(view, "#tile-stage")
     refute has_element?(view, "#players-row.replay-done")
     refute has_element?(view, "[data-role=replay-timer]")
 
@@ -182,10 +183,9 @@ defmodule QuacksWeb.ReplayTest do
       assert String.to_integer(beat) <= last
     end
 
-    view |> element("#reveal-skip") |> render_click()
-    view |> element("#reveal-next") |> render_click()
+    skip_results(view)
     assert has_element?(view, "#players-row.replay-done")
-    refute has_element?(view, "dialog#reveal-results-1")
+    refute has_element?(view, "#tile-stage")
     assert {:ok, %{seen: %{0 => %{results: 1}}}} = GameServer.get(id)
   end
 

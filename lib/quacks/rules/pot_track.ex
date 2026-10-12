@@ -5,9 +5,16 @@ defmodule Quacks.Rules.PotTrack do
   Numbers copied verbatim from `docs/research/rulebook.md` §1.1. ⚠️ That table is
   a fan transcription (two agreeing sources), not an official document.
   Index 53 is the spoon: 35 coins / 15 VP. Any index past 53 clamps to 53.
+
+  Round 37: the spoon is not a space a chip can cover. The rulebook (S1): "If you
+  happen to reach the last space in your pot (33) or move past it, place the chip
+  on the 33 and take what is depicted on the spoon." So a chip lands at most on
+  index 52 (`last_chip/0`, the printed 33), and the scoring space after it is the
+  spoon (index 53, `last/0`).
   """
 
   @last 53
+  @last_chip 52
 
   # {coins, vp, ruby?}
   @track {
@@ -72,6 +79,14 @@ defmodule Quacks.Rules.PotTrack do
   @doc "Index of the last space (the spoon)."
   @spec last() :: 53
   def last, do: @last
+
+  @doc "Index of the last space a chip can cover (the printed 33, before the spoon)."
+  @spec last_chip() :: 52
+  def last_chip, do: @last_chip
+
+  @doc "A chip's space: `idx`, clamped to the last space a chip can cover."
+  @spec chip_index(integer) :: non_neg_integer
+  def chip_index(idx) when is_integer(idx), do: min(idx, @last_chip)
 
   @doc "Payout of the space at `idx`. Indices past the spoon clamp to the spoon."
   @spec at(non_neg_integer) :: space

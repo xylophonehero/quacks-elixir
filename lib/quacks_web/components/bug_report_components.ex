@@ -38,7 +38,7 @@ defmodule QuacksWeb.BugReportComponents do
   def bug_report_sheet(assigns) do
     ~H"""
     <.dialog_sheet id={"bug-report-#{@n}"} label="Report a problem" auto_open={false}>
-      <h2 class="mb-1 text-lg font-bold">Report a problem</h2>
+      <h2 class="sheet-head mb-1 text-lg font-bold">Report a problem</h2>
       <p class="mb-3 text-sm text-ink-soft">
         Tell us what went wrong. We attach your room id, the current game state and your
         browser details, so we can play the game back to this point.

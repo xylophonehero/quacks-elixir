@@ -67,6 +67,10 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
+  # The gallery and the scenarios (`QuacksWeb.Plugs.Gallery`): on staging only, so
+  # fixes can be checked there; prod answers 404 on `/dev/*`.
+  config :quacks, :gallery, System.get_env("APP_ENV") == "staging"
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want

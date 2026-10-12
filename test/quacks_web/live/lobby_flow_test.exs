@@ -3,6 +3,7 @@ defmodule QuacksWeb.LobbyFlowTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.GameServer
 
@@ -58,7 +59,7 @@ defmodule QuacksWeb.LobbyFlowTest do
     assert {:ok, %{status: :playing, players: 2}} = GameServer.get(id)
     open_player(alice, 1)
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-name]), "Bob")
-    assert has_element?(bob, "button[data-slot=draw]", "Draw a chip")
+    assert has_element?(bob, "button[data-slot=draw]", "Draw")
   end
 
   test "a closed page frees its seat; when the creator leaves, the next player may start" do
@@ -104,10 +105,11 @@ defmodule QuacksWeb.LobbyFlowTest do
       Enum.reduce([0, 1], g, &Quacks.GameHelpers.put(&2, &1, coins: 30))
     end)
 
-    # both shops wait for the reveal overlay (round 14)
+    # both shops wait for the results on the tiles
     for view <- [alice, bob] do
       assert has_element?(view, "dialog#decision-shop")
-      assert has_element?(view, "dialog#reveal-results-1")
+      assert has_element?(view, "#tile-stage")
+      skip_results(view)
     end
 
     # everyone shops at once: no state while shopping, a tick when ready
@@ -115,7 +117,8 @@ defmodule QuacksWeb.LobbyFlowTest do
     refute has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]))
 
     # bob has 1 ruby: nothing to spend after the buy, so he is ready at once
-    bob |> element("[data-role=shop-done]") |> render_click()
+    # Round 35: the shop has no Skip; the engine still takes a buy of nothing.
+    render_click(bob, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
     assert has_element?(alice, "dialog#decision-shop")
     assert has_element?(alice, ~s(article[data-seat="1"] [data-role=player-state]), "ready")
     refute has_element?(bob, "[data-role=turn]")

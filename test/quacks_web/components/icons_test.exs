@@ -5,7 +5,7 @@ defmodule QuacksWeb.IconsTest do
 
   alias Quacks.GameServer
   alias Quacks.Rules.{Alchemists, Chips}
-  alias QuacksWeb.{GameComponents, Icons}
+  alias QuacksWeb.{ChipComponents, Icons}
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "icons-#{System.unique_integer()}")}
@@ -72,17 +72,17 @@ defmodule QuacksWeb.IconsTest do
   end
 
   test "a chip shows its icon and its value; :xs shows only the value" do
-    html = render_component(&GameComponents.chip/1, chip: {:orange, 1})
+    html = render_component(&ChipComponents.chip/1, chip: {:orange, 1})
     assert one_path?(html, :orange)
     assert html |> query("[data-role=chip-value]") |> LazyHTML.text() =~ "1"
 
-    xs = render_component(&GameComponents.chip/1, chip: {:orange, 1}, size: :xs)
+    xs = render_component(&ChipComponents.chip/1, chip: {:orange, 1}, size: :xs)
     assert xs |> query("svg") |> Enum.empty?()
   end
 
   test "every bonus die face draws" do
     for face <- [{:vp, 1}, {:vp, 2}, :ruby, :droplet, :orange] do
-      html = render_component(&GameComponents.die/1, face: face)
+      html = render_component(&ChipComponents.die/1, face: face)
       assert Enum.count(query(html, "[data-role=die] .die-strip > g")) == 7
     end
   end
@@ -90,7 +90,7 @@ defmodule QuacksWeb.IconsTest do
   test "shop tiles show the ingredient icon", %{conn: conn} do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     {:ok, view, _html} = live(conn, ~p"/g/#{id}")
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
     tiles = view |> render() |> query("[data-role=shop-row] label")

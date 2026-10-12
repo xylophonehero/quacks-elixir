@@ -2,6 +2,33 @@
 
 [Back to the guide](../GUIDE.md)
 
+## Module map: which file owns what
+
+The game page's components are split by area of the page (October 2026; before, one
+`GameComponents` module and the choice components in `GameLive` held them all).
+Each module imports the ones it builds on: `ChipComponents` and `GameText` are the
+base, `BarComponents` imports most of the others. A function moves only with its
+area; the UI snapshots (`mix test --only snapshot`, chapter 8) show that a move
+changes no page.
+
+| File | Module (`QuacksWeb.`) | Owns |
+| --- | --- | --- |
+| `lib/quacks_web/components/chip_components.ex` (333 lines) | `ChipComponents` | `chip/1`, the bonus die (`die/1`, `die_face/1`, `replay_die/1`), `seat_dot/1`, the seat and palette colour classes (`seat_bg/1`, `seat_style/1`, ...) |
+| `lib/quacks_web/components/pot_components.ex` (1082 lines) | `PotComponents` | `pot/1` (chips, scoring ring, droplet, effects), `test_tubes/1` and its `.TubeDrop` hook, the flask, `bag/1`, `bag_button/1`, `chip_counts/1`, `aside/1`, `bowl/1` |
+| `lib/quacks_web/components/track_components.ex` (254 lines) | `TrackComponents` | `rat_track/1` (the score and rat track), `rat_spaces/1` |
+| `lib/quacks_web/components/tile_components.ex` (974 lines) | `TileComponents` | the players row: `player_chip/1`, `seat_loop/1`, `loop_start/3`, `loop_columns/1`, `round_leaders/1`, `crown/1`, `seat_state/2`; the sheet `player_card/1`, `bot_badge/1`, `ruby_badge/1`, `result_lines/1`, `explosion_icon/1` |
+| `lib/quacks_web/components/panel_components.ex` (890 lines) | `PanelComponents` | the books (`book_tile/1`, `book_list/1`, `books_in_play/1`, `book_info/3`, ...), `fold/1`, `house_rules/1`, the witches (`witch_card/1`, `witches_list/1`, `calls/2`), the fortune cards (`fortune_card/1`, `fortune_panel/1`, `fortune_tile/1`, `fortune_offer/1`, `blue_offer/1`), the log (`action_log/1`, `announcer/1`) |
+| `lib/quacks_web/components/bar_components.ex` (1838 lines) | `BarComponents` | the bottom bar: `action_bar/1` (Stop, flask, Draw), `fuse_meter/1`, `reward_line/1`, `round_phase/1`; every choice in the bar (`bar_choice/1`, `chip_picks/1`, `choice_grid/1`, `choice_button/1`, `chip_row/1`, `info_row/1`), `crow_panel/1` and its `.FromBag` hook, `action_label/3`, `pick_choices/0` |
+| `lib/quacks_web/components/shop_components.ex` (506 lines) | `ShopComponents` | `shop/1` (buy and rubies steps), `shop_rows/2`, `purple_buy/1`, `offer_books/1` |
+| `lib/quacks_web/game_text.ex` (598 lines) | `GameText` | the words, no markup: `label/1,2`, `log_lines/3`, `log_text/3`, `chip_name/1`, `phase_name/1`, `card_outcome/2`, `vp_breakdown/3`, `plural/3` |
+| `lib/quacks_web/action_code.ex` (30 lines) | `ActionCode` | `encode/1` and `decode/1`: an action term as a `phx-value-action` string and back |
+| `lib/quacks_web/live/game_live.ex` (3308 lines) | `GameLive` | the LiveView: mount, `handle_event/3`, `handle_info/2`, `render/1` (the page skeleton), `preview/3`, the reveal and the hints; also `copy_link/1` and the spectator note |
+
+Other component modules: `CoreComponents` (buttons, inputs, sheets),
+`AlchemistsComponents`, `SetupComponents` (the spell book), `RevealComponents`,
+`TileRevealComponents`, `CardRevealComponents`, `FinalComponents`,
+`TipComponents`, `BugReportComponents`, `ScenarioComponents`, `Icons`.
+
 ## Function components
 
 A function component is a function that takes `assigns` (a map) and returns a `~H`
@@ -44,7 +71,7 @@ def chip(assigns) do
 end
 ```
 
-(`lib/quacks_web/components/game_components.ex:153-213`, shortened)
+(`chip/1` in `lib/quacks_web/components/chip_components.ex`, shortened)
 
 | React | Phoenix |
 |---|---|
@@ -55,8 +82,8 @@ end
 | `props.children` | `slot :inner_block` and `{render_slot(@inner_block)}` |
 | `useMemo` | compute in the body and `assign/2` before `~H` |
 
-Components do not change state: "Rendering only: nothing in here changes game state"
-(`lib/quacks_web/components/game_components.ex:3-5`). A button in a component sends a
+Components do not change state: they only render the `Quacks.Game` struct that the
+LiveView gives them. A button in a component sends a
 `phx-click` to the LiveView that renders it.
 
 ### One slot table, three views: the patient's glasses (round 15)
@@ -183,11 +210,10 @@ closes the dialog in one chain:
 state: `ConfigMemory` (`assets/js/app.js:43-53`) keeps the host's last settings in
 `localStorage` (round 14: also the herb witch picks; round 27: the config carries
 `v: 27`, and an older one drops its `black_rule`, see `SetupComponents.saved_rules/1`), `NameMemory` keeps your name,
-`RevealSettings` keeps the reveal settings, `AppStatus` writes the menu's "App"
-line, and `PotMotion` animates the pot (see "Motion" below).
+`RevealSettings` keeps the reveal settings and `PotMotion` animates the pot (see "Motion" below).
 
 **The witch pickers (round 14).** With The Herb Witches on, the spell book's
-books form shows a tile per penny colour (copper, silver, gold). A tap opens the
+witches page (round 29: `witch_links/1`, the Herb Witches row's Customise) shows a tile per penny colour (copper, silver, gold). A tap opens the
 colour's page with "Random" and its four cards as radio cards
 (`witches[colour]`), the same pattern as the book pages. `parse_witches/1`
 (`lib/quacks_web/components/setup_components.ex:273`) turns the form into
@@ -197,11 +223,9 @@ picked colours (`pick_witches/2`, `lib/quacks/game.ex:399`), so the random strea
 stays the same. The witches sheet in the game has a title row now, so its × no
 longer squeezes the first card.
 
-**The App line (round 14).** The menu ends with
-`App: worker: active · display: browser · install prompt: fired`. `AppStatus`
-reads `navigator.serviceWorker.getRegistration()`, `matchMedia("(display-mode:
-standalone)")` and whether `beforeinstallprompt` fired. On a phone with no Install
-button it shows which of Chrome's rules fails.
+**The App line (round 14; removed in round 29).** The menu ended with a debug
+line on the service worker, the display mode and the install prompt. Nick asked
+for a quieter menu, so the line and its `AppStatus` hook are gone; the seed stays.
 
 ## Layout: one dialog, every screen size
 
@@ -279,8 +303,13 @@ fixed:
   element at the end of a `space-y-*` block still gets a margin on its neighbour, so
   the replay marker `<i id="replay-start-N">` is the first child of its block.
 - Phones: the bar has a fixed height (`.game-bar`, `--bar-h`). Its rare extras
-  (Mandrake, Ear worm, the patient's chips, the bonus die) are in `.game-tray`, which
+  (Ear worm, the patient's chips, the bonus die) are in `.game-tray`, which
   is `position: absolute; bottom: 100%`: it floats over the pot's lower band.
+- Mandrake (round 32): the white chip that went back floats over the bag
+  (`[data-role=mandrake-undo]`, `absolute` in the pot square, so no layout shift),
+  with a round undo button (`#keep-white`, `keep_white`) above it. The chip bobs
+  (`.mandrake-bob`, 4 px, 1.6 s); reduced motion: no bob. Drawing on keeps the
+  server's answer (the chip stays in the bag).
 - From 64rem the pot spans the bar's row too ("pot context" / "pot bar"). A taller
   bar takes room from the context column, never from the pot. Grid sizes an `auto`
   row only from the items that do not span a flexible row, so the pot does not
@@ -329,23 +358,20 @@ One trap: CSS written in `app.css` outside a layer beats every Tailwind utility.
 rule is inside `@layer components` (`assets/css/app.css:679`).
 
 **The context column (64rem).** `<aside class="context-column" data-area="context">`
-(`lib/quacks_web/live/game_live.ex:1181`) holds what happens now, top to bottom:
-the fortune teller card, the Take a Chance rolls (`chance_panel/1`, line 2770), the
-round results while they play (`results_panel/1`, line 2806), the decision panel and
-the witches. Below 64rem it is `display: contents` and holds only the sheets. The
+(`lib/quacks_web/live/game_live.ex`) holds what happens now, top to bottom:
+the fortune teller card, the decision panel and the witches (64-80rem; from 80rem
+they are in the left column, round 39). Below 64rem it is `display: contents` and
+holds only the sheets. Round 39 removed the Take a Chance rolls (`chance_panel/1`)
+and the results panel (`results_panel/1`): the results stage over the bar shows
+both now. The
 bar (`<footer class="game-bar" data-area="bar">`, line 1428) is its foot from 64rem:
 Draw is the large button, Stop and a flask button sit under it. An exploded pot
 shows "Your pot exploded" and the next step there.
 
-The results panel reuses the replay beats: `result_rows/3` (line 2733) takes every
-seat's bonus die lines and this seat's other lines from `QuacksWeb.Replay.beats/3`,
-and each row gets `style="--beat: N"`, the same formula as the update chips. Round
+Until round 39 a results panel here reused the replay beats. Round
 11 changed the replay order: the bonus dice of the whole table roll first, one
 after the other in seat order, two beats each (`dice_slots/2`,
-`lib/quacks_web/replay.ex:59`); then every seat's other lines start together. The
-Take a Chance card is not part of the replay (its rolls come at the round's start),
-so its rows use their own `--chance-step` (`.chance-row`, `assets/css/app.css:896`)
-and are not cut short by `.replay-done`.
+`lib/quacks_web/replay.ex:59`); then every seat's other lines start together.
 
 **The books drawer (48–80rem).** Below 80rem there is no books column. The header's
 Books button (with a count badge) opens `#sheet-books`, a popover with the class
@@ -364,10 +390,11 @@ The drawer replaced the tablet's CSS-only tabs (radio inputs and `:has()`, layou
 2). Tabs hid the decision behind a second tap; the drawer leaves the decision in
 place.
 
-**The books column (≥ 80rem).** `books_in_play/1`
-(`lib/quacks_web/components/game_components.ex`) lists the books in play in board
-order (`Chips.order/0`, chapter 7), left of the pot (`id="books-column"`,
-`data-area="books"`).
+**The left column (≥ 80rem).** `#left-column` (`data-area="books"`), left of the
+pot, holds `books_in_play/1` (`lib/quacks_web/components/panel_components.ex`, the
+books in play in board order, `Chips.order/0`, chapter 7, `id="books-column"`)
+and, with The Herb Witches, the witches (`id="witches-column"`). Round 39: both
+are folds (see the round 39 section).
 
 ### The player tiles: a seat loop (round 27)
 
@@ -400,7 +427,7 @@ sideways: at 360 px eight tiles fit in two rows of four.
 
 ### The rat track (round 16, equal steps since round 22)
 
-`rat_track/1` (`lib/quacks_web/components/game_components.ex`) is a slim strip
+`rat_track/1` (`lib/quacks_web/components/track_components.ex`) is a slim strip
 under the name cards, inside the `players` area. It has a fixed height (`h-8` since round 24) and
 shows only while the rats rule is on with 2+ players, so it never comes and goes
 during a game and the pot below it does not move.
@@ -515,7 +542,7 @@ In dev, `phoenix_live_reload` remembers the last key that went down and, while i
 
 The pot is a spiral of 54 spaces, which needs floating-point maths. That code sits
 in the module body, outside any `def`, so it runs once when the module compiles
-(`lib/quacks_web/components/game_components.ex:112-142`). The result is stored in
+(`lib/quacks_web/components/pot_components.ex`). The result is stored in
 module attributes:
 
 ```elixir
@@ -524,7 +551,7 @@ module attributes:
 ```
 
 At runtime a space's position is a tuple lookup, `elem(@positions, index)`
-(`lib/quacks_web/components/game_components.ex:904-907`). In JS this would be a
+(`lib/quacks_web/components/pot_components.ex`). In JS this would be a
 `const POSITIONS = computeSpiral()` at module top level; here it does not even run
 at app start.
 
@@ -591,8 +618,8 @@ sections carry `.book-page-left` or `.book-page-right` for the open book's grid.
 A page that appears after a step turns in once (`page-turn`, only with
 `data-turned`, so the first paint never animates). There are no bookmarks.
 
-The pages split the forms: the expansion cards (Expansions page) belong to
-`#books`, the pot-side card to `#options`, and each colour page's radio cards
+The pages split the forms: the expansion switches (New game's rows) belong to
+`#books`, the pot-side switch to `#options`, and each colour page's radio cards
 (`SetupComponents.book_options/1`, `witch_options/1`) to `#books`. Each input
 names its form (`form="books"`), so the browser sends it with that form's change
 and LiveView's `phx-change` sees it. `books_form/1` takes `patch` (a function from
@@ -624,6 +651,27 @@ column took the summary's full width and pushed Start off the right edge).
 `.page-link` has `min-width: 0` for the same reason, and the colour swatches
 shrink (`flex-1 max-w-8`) so 8 fit.
 
+**Round 29: one main page.** New game holds every setting as a row: the
+expansions (`SetupComponents.expansion_row/1`: icon, title, a line on the current
+choice, `customise_button/1`, the switch), then Ingredient books and House rules
+(`page_link/1` with a Customise pill), then Public. Customise is dim and not
+tappable while its expansion is off. A gold dot (`.changed-dot`) on Customise
+marks a change from the default: a witch picked, a patient picked, books that are
+not the Beginner preset, a house rule changed (the pot side has its own row, so
+`rules_summary/1` does not count it). Every other page (witches, patients, books,
+rules) is a child of New game; a witch page is a child of witches, a book page of
+books. From 64rem the right page next to New game is Ingredient books. The
+Alchemists' patients page keeps only "Your patient": the rulebook draws 3 patients
+from the bag at random, so the game has no "available patients" filter. Start and
+New game (`.start-button`, `.flow-button`) are the gold primary of Draw and Next.
+
+**Round 29: Share.** The waiting panel shows the room code large (Kalam,
+letter-spaced, to read aloud) and a **Share** button (`#share-game`, primary) that
+dispatches `quacks:share` with `{title, text, url}`; app.js calls
+`navigator.share`. app.js sets `data-share` on `<html>` when the browser has a
+share sheet; app.css hides Share without it (`.share-only`) and then shows Copy
+link as the gold main button (`.share-fallback`).
+
 Every page of the flow ends in one bar, `flow_bar/1` (`#flow-bar`): the setup in a
 line ("3 players · 2 bots · Herb Witches · private") and whether Start opens the
 table or begins the game, then **Back** (secondary, `.flow-back`) and **Start**
@@ -654,7 +702,7 @@ hairline inside. The presets are a grid of `.preset-card` buttons;
 Tailwind v4 scans the source for class names (`@source "../../lib/quacks_web"`,
 `assets/css/app.css:8`) and finds only *literal* strings. `"bg-player-#{seat}"` would
 build a class Tailwind never saw, so its CSS would not exist. So the seat classes
-are a map of full names (`lib/quacks_web/components/game_components.ex:47-58`):
+are a map of full names (`lib/quacks_web/components/chip_components.ex`):
 
 ```elixir
 # Seat colours (theme tokens `--color-player-N`, see `seat_style/1`), as full class
@@ -673,7 +721,7 @@ The theme defines 8 palette colours and one variable per seat
 (`assets/css/app.css:64-83`): `--color-seat-5: #e86a9e;` and
 `--color-player-0: var(--color-seat-0);`. Tailwind turns `--color-player-0` into
 `bg-player-0`. The page overrides the seat variables with one inline style
-(`lib/quacks_web/components/game_components.ex:780-784`):
+(`lib/quacks_web/components/chip_components.ex`):
 
 ```elixir
 def seat_style(colours),
@@ -758,14 +806,14 @@ element, so its CSS `animation` plays once. This is React's `key`.
 defp pot_chip_id(seat, index, placed, :lg), do: "pot-chip-#{seat}-#{index}-#{placed}"
 ```
 
-(`lib/quacks_web/components/game_components.ex:924-927`)
+(`lib/quacks_web/components/pot_components.ex`)
 
 `placed` counts the chips this seat placed on that space this game (from the log).
 A chip that lands where a returned chip was gets a new id, so it lands again
 (`test/quacks_web/live/motion_b3_test.exs:39`).
 
 The VP and ruby counters use the same idea the other way round
-(`stat/1`, `lib/quacks_web/components/game_components.ex:1372-1397`): the counter
+(`stat/1`, `lib/quacks_web/components/tile_components.ex`): the counter
 keeps its id and `style={"--n: #{@value}"}`, so CSS counts up from the old value;
 the inner `<span id={"#{@id}-#{@value}"}>` is new for each value, so its `stat-pop`
 keyframe plays. In React you write `<span key={value}>` to restart an animation.
@@ -821,7 +869,7 @@ turn the lines into what each place needs:
   scoring space.
 
 The templates write the beat into a CSS variable: `--beat` on each card counter
-(`card_count/1` in `lib/quacks_web/components/game_components.ex`), on each pot ring (`beat_ring/1`, lines 877-898), each pot effect (lines 509-549)
+(`card_count/1` in `lib/quacks_web/components/tile_components.ex`), on each pot ring (`beat_ring/1`, lines 877-898), each pot effect (lines 509-549)
 and each book (`book_line/1`, lines 2004-2016). One CSS formula turns every beat
 into a delay (`assets/css/app.css:981-994`):
 
@@ -1055,12 +1103,13 @@ taps it.
 
 "What it did" is `Reveal.card_outcomes/2`: the `{seat, {:fortune, id, outcome}}`
 log entries since the newest `{:fortune_drawn, id}`. No new engine data; the text
-is `GameComponents.card_outcome/2`, the log's own wording.
+is `GameText.card_outcome/2`, the log's own wording.
 
 The tap target is one `<button id="card-tap">`, `fixed inset-0 z-40`, over the page
 and under the dialogs' top layer: a tap anywhere goes on, and the pot does not move.
 The big card stays `aria-hidden`; the button's `aria-label` reads the card's name
-and text. Under the card a "Tap to continue" caption (`.card-caption`) comes in once
+and text. Round 30: the bar shows one Continue that sends the same `card_tap`.
+Under the card a "Tap to continue" caption (`.card-caption`) comes in once
 the card has turned (0.8 s: the round title and the flip play first) and fades 2 s
 later. It is hidden under `:active-view-transition-type(card)`, so the snapshot
 that shrinks is the card alone.
@@ -1091,6 +1140,28 @@ starts no timer for it. × or Esc close it; "Show the result" opens it again
 (`show_result` → `open_result/1`). A page that mounts on a finished game, a
 reload, a rejoin or a spectator, opens straight on that slide
 (`result_on_mount/1`). There is no `#game-over` dialog any more.
+
+**Round 29: one final tally.** Round 9's results end on the last scoring step:
+no `:standings` slide, and with nothing left to decide the button says "Continue"
+(not "Done"). `{:final, 9}` now has two slides: `:tally` and `:podium`. The tally
+reuses the standings' CSS FLIP (`.standings`, `--rank`): every row starts at the
+seat's round-9 total and rank; its final parts (coins, rubies, pennies → VP,
+`parts: [{kind, count, vp}]`) pop in one after the other (`.tally-part`, `--i`);
+then the settle tick (`settle_ms/2`, after the last part) sets the new totals and
+ranks, so the counters count up (`.stat-tick`) and the rows glide. The final
+scoring plays in Auto mode for everyone (`reveal_mode/2`; reduced motion keeps
+Step). A tap on the tally while it plays settles it at once and pauses Auto
+(`paused: true`); the next tap shows the podium. The podium has no VP breakdown
+any more: this browser's place has a gold ring and "you" (`you_tag/1`), and the
+actions stick to the sheet's bottom edge (`.sticky-actions`; a parchment backing
+only while stuck, with the `scroll-state` container query).
+
+Two fixes of the same round: a `/debug/replay` seat taken by this browser is no
+bot any more (`GameServer.start_debug/2`; the podium said "You win!" over a
+bot's name), and the card's choice button (phones) says "Continue". From 64rem
+the card's result sheet sits in the right context column; on a phone on its side
+the overlay is the right column at the pot's height and its slides fit without a
+scroll (the landscape block after `.reveal-sheet` in app.css).
 
 **Controls.** `reveal_overlay/1`
 (`lib/quacks_web/components/reveal_components.ex:35`) renders the slide and a bar:
@@ -1139,13 +1210,356 @@ and saves each change; the form's own `phx-change` tells the server. With reduce
 motion the server forces Step and runs no timer. app.js also sets `--beat-ms` before
 LiveView connects, so a reload plays the beats at the saved speed.
 
+### The evaluation on the tiles (round 27; see round 28 below)
+
+On the branch `round-27-eval` the menu's reveal settings have a third row,
+**Results**: Overlay (the default) or **On tiles** (`quacks:reveal` keeps `show`).
+On tiles, the results' reveal plays only its scoring steps (`TileReveal.slides/1`:
+the bonus die, the books, the scoring space) and no dialog opens. The same
+`%{slides, index}` state and Auto ticks run it; a step lasts 5 beats
+(`TileReveal.duration/1`, `--beat-ms`). `tile_stage/1` names the step, with Next
+(Step mode) and Skip (a pill over the pot until round 29; now in the bar). Each tile shows its seat's
+badge for the step (`tile_gains/1`: the book's ingredient, VP, rubies, droplet),
+which folds into the tile's counters; the counters show the running totals
+(`TileReveal.totals/3`) and count up from the old value (`.tile-count`). The die
+face stays by the crown until the next round; in the shop the bought chips and the
+droplet pushes show on the tile (`TileReveal.shop/2`, from the log).
+
+### Round 28: the tiles are the evaluation on phones
+
+**Phones.** The `RevealSettings` hook (app.js) sends `phone: true` when the
+screen is under `sm` (40rem, `matchMedia`), and again when that changes. On a
+phone `GameLive` plays the results on the tiles whatever the Results choice says
+(`reveal_show` is the effect, `reveal_choice` the saved choice), and the menu
+hides the Results row (a hidden `phone` input keeps the form's own changes
+right). Larger screens keep the choice, the overlay by default. The server cannot
+read the width, so this is the one bit of JS; CSS alone cannot pick a server mode.
+
+**No results table.** `Reveal.slides/2` goes from the scoring steps to the
+standings, in both modes. The standings slide carries the gains that no step
+showed (cards, essence, witches), so the running totals end on the real totals.
+The player sheet keeps each seat's result lines.
+
+**A slimmer tile.** No name text: the seat disc has the initial (and a small bot
+icon); the name is the tile's `title` and an `sr-only` span. Top line: the disc,
+the pot space and the VP in `text-xl`; the die faces (`rolls`) sit by the crown on
+the tile's top edge, so the top line keeps its room (on the die step they come in
+as the news goes). Bottom line (`#tile-line-N`): rubies, the droplet,
+the flask (full or used), the black chips in the pot only while black book I is in
+play (`black_counts?/1`; books II and III do not compare pot counts), then the
+extras while they fit. At 360 px with 4 columns the line holds the four main
+items (tighter padding under `sm`); the extras drop first.
+
+**Cards that draw chips (round 30).** Once a seat has chosen and the card is gone,
+its news line shows what the card gave it (`Quacks.Game.Fortune.reveals/1`): Flea
+Market the chip it traded and the chip it got, Less is More the blue 2 or the ruby
+(badge `{:card, id, traded, got}` or `{:rubies, 1}`). Safety Procedure's placed chip
+is a draw, so the draw news shows it. `news/3` gives nil while a card is on screen.
+
+**Card reveal rows (round 30).** `QuacksWeb.CardRevealComponents.card_reveals/1`
+shows `Fortune.reveals/1` as one row per player: the seat disc with the initial,
+the drawn chips (`:sm`; `compact` uses `:xs`), the sum (Less is More), and the
+result (a chip, a ruby, or the chip placed on the pot). Your row is first and has a
+gold ring; the best row (the lowest sum) has a gold fill. Three places use it: the
+new card's result sheet after the tap (the `:card` slide's `reveals`), the fortune
+sheet (`#sheet-fortune-reveals`) and the grown corner card (`compact`, only while
+grown). Your Flea Market chips have a title that says why a chip could not go up.
+
+**News on the bottom line (R2).** `TileReveal.news/3` gives a tile's news, or
+nil: the die faces on the die step, a book's ingredient and rewards, the space's
+VP and ruby, and the chips bought and the droplet pushes: in the shop, or the
+last shop as the next round begins (the bots' buys show only once the last human
+is done, `GameServer`). While the steps play the rat track follows the tiles'
+running VP (`rat_track/1`'s `vps`). The bottom
+line holds both the totals (`.tile-totals`) and the news (`.tile-news`); with
+news (`data-news`) CSS swaps the line to the news and back over 5 beats, the
+totals coming back as the step's counters count up. The line's id has the news
+key, so new news is a new element and the swap plays again. Nothing hangs outside
+the tile. While a step plays the droplet shows its running value
+(`TileReveal.droplets/3`).
+
+**The last draws while the round brews (round 29, B2).** In the `:potions`
+phase `news/3` gives the seat's last draws (`{:drew, chip, age}`, newest first,
+straight from `player.drawn`) with `hold: true`, whatever the Results choice
+says. How many depends on the tile's width (`tile_draws/1`: 3 with four columns,
+up to 7 with two). `data-hold` keeps the line on the news (no swap back); the key
+is the draw count, so each draw slides in again. The newest chip glows once
+(`.tile-draw-glow`, `beat-glow`), the pot space pops when it changes (its id has
+the space), and an exploded tile shakes once (`.tile-boom`).
+
+**The type scale (round 29, B3).** Four tokens in `app.css` `@theme`: `text-tag`
+13 px (the floor), `text-label` 15, `text-num` 18, `text-big` 24. Numbers and
+labels on the game screen use them, never less than `text-tag`; where space is
+tight, drop the label and keep the icon and the number. The pot SVG has its own
+units: `@pot_tag` is 13 px at the smallest phone pot (328 px wide), so the
+coins, the VP seals and the chip values are at least 13 px there.
+
+**Every VP on the rat track.** Each dot has its VP: one number for seats in a
+step with the same VP, the numbers of a step alternating above and below the line
+(`track-vp`; the leader's is `leader-vp`).
+
+### Round 29: the bar carries every action
+
+The two slots of Stop and Draw (`min-h-12`) are the one place for "what do I do
+now". What takes their place keeps that height, so the pot (a flex child above the
+bar) never moves:
+
+- **Draw** (no "a chip") and Stop. After Stop the phase pill says "Waiting"; Draw
+  stays greyed.
+- **The white meter row** holds the reward and the risk as icons
+  (`BarComponents.reward_line/1`): coin and count, laurel and VP, the ruby, then
+  the explosion icon with the menu's **Risk** setting (Off, Percent, Chips "3/14").
+  The setting is one more `segments` row in `reveal_settings/1`; `RevealSettings`
+  keeps it in `localStorage` (`quacks:risk`) and sends it with the others, so the
+  server renders only the chosen form (no CSS toggles).
+- **A choice in the bar** (`BarComponents.bar_choice/1`, assign `@bar_choice`): the
+  explosion's Take VP / Take coins, and the rubies step (Skip, test tube, flask,
+  pot; "2" + ruby on each paying button, the seat's `ruby_price`; a disabled use
+  says why). These decisions open no dialog (`open_waiting/1` skips them, and the
+  "Back to choice" button hides). A rubies step with a witch to call keeps the
+  dialog: the witch card does not fit the bar.
+- **The explosion's beat** is CSS on insert, like the pot shake: `.boom` (BOOM in
+  Kalam over the pot, 700 ms, `forwards`) and `.bar-choice-late` (the choice
+  waits 700 ms, `visibility: hidden` in the `from` keyframe with fill `both`, so
+  it cannot take a tap meant for Draw). Reduced motion swaps both to plain fades
+  of the same length. The one bit of JS is the `Boom` hook: `navigator.vibrate`
+  once per game and round (`sessionStorage`), guarded when the browser has none.
+- **The evaluation steps** on the tiles (`tile_stage/1`): the step's name and
+  number, Skip and Next, in the footer instead of a pill over the pot. The other
+  footer buttons hide while it plays.
+- **The shop** says **Skip** for "buy nothing". With chips ticked, Buy is the wide
+  primary and Skip shrinks to a small secondary button. (Round 35: Skip is gone;
+  see below.)
+
+### Round 30: no stats strip; the bar and the pot
+
+- **No stats strip.** The parchment row over the tiles (`status/1`) is gone on every
+  screen: VP is on your tile and the rat track, the flask is drawn at the pot, the
+  coins to spend are in the shop sheet's footer (`shop-total`). The height goes to
+  the tiles and the pot. Measured at 392 px (8 players): the pot box stays at
+  16,284 360x360 through the card, brewing, stopped, the evaluation, the rubies
+  step, the shop and an explosion.
+- **The ruby badge** (`TileComponents.ruby_badge/1`) sits in the pot's top right
+  corner (`pot-corner-right`), the kept Toadstool chips under it. It keeps the id
+  `stat-rubies`, so `PotMotion` flies the scoring's rubies to it and it ticks on
+  their beat (`stat_beats/3`, rubies only now).
+- **Continue** (`#card-continue`) is the contextual button area while the round's
+  card waits over the pot (`card_continue?/1`: a held new card or a grown corner
+  card, no choice in the bar). It sends `card_tap`, so it does what a tap on the
+  card does (into the corner, or the result rows or the choice); Enter does the
+  same (`hotkey`). It sits above `#card-tap` (`z-50`). Stop and Draw stay in the
+  DOM with `hidden`, as for a decision.
+- **Fixed number widths.** Kalam (`font-hand`) has no tabular figures: its digits
+  are 5.4 to 10.6 px wide at 18 px with or without `tabular-nums`. Its numbers get
+  a box of two digits, `min-w-[1.2em]` (tile pot space, tile VP right-aligned, the
+  ruby badge). The bar's numbers are in the system font: `tabular-nums` and
+  `min-w-[2ch]` (coins, VP), `[4.5ch]` (percent), `[5ch]` ("3/14"). The reward row
+  always has the ruby slot (`data-ruby`, `opacity-25 grayscale` when the space
+  pays none). The rat track's numbers are absolute: they move no layout.
+- **One explosion icon** (`explosion_icon/1`: the `:explosion` piece icon,
+  `text-ruby`) is the bar's risk and an exploded tile's badge.
+
+### Round 31 (eval): one update per step, black and white on tiles, the end in place
+
+- **One update per step.** `TileReveal.slides/1` splits the scoring space into
+  up to three steps (`part`: `:coins`, `:vp`, `:rubies`), each with its own
+  `gains`. While a step shows, everything reads the totals after that step
+  (`tile_totals/2`): the tiles, the rat track, the pot's droplet (`pot/1`'s
+  `droplet` attr) and the ruby badge (`ruby_total/4`; it ticks on the rubies
+  step only, `stat_beats/4`). The pot plays only the shown step:
+  `TileReveal.step_lines/3` takes the step's `Replay` lines and renumbers them
+  from beat 0, so its ruby flights and VP tags play when the step comes; their
+  ids carry the step (`fx_key`), so `PotMotion` flies them once per step. The
+  coins step lights the scoring space (`TileReveal.marks/3`). The phone die
+  strip shows on the die step only. Server state is final already: this is
+  display only.
+- **Next scores the step the bar names.** On the tiles `reveal.index` is the
+  pending step: `tile_totals/2`, `tile_slide/1` (the step scored last),
+  `TileReveal.news/3` and `tile_rolls/3` (the die faces by the crown) read the
+  steps before it, so nothing of a step shows before its Next. After the last
+  step `next_slide/1` goes one past it: the bar says "Round scored" and its
+  button closes with the close label. The bar's picture (`step_icon/1`): a book
+  step is its chip (value hidden), the die and the space parts their pieces.
+- **A draw on the tile.** Draw news carries `line`, so the tile line keeps its id
+  while the round brews; the chips' ids carry the draw count, so they enter
+  again on each draw: `tile-draw-pop` for the new one at the left,
+  `tile-draw-slide` (14 px) for the older ones.
+- **Black and white on the tiles.** While the round brews (`:potions`), a tile's
+  bottom line ends in `tile_brew/1`: the black count and the white sum against
+  the limit ("4/7", `Potions.explode_above/2`; `data-level` safe / warn / danger,
+  like the fuse). The draws stay on the left; with 5 to 8 players (four columns)
+  two draws fit, and older draws tuck 4 px under the newer one. Out of brewing
+  the stats line has its black count again.
+- **The end in place.** No final slides and no game-over sheet. When the game is
+  over, `FinalComponents.final_board/1` lies over the pot (absolute in the pot
+  square, so the pot does not move): the title, then one row per seat from
+  `Reveal.final_rows/1`; each total counts up from the round-9 VP (`.final-count`,
+  a registered `--n` animated from `--from`). `final_actions/1` takes the
+  contextual button area: Lobby, a small Share, Play again. A reload or a
+  spectator sees the same; nothing is "seen" for it.
+
+### Round 31: no full-height sheets; cards and decisions over the pot
+
+- **A card with no choice has no sheet.** `next_slide/1` on the held new card ends
+  the reveal at once. A card that drew chips for everyone (P8, P13, B7:
+  `card_rows?/1`) sets `card_grown`, so the card stays over the pot with every
+  player's rows (`card_reveals compact`); Continue or a tap shrinks it. Any other
+  card shrinks into the corner, and `card_toast/2` puts one line over the pot
+  (`#card-toast-N`, `.card-toast`: it fades in, then out after 2.8 s by itself),
+  e.g. "Drop It: Droplet +1", from the slide's `outcomes`. The reveal overlay's
+  card slide is no longer shown.
+- **A card's choice is the bar.** `bar_choice(:fortune_choice, _)` gives
+  `bar_choice/1` with `choice: :fortune_choice` (`#bar-card-N`): one button per
+  `{:fortune, choice}`, an icon (the chip, chip → chip for a Flea Market trade, or a
+  piece icon) with a short title and a hint line (`card_choice_title/2`,
+  `card_choice_hint/3`), like the explosion's VP/coins pair. Round 33: the
+  buttons are a grid (`choice_grid/1`, `choice_button/1`), 5 to 8 options in two
+  rows, never a sideways scroll. The card stays over the
+  pot (`pot_card?/1` is true for every `:fortune_choice`, on every screen) and
+  shows the rows for the cards that drew chips; there is no `#card-tap` layer then
+  (`card_tap?/1`). The choice sent closes the held reveal (`close_card_reveal/2`),
+  and the card shrinks into the corner. The card's dialog (`#card-round-N`) is gone.
+- **Decisions cover the pot.** `dialog_sheet` has `pot`: below 64rem app.js opens
+  it with `show()` (non-modal, no backdrop) and app.css places it over the pot
+  column: anchored to `[data-area=pot]` (`anchor-name: --pot-area`; its foot on the
+  column's foot, as high as its content, at most the column), else a fixed box
+  above the bar. The header, the players row and the bar stay in view; × closes it
+  and the bar's reopen button brings it back. The shop's footer (purse, Skip, Buy)
+  goes where the bar's buttons are (`position: fixed` at the screen's foot). Every
+  `decision-*` dialog uses it. The tall popover sheets (player, witches, patient,
+  Forgetfulness, fortune card) take the class `sheet-pot` for the same place.
+- **What stays full height:** the final scoring overlay (the eval and end
+  builder's), the books drawer (a reference), the menu, the bag, the log and the
+  bug report (not game moves).
+- **Rubies.** The rubies step stays in the bar (`bar_choice :rubies`), shown only
+  when a ruby buys something (`ruby_step_action?/1`). Round 9's `{:rubies, :vp}`
+  is no step: the seat's "Done" converts what it keeps (`final_conversion`), so a
+  round-9 seat with no witch to call ends its round after the evaluation
+  (`auto_done/2`). Round 37: on the reverse pot side round 9 offers a glass
+  (`{:rubies, :tube}`), so the step shows there with two uses, tube and 1 VP
+  (`ruby_uses/1`). The gold witch G4 ("Cheap rubies") has her own button at the end
+  of the rubies bar (`data-role=rubies-witch`) while the seat has a ruby;
+  `bar_choice/3` keeps the bar for her, and only another witch call opens the sheet.
+
+### Round 33: the bar as the context area
+
+Nick's rule: use the bottom context area, not a modal. A turn's small choices are
+**bar choices** (`bar_choice/2` picks them, `bar_choice/1` renders them), in
+`lib/quacks_web/live/game_live.ex`:
+
+- **The grid.** `choice_grid/1` takes `count`: 1 to 4 buttons in one row, 5 or 6 in
+  rows of 3, 7 or 8 in rows of 4 (`grid_cols/1`), all one width; `data-rows` says
+  1 or 2. `choice_button/1` is one button: a picture in its own box (a chip, a
+  piece; the chip's value badge never covers the text), a short title, a hint line.
+  `action: nil` or `disabled` greys it. The bar keeps its fixed height
+  (`--bar-h`); `.game-bar` sets its content at its foot, so a second row (and the
+  info row) rises over the pot's lower band and the pot never moves.
+- **The info row.** `info_row/1` sits over the buttons, where the white track's
+  row is while brewing (`info_choice?/1` hides the fuse row). An icon slot and the
+  text: what the step is.
+- **Chip actions** (`:chip_choice`, also the locoweed's return while brewing): the
+  info row names the books (`pick_title/2`, `rung_title/1`); the picks are chip
+  buttons (`chip_item/3`), the ladder rungs follow (`rung_item/3`: a rung out of
+  reach is greyed, its reason the hint), then Done when `:chip_done` is legal.
+- **The droplet's free move** (`:droplet_choice`): the info row shows the cause
+  (the hawkmoth's chip, the die) and its line; the buttons are Pot droplet and Test
+  tube (the next glass's bonus). The test-tube strip stays where it is.
+- **The sweep** (`@pick_choices`, `pick_spec/4`): the Mandrake, the crow skull and
+  the silver witch (`pool_items/5`: every chip of the pool, greyed without an
+  action, then Return all), the Toadstools (the first chip that waits, Place / Keep
+  / Return) and the patient offer (`text_item/3`: the cost as the title).
+- **The bonus die** on phones is an info row (`#info-die`) over the step bar, not
+  in the tray over the test tubes.
+- **The test-tube droplet** moves: `test_tubes/1` takes a required `id` and the
+  colocated hook `.TubeDrop` (`Phoenix.LiveView.ColocatedHook`, in the component's
+  template). On `updated()` it compares `data-tube` with the last one and animates
+  the new droplet with WAAPI `translate` from the old glass (28 SVG units a glass)
+  on a low arc; reduced motion: nothing. It is not in `PotMotion`, whose size is
+  budgeted.
+
+### Round 35 (eval): the results stage, and each choice on its step
+
+**The results stage** (`TileRevealComponents.results_stage/1`, direction A of the
+round's design page) is a parchment panel in the band above the bar's buttons.
+It floats (app.css `.results-stage`: absolute, from the top of the step bar,
+growing upwards), so the pot never moves. It shows the step on show, one row
+per player in one column for every player count: the colour disc with the
+initial, the short name, the reason and, at the row's end, the result. Both are
+icons where possible (`TileReveal.stage_rows/3` gives cells such as
+`{:count, 2, :black}`, `{:beats, seats, :both}`, `{:dice, faces}`, `{:vp, 1}`).
+A row with no result fades. The bonus die rolls at the end of each roller's row
+(`.stage-die`, one roll after the other per seat), and Auto waits for the rolls
+(`TileReveal.duration/2`). A chip with no value (`{colour, nil}`) shows its icon
+in the centre with no badge.
+
+**The steps.** The step on show is `index - 1`; the first shows at once (index
+1), and the bar names the step on show. The scoring space is one step again
+(coins, VP and ruby in one row). The standings slide stays as the last step,
+**Round scored**: the totals in VP order, equal VP share a place, the leader's
+row is gold. Auto is the default mode (app.js, nothing saved); Step stays in the
+settings.
+
+**Rubies before Round scored.** Next on the step before it holds the steps
+(`reveal.rubies`) while a ruby buys something: the bar shows the ruby uses with
+**Keep** (`rubies_keep`), the panel collapses to one line. The engine allows the
+ruby uses in the buy step too, so this works before the shop; rubies decided here
+skip the shop's rubies step after the buy (`decide/4`).
+
+**Choices on their steps.** On the tiles the results begin with the chip actions'
+choices (`reveal_key/2`: `{:results, round}` in `:chip_choice` and
+`:witch_choice`). The slides follow the game (`refresh_tiles/1`,
+`TileReveal.live/2`): while the evaluation asks, there is no scoring space yet,
+and a book with a waiting choice has its step at once. A decision holds the step
+on show (`tile_hold/1`): a free droplet move on the step that won it (more moves
+waiting than the later steps bring), a chip actions' choice on its book's step
+(only that book's actions in the bar). **Done** there moves on to the next book
+with a choice of this seat, else it ends the choices; a choice left only in a
+passed step ends by itself (`end_choices/1`). At the end of the steps while
+others still choose, Next says "Waiting…". The panel hides while the droplet or
+a chip choice is asked, so the pot and the test tubes show.
+
+### Round 35: choices in the bottom row, the shop always buys
+
+- **The crow skull** (`bar_choice/1`, `:blue_choice`) is one row, in the button row
+  only: the drawn chips (`:lg`, each a button, greyed without an action) and Skip
+  (`:return_all`). The fuse row (the white track) stays over it
+  (`info_choice?(:blue_choice)` is false). The colocated hook `.FromBag` animates
+  with WAAPI: on `mounted()` each chip flies out of the bag button
+  (`[data-role=bag-button]`) to its place, 140 ms apart; on a tap the chips not
+  chosen fly back into the bag and the chosen one fades. To let them land, the row
+  has `phx-remove={JS.transition("bar-to-bag", time: 520)}`: `.bar-to-bag` takes it
+  out of the flow (absolute, over the bar's foot, no pointer events), so Stop and
+  Draw take their place at once. Reduced motion: fades only.
+- **Choices, Choices** (P1, `:fortune_choice` with `fortune_card: :p1`) is one row
+  of the black chip, the 2-chips and the ruby with "3" inside
+  (`data-role=ruby-count`); no info row, no grid. Other card choices keep the grid.
+- **What everyone took.** `Fortune.reveals/1` also has rows for the cards that
+  offer every seat a choice (`Fortune.choice_card?/1`: P1, P3, P6, P9, P10, P11,
+  B2). When this seat leaves `:fortune_choice` (`chose_card?/3` in `put_game/2`),
+  the card grows over the pot (`card_grown`) with `card_reveals compact`: one row
+  per player, the disc and initial, then what it took with icons (`+3` ruby, `+4`
+  VP, `+2` droplet, a chip, `−` the white chip, `−n` rat), "passed", or
+  "choosing…" while that player still chooses (it updates live). Continue or a tap
+  shrinks it. The new card's slide and the result tiles keep rows for the draw
+  cards only (`Fortune.reveal_card?/1`).
+- **The Toadstools beside the pot** (`aside/1`) stack in a column with a small gap,
+  so each value badge shows.
+- **The shop** has no Skip: a player always buys a chip (a UI rule; the engine
+  still takes `{:buy, []}` and the bots are unchanged). Buy is the one button,
+  disabled until a chip is ticked. Only when no chip is affordable and the shop
+  still shows (a copper witch keeps it open; else the buy step is skipped) does
+  **Nothing to buy** (`data-role=shop-done`) take its place.
+- **The shop's book text** opens in place and dispatches `quacks:reveal` to it;
+  app.js waits for the 150 ms "in" transition, then `scrollIntoView({block:
+  "nearest"})` scrolls the sheet just enough to show all of it.
+
 ### `PotMotion`: animate on top of the patch
 
 Some motion needs a path or a measured target: a ruby flies from a chip to the
 ruby counter in the header, a returned chip flies to the flask or the bag. CSS
 cannot do this, because it does not know where the counter is. So your large pot
 carries a hook: `phx-hook={@size == :lg && "PotMotion"}`
-(`lib/quacks_web/components/game_components.ex:283`). The hook is in
+(`lib/quacks_web/components/pot_components.ex`). The hook is in
 `assets/js/app.js:80-197`.
 
 A hook is an object whose callbacks LiveView calls around each patch: `mounted`,
@@ -1157,9 +1571,22 @@ Play):
   (lines 154-158): the chip ids, the flask, the round.
 - **Last.** LiveView applies the patch. The DOM now shows the final pot.
 - **Invert and play.** `updated()` (lines 97-111) compares. A chip with a new id
-  drops in on its space (`land`, lines 169-178). A chip that went away flies as a
+  drops in on its space (`land`, lines 169-178). Round 31: when one chip is new and
+  the pot is your own (`data-mine`, set when the pot has your flask), `fly` takes it
+  out of the bag instead: it starts small at the bag, follows a quadratic arc above
+  both ends (six sampled keyframes) and lands on its space with the pop, 460 ms.
+  It mirrors the ghost that flies a returned chip to the bag. Reduced motion: no
+  flight. A chip that went away flies as a
   ghost to the flask or the bag (`ghost`, lines 181-196). At a new round the old
   chips fade and the new rats slide in from the droplet (`ratsIn`, lines 142-153).
+  Round 32: when your newest move paid rubies for the droplet, the server marks it
+  (`data-hop="rubies"`) and `hop` makes it jump from its old space (the snapshot's
+  `data-index`) to the new one on a low arc with a 1.3× lift, 520 ms, over the CSS
+  slide (a WAAPI `translate` beats the CSS transition). A flask that became full
+  fills: the brew rises 34 px inside the flask's clip group, 700 ms. If that spend
+  ends the round (nothing left to spend), the page waits 800 ms
+  (`done_after/2`, `:show_move_ms`, 0 in the tests) before it sends `:end_round`,
+  so the next round's card does not cover the move.
   Then `flights()` (lines 121-139) sends each new `[data-role=ruby-flight]` to the
   ruby counter, with the same delay formula as the CSS (it reads `--beat-lead` and
   `--beat-step` from `:root`). Each one is `el.animate(frames, opts)`, the Web
@@ -1170,7 +1597,7 @@ Why patches and client animation do not fight:
 - **The patch comes first.** The DOM is already final. The animation only moves the
   element from where it seemed to be to where it is. A tap never waits for it.
 - **Fixed ids** (above) make "new chip" mean "an id not in the snapshot". Each chip
-  also has `data-index` and `data-order` (`lib/quacks_web/components/game_components.ex:824-825`),
+  also has `data-index` and `data-order` (`lib/quacks_web/components/pot_components.ex`),
   each space has `data-x` and `data-y` (lines 371-372), and each pot effect carries
   its own `data-x`, `data-y` and `data-beat` (lines 515-520). The hook reads the
   positions from the server's spiral and measures only the target (the counter,
@@ -1179,7 +1606,7 @@ Why patches and client animation do not fight:
   later patch (a bot's draw) does not fly the same ruby again.
 - **Exits get their own layer.** LiveView has already removed a returned chip.
   `ghost` puts the detached element into `<g data-role="pot-fx" phx-update="ignore">`
-  (`lib/quacks_web/components/game_components.ex:551-552`), a layer that LiveView
+  (`lib/quacks_web/components/pot_components.ex`), a layer that LiveView
   promises not to patch, and removes it when the animation ends.
 - **One set of curves.** `easing("--ease-spring")` (`assets/js/app.js:77`) reads the
   CSS custom property, so CSS and JS use the same easing.
@@ -1279,6 +1706,31 @@ JS keeps the state. Entering full screen closes open popovers (the menu sheet) a
 the Fullscreen spec says. The game grid uses `dvh`, so it fills the larger viewport
 with no change.
 
+### Round 35 (board): rat labels, rats in the pot, chips to the bag, tubes, patient
+
+- **Rat track labels.** Every seat's VP sits at its dot (round 28). A rat keeps its
+  VP only in a gap of 1 or 2 rats between neighbouring occupied steps; in a gap of
+  3 or more the rats show without numbers, and a rat next to a step whose VP label
+  sits below the line drops its number too, so no two labels collide. The tails
+  come from `ScoringTrack.tails_between/2`, so they repeat after 50.
+- **Rats in the pot.** `rat_spaces/1` gives the rat pebbles' spaces: after the
+  droplet, at most `rat_stone`, never past `Player.mods.rat_end` (set by the round's first
+  chip). A droplet move after the first draw takes the first rat's space and that
+  rat goes; the rest stay. Each rat's id names its space (`rat-SEAT-SIZE-SPACE`), so
+  `PotMotion.ratsOut/0` fades exactly the rat the droplet took.
+- **Chips to the bag before the shop.** `pot`'s `bagged` (game_live `bagged?/1`:
+  shopping, the results closed, the seat shops or is ready) renders no chips and
+  sets `data-bagged`. `PotMotion.toBag/1` sends every chip that left, first drawn
+  first, to the bag button as a ghost in the `pot-fx` top layer (stagger
+  `min(60, 600 / n)` ms, 260 ms each; reduced motion: fade). `sideOpen` waits for
+  `bagUntil`, so the shop opens after the last chip lands.
+- **Test tubes.** The ruby glass uses `piece_icon :ruby`, a VP glass the `:vp` crown
+  over its number (no "VP" text). The glasses are 10 units shorter (viewBox
+  `0 -18 364 72`) and the main rack is `max-w-xs`: about 63px tall, was 89px.
+- **Patient badge.** Below 40rem the badge is its icon only (`hidden sm:inline` on
+  the name), then the essence rack; the name stays in `title`, `aria-label` and
+  the patient sheet.
+
 ## State ownership, compared to React
 
 | Question | React app | This app |
@@ -1291,3 +1743,148 @@ with no change.
 | Keyboard shortcuts | a `useHotkeys` hook that calls the handlers | `phx-window-keydown`, the server picks the legal action |
 | Timed sequences | `setTimeout`, `staggerChildren` | `--beat` from the server, CSS delays |
 | Custom JS | most of the app | about 300 lines in `assets/js/app.js`: `PotMotion`, the dialog modes, the replay end, the bug report details, the install button |
+
+### Round 36 (ui): chips to tap, pot targets, the purple buy sheet
+
+- **Chip row** (`BarComponents.chip_row/1`): a choice among chips is the chips, as round
+  buttons (`data-role="chip-option"`, `data-chip`, a card's `data-choice`); an
+  upgrade shows its target on the edge (`chip-option-to`). Its inner block holds
+  the buttons that follow (Done, Skip, ladders). Used by `:chip_choice` (G2, G5),
+  the generic `:fortune_choice` and the silver witch's `:witch_offer`.
+- **Pot targets**: `pot/1` takes `targets` (`%{chip => %{event, value, label}}`);
+  each pot chip of that kind becomes a button (`.pot-target`, a gold
+  `target-glow`, Enter too) and the other chips dim (app.css). `pot_targets/1`
+  builds it from the open bar choice's actions (`pot_choice_actions/1`, the tile
+  step's actions on a step hold): `pot_action?/1` is P4's upgrade, locoweed V's
+  return and Chicken eyes' swap. One action per chip sends it; more send
+  `pot_pick`, and the bar shows that chip's options (`@pot_pick`, Back clears it).
+  Chicken eyes' swap is `bar_choice(:essence_bonus)` now; Vampirism's buy stays a sheet.
+- **Purple buy sheet** (`purple_buy/1`): P5's `{:chip, {:buy, chips}}` actions as
+  shop tiles, ticked with the shop's `select` and `@selected` (`kept_selection/4`
+  keeps a legal P5 selection too), Take. A `dialog_sheet` `decision-purple-buy-N`;
+  the bar's "Choose chips" reopens it.
+- **Everyone-card stage** (`CardRevealComponents.card_stage/1`): the grown card's
+  rows in the `.results-stage` panel over the bar (`card_stage?/1`), yours first.
+- **Players row**: 2 half columns per column, each tile spans 2
+  (`TileComponents.loop_start/3`), so the short second row (5, 7 seats) is centred.
+- **Peeked chip**: Mandrake V's peek (`peeked/2`) sits over the bag
+  (`data-role="peek-chip"`, `.peek-rise`) until this seat's next draw or the round's end.
+- **Scoring pulse**: `PotMotion.scoringPulse` hides the new scoring space and ring
+  during the draw's flight, then pops them with one ping ring. No flight (reduced
+  motion), no pulse. Round 37 replaced it (`scoringMove`, below).
+
+### Round 37 (board): the crow skull row, large badges, the ring, the spoon
+
+- **Crow skull row** (`bar_choice(:blue_choice)`): the crow skull chip first
+  (`data-role="blue-book"`, `{:blue, nil}` at `:md`, as a tile step shows its
+  book), then a cloth (`blue-tray`, `.blue-cloth` in app.css) with the hint "Add a
+  chip to the pot" (`blue-hint`) over the drawn chips, then Skip. Four `:lg` chips
+  and Skip fit at 360 px; from five chips they are `:md`. When the row leaves
+  (`.bar-to-bag`) the cloth and the hint fade and the chips fly to the bag.
+- **Value badge at `:lg`**: `chip/1` had no badge classes for `:lg`, so the value
+  sat unplaced and unsized over the icon (the crow skull's and the chip row's
+  chips). Each size with a badge now places and sizes it (`:lg`: `size-5 text-sm`).
+- **Scoring ring on a draw** (`PotMotion.scoringMove`): `snapshot()` copies this
+  seat's marks (the gold space and the ring) before the patch (`oldMarks`). After
+  a draw's flight starts, the copies sit on their old space in the `pot-fx` layer
+  and shrink to 0.85 as they fade out (220 ms); the new marks wait for the chip to
+  land (460 ms), then grow from 0.85 to 1 as they fade in (280 ms). Reduced
+  motion: no flight, so none.
+- **The spoon** (index 53): `pot/1` draws no disc there (`data-spoon`), only its
+  coins and VP, so the scoring ring and the gold space can still mark it. No chip
+  lands on it (`PotTrack.last_chip/0`, see 07-rules-as-data).
+
+
+### Round 39 (shop): chips in the context area, every ring moves
+
+- **Purple buy panel** (`purple_buy/1`, replaces the round 36 sheet): Ghost's
+  breath V's chips are a panel in the context area (`#purple-buy-panel-N`,
+  `.pick-panel` in app.css), not a `dialog_sheet`. Below 64rem it is fixed over
+  the pot's lower band, from the bar up (anchored to `--pot-area` like
+  `.sheet[data-pot]`), so the pot does not move; the chevron
+  (`purple-buy-fold`, `JS.toggle_class("pick-folded")`) folds it to its title.
+  From 64rem it is a panel in the context column that keeps its height (the
+  witches under it shrink). It shows every chip of the shop (`shop_rows/2`) in a
+  5-column grid; a tile that no buy allows with the ticked chips is greyed
+  (`purple-buy-off`) and its `title` says why (`purple_off/5`: too dear, not in
+  the shop this round, not with your other chip).
+- **Purse and Take in the bar**: `bar_choice(:chip_choice)` takes `selected` and
+  shows `purple-buy-total` (coins → left, `purple_purse/3`) and
+  `purple-buy-take` ("Take N") in place of "Choose chips". The panel has no
+  footer, so nothing scrolls under a sticky bar (the round 36 bug: the sheet's
+  bottom padding let chips show under its sticky footer).
+- **The shop** is a different component (`shop/1`) and stays a sheet: its footer
+  is flush (`.sheet:has([data-role="shop-footer"])` drops the padding) and below
+  64rem it is fixed in the bar's place, so it has no such overlap.
+- **Every ring moves** (`PotMotion.scoringMove`): `marks()` takes the gold space
+  and the ring of every seat. Each mark has a key (its space and its
+  `outerHTML`); after each patch the marks whose key changed fade out (ghost copy)
+  and the new ones grow in. Your draw's flight sets `wait` (460 ms), so the bots'
+  rings, which step with your draw (round 37), reappear with yours; any other
+  update (another human's draw) moves them at once. Not on a new round; reduced
+  motion: none.
+
+### Round 37 (eval): one row grid, the recap after the shop
+
+- **One row grid** (`TileRevealComponents.stage_list/1`): every results panel
+  (the evaluation steps, the recap, the everyone-cards' `card_stage/1`) draws
+  its rows with it. The `<ol>` is a grid (app.css `.stage-grid`: the seat disc,
+  the name, the reason, then one column per kind of result, `--cols`); each row
+  is a subgrid, so counts, chips and numbers stand in one line whatever the
+  names' lengths. `TileReveal.columns/1` gives the result columns in a fixed
+  order (`:dice, :chip, :coins, :vp, :rubies, :droplet, :flask, :gain,
+  :total`); every row gets a cell in each (`data-role="stage-got"`,
+  `data-col`), "choosing…" in the first. Numbers are tabular (the sans font);
+  the total has room for 3 digits.
+- **Round scored moves, rows glide**: the standings rows are in the new order and
+  carry `shift` (`from_rank - rank`, `TileReveal.stage_rows/3`). `.stage-shift`
+  translates a row `shift` rows down and moves it to 0 after 1.5 beats (FLIP in
+  CSS only, no JS); reduced motion: none. The final board (`final_board/1`) does
+  the same from the round-9 order (`shifts/1`) after the VP count up, and its
+  parts (coins, rubies, pennies) have one column each (`.final-grid`).
+- **The recap** (`Reveal.recap_slides/1`, key `{:recap, round}`): on the tiles,
+  when a round begins (round 2 on, this seat has not drawn), the last round's
+  **Shop** step (each seat's chips bought, droplet pushes and flask refills; no
+  step when nobody shopped) and then **Round scored**. It plays as a tile reveal
+  (`start_reveal/3`), before the new card (`after_recap/2` opens the card's reveal);
+  the bar's last button says "Next round"; the seat acks `:recap`
+  (`GameServer.ack/4`). The totals come from the log (`split_rounds/1`): the
+  seats' VP now less this round's gains, less the last round's results. The
+  shop-phase steps end on the scoring space, and the rubies step follows it
+  (`next_slide/1`). The overlay (desktop setting) keeps its standings slide.
+- **Take a Chance** (P12): `Reveal.card_reveals/1` gives a row per seat (`die`,
+  `gains`), so the card grows after its tap and `card_stage/1` shows each die.
+- **Flea Market** (P13): after this seat's trade the card grows with every row
+  and Continue (`chose_card?/3`), like the choice cards.
+
+### Round 39 (desk): the evaluation in the context column, folds on the left
+
+- **No overlay for the results.** The menu has no Results row any more, and
+  app.js sends no `show` or `phone`. The evaluation plays on the tiles and in
+  the results stage over the bar on every screen. From 64rem the bar is the
+  foot of the context column, so the steps (with Skip and Next) are in the
+  context column and the pot stays free. October 2026: the overlay's results
+  mode (the mount default until the browser's settings came) is gone; tests
+  end the results with `skip_results/1` (`test/support/reveal_helpers.ex`).
+- **One list per result.** The Take a Chance rolls (`chance_panel/1`) and the
+  results panel (`results_panel/1`, "Round N: evaluation") showed the same as the
+  stage; both are gone, with `.chance-row`, `.result-row` and `.results-panel` in
+  app.css. The bonus die of the overlay rolls in the bar's info row on every
+  screen (`#info-die`).
+- **Folds.** `fold/1` (`PanelComponents`) is a `<details>` with a `<summary>`
+  title and a chevron (`group-open:rotate-180`), closed by default.
+  `phx-mounted={JS.ignore_attributes(["open"])}` keeps the user's open or closed
+  state when LiveView patches the page (without it a patch drops `open`). The
+  books (`#books-column`) and the witches (`#witches-column`) use it in the left
+  column. The witches' title counts the witches this seat can call now
+  ("1 to call", `callable_witches/2`). `witches_list/1` draws the cards and their
+  call buttons for the fold and for `#sheet-witches`; from 80rem app.css hides the
+  sheet in the context column (`.sheet-left-xl`), so each width shows one copy.
+
+## Gallery
+
+The gallery (`/dev/gallery`: stories with args, full screens, the scenarios) has
+its own chapter: [12. Gallery: stories, args, screens, scenarios](12-gallery.md).
+
+UI change: check it in `/dev/gallery` at 360/392/1280, and add a story, an arg or
+a preset for any new state.

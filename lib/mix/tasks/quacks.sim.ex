@@ -76,7 +76,8 @@ defmodule Mix.Tasks.Quacks.Sim do
     ]
   end
 
-  defp parse_profiles(text) do
+  @doc false
+  def parse_profiles(text) do
     for name <- String.split(text, ",", trim: true) do
       case Profile.parse(name) do
         {:ok, profile} -> profile
@@ -86,7 +87,8 @@ defmodule Mix.Tasks.Quacks.Sim do
   end
 
   # Only atom-valued rules (e.g. `pot_side:back`); the values must already exist as atoms.
-  defp parse_rules(text) do
+  @doc false
+  def parse_rules(text) do
     Code.ensure_loaded!(Quacks.Game)
 
     for pair <- String.split(text, ",", trim: true), into: %{} do
@@ -97,14 +99,16 @@ defmodule Mix.Tasks.Quacks.Sim do
     end
   end
 
-  defp parse_expansions(text) do
+  @doc false
+  def parse_expansions(text) do
     known = %{"herb_witches" => :herb_witches, "alchemists" => :alchemists}
 
     for name <- String.split(text, ",", trim: true),
         do: Map.get(known, String.trim(name)) || Mix.raise("unknown expansion #{inspect(name)}")
   end
 
-  defp parse_sets(text) do
+  @doc false
+  def parse_sets(text) do
     Code.ensure_loaded!(Quacks.Rules.Chips)
 
     for pair <- String.split(text, ",", trim: true), into: %{} do

@@ -10,7 +10,7 @@ defmodule QuacksWeb.ScoringTest do
   import Phoenix.LiveViewTest
 
   alias Quacks.{Game, GameServer}
-  alias QuacksWeb.{GameComponents, Replay}
+  alias QuacksWeb.{ChipComponents, PotComponents, Replay, TileComponents}
 
   # Newest first, like the engine: die → black → green → purple → scoring space.
   @log [
@@ -63,7 +63,7 @@ defmodule QuacksWeb.ScoringTest do
     lines = Replay.beats(game, 0)
 
     html =
-      render_component(&GameComponents.pot/1,
+      render_component(&PotComponents.pot/1,
         game: game,
         beats: Replay.highlights(lines),
         effects: Replay.pot_effects(lines)
@@ -76,7 +76,7 @@ defmodule QuacksWeb.ScoringTest do
     assert html |> attr("[data-role=ruby-flight]", "data-x") |> Enum.all?(&(&1 != ""))
     assert has?(html, ~s(#pot-0-lg[data-slide-beat="1"][style="--slide-beat: 1"]))
 
-    html = render_component(&GameComponents.pot/1, game: game, beats: Replay.highlights(lines))
+    html = render_component(&PotComponents.pot/1, game: game, beats: Replay.highlights(lines))
     refute has?(html, "[data-role=ruby-flight], [data-role=vp-float], [data-slide-beat]")
   end
 
@@ -84,26 +84,30 @@ defmodule QuacksWeb.ScoringTest do
     game = game()
     [die | _] = Replay.beats(game, 0)
 
-    html = render_component(&GameComponents.replay_die/1, lines: [die], class: "flex")
+    html = render_component(&ChipComponents.replay_die/1, lines: [die], class: "flex")
 
     assert has?(
              html,
              ~s([data-role=replay-die][style="--beat: 0"] [data-role=die][data-face=droplet])
            )
 
-    html = render_component(&GameComponents.status/1, game: game, beats: %{vp: 6, rubies: 5})
-    assert has?(html, ~s(#stat-vp[data-beat="6"]))
+    html =
+      render_component(&TileComponents.ruby_badge/1,
+        rubies: game.players[0].rubies,
+        beats: %{rubies: 5}
+      )
+
     assert has?(html, ~s(#stat-rubies[data-beat="5"]))
 
-    html = render_component(&GameComponents.status/1, game: game)
+    html = render_component(&TileComponents.ruby_badge/1, rubies: game.players[0].rubies)
     refute has?(html, ".stat-tick[data-beat]")
   end
 
-  test "a scored round plays on the pot; the reveal overlay's end ends it" do
+  test "a scored round plays on the pot while the results play on the tiles" do
     {:ok, id} = GameServer.start(1, {10, 11, 12})
     {:ok, view, _html} = live(init_test_session(build_conn(), player_token: "solo"), ~p"/g/#{id}")
 
-    for _ <- 1..3, do: view |> element("button", "Draw a chip") |> render_click()
+    for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
@@ -113,13 +117,11 @@ defmodule QuacksWeb.ScoringTest do
     assert length(query(html, "#pot-0-lg [data-role=ruby-flight]") |> Enum.to_list()) ==
              Enum.count(Replay.pot_effects(lines), &(&1.kind == :ruby))
 
-    assert has?(html, "#reveal-next") and has?(html, "#pot-0-lg[phx-hook=PotMotion]")
+    assert has?(html, "#tile-stage") and has?(html, "#pot-0-lg[phx-hook=PotMotion]")
 
-    for %{kind: kind, beat: beat} <- Replay.updates(game, 0), kind in [:vp, :rubies] do
+    for %{kind: kind, beat: beat} <- Replay.updates(game, 0), kind == :rubies do
       assert has?(html, ~s(#stat-#{kind}[data-beat="#{beat}"]))
     end
-
-    if Enum.any?(lines, &(&1.kind == :die)), do: assert(has?(html, "[data-role=replay-die]"))
 
     # a new replay clears the `replay-done` JS added at the end of the last one
     assert has?(

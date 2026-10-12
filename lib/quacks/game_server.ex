@@ -32,17 +32,24 @@ defmodule Quacks.GameServer do
   back with `rejoin/4` and the seat's name (a browser that lost its cookie). Pages
   hear `{:names, id, names}` when a seat comes or goes, and `{:rejoined, id, seat}`.
 
-  Bots: while `:waiting` the host may put a bot (`Quacks.AI`, always the `:balanced`
-  profile, a name from `Quacks.AI.Names`) in a free seat (`add_bot/3`) and take it out again
+  Bots: while `:waiting` the host may put a bot (`Quacks.AI`, since round 43 always
+  the `:expert` profile, a name from `Quacks.AI.Names`) in a free seat (`add_bot/3`) and take it out again
   (`remove_bot/3`). A bot holds a seat like a browser does. Once the game is
   `:playing`, each bot seat that can act gets a tick (`{:bot, seat, tick}`, after
   `:bot_delay` ms, 700 by default): the bot makes one action through
   `Quacks.Session`, every page hears it, and the next tick follows.
 
-  Lockstep: in the potions phase (rounds 1–8) a bot may `:draw` only while it has
-  drawn fewer times this round than the human seat that drew most. When no human
-  seat still brews, the cap is off. A capped bot gets no tick; the next human
-  action schedules it again.
+  Bots brew with your draws (round 37; round 36 brewed them only at the end): in
+  the potions phase (rounds 1–8) a bot gets no tick. When a human draws, every bot
+  that still brews takes its next step in the same call (`step_bots/4`): one draw
+  (or its stop), with the choices that draw asks for, bot after bot in seat order.
+  The human's draw and all the bot steps go out as one `{:game, id, game}`, like
+  round 9's stir. With 2+ humans the bots step once per round of human draws: when
+  every human seat that still draws has drawn since the last step (`drawn`). When
+  the last human seat stops or explodes, `brew_bots/1` plays the rest of every
+  bot's brew at once, again in one broadcast. Each bot action goes through
+  `Quacks.Session` (one log entry per draw), so a replay is the same game; the call
+  schedules one game-file write. Round 9 (stir) keeps its ticks.
 
   Decisions revealed together: in the phases where every seat decides at the same
   time (`:fortune_choice`, `:chip_choice`, `:witch_choice`, `:shopping`), a bot
@@ -54,7 +61,8 @@ defmodule Quacks.GameServer do
   choice changes a bot's. With no human in the phase the plan goes at once. Each
   queued action is checked again when it is applied; at the first one that is no
   longer legal (a limited supply ran out), the rest is dropped and the bot decides
-  again with normal ticks. The draws of the potions phase are not queued (lockstep).
+  again with normal ticks. The draws of the potions phase are not queued: they are
+  brewed in one go (above).
 
   Mandrake (yellow 1) for humans: when a human seat must answer "put the white chip
   back?" (`:yellow_choice`), the server answers `:return_white` for it at once (the
@@ -79,6 +87,8 @@ defmodule Quacks.GameServer do
 
   use GenServer, restart: :temporary
 
+  require Logger
+
   alias Quacks.{AI, Game, GameStore, Session}
   alias Quacks.AI.{Names, Profile}
   alias Quacks.Game.Essence
@@ -86,7 +96,7 @@ defmodule Quacks.GameServer do
   @idle_timeout :timer.hours(2)
   @rejoin_after_ms :timer.seconds(30)
   @max_bots 7
-  @bot_profile :balanced
+  @bot_profile :expert
   @lobby_topic "lobby"
   @write_delay 500
   @finished_ttl :timer.hours(1)
@@ -121,7 +131,7 @@ defmodule Quacks.GameServer do
           names: %{Game.seat() => String.t()},
           colours: %{Game.seat() => colour},
           bots: %{Game.seat() => Profile.name()},
-          seen: %{Game.seat() => %{optional(:card | :results | :final) => 1..9}},
+          seen: %{Game.seat() => %{optional(:card | :results | :recap | :final) => 1..9}},
           creator: Game.seat() | nil,
           public: boolean,
           founder: Game.seat() | nil,
@@ -134,7 +144,14 @@ defmodule Quacks.GameServer do
           patient_picks: %{optional(Game.seat()) => atom},
           expansion: nil | :herb_witches,
           expansions: MapSet.t(Game.expansion()),
-          debug: nil | %{at: non_neg_integer, total: non_neg_integer, frozen: boolean}
+          debug:
+            nil
+            | %{
+                required(:at) => non_neg_integer,
+                required(:total) => non_neg_integer,
+                required(:frozen) => boolean,
+                optional(:scenario) => map
+              }
         }
 
   @typedoc "A seat colour: an index into the 8-colour palette (`--color-seat-N`)."
@@ -261,7 +278,9 @@ defmodule Quacks.GameServer do
   replays only the first `at` actions (default: all), `token:` and `seat:` give that
   seat to the browser with `token` (the other human seats stay unclaimed). The
   bundle's `names` and `bots` (when present) name the seats and seat the bots.
-  Bots start frozen (see the moduledoc), unless `frozen: false`.
+  Bots start frozen (see the moduledoc), unless `frozen: false`. A scenario's
+  bundle (`Quacks.Scenarios.bundle/2`) has a `"scenario"` (its steps); the table
+  shows it in `debug.scenario`, for the page's step bar.
 
   `restore: true` instead brings back a stored game from its game file (the
   bundle plus `"table"`, see `Quacks.GameStore`): the same id, seats, tokens,
@@ -282,9 +301,18 @@ defmodule Quacks.GameServer do
 
     with {:ok, session} <- Session.from_bundle(bundle, at) do
       seats = 0..(session.players - 1)
-      bots = Map.new(Enum.filter(bundle["bots"] || [], &(&1 in seats)), &{&1, @bot_profile})
-      names = bundle["names"] || []
       token = opts[:token]
+      # Round 29: the seat this browser takes is no bot (a replay viewed from a bot's
+      # seat said "You win!" over a bot's name).
+      mine = if token, do: opts[:seat]
+
+      bots =
+        Map.new(
+          Enum.filter(bundle["bots"] || [], &(&1 in seats and &1 != mine)),
+          &{&1, @bot_profile}
+        )
+
+      names = bundle["names"] || []
 
       start_server(%{
         max_players: session.players,
@@ -304,8 +332,18 @@ defmodule Quacks.GameServer do
         public: false,
         session: session,
         store: nil,
-        debug: %{bundle: bundle, at: at, total: total, frozen: Keyword.get(opts, :frozen, true)}
+        debug: debug_state(bundle, at, total, opts)
       })
+    end
+  end
+
+  # A scenario's bundle (`Quacks.Scenarios.bundle/2`) adds its steps.
+  defp debug_state(bundle, at, total, opts) do
+    debug = %{bundle: bundle, at: at, total: total, frozen: Keyword.get(opts, :frozen, true)}
+
+    case bundle do
+      %{"scenario" => %{} = scenario} -> Map.put(debug, :scenario, scenario)
+      _bundle -> debug
     end
   end
 
@@ -351,7 +389,7 @@ defmodule Quacks.GameServer do
   defp restore(_bundle, _opts), do: {:error, :invalid}
 
   defp decode_seen(kinds) do
-    for {kind, round} <- kinds, kind in ~w(card results final), into: %{} do
+    for {kind, round} <- kinds, kind in ~w(card results recap final), into: %{} do
       {String.to_existing_atom(kind), round}
     end
   end
@@ -397,7 +435,7 @@ defmodule Quacks.GameServer do
   @doc "Apply `action` for `seat`. Returns the new game, or the engine's error."
   @spec apply(id, Game.seat(), Game.action()) ::
           {:ok, Game.t()} | {:error, :not_started | :not_found | term}
-  def apply(id, seat, action), do: call(id, {:apply, seat, action})
+  def apply(id, seat, action), do: call(id, {:apply, seat, action, System.monotonic_time()})
 
   @doc """
   Mandrake: `seat` keeps the white chip that the server put back in its bag
@@ -497,7 +535,7 @@ defmodule Quacks.GameServer do
   def fill_bots(id, token), do: call(id, {:fill_bots, token})
 
   @doc """
-  The host puts a bot (profile `:balanced`) in the free `seat` (nil: the lowest free
+  The host puts a bot (profile `:expert`) in the free `seat` (nil: the lowest free
   seat), while `:waiting`. Each bot gets a name from `Quacks.AI.Names` that is not at
   the table yet (picked with the table's rng) and the next free colour. At most
   #{@max_bots} bots.
@@ -525,13 +563,14 @@ defmodule Quacks.GameServer do
   def set_colour(id, seat, colour), do: call(id, {:set_colour, seat, colour})
 
   @doc """
-  `seat` closed the fortune card (`:card`), the round results (`:results`) or the
-  final scoring (`:final`, round 9) of `round` (the reveal overlay). The table
+  `seat` closed the fortune card (`:card`), the round results (`:results`), the
+  last round's recap at a round's start (`:recap`, round 37) or the final scoring (`:final`, round 9) of `round` (the reveal overlay). The table
   keeps it (`seen`), so a reload does not open them again.
   """
-  @spec ack(id, Game.seat(), :card | :results | :final, 1..9) :: :ok | {:error, :not_found}
+  @spec ack(id, Game.seat(), :card | :results | :recap | :final, 1..9) ::
+          :ok | {:error, :not_found}
   def ack(id, seat, kind, round)
-      when kind in [:card, :results, :final] and is_integer(round),
+      when kind in [:card, :results, :recap, :final] and is_integer(round),
       do: call(id, {:ack, seat, kind, round})
 
   @doc "Public games on this node that are still `:waiting` with a free seat, sorted by id."
@@ -635,6 +674,7 @@ defmodule Quacks.GameServer do
           bot_ticks: %{},
           queued: %{},
           auto_keep: nil,
+          drawn: MapSet.new(),
           seen: %{},
           pages: %{},
           away: %{},
@@ -717,7 +757,8 @@ defmodule Quacks.GameServer do
         debug: %{debug | at: at},
         bot_ticks: %{},
         queued: %{},
-        auto_keep: nil
+        auto_keep: nil,
+        drawn: MapSet.new()
     }
 
     reply_game(schedule_bots(state))
@@ -733,14 +774,26 @@ defmodule Quacks.GameServer do
     {:reply, :ok, state, @idle_timeout}
   end
 
-  defp server_call({:apply, _, _}, _from, %{session: nil} = state),
+  defp server_call({:apply, _, _, _}, _from, %{session: nil} = state),
     do: {:reply, {:error, :not_started}, state, @idle_timeout}
 
-  defp server_call({:apply, seat, action}, _from, state) do
-    case Session.apply(state.session, seat, action) do
-      {:ok, session} -> reply_game(acted(%{state | session: session}))
-      error -> {:reply, error, state, @idle_timeout}
-    end
+  defp server_call({:apply, seat, action, sent}, _from, state) do
+    {engine_us, result} = :timer.tc(Session, :apply, [state.session, seat, action])
+
+    reply =
+      case result do
+        {:ok, session} ->
+          %{state | session: session}
+          |> step_bots(seat, action, sent)
+          |> acted()
+          |> reply_game()
+
+        error ->
+          {:reply, error, state, @idle_timeout}
+      end
+
+    log_action(state.id, seat, action, elem(result, 0), engine_us, sent)
+    reply
   end
 
   defp server_call({:keep_white, _seat}, _from, %{session: nil} = state),
@@ -1052,25 +1105,29 @@ defmodule Quacks.GameServer do
   end
 
   # A bot's turn to act: one action, then the next ticks. A tick that is not the
-  # seat's pending one is stale; a capped bot (a human resumed) waits; in a concurrent
-  # phase where a human decides, the bot plans instead (`schedule_bots/1`).
+  # seat's pending one is stale; in the potions phase (rounds 1-8) the bot brews in
+  # one go instead (`brew_bots/1`); in a concurrent phase where a human decides, the
+  # bot plans instead (`schedule_bots/1`).
   defp server_info({:bot, seat, tick}, %{bot_ticks: ticks} = state)
        when :erlang.map_get(seat, ticks) == tick do
+    started = System.monotonic_time()
     state = %{state | bot_ticks: Map.delete(ticks, seat)}
     profile = Profile.get(state.bots[seat])
 
     state =
-      with false <- capped?(state, state.session.game, seat),
+      with false <- held?(state.session.game),
            false <- humans_deciding?(state, state.session.game),
            nil <- state.auto_keep,
            {action, rng} <-
              AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
-           {:ok, session} <- Session.apply(state.session, seat, action) do
+           {engine_us, {:ok, session}} <-
+             :timer.tc(Session, :apply, [state.session, seat, action]) do
         state = acted(%{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)})
         broadcast(state, {:game, state.id, state.session.game})
+        log_action(state.id, seat, {:bot, action}, :ok, engine_us, started)
         state
       else
-        _none_or_error -> schedule_bots(state)
+        _none_or_error -> state |> schedule_bots() |> broadcast_changed(state)
       end
 
     {:noreply, state, @idle_timeout}
@@ -1222,14 +1279,17 @@ defmodule Quacks.GameServer do
     end)
   end
 
-  # Every bot seat that can act, is not capped and has no tick pending gets one. In
-  # a concurrent phase where a human still decides, a bot plans instead (no tick).
-  # While a human's Mandrake answer can be taken back, bots wait.
+  # Every bot seat that can act and has no tick pending gets one. In a concurrent
+  # phase where a human still decides, a bot plans instead (no tick). In the potions
+  # phase (rounds 1-8) the bots step with the human draws, then brew the rest in one go
+  # (`step_bots/4`, `brew_bots/1`), never by tick. While
+  # a human's Mandrake answer can be taken back, bots wait.
   defp schedule_bots(%{session: nil} = state), do: state
   defp schedule_bots(%{debug: %{frozen: true}} = state), do: state
   defp schedule_bots(%{auto_keep: {_seat, _before}} = state), do: state
 
   defp schedule_bots(state) do
+    state = brew_bots(state, System.monotonic_time())
     game = state.session.game
     delay = Application.get_env(:quacks, :bot_delay, 700)
     deciding? = humans_deciding?(state, game)
@@ -1238,7 +1298,7 @@ defmodule Quacks.GameServer do
     |> Map.keys()
     |> Enum.reject(&(Map.has_key?(state.bot_ticks, &1) or Map.has_key?(state.queued, &1)))
     |> Enum.filter(&(Game.phase(game, &1) != :stopped and Game.legal_actions(game, &1) != []))
-    |> Enum.reject(&capped?(state, game, &1))
+    |> Enum.reject(fn _seat -> held?(game) end)
     |> Enum.reduce(state, fn
       seat, state when deciding? ->
         plan(state, seat)
@@ -1250,31 +1310,135 @@ defmodule Quacks.GameServer do
     end)
   end
 
-  # Lockstep (see the moduledoc): may the bot at `seat` not draw now? Round 9 has
-  # its own lockstep (stir), so no cap there.
-  defp capped?(state, %Game{phase: :potions, round: round} = game, seat) when round < 9 do
-    humans = game.seats -- Map.keys(state.bots)
-    draws = round_draws(game)
+  # The potions phase of rounds 1-8: bots act only in `step_bots/4` and `brew_bots/1`. Round 9 has its
+  # own lockstep (stir), so the bots tick there.
+  defp held?(%Game{phase: :potions, round: round}) when round < 9, do: true
+  defp held?(_game), do: false
 
-    :draw in Game.legal_actions(game, seat) and
-      Enum.any?(humans, &brewing?(Game.player(game, &1))) and
-      Map.get(draws, seat, 0) >= humans |> Enum.map(&Map.get(draws, &1, 0)) |> Enum.max()
+  # Round 37: a human's action in the potions phase (rounds 1-8). A `:draw` counts
+  # in `drawn`; once every human seat that still draws has drawn, each bot that
+  # still brews takes one step (`bot_step/3`) and `drawn` starts again. With no
+  # human drawing any more, `brew_bots/1` (from `schedule_bots/1`) does the rest.
+  defp step_bots(%{debug: %{frozen: true}} = state, _seat, _action, _started), do: state
+
+  defp step_bots(state, seat, action, started) do
+    game = state.session.game
+    humans = game.seats -- Map.keys(state.bots)
+    drawn = if action == :draw, do: MapSet.put(state.drawn, seat), else: state.drawn
+    drawing = Enum.filter(humans, &drawing?(game, &1))
+
+    cond do
+      not held?(game) ->
+        %{state | drawn: MapSet.new()}
+
+      seat not in humans ->
+        state
+
+      drawing != [] and MapSet.size(drawn) > 0 and Enum.all?(drawing, &(&1 in drawn)) ->
+        state.bots
+        |> Map.keys()
+        |> Enum.sort()
+        |> Enum.filter(&drawing?(game, &1))
+        |> Enum.reduce(%{state | drawn: MapSet.new()}, &bot_step(&2, &1, started))
+
+      true ->
+        %{state | drawn: drawn}
+    end
   end
 
-  defp capped?(_state, _game, _seat), do: false
+  # One step of a bot's brew: its actions up to and with its next draw or stop,
+  # and the choices that draw asks for (Mandrake, crow skull, ...).
+  @step_budget 20
+  defp bot_step(state, seat, started, budget \\ @step_budget)
+  defp bot_step(state, _seat, _started, 0), do: state
 
-  defp brewing?(%{phase: phase}),
+  defp bot_step(state, seat, started, budget) do
+    profile = Profile.get(state.bots[seat])
+
+    with {action, rng} <- AI.decide(state.session.game, seat, profile, state.bot_rngs[seat]),
+         {engine_us, {:ok, session}} <- :timer.tc(Session, :apply, [state.session, seat, action]) do
+      log_action(state.id, seat, {:bot, action}, :ok, engine_us, started)
+      state = %{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)}
+      game = session.game
+
+      if action in [:draw, :stop] and not mid_draw?(game, seat),
+        do: state,
+        else: bot_step(state, seat, started, budget - 1)
+    else
+      _none_or_error -> state
+    end
+  end
+
+  # The seat answers a question about the chip it just drew.
+  defp mid_draw?(game, seat),
     do:
-      phase in [:potions, :yellow_choice, :blue_choice, :red_choice, :chip_choice, :essence_offer]
+      Game.player(game, seat).phase in [
+        :yellow_choice,
+        :blue_choice,
+        :chip_choice,
+        :essence_offer
+      ]
 
-  # `:draw` actions per seat in this round's log (newest first, up to the last round end).
-  defp round_draws(game) do
-    game.log
-    |> Enum.take_while(&(not match?({:round_end, _}, &1)))
-    |> Enum.frequencies_by(fn
-      {seat, :draw} -> seat
-      _other -> nil
+  # Round 36: once no human seat draws any more, every bot's whole brew in one go.
+  # The first bot (seat order) that has an action takes it through `Session.apply/3`,
+  # then again, until no bot acts: so bot 1 brews to its stop, then bot 2, and the
+  # last stop settles every stop (B1, B7, red chips beside the pot), where a bot may
+  # act once more. The caller broadcasts once. `@brew_budget` stops a runaway loop.
+  @brew_budget 500
+  defp brew_bots(state, started, budget \\ @brew_budget)
+  defp brew_bots(state, _started, 0), do: state
+
+  defp brew_bots(state, started, budget) do
+    game = state.session.game
+
+    with true <- held?(game),
+         false <- Enum.any?(game.seats -- Map.keys(state.bots), &drawing?(game, &1)),
+         {seat, action, rng, engine_us, session} <- next_brew(state) do
+      log_action(state.id, seat, {:bot, action}, :ok, engine_us, started)
+      state = %{state | session: session, bot_rngs: Map.put(state.bot_rngs, seat, rng)}
+      brew_bots(state, started, budget - 1)
+    else
+      _no_brew -> state
+    end
+  end
+
+  defp next_brew(state) do
+    game = state.session.game
+
+    state.bots
+    |> Map.keys()
+    |> Enum.sort()
+    |> Enum.find_value(fn seat ->
+      with {action, rng} <-
+             AI.decide(game, seat, Profile.get(state.bots[seat]), state.bot_rngs[seat]),
+           {engine_us, {:ok, session}} <-
+             :timer.tc(Session, :apply, [state.session, seat, action]) do
+        {seat, action, rng, engine_us, session}
+      else
+        _none_or_error -> nil
+      end
     end)
+  end
+
+  # The seat still draws (or decides about a chip it just drew). A stopped seat, an
+  # explosion, and the choices after the stop (red chips beside the pot, B7) are no
+  # longer drawing.
+  defp drawing?(game, seat),
+    do:
+      Game.player(game, seat).phase in [
+        :potions,
+        :yellow_choice,
+        :blue_choice,
+        :chip_choice,
+        :essence_offer
+      ]
+
+  # A bot tick that brewed for the bots changed the game: the pages hear it.
+  defp broadcast_changed(%{session: session} = state, %{session: session}), do: state
+
+  defp broadcast_changed(state, _old) do
+    broadcast(state, {:game, state.id, state.session.game})
+    state
   end
 
   # Play again: a solo game has no waiting panel, so its patient is chosen in the
@@ -1419,6 +1583,31 @@ defmodule Quacks.GameServer do
 
   defp broadcast_lobby, do: Phoenix.PubSub.broadcast(Quacks.PubSub, @lobby_topic, :games_changed)
 
+  # -- timing (round 28) ---------------------------------------------------------------
+
+  # One line per applied action: `fly logs -a quacks | grep "action "`. `engine` is
+  # the time in `Session.apply/3` (the engine), `total` the time since the browser's
+  # process sent the call (the wait in this mailbox, the engine, the bots' plans and
+  # the broadcast). A bot's move counts from its tick. Slow ones (`@slow_ms`) log at
+  # `:info`, the rest at `:debug`.
+  @slow_ms 50
+  defp log_action(id, seat, action, result, engine_us, started) do
+    total_ms =
+      System.convert_time_unit(System.monotonic_time() - started, :native, :microsecond) / 1000
+
+    level = if total_ms >= @slow_ms, do: :info, else: :debug
+
+    Logger.log(level, fn ->
+      "action game=#{id} seat=#{seat} action=#{action_name(action)} result=#{result} " <>
+        "engine_ms=#{Float.round(engine_us / 1000, 2)} total_ms=#{Float.round(total_ms, 2)}"
+    end)
+  end
+
+  defp action_name({:bot, action}), do: "bot:" <> action_name(action)
+  defp action_name(action) when is_atom(action), do: Atom.to_string(action)
+  defp action_name(action) when is_tuple(action), do: action |> elem(0) |> action_name()
+  defp action_name(_action), do: "other"
+
   # -- the game file ------------------------------------------------------------------
 
   defp stored({:reply, reply, state, timeout}, old),
@@ -1508,7 +1697,15 @@ defmodule Quacks.GameServer do
       names: Enum.map(0..(state.session.players - 1), &Map.get(state.names, &1)),
       bots: state.bots |> Map.keys() |> Enum.sort()
     })
+    |> put_scenario(state.debug)
   end
+
+  # A scenario table's report names the scenario and the action it was at, so a
+  # builder can open the same step (`/dev/scenarios`, docs/guide/12-gallery.md).
+  defp put_scenario(bundle, %{scenario: %{"key" => key}, at: at}),
+    do: Map.put(bundle, :scenario, %{key: key, at: at})
+
+  defp put_scenario(bundle, _debug), do: bundle
 
   defp table(%{session: session} = state) do
     %{
@@ -1537,7 +1734,7 @@ defmodule Quacks.GameServer do
         MapSet.new(
           List.wrap(state.opts[:expansion]) ++ Enum.to_list(state.opts[:expansions] || [])
         ),
-      debug: state.debug && Map.take(state.debug, [:at, :total, :frozen])
+      debug: state.debug && Map.take(state.debug, [:at, :total, :frozen, :scenario])
     }
   end
 

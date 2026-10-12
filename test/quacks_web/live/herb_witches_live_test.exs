@@ -2,10 +2,11 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
   use QuacksWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import QuacksWeb.RevealHelpers
 
   alias Quacks.{Game, GameServer}
   alias Quacks.Rules.{Chips, Witches}
-  alias QuacksWeb.{GameComponents, GameLive, SetupComponents}
+  alias QuacksWeb.{GameText, SetupComponents, ShopComponents}
 
   setup %{conn: conn} do
     %{conn: init_test_session(conn, player_token: "hw-#{System.unique_integer()}")}
@@ -67,8 +68,18 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     refute has_element?(view, "section[aria-label=Actions] button", "witch")
 
     view |> element("#sheet-witches [data-witch=s2] button", "Call") |> render_click()
-    assert has_element?(view, "[aria-label='Silver witch offer']", "The silver witch drew:")
-    assert has_element?(view, "button", "Silver witch: return the rest to the bag")
+
+    assert has_element?(
+             view,
+             "#bar-pick-witch_offer [data-role=info-row]",
+             "The silver witch drew:"
+           )
+
+    assert has_element?(
+             view,
+             "#bar-pick-witch_offer button[aria-label='Silver witch: return the rest to the bag']"
+           )
+
     assert has_element?(view, "[data-witch=s2]", "penny spent")
     assert has_element?(view, "li", "Draw 6 chips: drew 6 chips")
   end
@@ -101,7 +112,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
              "Call the copper witch"
            )
 
-    assert GameLive.shop_rows(:herb_witches) |> List.flatten() |> Enum.sort() ==
+    assert ShopComponents.shop_rows(:herb_witches) |> List.flatten() |> Enum.sort() ==
              Chips.shop(:herb_witches)
   end
 
@@ -184,17 +195,17 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
       ] ++ witch_events ++ for({book, detail} <- effects, do: {:effect, book, detail})
 
     for term <- actions ++ events do
-      refute GameComponents.label(term) =~ ~r/^[:{]/, "no label for #{inspect(term)}"
+      refute GameText.label(term) =~ ~r/^[:{]/, "no label for #{inspect(term)}"
     end
 
     for id <- Enum.flat_map([:silver, :copper, :gold], &Witches.ids/1),
         do: assert(Map.has_key?(outcomes, id))
 
-    assert GameComponents.label({:witch, :g4, :ruby_price}) ==
+    assert GameText.label({:witch, :g4, :ruby_price}) ==
              "Cheap rubies: droplet and flask cost 1 ruby"
 
-    assert GameComponents.phase_name(:witch_choice) == "Gold witch"
-    assert GameComponents.chip_name({:locoweed, 1}) == "locoweed"
+    assert GameText.phase_name(:witch_choice) == "Gold witch"
+    assert GameText.chip_name({:locoweed, 1}) == "locoweed"
   end
 
   test "the gold witch choice is a dialog with her card", %{conn: conn} do
@@ -205,9 +216,11 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
     {:ok, _} = GameServer.apply(id, 0, :draw)
     {:ok, _} = GameServer.apply(id, 0, :stop)
     {:ok, _} = GameServer.apply(id, 0, {:buy, []})
+    skip_results(view)
 
-    assert has_element?(view, "#decision-rubies [data-witch=g4]")
-    view |> element("#decision-rubies button", "Call the gold witch") |> render_click()
+    # Round 37: with a ruby to spend she is in the rubies bar, beside the uses
+    assert has_element?(view, "#bar-rubies [data-role=rubies-witch]")
+    view |> element("#bar-rubies [data-role=rubies-witch]") |> render_click()
     assert has_element?(view, "li", "Cheap rubies: droplet and flask cost 1 ruby")
     assert Game.legal_actions(elem(GameServer.get(id), 1).game, 0) |> List.last() == :end_round
   end

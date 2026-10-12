@@ -173,6 +173,25 @@ Then a click in one view shows up in the other through the real GameServer and t
 real PubSub: `# Alice's draw reached Bob's page through PubSub`
 (`test/quacks_web/live/multiplayer_live_test.exs:58-62`).
 
+## UI snapshots
+
+`test/quacks_web/ui_snapshot_test.exs` (tag `:snapshot`) renders every gallery
+story (its default args and each preset), every screen and every scenario step,
+and compares the HTML with `test/snapshots/<group>/<story>/<preset or step>.html`.
+The HTML is normalised: one tag per line, attributes sorted, LiveView ids, tokens
+and text indentation removed, icon path data hashed.
+
+```
+mix test --only snapshot                      # compare
+UPDATE_SNAPSHOTS=1 mix test --only snapshot   # write them again (and delete stale ones)
+```
+
+Plain `mix test` leaves them out (`test_helper.exs`); `mix precommit` runs them
+as its last step. In one run with the rest of the suite they made lobby tests
+time out now and then (October 2026, cause not found). A failure names the
+story, shows the changed lines and writes the new HTML to the tmp dir. A refactor must leave every snapshot the same; a change that is
+meant to show must list the changed snapshots in its PR.
+
 ## `mix precommit`
 
 The alias in `mix.exs:88-94` runs, in order: `compile --warnings-as-errors`,
@@ -202,3 +221,36 @@ Two uses:
   `MatchError` on an illegal action (`lib/quacks/ai/sim.ex:50-55`). Builders run a few
   hundred games after a rules change (the project note Log records "400 random full
   games ... all reach game over").
+
+## Tests: where things live
+
+The LiveView tests in `test/quacks_web/live/` are grouped by behaviour (October 2026;
+before, about 55 files had the name of a playtest round or a QA pass). Put a new test
+in the file of the behaviour it guards. Shared helpers (`browser/1`, `open/2`,
+`token/1`, `query/2`, `count/2`, `text/2`, `key/3`) are in
+`test/support/live_helpers.ex`; the results helpers (`skip_results/1`,
+`play_until/2`) are in `test/support/reveal_helpers.ex`.
+
+| File | Behaviour |
+| --- | --- |
+| `action_bar_test.exs` | the bottom bar: Stop and Draw, the fuse meter, hotkeys, the reward line, waiting, the explosion and ruby choices, the free droplet move, Continue, round 9's Stir! |
+| `bar_choices_test.exs` | the choices in the bar: crow skull, toadstools, Choices Choices, chip choices as chips, pot chips as targets, Mandrake, Ghost's breath V |
+| `card_reveal_test.exs` | the fortune card: over the pot, the corner card, a card's result or choice for every seat, the card face, the chips under a card |
+| `desktop_layout_test.exs` | the desktop books column, the tablet books drawer, the card in full in the context column |
+| `game_over_test.exs` | the game-over page: chart, winner, buying power, Play again |
+| `hints_test.exs` | the first-time hints |
+| `lobby_setup_test.exs` | the lobby and the New game flow: expansions, books, House rules, steppers, configure screen, patient picker, waiting panel, viewport lock |
+| `messages_test.exs` | the log lines, toasts, the live region, the report toast, game-over text |
+| `motion_hooks_test.exs` | what the motion hooks need from the server: ids, data attributes, title card, burst |
+| `player_tiles_test.exs` | the players row and the player sheets: tiles, name cards, update chips, pieces, rat tails, patients and essence |
+| `pot_board_test.exs` | the pot and the board: VP tags, overflow bowl, ruby badge, Toadstool rows, rat track, test tubes, scoring ring, value badge |
+| `reconnect_and_rejoin_test.exs` | reloads, lost seats, spectators, rejoin, stale broadcasts, a game whose server is gone |
+| `results_on_tiles_test.exs` | the round results played on the player tiles |
+| `results_slides_test.exs` | the results slides, the standings and the round summary |
+| `results_stage_test.exs` | the results stage over the bar, the recap after the shop, the evaluation in the desktop column |
+| `rubies_and_witches_test.exs` | the rubies step, Cheap rubies, the reveal settings, the herb witch pickers, the witches sheet, the menu |
+| `shop_test.exs` | the shop: footer, prices, tiles, a buy that ends the shop, round 9 without a shop, Flea Market, the status line |
+| `visual_details_test.exs` | small visual rules: button variants, seat edge, corner buttons, focus on open, dialogs, phone sizes |
+
+The other files keep the name of their feature (`books_live_test.exs`,
+`fortune_live_test.exs`, `bots_live_test.exs`, `replay_test.exs`, ...).
