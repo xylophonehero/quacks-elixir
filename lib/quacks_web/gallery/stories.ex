@@ -374,7 +374,7 @@ defmodule QuacksWeb.Gallery.Stories do
   end
 
   defp arg_stories("motion") do
-    kinds = ~w(draw to-bag flask swap upgrade return)
+    kinds = ~w(draw to-bag flask swap return)
 
     [
       arg_story(

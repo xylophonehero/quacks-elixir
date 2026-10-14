@@ -137,6 +137,24 @@ defmodule QuacksWeb.Sounds do
   @spec shuffle_sound() :: String.t() | nil
   def shuffle_sound, do: if(@shuffle in @files, do: @shuffle)
 
+  # Round 46 (Nick: "a better explosion sound, more bang"): the explosion
+  # candidates (the gallery's X1 and XB1 to XB3) and the one the game plays.
+  @booms [
+    {"X1", "boom-x1", "the old one: cartoon pop, low explosion, bubble"},
+    {"XB1", "boom-xb1", "deep thump, bomb crack, firecracker snap"},
+    {"XB2", "boom-xb2", "the pot bursts: thump, crunch, glass crack, debris rattle"},
+    {"XB3", "boom-xb3", "big boom, firework bang, bottle shatter"}
+  ]
+  @boom "boom-xb2"
+
+  @doc "The explosion candidates: `{label, sound, what it is}`."
+  @spec boom_candidates() :: [{String.t(), String.t(), String.t()}]
+  def boom_candidates, do: @booms
+
+  @doc "Your own explosion. nil when the file is missing (no sound)."
+  @spec boom_sound() :: String.t() | nil
+  def boom_sound, do: if(@boom in @files, do: @boom)
+
   @doc "The flask is used (round 45): `flask.m4a`, else no sound (nil)."
   @spec flask_sound() :: String.t() | nil
   def flask_sound, do: if("flask" in @files, do: "flask")

@@ -1,12 +1,12 @@
 // Round 45: PotMotion's moves for a chip that changes or goes back (app.js spreads
 // them into the hook, so `this` is the hook: `ghost`, `top`, `pos`, `centre`, `bag`).
 // The bag bumps as chips land in it; the flask tips and pours; a pot chip swapped in
-// place, or taken for a bigger one in the bag, morphs into it (`morphChip`).
-import {morphChip, MORPH_MS, MORPH_PEAK} from "./chip_morph"
+// place morphs into the new one (`morphChip`). Round 46: the purple book IV's chip
+// too: it stays in the pot until the round's chips go back (`PotComponents.held/2`).
+import {morphChip, MORPH_PEAK} from "./chip_morph"
 
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
 const easing = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-const at = (p, o, s = 1) => `translate(${p.x - o.x}px, ${p.y - o.y}px) scale(${s})`
 
 export const potMoves = playSound => ({
   // Round 45: the bag button takes the chips in: a small swell as they land.
@@ -45,26 +45,5 @@ export const potMoves = playSound => ({
     const g = this.top(old, this.pos(chip.dataset.index))
     morphChip(old, chip).then(() => g.remove())
     if (this.el.dataset.mine) playSound(chip.dataset.sound, {delay: reduced() ? 0 : MORPH_PEAK / 1000, pitch: 0})
-  },
-  // Round 45, the purple book IV: the pot chip grows into the bigger chip
-  // (`to`: its hidden face, `data-role=morph-to`), which then flies into the bag.
-  upgrade(chip, to) {
-    const p = this.pos(chip.dataset.index)
-    chip.removeAttribute("id")
-    chip.removeAttribute("data-role")
-    const g = this.top(chip, p)
-    const face = to.cloneNode(true)
-    ;["id", "data-role", "visibility"].forEach(a => face.removeAttribute(a))
-    const f = this.top(face, p)
-    morphChip(chip, face).then(() => g.remove())
-    if (this.el.dataset.mine) playSound(to.dataset.sound, {delay: reduced() ? 0 : MORPH_PEAK / 1000, pitch: 0})
-    const t = this.centre(this.bag())
-    const frames = reduced()
-      ? [{opacity: 1}, {opacity: 0}]
-      : [{transform: at(p, p), opacity: 1}, {transform: at(t, p, 0.6), opacity: 1, offset: 0.75},
-         {transform: at(t, p, 0.5), opacity: 0}]
-    f.animate(frames, {duration: reduced() ? 180 : 300, delay: reduced() ? 400 : MORPH_MS + 120, easing: easing("--ease-out"), fill: "forwards"})
-      .finished.catch(() => {}).finally(() => f.remove())
-    this.bump(MORPH_MS + 340)
   },
 })

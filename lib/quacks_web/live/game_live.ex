@@ -1308,6 +1308,7 @@ defmodule QuacksWeb.GameLive do
                 class="boom"
                 phx-hook="Boom"
                 data-key={"#{@id}-#{@game.round}"}
+                data-sound={QuacksWeb.Sounds.boom_sound()}
                 aria-hidden="true"
                 data-role="boom"
               >
@@ -1430,7 +1431,7 @@ defmodule QuacksWeb.GameLive do
               </div>
               <.bag_button
                 :if={@me}
-                count={length(@me.bag)}
+                count={length(shown_bag(@game, @seat, bagged?(assigns)))}
                 class="absolute right-0 bottom-0"
                 tap={match?(%{key: "bag"}, @tip) && JS.push("tip_done", value: %{key: "bag"})}
               />
@@ -1909,7 +1910,7 @@ defmodule QuacksWeb.GameLive do
         </ul>
       </.sheet>
       <.sheet :if={@me} id="sheet-bag" label="Bag">
-        <.bag bag={@me.bag} />
+        <.bag bag={shown_bag(@game, @seat, bagged?(assigns))} />
       </.sheet>
       <.sheet
         :if={@game.fortune_card}

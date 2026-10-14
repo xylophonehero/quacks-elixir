@@ -5,8 +5,8 @@
 // the new chip. SVG or HTML: the scale is about each node's own origin (a pot chip
 // is drawn about 0 0; `.chip-morph` sets the centre for an HTML chip).
 //
-// Users: `PotMotion` (app.js: Chicken eyes and AB1 swap a pot chip in place; the
-// purple book IV takes a pot chip for a bigger one in the bag) and the `ChipMorph`
+// Users: `PotMotion` (app.js: Chicken eyes, AB1, the copper witch and the purple
+// book IV change a pot chip in place) and the `ChipMorph`
 // hook below (any HTML chip whose `data-chip` changes, e.g. a later upgrade pane).
 
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches

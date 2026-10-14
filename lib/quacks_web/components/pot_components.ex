@@ -124,13 +124,15 @@ defmodule QuacksWeb.PotComponents do
     player = if assigns.droplet, do: %{player | droplet: assigns.droplet}, else: player
     scoring = Game.scoring_index(assigns.game, assigns.seat)
     rings = assigns.rings || %{assigns.seat => scoring}
+    shown = if assigns.bagged, do: %{player | drawn: []}, else: hold(assigns.game, assigns.seat)
 
     assigns =
       assign(assigns,
         me: player,
+        grow: regrow(assigns.grow, player.drawn, shown.drawn),
         track:
           track(
-            if(assigns.bagged, do: %{player | drawn: []}, else: player),
+            shown,
             placements(assigns.game.log, assigns.seat),
             rings,
             scoring,
@@ -138,7 +140,6 @@ defmodule QuacksWeb.PotComponents do
           ),
         rats: rat_spaces(player),
         hop: ruby_hop?(assigns.game.log, assigns.seat),
-        morphs: if(assigns.size == :lg, do: morphs(assigns.game.log, assigns.seat), else: []),
         fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring)))
       )
 
@@ -448,19 +449,6 @@ defmodule QuacksWeb.PotComponents do
             </text>
           </g>
         </g>
-      </g>
-      <%!-- Round 45: a pot chip that left for a bigger one (purple book IV): the
-           bigger chip's face, hidden, for `PotMotion` to morph the old one into. --%>
-      <g
-        :for={{from, to} <- @morphs}
-        id={"morph-to-#{@seat}-#{chip_key(from)}"}
-        data-role="morph-to"
-        data-from={chip_key(from)}
-        data-sound={QuacksWeb.Sounds.chip_sound(to)}
-        visibility="hidden"
-        aria-hidden="true"
-      >
-        <.chip_face chip={to} size={@size} />
       </g>
       <%!-- The chip flight's ghosts (app.js `PotMotion`) live here, out of LiveView's way. --%>
       <g :if={@size == :lg} id={"pot-fx-#{@seat}"} phx-update="ignore" data-role="pot-fx" />
@@ -777,8 +765,7 @@ defmodule QuacksWeb.PotComponents do
     """
   end
 
-  # Round 45: a pot chip's face (the disc, the shine, the icon, the value badge),
-  # also drawn alone for `PotMotion`'s morph into a bigger chip.
+  # Round 45: a pot chip's face (the disc, the shine, the icon, the value badge).
   attr :chip, :any, required: true
   attr :size, :atom, required: true
 
@@ -839,13 +826,67 @@ defmodule QuacksWeb.PotComponents do
   # A chip as `data-chip` names it: `green-2`.
   defp chip_key({colour, value}), do: "#{colour}-#{value}"
 
-  # Round 45: the seat's last log entry, when it swapped pot chips for bigger ones
-  # that went to the bag (purple book IV): `[{from, to}]`, else `[]`.
-  defp morphs(log, seat) do
-    case Enum.find(log, &match?({^seat, _}, &1)) do
-      {_seat, {:effect, {:purple, 4}, {:upgrade, from, to}}} -> [{from, to}]
-      _ -> []
+  @doc """
+  Round 46 (Nick: "no difference between swap and upgrade"): the chips the purple
+  book IV put in the bag this round, each on the pot space of the chip it took:
+  `[{to, index}]`. The engine puts the bigger chip in the bag at once; the pot shows
+  it on the old chip's space (a swap in place) until the round's chips go back to
+  the bag together. So the bag shows it only from then (`shown_bag/2`).
+
+  The space: the newest draw of the old chip whose space is now empty (the engine
+  takes the newest such chip from the pot).
+  """
+  @spec held(Game.t(), non_neg_integer) :: [{Quacks.Rules.Chips.chip(), non_neg_integer}]
+  def held(game, seat) do
+    log = Enum.take_while(game.log, &(not match?({:round_end, _}, &1)))
+    drawn = game.players[seat].drawn
+
+    upgrades =
+      for {^seat, {:effect, {:purple, 4}, {:upgrade, from, to}}} <- Enum.reverse(log),
+          do: {from, to}
+
+    {held, _taken} =
+      Enum.reduce(upgrades, {[], Enum.map(drawn, &elem(&1, 1))}, &hold_one(&1, &2, log, seat))
+
+    if drawn == [], do: [], else: held
+  end
+
+  defp hold_one({from, to}, {acc, taken}, log, seat) do
+    case for({^seat, {:drew, ^from, i}} <- log, i not in taken, do: i) do
+      [index | _] -> {[{to, index} | acc], [index | taken]}
+      [] -> {acc, taken}
     end
+  end
+
+  @doc """
+  The seat's bag as the page shows it: without the chips the pot still holds
+  (`held/2`). `bagged`: the round's chips went back to the bag (all of it shows).
+  """
+  @spec shown_bag(Game.t(), non_neg_integer, boolean) :: [Quacks.Rules.Chips.chip()]
+  def shown_bag(game, seat, bagged \\ false)
+  def shown_bag(game, seat, true), do: game.players[seat].bag
+
+  def shown_bag(game, seat, false),
+    do: game.players[seat].bag -- Enum.map(held(game, seat), &elem(&1, 0))
+
+  # The player as the pot shows them: the held chips back on their spaces.
+  defp hold(game, seat) do
+    player = game.players[seat]
+
+    case held(game, seat) do
+      [] -> player
+      held -> %{player | drawn: Enum.sort_by(player.drawn ++ held, &elem(&1, 1), :desc)}
+    end
+  end
+
+  # `grow` names chips by their order in the engine's `drawn`; with held chips back
+  # in the pot the orders move, so they go by the chip's space.
+  defp regrow([], _drawn, _shown), do: []
+  defp regrow(grow, drawn, drawn), do: grow
+
+  defp regrow(grow, drawn, shown) do
+    spaces = shown |> Enum.with_index() |> Map.new(fn {{_chip, i}, order} -> {i, order} end)
+    for order <- grow, {_chip, i} <- [Enum.at(drawn, order)], do: spaces[i]
   end
 
   # A gold ring that flashes on its replay beat (app.css, `beat-ring`); nothing

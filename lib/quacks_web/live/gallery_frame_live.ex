@@ -20,7 +20,7 @@ defmodule QuacksWeb.GalleryFrameLive do
   import QuacksWeb.TileComponents,
     only: [player_chip: 1, seat_loop: 1, loop_columns: 1, loop_start: 3, round_leaders: 1]
 
-  import QuacksWeb.PotComponents, only: [pot: 1, bag_button: 1, chip_counts: 1]
+  import QuacksWeb.PotComponents, only: [pot: 1, bag_button: 1, chip_counts: 1, shown_bag: 3]
 
   import QuacksWeb.TrackComponents, only: [rat_track: 1]
 
@@ -254,6 +254,7 @@ defmodule QuacksWeb.GalleryFrameLive do
         game: game,
         me: me,
         after?: after?,
+        bag: shown_bag(game, assigns.seat, after? and assigns.bagged),
         flask: if(me.flask, do: :full, else: :empty)
       )
 
@@ -292,11 +293,11 @@ defmodule QuacksWeb.GalleryFrameLive do
             bagged={@after? && @bagged}
           />
         </div>
-        <.bag_button count={length(@me.bag)} class="absolute right-1 bottom-1" />
+        <.bag_button count={length(@bag)} class="absolute right-1 bottom-1" />
       </div>
       <section class="paper rounded-lg p-2 text-ink">
-        <h2 class="text-xs font-semibold text-ink-soft">In the bag: {length(@me.bag)}</h2>
-        <.chip_counts chips={@me.bag} id="motion-bag-counts" />
+        <h2 class="text-xs font-semibold text-ink-soft">In the bag: {length(@bag)}</h2>
+        <.chip_counts chips={@bag} id="motion-bag-counts" />
       </section>
     </div>
     """
@@ -368,7 +369,6 @@ defmodule QuacksWeb.GalleryFrameLive do
     assigns =
       assign(assigns,
         moments: [
-          {"boom", "Explosion"},
           {"bloop", "Droplet moves"},
           {"ruby", "Ruby"},
           {Sounds.fortune_sound(), "Fortune teller"},
@@ -378,6 +378,11 @@ defmodule QuacksWeb.GalleryFrameLive do
         shuffles:
           for {label, name, what} <- Sounds.shuffle_candidates() do
             picked = if name == Sounds.shuffle_sound(), do: ", in the game"
+            {name, "#{label}: #{what}#{picked}"}
+          end,
+        booms:
+          for {label, name, what} <- Sounds.boom_candidates() do
+            picked = if name == Sounds.boom_sound(), do: ", in the game"
             {name, "#{label}: #{what}#{picked}"}
           end,
         chips: Enum.map(Sounds.gallery_chips(), &{&1, Sounds.chip_sound(&1)})
@@ -395,6 +400,12 @@ defmodule QuacksWeb.GalleryFrameLive do
         <h2 class="font-mono text-xs text-parchment-dim">moments</h2>
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <.sound_button :for={{name, label} <- @moments} :if={name} name={name} label={label} />
+        </div>
+      </section>
+      <section class="space-y-1.5">
+        <h2 class="font-mono text-xs text-parchment-dim">explosion: your pot bursts</h2>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <.sound_button :for={{name, label} <- @booms} name={name} label={label} />
         </div>
       </section>
       <section class="space-y-1.5">

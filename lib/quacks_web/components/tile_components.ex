@@ -189,8 +189,10 @@ defmodule QuacksWeb.TileComponents do
       />
       <.bowl :if={@p.bowl != []} chips={@p.bowl} />
       <section aria-label="Bag" data-role="player-bag">
-        <h3 class="text-xs font-semibold text-ink-soft">In the bag: {length(@p.bag)}</h3>
-        <.chip_counts chips={@p.bag} id={"bag-counts-#{@seat}"} />
+        <h3 class="text-xs font-semibold text-ink-soft">
+          In the bag: {length(shown_bag(@game, @seat))}
+        </h3>
+        <.chip_counts chips={shown_bag(@game, @seat)} id={"bag-counts-#{@seat}"} />
       </section>
     </article>
     """

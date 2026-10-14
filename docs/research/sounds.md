@@ -248,6 +248,14 @@ Rule for the builder: **CC0 only**, and record each file's source URL and licenc
 | — | OpenGameArt "bubbles 'pop'" / "3 Pop Sounds" / "Pop sounds" (EZduzziteh) | https://opengameart.org/content/bubbles-pop, https://opengameart.org/content/3-pop-sounds, https://opengameart.org/content/pop-sounds-0 | CC0 | Alternative pop layers for X1. |
 | X4/X5 | **Synthesised** boom (noise burst + falling sine + random bubbles), or the unfa pop + synthesised bubbles | demo page | n/a | Tunable; no file. Can sound "cheap" if overdone. |
 
+Round 46 (Nick: "Need a better explosion sounds as well. More bang"): X1 was too
+soft. Three new candidates (`boom-xb1` to `boom-xb3`, all CC0, rows in
+`priv/static/sounds/LICENSES.md`): a deep synth thump under a crack, with a look-ahead
+limiter so the first 250 ms are loud and no sample goes over the ceiling. About
++3 LU (momentary maximum) over X1, and about +3.5 dB in the band a phone speaker
+plays (300 Hz and up). The game plays XB2 (`QuacksWeb.Sounds.boom_sound/0`); X1 stays
+as `boom-x1` in the gallery's Sounds story to compare.
+
 ### 3.3 Synthesis vs a sample for the draw
 
 A synthesised tick: a 4 ms noise burst through a band-pass filter at ~2.5 kHz, plus

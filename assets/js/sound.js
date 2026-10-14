@@ -6,7 +6,7 @@
 
 const DEFAULTS = {v: 1, on: true, volume: 0.7}
 // The level of each sound (the user's volume is on top). Chip sounds: `chip`; the
-// chip shuffle candidates (round 45): `shuffle`.
+// chip shuffle candidates (round 45): `shuffle`; the explosion candidates (round 46): `boom`.
 const GAINS = {boom: 1, ruby: 0.6, gameover: 0.5, fortune: 0.6, chip: 0.5, plop: 0.6, bloop: 0.6, chime: 0.6, shuffle: 0.55, flask: 0.55}
 const MAX_VOICES = 4
 
@@ -113,7 +113,8 @@ const SYNTHS = {
   },
 }
 
-const gainOf = name => GAINS[name.startsWith("chip-") ? "chip" : name.startsWith("shuffle-") ? "shuffle" : name] ?? 0.5
+const kind = name => name.startsWith("chip-") ? "chip" : name.startsWith("shuffle-") ? "shuffle" : name.startsWith("boom") ? "boom" : name
+const gainOf = name => GAINS[kind(name)] ?? 0.5
 
 // The explosion stops the small sounds that still play (30 ms fade).
 const duck = t => voices.forEach(v => {
@@ -124,7 +125,7 @@ const duck = t => voices.forEach(v => {
 const start = (name, delay, pitch, gain) => {
   const synth = SYNTHS[name], buf = buffers.get(name)
   if (!synth && !buf) return
-  const big = name === "boom"
+  const big = kind(name) === "boom"
   if (!big && voices.size >= MAX_VOICES) return
   const t = ctx.currentTime + delay
   // The same sound twice in 50 ms is one sound.
@@ -154,7 +155,7 @@ const start = (name, delay, pitch, gain) => {
   idle = setTimeout(() => { if (ctx.state === "running" && voices.size === 0) ctx.suspend().catch(() => {}) }, 30000)
 }
 
-// play("boom") or play("chip-white-1", {delay: 0.368}). `wait`: a sound that is
+// play("boom-xb2") or play("chip-white-1", {delay: 0.368}). `wait`: a sound that is
 // still decoding plays when it is ready (the gallery's buttons, the settings'
 // preview), instead of dropping.
 export const play = (name, {delay = 0, pitch = 0.04, gain = 1, wait = false} = {}) => {

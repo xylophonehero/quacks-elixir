@@ -260,19 +260,42 @@ defmodule QuacksWeb.PotBoardTest do
       assert Enum.sort(LazyHTML.attribute(chips, "data-chip")) == ["green-1", "white-1"]
     end
 
-    test "a purple book IV upgrade leaves the bigger chip's face for the morph" do
+    # Round 46: the purple book IV's bigger chip stays on the old chip's space (a
+    # swap in place) until the round's chips go back; the bag shows it only then.
+    test "a purple book IV upgrade holds the bigger chip on the old chip's space" do
+      chips = [{:white, 1}, {:green, 1}, {:white, 2}]
+      # The draws' log entries, which tell the pot where the old chip was.
+      before =
+        chips
+        |> Enum.with_index(1)
+        |> Enum.reduce(drew(chips), fn {chip, i}, g -> Game.record(g, 0, {:drew, chip, i}) end)
+
+      p = before.players[0]
+
       game =
-        drew([{:white, 1}]) |> Game.effect(0, {:purple, 4}, {:upgrade, {:green, 1}, {:green, 2}})
+        before
+        |> H.put(0,
+          drawn: List.keydelete(p.drawn, {:green, 1}, 0),
+          bag: [{:green, 2} | p.bag]
+        )
+        |> Game.effect(0, {:purple, 4}, {:upgrade, {:green, 1}, {:green, 2}})
 
-      [to] =
-        pot_html(game, flask: :full) |> LazyHTML.query("[data-role=morph-to]") |> Enum.to_list()
+      assert PotComponents.held(game, 0) == [{{:green, 2}, 2}]
+      assert PotComponents.shown_bag(game, 0) == p.bag
+      assert PotComponents.shown_bag(game, 0, true) == [{:green, 2} | p.bag]
 
-      assert LazyHTML.attribute(to, "data-from") == ["green-1"]
-      assert LazyHTML.attribute(to, "visibility") == ["hidden"]
-      assert LazyHTML.query(to, "[data-role=chip-value]") |> Enum.count() == 1
+      chip_ids = fn g ->
+        pot_html(g, flask: :full)
+        |> LazyHTML.query("[data-role=pot-chip]")
+        |> Enum.map(&{LazyHTML.attribute(&1, "id"), LazyHTML.attribute(&1, "data-chip")})
+      end
 
-      assert pot_html(drew([{:white, 1}]), flask: :full)
-             |> LazyHTML.query("[data-role=morph-to]")
+      assert [{id, ["green-1"]}] = chip_ids.(before) |> Enum.filter(&(elem(&1, 1) == ["green-1"]))
+      assert {id, ["green-2"]} in chip_ids.(game)
+      assert length(chip_ids.(game)) == 3
+
+      assert pot_html(game, flask: :full, bagged: true)
+             |> LazyHTML.query("[data-role=pot-chip]")
              |> Enum.empty?()
     end
 
