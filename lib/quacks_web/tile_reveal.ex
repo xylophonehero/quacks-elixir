@@ -408,12 +408,30 @@ defmodule QuacksWeb.TileReveal do
   end
 
   @doc """
-  Every seat's `{vp, rubies}` after the step `index` of `slides`: the totals before
-  the round's results (`Replay.before/2`) plus the gains of the steps so far.
+  Every seat's `{vp, rubies}` after the step `index` of `slides`.
+
+  Round 47 (audit #3): in the results (the evaluation and the shop) the seat's
+  values now less the gains of the steps still to come. So the last step ends on
+  the real values, also when a line that is no step (this round's card, a witch,
+  the essence) gave rubies or VP, and after a ruby spend in the rubies step. Before,
+  the base was the values before all of the round's lines (`Replay.before/2`) and
+  the counter missed those gains (3 rubies showed as 0). In the recap (the next
+  round) the totals before this round's lines plus the steps so far, as before.
   """
-  @spec totals(Game.t(), [Reveal.slide()], non_neg_integer) :: %{
+  @spec totals(Game.t(), [Reveal.slide()], integer) :: %{
           Game.seat() => {integer, integer}
         }
+  def totals(%Game{phase: phase} = game, slides, index)
+      when phase in [:shopping | @eval_phases] do
+    later = slides |> Enum.drop(max(index + 1, 0)) |> sum_gains()
+
+    Map.new(game.seats, fn s ->
+      %{vp: vp, rubies: rubies} = Game.player(game, s)
+      {v, r} = Map.get(later, s, {0, 0})
+      {s, {max(vp - v, 0), max(rubies - r, 0)}}
+    end)
+  end
+
   def totals(game, slides, index) do
     base =
       Map.new(game.seats, fn s ->
@@ -423,8 +441,16 @@ defmodule QuacksWeb.TileReveal do
 
     slides
     |> Enum.take(max(index + 1, 0))
-    |> Enum.flat_map(&Map.to_list(Map.get(&1, :gains, %{})))
+    |> sum_gains()
     |> Enum.reduce(base, fn {s, {vp, rubies}}, acc ->
+      Map.update(acc, s, {vp, rubies}, fn {v, r} -> {v + vp, r + rubies} end)
+    end)
+  end
+
+  defp sum_gains(slides) do
+    slides
+    |> Enum.flat_map(&Map.to_list(Map.get(&1, :gains, %{})))
+    |> Enum.reduce(%{}, fn {s, {vp, rubies}}, acc ->
       Map.update(acc, s, {vp, rubies}, fn {v, r} -> {v + vp, r + rubies} end)
     end)
   end
