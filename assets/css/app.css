@@ -3456,45 +3456,6 @@ html:not([data-share]) .share-fallback {
   }
 }
 
-/* Round 45: the copper witch's upgrade: the chip grows into the bigger chip
-   (a copper flash around it). Local on purpose: r45-motion's general "replace"
-   animation can take its place. Reduced motion: only the flash, no scale. */
-@keyframes chip-grow {
-  0% {
-    scale: 0.72;
-  }
-  55% {
-    scale: 1.22;
-  }
-  100% {
-    scale: 1;
-  }
-}
-
-@keyframes chip-grow-flash {
-  0% {
-    filter: drop-shadow(0 0 0 var(--color-penny-copper));
-  }
-  45% {
-    filter: drop-shadow(0 0 10px var(--color-penny-copper));
-  }
-  100% {
-    filter: drop-shadow(0 0 3px var(--color-penny-copper));
-  }
-}
-
-.pot-lg [data-role="pot-chip"].chip-grow {
-  animation: chip-grow-flash 640ms ease-out both;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .pot-lg [data-role="pot-chip"].chip-grow {
-    animation:
-      chip-grow 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
-      chip-grow-flash 640ms ease-out both;
-  }
-}
-
 /* Round 36: Mandrake V's peeked chip comes up out of the bag and stays over it
    (with the bob) until your next draw. Reduced motion: it fades in. */
 @keyframes peek-rise {

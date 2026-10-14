@@ -745,7 +745,7 @@ defmodule QuacksWeb.PotComponents do
 
   attr :grow, :boolean,
     default: false,
-    doc: "round 45: the copper witch just upgraded this chip: it grows (app.css `.chip-grow`)"
+    doc: "round 45: the copper witch just upgraded this chip (`data-grow`; `PotMotion` morphs it)"
 
   defp pot_chip(assigns) do
     {colour, value} = assigns.chip
@@ -762,7 +762,7 @@ defmodule QuacksWeb.PotComponents do
       aria-label={if @target, do: @target.label, else: "#{@colour} #{@value}"}
       role={@target && "button"}
       tabindex={@target && "0"}
-      class={[@target && "pot-target", @grow && "chip-grow"]}
+      class={@target && "pot-target"}
       phx-click={@target && @target.event}
       phx-keydown={@target && @target.event}
       phx-key={@target && "Enter"}

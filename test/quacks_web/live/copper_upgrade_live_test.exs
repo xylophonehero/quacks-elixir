@@ -47,7 +47,9 @@ defmodule QuacksWeb.CopperUpgradeLiveTest do
     refute has_element?(view, targets <> "[aria-label^='orange']")
   end
 
-  test "a tap upgrades the chip: it grows with its sound, then the shop opens", %{conn: conn} do
+  test "a tap upgrades the chip: the pot shows the bigger chip, then the shop opens", %{
+    conn: conn
+  } do
     {id, view} = at_upgrade(conn, [{{:orange, 1}, 6}, {{:green, 1}, 3}, {{:blue, 1}, 1}])
 
     html =
@@ -55,18 +57,14 @@ defmodule QuacksWeb.CopperUpgradeLiveTest do
       |> element("[data-role=pot-chip][aria-label='Copper witch: upgrade green 1']")
       |> render_click()
 
-    # The moment: the pot keeps its chips, the green 1 is a green 2 and grows.
+    # The moment: the pot keeps its chips, the green 1 is a green 2.
     doc = LazyHTML.from_fragment(html)
     assert [_] = doc |> LazyHTML.query("[data-role=pot-chip][data-grow]") |> Enum.to_list()
     assert html =~ ~s(data-role="upgraded")
 
-    assert [sound] =
-             doc
-             |> LazyHTML.query("[data-role=sound-cue]")
-             |> LazyHTML.attribute("data-sound")
-             |> Enum.filter(&(&1 =~ "green"))
-
-    assert sound =~ "green"
+    # The same chip node is now a green 2 (`PotMotion` morphs it, with its sound).
+    assert [chip] = doc |> LazyHTML.query("[data-grow]") |> LazyHTML.attribute("data-chip")
+    assert chip == "green-2"
 
     g = game(id)
     assert {:green, 2} in g.players[0].bag and Game.phase(g, 0) == :shop

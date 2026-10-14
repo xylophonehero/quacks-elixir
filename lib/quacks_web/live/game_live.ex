@@ -1285,13 +1285,6 @@ defmodule QuacksWeb.GameLive do
                 bagged={bagged?(assigns)}
                 targets={pot_targets(assigns)}
               />
-              <%!-- Round 45: the copper witch's upgrade: each bigger chip's sound. --%>
-              <.sound_cue
-                :for={{{_from, to}, i} <- Enum.with_index((@upgrade_fx && @upgrade_fx.chips) || [])}
-                id={"sound-upgrade-#{@game.round}-#{i}"}
-                sound={QuacksWeb.Sounds.pot_sound(to, nil)}
-                delay={120 + 160 * i}
-              />
               <%!-- Round 31: the game's end lies over the pot: the score chart. --%>
               <QuacksWeb.FinalComponents.final_board
                 :if={Game.over?(@game)}
@@ -2324,7 +2317,9 @@ defmodule QuacksWeb.GameLive do
   @upgrade_ms Application.compile_env(:quacks, :upgrade_ms, 900)
 
   # Round 45: a C1 upgrade from this page: the pot keeps the chips a moment, the
-  # chosen ones already the bigger chips (`upgrade_fx/3`), then the shop opens.
+  # chosen ones already the bigger chips (`upgrade_fx/2`): the same chip node gets
+  # another `data-chip`, so `PotMotion` morphs it (r45-motion's `morphChip`, with the
+  # bigger chip's sound). Then the shop opens.
   defp start_upgrade(%{assigns: %{me: %Player{} = me}} = socket, {:witch, _, {:upgrade, chips}}) do
     ref = make_ref()
     Process.send_after(self(), {:upgrade_done, ref}, @upgrade_ms)
@@ -2345,16 +2340,20 @@ defmodule QuacksWeb.GameLive do
   def upgrade_fx(%Player{drawn: drawn}, chips) do
     {drawn, grow} =
       Enum.reduce(chips, {drawn, []}, fn chip, {drawn, grow} ->
-        i =
-          drawn
-          |> Enum.with_index()
-          |> Enum.find_value(fn {{c, _space}, i} -> if c == chip and i not in grow, do: i end)
+        i = newest_index(drawn, chip, grow)
 
         {List.update_at(drawn, i, fn {_c, space} -> {Witches.upgrade(chip), space} end),
          [i | grow]}
       end)
 
     %{drawn: drawn, grow: grow, chips: Enum.map(chips, &{&1, Witches.upgrade(&1)})}
+  end
+
+  # The newest place of `chip` in `drawn`, not one of `taken`.
+  defp newest_index(drawn, chip, taken) do
+    drawn
+    |> Enum.with_index()
+    |> Enum.find_value(fn {{c, _space}, i} -> if c == chip and i not in taken, do: i end)
   end
 
   # While the upgrade shows, the seat's step stays the copper witch's (no shop yet).

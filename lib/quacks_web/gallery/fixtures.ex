@@ -684,7 +684,9 @@ defmodule QuacksWeb.Gallery.Fixtures do
 
   defp visit_moment(g, _id) do
     mine = [{:orange, 1}, {:green, 1}, {:blue, 1}, {:white, 1}]
-    finish_round(g, for(s <- g.seats, do: if(s == 0, do: mine, else: [{:orange, 1}])))
+    g = finish_round(g, for(s <- g.seats, do: if(s == 0, do: mine, else: [{:orange, 1}])))
+    # Round 45: the own copper witch C1 has her step first; pass it to reach the shop.
+    if :skip_upgrade in Game.legal_actions(g, 0), do: apply!(g, 0, :skip_upgrade), else: g
   end
 
   @doc """

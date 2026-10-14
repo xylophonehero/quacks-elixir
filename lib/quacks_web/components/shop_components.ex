@@ -326,15 +326,6 @@ defmodule QuacksWeb.ShopComponents do
             variant={:secondary}
             class="justify-start gap-2"
           >
-            <%!-- Round 36: C1's pot chips as chips, then what it does. --%>
-            <span
-              :if={match?({:witch, _, {:upgrade, _}}, action)}
-              class="inline-flex shrink-0 items-center gap-1.5"
-              data-role="copper-chips"
-            >
-              <.chip :for={chip <- elem(elem(action, 2), 1)} chip={chip} size={:sm} />
-              <.icon name="hero-arrow-up-mini" class="size-4" />
-            </span>
             {label(action)}
           </.button>
         </div>

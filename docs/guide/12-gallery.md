@@ -81,6 +81,7 @@ An old variant URL that a story with args took over (for example
 | | Evaluation step | `players 2..8`, `step die\|black\|green\|purple\|space`, `long_names`, `exploded 0..7` |
 | | Round scored | `players 2..8`, `step standings\|shop`, `long_names`, `vp_digits 1..3` |
 | | Shop, Game over | `players 1..8`, `long_names` |
+| | Copper witch: Upgrade (C1) | `players 1..8`, `state one\|last_two\|picked\|upgraded\|visit`, `long_names` |
 | Scenarios | every item | `step 1..n`, `players 2..5` |
 
 The setup story at `/dev/gallery/setup/presets` renders the lobby's Ingredient
