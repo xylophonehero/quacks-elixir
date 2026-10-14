@@ -138,6 +138,7 @@ defmodule QuacksWeb.PotComponents do
           ),
         rats: rat_spaces(player),
         hop: ruby_hop?(assigns.game.log, assigns.seat),
+        morphs: if(assigns.size == :lg, do: morphs(assigns.game.log, assigns.seat), else: []),
         fx: Enum.map(assigns.effects, &Map.put(&1, :xy, fx_at(&1, player.droplet, scoring)))
       )
 
@@ -154,6 +155,8 @@ defmodule QuacksWeb.PotComponents do
       data-round={@size == :lg && @game.round}
       data-mine={@size == :lg && @flask && "true"}
       data-bagged={@bagged && "true"}
+      data-shuffle-sound={@size == :lg && QuacksWeb.Sounds.shuffle_sound()}
+      data-flask-sound={@size == :lg && QuacksWeb.Sounds.flask_sound()}
       data-slide-beat={@effects != [] && @beats[:droplet]}
       style={@effects != [] && @beats[:droplet] && "--slide-beat: #{@beats[:droplet]}"}
     >
@@ -446,6 +449,19 @@ defmodule QuacksWeb.PotComponents do
           </g>
         </g>
       </g>
+      <%!-- Round 45: a pot chip that left for a bigger one (purple book IV): the
+           bigger chip's face, hidden, for `PotMotion` to morph the old one into. --%>
+      <g
+        :for={{from, to} <- @morphs}
+        id={"morph-to-#{@seat}-#{chip_key(from)}"}
+        data-role="morph-to"
+        data-from={chip_key(from)}
+        data-sound={QuacksWeb.Sounds.chip_sound(to)}
+        visibility="hidden"
+        aria-hidden="true"
+      >
+        <.chip_face chip={to} size={@size} />
+      </g>
       <%!-- The chip flight's ghosts (app.js `PotMotion`) live here, out of LiveView's way. --%>
       <g :if={@size == :lg} id={"pot-fx-#{@seat}"} phx-update="ignore" data-role="pot-fx" />
     </svg>
@@ -675,38 +691,41 @@ defmodule QuacksWeb.PotComponents do
         </linearGradient>
       </defs>
       <rect x="-32" y="-54" width="64" height="88" fill="transparent" />
-      <rect x="-9" y="-50" width="18" height="10" rx="2" fill="var(--color-wood)" />
-      <rect x="-9" y="-50" width="18" height="3" rx="1.5" fill="white" fill-opacity="0.18" />
-      <path
-        class="flask-body"
-        d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z"
-        fill={if @full, do: "#dfe6e2", else: "#7d8288"}
-        fill-opacity={if @full, do: "0.55", else: "1"}
-      />
-      <%!-- The clip sits on a group, so `PotMotion` can raise the brew inside it. --%>
-      <g :if={@full} clip-path={"url(#flask-body-#{@uid})"}>
+      <%!-- Round 45: `PotMotion` tips this group when the flask is used. --%>
+      <g data-role="flask-tilt">
+        <rect x="-9" y="-50" width="18" height="10" rx="2" fill="var(--color-wood)" />
+        <rect x="-9" y="-50" width="18" height="3" rx="1.5" fill="white" fill-opacity="0.18" />
         <path
-          d="M-30 -8 q7.5 -4 15 0 t15 0 t15 0 t15 0 V30 H-30 Z"
-          fill={"url(#flask-brew-#{@uid})"}
-          data-role="flask-brew"
+          class="flask-body"
+          d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z"
+          fill={if @full, do: "#dfe6e2", else: "#7d8288"}
+          fill-opacity={if @full, do: "0.55", else: "1"}
+        />
+        <%!-- The clip sits on a group, so `PotMotion` can raise the brew inside it. --%>
+        <g :if={@full} clip-path={"url(#flask-body-#{@uid})"}>
+          <path
+            d="M-30 -8 q7.5 -4 15 0 t15 0 t15 0 t15 0 V30 H-30 Z"
+            fill={"url(#flask-brew-#{@uid})"}
+            data-role="flask-brew"
+          />
+        </g>
+        <path
+          d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z"
+          fill="none"
+          stroke="var(--color-iron-dark)"
+          stroke-width="3"
+          stroke-linejoin="round"
+        />
+        <ellipse cx="-9" cy="-4" rx="5" ry="9" fill="white" fill-opacity="0.35" />
+        <path
+          d="M17 -10 A20 20 0 0 1 14 14"
+          fill="none"
+          stroke="white"
+          stroke-opacity="0.2"
+          stroke-width="2"
+          stroke-linecap="round"
         />
       </g>
-      <path
-        d="M-7 -41 h14 v16 A25 25 0 1 1 -7 -25 Z"
-        fill="none"
-        stroke="var(--color-iron-dark)"
-        stroke-width="3"
-        stroke-linejoin="round"
-      />
-      <ellipse cx="-9" cy="-4" rx="5" ry="9" fill="white" fill-opacity="0.35" />
-      <path
-        d="M17 -10 A20 20 0 0 1 14 14"
-        fill="none"
-        stroke="white"
-        stroke-opacity="0.2"
-        stroke-width="2"
-        stroke-linecap="round"
-      />
     </g>
     """
   end
@@ -730,10 +749,7 @@ defmodule QuacksWeb.PotComponents do
 
   defp pot_chip(assigns) do
     {colour, value} = assigns.chip
-    icon = chip_icon_class(colour)
-    # The other players' pots are drawn small: a bigger badge keeps the value legible.
-    badge = if assigns.size == :lg, do: {9, 9, 10.5, 16}, else: {8, 8, 12.5, 20}
-    assigns = assign(assigns, colour: colour, value: value, icon: icon, badge: badge)
+    assigns = assign(assigns, colour: colour, value: value)
 
     ~H"""
     <g
@@ -741,6 +757,7 @@ defmodule QuacksWeb.PotComponents do
       data-role="pot-chip"
       data-order={@order}
       data-index={@index}
+      data-chip={@size == :lg && chip_key(@chip)}
       data-sound={@size == :lg && QuacksWeb.Sounds.pot_sound(@chip, @moved)}
       aria-label={if @target, do: @target.label, else: "#{@colour} #{@value}"}
       role={@target && "button"}
@@ -754,52 +771,81 @@ defmodule QuacksWeb.PotComponents do
       data-grow={@grow && "true"}
     >
       <circle :if={@target} r="27" class="pot-target-glow" data-role="target-glow" />
-      <circle
-        r="19"
-        fill={"var(--color-chip-#{@colour})"}
-        stroke={if @colour == :white, do: "#9a9a94", else: "rgb(0 0 0 / 0.4)"}
-        stroke-width="2.5"
-      />
-      <path
-        d="M-15 -9 A17 17 0 0 1 9 -15"
-        fill="none"
-        stroke="white"
-        stroke-opacity="0.35"
-        stroke-width="2"
-      />
-      <.ingredient_icon
-        colour={@colour}
-        x={if @colour == :locoweed, do: "-12", else: "-14"}
-        y={if @colour == :locoweed, do: "-12", else: "-14"}
-        width={if @colour == :locoweed, do: "24", else: "22"}
-        height={if @colour == :locoweed, do: "24", else: "22"}
-        class={@icon}
-      />
-      <g :if={@colour != :locoweed} data-role="chip-value">
-        <circle
-          cx={elem(@badge, 0)}
-          cy={elem(@badge, 1)}
-          r={elem(@badge, 2)}
-          fill="var(--color-parchment-light)"
-          stroke="var(--color-ink)"
-          stroke-width="2"
-        />
-        <text
-          x={elem(@badge, 0)}
-          y={elem(@badge, 1)}
-          dy="0.36em"
-          text-anchor="middle"
-          font-size={elem(@badge, 3)}
-          font-weight="700"
-          font-family="var(--font-hand)"
-          fill="var(--color-ink)"
-        >
-          {@value}
-        </text>
-      </g>
+      <.chip_face chip={@chip} size={@size} />
       <.beat_ring beat={@beat} r="24" />
     </g>
     """
+  end
+
+  # Round 45: a pot chip's face (the disc, the shine, the icon, the value badge),
+  # also drawn alone for `PotMotion`'s morph into a bigger chip.
+  attr :chip, :any, required: true
+  attr :size, :atom, required: true
+
+  defp chip_face(assigns) do
+    {colour, value} = assigns.chip
+    icon = chip_icon_class(colour)
+    # The other players' pots are drawn small: a bigger badge keeps the value legible.
+    badge = if assigns.size == :lg, do: {9, 9, 10.5, 16}, else: {8, 8, 12.5, 20}
+    assigns = assign(assigns, colour: colour, value: value, icon: icon, badge: badge)
+
+    ~H"""
+    <circle
+      r="19"
+      fill={"var(--color-chip-#{@colour})"}
+      stroke={if @colour == :white, do: "#9a9a94", else: "rgb(0 0 0 / 0.4)"}
+      stroke-width="2.5"
+    />
+    <path
+      d="M-15 -9 A17 17 0 0 1 9 -15"
+      fill="none"
+      stroke="white"
+      stroke-opacity="0.35"
+      stroke-width="2"
+    />
+    <.ingredient_icon
+      colour={@colour}
+      x={if @colour == :locoweed, do: "-12", else: "-14"}
+      y={if @colour == :locoweed, do: "-12", else: "-14"}
+      width={if @colour == :locoweed, do: "24", else: "22"}
+      height={if @colour == :locoweed, do: "24", else: "22"}
+      class={@icon}
+    />
+    <g :if={@colour != :locoweed} data-role="chip-value">
+      <circle
+        cx={elem(@badge, 0)}
+        cy={elem(@badge, 1)}
+        r={elem(@badge, 2)}
+        fill="var(--color-parchment-light)"
+        stroke="var(--color-ink)"
+        stroke-width="2"
+      />
+      <text
+        x={elem(@badge, 0)}
+        y={elem(@badge, 1)}
+        dy="0.36em"
+        text-anchor="middle"
+        font-size={elem(@badge, 3)}
+        font-weight="700"
+        font-family="var(--font-hand)"
+        fill="var(--color-ink)"
+      >
+        {@value}
+      </text>
+    </g>
+    """
+  end
+
+  # A chip as `data-chip` names it: `green-2`.
+  defp chip_key({colour, value}), do: "#{colour}-#{value}"
+
+  # Round 45: the seat's last log entry, when it swapped pot chips for bigger ones
+  # that went to the bag (purple book IV): `[{from, to}]`, else `[]`.
+  defp morphs(log, seat) do
+    case Enum.find(log, &match?({^seat, _}, &1)) do
+      {_seat, {:effect, {:purple, 4}, {:upgrade, from, to}}} -> [{from, to}]
+      _ -> []
+    end
   end
 
   # A gold ring that flashes on its replay beat (app.css, `beat-ring`); nothing
@@ -930,7 +976,7 @@ defmodule QuacksWeb.PotComponents do
     ~H"""
     <div class="paper rounded-lg p-3">
       <h2 class="sheet-head text-lg font-bold">Bag ({length(@bag)} chips)</h2>
-      <.chip_counts chips={@bag} size={:md} />
+      <.chip_counts chips={@bag} size={:md} id="bag-counts" />
     </div>
     """
   end
@@ -943,15 +989,33 @@ defmodule QuacksWeb.PotComponents do
   attr :chips, :list, required: true, doc: "list of `{colour, value}` chips"
   attr :size, :atom, default: :sm, values: [:sm, :md]
 
+  attr :id, :string,
+    default: nil,
+    doc: """
+    round 45: with an id, a new kind of chip pops in and a changed count pops
+    (app.css `.chip-in`, `.count-in`: each has an id of its own)
+    """
+
   def chip_counts(assigns) do
     counts = assigns.chips |> Enum.frequencies() |> Enum.sort_by(&Chips.sort_key(elem(&1, 0)))
     assigns = assign(assigns, counts: counts)
 
     ~H"""
     <ul class={["mt-1 flex flex-wrap", if(@size == :md, do: "gap-2", else: "gap-x-2 gap-y-1")]}>
-      <li :for={{chip, count} <- @counts} class="flex items-center gap-0.5 text-sm">
+      <li
+        :for={{{{colour, value} = chip, count}, i} <- Enum.with_index(@counts)}
+        id={@id && "#{@id}-#{colour}-#{value}"}
+        class={["flex items-center gap-0.5 text-sm", @id && "chip-in"]}
+        style={@id && "--i: #{i}"}
+      >
         <.chip chip={chip} size={@size} />
-        <span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×{count}</span>
+        <span
+          id={@id && "#{@id}-#{colour}-#{value}-n#{count}"}
+          class={["ml-1 text-ink-soft tabular-nums", @id && "count-in"]}
+          data-role="chip-count"
+        >
+          ×{count}
+        </span>
       </li>
       <li :if={@counts == []} class="text-ink-soft">empty</li>
     </ul>
@@ -1074,7 +1138,13 @@ defmodule QuacksWeb.PotComponents do
       title="Toadstool chips beside the pot"
       data-role="beside-pot"
     >
-      <.chip :for={chip <- @chips} chip={chip} size={:sm} data-role="aside-chip" />
+      <.chip
+        :for={{chip, i} <- Enum.with_index(@chips)}
+        :key={"#{elem(chip, 0)}-#{elem(chip, 1)}-#{length(@chips) - i}"}
+        chip={chip}
+        size={:sm}
+        data-role="aside-chip"
+      />
     </div>
     """
   end
@@ -1093,7 +1163,13 @@ defmodule QuacksWeb.PotComponents do
       data-role="bowl"
     >
       <span class="font-semibold">Bowl</span>
-      <.chip :for={chip <- @chips} chip={chip} size={:xs} data-role="bowl-chip" />
+      <.chip
+        :for={{chip, i} <- Enum.with_index(@chips)}
+        :key={length(@chips) - i}
+        chip={chip}
+        size={:xs}
+        data-role="bowl-chip"
+      />
       <span :if={@chips == []} class="text-parchment-dim">empty</span>
     </div>
     """

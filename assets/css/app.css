@@ -1408,6 +1408,67 @@ body {
   animation: chip-land 320ms backwards;
 }
 
+/* Round 45: chips are always animated. Another player's pot (the player sheet)
+   lands its chips as yours does; a chip that shows up in a list pops in (the
+   bag's counts, beside the pot, the overflow bowl, the bar's chip choices), and a
+   changed count pops. `--i` staggers a list (at most 8 steps). `backwards` only:
+   after the pop a hover scale still works. */
+.pot-sm [data-role="pot-chip"] {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: chip-land 320ms both;
+}
+
+@keyframes chip-pop {
+  0% {
+    opacity: 0;
+    scale: 0.6;
+  }
+  60% {
+    opacity: 1;
+    scale: 1.12;
+  }
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.chip-in,
+[data-role="aside-chip"],
+[data-role="bowl-chip"],
+[data-role="chip-option"] {
+  animation: chip-pop 280ms var(--ease-out) calc(min(var(--i, 0), 8) * 40ms) backwards;
+}
+
+.count-in {
+  display: inline-block;
+  animation: chip-pop 240ms var(--ease-out) backwards;
+}
+
+/* `ChipMorph` (assets/js/chip_morph.js): the old chip's copy sits over the new one. */
+.chip-morph {
+  position: relative;
+  display: inline-grid;
+}
+
+.chip-morph-old {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pot-sm [data-role="pot-chip"],
+  .chip-in,
+  [data-role="aside-chip"],
+  [data-role="bowl-chip"],
+  [data-role="chip-option"],
+  .count-in {
+    animation: fade-in 150ms ease backwards;
+  }
+}
+
 /* The droplet and the rats slide to their new space. */
 .pot-lg [data-role="droplet"],
 .pot-lg [data-role="rat"] {

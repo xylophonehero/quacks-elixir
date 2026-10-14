@@ -664,7 +664,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 <div class="pot-column flex min-h-0 flex-col px-4 py-1 lg:px-6 lg:py-2" data-area="pot">
 <div class="pot-box flex min-h-0 flex-1 items-start justify-center lg:items-center">
 <div class="pot-square pot-hearth relative" data-role="pot-area">
-<svg aria-label="Pot track" class="block size-full pot-lg select-none" data-exploded="false" data-mine="true" data-round="2" id="pot-0-lg" phx-hook="PotMotion" preserveAspectRatio="xMidYMid meet" role="group" style="" viewBox="-268 -268 536 536">
+<svg aria-label="Pot track" class="block size-full pot-lg select-none" data-exploded="false" data-flask-sound="flask" data-mine="true" data-round="2" data-shuffle-sound="shuffle-sh1" id="pot-0-lg" phx-hook="PotMotion" preserveAspectRatio="xMidYMid meet" role="group" style="" viewBox="-268 -268 536 536">
 <defs>
 <radialGradient data-role="brew" id="brew-0-lg">
 <stop offset="0%" stop-color="var(--color-potion-light)" stop-opacity="0.55">
@@ -730,7 +730,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 2
 </text>
 </g>
-<g aria-label="blue 1" class="" data-index="2" data-order="0" data-role="pot-chip" data-sound="" id="pot-chip-0-2-1">
+<g aria-label="blue 1" class="" data-chip="blue-1" data-index="2" data-order="0" data-role="pot-chip" data-sound="" id="pot-chip-0-2-1">
 <circle fill="var(--color-chip-blue)" r="19" stroke-width="2.5" stroke="rgb(0 0 0 / 0.4)">
 </circle>
 <path d="M-15 -9 A17 17 0 0 1 9 -15" fill="none" stroke-opacity="0.35" stroke-width="2" stroke="white">
@@ -1691,6 +1691,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </defs>
 <rect fill="transparent" height="88" width="64" x="-32" y="-54">
 </rect>
+<g data-role="flask-tilt">
 <rect fill="var(--color-wood)" height="10" rx="2" width="18" x="-9" y="-50">
 </rect>
 <rect fill-opacity="0.18" fill="white" height="3" rx="1.5" width="18" x="-9" y="-50">
@@ -1707,6 +1708,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </ellipse>
 <path d="M17 -10 A20 20 0 0 1 14 14" fill="none" stroke-linecap="round" stroke-opacity="0.2" stroke-width="2" stroke="white">
 </path>
+</g>
 </g>
 <g data-role="pot-fx" id="pot-fx-0" phx-update="ignore">
 </g>
@@ -2088,7 +2090,7 @@ Draw
 <div class="paper rounded-lg p-3">
 <h2 class="sheet-head text-lg font-bold">Bag (9 chips)</h2>
 <ul class="mt-1 flex flex-wrap gap-2">
-<li class="flex items-center gap-0.5 text-sm">
+<li class="flex items-center gap-0.5 text-sm chip-in" id="bag-counts-white-1" style="--i: 0">
 <span aria-label="white 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
 <svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-white">
@@ -2098,9 +2100,11 @@ Draw
 1
 </span>
 </span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×4</span>
+<span class="ml-1 text-ink-soft tabular-nums count-in" data-role="chip-count" id="bag-counts-white-1-n4">
+×4
+</span>
 </li>
-<li class="flex items-center gap-0.5 text-sm">
+<li class="flex items-center gap-0.5 text-sm chip-in" id="bag-counts-white-2" style="--i: 1">
 <span aria-label="white 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
 <svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-white">
@@ -2110,9 +2114,11 @@ Draw
 2
 </span>
 </span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×2</span>
+<span class="ml-1 text-ink-soft tabular-nums count-in" data-role="chip-count" id="bag-counts-white-2-n2">
+×2
+</span>
 </li>
-<li class="flex items-center gap-0.5 text-sm">
+<li class="flex items-center gap-0.5 text-sm chip-in" id="bag-counts-white-3" style="--i: 2">
 <span aria-label="white 3" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
 <svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-white">
@@ -2122,9 +2128,11 @@ Draw
 3
 </span>
 </span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
+<span class="ml-1 text-ink-soft tabular-nums count-in" data-role="chip-count" id="bag-counts-white-3-n1">
+×1
+</span>
 </li>
-<li class="flex items-center gap-0.5 text-sm">
+<li class="flex items-center gap-0.5 text-sm chip-in" id="bag-counts-orange-1" style="--i: 3">
 <span aria-label="orange 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-orange text-ink" data-chip-icon="orange">
 <svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="orange" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-orange">
@@ -2134,9 +2142,11 @@ Draw
 1
 </span>
 </span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
+<span class="ml-1 text-ink-soft tabular-nums count-in" data-role="chip-count" id="bag-counts-orange-1-n1">
+×1
+</span>
 </li>
-<li class="flex items-center gap-0.5 text-sm">
+<li class="flex items-center gap-0.5 text-sm chip-in" id="bag-counts-black-1" style="--i: 4">
 <span aria-label="black 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-black text-white border border-iron" data-chip-icon="black">
 <svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="black" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-black">
@@ -2146,7 +2156,9 @@ Draw
 1
 </span>
 </span>
-<span class="ml-1 text-ink-soft tabular-nums" data-role="chip-count">×1</span>
+<span class="ml-1 text-ink-soft tabular-nums count-in" data-role="chip-count" id="bag-counts-black-1-n1">
+×1
+</span>
 </li>
 </ul>
 </div>

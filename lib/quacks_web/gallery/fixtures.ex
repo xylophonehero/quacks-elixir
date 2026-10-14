@@ -84,6 +84,13 @@ defmodule QuacksWeb.Gallery.Fixtures do
         chip_variants()
       ),
       component(
+        "motion",
+        "Chip motion",
+        640,
+        "app.js PotMotion + chip_morph.js: Play runs the change on the large pot",
+        []
+      ),
+      component(
         "sounds",
         "Sounds",
         900,
@@ -525,6 +532,60 @@ defmodule QuacksWeb.Gallery.Fixtures do
   @doc "The crow skull's offer of `chips` chips (1..5) in the bar."
   @spec crow_story(map) :: map
   def crow_story(%{"chips" => n}), do: crow(n)
+
+  @doc """
+  Round 45, the chip motion story: the large pot before and after one change
+  (`motion`: draw, to-bag, flask, swap, upgrade, return). The frame's Play button
+  patches the pot from `before` to `after`, so `PotMotion` plays as in the game.
+  """
+  @spec motion_story(map) :: map
+  def motion_story(%{"motion" => kind}) do
+    {before, aft, bagged} = motion(kind)
+    %{view: :motion, before: before, after: aft, bagged: bagged, seat: 0, kind: kind}
+  end
+
+  defp motion_pot, do: draws(new(1), 0, [{:white, 1}, {:orange, 1}, {:green, 1}, {:white, 2}])
+
+  defp motion("draw"), do: {motion_pot(), draw(motion_pot(), 0, {:red, 1}), false}
+  defp motion("to-bag"), do: {motion_pot(), motion_pot(), true}
+
+  defp motion("flask") do
+    g = draws(new(1), 0, [{:orange, 1}, {:green, 1}, {:white, 3}])
+    {g, apply!(g, 0, :use_flask), false}
+  end
+
+  # Chicken eyes / AB1: the green 1 in the pot becomes a green 2 on its space (by
+  # hand: the swap needs a set and a card that the seed does not deal here).
+  defp motion("swap") do
+    g = motion_pot()
+    drawn = Enum.map(g.players[0].drawn, &swap_green/1)
+    {g, put(g, 0, drawn: drawn), false}
+  end
+
+  # The purple book IV: the green 1 leaves the pot, a green 2 goes to the bag (by
+  # hand, with the engine's log entry, which tells the pot what it became).
+  defp motion("upgrade") do
+    g = motion_pot()
+    p = g.players[0]
+
+    aft =
+      g
+      |> put(0, drawn: List.keydelete(p.drawn, {:green, 1}, 0), bag: [{:green, 2} | p.bag])
+      |> Game.effect(0, {:purple, 4}, {:upgrade, {:green, 1}, {:green, 2}})
+
+    {g, aft, false}
+  end
+
+  # Several chips leave at once (the white chips go back, as a witch's S3): by hand.
+  defp motion("return") do
+    g = motion_pot()
+    p = g.players[0]
+    whites = for {{:white, _}, _} = d <- p.drawn, do: d
+    {g, put(g, 0, drawn: p.drawn -- whites, bag: Enum.map(whites, &elem(&1, 0)) ++ p.bag), false}
+  end
+
+  defp swap_green({{:green, 1}, index}), do: {{:green, 2}, index}
+  defp swap_green(drawn), do: drawn
 
   @doc "The score track: players and a VP spread (`early`, `tied`, `above-50`, `big-gaps`)."
   @spec track_story(map) :: map

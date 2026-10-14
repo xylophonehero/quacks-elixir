@@ -5,8 +5,9 @@
 // page shows: a sound that is not ready, or one over the voice limit, drops.
 
 const DEFAULTS = {v: 1, on: true, volume: 0.7}
-// The level of each sound (the user's volume is on top). Chip sounds: `chip`.
-const GAINS = {boom: 1, ruby: 0.6, gameover: 0.5, fortune: 0.6, chip: 0.5, plop: 0.6, bloop: 0.6, chime: 0.6}
+// The level of each sound (the user's volume is on top). Chip sounds: `chip`; the
+// chip shuffle candidates (round 45): `shuffle`.
+const GAINS = {boom: 1, ruby: 0.6, gameover: 0.5, fortune: 0.6, chip: 0.5, plop: 0.6, bloop: 0.6, chime: 0.6, shuffle: 0.55, flask: 0.55}
 const MAX_VOICES = 4
 
 export const loadSound = () => {
@@ -112,7 +113,7 @@ const SYNTHS = {
   },
 }
 
-const gainOf = name => GAINS[name.startsWith("chip-") ? "chip" : name] ?? 0.5
+const gainOf = name => GAINS[name.startsWith("chip-") ? "chip" : name.startsWith("shuffle-") ? "shuffle" : name] ?? 0.5
 
 // The explosion stops the small sounds that still play (30 ms fade).
 const duck = t => voices.forEach(v => {
@@ -232,8 +233,8 @@ export const SoundCue = {
 }
 
 // The scoring replay (`Sounds.replay/2`): on a black, green or purple book step,
-// each row's chip sound as its result lands (app.css `.results-stage .stage-got`:
-// 240 ms), one row after the other on a third of a beat.
+// the step's one chip sound as its row's result lands (app.css `.results-stage
+// .stage-got`: 240 ms; a row after the first waits a third of a beat per row).
 export const SoundReplay = {
   mounted() {
     let cues = []
