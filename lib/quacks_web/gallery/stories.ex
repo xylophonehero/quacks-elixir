@@ -78,7 +78,11 @@ defmodule QuacksWeb.Gallery.Stories do
           id: c.id,
           title: c.title,
           stories:
-            Enum.map(own, &Map.merge(&1, %{group: c.id, note: c.note, height: c.height})) ++ plain
+            Enum.map(
+              own,
+              &Map.merge(&1, %{group: c.id, note: c.note, height: &1.height || c.height})
+            ) ++
+              plain
         }
       end
 
@@ -320,6 +324,16 @@ defmodule QuacksWeb.Gallery.Stories do
     ]
   end
 
+  @redesign_presets [
+    {"2p", "2 players", %{"players" => 2}},
+    {"8p-long", "8 long names, 3-digit VP",
+     %{"players" => 8, "long_names" => true, "vp_digits" => 3}},
+    {"alch", "4, The Alchemists, witches, rats",
+     %{"alchemists" => true, "witches" => true, "rats" => true}},
+    {"8p-boom", "8, one exploded, one stopped", %{"players" => 8, "state" => "exploded"}},
+    {"results", "5, a results step", %{"players" => 5, "state" => "results"}}
+  ]
+
   defp arg_stories("tiles") do
     [
       arg_story(
@@ -353,6 +367,32 @@ defmodule QuacksWeb.Gallery.Stories do
             {"3p-bots", "3 with bots, 3-digit VP",
              %{"players" => 3, "bots" => true, "vp_digits" => 3}}
           ]
+        }
+      ),
+      # The tile redesign study (gallery only, not in the game): three options.
+      arg_story(
+        "redesign",
+        "Redesign: options A, B, C",
+        [
+          enum("option", ~w(a b c), "a"),
+          int("players", 2, 8, 4),
+          enum("state", ~w(brewing stopped exploded done shop results), "brewing"),
+          bool("alchemists"),
+          bool("witches"),
+          bool("rats"),
+          bool("long_names"),
+          int("vp_digits", 1, 3, 1),
+          bool("bots"),
+          bool("peek", true)
+        ],
+        &Fixtures.redesign_story/1,
+        %{
+          height: 480,
+          presets:
+            for option <- ~w(a b c), {id, title, args} <- @redesign_presets do
+              {"#{option}-#{id}", "#{String.upcase(option)}: #{title}",
+               Map.put(args, "option", option)}
+            end
         }
       )
     ]

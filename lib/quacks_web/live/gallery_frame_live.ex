@@ -32,6 +32,7 @@ defmodule QuacksWeb.GalleryFrameLive do
     BarComponents,
     CardRevealComponents,
     GameLive,
+    TileDesignComponents,
     TileRevealComponents,
     TipComponents
   }
@@ -326,6 +327,20 @@ defmodule QuacksWeb.GalleryFrameLive do
           start={loop_start(length(@game.seats), row, col)}
         />
       </nav>
+    </div>
+    """
+  end
+
+  defp frame(%{view: :tiles_redesign} = assigns) do
+    ~H"""
+    <div class="space-y-3 px-2 pt-2 lg:px-6" data-option={@option}>
+      <TileDesignComponents.ledger :if={@option == "a"} facts={@facts} />
+      <TileDesignComponents.tokens :if={@option == "b"} facts={@facts} />
+      <TileDesignComponents.lanes :if={@option == "c"} facts={@facts} />
+      <section :if={@peek} class="space-y-1">
+        <h2 class="text-tag text-parchment-dim">Tap a player: {@peek.name}</h2>
+        <TileDesignComponents.peek f={@peek} />
+      </section>
     </div>
     """
   end

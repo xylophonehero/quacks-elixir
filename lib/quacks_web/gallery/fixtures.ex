@@ -18,7 +18,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
   alias Quacks.Game
   alias Quacks.Rules.Chips
   alias Quacks.Scenarios.Script
-  alias QuacksWeb.{Reveal, TileReveal, Tips}
+  alias QuacksWeb.{Reveal, TileDesign, TileReveal, Tips}
 
   @short ~w(Ada Bram Cleo Dirk Edda Finn Gwen Hugo)
   @long [
@@ -527,6 +527,147 @@ defmodule QuacksWeb.Gallery.Fixtures do
   defp tiles_state(n, "done") do
     plans = [mid_brew(), boom(), [{:orange, 1}], Enum.take(mid_brew(), 4)]
     finish_round(new(n), for(s <- 0..(n - 1), do: Enum.at(plans, rem(s, 4))))
+  end
+
+  @doc """
+  The player tile redesign study (`QuacksWeb.TileDesignComponents`, gallery only).
+  Args: option (`a` ledger, `b` tokens, `c` race), players, state (`brewing`,
+  `stopped`, `exploded`, `done`: every brew ended, `shop`: one seat bought a chip,
+  `results`: the scoring space step on the tiles), alchemists, witches, rats,
+  long_names, vp_digits, bots, peek (the tap view of seat 1 under the tiles).
+  """
+  @spec redesign_story(map) :: map
+  def redesign_story(%{"players" => n} = a) do
+    {g, reveal} = redesign_state(n, a["state"], redesign_opts(n, a))
+    g = g |> vp_digits(a["vp_digits"]) |> redesign_pieces(a)
+    names = names(n, long(a))
+    bots = if a["bots"], do: g.seats -- [0], else: []
+
+    facts =
+      for s <- g.seats do
+        TileDesign.facts(g, s,
+          name: names[s],
+          you: s == 0,
+          bot: s in bots,
+          news: redesign_news(g, s, a["state"], reveal)
+        )
+      end
+
+    %{
+      view: :tiles_redesign,
+      option: a["option"],
+      facts: facts,
+      peek: a["peek"] && Enum.at(facts, min(1, n - 1))
+    }
+  end
+
+  defp redesign_opts(n, a) do
+    expansions =
+      if(a["alchemists"], do: [:alchemists], else: []) ++
+        if a["witches"], do: [:herb_witches], else: []
+
+    [rules: %{rats: a["rats"] == true}, expansions: expansions] ++
+      if a["alchemists"], do: [patients: Map.new(0..(n - 1), &{&1, :random})], else: []
+  end
+
+  defp redesign_state(n, state, opts) when state in ~w(brewing stopped exploded) do
+    g = Enum.reduce(0..(n - 1), new(n, opts), &draws(&2, &1, race_brew(&1)))
+
+    g =
+      case state do
+        "brewing" -> g
+        "stopped" -> apply!(g, min(1, n - 1), :stop)
+        "exploded" -> redesign_boom(g, n)
+      end
+
+    {g, nil}
+  end
+
+  defp redesign_state(n, state, opts) do
+    plans = for s <- 0..(n - 1), do: if(s == 1, do: boom(), else: plan(s))
+    g = n |> new(opts) |> finish_round(plans) |> settle_all()
+
+    case state do
+      "done" ->
+        {g, nil}
+
+      "shop" ->
+        seat = min(2, n - 1)
+        {buy(g, seat, [{:orange, 1}]) || apply!(g, seat, {:buy, []}), nil}
+
+      "results" ->
+        slides = TileReveal.live(g, Reveal.result_slides(g))
+        i = Enum.find_index(slides, &(&1.kind == :space)) || raise "no space step"
+        {g, %{slides: slides, index: i + 1, tiles: true}}
+    end
+  end
+
+  # Seat s draws 3..7 chips of a mix with white 7 at most (no explosion), from its
+  # own place in the mix, so the pots differ in length and colour.
+  @race_mix [
+    {:orange, 1},
+    {:white, 1},
+    {:green, 1},
+    {:white, 2},
+    {:red, 1},
+    {:white, 1},
+    {:purple, 1},
+    {:orange, 1},
+    {:green, 2},
+    {:white, 3},
+    {:black, 1},
+    {:orange, 1}
+  ]
+
+  defp race_brew(s) do
+    {a, b} = Enum.split(@race_mix, rem(5 * s, length(@race_mix)))
+    Enum.take(b ++ a, 3 + rem(2 * s, 5))
+  end
+
+  defp redesign_boom(g, n) do
+    g = draws(g, min(1, n - 1), boom())
+    if n > 2, do: apply!(g, 2, :stop), else: g
+  end
+
+  # Ends every open choice of the round (also the essence phase of The Alchemists),
+  # so the game reaches the shop.
+  defp settle_all(g) do
+    Enum.reduce_while(1..200, g, fn _, g ->
+      case g.phase not in [:shopping, :over] && Enum.find_value(g.seats, &auto_action(g, &1)) do
+        {seat, action} -> {:cont, apply!(g, seat, action)}
+        _none -> {:halt, g}
+      end
+    end)
+  end
+
+  defp auto_action(g, seat) do
+    actions = Game.legal_actions(g, seat)
+
+    action =
+      Enum.find([:stop, {:explosion_choice, :vp}, :return_all, :keep], &(&1 in actions)) ||
+        Enum.find(actions, &match?({:essence, :pass}, &1)) ||
+        Enum.find(actions, &match?({:essence, {:space, _}}, &1)) ||
+        if(:draw in actions and g.phase == :essence, do: :draw)
+
+    action && {seat, action}
+  end
+
+  defp redesign_news(_g, _seat, state, _reveal) when state in ~w(brewing stopped exploded done),
+    do: nil
+
+  defp redesign_news(g, seat, _state, reveal), do: TileReveal.news(g, seat, reveal)
+
+  # By hand: essence comes from an essence phase, rat tails from a VP gap, a spent
+  # penny from a witch; round 1 has none of them yet.
+  defp redesign_pieces(g, a) do
+    Enum.reduce(g.seats, g, fn s, g ->
+      g = if a["alchemists"], do: put(g, s, essence: rem(3 * s + 2, 9)), else: g
+      g = if a["rats"] and rem(s, 2) == 1, do: put(g, s, rat_stone: s + 1), else: g
+
+      if a["witches"] and s == 1,
+        do: put(g, s, pennies: %{g.players[s].pennies | copper: false}),
+        else: g
+    end)
   end
 
   @doc "The crow skull's offer of `chips` chips (1..5) in the bar."
