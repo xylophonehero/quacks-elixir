@@ -27,7 +27,7 @@ defmodule QuacksWeb.SoundsTest do
 
     test "the manifest maps each file to its static path" do
       manifest = Jason.decode!(Sounds.manifest())
-      assert Map.keys(manifest) == Sounds.files()
+      assert Enum.sort(Map.keys(manifest)) == Sounds.files()
 
       for {name, path} <- manifest do
         assert path =~ ~r{^/sounds/#{name}(-[0-9a-f]+)?\.m4a}
@@ -41,6 +41,12 @@ defmodule QuacksWeb.SoundsTest do
       end
 
       assert Sounds.fortune_sound() in (Sounds.files() ++ Sounds.synths())
+    end
+
+    test "round 45: the shuffle candidates are files, the game plays one, and the flask has one" do
+      for {_label, name, _what} <- Sounds.shuffle_candidates(), do: assert(name in Sounds.files())
+      assert Sounds.shuffle_sound() in Enum.map(Sounds.shuffle_candidates(), &elem(&1, 1))
+      assert Sounds.flask_sound() == "flask"
     end
   end
 
@@ -78,7 +84,7 @@ defmodule QuacksWeb.SoundsTest do
   end
 
   describe "the scoring replay" do
-    test "black, green and purple: one cue per row with chips, in the stage's order" do
+    test "black, green and purple: one cue per step, on the first row with chips" do
       rows = [
         %{seat: 0, chips: [{:green, 2}, {:green, 1}]},
         %{seat: 1, chips: []},
@@ -86,7 +92,10 @@ defmodule QuacksWeb.SoundsTest do
       ]
 
       cues = Sounds.replay(%{kind: :book, book: :green, rows: rows}, [2, 1, 0])
-      assert cues == [[0, Sounds.chip_sound({:green, 4})], [2, Sounds.chip_sound({:green, 2})]]
+      assert cues == [[0, Sounds.chip_sound({:green, 4})]]
+
+      cues = Sounds.replay(%{kind: :book, book: :green, rows: rows}, [1, 0, 2])
+      assert cues == [[1, Sounds.chip_sound({:green, 2})]]
     end
 
     test "no cue on other steps" do
@@ -128,7 +137,7 @@ defmodule QuacksWeb.SoundsTest do
         |> LazyHTML.query("body")
         |> LazyHTML.attribute("data-sounds")
 
-      assert Map.keys(Jason.decode!(sounds)) == Sounds.files()
+      assert Enum.sort(Map.keys(Jason.decode!(sounds))) == Sounds.files()
     end
 
     test "the menu has the Sound row, client only", %{id: id} do

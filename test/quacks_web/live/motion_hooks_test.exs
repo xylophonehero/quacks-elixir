@@ -182,8 +182,10 @@ defmodule QuacksWeb.MotionHooksTest do
     # 35's rat that the droplet takes and the chips to the bag to 11 500; round
     # 36's scoring space pulse after the draw to 12 500; round 37's ring that
     # shrinks and grows takes the pulse's place within it; the sound calls (draw,
-    # droplet, ruby; the logic is in sound.js) to 13 000
-    assert byte_size(hook) < 13_000
+    # droplet, ruby; the logic is in sound.js) to 13 000; round 45's swap
+    # detection, several chips back to the bag and the shuffle (the moves
+    # themselves are in pot_moves.js) to 14 500
+    assert byte_size(hook) < 14_500
     assert hook =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
     assert js =~ "!reduced()"
   end

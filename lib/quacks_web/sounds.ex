@@ -117,22 +117,50 @@ defmodule QuacksWeb.Sounds do
 
   def pot_sound(chip, _moved, files), do: chip_sound(chip, files)
 
+  # Round 45: the chip shuffle candidates (the gallery's SH1 to SH3) and the one
+  # the game plays.
+  @shuffles [
+    {"SH1", "shuffle-sh1", "wooden pieces scattered on a board"},
+    {"SH2", "shuffle-sh2", "chips handled in the hand"},
+    {"SH3", "shuffle-sh3", "clay chips clatter on wood"}
+  ]
+  @shuffle "shuffle-sh1"
+
+  @doc "The chip shuffle candidates: `{label, sound, what it is}`."
+  @spec shuffle_candidates() :: [{String.t(), String.t(), String.t()}]
+  def shuffle_candidates, do: @shuffles
+
+  @doc """
+  The chip shuffle: the chips go back to the bag (end of the round, or several at
+  once). nil when the file is missing (no sound).
+  """
+  @spec shuffle_sound() :: String.t() | nil
+  def shuffle_sound, do: if(@shuffle in @files, do: @shuffle)
+
+  @doc "The flask is used (round 45): `flask.m4a`, else no sound (nil)."
+  @spec flask_sound() :: String.t() | nil
+  def flask_sound, do: if("flask" in @files, do: "flask")
+
   @doc "The fortune teller's new card: `fortune.m4a`, else the synth `chime`."
   @spec fortune_sound() :: String.t()
   def fortune_sound, do: if("fortune" in @files, do: "fortune", else: "chime")
 
   @doc """
-  The scoring replay: on the black, green and purple book steps each seat's row
-  plays its colour's chip sound when its result shows. `rows` are the step's rows
-  (`%{seat, chips}`), `seats` the seats in the stage's row order. A row with no
-  counted chip plays nothing. Gives `[[row_index, sound], ...]`; other steps `[]`.
+  The scoring replay: on the black, green and purple book steps the step plays its
+  colour's chip sound once, when the first row with a counted chip shows its
+  result (round 45, Nick: once per step, not once per row). `rows` are the step's
+  rows (`%{seat, chips}`), `seats` the seats in the stage's row order. Gives
+  `[[row_index, sound]]`, or `[]` (other steps, or no row with a chip).
   """
   @spec replay(map, [integer]) :: [[integer | String.t()]]
   def replay(%{kind: :book, book: colour, rows: rows}, seats)
       when colour in [:black, :green, :purple] do
-    for {seat, i} <- Enum.with_index(seats),
-        %{chips: [_ | _] = chips} <- [Enum.find(rows, &(&1.seat == seat))],
-        do: [i, chip_sound(Enum.find(chips, hd(chips), &(elem(&1, 0) == colour)))]
+    cues =
+      for {seat, i} <- Enum.with_index(seats),
+          %{chips: [_ | _] = chips} <- [Enum.find(rows, &(&1.seat == seat))],
+          do: [i, chip_sound(Enum.find(chips, hd(chips), &(elem(&1, 0) == colour)))]
+
+    Enum.take(cues, 1)
   end
 
   def replay(_slide, _seats), do: []

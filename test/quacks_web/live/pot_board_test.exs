@@ -242,6 +242,70 @@ defmodule QuacksWeb.PotBoardTest do
     end
   end
 
+  describe "round 45: chips that change" do
+    defp pot_html(game, opts) do
+      render_component(&QuacksWeb.PotComponents.pot/1, [game: game, seat: 0] ++ opts)
+      |> LazyHTML.from_fragment()
+    end
+
+    defp drew(chips) do
+      game = Game.new(seed: {1, 2, 3}, players: 1, rules: %{fortune: false})
+      drawn = chips |> Enum.with_index(1) |> Enum.reverse()
+      H.put(game, 0, drawn: drawn)
+    end
+
+    test "your pot's chips name their kind, for a swap in place" do
+      html = pot_html(drew([{:white, 1}, {:green, 1}]), flask: :full)
+      chips = LazyHTML.query(html, "[data-role=pot-chip]")
+      assert Enum.sort(LazyHTML.attribute(chips, "data-chip")) == ["green-1", "white-1"]
+    end
+
+    test "a purple book IV upgrade leaves the bigger chip's face for the morph" do
+      game =
+        drew([{:white, 1}]) |> Game.effect(0, {:purple, 4}, {:upgrade, {:green, 1}, {:green, 2}})
+
+      [to] =
+        pot_html(game, flask: :full) |> LazyHTML.query("[data-role=morph-to]") |> Enum.to_list()
+
+      assert LazyHTML.attribute(to, "data-from") == ["green-1"]
+      assert LazyHTML.attribute(to, "visibility") == ["hidden"]
+      assert LazyHTML.query(to, "[data-role=chip-value]") |> Enum.count() == 1
+
+      assert pot_html(drew([{:white, 1}]), flask: :full)
+             |> LazyHTML.query("[data-role=morph-to]")
+             |> Enum.empty?()
+    end
+
+    test "the flask tips as a group, and the pot carries the shuffle and flask sounds" do
+      html = pot_html(drew([{:white, 1}]), flask: :full)
+
+      assert LazyHTML.query(
+               html,
+               "[data-role=flask] [data-role=flask-tilt] [data-role=flask-brew]"
+             )
+             |> Enum.count() == 1
+
+      [svg] = LazyHTML.query(html, "svg[phx-hook=PotMotion]") |> Enum.to_list()
+      assert LazyHTML.attribute(svg, "data-shuffle-sound") == [QuacksWeb.Sounds.shuffle_sound()]
+      assert LazyHTML.attribute(svg, "data-flask-sound") == ["flask"]
+    end
+
+    test "a bag list with an id keys each kind and its count, so they pop" do
+      html =
+        render_component(&PotComponents.chip_counts/1, chips: [{:white, 1}, {:white, 1}], id: "b")
+        |> LazyHTML.from_fragment()
+
+      assert LazyHTML.query(html, "li#b-white-1.chip-in span#b-white-1-n2.count-in")
+             |> Enum.count() == 1
+    end
+
+    test "the moves play once and honour reduced motion" do
+      js = File.read!("assets/js/pot_moves.js") <> File.read!("assets/js/chip_morph.js")
+      assert js =~ "reduced()"
+      assert File.read!("assets/js/app.js") =~ "swapped.forEach(c => this.swap(c))"
+    end
+  end
+
   describe "the draw flight" do
     test "only your own large pot is marked for PotMotion's bag-to-pot flight" do
       game = Game.new(seed: {1, 2, 3})
@@ -448,7 +512,7 @@ defmodule QuacksWeb.PotBoardTest do
 
     test "the hook flies the chips to the bag and the shop waits for them" do
       js = File.read!(Path.expand("../../../assets/js/app.js", __DIR__))
-      assert js =~ "toBag(gone)"
+      assert js =~ "toBag(gone, true)"
       assert js =~ "bagUntil - performance.now()"
     end
   end

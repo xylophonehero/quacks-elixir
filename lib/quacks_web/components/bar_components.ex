@@ -1106,8 +1106,9 @@ defmodule QuacksWeb.BarComponents do
       data-role="chip-row"
     >
       <button
-        :for={o <- @options}
+        :for={{o, i} <- Enum.with_index(@options)}
         type="button"
+        style={"--i: #{i}"}
         phx-click={o.action && "action"}
         phx-value-action={o.action && encode(o.action)}
         disabled={is_nil(o.action)}

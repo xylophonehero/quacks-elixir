@@ -202,7 +202,7 @@ defmodule QuacksWeb.ShopComponents do
       <h2 class="sheet-head text-xl font-bold">Shop</h2>
       <div class="rounded-md bg-parchment-deep/60 px-2 py-1" data-role="shop-bag">
         <h3 class="text-tag font-semibold text-ink-soft">Your chips: {length(@owned)}</h3>
-        <.chip_counts chips={@owned} />
+        <.chip_counts chips={@owned} id="shop-owned" />
       </div>
       <div :if={@buying?} class="space-y-2">
         <p class="text-sm">Tap up to two chips of different colours.</p>
