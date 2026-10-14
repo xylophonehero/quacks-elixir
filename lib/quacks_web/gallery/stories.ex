@@ -512,12 +512,13 @@ defmodule QuacksWeb.Gallery.Stories do
         "Evaluation step",
         [
           int("players", 2, 8, 4),
-          enum("step", Enum.map(@results_steps, &elem(&1, 0)), "die"),
+          enum("step", Enum.map(@results_steps, &elem(&1, 0)) ++ ["rubies"], "die"),
           names,
           int("exploded", 0, 7, 1)
         ],
         &Fixtures.evaluation_screen/1,
         presets: [
+          {"rubies", "Spend rubies (3 rubies)", %{"step" => "rubies"}},
           {"8p-space", "8 long names: scoring space",
            %{"players" => 8, "long_names" => true, "step" => "space"}}
         ]

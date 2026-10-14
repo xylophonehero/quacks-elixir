@@ -163,6 +163,8 @@ defmodule QuacksWeb.MotionHooksTest do
     render_click(view, "action", %{"action" => QuacksWeb.ActionCode.encode({:buy, []})})
 
     assert_push_event(view, "quacks:vt", %{})
+    # Round 47: the recap of round 1 plays first (the pill shows its round).
+    skip_results(view)
     assert has_element?(view, "[data-role=round-counter]", "2 / 9")
   end
 

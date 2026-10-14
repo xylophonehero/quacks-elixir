@@ -168,7 +168,8 @@ defmodule QuacksWeb.RubiesAndWitchesTest do
       {:ok, view, _html} = live(browser("r14-card-#{System.unique_integer()}"), ~p"/g/#{id}")
 
       # Round 24: the card waits for a tap over the pot, with no sheet.
-      assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
+      assert has_element?(view, "#pot-card-1")
+      assert has_element?(view, "#card-continue")
       refute has_element?(view, "#reveal-card-1")
 
       view |> element("#card-tap") |> render_click()

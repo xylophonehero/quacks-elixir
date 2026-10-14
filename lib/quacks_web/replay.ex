@@ -296,6 +296,8 @@ defmodule QuacksWeb.Replay do
   def gain({:witch, _id, {:rubies, n}}), do: {0, n}
   def gain({:fortune, _id, {:vp, n}}), do: {n, 0}
   def gain({:fortune, _id, :ruby}), do: {0, 1}
+  # AP3 "Give and take": 2 rubies; P1: 3 (`Quacks.Game.Fortune`).
+  def gain({:fortune, :ap3, :rubies}), do: {0, 2}
   def gain({:fortune, _id, :rubies}), do: {0, 3}
   def gain({:fortune, _id, {:rats_back, n}}), do: {0, n}
   # Every other card outcome shows too (what the card did), worth nothing here.

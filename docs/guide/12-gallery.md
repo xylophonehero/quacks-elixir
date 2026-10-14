@@ -79,7 +79,7 @@ An old variant URL that a story with args took over (for example
 | Setup | Ingredient presets | `preset` (any of the 14 numbered or themed mixes), `witches` (Herb Witches on/off) |
 | Screens | Brewing | `players 1..8`, `long_names` |
 | | A choice | `players 1..8`, `choice crow\|mandrake\|chip_choice\|explosion`, `long_names` |
-| | Evaluation step | `players 2..8`, `step die\|black\|green\|purple\|space`, `long_names`, `exploded 0..7` |
+| | Evaluation step | `players 2..8`, `step die\|black\|green\|purple\|space\|rubies`, `long_names`, `exploded 0..7` (`rubies`: the "Spend rubies" step after a card gave 2 rubies) |
 | | Round scored | `players 2..8`, `step standings\|shop`, `long_names`, `vp_digits 1..3` |
 | | Shop, Game over | `players 1..8`, `long_names` |
 | | Copper witch: Upgrade (C1) | `players 1..8`, `state one\|last_two\|picked\|upgraded\|visit`, `long_names` |

@@ -93,7 +93,8 @@ defmodule QuacksWeb.ReconnectAndRejoinTest do
       view = open(browser(token), id)
 
       # round 24: the card hovers over the pot until a tap
-      assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
+      assert has_element?(view, "#pot-card-1")
+      assert has_element?(view, "#card-continue")
 
       view |> element("#card-tap") |> render_click()
       assert {:ok, %{seen: %{0 => %{card: 1}}}} = GameServer.get(id)

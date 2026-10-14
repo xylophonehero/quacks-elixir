@@ -678,7 +678,8 @@ defmodule QuacksWeb.PotComponents do
           <stop offset="100%" stop-color="var(--color-potion-deep)" />
         </linearGradient>
       </defs>
-      <rect x="-32" y="-54" width="64" height="88" fill="transparent" />
+      <%!-- Round 47 (P1): the hit area is 76 units wide (44 px at a 360 px screen). --%>
+      <rect x="-38" y="-54" width="76" height="88" fill="transparent" />
       <%!-- Round 45: `PotMotion` tips this group when the flask is used. --%>
       <g data-role="flask-tilt">
         <rect x="-9" y="-50" width="18" height="10" rx="2" fill="var(--color-wood)" />

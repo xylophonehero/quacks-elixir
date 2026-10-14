@@ -160,14 +160,14 @@ defmodule QuacksWeb.TileRevealComponents do
 
   attr :reveal, :map, required: true
   attr :mode, :atom, required: true, doc: "`:step` shows Next; `:auto` moves on by itself"
-  attr :close_label, :string, default: "Done", doc: "the button on the last step"
   attr :waiting, :boolean, default: false, doc: "the next step waits for other players"
 
   @doc """
   The steps that play on the tiles, in the bar where Stop and Draw sit (round 29).
   Round 35: the bar names the step on show (`reveal.index - 1`, the step the
   results stage shows), with its picture (`step_icon/1`) and "Step N of M" small.
-  On the last step ("Round scored") the button closes (`close_label`). While the
+  On the last step the button closes. Round 47 (audit #5): the results advance
+  only with "Next" (gold) and "Skip" (parchment), on every step. While the
   next step waits for other players (`waiting`), Next is off and says so. It keeps
   the bar's height (`min-h-12`), so the pot does not move.
   """
@@ -228,11 +228,7 @@ defmodule QuacksWeb.TileRevealComponents do
         disabled={@waiting}
         data-role="tile-next"
       >
-        {cond do
-          @waiting -> "Waiting…"
-          @last -> @close_label
-          true -> "Next"
-        end}
+        {if @waiting, do: "Waiting…", else: "Next"}
       </.button>
     </section>
     """
@@ -340,7 +336,7 @@ defmodule QuacksWeb.TileRevealComponents do
   attr :cols, :list, required: true, doc: "the result columns, one cell each per row"
   attr :names, :map, required: true
   attr :seat, :integer, default: nil, doc: "this browser's seat (its row has a ring)"
-  attr :you, :boolean, default: false, doc: "this browser's row says \"You\""
+  attr :you, :boolean, default: true, doc: "this browser's row has the YOU tag"
   attr :row_role, :string, required: true
   attr :row_id, :any, required: true, doc: "fn row -> the row's DOM id"
   attr :row_attrs, :any, default: nil, doc: "fn row -> more attributes for the row"
@@ -354,8 +350,9 @@ defmodule QuacksWeb.TileRevealComponents do
   for the seat disc, the name, the reason and every result column (`cols`); each
   row is a subgrid of it (app.css `.stage-grid`), so the counts, chips and
   numbers of all rows stand in one line, whatever the names' lengths. Numbers
-  are tabular. A long name takes two lines (round 41), so names that start the
-  same stay apart; the row keeps its height. A row with `shift` (`Round scored`) moves from its old place to
+  are tabular. Round 47 (audit #7, R2): a long name is one line with an
+  ellipsis (the full name is the title); this browser's row has its name and a
+  YOU tag. A row with `shift` (`Round scored`) moves from its old place to
   its new one (FLIP in CSS: `.stage-shift`, off for reduced motion).
   """
   def stage_list(assigns) do
@@ -389,11 +386,12 @@ defmodule QuacksWeb.TileRevealComponents do
           {initial(name(@names, row.seat))}
         </span>
         <span
-          class="stage-name line-clamp-2 text-xs leading-3 font-semibold break-words"
+          class="stage-name flex min-w-0 items-center gap-1 text-xs leading-4 font-semibold"
           title={name(@names, row.seat)}
           data-role="stage-name"
         >
-          {if @you and row.seat == @seat, do: "You", else: name(@names, row.seat)}
+          <span class="min-w-0 truncate">{name(@names, row.seat)}</span>
+          <QuacksWeb.FinalComponents.you_tag :if={row.seat == @seat and @you} />
         </span>
         <span class="flex min-w-0 items-center gap-1 text-sm" data-role="stage-why">
           {render_slot(@why, row)}
@@ -476,7 +474,8 @@ defmodule QuacksWeb.TileRevealComponents do
 
     ~H"""
     <span class="flex items-center gap-0.5 text-xs font-semibold" data-cell="beats">
-      {if @how == :tie, do: "=", else: ">"}
+      <%!-- Round 47 (R6): words, not signs. --%>
+      {if @how == :tie, do: "ties", else: "beats"}
       <%= if @how == :both do %>
         both
       <% else %>

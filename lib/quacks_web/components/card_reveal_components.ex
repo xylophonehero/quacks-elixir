@@ -109,7 +109,11 @@ defmodule QuacksWeb.CardRevealComponents do
         >
           {Quacks.Rules.Fortune.card(@card).name}
         </span>
-        <span class="ml-auto truncate text-xs text-ink-soft" data-role="card-reveals-rule">
+        <%!-- Round 47 (R5): a long rule takes two lines, not an ellipsis. --%>
+        <span
+          class="ml-auto line-clamp-2 text-right text-xs leading-tight text-ink-soft"
+          data-role="card-reveals-rule"
+        >
           {rule(@card)}
         </span>
       </header>
@@ -119,7 +123,6 @@ defmodule QuacksWeb.CardRevealComponents do
         cols={[:result]}
         names={@names}
         seat={@seat}
-        you
         row_role="card-reveal-row"
         row_id={fn r -> "#{@id}-row-#{r.seat}" end}
         row_class={fn r -> r.row.best? && "bg-gold/35" end}
@@ -140,7 +143,8 @@ defmodule QuacksWeb.CardRevealComponents do
               title={note(@card, r.row, @game, r.seat == @seat, chip, i)}
               data-role="reveal-chip"
             >
-              <.chip chip={chip} size={:xs} />
+              <%!-- Round 47 (R7): the results panels' chip size. --%>
+              <.chip chip={chip} size={:sm} />
             </span>
             <span
               :if={r.row.number}
@@ -344,11 +348,12 @@ defmodule QuacksWeb.CardRevealComponents do
     """
   end
 
-  defp rule(:p8), do: "Lowest sum takes a blue 2. Everyone else takes a ruby."
-  defp rule(:p13), do: "Each trades one chip up, or takes a green 1."
-  defp rule(:b7), do: "Drawn on stopping: one may go on the pot."
-  defp rule(:p12), do: "Everyone rolled the bonus die."
-  defp rule(card), do: if(Fortune.choice_card?(card), do: "What everyone took")
+  # Round 47 (R3): the subtitles as the results stage's: lower case, no full stop.
+  defp rule(:p8), do: "lowest sum takes a blue 2, the others a ruby"
+  defp rule(:p13), do: "each trades one chip up, or takes a green 1"
+  defp rule(:b7), do: "drawn on stopping: one may go on the pot"
+  defp rule(:p12), do: "everyone rolled the bonus die"
+  defp rule(card), do: if(Fortune.choice_card?(card), do: "what everyone took")
 
   defp gain_ink(:droplet), do: "text-droplet"
   defp gain_ink(_kind), do: nil

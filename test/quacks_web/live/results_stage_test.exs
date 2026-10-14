@@ -309,9 +309,10 @@ defmodule QuacksWeb.ResultsStageTest do
       assert has_element?(view, "#results-stage[data-kind=space]")
 
       next(view)
-      assert has_element?(view, "#bar-rubies [data-role=rubies-keep]")
-      assert has_element?(view, "#results-stage[data-collapsed]")
-      refute has_element?(view, "[data-role=stage-row]")
+      assert has_element?(view, "#bar-rubies [data-role=rubies-keep]", "Skip")
+      # Round 47 (audit #5): the bar's own title strip, as in the shop.
+      assert has_element?(view, "#bar-rubies [data-role=info-title]", "Spend rubies")
+      refute has_element?(view, "#results-stage")
       refute has_element?(view, "#tile-stage")
 
       # A spend keeps the step while a ruby still buys something.
@@ -692,7 +693,8 @@ defmodule QuacksWeb.ResultsStageTest do
       next(view)
       assert has_element?(view, "#results-stage[data-kind=standings]")
       assert has_element?(view, "#results-stage [data-cell=total]")
-      assert has_element?(view, "[data-role=tile-next]", "Next round")
+      # Round 47 (audit #5): the last step says Next too.
+      assert has_element?(view, "[data-role=tile-next]", "Next")
 
       next(view)
       refute has_element?(view, "#results-stage")

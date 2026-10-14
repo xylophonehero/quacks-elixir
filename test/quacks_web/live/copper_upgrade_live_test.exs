@@ -37,7 +37,7 @@ defmodule QuacksWeb.CopperUpgradeLiveTest do
     {_id, view} = at_upgrade(conn, [{{:orange, 1}, 6}, {{:green, 1}, 3}, {{:blue, 1}, 1}])
 
     assert has_element?(view, "[data-role=bar-upgrade] [data-role=tap-pot]")
-    assert has_element?(view, "[data-role=upgrade-skip]", "keep the penny")
+    assert has_element?(view, "[data-role=upgrade-skip]", "Keep the penny")
     refute has_element?(view, "#decision-shop")
     refute has_element?(view, "[data-role=pot-area] svg[data-bagged]")
 

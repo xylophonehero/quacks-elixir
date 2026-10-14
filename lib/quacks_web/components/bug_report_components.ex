@@ -70,8 +70,14 @@ defmodule QuacksWeb.BugReportComponents do
         >
           {@error}
         </p>
-        <div class="flex justify-end *:min-h-11">
-          <.button variant={:primary} phx-disable-with="Sending…" data-role="send-report">
+        <%!-- Round 47 (M4): full width, as the other dialogs' main button. --%>
+        <div class="flex *:min-h-11">
+          <.button
+            variant={:primary}
+            phx-disable-with="Sending…"
+            class="w-full text-base"
+            data-role="send-report"
+          >
             Send report
           </.button>
         </div>

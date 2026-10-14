@@ -784,6 +784,19 @@ defmodule QuacksWeb.Gallery.Fixtures do
 
   @doc "An evaluation step on the tiles (`die`, a book colour, `space`). Args: players, long_names, exploded."
   @spec evaluation_screen(map) :: map
+  def evaluation_screen(%{"players" => n, "step" => "rubies"} = a) do
+    # Round 47 (audit #3): this round's card "Give and take" (AP3) gave you 2
+    # rubies (by hand: its log line and the rubies, as `Fortune` does), so the
+    # rubies step opens (a droplet move costs 2). The counters must show them.
+    g =
+      n
+      |> brewed_round(round_opts(a))
+      |> Game.update_player(0, &%{&1 | rubies: &1.rubies + 2})
+      |> Game.record(0, {:fortune, :ap3, :rubies})
+
+    screen(g, a, seen: %{}, step: :rubies)
+  end
+
   def evaluation_screen(%{"players" => n, "step" => step} = a) do
     g = brewed_round(n, round_opts(a))
     screen(g, a, seen: %{}, step: String.to_existing_atom(step))

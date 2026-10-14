@@ -165,7 +165,7 @@
 gallery
 </span>
 </h1>
-<p class="flex max-w-[7rem] shrink-0 flex-col items-start gap-0.5 sm:max-w-[10rem]" data-role="you-are">
+<p class="flex max-w-[5.5rem] shrink-0 flex-col items-start gap-0.5 min-[25rem]:max-w-[7rem] sm:max-w-[10rem]" data-role="you-are">
 <span class="pl-1 text-tag leading-none font-bold tracking-wide text-parchment-dim uppercase">
 You
 </span>
@@ -174,16 +174,16 @@ You
 </span>
 </p>
 <div class="ml-auto min-w-0">
-<dl class="flex items-center gap-2 text-sm">
-<div class="flex items-baseline gap-1">
+<dl class="flex min-w-0 items-center gap-2 text-sm">
+<div class="flex shrink-0 items-baseline gap-1">
 <dt class="text-parchment-dim max-sm:sr-only">Round</dt>
 <dd class="round-counter font-semibold whitespace-nowrap tabular-nums" data-role="round-counter">
 3 / 9
 </dd>
 </div>
-<div>
+<div class="min-w-0">
 <dt class="sr-only">Phase</dt>
-<dd class="block max-w-[7.5rem] truncate rounded-full bg-parchment/15 px-2 py-0.5 font-semibold max-sm:text-tag sm:max-w-none">
+<dd class="block max-w-[7.5rem] truncate rounded-full bg-parchment/15 px-2 py-0.5 font-semibold max-sm:text-tag sm:max-w-none" data-role="phase-pill">
 Brewing
 </dd>
 </div>
@@ -1602,7 +1602,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </stop>
 </linearGradient>
 </defs>
-<rect fill="transparent" height="88" width="64" x="-32" y="-54">
+<rect fill="transparent" height="88" width="76" x="-38" y="-54">
 </rect>
 <g data-role="flask-tilt">
 <rect fill="var(--color-wood)" height="10" rx="2" width="18" x="-9" y="-50">
@@ -1703,11 +1703,18 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </aside>
 <footer class="game-bar" data-area="bar">
 <div class="game-tray">
-<section aria-label="More actions" class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation">
-<button class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-iron-dark/60 text-parchment ring-2 ring-parchment/45 ring-inset hover:bg-iron-dark hover:ring-parchment/70" phx-click="action" phx-value-action="g2gCdwNyZWRoAncFcGxhY2VoAncFd2hpdGVhAg">
-
-Toadstool: place white 2 after your last chip
-
+<section aria-label="More actions" class="flex flex-col gap-1.5" data-role="extra-action">
+<div aria-live="polite" class="flex min-h-9 min-w-0 items-center gap-2 rounded-lg bg-iron-dark/90 px-2 py-1 text-sm leading-tight font-semibold text-parchment shadow-lg" data-role="info-row">
+<span class="min-w-0 flex-1">
+<span class="block truncate" data-role="info-title">
+Toadstool
+</span>
+</span>
+</div>
+<button aria-label="Toadstool: place white 2 after your last chip" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 flex-col gap-0! px-1! py-1! leading-tight min-h-11 w-full" data-choice-button="" data-variant="primary" phx-click="action" phx-value-action="g2gCdwNyZWRoAncFcGxhY2VoAncFd2hpdGVhAg" title="Toadstool: place white 2 after your last chip">
+<span class="flex max-w-full items-center gap-1 text-sm font-bold tabular-nums">
+<span class="truncate">Place white 2 after your last chip</span>
+</span>
 </button>
 </section>
 </div>
@@ -2014,8 +2021,8 @@ browser details, so we can play the game back to this point.
 </label>
 </div>
 <input data-role="browser-details" name="report[browser]" type="hidden" value=""/>
-<div class="flex justify-end *:min-h-11">
-<button class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110" data-role="send-report" phx-disable-with="Sending…">
+<div class="flex *:min-h-11">
+<button class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 w-full text-base" data-role="send-report" phx-disable-with="Sending…">
 
 Send report
 

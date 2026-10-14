@@ -930,7 +930,7 @@ defmodule QuacksWeb.PanelComponents do
             :for={action <- calls(@actions, colour)}
             phx-click="action"
             phx-value-action={encode(action)}
-            variant={:secondary}
+            variant={:primary}
           >
             {call_text(action)}
           </.button>
