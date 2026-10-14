@@ -118,13 +118,13 @@ const RevealSettings = {
 
 // Round 29: your own explosion buzzes the phone once (`boom` in game_live), and
 // nothing else does. Once per game and round: a reload does not buzz again. The
-// explosion sound plays with the buzz (sound.js).
+// explosion sound (`data-sound`, `Sounds.boom_sound/0`) plays with the buzz (sound.js).
 const Boom = {
   mounted() {
     const key = `quacks:boom:${this.el.dataset.key}`
     try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1") } catch (_e) {}
     if (typeof navigator.vibrate === "function") navigator.vibrate([40, 30, 90])
-    playSound("boom", {pitch: 0.02})
+    playSound(this.el.dataset.sound, {pitch: 0.02})
   }
 }
 
@@ -146,7 +146,7 @@ const easing = name => getComputedStyle(document.documentElement).getPropertyVal
 const at = (p, o, s = 1) => `translate(${p.x - o.x}px, ${p.y - o.y}px) scale(${s})`
 
 const PotMotion = {
-  // Round 45: the bag's bump, the flask's pour, a swap and an upgrade (pot_moves.js).
+  // Round 45: the bag's bump, the flask's pour and a swap in place (pot_moves.js).
   ...potMoves(playSound),
   // Running animations go on through later patches (a bot's draw is a patch too):
   // WAAPI writes no attributes, and each chip keeps its node.
@@ -165,7 +165,8 @@ const PotMotion = {
     // (green III): it flies from its old space, not from the bag.
     const moved = gone.length === 1 && added.length === 1 && gone[0].dataset.order === added[0].dataset.order
     const newRound = this.el.dataset.round !== this.round
-    // Round 45: the same chip node with another chip in it (Chicken eyes, AB1).
+    // Round 45: the same chip node with another chip in it (Chicken eyes, AB1, the
+    // copper witch; round 46: the purple book IV too, `PotComponents.held/2`).
     const swapped = chips.filter(c => c.dataset.chip && this.keys.get(c.id) && this.keys.get(c.id).key !== c.dataset.chip)
     if (newRound) {
       gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, null, i * 20))
@@ -174,9 +175,7 @@ const PotMotion = {
     else if (this.el.dataset.bagged && !this.bagged) this.toBag(gone, true)
     else if (moved) this.fly(added[0], this.pos(gone[0].dataset.index), 1, 40)
     else if (gone.length === 1 && added.length === 0) {
-      const to = this.el.querySelector(`[data-role=morph-to][data-from="${gone[0].dataset.chip}"]`)
       if (flask) this.useFlask(gone[0])
-      else if (to) this.upgrade(gone[0], to)
       else this.ghost(gone[0], this.centre(this.bag())), this.bump(260)
     }
     // Round 45: several chips leave at once (a white return): they fly to the bag.

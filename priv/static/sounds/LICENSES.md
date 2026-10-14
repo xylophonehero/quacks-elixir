@@ -5,7 +5,10 @@ Only CC0 sources. `QuacksWeb.Sounds` is the manifest.
 
 | File | Source | Licence |
 |---|---|---|
-| `boom.m4a` | X1, a mix of three sounds: unfa "Cartoon Pop (Clean)" (https://freesound.org/people/unfa/sounds/245645/, from the freesound preview MP3), Kenney Sci-fi Sounds `lowFrequency_explosion_001` (https://kenney.nl/assets/sci-fi-sounds) at +40 ms, OpenGameArt `bubble_01` (https://opengameart.org/content/40-cc0-water-splash-slime-sfx) at +150 ms | CC0 (all three) |
+| `boom-x1.m4a` | X1 (round 46: the old explosion, kept to compare), a mix of three sounds: unfa "Cartoon Pop (Clean)" (https://freesound.org/people/unfa/sounds/245645/, from the freesound preview MP3), Kenney Sci-fi Sounds `lowFrequency_explosion_001` (https://kenney.nl/assets/sci-fi-sounds) at +40 ms, OpenGameArt `bubble_01` (https://opengameart.org/content/40-cc0-water-splash-slime-sfx) at +150 ms | CC0 (all three) |
+| `boom-xb1.m4a` | XB1 (round 46, candidate): a synth sine thump (own synthesis), Kenney Sci-fi Sounds `lowFrequency_explosion_001` and `explosionCrunch_000` (https://kenney.nl/assets/sci-fi-sounds), freesound 792520, modusmogulus, "Retro Small Bomb Explosion", https://freesound.org/people/modusmogulus/sounds/792520/; freesound 609588, unfa, "Firecracker Explosion", https://freesound.org/people/unfa/sounds/609588/ | CC0 (all; https://creativecommons.org/publicdomain/zero/1.0/) |
+| `boom-xb2.m4a` | XB2 (round 46, the game's explosion): a synth sine thump (own synthesis), Kenney Sci-fi Sounds `lowFrequency_explosion_000` and `explosionCrunch_001` (https://kenney.nl/assets/sci-fi-sounds), freesound 221528, unfa, "Glass Break", https://freesound.org/people/unfa/sounds/221528/; freesound 732089, GammaGool, "Boom and Rattle", https://freesound.org/people/GammaGool/sounds/732089/ | CC0 (all; https://creativecommons.org/publicdomain/zero/1.0/) |
+| `boom-xb3.m4a` | XB3 (round 46, candidate): a synth sine thump (own synthesis), freesound 116643, Woodingp, "Intro Boom.aif", https://freesound.org/people/Woodingp/sounds/116643/; freesound 840510, qubodup, "Loud Firewords Bang Cut Off", https://freesound.org/people/qubodup/sounds/840510/; freesound 825803, decadylan, "Glass Bottle Shatter", https://freesound.org/people/decadylan/sounds/825803/ | CC0 (all; https://creativecommons.org/publicdomain/zero/1.0/) |
 | `ruby.m4a` | R2, Kenney Interface Sounds `glass_001` (https://kenney.nl/assets/interface-sounds) | CC0 |
 | `gameover.m4a` | G1, Kenney Music Jingles `jingles_PIZZI07` (https://kenney.nl/assets/music-jingles) | CC0 |
 | `chip-white-1.m4a`, `chip-white-2.m4a`, `chip-white-3.m4a` | W3 pot bubble + fizz: OpenGameArt "40 CC0 water/splash/slime SFX" (https://opengameart.org/content/40-cc0-water-splash-slime-sfx), `bubble_02.ogg` | CC0 |
@@ -26,7 +29,8 @@ Only CC0 sources. `QuacksWeb.Sounds` is the manifest.
 The chip and fortune files are Nick's picks of the sounds-v2 work (2026-10-11: W3,
 B3, GR2, O3, RD2, Y2, P3, K2, LW2, CB3; session `03974705`,
 `scratchpad/sounds-v2/final-picks/LICENSES.md` has the rows per file). Each freesound
-licence was read on its page on 2026-10-11. ⚠️ The freesound parts are from the
+licence was read on its page on 2026-10-11 (the round 46 explosion sources on
+2026-10-14; their build script: `scratchpad/r46-bang/build.py`, same session). ⚠️ The freesound parts are from the
 public previews (lossy 128 kbps); download the originals with a free account before
 a final release and build the files again.
 

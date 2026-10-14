@@ -17,7 +17,8 @@ defmodule QuacksWeb.SoundsTest do
     test "the MVP files are there, each with a licence line" do
       licences = File.read!(Path.join(@dir, "LICENSES.md"))
 
-      assert Enum.all?(~w(boom ruby gameover), &(&1 in Sounds.files()))
+      assert Enum.all?(~w(ruby gameover), &(&1 in Sounds.files()))
+      assert Sounds.boom_sound() in Sounds.files()
 
       for name <- Sounds.files() do
         assert File.exists?(Path.join(@dir, "#{name}.m4a"))
@@ -47,6 +48,13 @@ defmodule QuacksWeb.SoundsTest do
       for {_label, name, _what} <- Sounds.shuffle_candidates(), do: assert(name in Sounds.files())
       assert Sounds.shuffle_sound() in Enum.map(Sounds.shuffle_candidates(), &elem(&1, 1))
       assert Sounds.flask_sound() == "flask"
+    end
+
+    test "round 46: the explosion candidates are files, and the game plays one" do
+      names = Enum.map(Sounds.boom_candidates(), &elem(&1, 1))
+      assert ~w(boom-x1 boom-xb1 boom-xb2 boom-xb3) == names
+      for name <- names, do: assert(name in Sounds.files())
+      assert Sounds.boom_sound() in names
     end
   end
 

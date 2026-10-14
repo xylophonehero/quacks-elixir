@@ -535,7 +535,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
 
   @doc """
   Round 45, the chip motion story: the large pot before and after one change
-  (`motion`: draw, to-bag, flask, swap, upgrade, return). The frame's Play button
+  (`motion`: draw, to-bag, flask, swap, return). The frame's Play button
   patches the pot from `before` to `after`, so `PotMotion` plays as in the game.
   """
   @spec motion_story(map) :: map
@@ -554,17 +554,12 @@ defmodule QuacksWeb.Gallery.Fixtures do
     {g, apply!(g, 0, :use_flask), false}
   end
 
-  # Chicken eyes / AB1: the green 1 in the pot becomes a green 2 on its space (by
-  # hand: the swap needs a set and a card that the seed does not deal here).
+  # A pot chip becomes a bigger one on its space. Round 46: one story for Chicken
+  # eyes, AB1, the copper witch and the purple book IV (they look the same). This is
+  # the purple book IV, by hand with the engine's log entry: the green 1 leaves the
+  # pot, a green 2 goes to the bag, and the pot holds the green 2 on the green 1's
+  # space until the round's chips go back (`PotComponents.held/2`).
   defp motion("swap") do
-    g = motion_pot()
-    drawn = Enum.map(g.players[0].drawn, &swap_green/1)
-    {g, put(g, 0, drawn: drawn), false}
-  end
-
-  # The purple book IV: the green 1 leaves the pot, a green 2 goes to the bag (by
-  # hand, with the engine's log entry, which tells the pot what it became).
-  defp motion("upgrade") do
     g = motion_pot()
     p = g.players[0]
 
@@ -583,9 +578,6 @@ defmodule QuacksWeb.Gallery.Fixtures do
     whites = for {{:white, _}, _} = d <- p.drawn, do: d
     {g, put(g, 0, drawn: p.drawn -- whites, bag: Enum.map(whites, &elem(&1, 0)) ++ p.bag), false}
   end
-
-  defp swap_green({{:green, 1}, index}), do: {{:green, 2}, index}
-  defp swap_green(drawn), do: drawn
 
   @doc "The score track: players and a VP spread (`early`, `tied`, `above-50`, `big-gaps`)."
   @spec track_story(map) :: map
