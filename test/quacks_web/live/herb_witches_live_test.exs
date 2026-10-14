@@ -138,6 +138,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
         {:witch, :copper, {:upgrade, [chip, {:red, 2}]}},
         {:witch, :copper, {:buy, [chip], chip}},
         :witch_done,
+        :skip_upgrade,
         {:chip, :yellow_ruby},
         {:chip, {:starter, chip}},
         {:chip, {:buy, [chip, {:locoweed, 1}]}},

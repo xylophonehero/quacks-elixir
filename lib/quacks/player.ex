@@ -13,7 +13,8 @@ defmodule Quacks.Player do
   `:stopped` is a soft stop: the player waits and may `:resume` while another player
   still brews (not in round 9). `done?` is true once the stop is final or the
   explosion is resolved this round (`phase == :done`). In `:shopping` the phase is
-  `:shop` (buy once, rubies, `:end_round`) → `:ready`; `bought?` is true once the
+  `:shop` (buy once, rubies, `:end_round`) → `:ready`, with `:upgrade` (the copper
+  witch C1, or `:skip_upgrade`) before `:shop` when C1 can help; `bought?` is true once the
   seat bought (or bought nothing).
   Round 9 "Stir!" (2+ players): `pending_choice` holds the seat's `:draw` or `:stop`
   for the next step while it waits (`:waiting_stir`) for the other brewing seats.
@@ -101,6 +102,7 @@ defmodule Quacks.Player do
           | :ear_worm
           | :stopped
           | :done
+          | :upgrade
           | :shop
           | :ready
   @typedoc "A chip in the pot and the 0..53 space it sits on."

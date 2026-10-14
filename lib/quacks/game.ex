@@ -11,7 +11,8 @@ defmodule Quacks.Game do
   `phase`; `:stop` only marks a player `:stopped`, and they may `:resume` while
   someone else still brews), then — as soon as nobody brews any more — the evaluation
   runs inside `apply/3` and the game moves to `:shopping`, where every seat acts at
-  the same time in its own sub-phase (`:shop` → `:ready`). Ingredient books with a
+  the same time in its own sub-phase (`:upgrade` → `:shop` → `:ready`; `:upgrade`
+  only when the copper witch C1 can help the seat). Ingredient books with a
   choice in the evaluation (G2, G4, P2, P4) put the game in `:chip_choice` first,
   where every seat with a choice answers at the same time (`Quacks.Game.Evaluation`).
   Round 9 is "Stir!" (2+ players): every brewing seat picks `:draw` or `:stop` for
@@ -164,6 +165,7 @@ defmodule Quacks.Game do
           | {:rubies, :droplet | :tube | :flask | :vp | :skip}
           | {:droplet, :pot | :tube}
           | :end_round
+          | :skip_upgrade
           | {:fortune, fortune_choice}
           | {:red, {:place | :keep | :return, Chips.chip()}}
           | {:chip, chip_choice}
@@ -518,7 +520,8 @@ defmodule Quacks.Game do
 
   @doc """
   The phase `seat` sees: `:droplet_choice` while droplet moves wait for its choice,
-  else their own state in `:potions`, `:essence` and `:shopping` (`:shop`, `:ready`),
+  else their own state in `:potions`, `:essence` and `:shopping` (`:upgrade`, `:shop`,
+  `:ready`),
   or the game's phase.
   """
   @spec phase(t, seat) :: phase | Player.phase() | :droplet_choice
@@ -626,8 +629,13 @@ defmodule Quacks.Game do
   # ("buy nothing" stays legal). Witches in both. Round 35: the ruby uses are legal
   # in the buy step too (rulebook F after E, but coins and rubies do not pay for each
   # other's step): the page asks for them before the round's last results step.
+  # Round 45: before them the copper witch C1's own step (`:upgrade`): upgrade or
+  # `:skip_upgrade`; the ruby uses (and G4) are legal there too, for the same reason.
   defp phase_actions(%__MODULE__{phase: :shopping} = g, seat) do
     case player(g, seat) do
+      %Player{phase: :upgrade} = p ->
+        Witches.legal_actions(g, seat) ++ ruby_actions(g, p) ++ [:skip_upgrade]
+
       %Player{phase: :shop} = p ->
         may_buy? = may_buy?(g, p)
         buys = if may_buy?, do: buys(g, p.coins), else: []
@@ -743,6 +751,9 @@ defmodule Quacks.Game do
 
   defp step(%{phase: :witch_choice} = g, seat, :witch_done),
     do: Witches.step(g, seat, :witch_done)
+
+  defp step(%{phase: :shopping} = g, seat, :skip_upgrade),
+    do: Witches.step(g, seat, :skip_upgrade)
 
   # -- shopping: every seat at once, all in one step ----------------------------------
 
@@ -1080,10 +1091,13 @@ defmodule Quacks.Game do
   # Open the shop for every seat at once, in one step (`:shop`): buy once, spend
   # rubies, end. ponytail: round 9 has no buy; chips bought now are useless (§7).
   # Coins stay on the player and convert to VP at the seat's `:end_round`.
+  # Round 45: a seat the copper witch C1 can help starts in `:upgrade`.
   @doc false
   def to_shop(%__MODULE__{} = g) do
     Enum.reduce(g.seats, %{g | phase: :shopping}, fn seat, g ->
-      update_player(g, seat, &%{&1 | phase: :shop})
+      g
+      |> update_player(seat, &%{&1 | phase: :shop})
+      |> Witches.open_upgrade(seat)
     end)
   end
 

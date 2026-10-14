@@ -86,6 +86,8 @@ defmodule Quacks.AI do
   defp choose(:shop, ctx, rng),
     do: {free_visit(ctx) || Shop.pick(ctx.game, ctx.seat, ctx.profile, ctx.legal), rng}
 
+  defp choose(:upgrade, ctx, rng), do: {upgrade(ctx), rng}
+
   defp choose(:patient_choice, ctx, rng), do: {patient(ctx.legal), rng}
   defp choose(:essence_choice, ctx, rng), do: {Enum.max_by(ctx.legal, &space/1), rng}
   defp choose(:essence_bonus, ctx, rng), do: {essence_bonus(ctx), rng}
@@ -99,6 +101,18 @@ defmodule Quacks.AI do
     do: if({:witch, :visit} in legal, do: {:witch, :visit})
 
   defp free_visit(_ctx), do: nil
+
+  # Round 45: the copper witch C1's step before the shop: the upgrade worth the most
+  # (`Choice.value/4`: the chips gained, less the penny), when it gains; else skip.
+  # The rubies wait for the shop.
+  defp upgrade(%{game: game, seat: seat, profile: profile, legal: legal}) do
+    legal
+    |> Enum.filter(&match?({:witch, _, {:upgrade, _}}, &1))
+    |> Enum.map(&{&1, Choice.value(&1, game, seat, profile)})
+    |> Enum.filter(fn {_call, value} -> value > 0 end)
+    |> Enum.max_by(&elem(&1, 1), fn -> {:skip_upgrade, 0} end)
+    |> elem(0)
+  end
 
   # -- potions: draw or stop ----------------------------------------------------------
 

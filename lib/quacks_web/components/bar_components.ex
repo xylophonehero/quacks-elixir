@@ -22,7 +22,7 @@ defmodule QuacksWeb.BarComponents do
   alias Phoenix.LiveView.JS
   alias Quacks.AI.Odds
   alias Quacks.{Game, Player}
-  alias Quacks.Game.{Fortune, Potions}
+  alias Quacks.Game.{Fortune, Potions, Witches}
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
 
   @doc """
@@ -366,7 +366,15 @@ defmodule QuacksWeb.BarComponents do
   attr :choice, :atom,
     required: true,
     values:
-      [:explosion_choice, :rubies, :fortune_choice, :chip_choice, :droplet_choice, :essence_bonus] ++
+      [
+        :explosion_choice,
+        :rubies,
+        :fortune_choice,
+        :chip_choice,
+        :droplet_choice,
+        :essence_bonus,
+        :upgrade
+      ] ++
         @pick_choices
 
   attr :actions, :list, required: true
@@ -385,6 +393,10 @@ defmodule QuacksWeb.BarComponents do
   attr :selected, :list,
     default: [],
     doc: "round 39: Ghost's breath V's ticked chips (`:chip_choice`)"
+
+  attr :upgraded, :list,
+    default: nil,
+    doc: "round 45: the C1 upgrade just made, `[{from, to}]`, while the pot shows it (`:upgrade`)"
 
   def bar_choice(%{choice: :explosion_choice} = assigns) do
     space = PotTrack.at(Player.scoring_index(assigns.me))
@@ -760,6 +772,99 @@ defmodule QuacksWeb.BarComponents do
           <:icon :if={item.icon}><.chip_item_icon icon={item.icon} /></:icon>
         </.choice_button>
       </.chip_row>
+    </section>
+    """
+  end
+
+  # Round 45 (Nick): the copper witch C1's own step before the shop, so the pot
+  # chips are in view. The chips she can upgrade glow in the pot (`pot_targets/1`);
+  # a tap upgrades that chip. A chip that is also one of the last 2 (when both may
+  # go up) asks first, here: only this chip, or the last 2 (`@pot_pick`). Skip
+  # keeps the penny. After the tap (`@upgraded`) the pot shows the bigger chip a
+  # moment, then the shop opens.
+  def bar_choice(%{choice: :upgrade} = assigns) do
+    calls = Enum.filter(assigns.actions, &match?({:witch, _, {:upgrade, _}}, &1))
+    picked = Enum.filter(calls, &(assigns.pot_pick in pot_chips(&1)))
+    visit? = Enum.any?(calls, &match?({:witch, :visit, _}, &1))
+
+    assigns =
+      assign(assigns,
+        visit?: visit? or (calls == [] and assigns.game.visitor == :c1),
+        picked: if(picked != [], do: assigns.pot_pick),
+        options: Enum.map(picked, &upgrade_option(&1, assigns.game, assigns.me))
+      )
+
+    ~H"""
+    <section
+      id={"bar-upgrade-#{@game.round}"}
+      class="bar-choice flex flex-col gap-1.5"
+      aria-label="Copper witch: upgrade chips in your pot"
+      data-role="bar-upgrade"
+    >
+      <.info_row id="info-upgrade">
+        <:icon><.piece_icon name={:witch} class="size-5 text-penny-copper" /></:icon>
+        <span class="block truncate" data-role="info-title">
+          {if @visit?, do: "Visiting witch: Upgrade", else: "Copper witch: Upgrade"}
+        </span>
+        <span
+          :if={is_nil(@upgraded) and !@picked}
+          class="block truncate text-xs font-normal text-parchment-dim"
+          data-role="tap-pot"
+        >
+          Tap a glowing chip: it goes up one level
+        </span>
+        <span
+          :if={is_nil(@upgraded) and @picked}
+          class="block truncate text-xs font-normal text-parchment-dim"
+          data-role="pot-picked"
+        >
+          {chip_name(@picked)}: this chip only, or the last 2 chips?
+        </span>
+        <span
+          :if={@upgraded}
+          class="block truncate text-xs font-normal text-parchment-dim"
+          data-role="upgraded"
+        >
+          Into your bag: {Enum.map_join(@upgraded, " + ", &chip_name(elem(&1, 1)))}
+        </span>
+      </.info_row>
+      <div
+        :if={is_nil(@upgraded)}
+        class="flex min-h-12 gap-1.5 *:min-h-12 *:min-w-0 *:flex-1 *:touch-manipulation"
+      >
+        <.choice_button
+          :for={o <- @options}
+          action={o.action}
+          label={o.label}
+          title={o.title}
+          hint={o.hint}
+          data-role="upgrade-option"
+          data-choice={o.kind}
+        >
+          <:icon><.chip_item_icon icon={{:chips, o.chips, o.arrow?}} /></:icon>
+        </.choice_button>
+        <.button
+          :if={@picked}
+          phx-click="pot_pick"
+          variant={:secondary}
+          class="flex-none! px-4"
+          data-role="pot-pick-back"
+        >
+          Back
+        </.button>
+        <.button
+          :if={!@picked}
+          phx-click="action"
+          phx-value-action={encode(:skip_upgrade)}
+          disabled={:skip_upgrade not in @actions}
+          variant={:secondary}
+          class="px-4"
+          aria-label={if @visit?, do: "Skip the upgrade", else: "Skip the upgrade, keep the penny"}
+          data-role="upgrade-skip"
+        >
+          {if @visit?, do: "Skip", else: "Skip, keep the penny"}
+        </.button>
+      </div>
     </section>
     """
   end
@@ -1146,6 +1251,26 @@ defmodule QuacksWeb.BarComponents do
   defp option_chip({:chip, {:upgrade, _from, to}}), do: to
   defp option_chip(action), do: hd(pick_chips(action))
 
+  # One answer for the tapped chip: this chip only, or the last 2 chips (each with
+  # what it becomes).
+  defp upgrade_option({:witch, _from, {:upgrade, chips}} = action, game, me) do
+    one? = length(chips) == 1
+
+    %{
+      action: action,
+      kind: if(one?, do: "one", else: "last-two"),
+      chips:
+        if(one?,
+          do: [hd(chips), Witches.upgrade(hd(chips))],
+          else: Enum.map(chips, &Witches.upgrade/1)
+        ),
+      arrow?: one?,
+      title: if(one?, do: "This one", else: "Last 2"),
+      hint: Enum.map_join(chips, " + ", &chip_name(Witches.upgrade(&1))),
+      label: action_label(action, game, me)
+    }
+  end
+
   @doc """
   Round 36: the choices about a chip already in the pot: the player taps that
   chip (`pot_targets/1`). P4 swaps a pot chip, locoweed V returns one, an
@@ -1154,11 +1279,17 @@ defmodule QuacksWeb.BarComponents do
   def pot_action?({:chip, {:upgrade, _from, _to}}), do: true
   def pot_action?({:chip, {:return, _chip}}), do: true
   def pot_action?({:essence, {:swap, _chip}}), do: true
+  # Round 45: the copper witch C1 (own or visiting) upgrades pot chips.
+  def pot_action?({:witch, _from, {:upgrade, _chips}}), do: true
   def pot_action?(_action), do: false
 
   @doc false
   def pot_chip({:chip, {:upgrade, from, _to}}), do: from
   def pot_chip({_kind, {_verb, chip}}), do: chip
+
+  @doc "The pot chips a pot action is about (C1's last 2: both)."
+  def pot_chips({:witch, _from, {:upgrade, chips}}), do: Enum.uniq(chips)
+  def pot_chips(action), do: [pot_chip(action)]
 
   @doc """
   Round 33: the info row, the bar's second context row. It sits where the white

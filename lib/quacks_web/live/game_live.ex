@@ -120,7 +120,7 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.ScenarioComponents
 
   alias Quacks.{Game, GameServer, Player}
-  alias Quacks.Game.Fortune
+  alias Quacks.Game.{Fortune, Witches}
   alias Quacks.Rules.Books
   alias QuacksWeb.{BarComponents, Replay, Reveal, TileReveal, Tips}
 
@@ -170,6 +170,7 @@ defmodule QuacksWeb.GameLive do
            risk: :percent,
            reduced: false,
            rubies_kept: nil,
+           upgrade_fx: nil,
            tips: nil
          )
          |> attach_hook(:tips, :handle_event, &tip_closer/3)
@@ -669,6 +670,12 @@ defmodule QuacksWeb.GameLive do
 
   def handle_info(:auto_done, socket), do: {:noreply, auto_done(socket, true)}
 
+  # Round 45: the copper witch's upgrade has shown in the pot; the shop opens.
+  def handle_info({:upgrade_done, ref}, %{assigns: %{upgrade_fx: %{ref: ref}}} = socket),
+    do: {:noreply, socket |> assign(upgrade_fx: nil) |> put_game(socket.assigns.game)}
+
+  def handle_info({:upgrade_done, _ref}, socket), do: {:noreply, socket}
+
   def handle_info(:uncopied, socket), do: {:noreply, assign(socket, copied: false)}
 
   # Auto mode: the slide's time is up (a stale tick, from a slide left before, is
@@ -839,7 +846,12 @@ defmodule QuacksWeb.GameLive do
   defp play(socket, seat, action) do
     case GameServer.apply(socket.assigns.id, seat, action) do
       {:ok, game} ->
-        {:noreply, socket |> put_game(game) |> close_card_reveal(action) |> done_after(action)}
+        {:noreply,
+         socket
+         |> start_upgrade(action)
+         |> put_game(game)
+         |> close_card_reveal(action)
+         |> done_after(action)}
 
       {:error, {:illegal_action, action, _phase}} ->
         {:noreply, put_flash(socket, :error, "#{label(action)} is not allowed right now.")}
@@ -878,6 +890,9 @@ defmodule QuacksWeb.GameLive do
     buy = {:buy, selected}
     if buy in actions, do: buy
   end
+
+  # Round 45: the copper witch's step has no one primary button (Skip is not it).
+  defp enter_action(%{decision: :upgrade}), do: nil
 
   defp enter_action(%{decision: :rubies, all_actions: actions}),
     do: if(not ruby_options?(actions) and :end_round in actions, do: :end_round)
@@ -1256,8 +1271,9 @@ defmodule QuacksWeb.GameLive do
           <div class="pot-box flex min-h-0 flex-1 items-start justify-center lg:items-center">
             <div class="pot-square pot-hearth relative" data-role="pot-area">
               <.pot
-                game={@game}
+                game={pot_game(assigns)}
                 seat={@seat || 0}
+                grow={pot_grow(assigns)}
                 class="block size-full"
                 rings={rings(@game)}
                 flask={@me && if(@me.flask, do: :full, else: :empty)}
@@ -1268,6 +1284,13 @@ defmodule QuacksWeb.GameLive do
                 fx_key={if tiles_playing?(@reveal), do: "s#{@reveal.index}-", else: ""}
                 bagged={bagged?(assigns)}
                 targets={pot_targets(assigns)}
+              />
+              <%!-- Round 45: the copper witch's upgrade: each bigger chip's sound. --%>
+              <.sound_cue
+                :for={{{_from, to}, i} <- Enum.with_index((@upgrade_fx && @upgrade_fx.chips) || [])}
+                id={"sound-upgrade-#{@game.round}-#{i}"}
+                sound={QuacksWeb.Sounds.pot_sound(to, nil)}
+                delay={120 + 160 * i}
               />
               <%!-- Round 31: the game's end lies over the pot: the score chart. --%>
               <QuacksWeb.FinalComponents.final_board
@@ -1834,6 +1857,7 @@ defmodule QuacksWeb.GameLive do
             seat={@seat}
             pot_pick={@pot_pick}
             selected={@selected}
+            upgraded={@upgrade_fx && @upgrade_fx.chips}
           />
           <%!-- Round 40: from 64rem the crow skull's choice is in the context
                column, so Stop and Draw (disabled) stay here. --%>
@@ -2204,13 +2228,32 @@ defmodule QuacksWeb.GameLive do
       risk: :percent,
       reduced: false,
       rubies_kept: nil,
+      upgrade_fx: nil,
       tips: nil
     )
     |> new_report()
     |> assign_table(table)
     |> put_game(game)
+    |> preview_upgrade(opts)
     |> preview_step(opts[:step])
     |> preview_open()
+  end
+
+  # Round 45: the copper witch's step with a chip tapped (`pot_pick`), or the
+  # moment after the upgrade (`upgrade`: the C1 action; it stays on show).
+  defp preview_upgrade(socket, opts) do
+    case Keyword.take(opts, [:pot_pick, :upgrade]) do
+      [pot_pick: chip] ->
+        assign(socket, pot_pick: chip)
+
+      [upgrade: {:witch, _, {:upgrade, chips}} = action] ->
+        %{game: game, seat: seat, me: me} = socket.assigns
+        {:ok, after_call} = Game.apply(game, seat, action)
+        socket |> put_upgrade_fx(me, chips, nil) |> put_game(after_call)
+
+      _none ->
+        socket
+    end
   end
 
   # As on the page, a waiting decision opens once no reveal plays (`close_reveal/1`).
@@ -2271,10 +2314,67 @@ defmodule QuacksWeb.GameLive do
         (socket.assigns[:card_grown] == true and same_round?(socket.assigns[:game], game)) or
           chose_card?(socket.assigns, decision, game)
     )
+    |> hold_upgrade()
     |> open_reveal()
     |> resume_reveal()
     |> card_vt(was)
   end
+
+  # Round 45: how long the pot shows the copper witch's upgrade before the shop.
+  @upgrade_ms Application.compile_env(:quacks, :upgrade_ms, 900)
+
+  # Round 45: a C1 upgrade from this page: the pot keeps the chips a moment, the
+  # chosen ones already the bigger chips (`upgrade_fx/3`), then the shop opens.
+  defp start_upgrade(%{assigns: %{me: %Player{} = me}} = socket, {:witch, _, {:upgrade, chips}}) do
+    ref = make_ref()
+    Process.send_after(self(), {:upgrade_done, ref}, @upgrade_ms)
+    put_upgrade_fx(socket, me, chips, ref)
+  end
+
+  defp start_upgrade(socket, _action), do: socket
+
+  defp put_upgrade_fx(socket, me, chips, ref) do
+    fx = Map.merge(upgrade_fx(me, chips), %{ref: ref, round: socket.assigns.game.round})
+    assign(socket, upgrade_fx: fx)
+  end
+
+  @doc false
+  # The pot after a C1 upgrade, for its moment on show: each chosen chip (the
+  # newest of its kind, as the engine takes it) is the bigger chip in its place.
+  # `grow`: their orders in `drawn` (0 = newest); `chips`: `[{from, to}]`.
+  def upgrade_fx(%Player{drawn: drawn}, chips) do
+    {drawn, grow} =
+      Enum.reduce(chips, {drawn, []}, fn chip, {drawn, grow} ->
+        i =
+          drawn
+          |> Enum.with_index()
+          |> Enum.find_value(fn {{c, _space}, i} -> if c == chip and i not in grow, do: i end)
+
+        {List.update_at(drawn, i, fn {_c, space} -> {Witches.upgrade(chip), space} end),
+         [i | grow]}
+      end)
+
+    %{drawn: drawn, grow: grow, chips: Enum.map(chips, &{&1, Witches.upgrade(&1)})}
+  end
+
+  # While the upgrade shows, the seat's step stays the copper witch's (no shop yet).
+  defp hold_upgrade(
+         %{assigns: %{upgrade_fx: %{round: round}, game: %Game{round: round, phase: :shopping}}} =
+           socket
+       ),
+       do: assign(socket, decision: :upgrade, bar_choice: :upgrade, actions: [], pot_pick: nil)
+
+  defp hold_upgrade(%{assigns: %{upgrade_fx: %{}}} = socket), do: assign(socket, upgrade_fx: nil)
+  defp hold_upgrade(socket), do: socket
+
+  # The game the pot draws: during the upgrade's moment, with the bigger chips.
+  defp pot_game(%{upgrade_fx: %{drawn: drawn}, game: game, seat: seat}) when is_integer(seat),
+    do: update_in(game.players[seat], &%{&1 | drawn: drawn})
+
+  defp pot_game(%{game: game}), do: game
+
+  defp pot_grow(%{upgrade_fx: %{grow: grow}}), do: grow
+  defp pot_grow(_assigns), do: []
 
   defp kept_selection(
          %{game: %Game{} = old, selected: [_ | _] = selected} = assigns,
@@ -2779,6 +2879,8 @@ defmodule QuacksWeb.GameLive do
   # Round 33: the chip actions and the droplet's free move too, with an info row.
   defp bar_choice(:chip_choice, _actions), do: :chip_choice
   defp bar_choice(:droplet_choice, _actions), do: :droplet_choice
+  # Round 45: the copper witch C1's step: a tap on the pot chip.
+  defp bar_choice(:upgrade, _actions), do: :upgrade
   # Round 36: Chicken eyes' swap is a tap on the pot chip (the sheet covered the pot).
   defp bar_choice(:essence_bonus, actions),
     do: if(Enum.any?(actions, &match?({:essence, {:swap, _}}, &1)), do: :essence_bonus)
@@ -3036,6 +3138,7 @@ defmodule QuacksWeb.GameLive do
   defp close_label(%{key: {:card, _}}, _decision, _skip), do: "Continue"
   defp close_label(%{key: {:recap, _}}, _decision, _skip), do: "Next round"
   defp close_label(_reveal, :shop, _skip), do: "To the shop"
+  defp close_label(_reveal, :upgrade, _skip), do: "Copper witch"
   defp close_label(_reveal, :rubies, _skip), do: "Spend rubies"
   defp close_label(_reveal, :droplet_choice, _skip), do: "Move the droplet"
 
@@ -3201,7 +3304,7 @@ defmodule QuacksWeb.GameLive do
 
   # Round 36: the pot chip picked for its choices, while it still has them.
   defp pot_pick(actions, chip) do
-    if chip && Enum.any?(actions, &(pot_action?(&1) and pot_chip(&1) == chip)), do: chip
+    if chip && Enum.any?(actions, &(pot_action?(&1) and chip in pot_chips(&1))), do: chip
   end
 
   # Round 36: the pot chips the open choice is about (`pot_action?/1`), for the
@@ -3211,25 +3314,30 @@ defmodule QuacksWeb.GameLive do
     assigns
     |> pot_choice_actions()
     |> Enum.filter(&pot_action?/1)
-    |> Enum.group_by(&pot_chip/1)
+    |> Enum.flat_map(fn action -> for chip <- pot_chips(action), do: {chip, action} end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
     |> Map.new(fn
       {chip, [action]} ->
         {chip, %{event: "action", value: encode(action), label: action_label(action, game, me)}}
 
-      {chip, _actions} ->
-        {chip,
-         %{event: "pot_pick", value: encode(chip), label: "#{chip_name(chip)}: choose its swap"}}
+      {chip, actions} ->
+        {chip, %{event: "pot_pick", value: encode(chip), label: pick_label(chip, actions)}}
     end)
   end
 
   defp pot_targets(_assigns), do: %{}
+
+  defp pick_label(chip, [{:witch, _, {:upgrade, _}} | _]),
+    do: "#{chip_name(chip)}: upgrade it, or the last 2 chips"
+
+  defp pick_label(chip, _actions), do: "#{chip_name(chip)}: choose its swap"
 
   # The actions of the bar's open choice (the same list the bar shows).
   defp pot_choice_actions(assigns) do
     cond do
       tile_hold(assigns) == :chip_choice -> step_chip_actions(assigns)
       tiles_playing?(assigns.reveal) or Game.over?(assigns.game) -> []
-      assigns.bar_choice in [:chip_choice, :essence_bonus] -> assigns.all_actions
+      assigns.bar_choice in [:chip_choice, :essence_bonus, :upgrade] -> assigns.all_actions
       true -> []
     end
   end

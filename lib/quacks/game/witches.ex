@@ -10,17 +10,19 @@ defmodule Quacks.Game.Witches do
 
   - **silver**, potions phase: S2 (draw 6) and S3 (whites back) while brewing, S1
     (flask) and S4 (no penalty) in the explosion choice;
-  - **copper**, shop: in the seat's `:shop` sub-phase of `:shopping`, before it buys
-    (C2 and C4 also in round 9, before the coins become VP);
+  - **copper**, shop: C1 (upgrade) in the seat's own `:upgrade` sub-phase of
+    `:shopping`, before the shop (round 45: the pot chips are still in view there;
+    `:skip_upgrade` passes); C2–C4 in the `:shop` sub-phase, before it buys (C2 and
+    C4 also in round 9, before the coins become VP);
   - **gold**, evaluation: G1–G3 in the game phase `:witch_choice` (after step B, before
-    steps C/D; every seat she helps at the same time), G4 in the `:shop` sub-phase
-    before round 9.
+    steps C/D; every seat she helps at the same time), G4 in the `:upgrade` and `:shop`
+    sub-phases before round 9.
 
   Actions: `{:witch, colour}` calls a witch that needs no choice; `{:witch, colour,
   choice}` calls one with a choice (S3 `1 | 2`, C1 `{:upgrade, chips}`, C3 `{:buy,
   chips, copy}`). S2's offer is placed with `{:witch, :silver, {:place, chip}}` and
   ended with `{:witch, :silver, :return_all}` (the penny is already spent then).
-  `:witch_done` passes in `:witch_choice`. Every call logs `{seat, {:witch, id,
+  `:witch_done` passes in `:witch_choice`, `:skip_upgrade` in `:upgrade`. Every call logs `{seat, {:witch, id,
   outcome}}`.
 
   AB8 Visit from a witch (`docs/research/alchemists-fortune-cards.md` §6): when the
@@ -47,6 +49,10 @@ defmodule Quacks.Game.Witches do
 
   # G1: VP by the number of different colours in the pot (white not counted).
   @g1 %{1 => 3, 2 => 3, 3 => 3, 4 => 3, 5 => 4, 6 => 7, 7 => 10, 8 => 14}
+
+  @doc "C1: the chip one level up from `chip` (nil: C1 cannot upgrade it)."
+  @spec upgrade(Quacks.Rules.Chips.chip()) :: Quacks.Rules.Chips.chip() | nil
+  def upgrade(chip), do: @upgrade[chip]
 
   @doc "Every witch action `seat` may take now (`[]` in the base game)."
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
@@ -110,8 +116,8 @@ defmodule Quacks.Game.Witches do
   defp now?(%{phase: :potions}, _seat, p, :silver),
     do: p.phase in [:potions, :explosion_choice] and p.witch_offer == []
 
-  defp now?(%{phase: :shopping}, _seat, %{phase: :shop}, colour)
-       when colour in [:copper, :gold],
+  defp now?(%{phase: :shopping}, _seat, %{phase: phase}, colour)
+       when colour in [:copper, :gold] and phase in [:upgrade, :shop],
        do: true
 
   defp now?(%{phase: :witch_choice}, _seat, %{phase: :witch_choice}, :gold), do: true
@@ -134,8 +140,12 @@ defmodule Quacks.Game.Witches do
 
   defp actions(_g, %{phase: :explosion_choice}, :s4), do: [{:witch, :silver}]
 
-  # C1 and C3 belong to the buy; C2 and C4 too, and in round 9 before the conversion.
-  defp actions(g, p, id) when id in [:c1, :c2, :c3, :c4] do
+  # Round 45: C1 has her own step before the shop (`:upgrade`), where the pot is in view.
+  defp actions(g, %{phase: :upgrade} = p, :c1),
+    do: if(Game.shop_open?(g, p), do: copper(g, p, :c1), else: [])
+
+  # C3 belongs to the buy; C2 and C4 too, and in round 9 before the conversion.
+  defp actions(g, %{phase: :shop} = p, id) when id in [:c2, :c3, :c4] do
     if Game.shop_open?(g, p) or (g.round == 9 and id in [:c2, :c4]),
       do: copper(g, p, id),
       else: []
@@ -144,8 +154,12 @@ defmodule Quacks.Game.Witches do
   defp actions(%{phase: :witch_choice} = g, p, id) when id in [:g1, :g2, :g3],
     do: if(gold_gain(g, p, id) > 0, do: [{:witch, :gold}], else: [])
 
-  # G4 cheapens droplet and flask, which round 9 no longer offers.
-  defp actions(%{round: round}, %{phase: :shop}, :g4) when round < 9, do: [{:witch, :gold}]
+  # G4 cheapens droplet and flask, which round 9 no longer offers. The rubies are
+  # legal in `:upgrade` too (the results' rubies step), so she is.
+  defp actions(%{round: round}, %{phase: phase}, :g4)
+       when round < 9 and phase in [:upgrade, :shop],
+       do: [{:witch, :gold}]
+
   defp actions(_g, _p, _id), do: []
 
   defp copper(g, p, :c1),
@@ -190,9 +204,26 @@ defmodule Quacks.Game.Witches do
   defp gold_done(g, seat),
     do: g |> Game.update_player(seat, &%{&1 | phase: :done}) |> close_gold()
 
+  @doc """
+  Round 45: the copper witch C1 (own or visiting) has her own step before the shop.
+  A seat she can help now starts the shop in `:upgrade` (C1 or `:skip_upgrade`,
+  then `:shop`); every other seat starts in `:shop`.
+  """
+  @spec open_upgrade(Game.t(), Game.seat()) :: Game.t()
+  def open_upgrade(%{witches: nil} = g, _seat), do: g
+
+  def open_upgrade(g, seat) do
+    asked = Game.update_player(g, seat, &%{&1 | phase: :upgrade})
+    if Enum.any?(legal_actions(asked, seat), &upgrade?/1), do: asked, else: g
+  end
+
+  defp upgrade?({:witch, _colour, {:upgrade, _chips}}), do: true
+  defp upgrade?(_action), do: false
+
   @doc "Apply one legal witch action for `seat`. The action is already logged."
   @spec step(Game.t(), Game.seat(), Game.action()) :: Game.t()
   def step(g, seat, :witch_done), do: gold_done(g, seat)
+  def step(g, seat, :skip_upgrade), do: to_shop(g, seat)
 
   # S2's offer: one chip goes in the pot with its action. An explosion ends the offer.
   def step(g, seat, {:witch, :silver, {:place, chip}}) do
@@ -295,6 +326,7 @@ defmodule Quacks.Game.Witches do
   end
 
   # C1: each chip leaves the pot for the supply; the next level up goes in the bag.
+  # Then the seat's shop opens.
   defp call(g, seat, :c1, {:upgrade, chips}) do
     chips
     |> Enum.reduce(g, fn chip, g ->
@@ -304,6 +336,7 @@ defmodule Quacks.Game.Witches do
       |> Game.add_from_supply(seat, @upgrade[chip])
     end)
     |> log(seat, :c1, {:upgrade, chips})
+    |> to_shop(seat)
   end
 
   # C3: buy `chips` and take one more `copy` for free; the seat's buying ends.
@@ -362,6 +395,8 @@ defmodule Quacks.Game.Witches do
     g = Game.update_player(g, seat, &%{&1 | witch_offer: []})
     Enum.reduce(offer, g, &Potions.return_to_bag(&2, seat, &1))
   end
+
+  defp to_shop(g, seat), do: Game.update_player(g, seat, &%{&1 | phase: :shop})
 
   defp log(g, seat, id, outcome), do: Game.record(g, seat, {:witch, id, outcome})
 end

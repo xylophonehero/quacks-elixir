@@ -493,6 +493,23 @@ defmodule QuacksWeb.Gallery.Stories do
           {"gold-g1", "Gold G1 in the gold choice", %{"witch" => "g1"}}
         ]
       ),
+      screen(
+        "upgrade",
+        "Copper witch: Upgrade (C1)",
+        [
+          int("players", 1, 8, 2),
+          enum("state", ~w(one last_two picked upgraded visit), "one"),
+          names
+        ],
+        &Fixtures.upgrade_screen/1,
+        presets: [
+          {"last-two", "The last 2 may go up", %{"state" => "last_two"}},
+          {"picked", "Tapped: this chip or the last 2", %{"state" => "picked"}},
+          {"upgraded", "Upgraded: the bigger chips", %{"state" => "upgraded"}},
+          {"visit", "Visiting witch (no penny)", %{"state" => "visit"}},
+          {"8p", "8 long names", %{"players" => 8, "long_names" => true}}
+        ]
+      ),
       screen("over", "Game over", [int("players", 1, 8, 4), names], &Fixtures.over_screen/1)
     ]
   end

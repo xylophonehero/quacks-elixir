@@ -1,7 +1,8 @@
 defmodule Quacks.AI.Choice do
   @moduledoc """
   A static scorer for the choices of `choice_rule: :scored` (`docs/research/jev-plan.md`
-  §4): fortune cards, chip choices (Sets 2–6), the gold witch and the essence space.
+  §4): fortune cards, chip choices (Sets 2–6), the gold witch, the copper witch C1's
+  upgrade and the essence space.
   Every option gets a value in VP from one table, and the bot takes the highest; a
   pass (`:skip`, `:chip_done`, `:witch_done`, `:return_all`) is worth 0.
 
@@ -17,7 +18,7 @@ defmodule Quacks.AI.Choice do
   alias Quacks.Game.Potions
   alias Quacks.Rules.Chips
 
-  # The P13 upgrades (`Quacks.Game.Fortune`).
+  # The P13 upgrades (`Quacks.Game.Fortune`), also the copper witch C1's.
   @upgrade %{
     {:green, 1} => {:green, 2},
     {:green, 2} => {:green, 4},
@@ -57,6 +58,20 @@ defmodule Quacks.AI.Choice do
   def value({:fortune, choice}, game, seat, profile), do: fortune(choice, game, seat, profile)
   def value({:chip, choice}, game, seat, profile), do: chip(choice, game, seat, profile)
   def value({:witch, :gold}, _game, _seat, _profile), do: 1.0
+
+  # Round 45: C1 upgrades pot chips; her penny is 2 VP at the end (a visit is free).
+  def value({:witch, from, {:upgrade, chips}}, game, _seat, profile) do
+    gain =
+      Enum.sum(
+        Enum.map(
+          chips,
+          &(worth(@upgrade[&1], game.round, profile) - worth(&1, game.round, profile))
+        )
+      )
+
+    if from == :visit, do: gain, else: gain - 2
+  end
+
   # AB8: the visiting witch costs no penny.
   def value({:witch, :visit}, _game, _seat, _profile), do: 2.0
   def value({:essence, {:space, n}}, _game, _seat, _profile), do: n
