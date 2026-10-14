@@ -18,6 +18,10 @@ Only CC0 sources. `QuacksWeb.Sounds` is the manifest.
 | `chip-black-1.m4a` | K2 synth flutter. Own synthesis (numpy/scipy, sounds-v2 `designs.py`); no third-party source | none needed |
 | `chip-locoweed-1.m4a`, `chip-locoweed-2.m4a`, `chip-locoweed-3.m4a`, `chip-locoweed-4.m4a`, `chip-locoweed-5.m4a`, `chip-locoweed-6.m4a` | LW2 dry herb crackle, one file per space the locoweed moves (1 to 6; `QuacksWeb.Sounds.pot_sound/3`). Own synthesis (numpy/scipy, sounds-v2 `designs.py`); no third-party source | none needed |
 | `fortune.m4a` | CB3 mystic swell (the crystal ball). Own synthesis (numpy/scipy, sounds-v2 `designs.py`); no third-party source | none needed |
+| `shuffle-sh1.m4a` | SH1 (round 45, the game's chip shuffle): freesound 546121, el_boss, "Board Start.mp3" (wooden pieces scattered on a board), https://freesound.org/people/el_boss/sounds/546121/ | CC0 (https://creativecommons.org/publicdomain/zero/1.0/) |
+| `shuffle-sh2.m4a` | SH2 (round 45, candidate): Kenney Casino Audio `chips-handle-4`, `chips-handle-6`, `chips-collide-2` (https://kenney.nl/assets/casino-audio) | CC0 |
+| `shuffle-sh3.m4a` | SH3 (round 45, candidate): freesound 817567, SilverDubloons, "clatter10" (clay chips on wood), https://freesound.org/people/SilverDubloons/sounds/817567/ | CC0 (https://creativecommons.org/publicdomain/zero/1.0/) |
+| `flask.m4a` | FL1 (round 45, the flask): Kenney Interface Sounds `glass_004` (https://kenney.nl/assets/interface-sounds), OpenGameArt "40 CC0 water/splash/slime SFX" `bubble_01.ogg` (https://opengameart.org/content/40-cc0-water-splash-slime-sfx) | CC0 (both) |
 
 The chip and fortune files are Nick's picks of the sounds-v2 work (2026-10-11: W3,
 B3, GR2, O3, RD2, Y2, P3, K2, LW2, CB3; session `03974705`,

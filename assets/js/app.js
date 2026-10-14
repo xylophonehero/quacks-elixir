@@ -25,6 +25,8 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/quacks"
 import topbar from "../vendor/topbar"
 import {play as playSound, potSound, SoundCue, SoundReplay, SoundSettings} from "./sound"
+import {ChipMorph as chipMorphHook} from "./chip_morph"
+import {potMoves} from "./pot_moves"
 
 // "Report a problem" (bug_report_components.ex): keep the last 10 console errors,
 // and on submit put them with the browser details in the form's hidden field.
@@ -144,6 +146,8 @@ const easing = name => getComputedStyle(document.documentElement).getPropertyVal
 const at = (p, o, s = 1) => `translate(${p.x - o.x}px, ${p.y - o.y}px) scale(${s})`
 
 const PotMotion = {
+  // Round 45: the bag's bump, the flask's pour, a swap and an upgrade (pot_moves.js).
+  ...potMoves(playSound),
   // Running animations go on through later patches (a bot's draw is a patch too):
   // WAAPI writes no attributes, and each chip keeps its node.
   mounted() {
@@ -153,7 +157,7 @@ const PotMotion = {
   },
   beforeUpdate() { this.snapshot() },
   updated() {
-    const chips = [...this.el.querySelectorAll("[data-role=pot-chip]")]
+    const chips = [...this.el.querySelectorAll("[data-role=pot-chip][id]")]
     const added = chips.filter(c => !this.chips.has(c.id))
     const gone = [...this.chips.values()].filter(c => !c.isConnected)
     const flask = this.full && !this.el.querySelector("[data-role=flask-brew]")
@@ -161,16 +165,25 @@ const PotMotion = {
     // (green III): it flies from its old space, not from the bag.
     const moved = gone.length === 1 && added.length === 1 && gone[0].dataset.order === added[0].dataset.order
     const newRound = this.el.dataset.round !== this.round
+    // Round 45: the same chip node with another chip in it (Chicken eyes, AB1).
+    const swapped = chips.filter(c => c.dataset.chip && this.keys.get(c.id) && this.keys.get(c.id).key !== c.dataset.chip)
     if (newRound) {
       gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, null, i * 20))
       this.ratsIn()
     }
-    else if (this.el.dataset.bagged && !this.bagged) this.toBag(gone)
+    else if (this.el.dataset.bagged && !this.bagged) this.toBag(gone, true)
     else if (moved) this.fly(added[0], this.pos(gone[0].dataset.index), 1, 40)
-    else if (gone.length === 1 && added.length === 0)
-      this.ghost(gone[0], this.centre(flask ? this.el.querySelector("[data-role=flask]") : this.bag()))
+    else if (gone.length === 1 && added.length === 0) {
+      const to = this.el.querySelector(`[data-role=morph-to][data-from="${gone[0].dataset.chip}"]`)
+      if (flask) this.useFlask(gone[0])
+      else if (to) this.upgrade(gone[0], to)
+      else this.ghost(gone[0], this.centre(this.bag())), this.bump(260)
+    }
+    // Round 45: several chips leave at once (a white return): they fly to the bag.
+    else if (gone.length > 1 && added.length === 0) this.toBag(gone, false)
     else if (added.length === 1 && this.el.dataset.mine && this.bag()) this.fly(added[0]), potSound.draw(this.el, added[0])
-    else if (added.length <= 2) added.forEach(c => this.land(c))
+    else added.sort((a, b) => b.dataset.order - a.dataset.order).forEach((c, i) => this.land(c, Math.min(i * 40, 400)))
+    swapped.forEach(c => this.swap(c))
     if (!newRound) this.ratsOut()
     if (!newRound && !reduced()) this.scoringMove(this.wait)
     this.hop(this.el.querySelector("[data-role=droplet]"))
@@ -222,10 +235,15 @@ const PotMotion = {
   },
   // Round 35: the round goes to the shop: every chip flies off the pot into the bag,
   // first drawn first (staggered, top layer); the shop opens after (`bagUntil`).
-  toBag(gone) {
+  // Round 45: one chip shuffle sound for the whole flight (your own pot), and the
+  // bag bumps as the last chip goes in. `end`: the round's end (the shop waits).
+  toBag(gone, end) {
     const n = gone.length, step = Math.min(60, 600 / Math.max(n, 1))
     gone.sort((a, b) => a.dataset.order - b.dataset.order).forEach((c, i) => this.ghost(c, this.centre(this.bag()), i * step))
-    if (n && !reduced()) bagUntil = performance.now() + 260 + n * step
+    if (!n) return
+    if (end && !reduced()) bagUntil = performance.now() + 260 + n * step
+    if (this.el.dataset.mine) playSound(this.el.dataset.shuffleSound, {delay: reduced() ? 0 : 0.12, pitch: 0.03})
+    this.bump(200 + n * step)
   },
   // Round 35: the droplet took a rat's space (a move after the first draw). That
   // rat fades out where it was as the droplet lands; the others stay put.
@@ -247,13 +265,26 @@ const PotMotion = {
   },
   snapshot() {
     this.drop = this.el.querySelector("[data-role=droplet]")?.dataset.index
-    this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip]")].map(c => [c.id, c]))
+    this.chips = new Map([...this.el.querySelectorAll("[data-role=pot-chip][id]")].map(c => [c.id, c]))
+    // Round 45: each chip's kind, and a copy of how it looks, for an in-place swap.
+    this.keys = new Map([...this.chips.values()].map(c => [c.id, {key: c.dataset.chip, copy: this.copy(c)}]))
+    const brew = this.el.querySelector("[data-role=flask-brew]")?.parentNode.cloneNode(true)
+    brew?.firstElementChild.removeAttribute("data-role")
+    this.brew = brew
     this.rats = [...this.el.querySelectorAll("[data-role=rat]")]
     this.full = !!this.el.querySelector("[data-role=flask-brew]")
     this.oldMarks = this.marks().map(m => ({copy: m.cloneNode(), index: m.closest("[data-space]").dataset.space, k: this.key(m)}))
     this.round = this.el.dataset.round
     this.bagged = !!this.el.dataset.bagged
     if (this.bagged) bagRound = this.round
+  },
+  // A chip's copy for the top layer: no id, no role (so neither LiveView nor the
+  // pot's CSS touches it).
+  copy(c) {
+    const copy = c.cloneNode(true)
+    copy.removeAttribute("id")
+    copy.removeAttribute("data-role")
+    return copy
   },
   pos(i) { const g = this.el.querySelector(`[data-space="${i}"]`).dataset; return {x: +g.x, y: +g.y} },
   bag() { return document.querySelector("[data-role=bag-button]") },
@@ -265,7 +296,7 @@ const PotMotion = {
   },
   // Drop-in on the chip's own space: it falls a little and shrinks to size as it
   // fades in, then lands with the spring pop. 350 ms; replaces the CSS `chip-land`.
-  land(chip) {
+  land(chip, delay = 0) {
     if (reduced()) return
     chip.getAnimations().forEach(a => a.cancel())
     chip.animate([
@@ -273,7 +304,7 @@ const PotMotion = {
       {transform: "translate(0px, 0px) scale(1)", opacity: 1, offset: 0.55, easing: easing("--ease-out")},
       {transform: "translate(0px, 0px) scale(1.06)", opacity: 1, offset: 0.75, easing: easing("--ease-spring")},
       {transform: "translate(0px, 0px) scale(1)", opacity: 1},
-    ], {duration: 350})
+    ], {duration: 350, delay, fill: "backwards"})
   },
   // Round 31, a draw (the mirror of `ghost` to the bag): the new chip comes out of
   // the bag small, flies on an arc above both ends and lands on its space with the
@@ -357,7 +388,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 6000,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, Boom, ConfigMemory, NameMemory, PotMotion, RevealSettings, SoundCue, SoundReplay, SoundSettings},
+  hooks: {...colocatedHooks, Boom, ChipMorph: chipMorphHook(playSound), ConfigMemory, NameMemory, PotMotion, RevealSettings, SoundCue, SoundReplay, SoundSettings},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
   // is in a field, on a control that Space/Enter already press, or whether a modal
   // dialog is open. The server decides from that; no key logic here.

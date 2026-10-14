@@ -373,6 +373,26 @@ defmodule QuacksWeb.Gallery.Stories do
     ]
   end
 
+  defp arg_stories("motion") do
+    kinds = ~w(draw to-bag flask swap upgrade return)
+
+    [
+      arg_story(
+        "motion",
+        "Chip motion: tap Play",
+        [enum("motion", kinds, "to-bag")],
+        &Fixtures.motion_story/1,
+        %{
+          presets:
+            for(
+              kind <- kinds -- ["to-bag"],
+              do: {kind, kind, %{"motion" => kind}}
+            )
+        }
+      )
+    ]
+  end
+
   defp arg_stories("track") do
     [
       arg_story(

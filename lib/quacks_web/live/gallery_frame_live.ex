@@ -20,7 +20,7 @@ defmodule QuacksWeb.GalleryFrameLive do
   import QuacksWeb.TileComponents,
     only: [player_chip: 1, seat_loop: 1, loop_columns: 1, loop_start: 3, round_leaders: 1]
 
-  import QuacksWeb.PotComponents, only: [pot: 1]
+  import QuacksWeb.PotComponents, only: [pot: 1, bag_button: 1, chip_counts: 1]
 
   import QuacksWeb.TrackComponents, only: [rat_track: 1]
 
@@ -91,8 +91,12 @@ defmodule QuacksWeb.GalleryFrameLive do
 
   defp stringify(args), do: Map.new(args, fn {k, v} -> {k, to_string(v)} end)
 
-  # The components send their real events; the gallery ignores them.
+  # Round 45, the chip motion story: Play patches the pot to the change, Reset back.
   @impl true
+  def handle_event("motion", %{"to" => to}, socket) when to in ["before", "after"],
+    do: {:noreply, assign(socket, stage: String.to_existing_atom(to))}
+
+  # The components send their real events; the gallery ignores them.
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
   # A screen's results step settles its standings as on the page.
@@ -238,6 +242,66 @@ defmodule QuacksWeb.GalleryFrameLive do
     """
   end
 
+  # Round 45: the large pot before and after one change; Play runs it (a patch, so
+  # `PotMotion` plays as in the game, with your own pot's sounds).
+  defp frame(%{view: :motion} = assigns) do
+    after? = assigns[:stage] == :after
+    game = if after?, do: assigns.after, else: assigns.before
+    me = game.players[assigns.seat]
+
+    assigns =
+      assign(assigns,
+        game: game,
+        me: me,
+        after?: after?,
+        flask: if(me.flask, do: :full, else: :empty)
+      )
+
+    ~H"""
+    <div class="mx-auto flex h-dvh max-w-xl flex-col gap-2 p-2" data-role="motion">
+      <div class="flex items-center gap-2">
+        <button
+          id="motion-play"
+          type="button"
+          class="paper rounded-lg px-4 py-2 font-semibold text-ink shadow-sm ring-1 ring-black/20 transition active:scale-[0.97] disabled:opacity-50"
+          phx-click="motion"
+          phx-value-to="after"
+          disabled={@after?}
+        >
+          Play
+        </button>
+        <button
+          id="motion-reset"
+          type="button"
+          class="rounded-lg px-4 py-2 text-parchment ring-1 ring-parchment/40 transition active:scale-[0.97] disabled:opacity-50"
+          phx-click="motion"
+          phx-value-to="before"
+          disabled={!@after?}
+        >
+          Reset
+        </button>
+        <span class="font-mono text-xs text-parchment-dim">{@kind}</span>
+      </div>
+      <div class="pot-box relative flex min-h-0 flex-1 items-center justify-center">
+        <div class="pot-square pot-hearth relative" data-role="pot-area">
+          <.pot
+            game={@game}
+            seat={@seat}
+            class="block size-full"
+            flask={@flask}
+            bagged={@after? && @bagged}
+          />
+        </div>
+        <.bag_button count={length(@me.bag)} class="absolute right-1 bottom-1" />
+      </div>
+      <section class="paper rounded-lg p-2 text-ink">
+        <h2 class="text-xs font-semibold text-ink-soft">In the bag: {length(@me.bag)}</h2>
+        <.chip_counts chips={@me.bag} id="motion-bag-counts" />
+      </section>
+    </div>
+    """
+  end
+
   defp frame(%{view: :tiles} = assigns) do
     ~H"""
     <div class="space-y-1 px-2 pt-2 lg:px-6">
@@ -308,8 +372,14 @@ defmodule QuacksWeb.GalleryFrameLive do
           {"bloop", "Droplet moves"},
           {"ruby", "Ruby"},
           {Sounds.fortune_sound(), "Fortune teller"},
-          {"gameover", "Game over"}
+          {"gameover", "Game over"},
+          {Sounds.flask_sound(), "Flask (FL1)"}
         ],
+        shuffles:
+          for {label, name, what} <- Sounds.shuffle_candidates() do
+            picked = if name == Sounds.shuffle_sound(), do: ", in the game"
+            {name, "#{label}: #{what}#{picked}"}
+          end,
         chips: Enum.map(Sounds.gallery_chips(), &{&1, Sounds.chip_sound(&1)})
       )
 
@@ -324,7 +394,15 @@ defmodule QuacksWeb.GalleryFrameLive do
       <section class="space-y-1.5">
         <h2 class="font-mono text-xs text-parchment-dim">moments</h2>
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <.sound_button :for={{name, label} <- @moments} name={name} label={label} />
+          <.sound_button :for={{name, label} <- @moments} :if={name} name={name} label={label} />
+        </div>
+      </section>
+      <section class="space-y-1.5">
+        <h2 class="font-mono text-xs text-parchment-dim">
+          chip shuffle: the chips go back to the bag
+        </h2>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <.sound_button :for={{name, label} <- @shuffles} name={name} label={label} />
         </div>
       </section>
       <section class="space-y-1.5">
