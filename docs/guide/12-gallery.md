@@ -73,6 +73,7 @@ An old variant URL that a story with args took over (for example
 | | Take a Chance | `players 2..8` (each result shows when its die lands) |
 | Pot board | Brewing: the scoring ring | `chips 0..6` |
 | Player tiles | Player tiles | `players 1..8`, `state brewing\|stopped\|exploded\|shop\|done`, `long_names`, `vp_digits 1..3`, `bots` |
+| | Redesign: options A, B, C (a study, not in the game; `TileDesignComponents`) | `option a\|b\|c` (ledger, tokens, race), `players 2..8`, `state brewing\|stopped\|exploded\|done\|shop\|results`, `alchemists`, `witches`, `rats`, `long_names`, `vp_digits 1..3`, `bots`, `peek` (the tap view) |
 | Bottom bar | Crow skull | `chips 1..5` |
 | Score track | Score / rat track | `players 2..8`, `spread early\|tied\|above-50\|big-gaps` |
 | Setup | Ingredient presets | `preset` (any of the 14 numbered or themed mixes), `witches` (Herb Witches on/off) |
