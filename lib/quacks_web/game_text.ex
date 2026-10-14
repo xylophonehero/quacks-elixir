@@ -96,6 +96,7 @@ defmodule QuacksWeb.GameText do
 
   defp log_label({:witch, :silver, :return_all}), do: "Silver witch: returned the rest to the bag"
   defp log_label(:witch_done), do: "Kept the gold penny"
+  defp log_label(:skip_upgrade), do: "Upgrade: skipped"
   defp log_label(entry), do: label(entry)
 
   defp narrated_by_event?(:draw), do: true
@@ -388,6 +389,7 @@ defmodule QuacksWeb.GameText do
 
   def label({:witch, id, outcome}), do: "#{Witches.card(id).title}: #{witch_outcome(outcome, id)}"
   def label(:witch_done), do: "Keep the gold penny"
+  def label(:skip_upgrade), do: "Skip the upgrade"
   def label({:chip, :yellow_ruby}), do: "Mandrake: pay 1 ruby, move 3 more"
   def label({:chip, {:return, chip}}), do: "Locoweed: return #{chip_name(chip)} to the bag"
 
@@ -657,6 +659,7 @@ defmodule QuacksWeb.GameText do
   def phase_name(:witch_offer), do: "Silver witch"
   def phase_name(:red_choice), do: "Toadstool"
   def phase_name(:stopped), do: "Waiting"
+  def phase_name(:upgrade), do: "Copper witch"
   def phase_name(:shop), do: "Shop"
   def phase_name(:rubies), do: "Spend rubies"
   def phase_name(:droplet_choice), do: "Droplet"

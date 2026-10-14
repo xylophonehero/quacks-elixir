@@ -7,7 +7,7 @@ defmodule Quacks.GameHelpers do
   alias Quacks.{Game, Player}
 
   @game_keys [:round, :supply, :fortune_card, :fortune_deck]
-  @shopping [:shop, :ready]
+  @shopping [:upgrade, :shop, :ready]
 
   @doc "Apply an action for `seat` (default 0), asserting it is legal."
   def apply!(game, seat \\ 0, action) do

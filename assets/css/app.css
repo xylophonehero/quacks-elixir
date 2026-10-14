@@ -1403,7 +1403,9 @@ body {
 .pot-lg .rat-pebble {
   transform-box: fill-box;
   transform-origin: center;
-  animation: chip-land 320ms both;
+  /* Round 45: `backwards`, not `both`: a held end state kept opacity at 1, so the
+     pot choices could not dim the chips they are not about. */
+  animation: chip-land 320ms backwards;
 }
 
 /* Round 45: chips are always animated. Another player's pot (the player sheet)

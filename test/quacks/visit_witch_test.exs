@@ -105,9 +105,13 @@ defmodule Quacks.VisitWitchTest do
       g = apply!(g, {:witch, :visit, 2})
       assert Game.white_sum(g) == 0 and {0, {:witch, :s3, {:return_white, 2}}} in g.log
 
-      g = new() |> visitor(:c1) |> put(phase: :buy, drawn: [{{:green, 1}, 3}, {{:orange, 1}, 1}])
+      g =
+        new()
+        |> visitor(:c1)
+        |> put(phase: :upgrade, drawn: [{{:green, 1}, 3}, {{:orange, 1}, 1}])
+
       g = apply!(g, {:witch, :visit, {:upgrade, [{:green, 1}]}})
-      assert {:green, 2} in me(g).bag
+      assert {:green, 2} in me(g).bag and Game.phase(g, 0) == :shop
 
       g = new() |> visitor(:c3) |> put(phase: :buy, coins: 3)
       g = apply!(g, {:witch, :visit, {:buy, [{:orange, 1}], {:orange, 1}}})
@@ -165,7 +169,8 @@ defmodule Quacks.VisitWitchTest do
       assert g.phase == :witch_choice and Game.legal_actions(g) == [{:witch, :visit}, :witch_done]
       g = apply!(g, {:witch, :visit})
       assert {0, {:witch, :g1, {:vp, 3}}} in g.log and {0, {:witch, :g2, {:vp, 2}}} in g.log
-      assert Game.phase(g, 0) == :shop
+      # The own copper witch C1 can upgrade the green 1: her step comes first.
+      assert Game.phase(g, 0) == :upgrade
     end
   end
 

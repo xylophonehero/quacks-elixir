@@ -668,7 +668,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </summary>
 <div class="pt-1.5">
 <section aria-label="Herb witches" class="space-y-2 ">
-<section aria-label="copper witch" class="paper overflow-hidden rounded-lg text-sm " data-role="witch-card" data-witch="c1">
+<section aria-label="copper witch" class="paper overflow-hidden rounded-lg text-sm opacity-50 grayscale" data-role="witch-card" data-witch="c1">
 <div class="flex items-center gap-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink bg-penny-copper">
 <svg aria-hidden="true" class="size-4" data-icon="witch" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-witch">
@@ -680,7 +680,7 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 <use href="#icon-penny">
 </use>
 </svg>
-1 penny
+penny spent
 </span>
 </div>
 <div class="space-y-2 px-3 py-2">
@@ -2205,7 +2205,7 @@ Fortune teller · this round
 Herb witches
 </h2>
 <section aria-label="Herb witches" class="space-y-2 clear-both pt-1">
-<section aria-label="copper witch" class="paper overflow-hidden rounded-lg text-sm " data-role="witch-card" data-witch="c1">
+<section aria-label="copper witch" class="paper overflow-hidden rounded-lg text-sm opacity-50 grayscale" data-role="witch-card" data-witch="c1">
 <div class="flex items-center gap-1 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink bg-penny-copper">
 <svg aria-hidden="true" class="size-4" data-icon="witch" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-witch">
@@ -2217,7 +2217,7 @@ Herb witches
 <use href="#icon-penny">
 </use>
 </svg>
-1 penny
+penny spent
 </span>
 </div>
 <div class="space-y-2 px-3 py-2">
@@ -2426,6 +2426,11 @@ Draw
 <span>Bot 2: Bought black 1</span>
 </li>
 <li class="flex items-baseline gap-1.5">
+<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
+</span>
+<span>Bot 2: Upgrade: upgraded green 1</span>
+</li>
+<li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
 <span>Bot 1: Spent 2 rubies: droplet +1</span>
@@ -2434,6 +2439,11 @@ Draw
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
 </span>
 <span>Bot 1: Bought black 1</span>
+</li>
+<li class="flex items-baseline gap-1.5">
+<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-1" data-role="seat-dot" data-seat="1">
+</span>
+<span>Bot 1: Upgrade: upgraded green 1</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-0" data-role="seat-dot" data-seat="0">
@@ -2449,6 +2459,11 @@ Draw
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-0" data-role="seat-dot" data-seat="0">
 </span>
 <span>You: Bought black 1 + orange 1</span>
+</li>
+<li class="flex items-baseline gap-1.5">
+<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-0" data-role="seat-dot" data-seat="0">
+</span>
+<span>You: Upgrade: upgraded green 1</span>
 </li>
 <li class="flex items-baseline gap-1.5">
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
@@ -2474,21 +2489,6 @@ Draw
 <span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
 </span>
 <span>Bot 2: Drew orange 1 → space 10</span>
-</li>
-<li class="flex items-baseline gap-1.5">
-<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
-</span>
-<span>Bot 2: Drew white 1 → space 9</span>
-</li>
-<li class="flex items-baseline gap-1.5">
-<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
-</span>
-<span>Bot 2: Essence bonus: draw 2</span>
-</li>
-<li class="flex items-baseline gap-1.5">
-<span class="inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30 bg-player-2" data-role="seat-dot" data-seat="2">
-</span>
-<span>Bot 2: Essence: took space 3</span>
 </li>
 </ol>
 </div>
@@ -2697,17 +2697,17 @@ Essence: 2
 ×2
 </span>
 </li>
-<li class="flex items-center gap-0.5 text-sm chip-in" id="bag-counts-green-1" style="--i: 4">
-<span aria-label="green 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-green text-ink" data-chip-icon="green">
+<li class="flex items-center gap-0.5 text-sm chip-in" id="bag-counts-green-2" style="--i: 4">
+<span aria-label="green 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-9 bg-chip-green text-ink" data-chip-icon="green">
 <svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-green">
 </use>
 </svg>
 <span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-[18px] text-tag ring-2" data-role="chip-value">
-1
+2
 </span>
 </span>
-<span class="ml-1 text-ink-soft tabular-nums count-in" data-role="chip-count" id="bag-counts-green-1-n1">
+<span class="ml-1 text-ink-soft tabular-nums count-in" data-role="chip-count" id="bag-counts-green-2-n1">
 ×1
 </span>
 </li>

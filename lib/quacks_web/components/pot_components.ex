@@ -111,6 +111,10 @@ defmodule QuacksWeb.PotComponents do
     they glow and a tap (or Enter) sends `event` with `value` as `action`
     """
 
+  attr :grow, :list,
+    default: [],
+    doc: "round 45: the orders (in `drawn`, 0 = newest) of chips the copper witch just upgraded"
+
   attr :bagged, :boolean,
     default: false,
     doc: "round 35: the round went to the shop, so the chips are back in the bag (none drawn)"
@@ -321,6 +325,7 @@ defmodule QuacksWeb.PotComponents do
           size={@size}
           beat={space.beat}
           target={@size == :lg && @targets[elem(chip, 0)]}
+          grow={@size == :lg && elem(chip, 1) in @grow}
         />
         <%!-- Round 41: the spoon sits by the rim; its rings are smaller, so they
              stay inside the brew. --%>
@@ -738,6 +743,10 @@ defmodule QuacksWeb.PotComponents do
     default: nil,
     doc: "round 36: `%{event, value, label}` when a tap on this chip chooses it"
 
+  attr :grow, :boolean,
+    default: false,
+    doc: "round 45: the copper witch just upgraded this chip (`data-grow`; `PotMotion` morphs it)"
+
   defp pot_chip(assigns) do
     {colour, value} = assigns.chip
     assigns = assign(assigns, colour: colour, value: value)
@@ -759,6 +768,7 @@ defmodule QuacksWeb.PotComponents do
       phx-key={@target && "Enter"}
       phx-value-action={@target && @target.value}
       data-target={@target && "true"}
+      data-grow={@grow && "true"}
     >
       <circle :if={@target} r="27" class="pot-target-glow" data-role="target-glow" />
       <.chip_face chip={@chip} size={@size} />

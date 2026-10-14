@@ -4,7 +4,8 @@ defmodule Quacks.WitchesTest do
 
   import Quacks.GameHelpers
 
-  alias Quacks.Game
+  alias Quacks.{AI, Game}
+  alias Quacks.AI.{Expert, Profile}
   alias Quacks.Rules.{Chips, PotTrack}
   alias Quacks.Rules.Witches, as: Cards
 
@@ -148,7 +149,12 @@ defmodule Quacks.WitchesTest do
     end
 
     test "C1: upgrade the last 2 chips, or 1 chip anywhere; the bigger chip goes in the bag" do
-      g = shop(:c1, drawn: [{{:red, 1}, 5}, {{:green, 2}, 4}, {{:blue, 1}, 2}, {{:orange, 1}, 1}])
+      g =
+        shop(:c1,
+          phase: :upgrade,
+          drawn: [{{:red, 1}, 5}, {{:green, 2}, 4}, {{:blue, 1}, 2}, {{:orange, 1}, 1}]
+        )
+
       actions = for {:witch, :copper, choice} <- Game.legal_actions(g), do: choice
 
       assert actions == [
@@ -161,7 +167,74 @@ defmodule Quacks.WitchesTest do
       g = apply!(g, {:witch, :copper, {:upgrade, [{:red, 1}, {:green, 2}]}})
       assert {:red, 2} in me(g).bag and {:green, 4} in me(g).bag
       assert Game.pot_chips(g) == [{:blue, 1}, {:orange, 1}]
-      assert Game.phase(g, 0) == :shop
+      assert Game.phase(g, 0) == :shop and not me(g).pennies.copper
+    end
+
+    test "C1 has her own step before the shop, while the pot chips are in view" do
+      drawn = [{:green, 1}, {:orange, 1}]
+      g = witches([:c1]) |> force_draws(drawn) |> apply!(:stop)
+      assert g.phase == :shopping and Game.phase(g, 0) == :upgrade
+
+      legal = Game.legal_actions(g)
+      assert {:witch, :copper, {:upgrade, [{:green, 1}]}} in legal
+      assert List.last(legal) == :skip_upgrade
+      refute Enum.any?(legal, &match?({:buy, _}, &1))
+
+      # Skip: the penny stays, the shop opens, and C1 is not in the shop.
+      skipped = apply!(g, :skip_upgrade)
+      assert Game.phase(skipped, 0) == :shop and me(skipped).pennies.copper
+      assert {0, :skip_upgrade} in skipped.log
+      refute Enum.any?(Game.legal_actions(skipped), &match?({:witch, :copper, _}, &1))
+      assert Enum.any?(Game.legal_actions(skipped), &match?({:buy, _}, &1))
+    end
+
+    test "no C1 step when she cannot help: no upgradable chip, a spent penny, round 9" do
+      shop_phase = fn g -> g |> apply!(:stop) |> Game.phase(0) end
+
+      assert witches([:c1]) |> force_draws([{:orange, 1}, {:white, 1}]) |> shop_phase.() == :shop
+
+      spent = witches([:c1]) |> put(pennies: %{silver: true, copper: false, gold: true})
+      assert spent |> force_draws([{:green, 1}]) |> shop_phase.() == :shop
+
+      assert witches([:c1]) |> put(round: 9) |> force_draws([{:green, 1}]) |> shop_phase.() ==
+               :shop
+
+      assert witches([:c2]) |> force_draws([{:green, 1}]) |> shop_phase.() == :shop
+    end
+
+    test "the C1 step keeps the ruby uses (the results' rubies step) and G4" do
+      g =
+        [:c1, :g4]
+        |> witches()
+        |> put(rubies: 2)
+        |> force_draws([{:green, 1}])
+        |> apply!(:stop)
+
+      assert Game.phase(g, 0) == :upgrade
+      legal = Game.legal_actions(g)
+      assert {:rubies, :droplet} in legal and {:witch, :gold} in legal
+      g = apply!(g, {:rubies, :droplet})
+      assert Game.phase(g, 0) == :upgrade
+    end
+
+    test "bots: the best C1 upgrade when it is worth more than the penny, else skip" do
+      g = witches([:c1]) |> force_draws([{:red, 2}, {:green, 1}]) |> apply!(:stop)
+      assert Game.phase(g, 0) == :upgrade
+
+      for profile <- [Expert.profile(), Profile.get(:balanced)] do
+        {action, _rng} = AI.decide(g, 0, profile, AI.new_rng(@seed, 0))
+        # The last 2 chips gain the most (round 1: a chip is worth about its price).
+        assert action == {:witch, :copper, {:upgrade, [{:green, 1}, {:red, 2}]}}
+        assert {:ok, after_call} = Game.apply(g, 0, action)
+        assert Game.phase(after_call, 0) == :shop
+      end
+
+      # Round 8: a bigger chip is worth little now; the penny's 2 VP are more.
+      late = witches([:c1]) |> put(round: 8) |> force_draws([{:green, 1}]) |> apply!(:stop)
+      assert Game.phase(late, 0) == :upgrade
+
+      assert {:skip_upgrade, _rng} =
+               AI.decide(late, 0, Profile.get(:balanced), AI.new_rng(@seed, 0))
     end
 
     test "C2 doubles the coins; C4 adds 2 per ruby" do

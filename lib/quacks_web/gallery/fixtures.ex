@@ -684,7 +684,42 @@ defmodule QuacksWeb.Gallery.Fixtures do
 
   defp visit_moment(g, _id) do
     mine = [{:orange, 1}, {:green, 1}, {:blue, 1}, {:white, 1}]
-    finish_round(g, for(s <- g.seats, do: if(s == 0, do: mine, else: [{:orange, 1}])))
+    g = finish_round(g, for(s <- g.seats, do: if(s == 0, do: mine, else: [{:orange, 1}])))
+    # Round 45: the own copper witch C1 has her step first; pass it to reach the shop.
+    if :skip_upgrade in Game.legal_actions(g, 0), do: apply!(g, 0, :skip_upgrade), else: g
+  end
+
+  @doc """
+  Round 45: the copper witch C1's own step before the shop (seat 0; the other seats
+  shop). `state`: `one` (only single chips go up: the last 2 are white and orange),
+  `last_two` (the last 2 may go up together), `picked` (a tap on the newest chip
+  asks: this chip or the last 2), `upgraded` (the moment the pot shows the bigger
+  chips) or `visit` (AB8: C1 visits, the own copper witch is C3; Skip has no penny).
+  """
+  @spec upgrade_screen(map) :: map
+  def upgrade_screen(%{"players" => n, "state" => state} = a) do
+    copper = if state == "visit", do: :c3, else: :c1
+    g = new(n, expansions: [:herb_witches], witches: %{silver: :s2, copper: copper, gold: :g2})
+    g = if state == "visit", do: %{g | fortune_card: :ab8, visitor: :c1}, else: g
+
+    mine =
+      if state == "one",
+        do: [{:green, 1}, {:red, 1}, {:orange, 1}, {:white, 1}],
+        else: [{:orange, 1}, {:white, 1}, {:green, 1}, {:red, 1}]
+
+    g = finish_round(g, for(s <- g.seats, do: if(s == 0, do: mine, else: [{:orange, 1}])))
+
+    last_two =
+      Enum.find(Game.legal_actions(g, 0), &match?({:witch, _, {:upgrade, [_, _]}}, &1))
+
+    opts =
+      case state do
+        "picked" -> [pot_pick: {:red, 1}]
+        "upgraded" -> [upgrade: last_two]
+        _ -> []
+      end
+
+    screen(g, a, opts)
   end
 
   @doc "The game over: bots play every seat through round 9 (`Quacks.Scenarios.Script`)."
