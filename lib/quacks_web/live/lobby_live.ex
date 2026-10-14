@@ -769,14 +769,14 @@ defmodule QuacksWeb.LobbyLive do
                   maxlength="20"
                   autocomplete="off"
                   aria-label="Your name"
-                  class="w-full border-0 border-b border-dashed border-ink-soft/40 bg-transparent py-1.5 font-hand text-lg font-bold text-ink outline-none transition-colors duration-150 placeholder:text-ink-soft/70 focus:border-ink-soft"
+                  class="min-h-11 w-full border-0 border-b border-dashed border-ink-soft/40 bg-transparent py-1.5 font-hand text-lg font-bold text-ink outline-none transition-colors duration-150 placeholder:text-ink-soft/70 focus:border-ink-soft"
                 />
               </form>
               <span class="text-xs font-semibold text-ink-soft">you · host</span>
               <.colour_picker colours={%{0 => @colour}} seat={0} />
             <% MapSet.member?(@bots, seat) -> %>
               <span class="hero-cpu-chip size-4 shrink-0 text-ink-soft" aria-hidden="true" />
-              <span class="font-semibold">Bot</span>
+              <%!-- Round 47 (L1): one BOT tag, no "Bot" word beside it. --%>
               <.bot_badge />
               <button
                 type="button"
@@ -784,7 +784,7 @@ defmodule QuacksWeb.LobbyLive do
                 phx-value-seat={seat}
                 aria-label={"Remove the bot in seat #{seat + 1}"}
                 data-role="remove-bot"
-                class="-mr-1 ml-auto grid size-9 cursor-pointer place-items-center rounded-full text-ink-soft transition-[color,background-color,scale] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-90"
+                class="hit-44 -mr-1 ml-auto grid size-9 cursor-pointer place-items-center rounded-full text-ink-soft transition-[color,background-color,scale] duration-150 ease-out hover:bg-ink/10 hover:text-ink active:scale-90"
               >
                 <.icon name="hero-x-mark" class="size-4" />
               </button>
@@ -994,7 +994,7 @@ defmodule QuacksWeb.LobbyLive do
     ~H"""
     <div id="flow-bar" class="flow-bar" data-role="start-bar" hidden={@a.step == "home"}>
       <p class="text-sm leading-snug text-ink-soft" data-role="setup-summary">
-        <span class="block truncate font-semibold text-ink">{summary(@a)}</span>
+        <span class="line-clamp-2 font-semibold text-ink">{summary(@a)}</span>
         {if @a.open_seats > 0,
           do: "Opens the table: #{waiting(@a.open_seats)}.",
           else: "The game begins at once."}

@@ -411,7 +411,12 @@ defmodule QuacksWeb.BarChoicesTest do
 
       stage = "section#card-stage-1.results-stage[data-role=card-stage]"
       assert has_element?(view, "#{stage} [data-role=stage-title]", "Choices, Choices")
-      assert has_element?(view, "#{stage} [data-role=card-reveal-row][data-me=true]", "You")
+
+      assert has_element?(
+               view,
+               "#{stage} [data-role=card-reveal-row][data-me=true] [data-role=you]"
+             )
+
       assert has_element?(view, "#{stage} [data-role=reveal-result] [data-gain=rubies]")
       refute has_element?(view, "[data-role=pot-card] [data-role=card-reveals]")
     end

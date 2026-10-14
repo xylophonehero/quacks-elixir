@@ -79,7 +79,8 @@ defmodule QuacksWeb.MultiplayerLiveTest do
     end)
 
     for view <- [alice, bob] do
-      assert has_element?(view, "dd", "Shop")
+      # Round 47: the pill names the step on show while the results play.
+      assert has_element?(view, "[data-role=phase-pill]", "Bonus die")
       assert has_element?(view, "li", ~r/^Player \d: Bonus die/)
       # everyone shops at once, each in their own shop dialog
       refute has_element?(view, "[data-role=turn]")

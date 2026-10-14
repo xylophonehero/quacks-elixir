@@ -413,7 +413,7 @@ defmodule QuacksWeb.ActionBarTest do
       bar = "[data-role=bar-explosion].bar-choice-late"
       assert has_element?(view, "#{bar} button[data-choice=vp] use[href='#icon-vp']")
       assert has_element?(view, "#{bar} button[data-choice=buy] use[href='#icon-coin']")
-      assert has_element?(view, "#{bar} button[data-choice=vp]", "Score now, no coins")
+      assert has_element?(view, "#{bar} button[data-choice=vp]", "No coins")
       assert has_element?(view, "#{bar} button[data-choice=buy]", "Shop, no VP")
 
       view |> element("#{bar} button[data-choice=vp]") |> render_click()
@@ -441,9 +441,11 @@ defmodule QuacksWeb.ActionBarTest do
       skip_results(view)
 
       refute has_element?(view, "dialog#decision-rubies")
-      bar = "#bar-rubies.flex"
-      # On the tiles the results' stage stays: "Keep" keeps the rubies (round 39).
-      assert has_element?(view, "#{bar} > button:nth-child(1)[data-role=rubies-keep]", "Keep")
+      # Round 47: the title strip, then the buttons' row.
+      bar = "#bar-rubies > div.flex"
+      assert has_element?(view, "#bar-rubies [data-role=info-title]", "Spend rubies")
+      # On the tiles the results' stage stays: Skip keeps the rubies (round 39, round 47).
+      assert has_element?(view, "#{bar} > button:nth-child(1)[data-role=rubies-keep]", "Skip")
 
       assert has_element?(
                view,
@@ -470,7 +472,7 @@ defmodule QuacksWeb.ActionBarTest do
       refute has_element?(view, "#{bar} button[data-ruby=droplet][disabled]")
 
       # Same height as Stop / Draw: the pot does not move.
-      assert has_element?(view, "#bar-rubies[class*='*:min-h-12']")
+      assert has_element?(view, "#{bar}[class*='*:min-h-12']")
 
       view |> element("#{bar} button[data-ruby=droplet]") |> render_click()
       refute has_element?(view, "#bar-rubies")
@@ -671,7 +673,7 @@ defmodule QuacksWeb.ActionBarTest do
       # Round 31: the rows show under the grown card over the pot, no sheet; the
       # next Continue shrinks it.
       alice |> element("#card-continue") |> render_click()
-      assert has_element?(alice, "#card-stage-2 [data-role=card-reveal-row]", "You")
+      assert has_element?(alice, "#card-stage-2 [data-role=card-reveal-row] [data-role=you]")
       refute has_element?(alice, "dialog#reveal-card-2")
       alice |> element("#card-continue") |> render_click()
       refute has_element?(alice, "#pot-card-2")
@@ -1020,13 +1022,13 @@ defmodule QuacksWeb.ActionBarTest do
     assert has_element?(
              view,
              "[data-role=bar-explosion] button[data-choice=vp]",
-             "Take VP +#{space.vp}"
+             "VP +#{space.vp}"
            )
 
     assert has_element?(
              view,
              "[data-role=bar-explosion] button[data-choice=buy]",
-             "Take coins #{space.coins}"
+             "Coins #{space.coins}"
            )
   end
 

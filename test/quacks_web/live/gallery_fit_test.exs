@@ -79,9 +79,10 @@ defmodule QuacksWeb.GalleryFitTest do
       assert has_element?(view, "#tile-stage [data-role=tile-skip].px-3")
     end
 
-    test "a long name takes two lines", %{conn: conn} do
+    # Round 47 (audit #7): one line with an ellipsis.
+    test "a long name is one line with an ellipsis", %{conn: conn} do
       view = frame(conn, "results/8p-space")
-      assert has_element?(view, "#results-stage [data-role=stage-name].line-clamp-2")
+      assert has_element?(view, "#results-stage [data-role=stage-name] .truncate")
 
       assert has_element?(
                view,

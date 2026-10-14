@@ -262,7 +262,7 @@ New game
 <span class="size-3 shrink-0 rounded-full ring-1 ring-black/30 bg-seat-0">
 </span>
 <form class="min-w-0 flex-1" id="rename-form" phx-change="rename" phx-submit="rename">
-<input aria-label="Your name" autocomplete="off" class="w-full border-0 border-b border-dashed border-ink-soft/40 bg-transparent py-1.5 font-hand text-lg font-bold text-ink outline-none transition-colors duration-150 placeholder:text-ink-soft/70 focus:border-ink-soft" id="seat-name" maxlength="20" name="name" phx-debounce="300" phx-hook="NameMemory" placeholder="Player 1" type="text" value=""/>
+<input aria-label="Your name" autocomplete="off" class="min-h-11 w-full border-0 border-b border-dashed border-ink-soft/40 bg-transparent py-1.5 font-hand text-lg font-bold text-ink outline-none transition-colors duration-150 placeholder:text-ink-soft/70 focus:border-ink-soft" id="seat-name" maxlength="20" name="name" phx-debounce="300" phx-hook="NameMemory" placeholder="Player 1" type="text" value=""/>
 </form>
 <span class="text-xs font-semibold text-ink-soft">you · host</span>
 <div aria-label="Your colour" class="flex w-full gap-1.5 pt-0.5 pb-2" data-role="colour-picker" role="group">
@@ -3506,7 +3506,7 @@ This end of round, the droplet and the flask cost 1 ruby instead of 2, as often 
 </section>
 <div class="flow-bar" data-role="start-bar" id="flow-bar">
 <p class="text-sm leading-snug text-ink-soft" data-role="setup-summary">
-<span class="block truncate font-semibold text-ink">2 players · Herb Witches</span>
+<span class="line-clamp-2 font-semibold text-ink">2 players · Herb Witches</span>
 Opens the table: 1 seat waits for a player.
 </p>
 <div class="flow-actions">

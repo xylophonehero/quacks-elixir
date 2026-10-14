@@ -41,7 +41,10 @@ defmodule QuacksWeb.CardRevealTest do
       {id, view} = new_card(:b1, [])
 
       assert has_element?(view, "[data-role=pot-area] #pot-card-1.pot-card-reveal")
-      assert has_element?(view, "#pot-card-1 [data-role=card-caption]", "Tap to continue")
+      assert has_element?(view, "#pot-card-1")
+      # Round 47 (P3): the bar's Continue, no caption beside it.
+      assert has_element?(view, "#card-continue", "Continue")
+      refute has_element?(view, "[data-role=card-caption]")
       assert has_element?(view, "button#card-tap[phx-click=card_tap]")
       refute has_element?(view, "dialog#reveal-card-1")
 
@@ -126,7 +129,8 @@ defmodule QuacksWeb.CardRevealTest do
 
       view |> element("#corner-card") |> render_click()
       assert_push_event(view, "quacks:vt", %{type: "card"})
-      assert has_element?(view, "#pot-card-1.pot-card-reveal [data-role=card-caption]")
+      assert has_element?(view, "#pot-card-1.pot-card-reveal")
+      assert has_element?(view, "#card-continue")
       refute has_element?(view, "#reveal-card-1")
 
       view |> element("#card-tap") |> render_click()
@@ -289,7 +293,7 @@ defmodule QuacksWeb.CardRevealTest do
 
     # Round 31: the rows show under the grown card over the pot.
     rows = "#card-stage-2 [data-role=card-reveal-row]"
-    assert has_element?(alice, rows, "You")
+    assert has_element?(alice, "#{rows} [data-role=you]")
     assert has_element?(alice, "#{rows}:first-child[data-me][data-best]")
     assert has_element?(alice, "#{rows}[data-me] [data-role=reveal-number]", "5")
     assert has_element?(alice, "#{rows}[data-me] [data-gain=chip]")
@@ -464,7 +468,8 @@ defmodule QuacksWeb.CardRevealTest do
 
     # later renders keep the same card: it does not open again
     view |> element("button[data-slot=draw]") |> render_click()
-    assert has_element?(view, "#pot-card-1 [data-role=card-caption]")
+    assert has_element?(view, "#pot-card-1")
+    assert has_element?(view, "#card-continue")
 
     view |> element("#card-tap") |> render_click()
     refute has_element?(view, "#card-tap")
@@ -473,7 +478,8 @@ defmodule QuacksWeb.CardRevealTest do
     # Round 37: the last round's recap plays before the new card.
     skip_results(view)
     refute has_element?(view, "#pot-card-1")
-    assert has_element?(view, "#pot-card-2 [data-role=card-caption]")
+    assert has_element?(view, "#pot-card-2")
+    assert has_element?(view, "#card-continue")
 
     {:ok, id} = GameServer.start(1, {10, 11, 12}, %{}, %{fortune: false})
     view = open(browser("solo2"), id)

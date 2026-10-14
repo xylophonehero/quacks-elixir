@@ -166,14 +166,34 @@
 <footer class="game-bar lg:ml-auto lg:w-[22rem]" data-area="bar">
 <div class="game-tray">
 </div>
-<section aria-label="Spend rubies: you have 4" class="bar-choice flex gap-1.5 *:min-h-12 *:min-w-0 *:flex-1 *:touch-manipulation" data-role="bar-rubies" id="bar-rubies">
-<button class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-iron-dark/60 text-parchment ring-2 ring-parchment/45 ring-inset hover:bg-iron-dark hover:ring-parchment/70 px-1!" data-role="rubies-skip" phx-click="action" phx-value-action="g3cJZW5kX3JvdW5k">
-
-Skip
-
+<section aria-label="Spend rubies: you have 4" class="bar-choice flex flex-col gap-1.5" data-role="bar-rubies" id="bar-rubies">
+<div aria-live="polite" class="flex min-h-9 min-w-0 items-center gap-2 rounded-lg bg-iron-dark/90 px-2 py-1 text-sm leading-tight font-semibold text-parchment shadow-lg" data-role="info-row" id="info-rubies">
+<span class="flex shrink-0 items-center gap-1" data-role="info-icon">
+<svg aria-hidden="true" class="size-5 text-ruby" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-ruby">
+</use>
+</svg>
+</span>
+<span class="min-w-0 flex-1">
+<span class="block truncate" data-role="info-title">Spend rubies</span>
+<span class="block truncate text-xs font-normal text-parchment-dim">
+You have 4 · before the round ends
+</span>
+</span>
+</div>
+<div class="flex gap-1.5 *:min-h-12 *:min-w-0 *:flex-1 *:touch-manipulation">
+<button aria-label="Skip: keep your rubies" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-parchment-light text-ink shadow-sm ring-1 ring-ink/25 hover:bg-white flex-col gap-0! px-1! py-1! leading-tight" data-choice-button="" data-role="rubies-skip" data-variant="secondary" phx-click="action" phx-value-action="g3cJZW5kX3JvdW5k" title="Skip: keep your rubies">
+<span class="flex max-w-full items-center gap-1 text-sm font-bold tabular-nums">
+<span class="truncate">Skip</span>
+</span>
+<span class="max-w-full truncate text-[11px] font-normal opacity-80">
+Keep rubies
+</span>
 </button>
-<button aria-label="Spend 2 rubies: refill flask" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 flex-col gap-0! px-1! py-1! leading-tight" data-ruby="flask" disabled="" phx-click="action" phx-value-action="g2gCdwZydWJpZXN3BWZsYXNr" title="Flask full">
-<span class="flex items-center gap-0.5 text-base tabular-nums">
+<button aria-label="Flask full" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 flex-col gap-0! px-1! py-1! leading-tight" data-choice-button="" data-ruby="flask" data-variant="primary" disabled="" phx-click="action" phx-value-action="g2gCdwZydWJpZXN3BWZsYXNr" title="Flask full">
+<span class="flex max-w-full items-center gap-1 text-sm font-bold tabular-nums">
+<span class="inline-flex shrink-0 items-center " data-role="choice-icon">
+
 2<svg aria-hidden="true" class="size-4 text-ruby" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-ruby">
 </use>
@@ -183,12 +203,15 @@ Skip
 </use>
 </svg>
 </span>
-<span class="max-w-full truncate text-[11px] font-normal">
+</span>
+<span class="max-w-full truncate text-[11px] font-normal opacity-80">
 Flask full
 </span>
 </button>
-<button aria-label="Spend 2 rubies: droplet +1" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 flex-col gap-0! px-1! py-1! leading-tight" data-ruby="droplet" phx-click="action" phx-value-action="g2gCdwZydWJpZXN3B2Ryb3BsZXQ" title="Spend 2 rubies: droplet +1">
-<span class="flex items-center gap-0.5 text-base tabular-nums">
+<button aria-label="Spend 2 rubies: droplet +1" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 flex-col gap-0! px-1! py-1! leading-tight" data-choice-button="" data-ruby="droplet" data-variant="primary" phx-click="action" phx-value-action="g2gCdwZydWJpZXN3B2Ryb3BsZXQ" title="Spend 2 rubies: droplet +1">
+<span class="flex max-w-full items-center gap-1 text-sm font-bold tabular-nums">
+<span class="inline-flex shrink-0 items-center " data-role="choice-icon">
+
 2<svg aria-hidden="true" class="size-4 text-ruby" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-ruby">
 </use>
@@ -198,19 +221,26 @@ Flask full
 </use>
 </svg>
 </span>
-<span class="max-w-full truncate text-[11px] font-normal">
+</span>
+<span class="max-w-full truncate text-[11px] font-normal opacity-80">
 Droplet +1
 </span>
 </button>
-<button aria-label="Call the gold witch: each ruby use costs 1 ruby" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-parchment-light text-ink shadow-sm ring-1 ring-ink/25 hover:bg-white flex-col gap-0! px-1! py-1! leading-tight" data-role="rubies-witch" phx-click="action" phx-value-action="g2gCdwV3aXRjaHcEZ29sZA" title="Call the gold witch: each ruby use costs 1 ruby">
-<span class="flex items-center gap-0.5 text-base">
-<svg aria-hidden="true" class="size-5 text-penny-gold" data-icon="witch" fill="currentColor" viewBox="0 0 512 512">
+<button aria-label="Call the gold witch: each ruby use costs 1 ruby" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 flex-col gap-0! px-1! py-1! leading-tight" data-choice-button="" data-role="rubies-witch" data-variant="primary" phx-click="action" phx-value-action="g2gCdwV3aXRjaHcEZ29sZA" title="Call the gold witch: each ruby use costs 1 ruby">
+<span class="flex max-w-full items-center gap-1 text-sm font-bold tabular-nums">
+<span class="inline-flex shrink-0 items-center pr-1" data-role="choice-icon">
+<svg aria-hidden="true" class="size-5" data-icon="witch" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-witch">
 </use>
 </svg>
 </span>
-<span class="max-w-full truncate text-[11px] font-normal">Witch: 1 each</span>
+<span class="truncate">Witch</span>
+</span>
+<span class="max-w-full truncate text-[11px] font-normal opacity-80">
+1 ruby each
+</span>
 </button>
+</div>
 </section>
 </footer>
 </div>

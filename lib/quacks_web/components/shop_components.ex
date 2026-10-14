@@ -90,7 +90,7 @@ defmodule QuacksWeb.ShopComponents do
             "relative flex min-w-0 flex-col items-center gap-0.5 rounded-lg bg-parchment-light px-1 pt-1.5 pb-1 text-sm",
             "ring-1 ring-ink/20 select-none touch-manipulation",
             "transition-[scale,box-shadow,background-color,opacity] duration-150 ease-out",
-            "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink",
+            "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink has-checked:ring-inset",
             "has-focus-visible:outline-3 has-focus-visible:outline-droplet",
             if(t.off, do: "opacity-40 grayscale", else: "cursor-pointer active:scale-[0.96]")
           ]}
@@ -246,7 +246,7 @@ defmodule QuacksWeb.ShopComponents do
                   "relative flex min-h-12 min-w-0 items-center gap-1.5 rounded-lg bg-parchment-light px-2 text-sm",
                   "ring-1 ring-ink/20 select-none touch-manipulation",
                   "transition-[scale,box-shadow,background-color] duration-150 ease-out",
-                  "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink",
+                  "has-checked:bg-gold/30 has-checked:ring-[3px] has-checked:ring-ink has-checked:ring-inset",
                   "has-focus-visible:outline-3 has-focus-visible:outline-droplet",
                   cond do
                     elem(chip, 0) in @locked -> "shop-locked"

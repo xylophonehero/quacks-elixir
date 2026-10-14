@@ -509,8 +509,15 @@ defmodule QuacksWeb.ShopTest do
       end)
 
       html = render(alice)
-      assert html =~ "Final scoring"
       refute html =~ "Everyone shops"
+      # Round 47: while the results play the pill names the step on show; the
+      # seat's phase is the final scoring.
+      assert has_element?(alice, "[data-role=phase-pill]", "Scoring space")
+      {:ok, %{game: game}} = Quacks.GameServer.get(id)
+
+      assert render_component(&QuacksWeb.BarComponents.round_phase/1, game: game, seat: 0) =~
+               "Final scoring"
+
       render_hook(alice, "seen", %{"kind" => "results", "round" => 9})
       refute has_element?(alice, "[data-role=turn]")
       # Round 31: no rubies step in round 9 (they turn into VP by themselves).
@@ -526,7 +533,7 @@ defmodule QuacksWeb.ShopTest do
       assert has_element?(view, "[data-role=next-reward]", "VP")
 
       replace_game(id, &H.put(&1, 0, phase: :explosion_choice, exploded?: true))
-      assert has_element?(view, "[data-role=bar-explosion] button", "Turn into VP at the end")
+      assert has_element?(view, "[data-role=bar-explosion] button", "VP at the end")
       refute has_element?(view, "[data-role=bar-explosion] button", "Shop")
     end
   end

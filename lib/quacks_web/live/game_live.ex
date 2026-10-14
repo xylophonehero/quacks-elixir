@@ -1127,7 +1127,7 @@ defmodule QuacksWeb.GameLive do
           </h1>
           <p
             :if={@seat && @players > 1}
-            class="flex max-w-[7rem] shrink-0 flex-col items-start gap-0.5 sm:max-w-[10rem]"
+            class="flex max-w-[5.5rem] shrink-0 flex-col items-start gap-0.5 min-[25rem]:max-w-[7rem] sm:max-w-[10rem]"
             data-role="you-are"
           >
             <span class="pl-1 text-tag leading-none font-bold tracking-wide text-parchment-dim uppercase">
@@ -1143,7 +1143,13 @@ defmodule QuacksWeb.GameLive do
               {name(@names, @seat)}
             </span>
           </p>
-          <div class="ml-auto min-w-0"><.round_phase game={@game} seat={@seat || 0} /></div>
+          <div class="ml-auto min-w-0">
+            <.round_phase
+              game={@game}
+              seat={@seat || 0}
+              step={pill_step(assigns)}
+            />
+          </div>
           <%!-- Below 80rem (no books column) the books open in a sheet: a drawer on
                the right from 48rem, so it never covers the pot. --%>
           <button
@@ -1389,8 +1395,9 @@ defmodule QuacksWeb.GameLive do
                      after the new card's tap (`next_slide/1` grows it). --%>
                 <%!-- Round 36: the everyone-card rows are in the results stage
                      (`card_stage/1`, over the bar), not under the card. --%>
+                <%!-- Round 47 (P3): not while the bar has Continue (one way to go on). --%>
                 <p
-                  :if={card_tap?(assigns)}
+                  :if={card_caption?(assigns, @tip)}
                   id={"card-caption-#{@game.round}-#{@card_grown}"}
                   class="card-caption"
                   data-role="card-caption"
@@ -1570,8 +1577,10 @@ defmodule QuacksWeb.GameLive do
                   :if={not ladder_action?(action)}
                   phx-click="action"
                   phx-value-action={encode(action)}
-                  variant={choice_variant(dialog_buttons(@all_actions, @decision))}
-                  autofocus={choice_variant(dialog_buttons(@all_actions, @decision)) == :primary}
+                  variant={dialog_variant(dialog_buttons(@all_actions, @decision), action)}
+                  autofocus={
+                    dialog_variant(dialog_buttons(@all_actions, @decision), action) == :primary
+                  }
                   class={choice_class(action)}
                 >
                   {action_label(action, @game, @me)}
@@ -1629,18 +1638,25 @@ defmodule QuacksWeb.GameLive do
           <div class="game-tray">
             <%!-- Round 38: the first-time hint, over the pot's lower band. --%>
             <.tip_card :if={@tip && @tip.place == :bar} tip={@tip} class={tip_shift(@tip.key)} />
+            <%!-- Round 47 (B6): an extra move while brewing (the Cauldron Bubble
+                 flask) as the bar's choices: a prompt strip and a gold button. --%>
             <section
-              :if={extra_actions(@actions) != []}
-              class="flex flex-wrap gap-2 *:min-h-11 *:flex-1 *:touch-manipulation"
+              :for={action <- extra_actions(@actions)}
+              class="flex flex-col gap-1.5"
               aria-label="More actions"
+              data-role="extra-action"
             >
-              <.button
-                :for={action <- extra_actions(@actions)}
-                phx-click="action"
-                phx-value-action={encode(action)}
-              >
-                {action_label(action, @game, @me)}
-              </.button>
+              <.info_row>
+                <span class="block truncate" data-role="info-title">
+                  {extra_words(action, @game, @me) |> elem(0)}
+                </span>
+              </.info_row>
+              <.choice_button
+                action={action}
+                label={action_label(action, @game, @me)}
+                title={extra_words(action, @game, @me) |> elem(1)}
+                class="min-h-11 w-full"
+              />
             </section>
             <p
               :if={left = @me && ear_worm_left(@me)}
@@ -1716,7 +1732,7 @@ defmodule QuacksWeb.GameLive do
           <.results_stage
             :if={
               tiles_playing?(@reveal) && tile_slide(@reveal) &&
-                tile_hold(assigns) not in [:droplet_choice, :chip_choice]
+                tile_hold(assigns) not in [:droplet_choice, :chip_choice, :rubies]
             }
             rows={TileReveal.stage_rows(@game, tile_slide(@reveal), stage_choosing(@game, @reveal))}
             slide={tile_slide(@reveal)}
@@ -1724,7 +1740,6 @@ defmodule QuacksWeb.GameLive do
             names={@names}
             seat={@seat}
             collapsed={tile_hold(assigns) not in [nil, :waiting]}
-            note={hold_note(tile_hold(assigns))}
           />
           <%!-- Round 35: a decision on the step on show takes the step bar's place. --%>
           <.bar_choice
@@ -1760,7 +1775,6 @@ defmodule QuacksWeb.GameLive do
             waiting={tile_hold(assigns) == :waiting}
             reveal={@reveal}
             mode={@reveal_mode}
-            close_label={close_label(@reveal, @decision, @skip_rubies)}
           />
           <.button
             :if={@skip_rubies && !tiles_playing?(@reveal)}
@@ -2254,6 +2268,10 @@ defmodule QuacksWeb.GameLive do
   defp preview_open(%{assigns: %{reveal: nil}} = socket), do: open_waiting(socket)
   defp preview_open(socket), do: socket
 
+  # Round 47: the rubies step after the last step (when a ruby buys something).
+  defp preview_step(%{assigns: %{reveal: %{tiles: true, slides: slides}}} = socket, :rubies),
+    do: socket |> show_slide(length(slides)) |> next_slide()
+
   defp preview_step(%{assigns: %{reveal: %{tiles: true, slides: slides}}} = socket, step)
        when step != nil do
     case Enum.find_index(slides, &(&1.kind == step or &1[:book] == step)) do
@@ -2628,6 +2646,11 @@ defmodule QuacksWeb.GameLive do
        do: card_tap?(assigns)
 
   defp card_continue?(_assigns), do: false
+
+  # Round 47 (P3): the "Tap to continue" caption only while the bar has no
+  # Continue (a page with no seat, a choice in the bar, the card's first hint).
+  defp card_caption?(assigns, tip),
+    do: card_tap?(assigns) and not (card_continue?(assigns) and not match?(%{key: "card"}, tip))
 
   # -- first-time hints (round 38, `QuacksWeb.Tips`) -----------------------------------
 
@@ -3041,10 +3064,6 @@ defmodule QuacksWeb.GameLive do
     end
   end
 
-  # The results stage's one line while a decision holds the step.
-  defp hold_note(:rubies), do: {"Spend rubies", "before the round is scored"}
-  defp hold_note(_hold), do: nil
-
   # After a game update while the steps play on the tiles: a rubies step with
   # nothing left to buy moves on to "Round scored"; in Auto a step whose hold
   # ended gets its timer again.
@@ -3103,6 +3122,18 @@ defmodule QuacksWeb.GameLive do
   # Round 35: on the tiles the die rolls in the results stage, on its row.
   defp die_step?(%{tiles: true}), do: false
   defp die_step?(_reveal), do: true
+
+  # Round 47 (audit #1): the header's phase pill while the steps play on the
+  # tiles: the step on show (the name the bar gives it) and its round.
+  defp pill_step(%{reveal: %{tiles: true, key: {_kind, round}} = reveal} = assigns) do
+    cond do
+      tile_hold(assigns) == :rubies -> {round, phase_name(:rubies)}
+      slide = tile_slide(reveal) -> {round, TileReveal.label(slide)}
+      true -> nil
+    end
+  end
+
+  defp pill_step(_assigns), do: nil
 
   # Your ruby total by the pot: while the steps play on the tiles, after the step shown.
   defp ruby_total(game, _me, seat, %{tiles: true} = reveal),
@@ -3267,6 +3298,15 @@ defmodule QuacksWeb.GameLive do
   defp extra_actions(actions),
     do: Enum.reject(actions -- [:draw, :stop, :resume, :use_flask], &match?({:essence, _}, &1))
 
+  # Round 47 (B6): "Cauldron Bubble: put the white chip back" as the strip's
+  # title and the button's words.
+  defp extra_words(action, game, me) do
+    case String.split(action_label(action, game, me), ": ", parts: 2) do
+      [title, what] -> {title, String.capitalize(what, :ascii)}
+      [label] -> {label, label}
+    end
+  end
+
   defp places(actions), do: for({:essence, {:place, chip}} <- actions, do: chip)
   defp forgets(actions), do: for({:essence, {:forget, _}} = action <- actions, do: action)
 
@@ -3414,8 +3454,10 @@ defmodule QuacksWeb.GameLive do
 
   # One primary per dialog: a lone action is the way on (gold); a choice between
   # several actions is a set of equal secondary buttons.
-  defp choice_variant([_one]), do: :primary
-  defp choice_variant(_actions), do: :secondary
+  # Round 47 (audit #4): one button is the dialog's main action; with more, the
+  # bar's rule (`BarComponents.choice_variant/1`): gold moves, parchment keeps.
+  defp dialog_variant([_one], _action), do: :primary
+  defp dialog_variant(_actions, action), do: choice_variant(action)
 
   # The explosion's two answers are big cards with their number.
   defp choice_class({:explosion_choice, _}), do: "min-h-16 text-base leading-tight"

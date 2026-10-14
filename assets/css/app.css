@@ -955,9 +955,9 @@ body {
   min-height: 1.75rem;
 }
 
-/* Round 41: a long name takes two lines (`line-clamp-2`), a little wider. */
+/* Round 47 (audit #7): a long name is one line with an ellipsis. */
 .stage-grid .stage-name {
-  max-width: 7rem;
+  max-width: 8rem;
 }
 
 /* "Round scored": a row that changed places starts at its old place and moves
@@ -2559,7 +2559,8 @@ body {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  min-height: 2.5rem;
+  /* Round 47 (L3): a 44 px tap target. */
+  min-height: 2.75rem;
   padding: 0 0.7rem;
   border-radius: 999px;
   font-size: 0.75rem;

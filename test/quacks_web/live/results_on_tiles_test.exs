@@ -630,7 +630,7 @@ defmodule QuacksWeb.ResultsOnTilesTest do
     test "once every step is scored the button closes, also in Auto" do
       slides = [%{kind: :die, rows: []}]
       html = stage(slides, 1, :auto)
-      assert q(html, "[data-role=tile-next]") |> LazyHTML.text() =~ "To the shop"
+      assert q(html, "[data-role=tile-next]") |> LazyHTML.text() =~ "Next"
       assert q(html, "[data-role=tile-skip]") |> Enum.count() == 0
     end
   end

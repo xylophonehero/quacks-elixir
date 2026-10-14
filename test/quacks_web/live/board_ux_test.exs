@@ -109,8 +109,19 @@ defmodule QuacksWeb.BoardUxTest do
     for _ <- 1..3, do: view |> element("button[data-slot=draw]") |> render_click()
     view |> element("button", "Stop") |> render_click()
 
+    # Round 47: while the results play the pill names the step on show
+    step =
+      view
+      |> render()
+      |> LazyHTML.from_document()
+      |> LazyHTML.query("[data-role=tile-step]")
+      |> LazyHTML.text()
+      |> String.trim()
+
+    assert has_element?(view, "[data-role=phase-pill]", step)
+    skip_results(view)
     # while everyone shops the bar goes (QA V4: the shop has its own buttons)
-    assert has_element?(view, "dd", "Shop")
+    assert has_element?(view, "[data-role=phase-pill]", "Shop")
     refute has_element?(view, "[data-role=action-bar]")
   end
 

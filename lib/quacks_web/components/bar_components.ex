@@ -78,26 +78,34 @@ defmodule QuacksWeb.BarComponents do
     """
   end
 
-  @doc "The round and this seat's phase, for the page header."
+  @doc """
+  The round and this seat's phase, for the page header. Round 47 (audit #1):
+  while the results play, `step` (`{round, name}`) is the step on show and its
+  round (the same step the bar names), not the seat's phase.
+  """
   attr :game, Game, required: true
   attr :seat, :integer, default: 0
+  attr :step, :any, default: nil, doc: "`{round, name}` of the step on show, or nil"
 
   def round_phase(assigns) do
     ~H"""
-    <dl class="flex items-center gap-2 text-sm">
-      <div class="flex items-baseline gap-1">
+    <dl class="flex min-w-0 items-center gap-2 text-sm">
+      <div class="flex shrink-0 items-baseline gap-1">
         <dt class="text-parchment-dim max-sm:sr-only">Round</dt>
         <dd
           class="round-counter font-semibold whitespace-nowrap tabular-nums"
           data-role="round-counter"
         >
-          {@game.round} / 9
+          {if @step, do: elem(@step, 0), else: @game.round} / 9
         </dd>
       </div>
-      <div>
+      <div class="min-w-0">
         <dt class="sr-only">Phase</dt>
-        <dd class="block max-w-[7.5rem] truncate rounded-full bg-parchment/15 px-2 py-0.5 font-semibold max-sm:text-tag sm:max-w-none">
-          {round_phase_name(@game, Game.phase(@game, @seat))}
+        <dd
+          class="block max-w-[7.5rem] truncate rounded-full bg-parchment/15 px-2 py-0.5 font-semibold max-sm:text-tag sm:max-w-none"
+          data-role="phase-pill"
+        >
+          {if @step, do: elem(@step, 1), else: round_phase_name(@game, Game.phase(@game, @seat))}
         </dd>
       </div>
     </dl>
@@ -304,18 +312,15 @@ defmodule QuacksWeb.BarComponents do
           <.chip chip={c.chip} size={:lg} />
         </button>
       </div>
-      <.button
+      <.choice_button
         :if={@skip?}
-        phx-click="action"
-        phx-value-action={encode(:return_all)}
-        variant={:secondary}
+        action={:return_all}
+        label={action_label(:return_all, @game, @me)}
+        title="Skip"
         class="min-h-11"
-        aria-label={action_label(:return_all, @game, @me)}
         data-role="crow-skip"
         data-crow-skip
-      >
-        Skip
-      </.button>
+      />
     </section>
     """
   end
@@ -414,63 +419,48 @@ defmodule QuacksWeb.BarComponents do
     <section
       id={"bar-explosion-#{@game.round}"}
       class={[
-        "bar-choice bar-choice-late grid gap-2 *:min-h-12 *:touch-manipulation",
+        "bar-choice bar-choice-late grid gap-1.5 *:min-h-12 *:touch-manipulation",
         if(@witch?, do: "grid-cols-3", else: "grid-cols-2")
       ]}
       aria-label="Your pot exploded: take the victory points or the coins"
       data-role="bar-explosion"
     >
-      <.button
-        phx-click="action"
-        phx-value-action={encode({:explosion_choice, :vp})}
+      <%!-- Round 47 (B2): one wording, with or without the witch. --%>
+      <.choice_button
+        action={{:explosion_choice, :vp}}
         disabled={{:explosion_choice, :vp} not in @actions}
-        class="flex-col gap-0! px-2! py-1! leading-tight"
-        aria-label={action_label({:explosion_choice, :vp}, @game, @me)}
+        label={action_label({:explosion_choice, :vp}, @game, @me)}
+        title={"VP +#{@space.vp}"}
+        hint="No coins"
         data-choice="vp"
       >
-        <span class="flex items-center gap-1 text-base">
-          <.piece_icon name={:vp} class="size-5" /> {if @witch?, do: "VP", else: "Take VP"} +{@space.vp}
-        </span>
-        <span class="text-xs font-normal opacity-80">
-          {if @witch?, do: "No coins", else: "Score now, no coins"}
-        </span>
-      </.button>
-      <.button
-        phx-click="action"
-        phx-value-action={encode({:explosion_choice, :buy})}
+        <:icon><.piece_icon name={:vp} class="size-5" /></:icon>
+      </.choice_button>
+      <.choice_button
+        action={{:explosion_choice, :buy}}
         disabled={{:explosion_choice, :buy} not in @actions}
-        class="flex-col gap-0! px-2! py-1! leading-tight"
-        aria-label={action_label({:explosion_choice, :buy}, @game, @me)}
+        label={action_label({:explosion_choice, :buy}, @game, @me)}
+        title={"Coins #{@space.coins}"}
+        hint={if @final?, do: "VP at the end", else: "Shop, no VP"}
         data-choice="buy"
       >
-        <span class="flex items-center gap-1 text-base">
-          <.piece_icon name={:coin} class="size-5" />
-          {if @witch?, do: "Coins", else: "Take coins"} {@space.coins}
-        </span>
-        <span class="text-xs font-normal opacity-80">
-          {if @final?, do: "Turn into VP at the end", else: "Shop, no VP"}
-        </span>
-      </.button>
+        <:icon><.piece_icon name={:coin} class="size-5" /></:icon>
+      </.choice_button>
       <%!-- Round 42 (Nick): the silver witch "No explosion penalty" (S4): VP and
            coins, as if the pot did not explode. Round 43 (Nick): or "Flask after the
            explosion" (S1): the last white back, brew on. As the gold witch in the
            rubies bar. --%>
-      <.button
+      <.choice_button
         :if={@witch?}
-        phx-click="action"
-        phx-value-action={encode(witch_action(@game, @actions, @witch, :silver))}
-        variant={:secondary}
-        class="flex-col gap-0! px-2! py-1! leading-tight"
-        aria-label={explosion_witch_label(@witch)}
-        title={explosion_witch_label(@witch)}
+        action={witch_action(@game, @actions, @witch, :silver)}
+        label={explosion_witch_label(@witch)}
+        title="Witch"
+        hint={explosion_witch_hint(@witch)}
         data-role="explosion-witch"
         data-witch={@witch}
       >
-        <span class="flex items-center gap-1 text-base">
-          <.piece_icon name={:witch} class="size-5 text-penny-silver" /> Witch
-        </span>
-        <span class="text-xs font-normal opacity-80">{explosion_witch_hint(@witch)}</span>
-      </.button>
+        <:icon><.piece_icon name={:witch} class="size-5" /></:icon>
+      </.choice_button>
     </section>
     """
   end
@@ -485,67 +475,69 @@ defmodule QuacksWeb.BarComponents do
     ~H"""
     <section
       id="bar-rubies"
-      class="bar-choice flex gap-1.5 *:min-h-12 *:min-w-0 *:flex-1 *:touch-manipulation"
+      class="bar-choice flex flex-col gap-1.5"
       aria-label={"Spend rubies: you have #{@me.rubies}"}
       data-role="bar-rubies"
     >
-      <.button
-        :if={@keep}
-        phx-click="rubies_keep"
-        class="px-1!"
-        data-role="rubies-keep"
-      >
-        Keep
-      </.button>
-      <.button
-        :if={!@keep}
-        phx-click="action"
-        phx-value-action={encode(:end_round)}
-        disabled={:end_round not in @actions}
-        class="px-1!"
-        data-role="rubies-skip"
-      >
-        Skip
-      </.button>
-      <.button
-        :for={use <- @uses}
-        phx-click="action"
-        phx-value-action={encode({:rubies, use})}
-        disabled={{:rubies, use} not in @actions}
-        variant={:primary}
-        class="flex-col gap-0! px-1! py-1! leading-tight"
-        aria-label={action_label({:rubies, use}, @game, @me)}
-        title={
-          if {:rubies, use} in @actions,
-            do: action_label({:rubies, use}, @game, @me),
-            else: ruby_why(use, @me, @actions)
-        }
-        data-ruby={use}
-      >
-        <span class="flex items-center gap-0.5 text-base tabular-nums">
-          {ruby_cost(use, @me)}<.piece_icon name={:ruby} class="size-4 text-ruby" />
-          <.piece_icon name={ruby_icon(use)} class="ml-0.5 size-5" />
+      <%!-- Round 47 (audit #5, B3): the same title strip and the same Skip before
+           "Round scored" (`keep`: the steps on the tiles go on) and in the shop. --%>
+      <.info_row id="info-rubies">
+        <:icon><.piece_icon name={:ruby} class="size-5 text-ruby" /></:icon>
+        <span class="block truncate" data-role="info-title">Spend rubies</span>
+        <span class="block truncate text-xs font-normal text-parchment-dim">
+          You have {@me.rubies} · {if @keep,
+            do: "before the round is scored",
+            else: "before the round ends"}
         </span>
-        <span class="max-w-full truncate text-[11px] font-normal">
-          {ruby_why(use, @me, @actions)}
-        </span>
-      </.button>
-      <%!-- Round 37: the gold witch "Cheap rubies": each use then costs 1 ruby. --%>
-      <.button
-        :if={@witch?}
-        phx-click="action"
-        phx-value-action={encode(g4_action(@game, @actions))}
-        variant={:secondary}
-        class="flex-col gap-0! px-1! py-1! leading-tight"
-        aria-label="Call the gold witch: each ruby use costs 1 ruby"
-        title="Call the gold witch: each ruby use costs 1 ruby"
-        data-role="rubies-witch"
-      >
-        <span class="flex items-center gap-0.5 text-base">
-          <.piece_icon name={:witch} class="size-5 text-penny-gold" />
-        </span>
-        <span class="max-w-full truncate text-[11px] font-normal">Witch: 1 each</span>
-      </.button>
+      </.info_row>
+      <div class="flex gap-1.5 *:min-h-12 *:min-w-0 *:flex-1 *:touch-manipulation">
+        <.choice_button
+          :if={@keep}
+          variant={:secondary}
+          label="Skip: keep your rubies"
+          title="Skip"
+          hint="Keep rubies"
+          event="rubies_keep"
+          data-role="rubies-keep"
+        />
+        <.choice_button
+          :if={!@keep}
+          action={:end_round}
+          disabled={:end_round not in @actions}
+          label="Skip: keep your rubies"
+          title="Skip"
+          hint="Keep rubies"
+          data-role="rubies-skip"
+        />
+        <.choice_button
+          :for={use <- @uses}
+          action={{:rubies, use}}
+          disabled={{:rubies, use} not in @actions}
+          label={
+            if {:rubies, use} in @actions,
+              do: action_label({:rubies, use}, @game, @me),
+              else: ruby_why(use, @me, @actions)
+          }
+          hint={ruby_why(use, @me, @actions)}
+          data-ruby={use}
+        >
+          <:icon>
+            {ruby_cost(use, @me)}<.piece_icon name={:ruby} class="size-4 text-ruby" />
+            <.piece_icon name={ruby_icon(use)} class="ml-0.5 size-5" />
+          </:icon>
+        </.choice_button>
+        <%!-- Round 37: the gold witch "Cheap rubies": each use then costs 1 ruby. --%>
+        <.choice_button
+          :if={@witch?}
+          action={g4_action(@game, @actions)}
+          label="Call the gold witch: each ruby use costs 1 ruby"
+          title="Witch"
+          hint="1 ruby each"
+          data-role="rubies-witch"
+        >
+          <:icon><.piece_icon name={:witch} class="size-5" /></:icon>
+        </.choice_button>
+      </div>
     </section>
     """
   end
@@ -627,7 +619,6 @@ defmodule QuacksWeb.BarComponents do
         <.choice_button
           :for={{:fortune, choice} = action <- @picks}
           action={action}
-          variant={if choice == :skip, do: :secondary, else: :primary}
           label={action_label(action, @game, @me)}
           title={card_choice_title(choice, @card)}
           hint={card_choice_hint(choice, @card, @me)}
@@ -641,7 +632,6 @@ defmodule QuacksWeb.BarComponents do
         <.choice_button
           :for={{:fortune, choice} = action <- @picks}
           action={action}
-          variant={if choice == :skip, do: :secondary, else: :primary}
           label={action_label(action, @game, @me)}
           title={card_choice_title(choice, @card)}
           hint={card_choice_hint(choice, @card, @me)}
@@ -762,11 +752,11 @@ defmodule QuacksWeb.BarComponents do
           :for={item <- @items}
           :if={!@picked}
           action={if(item.reason, do: nil, else: item.action)}
-          variant={if item.action == :chip_done, do: :secondary, else: :primary}
+          variant={choice_variant(item.action)}
           label={if item.reason, do: "#{item.label}: #{item.reason}", else: item.label}
           title={item.title}
           hint={item.hint}
-          class="min-h-12 min-w-16 flex-1"
+          class={["min-h-12 min-w-16", skip_class(item.action)]}
           data-role={if item.reason, do: "ladder-rung-off", else: "chip-action"}
         >
           <:icon :if={item.icon}><.chip_item_icon icon={item.icon} /></:icon>
@@ -852,18 +842,15 @@ defmodule QuacksWeb.BarComponents do
         >
           Back
         </.button>
-        <.button
+        <.choice_button
           :if={!@picked}
-          phx-click="action"
-          phx-value-action={encode(:skip_upgrade)}
+          action={:skip_upgrade}
           disabled={:skip_upgrade not in @actions}
-          variant={:secondary}
-          class="px-4"
-          aria-label={if @visit?, do: "Skip the upgrade", else: "Skip the upgrade, keep the penny"}
+          label={if @visit?, do: "Skip the upgrade", else: "Skip the upgrade, keep the penny"}
+          title="Skip"
+          hint={if !@visit?, do: "Keep the penny"}
           data-role="upgrade-skip"
-        >
-          {if @visit?, do: "Skip", else: "Skip, keep the penny"}
-        </.button>
+        />
       </div>
     </section>
     """
@@ -943,17 +930,14 @@ defmodule QuacksWeb.BarComponents do
         </span>
       </.info_row>
       <div class="flex min-h-12 justify-end *:min-h-12 *:touch-manipulation">
-        <.button
+        <.choice_button
           :if={{:essence, :pass} in @actions}
-          phx-click="action"
-          phx-value-action={encode({:essence, :pass})}
-          variant={:secondary}
-          class="px-6"
-          aria-label={action_label({:essence, :pass}, @game, @me)}
+          action={{:essence, :pass}}
+          label={action_label({:essence, :pass}, @game, @me)}
+          title="No"
+          class="px-6!"
           data-role="essence-pass"
-        >
-          No
-        </.button>
+        />
       </div>
     </section>
     """
@@ -1044,18 +1028,15 @@ defmodule QuacksWeb.BarComponents do
             <.chip chip={c.chip} size={:md} />
           </button>
         </div>
-        <.button
+        <.choice_button
           :if={@skip?}
-          phx-click="action"
-          phx-value-action={encode(:return_all)}
-          variant={:secondary}
-          class="ml-auto h-12 shrink-0 touch-manipulation px-3"
-          aria-label={action_label(:return_all, @game, @me)}
+          action={:return_all}
+          label={action_label(:return_all, @game, @me)}
+          title="Skip"
+          class={["h-12 touch-manipulation", skip_class(:return_all)]}
           data-role="blue-skip"
           data-crow-skip
-        >
-          Skip
-        </.button>
+        />
       </div>
     </section>
     """
@@ -1086,11 +1067,10 @@ defmodule QuacksWeb.BarComponents do
         <.choice_button
           :for={item <- @spec.items}
           action={item.action}
-          variant={item[:variant] || :primary}
           label={item.label}
           title={item.title}
           hint={item.hint}
-          class="min-h-12 min-w-16 flex-1"
+          class={["min-h-12 min-w-16", skip_class(item.action)]}
           data-role="pick-action"
         />
       </.chip_row>
@@ -1098,7 +1078,6 @@ defmodule QuacksWeb.BarComponents do
         <.choice_button
           :for={item <- @spec.items}
           action={item.action}
-          variant={item[:variant] || :primary}
           label={item.label}
           title={item.title}
           hint={item.hint}
@@ -1147,41 +1126,51 @@ defmodule QuacksWeb.BarComponents do
   @doc """
   Round 33: one button of a bar choice: its picture (a chip, a piece) then a short
   title on one line, and a hint line under it. The picture has its own box, so a
-  chip's value badge never covers the text. `action` nil or `disabled` greys it;
-  `label` is the full text (screen readers, the tooltip).
+  chip's value badge never covers the text. `action` nil (with no `phx-click`) or
+  `disabled` greys it; `label` is the full text (screen readers, the tooltip).
+
+  Round 47 (audit #4): the one button of every choice in the bar, with one rule
+  for its colour (`choice_variant/1`): gold for a move that changes the game,
+  parchment for keep, skip or no thanks. The dark outline is for Stop and Resume
+  only (`action_bar/1`). A button with an `event` (a client event) has no
+  action; give it a `variant`.
   """
   attr :action, :any, default: nil
-  attr :variant, :atom, default: :primary
+  attr :variant, :atom, default: nil, values: [nil, :primary, :secondary]
   attr :disabled, :boolean, default: false
   attr :label, :string, required: true
-  attr :title, :string, required: true
+  attr :title, :string, default: nil
   attr :hint, :string, default: nil
   attr :class, :any, default: nil
+  attr :event, :string, default: nil, doc: "a client event in place of an `action`"
   attr :rest, :global
   slot :icon
 
   def choice_button(assigns) do
+    assigns = assign(assigns, variant: assigns.variant || choice_variant(assigns.action))
+
     ~H"""
     <.button
-      phx-click={@action && "action"}
+      phx-click={if @action, do: "action", else: @event}
       phx-value-action={@action && encode(@action)}
-      disabled={@disabled or is_nil(@action)}
+      disabled={@disabled or (is_nil(@action) and is_nil(@event))}
       variant={@variant}
       class={["flex-col gap-0! px-1! py-1! leading-tight", @class]}
       aria-label={@label}
       title={@label}
       data-choice-button
+      data-variant={@variant}
       {@rest}
     >
       <span class="flex max-w-full items-center gap-1 text-sm font-bold tabular-nums">
         <span
           :if={@icon != []}
-          class="inline-flex shrink-0 items-center pr-1"
+          class={["inline-flex shrink-0 items-center", @title && "pr-1"]}
           data-role="choice-icon"
         >
           {render_slot(@icon)}
         </span>
-        <span class="truncate">{@title}</span>
+        <span :if={@title} class="truncate">{@title}</span>
       </span>
       <span :if={@hint} class="max-w-full truncate text-[11px] font-normal opacity-80">
         {@hint}
@@ -1189,6 +1178,35 @@ defmodule QuacksWeb.BarComponents do
     </.button>
     """
   end
+
+  # Round 47 (audit #4): the answers that keep things as they are.
+  @keep_actions [
+    :keep,
+    :end_round,
+    :chip_done,
+    :return_all,
+    :skip_upgrade,
+    :witch_done,
+    {:buy, []},
+    {:essence, :pass},
+    {:fortune, :skip},
+    {:fortune, :keep},
+    {:witch, :silver, :return_all}
+  ]
+
+  @doc """
+  Round 47 (audit #4): the colour of a choice's button. `:secondary` (parchment)
+  for an answer that keeps things as they are (keep, skip, no thanks, done),
+  else `:primary` (gold): the move that changes the game.
+  """
+  @spec choice_variant(term) :: :primary | :secondary
+  def choice_variant(action) when action in @keep_actions, do: :secondary
+  def choice_variant(_action), do: :primary
+
+  # Round 47 (audit #4): in a row of chips to tap, the keep answer (Skip, Done)
+  # sits at the row's end at its own width, the crow skull's way; a move fills.
+  defp skip_class(action) when action in @keep_actions, do: "ml-auto shrink-0 px-4!"
+  defp skip_class(_action), do: "flex-1"
 
   @doc """
   Round 36: a choice among chips as the chips themselves, to tap (the crow skull's
@@ -1436,8 +1454,7 @@ defmodule QuacksWeb.BarComponents do
       label: label,
       title: title,
       hint: hint,
-      icon: nil,
-      variant: if(action in [{:essence, :pass}, :keep], do: :secondary, else: :primary)
+      icon: nil
     }
   end
 

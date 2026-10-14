@@ -3,7 +3,9 @@ defmodule QuacksWeb.FinalComponents do
   Round 31 (item 9): the end of the game, in place. No full-screen screen any
   more: the score chart lies over the pot (`final_board/1`) and the contextual
   button area holds Play again, Lobby and a small Share (`final_actions/1`).
-  The pot never moves: the chart is absolute inside the pot's square.
+  The pot never moves: the chart is absolute inside the pot's square. Round 47
+  (G2): the chart has the pot's full width (the bar's width on a phone), so long
+  names have room.
   """
   use Phoenix.Component
 
@@ -43,7 +45,7 @@ defmodule QuacksWeb.FinalComponents do
     ~H"""
     <section
       id="final-board"
-      class="final-board paper absolute inset-x-[3%] top-1/2 z-30 flex max-h-[96%] -translate-y-1/2 flex-col gap-1 overflow-hidden rounded-2xl p-2.5 text-ink shadow-2xl ring-1 ring-black/30"
+      class="final-board paper absolute inset-x-0 top-1/2 z-30 flex max-h-[96%] -translate-y-1/2 flex-col gap-1 overflow-hidden rounded-2xl p-2.5 text-ink shadow-2xl ring-1 ring-black/30"
       aria-label="Final scores"
       data-role="final-board"
     >
@@ -195,8 +197,11 @@ defmodule QuacksWeb.FinalComponents do
     |> Map.new(fn {row, i} -> {row.seat, before[row.seat] - i} end)
   end
 
-  # Round 29 (F3): the chart marks this browser's own row.
-  defp you_tag(assigns) do
+  @doc """
+  Round 29 (F3): the chart marks this browser's own row. Round 47 (R2): the
+  results panels too, after the name.
+  """
+  def you_tag(assigns) do
     ~H"""
     <span
       class="shrink-0 rounded-full bg-gold px-1.5 text-[0.65rem] leading-4 font-bold tracking-wider text-ink uppercase"
