@@ -10,6 +10,14 @@ import Config
 config :quacks,
   generators: [timestamp_type: :utc_datetime]
 
+# Who may show the game in an iframe (CSP `frame-ancestors`, issue #71): WebinarGeek
+# webinars and the Malong GeekBook in dev. Override with `FRAME_ANCESTORS` (runtime.exs).
+config :quacks, :frame_ancestors, "'self' https://*.webinargeek.com http://localhost:3333"
+
+# The session cookie: a cross-site iframe sends only `SameSite=None; Secure` cookies.
+# Dev and test keep Lax (plain HTTP); prod.exs sets None.
+config :quacks, :session_cookie, same_site: "Lax", secure: false
+
 # Configure the endpoint
 config :quacks, QuacksWeb.Endpoint,
   url: [host: "localhost"],

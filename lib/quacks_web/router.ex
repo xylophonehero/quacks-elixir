@@ -8,6 +8,7 @@ defmodule QuacksWeb.Router do
     plug :put_root_layout, html: {QuacksWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :allow_framing
     plug QuacksWeb.Plugs.PlayerToken
   end
 
@@ -70,5 +71,16 @@ defmodule QuacksWeb.Router do
     # as a live game on the game page.
     get "/scenarios", ScenarioController, :index
     get "/scenarios/:kind/*id", ScenarioController, :show
+  end
+
+  # Issue #71: WebinarGeek shows the game in an iframe. `frame-ancestors` decides who
+  # may embed it, so the SAMEORIGIN default of `put_secure_browser_headers` goes.
+  defp allow_framing(conn, _opts) do
+    conn
+    |> delete_resp_header("x-frame-options")
+    |> put_resp_header(
+      "content-security-policy",
+      "frame-ancestors " <> Application.fetch_env!(:quacks, :frame_ancestors)
+    )
   end
 end

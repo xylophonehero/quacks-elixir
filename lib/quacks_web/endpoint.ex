@@ -5,11 +5,10 @@ defmodule QuacksWeb.Endpoint do
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
   @session_options [
-    store: :cookie,
-    key: "_quacks_key",
-    signing_salt: "Mry6/5BV",
-    same_site: "Lax"
-  ]
+                     store: :cookie,
+                     key: "_quacks_key",
+                     signing_salt: "Mry6/5BV"
+                   ] ++ Application.compile_env(:quacks, :session_cookie)
 
   # `fullsweep_after: 0`: each diff leaves garbage in the WebSocket process, and its
   # live data is only a few KB, so every GC is a full sweep. 20 was not enough: after
