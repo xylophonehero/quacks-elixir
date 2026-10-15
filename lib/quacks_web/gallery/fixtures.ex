@@ -18,7 +18,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
   alias Quacks.Game
   alias Quacks.Rules.Chips
   alias Quacks.Scenarios.Script
-  alias QuacksWeb.{Reveal, TileDesign, TileReveal, Tips}
+  alias QuacksWeb.{Reveal, TileReveal, Tips}
 
   @short ~w(Ada Bram Cleo Dirk Edda Finn Gwen Hugo)
   @long [
@@ -59,7 +59,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
         "tiles",
         "Player tiles",
         150,
-        "TileComponents.player_chip/1 in the players row",
+        "TileComponents.players_ledger/1 + player_chip/1 (the players row)",
         tile_variants()
       ),
       component(
@@ -229,12 +229,19 @@ defmodule QuacksWeb.Gallery.Fixtures do
       {"last-space", "A chip on the last space: the spoon scores", &last_space_pot/0},
       {"exploded", "Exploded", fn -> pot(draws(new(1), 0, boom())) end},
       {"rings", "Other players' rings (4 players)", &rings_pot/0},
-      {"flask-empty", "Flask used, white chip back", &flask_pot/0}
+      {"flask-empty", "Flask used, white chip back", &flask_pot/0},
+      {"bowl", "The overflow bowl (The Herb Witches)", &bowl_pot/0}
     ]
   end
 
   defp pot(g, seat \\ 0, rings \\ nil) do
     %{view: :pot, game: g, seat: seat, rings: rings, flask: flask(g, seat)}
+  end
+
+  # By hand: a chip on the last space and then four more draws need a long brew.
+  defp bowl_pot do
+    g = draws(new(1, expansions: [:herb_witches]), 0, mid_brew())
+    pot(put(g, 0, bowl: [{:red, 1}, {:green, 2}, {:white, 2}, {:orange, 1}, {:blue, 2}]))
   end
 
   defp flask(g, seat), do: if(g.players[seat].flask, do: :full, else: :empty)
@@ -290,13 +297,19 @@ defmodule QuacksWeb.Gallery.Fixtures do
     ]
   end
 
+  # The rows' news as the game page gives it (`reveal`: a results step on the rows).
   defp tiles(g, opts \\ []) do
+    peek = opts[:peek] && min(1, length(g.seats) - 1)
+
     %{
       view: :tiles,
       game: g,
       names: names(length(g.seats), opts[:names]),
       seat: 0,
-      bots: opts[:bots] || []
+      bots: opts[:bots] || [],
+      news: Map.new(g.seats, &{&1, TileReveal.news(g, &1, opts[:reveal])}),
+      rolls: Map.new(g.seats, &{&1, TileReveal.rolls(g, &1)}),
+      peek: peek
     }
   end
 
@@ -501,67 +514,21 @@ defmodule QuacksWeb.Gallery.Fixtures do
   def pot_story(%{"chips" => k}), do: pot(draws(new(1), 0, Enum.take(mid_brew(), k)))
 
   @doc """
-  The player tiles. Args: players, state (`brewing`, `stopped`, `exploded`, `shop`,
-  `done`), long_names, vp_digits, bots (every other seat a bot).
+  The players row (the ledger, `TileComponents.players_ledger/1`). Args: players,
+  state (`brewing`, `stopped`, `exploded`, `done`: every brew ended, `shop`: one
+  seat bought a chip, `results`: the scoring space step on the rows), alchemists,
+  witches, rats, long_names, vp_digits, bots (every seat but yours), peek (the
+  sheet of seat 2 under the rows, as a tap opens it).
   """
   @spec tiles_story(map) :: map
   def tiles_story(%{"players" => n} = a) do
-    g = n |> tiles_state(a["state"]) |> vp_digits(a["vp_digits"])
+    {g, reveal} = tiles_state(n, a["state"], tile_opts(n, a))
+    g = g |> vp_digits(a["vp_digits"]) |> tile_pieces(a)
     bots = if a["bots"], do: g.seats -- [0], else: []
-    tiles(g, names: long(a), bots: bots)
+    tiles(g, names: long(a), bots: bots, reveal: reveal, peek: a["peek"])
   end
 
-  defp tiles_state(n, "brewing"), do: brewing(n)
-  defp tiles_state(n, "stopped"), do: apply!(brewing(n), min(1, n - 1), :stop)
-
-  defp tiles_state(n, "exploded") do
-    g = draws(brewing(n), min(1, n - 1), boom())
-    if n > 2, do: apply!(g, 2, :stop), else: g
-  end
-
-  defp tiles_state(n, "shop") do
-    g = brewed_round(n, [])
-    apply!(g, min(2, n - 1), {:buy, []})
-  end
-
-  defp tiles_state(n, "done") do
-    plans = [mid_brew(), boom(), [{:orange, 1}], Enum.take(mid_brew(), 4)]
-    finish_round(new(n), for(s <- 0..(n - 1), do: Enum.at(plans, rem(s, 4))))
-  end
-
-  @doc """
-  The player tile redesign study (`QuacksWeb.TileDesignComponents`, gallery only).
-  Args: option (`a` ledger, `b` tokens, `c` race), players, state (`brewing`,
-  `stopped`, `exploded`, `done`: every brew ended, `shop`: one seat bought a chip,
-  `results`: the scoring space step on the tiles), alchemists, witches, rats,
-  long_names, vp_digits, bots, peek (the tap view of seat 1 under the tiles).
-  """
-  @spec redesign_story(map) :: map
-  def redesign_story(%{"players" => n} = a) do
-    {g, reveal} = redesign_state(n, a["state"], redesign_opts(n, a))
-    g = g |> vp_digits(a["vp_digits"]) |> redesign_pieces(a)
-    names = names(n, long(a))
-    bots = if a["bots"], do: g.seats -- [0], else: []
-
-    facts =
-      for s <- g.seats do
-        TileDesign.facts(g, s,
-          name: names[s],
-          you: s == 0,
-          bot: s in bots,
-          news: redesign_news(g, s, a["state"], reveal)
-        )
-      end
-
-    %{
-      view: :tiles_redesign,
-      option: a["option"],
-      facts: facts,
-      peek: a["peek"] && Enum.at(facts, min(1, n - 1))
-    }
-  end
-
-  defp redesign_opts(n, a) do
+  defp tile_opts(n, a) do
     expansions =
       if(a["alchemists"], do: [:alchemists], else: []) ++
         if a["witches"], do: [:herb_witches], else: []
@@ -570,35 +537,40 @@ defmodule QuacksWeb.Gallery.Fixtures do
       if a["alchemists"], do: [patients: Map.new(0..(n - 1), &{&1, :random})], else: []
   end
 
-  defp redesign_state(n, state, opts) when state in ~w(brewing stopped exploded) do
+  defp tiles_state(n, state, opts) when state in ~w(brewing stopped exploded) do
     g = Enum.reduce(0..(n - 1), new(n, opts), &draws(&2, &1, race_brew(&1)))
 
     g =
       case state do
         "brewing" -> g
         "stopped" -> apply!(g, min(1, n - 1), :stop)
-        "exploded" -> redesign_boom(g, n)
+        "exploded" -> tiles_boom(g, n)
       end
 
     {g, nil}
   end
 
-  defp redesign_state(n, state, opts) do
+  defp tiles_state(n, "done", opts) do
+    plans = [mid_brew(), boom(), [{:orange, 1}], Enum.take(mid_brew(), 4)]
+    {finish_round(new(n, opts), for(s <- 0..(n - 1), do: Enum.at(plans, rem(s, 4)))), nil}
+  end
+
+  defp tiles_state(n, state, opts) do
     plans = for s <- 0..(n - 1), do: if(s == 1, do: boom(), else: plan(s))
     g = n |> new(opts) |> finish_round(plans) |> settle_all()
 
     case state do
-      "done" ->
-        {g, nil}
-
       "shop" ->
         seat = min(2, n - 1)
         {buy(g, seat, [{:orange, 1}]) || apply!(g, seat, {:buy, []}), nil}
 
       "results" ->
         slides = TileReveal.live(g, Reveal.result_slides(g))
-        i = Enum.find_index(slides, &(&1.kind == :space)) || raise "no space step"
-        {g, %{slides: slides, index: i + 1, tiles: true}}
+
+        case Enum.find_index(slides, &(&1.kind == :space)) do
+          nil -> {g, nil}
+          i -> {g, %{slides: slides, index: i + 1, tiles: true}}
+        end
     end
   end
 
@@ -624,7 +596,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
     Enum.take(b ++ a, 3 + rem(2 * s, 5))
   end
 
-  defp redesign_boom(g, n) do
+  defp tiles_boom(g, n) do
     g = draws(g, min(1, n - 1), boom())
     if n > 2, do: apply!(g, 2, :stop), else: g
   end
@@ -652,14 +624,9 @@ defmodule QuacksWeb.Gallery.Fixtures do
     action && {seat, action}
   end
 
-  defp redesign_news(_g, _seat, state, _reveal) when state in ~w(brewing stopped exploded done),
-    do: nil
-
-  defp redesign_news(g, seat, _state, reveal), do: TileReveal.news(g, seat, reveal)
-
   # By hand: essence comes from an essence phase, rat tails from a VP gap, a spent
   # penny from a witch; round 1 has none of them yet.
-  defp redesign_pieces(g, a) do
+  defp tile_pieces(g, a) do
     Enum.reduce(g.seats, g, fn s, g ->
       g = if a["alchemists"], do: put(g, s, essence: rem(3 * s + 2, 9)), else: g
       g = if a["rats"] and rem(s, 2) == 1, do: put(g, s, rat_stone: s + 1), else: g

@@ -200,7 +200,7 @@ defmodule QuacksWeb.AlchemistsComponents do
 
     ~H"""
     <span class="flex" aria-hidden="true" data-glyph="chip">
-      <.chip chip={@chip} size={:xs} />
+      <.chip chip={@chip} size={:sm} />
     </span>
     """
   end
@@ -441,7 +441,7 @@ defmodule QuacksWeb.AlchemistsComponents do
     assigns = assign(assigns, chip: chip)
 
     ~H"""
-    <span aria-hidden="true" data-glyph="chip"><.chip chip={@chip} size={:xs} /></span>
+    <span class="flex" aria-hidden="true" data-glyph="chip"><.chip chip={@chip} size={:sm} /></span>
     """
   end
 

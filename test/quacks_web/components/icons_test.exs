@@ -71,13 +71,14 @@ defmodule QuacksWeb.IconsTest do
     end
   end
 
-  test "a chip shows its icon and its value; :xs shows only the value" do
+  test "a chip shows its icon and its value, at every size (no :xs)" do
     html = render_component(&ChipComponents.chip/1, chip: {:orange, 1})
     assert one_path?(html, :orange)
     assert html |> query("[data-role=chip-value]") |> LazyHTML.text() =~ "1"
 
-    xs = render_component(&ChipComponents.chip/1, chip: {:orange, 1}, size: :xs)
-    assert xs |> query("svg") |> Enum.empty?()
+    sm = render_component(&ChipComponents.chip/1, chip: {:orange, 1}, size: :sm)
+    assert one_path?(sm, :orange)
+    assert sm |> query("[data-role=chip-value]") |> LazyHTML.text() =~ "1"
   end
 
   test "every bonus die face draws" do

@@ -85,7 +85,8 @@ defmodule QuacksWeb.ChipComponents do
 
   @doc """
   One chip: a disc in the chip colour with the ingredient icon and the value in a
-  parchment badge. `size={:xs}` is too small for the icon: it shows only the value.
+  parchment badge. `:sm` is the smallest size (round 48: no `:xs`, every chip
+  shows its icon).
   Round 35 (item 8): a chip with no value (`{colour, nil}`, a result that is a
   chip) has its icon in the centre and no badge. The `:sm` and `:md` badge sticks
   out 4 px to the lower right: a row of valued chips needs a gap of 6 px
@@ -97,7 +98,7 @@ defmodule QuacksWeb.ChipComponents do
       <.chip chip={{:white, 1}} size={:sm} />
   """
   attr :chip, :any, required: true, doc: "a `{colour, value}` tuple (value nil: no badge)"
-  attr :size, :atom, default: :md, values: [:xs, :sm, :md, :lg]
+  attr :size, :atom, default: :md, values: [:sm, :md, :lg]
   attr :rest, :global
 
   def chip(assigns) do
@@ -113,18 +114,6 @@ defmodule QuacksWeb.ChipComponents do
 
     ~H"""
     <span
-      :if={@size == :xs}
-      class={[
-        "inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums",
-        @colour_class
-      ]}
-      aria-label={"#{@colour} #{@value}"}
-      {@rest}
-    >
-      {face(@chip)}
-    </span>
-    <span
-      :if={@size != :xs}
       class={[
         "chip-token relative inline-flex shrink-0 items-center justify-center rounded-full",
         @size == :sm && "size-6",
@@ -195,10 +184,6 @@ defmodule QuacksWeb.ChipComponents do
     />
     """
   end
-
-  # What a chip shows: its value. Locoweed has no printed value: an "L".
-  defp face({:locoweed, _}), do: "L"
-  defp face({_colour, value}), do: value
 
   # One face of the bonus die in a 48 × 48 frame: a parchment square with its glyph
   # (the VP number on a laurel, a ruby, a droplet or an orange chip).

@@ -3210,18 +3210,20 @@ html:active-view-transition-type(card) .card-caption {
   }
 }
 
-/* Round 27: the players row's tiles (design B, `player_chip/1`). An exploded seat:
-   red stripes, a red border (yours stays gold), a grey disc and a red space. The
-   round leader (the bonus die roller): a gold glow. */
+/* Round 48: the players row is a ledger (`players_ledger/1`), one parchment row
+   per seat (`player_chip/1`). An exploded seat: red stripes. */
 .player-tile.tile-boom {
-  background: repeating-linear-gradient(135deg, rgb(216 50 43 / 0.35) 0 6px, rgb(216 50 43 / 0.2) 6px 12px);
+  background: repeating-linear-gradient(135deg, rgb(216 50 43 / 0.24) 0 6px, rgb(216 50 43 / 0.12) 6px 12px);
 }
-.player-tile.tile-boom:not([data-you]) { border-color: var(--color-ruby); }
-.player-tile.tile-boom [data-role="seat-disc"] { filter: grayscale(0.7) brightness(0.8); }
-.player-tile.tile-boom [data-role="player-space"] { color: var(--color-ruby-light); }
-.player-tile.tile-lead {
-  box-shadow: 0 0 0 1.5px var(--color-gold), 0 0 10px rgb(224 178 60 / 0.45);
-}
+/* The last draws on a row (`.tile-draw`, newest first): as many as the row's
+   width has room for (the container `row`); a narrow row (two columns on a
+   phone) shows one or two. */
+@container row (width < 11rem) { .tile-draw:not([data-age="0"]) { display: none; } }
+@container row (width < 18.4rem) { .tile-draw:is([data-age="2"], [data-age="3"], [data-age="4"], [data-age="5"], [data-age="6"]) { display: none; } }
+@container row (width < 19.75rem) { .tile-draw:is([data-age="3"], [data-age="4"], [data-age="5"], [data-age="6"]) { display: none; } }
+@container row (width < 21.1rem) { .tile-draw:is([data-age="4"], [data-age="5"], [data-age="6"]) { display: none; } }
+@container row (width < 22.5rem) { .tile-draw:is([data-age="5"], [data-age="6"]) { display: none; } }
+@container row (width < 23.9rem) { .tile-draw[data-age="6"] { display: none; } }
 
 /* Round 28 (R2, `player_chip/1`): a tile's bottom line swaps to the news (a
    step's gains, a die face, the chips bought) and back to the totals, inside the
@@ -3340,7 +3342,7 @@ html:active-view-transition-type(card) .card-caption {
 }
 /* Round 31 (item 5): a draw. The line stays (its id holds for the brewing); the
    chips enter again with the draw count in their ids: the new chip pops in at the
-   left, the older ones slide one place (18 px less the 4 px overlap) right. */
+   left, the older ones slide one place (round 48: 24 px less the 2 px overlap) right. */
 .tile-draw[data-age="0"] {
   animation: tile-draw-pop 280ms var(--ease-spring, ease-out) both;
 }
@@ -3351,7 +3353,7 @@ html:active-view-transition-type(card) .card-caption {
   from { opacity: 0; scale: 0.4; }
 }
 @keyframes tile-draw-slide {
-  from { translate: -14px 0; }
+  from { translate: -22px 0; }
 }
 .tile-line[data-hold] .tile-totals {
   animation: none;

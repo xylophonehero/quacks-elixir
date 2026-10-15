@@ -1200,7 +1200,7 @@ defmodule QuacksWeb.PotComponents do
   def bowl(assigns) do
     ~H"""
     <div
-      class="flex min-h-10 flex-wrap items-center gap-1 rounded-b-full border-4 border-t-0 border-iron bg-iron-dark/90 px-3 py-1 text-xs text-parchment"
+      class="flex min-h-10 flex-wrap items-center gap-1.5 rounded-b-full border-4 border-t-0 border-iron bg-iron-dark/90 px-3 py-1 text-xs text-parchment"
       aria-label="Overflow bowl"
       data-role="bowl"
     >
@@ -1209,7 +1209,7 @@ defmodule QuacksWeb.PotComponents do
         :for={{chip, i} <- Enum.with_index(@chips)}
         :key={length(@chips) - i}
         chip={chip}
-        size={:xs}
+        size={:sm}
         data-role="bowl-chip"
       />
       <span :if={@chips == []} class="text-parchment-dim">empty</span>

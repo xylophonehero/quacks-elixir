@@ -276,13 +276,13 @@ defmodule QuacksWeb.PanelComponents do
       <.book_tiers :if={!@compact} tiers={@book.tiers} players={@players} />
       <div
         :if={!@compact and @book.chips != []}
-        class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs"
+        class="mt-auto flex flex-wrap gap-x-3 gap-y-1.5 pt-0.5 pb-1 text-xs"
       >
         <span
           :for={{chip, price} <- @book.chips}
-          class="inline-flex items-center gap-1 font-bold tabular-nums"
+          class="inline-flex items-center gap-1.5 font-bold tabular-nums"
         >
-          <.chip chip={chip} size={:xs} />{price}
+          <.chip chip={chip} size={:sm} />{price}
         </span>
       </div>
     </div>

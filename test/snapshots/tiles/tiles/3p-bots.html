@@ -156,202 +156,296 @@
 <div data-phx-main="" data-phx-session="" data-phx-static="" id="phx-ID">
 <main data-layout="full" style="">
 <div class="min-h-dvh" data-component="tiles" data-variant="tiles" id="gallery-frame">
-<div class="space-y-1 px-2 pt-2 lg:px-6">
-<nav aria-label="Players" class="replay-done -mx-2 grid gap-1 px-2 pt-1.5 pb-0.5" data-role="players-row" id="players-row" style="grid-template-columns: repeat(6, minmax(0, 1fr))">
-<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border-2 border-gold bg-gold/15" data-col="1" data-role="player-chip" data-row="1" data-seat="0" data-you="true" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:0},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-0" style="grid-row: 1; grid-column: 1 / span 2" title="Ada" type="button">
+<div class="space-y-3 px-2 pt-2 lg:px-6">
+<nav aria-label="Players" class="paper grid auto-cols-fr grid-flow-col gap-x-1 gap-y-0.5 rounded-lg p-1 text-ink shadow-[0_2px_8px_rgb(0_0_0/0.45)] grid-rows-(--rows) md:grid-rows-(--rows-md) xl:grid-rows-(--rows-xl) replay-done" data-columns="1" data-role="players-row" id="players-row" style="--rows: repeat(3, auto); --rows-md: repeat(2, auto); --rows-xl: repeat(2, auto)">
+<button class="player-tile @container/row relative block w-full min-w-0 cursor-pointer rounded-md text-left touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.98] bg-gold/30 ring-1 ring-gold-deep/60" data-role="player-chip" data-seat="0" data-state="brewing" data-you="true" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:0},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-0" title="Ada" type="button">
 <span class="sr-only" data-role="player-name">
 Ada (you)
 </span>
-<span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
-<span class="relative shrink-0">
-<span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-0" data-role="seat-disc">
-A
+<span class="flex h-8 min-w-0 items-center gap-1 pr-1 @min-[15rem]/row:h-9">
+<span aria-hidden="true" class="w-1.5 shrink-0 self-stretch rounded-l-md bg-player-0" data-role="seat-stripe">
+</span>
+<span aria-hidden="true" class="flex min-w-6 flex-1 items-center gap-1">
+<span class="truncate text-tag leading-tight @min-[15rem]/row:text-label font-bold" data-role="tile-name">
+Ada
+</span>
+<span class="hidden shrink-0 rounded bg-gold-deep px-1 text-tag leading-4 font-bold text-parchment-light uppercase @min-[15rem]/row:inline">
+you
+</span>
+<span class="hero-flag-micro hidden size-3 shrink-0 text-ink-soft @min-[15rem]/row:block" data-role="tile-start" title="Start player">
 </span>
 </span>
-<span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
-<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="3" data-role="player-space" id="tile-space-0-3" title="Pot space (coins)">
-3<span class="sr-only"> pot space</span>
-</b>
-<span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label max-sm:text-label" data-role="player-vp" title="VP">
-<svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
+<span class="flex min-w-0 shrink items-center gap-1.5">
+<span class="tile-line grid min-w-0 grid-cols-[minmax(0,auto)] items-center justify-items-end *:col-start-1 *:row-start-1" data-hold="true" data-news="true" data-role="tile-line" id="tile-line-0-1-draw">
+<span class="tile-totals flex items-center" data-role="player-stats">
+</span>
+<span class="tile-news flex min-w-0 max-w-full items-center whitespace-nowrap text-tag font-bold tabular-nums gap-0" data-role="tile-news">
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 " data-age="0" data-gain="drew" id="tile-draw-0-1-3-0" style="z-index: 10">
+<span aria-label="green 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-green text-ink" data-chip-icon="green">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-green">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+<span aria-hidden="true" class="tile-draw-glow">
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="1" data-gain="drew" id="tile-draw-0-1-3-1" style="z-index: 9">
+<span aria-label="white 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-white">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="2" data-gain="drew" id="tile-draw-0-1-3-2" style="z-index: 8">
+<span aria-label="orange 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-orange text-ink" data-chip-icon="orange">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="orange" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-orange">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+</span>
+</span>
+<span class="flex shrink-0 items-center text-tag font-bold tabular-nums" data-role="tile-brew">
+<span class="leading-none whitespace-nowrap text-ink-soft" data-level="safe" data-role="tile-white" title="White 1 of 7">
+1<span class="opacity-60">/</span>7<span class="sr-only"> white</span>
+</span>
+</span>
+</span>
+<span class="flex min-w-[1.75rem] shrink-0 items-center justify-end gap-px font-hand text-num leading-none font-bold text-gold-deep tabular-nums @min-[15rem]/row:min-w-[3.25rem] @min-[15rem]/row:text-big" data-role="player-vp" title="VP">
+<svg aria-hidden="true" class="hidden size-3.5 shrink-0 @min-[15rem]/row:block" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-vp">
 </use>
 </svg>
-<span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">100</span>
+<span data-role="vp-number">100</span>
 <span class="sr-only">VP</span>
 </span>
 </span>
-</span>
-<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-0">
-<span class="relative h-full min-w-0 flex-1">
-<span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
-<span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
-<svg aria-hidden="true" class="size-2.5 text-ruby-light" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-ruby">
-</use>
-</svg>1
-<span class="sr-only">rubies</span>
-</span>
-<span class="flex items-center gap-px" data-role="player-droplet" title="Droplet">
-<svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-droplet">
-</use>
-</svg>0
-<span class="sr-only">droplet</span>
-</span>
-<span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
-<svg aria-hidden="true" class="size-2.5 text-potion-light" data-icon="flask" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-flask">
-</use>
-</svg>
-<span class="sr-only">flask full</span>
-</span>
-</span>
-</span>
-<span class="flex shrink-0 items-center gap-[3px] text-tag font-semibold tabular-nums" data-role="tile-brew">
-<span class="flex items-center gap-px" data-role="tile-black" title="Black chips in the pot">
-<span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
-</span>0
-<span class="sr-only">black chips in the pot</span>
-</span>
-<span class="leading-none text-parchment-light" data-level="safe" data-role="tile-white" title="White 1 of 7">
-1<span class="text-parchment-dim">/</span>7<span class="sr-only"> white</span>
-</span>
-</span>
-</span>
 </button>
-<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35" data-col="2" data-role="player-chip" data-row="1" data-seat="1" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:1},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-1" style="grid-row: 1; grid-column: 3 / span 2" title="Bram" type="button">
+<button class="player-tile @container/row relative block w-full min-w-0 cursor-pointer rounded-md text-left touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.98] bg-parchment-deep/50 hover:bg-parchment-deep" data-role="player-chip" data-seat="1" data-state="brewing" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:1},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-1" title="Bram" type="button">
 <span class="sr-only" data-role="player-name">
 Bram, bot
 </span>
-<span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
-<span class="relative shrink-0">
-<span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-1" data-role="seat-disc">
-B
+<span class="flex h-8 min-w-0 items-center gap-1 pr-1 @min-[15rem]/row:h-9">
+<span aria-hidden="true" class="w-1.5 shrink-0 self-stretch rounded-l-md bg-player-1" data-role="seat-stripe">
 </span>
-<span aria-hidden="true" class="hero-cpu-chip-micro absolute -right-1.5 -bottom-1 size-2.5 text-parchment-dim" data-role="bot-badge">
+<span aria-hidden="true" class="flex min-w-6 flex-1 items-center gap-1">
+<span class="truncate text-tag leading-tight @min-[15rem]/row:text-label font-semibold" data-role="tile-name">
+Bram
+</span>
+<span class="hero-cpu-chip-micro hidden size-3 shrink-0 text-ink-soft @min-[15rem]/row:block" data-role="bot-badge" title="bot">
 </span>
 </span>
-<span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
-<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="5" data-role="player-space" id="tile-space-1-5" title="Pot space (coins)">
-5<span class="sr-only"> pot space</span>
-</b>
-<span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label max-sm:text-label" data-role="player-vp" title="VP">
-<svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
+<span class="flex min-w-0 shrink items-center gap-1.5">
+<span class="tile-line grid min-w-0 grid-cols-[minmax(0,auto)] items-center justify-items-end *:col-start-1 *:row-start-1" data-hold="true" data-news="true" data-role="tile-line" id="tile-line-1-1-draw">
+<span class="tile-totals flex items-center" data-role="player-stats">
+</span>
+<span class="tile-news flex min-w-0 max-w-full items-center whitespace-nowrap text-tag font-bold tabular-nums gap-0" data-role="tile-news">
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 " data-age="0" data-gain="drew" id="tile-draw-1-1-5-0" style="z-index: 10">
+<span aria-label="white 3" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-white">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+3
+</span>
+</span>
+<span aria-hidden="true" class="tile-draw-glow">
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="1" data-gain="drew" id="tile-draw-1-1-5-1" style="z-index: 9">
+<span aria-label="green 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-green text-ink" data-chip-icon="green">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-green">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+2
+</span>
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="2" data-gain="drew" id="tile-draw-1-1-5-2" style="z-index: 8">
+<span aria-label="orange 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-orange text-ink" data-chip-icon="orange">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="orange" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-orange">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="3" data-gain="drew" id="tile-draw-1-1-5-3" style="z-index: 7">
+<span aria-label="purple 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-purple text-white" data-chip-icon="purple">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="purple" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-purple">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="4" data-gain="drew" id="tile-draw-1-1-5-4" style="z-index: 6">
+<span aria-label="white 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-white">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+</span>
+</span>
+<span class="flex shrink-0 items-center text-tag font-bold tabular-nums" data-role="tile-brew">
+<span class="leading-none whitespace-nowrap text-ink-soft" data-level="safe" data-role="tile-white" title="White 4 of 7">
+4<span class="opacity-60">/</span>7<span class="sr-only"> white</span>
+</span>
+</span>
+</span>
+<span class="flex min-w-[1.75rem] shrink-0 items-center justify-end gap-px font-hand text-num leading-none font-bold text-gold-deep tabular-nums @min-[15rem]/row:min-w-[3.25rem] @min-[15rem]/row:text-big" data-role="player-vp" title="VP">
+<svg aria-hidden="true" class="hidden size-3.5 shrink-0 @min-[15rem]/row:block" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-vp">
 </use>
 </svg>
-<span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">107</span>
+<span data-role="vp-number">107</span>
 <span class="sr-only">VP</span>
 </span>
 </span>
-</span>
-<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-1">
-<span class="relative h-full min-w-0 flex-1">
-<span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
-<span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
-<svg aria-hidden="true" class="size-2.5 text-ruby-light" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-ruby">
-</use>
-</svg>1
-<span class="sr-only">rubies</span>
-</span>
-<span class="flex items-center gap-px" data-role="player-droplet" title="Droplet">
-<svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-droplet">
-</use>
-</svg>0
-<span class="sr-only">droplet</span>
-</span>
-<span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
-<svg aria-hidden="true" class="size-2.5 text-potion-light" data-icon="flask" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-flask">
-</use>
-</svg>
-<span class="sr-only">flask full</span>
-</span>
-</span>
-</span>
-<span class="flex shrink-0 items-center gap-[3px] text-tag font-semibold tabular-nums" data-role="tile-brew">
-<span class="flex items-center gap-px" data-role="tile-black" title="Black chips in the pot">
-<span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
-</span>0
-<span class="sr-only">black chips in the pot</span>
-</span>
-<span class="leading-none text-parchment-light" data-level="safe" data-role="tile-white" title="White 3 of 7">
-3<span class="text-parchment-dim">/</span>7<span class="sr-only"> white</span>
-</span>
-</span>
-</span>
 </button>
-<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35 tile-lead" data-col="3" data-lead="true" data-role="player-chip" data-row="1" data-seat="2" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:2},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-2" style="grid-row: 1; grid-column: 5 / span 2" title="Cleo" type="button">
+<button class="player-tile @container/row relative block w-full min-w-0 cursor-pointer rounded-md text-left touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.98] bg-parchment-deep/50 hover:bg-parchment-deep" data-lead="true" data-role="player-chip" data-seat="2" data-state="brewing" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:2},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-2" title="Cleo" type="button">
 <span class="sr-only" data-role="player-name">
 Cleo, bot
 </span>
-<span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
-<span class="relative shrink-0">
-<span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-2" data-role="seat-disc">
-C
+<span class="flex h-8 min-w-0 items-center gap-1 pr-1 @min-[15rem]/row:h-9">
+<span aria-hidden="true" class="w-1.5 shrink-0 self-stretch rounded-l-md bg-player-2" data-role="seat-stripe">
 </span>
-<span class="absolute -top-3 left-1/2 -translate-x-1/2 drop-shadow-[0_0_3px_var(--color-gold)]" data-role="crown" title="Round leader: rolls the bonus die">
+<span aria-hidden="true" class="flex min-w-6 flex-1 items-center gap-1">
+<span class="flex shrink-0" data-role="crown" title="Round leader: rolls the bonus die">
 <svg aria-hidden="true" class="size-3.5" data-icon="crown" viewBox="0 0 12 12">
 <path d="M1 9.5h10L10 3 7.6 6 6 2 4.4 6 2 3z" fill="var(--color-gold)" stroke-linejoin="round" stroke-width=".7" stroke="var(--color-wood-dark)">
 </path>
 </svg>
-<span class="sr-only">round leader</span>
 </span>
-<span aria-hidden="true" class="hero-cpu-chip-micro absolute -right-1.5 -bottom-1 size-2.5 text-parchment-dim" data-role="bot-badge">
+<span class="truncate text-tag leading-tight @min-[15rem]/row:text-label font-semibold" data-role="tile-name">
+Cleo
+</span>
+<span class="hero-cpu-chip-micro hidden size-3 shrink-0 text-ink-soft @min-[15rem]/row:block" data-role="bot-badge" title="bot">
 </span>
 </span>
-<span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
-<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="6" data-role="player-space" id="tile-space-2-6" title="Pot space (coins)">
-6<span class="sr-only"> pot space</span>
-</b>
-<span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label max-sm:text-label" data-role="player-vp" title="VP">
-<svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
+<span class="flex min-w-0 shrink items-center gap-1.5">
+<span class="tile-line grid min-w-0 grid-cols-[minmax(0,auto)] items-center justify-items-end *:col-start-1 *:row-start-1" data-hold="true" data-news="true" data-role="tile-line" id="tile-line-2-1-draw">
+<span class="tile-totals flex items-center" data-role="player-stats">
+</span>
+<span class="tile-news flex min-w-0 max-w-full items-center whitespace-nowrap text-tag font-bold tabular-nums gap-0" data-role="tile-news">
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 " data-age="0" data-gain="drew" id="tile-draw-2-1-7-0" style="z-index: 10">
+<span aria-label="red 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-red text-white" data-chip-icon="red">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="red" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-red">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+<span aria-hidden="true" class="tile-draw-glow">
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="1" data-gain="drew" id="tile-draw-2-1-7-1" style="z-index: 9">
+<span aria-label="white 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-white">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+2
+</span>
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="2" data-gain="drew" id="tile-draw-2-1-7-2" style="z-index: 8">
+<span aria-label="green 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-green text-ink" data-chip-icon="green">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-green">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="3" data-gain="drew" id="tile-draw-2-1-7-3" style="z-index: 7">
+<span aria-label="white 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-white">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="4" data-gain="drew" id="tile-draw-2-1-7-4" style="z-index: 6">
+<span aria-label="orange 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-orange text-ink" data-chip-icon="orange">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="orange" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-orange">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="5" data-gain="drew" id="tile-draw-2-1-7-5" style="z-index: 5">
+<span aria-label="orange 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-orange text-ink" data-chip-icon="orange">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="orange" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-orange">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+<span class="tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40 -ml-0.5 opacity-80" data-age="6" data-gain="drew" id="tile-draw-2-1-7-6" style="z-index: 4">
+<span aria-label="black 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-black text-white border border-iron" data-chip-icon="black">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="black" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-black">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+1
+</span>
+</span>
+</span>
+</span>
+</span>
+<span class="flex shrink-0 items-center text-tag font-bold tabular-nums" data-role="tile-brew">
+<span class="leading-none whitespace-nowrap text-ink-soft" data-level="safe" data-role="tile-white" title="White 3 of 7">
+3<span class="opacity-60">/</span>7<span class="sr-only"> white</span>
+</span>
+</span>
+</span>
+<span class="flex min-w-[1.75rem] shrink-0 items-center justify-end gap-px font-hand text-num leading-none font-bold text-gold-deep tabular-nums @min-[15rem]/row:min-w-[3.25rem] @min-[15rem]/row:text-big" data-role="player-vp" title="VP">
+<svg aria-hidden="true" class="hidden size-3.5 shrink-0 @min-[15rem]/row:block" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-vp">
 </use>
 </svg>
-<span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">114</span>
+<span data-role="vp-number">114</span>
 <span class="sr-only">VP</span>
-</span>
-</span>
-</span>
-<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-2">
-<span class="relative h-full min-w-0 flex-1">
-<span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
-<span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
-<svg aria-hidden="true" class="size-2.5 text-ruby-light" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-ruby">
-</use>
-</svg>1
-<span class="sr-only">rubies</span>
-</span>
-<span class="flex items-center gap-px" data-role="player-droplet" title="Droplet">
-<svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-droplet">
-</use>
-</svg>0
-<span class="sr-only">droplet</span>
-</span>
-<span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
-<svg aria-hidden="true" class="size-2.5 text-potion-light" data-icon="flask" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-flask">
-</use>
-</svg>
-<span class="sr-only">flask full</span>
-</span>
-</span>
-</span>
-<span class="flex shrink-0 items-center gap-[3px] text-tag font-semibold tabular-nums" data-role="tile-brew">
-<span class="flex items-center gap-px" data-role="tile-black" title="Black chips in the pot">
-<span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
-</span>0
-<span class="sr-only">black chips in the pot</span>
-</span>
-<span class="leading-none text-parchment-light" data-level="safe" data-role="tile-white" title="White 3 of 7">
-3<span class="text-parchment-dim">/</span>7<span class="sr-only"> white</span>
-</span>
 </span>
 </span>
 </button>

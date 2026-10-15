@@ -1253,7 +1253,7 @@ defmodule QuacksWeb.BarComponents do
           data-role="chip-option-to"
         >
           <.icon name="hero-arrow-right-mini" class="size-3 text-parchment" />
-          <.chip chip={o.to} size={:xs} />
+          <.chip chip={o.to} size={:sm} />
         </span>
       </button>
       {render_slot(@inner_block)}
@@ -1530,10 +1530,17 @@ defmodule QuacksWeb.BarComponents do
     assigns = assign(assigns, chips: Enum.with_index(chips), arrow?: arrow?)
 
     ~H"""
-    <span class="inline-flex items-center gap-0.5 pb-1">
+    <span class="inline-flex items-center pb-1">
       <%= for {chip, i} <- @chips do %>
-        <.icon :if={i > 0 and @arrow?} name="hero-arrow-right" class="size-3" />
-        <.chip chip={chip} size={if length(@chips) > 1, do: :xs, else: :sm} />
+        <%!-- Round 48: `:sm` chips, close together so the title keeps its room
+             at 360 px: the arrow sits on the join. --%>
+        <span
+          :if={i > 0 and @arrow?}
+          class="relative z-10 -mx-1.5 grid size-3.5 shrink-0 place-items-center rounded-full bg-iron-dark text-parchment"
+        >
+          <.icon name="hero-arrow-right-micro" class="size-3" />
+        </span>
+        <span class={["flex", (i > 0 and not @arrow?) && "ml-1.5"]}><.chip chip={chip} size={:sm} /></span>
       <% end %>
     </span>
     """
@@ -1550,12 +1557,15 @@ defmodule QuacksWeb.BarComponents do
     assigns = assign(assigns, from: chip, to: Fortune.upgrade(chip))
 
     ~H"""
-    <span class="inline-flex items-center gap-0.5">
-      <.chip chip={@from} size={:xs} /><.icon name="hero-arrow-right" class="size-3" /><.chip
+    <span class="inline-flex items-center">
+      <.chip chip={@from} size={:sm} />
+      <span
         :if={@to}
-        chip={@to}
-        size={:xs}
-      />
+        class="relative z-10 -mx-1.5 grid size-3.5 shrink-0 place-items-center rounded-full bg-iron-dark text-parchment"
+      >
+        <.icon name="hero-arrow-right-micro" class="size-3" />
+      </span>
+      <.chip :if={@to} chip={@to} size={:sm} />
     </span>
     """
   end
