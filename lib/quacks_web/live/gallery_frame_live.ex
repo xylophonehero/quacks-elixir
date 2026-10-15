@@ -18,9 +18,10 @@ defmodule QuacksWeb.GalleryFrameLive do
   import QuacksWeb.BarComponents, only: [action_bar: 1, fuse_meter: 1, reward_line: 1]
 
   import QuacksWeb.TileComponents,
-    only: [player_chip: 1, seat_loop: 1, loop_columns: 1, loop_start: 3, round_leaders: 1]
+    only: [player_chip: 1, player_card: 1, players_ledger: 1, round_leaders: 1]
 
-  import QuacksWeb.PotComponents, only: [pot: 1, bag_button: 1, chip_counts: 1, shown_bag: 3]
+  import QuacksWeb.PotComponents,
+    only: [pot: 1, bag_button: 1, bowl: 1, chip_counts: 1, shown_bag: 3]
 
   import QuacksWeb.TrackComponents, only: [rat_track: 1]
 
@@ -32,7 +33,6 @@ defmodule QuacksWeb.GalleryFrameLive do
     BarComponents,
     CardRevealComponents,
     GameLive,
-    TileDesignComponents,
     TileRevealComponents,
     TipComponents
   }
@@ -238,6 +238,13 @@ defmodule QuacksWeb.GalleryFrameLive do
     <div class="pot-box flex h-dvh items-center justify-center p-2">
       <div class="pot-square pot-hearth relative" data-role="pot-area">
         <.pot game={@game} seat={@seat} class="block size-full" rings={@rings} flask={@flask} />
+        <div
+          :if={@game.players[@seat].bowl != []}
+          class="absolute inset-x-12 bottom-0 flex items-end justify-center gap-2"
+          data-role="bowl-strip"
+        >
+          <.bowl chips={@game.players[@seat].bowl} />
+        </div>
       </div>
     </div>
     """
@@ -306,40 +313,29 @@ defmodule QuacksWeb.GalleryFrameLive do
 
   defp frame(%{view: :tiles} = assigns) do
     ~H"""
-    <div class="space-y-1 px-2 pt-2 lg:px-6">
-      <nav
-        id="players-row"
-        class="replay-done -mx-2 grid gap-1 px-2 pt-1.5 pb-0.5"
-        style={"grid-template-columns: repeat(#{2 * loop_columns(length(@game.seats))}, minmax(0, 1fr))"}
-        aria-label="Players"
-        data-role="players-row"
-      >
+    <div class="space-y-3 px-2 pt-2 lg:px-6">
+      <.players_ledger count={length(@game.seats)} class="replay-done">
         <.player_chip
-          :for={{seat, row, col} <- seat_loop(@game.seats)}
+          :for={seat <- @game.seats}
           game={@game}
           seat={seat}
           name={@names[seat]}
           you={seat == @seat}
           bot={seat in @bots}
           lead={seat in round_leaders(@game)}
-          row={row}
-          col={col}
-          start={loop_start(length(@game.seats), row, col)}
+          news={@news[seat]}
+          rolls={@rolls[seat]}
         />
-      </nav>
-    </div>
-    """
-  end
-
-  defp frame(%{view: :tiles_redesign} = assigns) do
-    ~H"""
-    <div class="space-y-3 px-2 pt-2 lg:px-6" data-option={@option}>
-      <TileDesignComponents.ledger :if={@option == "a"} facts={@facts} />
-      <TileDesignComponents.tokens :if={@option == "b"} facts={@facts} />
-      <TileDesignComponents.lanes :if={@option == "c"} facts={@facts} />
-      <section :if={@peek} class="space-y-1">
-        <h2 class="text-tag text-parchment-dim">Tap a player: {@peek.name}</h2>
-        <TileDesignComponents.peek f={@peek} />
+      </.players_ledger>
+      <section :if={@peek} class="space-y-1" data-role="tiles-peek">
+        <h2 class="text-tag text-parchment-dim">Tap a player: {@names[@peek]}</h2>
+        <.player_card
+          game={@game}
+          seat={@peek}
+          name={@names[@peek]}
+          you={@peek == @seat}
+          bot={@peek in @bots}
+        />
       </section>
     </div>
     """
@@ -356,7 +352,7 @@ defmodule QuacksWeb.GalleryFrameLive do
   defp frame(%{view: :chips} = assigns) do
     ~H"""
     <div class="space-y-3 p-3">
-      <section :for={size <- [:xs, :sm, :md, :lg]} class="space-y-1" data-size={size}>
+      <section :for={size <- [:sm, :md, :lg]} class="space-y-1" data-size={size}>
         <h2 class="font-mono text-xs text-parchment-dim">:{size}</h2>
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span :for={colour <- @colours} class="flex items-center gap-1.5" title={colour}>

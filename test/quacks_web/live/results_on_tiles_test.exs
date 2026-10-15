@@ -261,33 +261,40 @@ defmodule QuacksWeb.ResultsOnTilesTest do
 
     defp has?(html, selector), do: not Enum.empty?(LazyHTML.query(html, selector))
 
-    test "no name text: the initial in the disc, the name as title and for screen readers" do
+    test "the name in one line, as title and for screen readers; the VP large" do
       html = tile(Game.new(seed: {1, 2, 3}, players: 2), bot: true)
-      assert html |> LazyHTML.query("[data-role=seat-disc]") |> LazyHTML.text() =~ "W"
+
+      assert html |> LazyHTML.query("[data-role=tile-name].truncate") |> LazyHTML.text() =~
+               "Wilhelmina"
+
       assert has?(html, ~s([data-role=player-chip][title=Wilhelmina]))
       assert has?(html, "[data-role=player-name].sr-only")
       refute has?(html, "[data-role=player-name-text]")
-      # VP, rubies, droplet, flask, pot space; the numbers large.
-      for role <- ~w(player-vp player-rubies player-droplet player-flask player-space),
-          do: assert(has?(html, "[data-role=#{role}]"), role)
-
-      assert has?(html, "[data-role=player-space].text-num")
       assert has?(html, "[data-role=player-vp].text-num")
+
+      assert has?(
+               tile(%{Game.new(seed: {1, 2, 3}, players: 2) | phase: :shopping}),
+               "[data-role=player-space]"
+             )
     end
 
-    # Round 31: out of the brewing (while brewing `tile-black` has the count).
+    # Round 48: the black count is in the player sheet.
     test "black chips in the pot only with black book I (either black rule)" do
-      shop = &%{&1 | phase: :shopping}
-      assert has?(tile(shop.(Game.new(seed: {1, 2, 3}, players: 2))), "[data-role=player-black]")
+      black? = fn game ->
+        render_component(&QuacksWeb.TileComponents.player_card/1, game: game, seat: 1, name: "W")
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query("[data-role=player-card] dt")
+        |> Enum.any?(&(LazyHTML.text(&1) =~ "Black"))
+      end
 
-      standings = Game.new(seed: {1, 2, 3}, players: 2, rules: %{black_rule: :standings})
-      assert has?(tile(shop.(standings)), "[data-role=player-black]")
+      assert black?.(Game.new(seed: {1, 2, 3}, players: 2))
+      assert black?.(Game.new(seed: {1, 2, 3}, players: 2, rules: %{black_rule: :standings}))
 
       for set <- [2, 3] do
         game =
           Game.new(seed: {1, 2, 3}, players: 2, expansions: [:herb_witches], sets: %{black: set})
 
-        refute has?(tile(shop.(game)), "[data-role=player-black]")
+        refute black?.(game)
       end
     end
 
@@ -357,15 +364,15 @@ defmodule QuacksWeb.ResultsOnTilesTest do
 
       assert %{key: key, items: items, hold: true} = TileReveal.news(g, 1, nil)
       assert key == "#{g.round}-draw-4"
-      # Two columns: up to seven draws fit.
+      # Up to seven draws.
       assert Enum.map(items, &elem(&1, 2)) == [0, 1, 2, 3]
 
       expected = g |> Game.player(1) |> Map.get(:drawn) |> Enum.map(&elem(&1, 0))
       assert Enum.map(items, &elem(&1, 1)) == expected
     end
 
-    # Round 31: two draws, the line's right end holds the black and white counts.
-    test "news/3 with eight players (four columns): the last two draws" do
+    # Round 48: the row hides the older draws it has no room for (app.css).
+    test "news/3 with eight players: up to seven draws too" do
       g =
         Enum.reduce(1..4, Game.new(seed: {1, 2, 3}, players: 8), fn _, g ->
           {:ok, g} = Game.apply(g, 1, :draw)
@@ -373,7 +380,7 @@ defmodule QuacksWeb.ResultsOnTilesTest do
         end)
 
       assert %{items: items} = TileReveal.news(g, 1, nil)
-      assert Enum.map(items, &elem(&1, 2)) == [0, 1]
+      assert Enum.map(items, &elem(&1, 2)) == [0, 1, 2, 3]
     end
 
     test "an exploded tile gets the boom class (red stripes and the shake)" do
@@ -424,8 +431,8 @@ defmodule QuacksWeb.ResultsOnTilesTest do
 
       assert [] = Enum.filter(classes(html), &below_floor?/1)
       doc = LazyHTML.from_fragment(html)
-      refute Enum.empty?(LazyHTML.query(doc, "[data-role=player-space].text-num"))
-      refute Enum.empty?(LazyHTML.query(doc, "[data-role=player-stats].text-tag"))
+      refute Enum.empty?(LazyHTML.query(doc, "[data-role=player-vp].text-num"))
+      refute Enum.empty?(LazyHTML.query(doc, "[data-role=tile-brew].text-tag"))
       refute Enum.empty?(LazyHTML.query(doc, "[data-role=tile-news].text-tag"))
       refute Enum.empty?(LazyHTML.query(doc, "[data-gain=drew] .text-tag"))
     end
@@ -544,23 +551,21 @@ defmodule QuacksWeb.ResultsOnTilesTest do
       %{game | phase: :potions}
     end
 
-    test "while brewing a tile shows the black count and the white sum against the limit" do
+    test "while brewing a row shows the white sum against the limit" do
       game = brewing(8)
       white = Game.white_sum(game, 1)
       limit = Potions.explode_above(game, 1)
       html = tile_2(game)
 
       assert text(html, "[data-role=tile-white]") =~ "#{white}/#{limit}"
-      assert text(html, "[data-role=tile-black]") =~ "0"
-      # The black count moves out of the stats line while it is on the right end.
-      assert Enum.empty?(LazyHTML.query(html, "[data-role=player-black]"))
+      assert Enum.empty?(LazyHTML.query(html, "[data-role=player-space]"))
     end
 
-    test "out of the brewing the stats line keeps its black count, no white sum" do
+    test "out of the brewing the row shows the pot space, no white sum" do
       game = %{brewing(2) | phase: :shopping}
       html = tile_2(game)
       assert Enum.empty?(LazyHTML.query(html, "[data-role=tile-brew]"))
-      refute Enum.empty?(LazyHTML.query(html, "[data-role=player-black]"))
+      refute Enum.empty?(LazyHTML.query(html, "[data-role=player-space]"))
     end
 
     test "the white sum turns amber one point before the limit and red at it" do
@@ -582,12 +587,15 @@ defmodule QuacksWeb.ResultsOnTilesTest do
       assert level.(limit) == ["danger"]
     end
 
-    test "with 8 players a tile keeps 2 draws beside the counts" do
+    test "a row shows as many draws as its width has room for (app.css)" do
       game = brewing(8)
       chips = for v <- [1, 2, 1], do: {{:orange, v}, 1}
       game = update_in(game.players[0], &%{&1 | drawn: chips})
       assert %{items: items} = TileReveal.news(game, 0, nil)
-      assert length(items) == 2
+      assert length(items) == 3
+
+      css = File.read!("assets/css/app.css")
+      assert css =~ ~s{@container row (width < 11rem) { .tile-draw:not([data-age="0"])}
     end
   end
 

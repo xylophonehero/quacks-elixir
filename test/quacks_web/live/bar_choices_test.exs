@@ -159,8 +159,6 @@ defmodule QuacksWeb.BarChoicesTest do
     end
   end
 
-  doctest QuacksWeb.TileComponents, import: true, only: [loop_start: 3]
-
   defp solo_2(sets \\ %{}, expansion \\ nil) do
     {:ok, id} = GameServer.start(1, {10, 11, 12}, sets, %{fortune: false}, expansion)
     {:ok, view, _html} = live(browser("r36-#{System.unique_integer()}"), ~p"/g/#{id}")
@@ -177,35 +175,25 @@ defmodule QuacksWeb.BarChoicesTest do
     {id, view}
   end
 
-  describe "the short second tile row is centred" do
-    test "5 seats: 6 half columns, row 2 starts half a column in" do
+  describe "the ledger's columns" do
+    test "5 seats: two columns of 3 rows on a phone, the first column full" do
       {_id, view} = table(5)
 
-      assert has_element?(view, "#players-row[style*='repeat(6,']")
-
       assert has_element?(
                view,
-               "[data-role=player-chip][data-seat='0'][style*='grid-column: 1 / span 2']"
-             )
-
-      assert has_element?(
-               view,
-               "[data-role=player-chip][data-seat='3'][style*='grid-column: 4 / span 2']"
-             )
-
-      assert has_element?(
-               view,
-               "[data-role=player-chip][data-seat='4'][style*='grid-column: 2 / span 2']"
+               "#players-row[data-columns='2'][style*='--rows: repeat(3, auto)']"
              )
     end
 
-    test "6 seats: row 2 fills the row" do
-      {_id, view} = table(6)
+    test "4 seats: one column of 4 rows on a phone, two from 48rem" do
+      {_id, view} = table(4)
 
       assert has_element?(
                view,
-               "[data-role=player-chip][data-seat='5'][style*='grid-column: 1 / span 2']"
+               "#players-row[data-columns='1'][style*='--rows: repeat(4, auto)']"
              )
+
+      assert has_element?(view, "#players-row[style*='--rows-md: repeat(2, auto)']")
     end
   end
 

@@ -37,7 +37,7 @@ State lives in the LiveView (chapter 5).
 
 ```elixir
 attr :chip, :any, required: true, doc: "a `{colour, value}` tuple"
-attr :size, :atom, default: :md, values: [:xs, :sm, :md]
+attr :size, :atom, default: :md, values: [:sm, :md, :lg]
 attr :rest, :global
 
 def chip(assigns) do
@@ -52,9 +52,7 @@ def chip(assigns) do
     )
 
   ~H"""
-  <span :if={@size == :xs} ...>{face(@chip)}</span>
   <span
-    :if={@size != :xs}
     class={[
       "chip-token relative inline-flex shrink-0 items-center justify-center rounded-full",
       @size == :sm && "size-6",
@@ -298,7 +296,7 @@ fixed:
   same time."), the rats line, the ring legend and the flask hint are gone. Stir,
   Skip, the Red Set 2 chips and the overflow bowl are `absolute` inside the pot
   square.
-- The player tiles have a fixed height (round 27, see "The player tiles" below), so
+- The player rows have a fixed height (round 48, see "The players row" below), so
   the round results do not make the row taller. A hidden
   element at the end of a `space-y-*` block still gets a margin on its neighbour, so
   the replay marker `<i id="replay-start-N">` is the first child of its block.
@@ -396,34 +394,54 @@ books in play in board order, `Chips.order/0`, chapter 7, `id="books-column"`)
 and, with The Herb Witches, the witches (`id="witches-column"`). Round 39: both
 are folds (see the round 39 section).
 
-### The player tiles: a seat loop (round 27)
+### The players row: a ledger (round 48)
 
-The players row (`#players-row`, in the `players` area) holds one tile per seat,
-yours too (`player_chip/1`, design B of the opponents page). A tile is a button that
-opens the seat's sheet. It has three lines: the seat disc with the initial and the
-name; this round's **pot space** (the coins of the scoring space, large) and VP;
-rubies, the **black chips in the pot**, then the flask, rat tails, essence, test
-tube, patient or witch pennies while they fit. The last line is one line high and
-wraps into hidden overflow, so a tile never grows (`h-[3.25rem]`). Your tile has a
-gold border.
+The players row (`#players-row`, in the `players` area) is a parchment score sheet
+(`players_ledger/1`) with one row per seat, yours too (`player_chip/1`). It is
+option A (the ledger) of the round 46 study. A row is a button that opens the
+seat's sheet (`player_card/1`, the tap view).
 
-The states are classes and absolute badges, so they never change the tile's size:
+The rows are in seat order and never re-order. The grid fills column by column
+(`grid-flow-col`, the row count in `--rows`, `--rows-md`, `--rows-xl`), so the
+first half of the seats is on the left. `ledger_columns/2` gives the columns: on a
+phone one up to 4 seats and two from 5; from 48rem two from 3 seats; from 80rem
+three from 5. Nothing scrolls sideways.
 
-- exploded: red stripes (`.tile-boom`, app.css) and a large red burst on the top
-  right corner (`player_state/1` with `tile`);
-- stopped: the tile fades (`opacity-55`) and the corner badge is a check;
-- brewing: no badge;
+A row, left to right: the seat colour stripe, the crown (the round leader), the
+name (one line, cut with an ellipsis), YOU, the bot mark, the start player's flag,
+the patient, this round's die faces, the **live slot**, the state mark and the VP.
+The live slot holds, while the round brews, the seat's last draws (`:sm` chips)
+and the white sum against the limit ("4/7", amber one point before, red at it);
+else the pot space (its coins). The tile news (a step's gains, the chips bought)
+swaps in over it and back (`.tile-line`, app.css). The news and the base sit in
+one grid cell, so the swap does not move the row.
+
+Each row is a container (`@container/row`). A row narrower than 15rem (two columns
+on a phone) has a smaller name and VP and no YOU, bot, flag or patient marks (the
+title and the screen-reader name keep them). The draws: up to 7 come from
+`TileReveal.news/3`; app.css hides the older ones the row has no room for
+(`@container row (width < ...)`): at 360 px one draw in a two-column row and four
+in a one-column row.
+
+Heights (no change in a game): a row is 36 px (`h-9`), 32 px when narrow (`h-8`).
+The whole sheet at 360 and 392 px: 82 px with 2 seats, 158 px with 4, 142 px with 8.
+
+The states never change the row's size:
+
+- exploded: red stripes (`.tile-boom`, app.css) and the red burst;
+- stopped: the row fades (`opacity-55`) and the mark is a check;
+- brewing: no mark;
+- yours: a gold fill and ring;
 - **round leader** (`round_leaders/1`, the bonus die rollers: the furthest pot this
   round of the seats that did not explode, or whose explosion the silver witch took
-  away): a crown on the seat disc and a gold glow (`.tile-lead`). Nobody before the
-  first chip of the round, and nobody solo.
+  away): a crown before the name. Nobody before the first chip of the round, and
+  nobody solo.
 
-The tiles never re-order. `seat_loop/1` gives each seat a row and a column
-(`grid-row`, `grid-column` inline): 2 to 4 seats one row in seat order; 5 to 8 two
-rows of `ceil(n / 2)` columns (`loop_columns/1`), and the second row runs
-backwards and ends under the first row's last tile, so the tiles form a loop and
-neighbours touch (8: `1 2 3 4 / 8 7 6 5`; 5: `1 2 3 / _ 5 4`). Nothing scrolls
-sideways: at 360 px eight tiles fit in two rows of four.
+The sheet (`player_card/1`) has the rest: the state in words, the crown and the
+start player, then VP, rubies, droplet, flask, pot space, white sum, the black
+chips (black book I only), rat tails, test tube, essence and witch pennies while
+their rule or expansion is on, then the patient, the pot, the test tubes, the bowl
+and the bag.
 
 ### The rat track (round 16, equal steps since round 22)
 
@@ -1258,11 +1276,11 @@ is a draw, so the draw news shows it. `news/3` gives nil while a card is on scre
 
 **Card reveal rows (round 30).** `QuacksWeb.CardRevealComponents.card_reveals/1`
 shows `Fortune.reveals/1` as one row per player: the seat disc with the initial,
-the drawn chips (`:sm`; `compact` uses `:xs`), the sum (Less is More), and the
+the drawn chips (`:sm`), the sum (Less is More), and the
 result (a chip, a ruby, or the chip placed on the pot). Your row is first and has a
 gold ring; the best row (the lowest sum) has a gold fill. Three places use it: the
 new card's result sheet after the tap (the `:card` slide's `reveals`), the fortune
-sheet (`#sheet-fortune-reveals`) and the grown corner card (`compact`, only while
+sheet (`#sheet-fortune-reveals`) and the grown corner card (only while
 grown). Your Flea Market chips have a title that says why a chip could not go up.
 
 **News on the bottom line (R2).** `TileReveal.news/3` gives a tile's news, or

@@ -520,21 +520,12 @@ defmodule QuacksWeb.TileReveal do
 
   def news(game, seat, _reveal), do: shop_news(game, seat)
 
-  # How many draws fit on a tile's line at 360 px, by the players row's columns
-  # (`TileComponents.loop_columns/1`): four columns 2, three 4, two 7, one 8.
-  # Round 31: the line's right end holds the black count and the white sum, and
-  # the draws overlap a little (`TileRevealComponents`).
-  defp tile_draws(seats) do
-    case QuacksWeb.TileComponents.loop_columns(length(seats)) do
-      4 -> 2
-      3 -> 4
-      2 -> 7
-      _ -> 8
-    end
-  end
+  # Round 48: up to 7 draws go on a player's row; the row shows as many as its
+  # width lets fit (app.css `.tile-draw`, by the row's container width).
+  @tile_draws 7
 
   # Round 29 (B2): while the seat brews, its last draws (newest first, as many as
-  # fit, `tile_draws/1`; the tile shows an explosion itself). `hold` keeps the line on the
+  # fit, `@tile_draws`; the tile shows an explosion itself). `hold` keeps the line on the
   # news (no swap back): the draws are the tile's latest update until the shop.
   defp draw_news(game, seat) do
     case Game.player(game, seat) do
@@ -544,7 +535,7 @@ defmodule QuacksWeb.TileReveal do
       %{drawn: drawn} ->
         items =
           drawn
-          |> Enum.take(tile_draws(game.seats))
+          |> Enum.take(@tile_draws)
           |> Enum.with_index()
           |> Enum.map(fn {{chip, _space}, i} ->
             {:drew, chip, i, "#{seat}-#{game.round}-#{length(drawn)}-#{i}"}

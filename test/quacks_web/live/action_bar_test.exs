@@ -68,11 +68,10 @@ defmodule QuacksWeb.ActionBarTest do
 
     test "the tiles have a fixed height: no update chips" do
       {_id, view} = solo()
-      assert has_element?(view, "#players-row [data-role=player-chip].h-\\[3\\.25rem\\]")
 
       assert has_element?(
                view,
-               "[data-role=player-chip] [data-role=player-stats].h-\\[18px\\].overflow-hidden"
+               "#players-row [data-role=player-chip] > .h-8.\\@min-\\[15rem\\]\\/row\\:h-9"
              )
     end
   end
@@ -623,11 +622,10 @@ defmodule QuacksWeb.ActionBarTest do
       assert chips =~ ~s(class="min-w-[5ch] text-left")
     end
 
-    test "the tile's pot space and VP and the ruby badge reserve two digits" do
+    test "the row's VP and the ruby badge reserve two digits" do
       g = game_with_ruby(false)
       tile = render_component(&TileComponents.player_chip/1, game: g, seat: 0, name: "A")
-      assert tile =~ ~r/class="tile-space min-w-\[1.2em\]/
-      assert tile =~ ~r/class="min-w-\[1.2em\] pr-px text-right"\s+data-role="vp-number"/
+      assert tile =~ ~r/class="flex min-w-\[1.75rem\] shrink-0[^"]*"\s+title="VP"/
 
       badge = render_component(&TileComponents.ruby_badge/1, rubies: 3)
       assert badge =~ "min-w-[1.2em]"

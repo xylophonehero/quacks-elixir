@@ -1189,40 +1189,28 @@ defmodule QuacksWeb.GameLive do
             hidden
             phx-mounted={JS.remove_class("replay-done", to: "#players-row")}
           />
-          <%!-- Round 27: one tile per seat in a fixed seat loop (`seat_loop/1`):
-               one row up to 4 seats, two rows from 5, the second row backwards, so
-               neighbours touch. The tiles never re-order and have a fixed height.
-               After the brew each tile's counters tick on the replay beats; the
-               tile with the last beat ends the replay (`replay_end/3`, app.js). --%>
-          <nav
-            id="players-row"
-            class={[
-              "-mx-2 grid gap-1 px-2 pt-1.5 pb-0.5",
-              not replaying?(@game, @seen) && "replay-done"
-            ]}
-            style={"grid-template-columns: repeat(#{2 * loop_columns(length(@game.seats))}, minmax(0, 1fr))"}
-            aria-label="Players"
-            data-role="players-row"
-            data-columns={loop_columns(length(@game.seats))}
+          <%!-- Round 48: the players row is a ledger, one row per seat in seat
+               order (`players_ledger/1`). The rows never re-order and have a fixed
+               height. After the brew each row's VP ticks on the replay beats. --%>
+          <.players_ledger
+            count={length(@game.seats)}
+            class={not replaying?(@game, @seen) && "replay-done"}
           >
             <.player_chip
-              :for={{seat, row, col} <- seat_loop(@game.seats)}
+              :for={seat <- @game.seats}
               game={@game}
               seat={seat}
               name={name(@names, seat)}
               you={seat == @seat}
               bot={Map.has_key?(@bots, seat)}
               lead={seat in round_leaders(@game)}
-              row={row}
-              col={col}
-              start={loop_start(length(@game.seats), row, col)}
               updates={if results?(@game), do: Replay.updates(@game, seat), else: []}
               ticks={replaying?(@game, @seen) and not tiles_playing?(@reveal)}
               totals={tiles_playing?(@reveal) && tile_totals(@game, @reveal)[seat]}
               news={TileReveal.news(@game, seat, @reveal)}
               rolls={tile_rolls(@game, seat, @reveal)}
             />
-          </nav>
+          </.players_ledger>
           <%!-- Round 16: the rat track, a fixed height while the rats rule is on. --%>
           <.rat_track
             :if={@game.rules.rats and length(@game.seats) > 1}
@@ -1962,7 +1950,13 @@ defmodule QuacksWeb.GameLive do
       >
         <div :if={@open_sheet == seat} class="space-y-2">
           <.result_lines :if={results?(@game)} game={@game} seat={seat} />
-          <.player_card game={@game} seat={seat} name={name(@names, seat)} you={seat == @seat} />
+          <.player_card
+            game={@game}
+            seat={seat}
+            name={name(@names, seat)}
+            you={seat == @seat}
+            bot={Map.has_key?(@bots, seat)}
+          />
         </div>
       </.sheet>
 

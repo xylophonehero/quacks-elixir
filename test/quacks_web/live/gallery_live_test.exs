@@ -60,7 +60,7 @@ defmodule QuacksWeb.GalleryLiveTest do
 
     assert_patch(
       view,
-      "/dev/gallery/tiles/tiles?bots=true&long_names=true&players=8&state=shop&w=392"
+      "/dev/gallery/tiles/tiles?bots=true&long_names=true&players=8&state=shop&vp_digits=3&w=392"
     )
 
     view |> element("[data-role=gallery-reset]") |> render_click()

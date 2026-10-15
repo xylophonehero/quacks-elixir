@@ -20,7 +20,7 @@ defmodule QuacksWeb.PlayerTilesTest do
   alias QuacksWeb.ShopComponents
   alias QuacksWeb.TileComponents
 
-  doctest QuacksWeb.TileComponents, import: true, only: [seat_loop: 1]
+  doctest QuacksWeb.TileComponents, import: true, only: [ledger_columns: 2]
 
   defp tile(game, seat, opts \\ []) do
     render_component(
@@ -39,51 +39,19 @@ defmodule QuacksWeb.PlayerTilesTest do
 
   defp game(n), do: Game.new(seed: {1, 2, 3}, players: n, rules: %{fortune: false})
 
-  describe "the seat loop" do
-    # The rows as seen on screen, left to right (nil: an empty cell).
-    defp rows(n) do
-      at =
-        Map.new(TileComponents.seat_loop(Enum.to_list(0..(n - 1))), fn {s, r, c} ->
-          {{r, c}, s + 1}
-        end)
+  describe "the ledger" do
+    test "one column up to 4 seats on a phone, two from 5; more on wider screens" do
+      assert for(n <- 1..8, do: TileComponents.ledger_columns(n, :phone)) ==
+               [1, 1, 1, 1, 2, 2, 2, 2]
 
-      cols = TileComponents.loop_columns(n)
-      rows = at |> Map.keys() |> Enum.map(&elem(&1, 0)) |> Enum.uniq() |> Enum.sort()
-      for row <- rows, do: for(col <- 1..cols, do: at[{row, col}])
+      assert for(n <- 1..8, do: TileComponents.ledger_columns(n, :md)) ==
+               [1, 1, 2, 2, 2, 2, 2, 2]
+
+      assert for(n <- 1..8, do: TileComponents.ledger_columns(n, :xl)) ==
+               [1, 1, 2, 2, 3, 3, 3, 3]
     end
 
-    test "2 to 4 seats: one row in seat order" do
-      assert rows(2) == [[1, 2]]
-      assert rows(3) == [[1, 2, 3]]
-      assert rows(4) == [[1, 2, 3, 4]]
-    end
-
-    test "5 to 8 seats: two rows, the second backwards, so the tiles form a loop" do
-      assert rows(5) == [[1, 2, 3], [nil, 5, 4]]
-      assert rows(6) == [[1, 2, 3], [6, 5, 4]]
-      assert rows(7) == [[1, 2, 3, 4], [nil, 7, 6, 5]]
-      assert rows(8) == [[1, 2, 3, 4], [8, 7, 6, 5]]
-    end
-
-    test "neighbours touch: each seat sits beside or above the next" do
-      for n <- 2..8 do
-        at =
-          Map.new(TileComponents.seat_loop(Enum.to_list(0..(n - 1))), fn {s, r, c} ->
-            {s, {r, c}}
-          end)
-
-        for s <- 0..(n - 2) do
-          {r1, c1} = at[s]
-          {r2, c2} = at[s + 1]
-          assert abs(r1 - r2) + abs(c1 - c2) == 1, "#{n} seats: #{s} and #{s + 1} do not touch"
-        end
-
-        # With an even count the loop closes: the last seat sits under the first.
-        if n >= 6 and rem(n, 2) == 0, do: assert(at[n - 1] == {2, 1})
-      end
-    end
-
-    test "the page places the 8 tiles in the loop and never scrolls sideways" do
+    test "the page lists the 8 rows in seat order, column by column" do
       {:ok, id} = GameServer.start(8, {1, 2, 3}, %{}, %{fortune: false})
       token = "eight-#{id}"
 
@@ -94,47 +62,47 @@ defmodule QuacksWeb.PlayerTilesTest do
       view |> element("button", "Start game") |> render_click()
 
       html = render(view)
-      assert count(html, ~s(#players-row[data-columns="4"] [data-role=player-chip])) == 8
+      assert count(html, ~s(#players-row[data-columns="2"] [data-role=player-chip])) == 8
 
-      placed =
+      seats =
         html
         |> query("#players-row [data-role=player-chip]")
-        |> Enum.map(fn t ->
-          [seat] = LazyHTML.attribute(t, "data-seat")
-          [row] = LazyHTML.attribute(t, "data-row")
-          [col] = LazyHTML.attribute(t, "data-col")
-          {seat, row, col}
-        end)
+        |> Enum.flat_map(&LazyHTML.attribute(&1, "data-seat"))
 
-      assert {"0", "1", "1"} in placed
-      assert {"3", "1", "4"} in placed
-      assert {"4", "2", "4"} in placed
-      assert {"7", "2", "1"} in placed
+      assert seats == Enum.map(0..7, &to_string/1)
+      [style] = html |> query("#players-row") |> LazyHTML.attribute("style")
+      assert style =~ "--rows: repeat(4, auto)"
+      assert style =~ "--rows-xl: repeat(3, auto)"
       refute html =~ "overflow-x-auto snap-x"
     end
   end
 
-  describe "the tile" do
-    test "pot space (its coins), VP, rubies and black chips in the pot" do
+  describe "the row" do
+    test "while brewing: the white sum; else the pot space (its coins); the VP" do
       g = game(3) |> pot(1, 20, 2) |> H.put(1, vp: 14, rubies: 3)
       html = tile(g, 1)
 
+      assert text(html, "[data-role=player-vp]") =~ "14"
+      assert count(html, "[data-role=tile-white]") == 1
+      assert count(html, "[data-role=player-space]") == 0
+      assert count(html, "[data-role=seat-stripe].bg-player-1") == 1
+      # Round 48: rubies, droplet, flask and the black count are in the sheet.
+      assert count(html, "[data-role=player-rubies]") == 0
+
+      html = tile(%{g | phase: :shopping}, 1)
       assert text(html, "[data-role=player-space]") =~ to_string(PotTrack.at(21).coins)
       assert count(html, ~s([data-role=player-space][data-index="21"])) == 1
-      assert text(html, "[data-role=player-vp]") =~ "14"
-      assert text(html, "[data-role=player-rubies]") =~ "3"
-      # Round 31: while brewing the black count sits on the line's right end.
-      assert text(html, "[data-role=tile-black]") =~ "2"
-      assert count(html, "[data-role=seat-disc].bg-player-1") == 1
     end
 
-    test "your tile has the gold border" do
+    test "your row is gold, with YOU" do
       g = game(2)
-      assert count(tile(g, 0, you: true), "[data-role=player-chip][data-you].border-gold") == 1
-      assert count(tile(g, 1), "[data-role=player-chip].border-gold") == 0
+      html = tile(g, 0, you: true)
+      assert count(html, "[data-role=player-chip][data-you].bg-gold\\/30") == 1
+      assert text(html, "[data-role=player-chip]") =~ "you"
+      assert count(tile(g, 1), "[data-role=player-chip].bg-gold\\/30") == 0
     end
 
-    test "exploded: red stripes and the burst badge" do
+    test "exploded: red stripes and the burst" do
       g = game(3) |> pot(2, 12) |> H.put(2, exploded?: true)
       html = tile(g, 2)
 
@@ -142,7 +110,7 @@ defmodule QuacksWeb.PlayerTilesTest do
       assert count(html, ~s([data-role=player-state][data-state=exploded] svg)) == 1
     end
 
-    test "stopped: faded with a check badge; brewing: no badge" do
+    test "stopped: faded with a check; brewing: no mark" do
       g = game(3) |> pot(1, 9)
       assert count(tile(g, 1), "[data-role=player-state]") == 0
       assert count(tile(g, 1), ".opacity-55") == 0
@@ -152,14 +120,26 @@ defmodule QuacksWeb.PlayerTilesTest do
       assert count(html, ~s([data-role=player-state][data-state=stopped] path[d^="M3 8.5"])) == 1
     end
 
-    test "the round leader wears the crown and the gold glow" do
+    test "the round leader wears the crown" do
       g = game(3)
       html = tile(g, 1, lead: true)
 
-      assert count(html, "[data-role=player-chip][data-lead].tile-lead [data-role=crown] svg") ==
-               1
-
+      assert count(html, "[data-role=player-chip][data-lead] [data-role=crown] svg") == 1
       assert count(tile(g, 1), "[data-role=crown]") == 0
+    end
+
+    test "the start player has the flag" do
+      g = game(3)
+      assert count(tile(g, 0), "[data-role=tile-start]") == 1
+      assert count(tile(g, 1), "[data-role=tile-start]") == 0
+    end
+
+    test "the last draws are :sm chips with the icon, newest first" do
+      g = game(2) |> H.put(1, drawn: [{{:green, 1}, 3}, {{:orange, 1}, 2}, {{:white, 1}, 1}])
+      html = tile(g, 1, news: QuacksWeb.TileReveal.news(g, 1, nil))
+
+      assert count(html, ~s([data-gain=drew] .chip-token)) == 3
+      assert count(html, ~s([data-gain=drew][data-age="0"] [data-chip-icon=green])) == 1
     end
   end
 
@@ -208,32 +188,20 @@ defmodule QuacksWeb.PlayerTilesTest do
   end
 
   describe "name card" do
-    test "colour disc with the initial, name, BOT badge, VP, rubies, flask" do
+    test "the name, the bot mark, the VP; the name is also screen-reader text" do
       game = Game.new(seed: {1, 2, 3}, players: 2) |> H.put(1, vp: 27, rubies: 2)
       html = card(game, 1, bot: true)
 
-      assert text(html, ~s([data-role=seat-disc].bg-player-1)) == "L"
-      assert text(html, "[data-role=player-name]") =~ "Lavinia"
-      # Round 28: the name is screen-reader text, the bot an icon on the disc.
+      assert text(html, "[data-role=tile-name]") =~ "Lavinia"
       assert text(html, "[data-role=player-name].sr-only") =~ "bot"
       assert count(html, "[data-role=bot-badge].hero-cpu-chip-micro") == 1
       assert text(html, "[data-role=player-vp]") =~ "27"
-      assert text(html, "[data-role=player-rubies]") =~ "2"
-      assert count(html, ~s([data-role=player-flask][data-flask=full])) == 1
-    end
-
-    test "rat tails are one rat icon and a number" do
-      game = Game.new(seed: {1, 2, 3}, players: 2) |> H.put(1, rat_stone: 3)
-      html = card(game, 1)
-
-      assert count(html, "[data-role=player-rats] [data-icon=rat]") == 1
-      assert text(html, "[data-role=player-rats]") =~ "3"
     end
 
     test "the status is a graphic; its word is for screen readers only" do
       game = Game.new(seed: {1, 2, 3}, players: 2)
 
-      # Round 27: a brewing tile shows no badge (design B).
+      # A brewing row shows no mark.
       assert count(card(game, 1), "[data-role=player-state]") == 0
 
       for {fields, state} <- [
@@ -257,18 +225,37 @@ defmodule QuacksWeb.PlayerTilesTest do
       assert count(card(game, 1), "[data-role=player-state][data-state=ready]") == 1
     end
 
-    test "the expansion slot: witch pennies (spent ones dim) or the patient" do
-      game = Game.new(seed: {1, 2, 3}, players: 2, expansion: :herb_witches)
-      game = put_in(game.players[1].pennies, %{silver: true, copper: false, gold: true})
-      html = card(game, 1)
-      assert count(html, "[data-role=player-pennies] [data-icon=penny]") == 3
-      assert count(html, "[data-role=player-pennies] .opacity-30") == 1
-
+    test "the patient's face is on the row" do
       game = Game.new(seed: {1, 2, 3}, players: 2) |> H.put(1, patient: :ear_worm)
       assert count(card(game, 1), "[data-role=player-patient] [data-icon=ear_worm]") == 1
     end
 
-    test "more than 4 players: two rows of tiles, no sideways scroll" do
+    test "the sheet has the pieces: rubies, droplet, flask, rat tails, pennies" do
+      game =
+        Game.new(seed: {1, 2, 3}, players: 2, expansion: :herb_witches, rules: %{rats: true})
+        |> H.put(1, rubies: 2, rat_stone: 3)
+
+      game = put_in(game.players[1].pennies, %{silver: true, copper: false, gold: true})
+
+      html =
+        render_component(&TileComponents.player_card/1,
+          game: game,
+          seat: 1,
+          name: "Lavinia",
+          bot: true
+        )
+
+      text = text(html, "[data-role=player-card] dl")
+      assert text =~ "Rubies"
+      assert text =~ "Droplet"
+      assert text =~ "Flask"
+      assert text =~ "Rat tails"
+      assert text =~ "Pennies"
+      assert text(html, "[data-role=peek-state]") =~ "Has not drawn yet"
+      assert count(html, "[data-role=bot-badge]") == 1
+    end
+
+    test "more than 4 players: two columns, no sideways scroll" do
       {:ok, id} = GameServer.start(6, {1, 2, 3})
       token = "six-#{id}"
       {:ok, view, _html} = live(browser(token), ~p"/g/#{id}")
@@ -277,7 +264,7 @@ defmodule QuacksWeb.PlayerTilesTest do
 
       html = render(view)
 
-      assert count(html, ~s(#players-row[data-columns="3"] [data-role=player-chip])) == 6
+      assert count(html, ~s(#players-row[data-columns="2"] [data-role=player-chip])) == 6
       assert count(html, "#players-row.overflow-x-auto") == 0
     end
   end
@@ -477,33 +464,44 @@ defmodule QuacksWeb.PlayerTilesTest do
     refute class =~ "lg:hidden"
   end
 
-  describe "the pieces on a name card" do
-    test "shows rubies and the flask" do
-      game = Game.new(seed: {1, 2, 3}, players: 2)
+  # Round 48: the pieces moved from the row to the player sheet (the tap view).
+  describe "the pieces in the player sheet" do
+    defp sheet(game),
+      do: render_component(&TileComponents.player_card/1, game: game, seat: 1, name: "Bob")
+
+    defp fact(html, label) do
+      html
+      |> query("[data-role=player-card] dl > div")
+      |> Enum.find_value(fn d -> if LazyHTML.text(d) =~ label, do: LazyHTML.text(d) end)
+    end
+
+    test "shows rubies and the flask; no rats, essence or tube while off" do
+      game = Game.new(seed: {1, 2, 3}, players: 2, rules: %{rats: false})
       game = put_in(game.players[1].rubies, 3)
       game = put_in(game.players[1].flask, false)
-      html = render_component(&TileComponents.player_chip/1, game: game, seat: 1, name: "Bob")
+      html = sheet(game)
 
-      assert count(html, "[data-role=player-chip] [data-role=player-vp]") == 1
-      assert html |> query("[data-role=player-rubies]") |> LazyHTML.text() =~ "3"
-      assert count(html, ~s([data-role=player-flask][data-flask="empty"])) == 1
-      assert count(html, "[data-role=player-rats]") == 0
-      assert count(html, "[data-role=player-essence]") == 0
-      assert count(html, "[data-role=player-tube]") == 0
+      assert fact(html, "Rubies") =~ "3"
+      assert fact(html, "Flask") =~ "empty"
+      refute fact(html, "Rat tails")
+      refute fact(html, "Essence")
+      refute fact(html, "Test tube")
     end
 
     test "shows rat tails, essence and the test tube when those are in play" do
-      game = Game.new(seed: {1, 2, 3}, players: 2, expansions: [:alchemists])
+      game =
+        Game.new(seed: {1, 2, 3}, players: 2, expansions: [:alchemists], rules: %{rats: true})
+
       game = put_in(game.rules.pot_side, :back)
       game = put_in(game.players[1].rat_stone, 4)
       game = put_in(game.players[1].essence, 2)
       game = put_in(game.players[1].tube, 5)
-      html = render_component(&TileComponents.player_chip/1, game: game, seat: 1, name: "Bob")
+      html = sheet(game)
 
-      assert html |> query("[data-role=player-rats]") |> LazyHTML.text() =~ "4"
-      assert html |> query("[data-role=player-essence]") |> LazyHTML.text() =~ "2"
-      assert html |> query("[data-role=player-tube]") |> LazyHTML.text() =~ "5"
-      assert count(html, ~s([data-role=player-flask][data-flask="full"])) == 1
+      assert fact(html, "Rat tails") =~ "4"
+      assert fact(html, "Essence") =~ "2"
+      assert fact(html, "Test tube") =~ "5"
+      assert fact(html, "Flask") =~ "full"
     end
   end
 
@@ -642,7 +640,7 @@ defmodule QuacksWeb.PlayerTilesTest do
 
     assert has_element?(
              alice,
-             ~s([data-role=player-chip][data-seat="0"][data-you].border-gold),
+             ~s([data-role=player-chip][data-seat="0"][data-you].bg-gold\\/30),
              "you"
            )
 

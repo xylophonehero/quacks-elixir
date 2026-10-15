@@ -206,24 +206,30 @@ Copper witch
 </button>
 </header>
 <div class="space-y-1 px-2 lg:px-6" data-area="players">
-<nav aria-label="Players" class="-mx-2 grid gap-1 px-2 pt-1.5 pb-0.5 replay-done" data-columns="2" data-role="players-row" id="players-row" style="grid-template-columns: repeat(4, minmax(0, 1fr))">
-<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border-2 border-gold bg-gold/15 tile-lead" data-col="1" data-lead="true" data-role="player-chip" data-row="1" data-seat="0" data-you="true" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:0},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-0" style="grid-row: 1; grid-column: 1 / span 2" title="Ada" type="button">
+<nav aria-label="Players" class="paper grid auto-cols-fr grid-flow-col gap-x-1 gap-y-0.5 rounded-lg p-1 text-ink shadow-[0_2px_8px_rgb(0_0_0/0.45)] grid-rows-(--rows) md:grid-rows-(--rows-md) xl:grid-rows-(--rows-xl) replay-done" data-columns="1" data-role="players-row" id="players-row" style="--rows: repeat(2, auto); --rows-md: repeat(2, auto); --rows-xl: repeat(2, auto)">
+<button class="player-tile @container/row relative block w-full min-w-0 cursor-pointer rounded-md text-left touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.98] bg-gold/30 ring-1 ring-gold-deep/60" data-lead="true" data-role="player-chip" data-seat="0" data-state="shopping" data-you="true" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:0},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-0" title="Ada" type="button">
 <span class="sr-only" data-role="player-name">
 Ada (you)
 </span>
-<span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
-<span class="relative shrink-0">
-<span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-0" data-role="seat-disc">
-A
+<span class="flex h-8 min-w-0 items-center gap-1 pr-1 @min-[15rem]/row:h-9">
+<span aria-hidden="true" class="w-1.5 shrink-0 self-stretch rounded-l-md bg-player-0" data-role="seat-stripe">
 </span>
-<span class="absolute -top-3 left-1/2 -translate-x-1/2 drop-shadow-[0_0_3px_var(--color-gold)]" data-role="crown" title="Round leader: rolls the bonus die">
+<span aria-hidden="true" class="flex min-w-6 flex-1 items-center gap-1">
+<span class="flex shrink-0" data-role="crown" title="Round leader: rolls the bonus die">
 <svg aria-hidden="true" class="size-3.5" data-icon="crown" viewBox="0 0 12 12">
 <path d="M1 9.5h10L10 3 7.6 6 6 2 4.4 6 2 3z" fill="var(--color-gold)" stroke-linejoin="round" stroke-width=".7" stroke="var(--color-wood-dark)">
 </path>
 </svg>
-<span class="sr-only">round leader</span>
 </span>
-<span class="absolute -top-3 left-[calc(50%+0.4rem)] z-10 flex gap-px drop-shadow-[0_1px_2px_rgb(0_0_0/0.6)]" data-role="tile-die">
+<span class="truncate text-tag leading-tight @min-[15rem]/row:text-label font-bold" data-role="tile-name">
+Ada
+</span>
+<span class="hidden shrink-0 rounded bg-gold-deep px-1 text-tag leading-4 font-bold text-parchment-light uppercase @min-[15rem]/row:inline">
+you
+</span>
+<span class="hero-flag-micro hidden size-3 shrink-0 text-ink-soft @min-[15rem]/row:block" data-role="tile-start" title="Start player">
+</span>
+<span class="flex shrink-0 gap-px" data-role="tile-die">
 <svg class="size-3.5" data-face="orange" data-role="die-face" viewBox="0 0 48 48">
 <rect fill="var(--color-parchment-light)" height="44" rx="6" stroke-width="2.5" stroke="var(--color-ink)" width="44" x="2" y="2">
 </rect>
@@ -236,141 +242,63 @@ A
 </svg>
 </span>
 </span>
-<span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
-<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="5" data-role="player-space" id="tile-space-0-5" title="Pot space (coins)">
-5<span class="sr-only"> pot space</span>
+<span class="flex min-w-0 shrink items-center gap-1.5">
+<span class="tile-line grid min-w-0 grid-cols-[minmax(0,auto)] items-center justify-items-end *:col-start-1 *:row-start-1" data-role="tile-line" id="tile-line-0">
+<span class="tile-totals flex items-center" data-role="player-stats">
+<b class="flex items-center gap-0.5 text-tag leading-none font-bold text-ink-soft tabular-nums" data-index="5" data-role="player-space" title="Pot space (coins)">
+<svg aria-hidden="true" class="size-3.5 shrink-0" data-icon="coin" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-coin">
+</use>
+</svg>
+<span class="tile-space" id="tile-space-0-5">5</span>
+<span class="sr-only"> coins (pot space)</span>
 </b>
-<span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label " data-role="player-vp" title="VP">
-<svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
+</span>
+</span>
+</span>
+<span class="flex min-w-[1.75rem] shrink-0 items-center justify-end gap-px font-hand text-num leading-none font-bold text-gold-deep tabular-nums @min-[15rem]/row:min-w-[3.25rem] @min-[15rem]/row:text-big" data-role="player-vp" title="VP">
+<svg aria-hidden="true" class="hidden size-3.5 shrink-0 @min-[15rem]/row:block" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-vp">
 </use>
 </svg>
-<span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">0</span>
+<span data-role="vp-number">0</span>
 <span class="sr-only">VP</span>
-</span>
-</span>
-</span>
-<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-0">
-<span class="relative h-full min-w-0 flex-1">
-<span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
-<span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
-<svg aria-hidden="true" class="size-2.5 text-ruby-light" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-ruby">
-</use>
-</svg>2
-<span class="sr-only">rubies</span>
-</span>
-<span class="flex items-center gap-px" data-role="player-droplet" title="Droplet">
-<svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-droplet">
-</use>
-</svg>0
-<span class="sr-only">droplet</span>
-</span>
-<span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
-<svg aria-hidden="true" class="size-2.5 text-potion-light" data-icon="flask" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-flask">
-</use>
-</svg>
-<span class="sr-only">flask full</span>
-</span>
-<span class="flex items-center gap-px" data-role="player-black" title="Black chips in the pot">
-<span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
-</span>0
-<span class="sr-only">black chips in the pot</span>
-</span>
-<span class="flex -space-x-1" data-role="player-pennies">
-<svg aria-hidden="true" class="size-3 text-penny-copper" data-icon="penny" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-penny">
-</use>
-</svg>
-<svg aria-hidden="true" class="size-3 text-penny-silver" data-icon="penny" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-penny">
-</use>
-</svg>
-<svg aria-hidden="true" class="size-3 text-penny-gold" data-icon="penny" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-penny">
-</use>
-</svg>
-<span class="sr-only">
-witch pennies left: 3
-</span>
-</span>
-</span>
 </span>
 </span>
 </button>
-<button class="player-tile @container/tile relative flex h-[3.25rem] w-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-[9px] px-1 text-left max-sm:px-0.5 touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.97] border border-parchment/12 bg-black/25 hover:bg-black/35" data-col="2" data-role="player-chip" data-row="1" data-seat="1" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:1},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-1" style="grid-row: 1; grid-column: 3 / span 2" title="Bram" type="button">
+<button class="player-tile @container/row relative block w-full min-w-0 cursor-pointer rounded-md text-left touch-manipulation transition-[scale,background-color,opacity] duration-150 ease-out active:scale-[0.98] bg-parchment-deep/50 hover:bg-parchment-deep" data-role="player-chip" data-seat="1" data-state="shopping" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;seat&quot;:1},&quot;event&quot;:&quot;open_player&quot;}]]" popovertarget="sheet-player-1" title="Bram" type="button">
 <span class="sr-only" data-role="player-name">
 Bram
 </span>
-<span class="flex w-full min-w-0 items-center gap-0.5" data-role="tile-top">
-<span class="relative shrink-0">
-<span aria-hidden="true" class="grid size-[18px] place-items-center rounded-full text-tag leading-none font-extrabold text-ink ring-1 ring-black/40 bg-player-1" data-role="seat-disc">
-B
+<span class="flex h-8 min-w-0 items-center gap-1 pr-1 @min-[15rem]/row:h-9">
+<span aria-hidden="true" class="w-1.5 shrink-0 self-stretch rounded-l-md bg-player-1" data-role="seat-stripe">
+</span>
+<span aria-hidden="true" class="flex min-w-6 flex-1 items-center gap-1">
+<span class="truncate text-tag leading-tight @min-[15rem]/row:text-label font-semibold" data-role="tile-name">
+Bram
 </span>
 </span>
-<span class="flex min-w-0 flex-1 items-center justify-between gap-0.5 font-hand leading-none font-bold tabular-nums" data-role="player-score">
-<b class="tile-space min-w-[1.2em] text-num leading-none text-parchment-light @max-[5.75rem]/tile:text-label" data-index="2" data-role="player-space" id="tile-space-1-2" title="Pot space (coins)">
-2<span class="sr-only"> pot space</span>
+<span class="flex min-w-0 shrink items-center gap-1.5">
+<span class="tile-line grid min-w-0 grid-cols-[minmax(0,auto)] items-center justify-items-end *:col-start-1 *:row-start-1" data-role="tile-line" id="tile-line-1">
+<span class="tile-totals flex items-center" data-role="player-stats">
+<b class="flex items-center gap-0.5 text-tag leading-none font-bold text-ink-soft tabular-nums" data-index="2" data-role="player-space" title="Pot space (coins)">
+<svg aria-hidden="true" class="size-3.5 shrink-0" data-icon="coin" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-coin">
+</use>
+</svg>
+<span class="tile-space" id="tile-space-1-2">2</span>
+<span class="sr-only"> coins (pot space)</span>
 </b>
-<span class="flex items-center gap-px text-num leading-none tracking-tight text-gold @max-[5.75rem]/tile:text-label " data-role="player-vp" title="VP">
-<svg aria-hidden="true" class="size-3 shrink-0 text-gold" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
+</span>
+</span>
+</span>
+<span class="flex min-w-[1.75rem] shrink-0 items-center justify-end gap-px font-hand text-num leading-none font-bold text-gold-deep tabular-nums @min-[15rem]/row:min-w-[3.25rem] @min-[15rem]/row:text-big" data-role="player-vp" title="VP">
+<svg aria-hidden="true" class="hidden size-3.5 shrink-0 @min-[15rem]/row:block" data-icon="vp" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-vp">
 </use>
 </svg>
-<span class="min-w-[1.2em] pr-px text-right" data-role="vp-number">0</span>
+<span data-role="vp-number">0</span>
 <span class="sr-only">VP</span>
-</span>
-</span>
-</span>
-<span class="tile-line relative flex h-[18px] w-full min-w-0 items-center gap-[3px]" data-role="tile-line" id="tile-line-1">
-<span class="relative h-full min-w-0 flex-1">
-<span class="tile-totals flex h-[18px] w-full min-w-0 flex-wrap items-center gap-x-[3px] overflow-hidden text-tag font-semibold tabular-nums" data-role="player-stats">
-<span class="flex items-center gap-px" data-role="player-rubies" title="Rubies">
-<svg aria-hidden="true" class="size-2.5 text-ruby-light" data-icon="ruby" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-ruby">
-</use>
-</svg>1
-<span class="sr-only">rubies</span>
-</span>
-<span class="flex items-center gap-px" data-role="player-droplet" title="Droplet">
-<svg aria-hidden="true" class="size-2.5 text-droplet" data-icon="droplet" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-droplet">
-</use>
-</svg>0
-<span class="sr-only">droplet</span>
-</span>
-<span class="flex items-center" data-flask="full" data-role="player-flask" title="Flask full">
-<svg aria-hidden="true" class="size-2.5 text-potion-light" data-icon="flask" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-flask">
-</use>
-</svg>
-<span class="sr-only">flask full</span>
-</span>
-<span class="flex items-center gap-px" data-role="player-black" title="Black chips in the pot">
-<span aria-hidden="true" class="size-2 rounded-full bg-chip-black ring-1 ring-penny-silver">
-</span>0
-<span class="sr-only">black chips in the pot</span>
-</span>
-<span class="flex -space-x-1" data-role="player-pennies">
-<svg aria-hidden="true" class="size-3 text-penny-copper" data-icon="penny" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-penny">
-</use>
-</svg>
-<svg aria-hidden="true" class="size-3 text-penny-silver" data-icon="penny" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-penny">
-</use>
-</svg>
-<svg aria-hidden="true" class="size-3 text-penny-gold" data-icon="penny" fill="currentColor" viewBox="0 0 512 512">
-<use href="#icon-penny">
-</use>
-</svg>
-<span class="sr-only">
-witch pennies left: 3
-</span>
-</span>
-</span>
 </span>
 </span>
 </button>
@@ -2294,12 +2222,17 @@ Pumpkin
 I
 </span>
 </div>
-<div class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="orange 1" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-orange text-ink">
+<div class="mt-auto flex flex-wrap gap-x-3 gap-y-1.5 pt-0.5 pb-1 text-xs">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="orange 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-orange text-ink" data-chip-icon="orange">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="orange" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-orange">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 1
 </span>
-3
+</span>3
 </span>
 </div>
 </div>
@@ -2326,24 +2259,39 @@ I
 <p class="text-[13px] leading-snug text-pretty">
 Draw 1, 2 or 4 more chips (its value): you may place one of them, it acts at once, and the rest go back to your bag.
 </p>
-<div class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="blue 1" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-blue text-white">
+<div class="mt-auto flex flex-wrap gap-x-3 gap-y-1.5 pt-0.5 pb-1 text-xs">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="blue 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-blue text-white" data-chip-icon="blue">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="blue" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-blue">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 1
 </span>
-5
+</span>5
 </span>
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="blue 2" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-blue text-white">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="blue 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-blue text-white" data-chip-icon="blue">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="blue" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-blue">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 2
 </span>
-10
+</span>10
 </span>
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="blue 4" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-blue text-white">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="blue 4" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-blue text-white" data-chip-icon="blue">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="blue" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-blue">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 4
 </span>
-19
+</span>19
 </span>
 </div>
 </div>
@@ -2392,24 +2340,39 @@ Moves 1 more space with 1 or 2 orange chips in your pot, 2 more with 3 or more.
 </tr>
 </tbody>
 </table>
-<div class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="red 1" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-red text-white">
+<div class="mt-auto flex flex-wrap gap-x-3 gap-y-1.5 pt-0.5 pb-1 text-xs">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="red 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-red text-white" data-chip-icon="red">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="red" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-red">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 1
 </span>
-6
+</span>6
 </span>
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="red 2" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-red text-white">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="red 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-red text-white" data-chip-icon="red">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="red" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-red">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 2
 </span>
-10
+</span>10
 </span>
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="red 4" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-red text-white">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="red 4" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-red text-white" data-chip-icon="red">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="red" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-red">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 4
 </span>
-16
+</span>16
 </span>
 </div>
 </div>
@@ -2436,24 +2399,39 @@ I
 <p class="text-[13px] leading-snug text-pretty">
 Right after a white chip: you may put that white chip back in your bag.
 </p>
-<div class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="yellow 1" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-yellow text-ink">
+<div class="mt-auto flex flex-wrap gap-x-3 gap-y-1.5 pt-0.5 pb-1 text-xs">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="yellow 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-yellow text-ink" data-chip-icon="yellow">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="yellow" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-yellow">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 1
 </span>
-8
+</span>8
 </span>
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="yellow 2" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-yellow text-ink">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="yellow 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-yellow text-ink" data-chip-icon="yellow">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="yellow" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-yellow">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 2
 </span>
-12
+</span>12
 </span>
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="yellow 4" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-yellow text-ink">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="yellow 4" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-yellow text-ink" data-chip-icon="yellow">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="yellow" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-yellow">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 4
 </span>
-18
+</span>18
 </span>
 </div>
 </div>
@@ -2480,24 +2458,39 @@ I
 <p class="text-[13px] leading-snug text-pretty">
 1 ruby for each green chip that is your last or next-to-last chip.
 </p>
-<div class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="green 1" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-green text-ink">
+<div class="mt-auto flex flex-wrap gap-x-3 gap-y-1.5 pt-0.5 pb-1 text-xs">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="green 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-green text-ink" data-chip-icon="green">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-green">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 1
 </span>
-4
+</span>4
 </span>
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="green 2" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-green text-ink">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="green 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-green text-ink" data-chip-icon="green">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-green">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 2
 </span>
-8
+</span>8
 </span>
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="green 4" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-green text-ink">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="green 4" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-green text-ink" data-chip-icon="green">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="green" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-green">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 4
 </span>
-14
+</span>14
 </span>
 </div>
 </div>
@@ -2540,12 +2533,17 @@ more
 </tr>
 </tbody>
 </table>
-<div class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="black 1" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-black text-white border border-iron">
+<div class="mt-auto flex flex-wrap gap-x-3 gap-y-1.5 pt-0.5 pb-1 text-xs">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="black 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-black text-white border border-iron" data-chip-icon="black">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="black" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-black">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 1
 </span>
-10
+</span>10
 </span>
 </div>
 </div>
@@ -2594,12 +2592,17 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </tr>
 </tbody>
 </table>
-<div class="mt-auto flex flex-wrap gap-x-2.5 gap-y-1 pt-0.5 text-xs">
-<span class="inline-flex items-center gap-1 font-bold tabular-nums">
-<span aria-label="purple 1" class="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full text-tag leading-none font-bold tabular-nums bg-chip-purple text-white">
+<div class="mt-auto flex flex-wrap gap-x-3 gap-y-1.5 pt-0.5 pb-1 text-xs">
+<span class="inline-flex items-center gap-1.5 font-bold tabular-nums">
+<span aria-label="purple 1" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-purple text-white" data-chip-icon="purple">
+<svg aria-hidden="true" class="size-[58%] text-white -translate-x-[8%] -translate-y-[8%]" data-icon="purple" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-purple">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 1
 </span>
-9
+</span>9
 </span>
 </div>
 </div>

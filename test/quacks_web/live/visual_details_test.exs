@@ -222,7 +222,7 @@ defmodule QuacksWeb.VisualDetailsTest do
       assert has_element?(alice, "header dd.truncate")
     end
 
-    test "the state badge sits beside the initial; a bot is an icon on phones" do
+    test "the state mark sits before the VP; a bot is an icon" do
       {:ok, id} = GameServer.start(3, {1, 2, 3}, %{}, %{fortune: false})
       alice = token("alice")
       view = open(browser(alice), id)
@@ -231,12 +231,16 @@ defmodule QuacksWeb.VisualDetailsTest do
       {:ok, _} = GameServer.add_bot(id, alice)
       view |> element("button", "Start game") |> render_click()
 
-      # Round 27: on the tile's top right corner, once the seat stops.
+      # Round 48: in the row, before the VP, once the seat stops.
       {:ok, _} = GameServer.apply(id, 0, :draw)
       {:ok, _} = GameServer.apply(id, 0, :stop)
-      assert has_element?(view, "[data-role=player-chip] [data-role=player-state].-right-1\\.5")
 
-      # Round 28: the bot is a small icon on the seat disc, "bot" is in the name.
+      assert has_element?(
+               view,
+               "[data-role=player-chip] [data-role=player-state] + [data-role=player-vp]"
+             )
+
+      # The bot is a small icon after the name, "bot" is in the screen-reader name.
       assert has_element?(
                view,
                "[data-role=player-chip] [data-role=bot-badge].hero-cpu-chip-micro"

@@ -1,9 +1,9 @@
 defmodule QuacksWeb.TileRevealComponents do
   @moduledoc """
   The evaluation on the player tiles (`QuacksWeb.TileReveal`; round 27, the phone
-  default since round 28). `tile_news/1` fills a tile's bottom line while a step
-  plays and after a buy in the shop (`TileComponents.player_chip/1` swaps the line
-  to the news and back, app.css `.tile-line`). `tile_stage/1` names the step,
+  default since round 28). `tile_news/1` fills a player row's live slot while a
+  step plays and after a buy in the shop (`TileComponents.player_chip/1` swaps the
+  slot to the news and back, app.css `.tile-line`). `tile_stage/1` names the step,
   with Skip and Next (Step mode), in the bar where Stop and Draw sit (round 29). Nothing hangs
   outside a tile, so neither the tiles nor the pot move.
   """
@@ -19,8 +19,8 @@ defmodule QuacksWeb.TileRevealComponents do
   attr :items, :list, required: true, doc: "`QuacksWeb.TileReveal.news/3`'s items"
 
   @doc """
-  Round 28 (R2): the news on a tile's bottom line (`TileComponents.player_chip/1`
-  draws the line and swaps it): die faces, a book's ingredient and its rewards,
+  Round 28 (R2): the news in a player row's live slot (`TileComponents.player_chip/1`
+  draws the slot and swaps it): die faces, a book's ingredient and its rewards,
   the space's VP and ruby, the chips bought and the droplet pushes in the shop.
   """
   def tile_news(assigns) do
@@ -45,8 +45,9 @@ defmodule QuacksWeb.TileRevealComponents do
   end
 
   # Round 29 (B2): a draw while the round brews. The newest (`age` 0) glows
-  # once (`beat-glow`); the older ones are dimmer. Round 31: they overlap by 4 px
-  # (the newest on top), so the line has room for the black and white counts.
+  # once (`beat-glow`); the older ones are dimmer. They overlap by 2 px (the
+  # newest on top), so each icon shows. Round 48: `:sm` chips (the icon shows); the row hides the
+  # older ones it has no room for (app.css `.tile-draw`).
   defp badge(%{badge: {:drew, chip, age, id}} = assigns) do
     assigns = assign(assigns, chip: chip, age: age, id: id)
 
@@ -54,14 +55,14 @@ defmodule QuacksWeb.TileRevealComponents do
     <span
       id={"tile-draw-#{@id}"}
       class={[
-        "tile-draw relative shrink-0 rounded-full ring-1 ring-black/40",
-        @age > 0 && "-ml-2 opacity-70"
+        "tile-draw relative flex shrink-0 rounded-full ring-1 ring-black/40",
+        @age > 0 && "-ml-0.5 opacity-80"
       ]}
       style={"z-index: #{10 - @age}"}
       data-gain="drew"
       data-age={@age}
     >
-      <.chip chip={@chip} size={:xs} />
+      <.chip chip={@chip} size={:sm} />
       <span :if={@age == 0} class="tile-draw-glow" aria-hidden="true"></span>
     </span>
     """
@@ -71,8 +72,8 @@ defmodule QuacksWeb.TileRevealComponents do
     assigns = assign(assigns, chip: chip)
 
     ~H"""
-    <span class="rounded-full ring-1 ring-black/40" data-gain="bought">
-      <.chip chip={@chip} size={:xs} />
+    <span class="flex shrink-0 rounded-full ring-1 ring-black/40" data-gain="bought">
+      <.chip chip={@chip} size={:sm} />
     </span>
     """
   end
@@ -84,13 +85,13 @@ defmodule QuacksWeb.TileRevealComponents do
       assign(assigns, traded: traded, got: got, name: Fortune.card(card).name)
 
     ~H"""
-    <span class="flex items-center gap-px" title={@name} data-gain="card">
-      <span :if={@traded} class="rounded-full opacity-60 ring-1 ring-black/40">
-        <.chip chip={@traded} size={:xs} />
+    <span class="flex items-center gap-1" title={@name} data-gain="card">
+      <span :if={@traded} class="flex shrink-0 rounded-full opacity-60 ring-1 ring-black/40">
+        <.chip chip={@traded} size={:sm} />
       </span>
       <span :if={@traded} aria-hidden="true">→</span>
       <span :if={!@traded}>+</span>
-      <span class="rounded-full ring-1 ring-black/40"><.chip chip={@got} size={:xs} /></span>
+      <span class="flex shrink-0 rounded-full ring-1 ring-black/40"><.chip chip={@got} size={:sm} /></span>
     </span>
     """
   end

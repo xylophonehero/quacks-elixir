@@ -54,20 +54,20 @@ defmodule QuacksWeb.GalleryFitTest do
   end
 
   describe "player tiles" do
-    test "the state badge sits above the VP, and narrow tiles take smaller numbers",
+    test "the state mark sits before the VP, and narrow rows take smaller numbers",
          %{conn: conn} do
       view = frame(conn, "tiles/exploded")
 
       assert has_element?(
                view,
-               "[data-role=player-chip][data-boom] [data-role=player-state].-top-2\\.5"
+               "[data-role=player-chip][data-boom] [data-role=player-state] + [data-role=player-vp]"
              )
 
-      assert has_element?(view, "[data-role=player-chip].\\@container\\/tile")
+      assert has_element?(view, "[data-role=player-chip].\\@container\\/row")
 
       assert has_element?(
                view,
-               "[data-role=player-vp].\\@max-\\[5\\.75rem\\]\\/tile\\:text-label"
+               "[data-role=player-vp].text-num.\\@min-\\[15rem\\]\\/row\\:text-big"
              )
     end
   end
