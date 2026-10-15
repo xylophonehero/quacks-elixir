@@ -66,6 +66,10 @@ if config_env() == :dev do
     ]
 end
 
+if frame_ancestors = System.get_env("FRAME_ANCESTORS") do
+  config :quacks, :frame_ancestors, frame_ancestors
+end
+
 if config_env() == :prod do
   # The gallery and the scenarios (`QuacksWeb.Plugs.Gallery`): on staging only, so
   # fixes can be checked there; prod answers 404 on `/dev/*`.
