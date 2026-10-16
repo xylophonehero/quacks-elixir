@@ -577,6 +577,33 @@ defmodule QuacksWeb.Gallery.Stories do
     ]
   end
 
+  defp arg_stories("codex") do
+    [
+      arg_story(
+        "board",
+        "Codex sandbox · the table",
+        [
+          enum("state", CodexWeb.Gallery.states(), "mid-game"),
+          enum("pov", ~w(P1 P2), "P1"),
+          bool("reveal")
+        ],
+        &CodexWeb.Gallery.board_story/1,
+        %{
+          height: :screen,
+          presets: [
+            {"start", "The first-game set-up", %{"state" => "start"}},
+            {"selected", "A card selected: its actions", %{"state" => "selected"}},
+            {"codex", "The codex sheet", %{"state" => "codex"}},
+            {"discard", "The discard sheet", %{"state" => "discard"}},
+            {"buildings", "Tech buildings", %{"state" => "buildings"}},
+            {"log", "The log sheet (phone)", %{"state" => "log"}},
+            {"p2", "View as P2, P1's hand shown", %{"pov" => "P2", "reveal" => true}}
+          ]
+        }
+      )
+    ]
+  end
+
   defp arg_stories(_component), do: []
 
   # Purple needs seat 1's brew (it explodes with 2 players): no 2-player preset.

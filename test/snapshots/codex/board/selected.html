@@ -1,0 +1,898 @@
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual" name="viewport"/>
+<meta content="" name="csrf-token"/>
+<meta content="#3e2a16" name="theme-color"/>
+<meta content="yes" name="mobile-web-app-capable"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
+<meta content="Quacks" name="apple-mobile-web-app-title"/>
+<link href="/manifest.webmanifest" rel="manifest"/>
+<link href="/images/pwa/apple-touch-icon.png" rel="apple-touch-icon"/>
+<title data-default="Quacks">codex/board</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="/assets/css/app.css" phx-track-static="" rel="stylesheet"/>
+<script defer="" phx-track-static="" src="/assets/js/app.js" type="text/javascript">
+</script>
+</head>
+<body class="bg-wood-dark text-parchment antialiased" data-sounds="">
+<svg aria-hidden="true" class="absolute" height="0" id="icon-sprite" width="0">
+<symbol id="icon-bag" viewBox="0 0 512 512">
+<path d="#hash:8dc7e4217f99" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-black" viewBox="0 0 512 512">
+<path d="#hash:27354e45f042" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-blue" viewBox="0 0 512 512">
+<path d="#hash:1e4ec277c55a" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-book" viewBox="0 0 512 512">
+<path d="#hash:3a34a8690632" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-carrot_nose" viewBox="0 0 512 512">
+<path d="#hash:b58f6fd5cce7" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-cauldron" viewBox="0 0 512 512">
+<path d="#hash:d653e1756699" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-chicken_eyes" viewBox="0 0 512 512">
+<path d="#hash:59af8f93a1e3" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-coin" viewBox="0 0 512 512">
+<path d="#hash:8973672ea52b" fill-rule="evenodd" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-die" viewBox="0 0 512 512">
+<path d="#hash:9a04ae45da3c" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-droplet" viewBox="0 0 512 512">
+<path d="#hash:ec0634d1e082" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-ear_worm" viewBox="0 0 512 512">
+<path d="#hash:fd7a21917388" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-explosion" viewBox="0 0 512 512">
+<path d="#hash:fa558936987c" fill="#d6322c" stroke-linejoin="round" stroke-width="12" stroke="#7a1410">
+</path>
+<path d="#hash:ee5463dfb6a6" fill="#f28a1e">
+</path>
+<path d="#hash:cb1676bbc9b3" fill="#ffd94a">
+</path>
+</symbol>
+<symbol id="icon-flask" viewBox="0 0 512 512">
+<path d="#hash:a334df7bc76c" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-forgetfulness" viewBox="0 0 512 512">
+<path d="#hash:d72a28adefa6" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-green" viewBox="0 0 512 512">
+<path d="#hash:22af1efdd719" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-locoweed" viewBox="0 0 512 512">
+<path d="#hash:220cbe959864" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-nervousness" viewBox="0 0 512 512">
+<path d="#hash:88ff549229ae" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-orange" viewBox="0 0 512 512">
+<path d="#hash:5b722b1c3841" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-penny" viewBox="0 0 512 512">
+<path d="#hash:b88cc55eb167" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-pot" viewBox="0 0 512 512">
+<path d="#hash:cbb19e49b69e" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-purple" viewBox="0 0 512 512">
+<path d="#hash:105545848940" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-rat" viewBox="0 0 512 512">
+<path d="#hash:9a99ed142512" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-red" viewBox="0 0 512 512">
+<path d="#hash:029f52480657" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-ruby" viewBox="0 0 512 512">
+<path d="#hash:3284009d91af" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-tube" viewBox="0 0 512 512">
+<path d="#hash:66d78db8cea1" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-vampirism" viewBox="0 0 512 512">
+<path d="#hash:1fdd051e7a6f" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-vp" viewBox="0 0 512 512">
+<path d="#hash:326df0056854" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-white" viewBox="0 0 512 512">
+<path d="#hash:2fca32a95de9" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-wing_ears" viewBox="0 0 512 512">
+<path d="#hash:591cde6eba7d" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-witch" viewBox="0 0 512 512">
+<path d="#hash:fe555ebf06e4" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-witch_hump" viewBox="0 0 512 512">
+<path d="#hash:52ca94e5764a" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-yellow" viewBox="0 0 512 512">
+<path d="#hash:067283cb6d6e" fill="currentColor">
+</path>
+</symbol>
+</svg>
+<div data-phx-main="" data-phx-session="" data-phx-static="" id="phx-ID">
+<main data-layout="full" style="">
+<div class="min-h-dvh" data-component="codex" data-variant="board" id="gallery-frame">
+<div class="cx-table min-h-dvh text-stone-100 cx-selecting" data-active="0" data-pov="0" id="cx-root" phx-hook="CodexWeb.Board.CodexTable" phx-key="Escape" phx-window-keydown="key">
+<div class="mx-auto max-w-[90rem] px-2 pt-2 pb-40 sm:px-3 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-4 lg:px-4 lg:pb-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+<div class="flex min-w-0 flex-col gap-1.5 sm:gap-2">
+<header class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+<a aria-label="Games" class="grid size-8 shrink-0 place-items-center rounded-full bg-white/10 ring-1 ring-white/15 transition hover:bg-white/20 active:scale-95" data-phx-link-state="push" data-phx-link="redirect" href="/games">
+<span class="hero-arrow-left size-4">
+</span>
+</a>
+<h1 class="text-base font-bold tracking-tight sm:text-lg">Codex</h1>
+<span class="rounded-full bg-black/25 px-2 py-0.5 font-mono text-xs tracking-widest text-white/80 ring-1 ring-white/10" id="cx-code" title="room code">
+GALRY
+</span>
+<div class="ml-auto flex items-center gap-1.5">
+<div aria-label="View as" class="flex rounded-full bg-black/30 p-0.5 text-xs font-semibold ring-1 ring-white/10" role="group">
+<button aria-pressed="true" class="rounded-full px-2.5 py-1 transition bg-rose-700 text-white shadow" id="cx-pov-0" phx-click="pov" phx-value-seat="0" type="button">
+View P1
+</button>
+<button aria-pressed="false" class="rounded-full px-2.5 py-1 transition text-white/60 hover:text-white" id="cx-pov-1" phx-click="pov" phx-value-seat="1" type="button">
+View P2
+</button>
+</div>
+<button aria-pressed="false" class="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition active:scale-95 bg-black/25 text-white/80 ring-white/10 hover:bg-black/40" id="cx-reveal" phx-click="reveal" title="Show or hide the hand of P2" type="button">
+<span class="hero-eye-slash-mini size-3.5">
+</span>
+<span class="hidden sm:inline">P2 hand</span>
+</button>
+<button aria-label="Log" class="grid size-7 place-items-center rounded-full bg-black/25 ring-1 ring-white/10 transition hover:bg-black/40 lg:hidden" id="cx-log-open" phx-click="drawer" phx-value-zone="log" type="button">
+<span class="hero-list-bullet-mini size-4">
+</span>
+</button>
+</div>
+</header>
+<section class="flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 sm:gap-2 sm:p-2 bg-sky-950/20 ring-sky-300/15" data-far="true" id="cx-side-1">
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
+<span class="rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white bg-sky-700">
+P2
+</span>
+<span class="min-w-0 truncate text-xs text-white/80 sm:text-sm">
+<span class="font-semibold text-white">River Montoya</span>
+<span class="hidden sm:inline">· Finesse</span>
+</span>
+<span class="text-[11px] text-white/50 tabular-nums">turn 1</span>
+<div class="ml-auto flex items-center gap-1.5">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10" title="Base HP">
+<button aria-label="Base HP -1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-hp-1-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="base_hp" phx-value-seat="1" type="button">
+<span class="hero-minus-mini size-3.5">
+</span>
+</button>
+<span class="flex min-w-9 items-center justify-center gap-0.5 text-sm font-bold tabular-nums">
+<span class="hero-heart-solid size-3.5 text-rose-300">
+</span>
+<span id="cx-hp-1">20</span>
+</span>
+<button aria-label="Base HP +1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-hp-1-plus" phx-click="adjust" phx-value-delta="1" phx-value-key="base_hp" phx-value-seat="1" type="button">
+<span class="hero-plus-mini size-3.5">
+</span>
+</button>
+</div>
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10" title="Gold">
+<button aria-label="Gold -1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-gold-1-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="gold" phx-value-seat="1" type="button">
+<span class="hero-minus-mini size-3.5">
+</span>
+</button>
+<span class="flex min-w-9 items-center justify-center gap-0.5 text-sm font-bold tabular-nums">
+<span class="hero-circle-stack-solid size-3.5 text-amber-300">
+</span>
+<span id="cx-gold-1">5</span>
+</span>
+<button aria-label="Gold +1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-gold-1-plus" phx-click="adjust" phx-value-delta="1" phx-value-key="gold" phx-value-seat="1" type="button">
+<span class="hero-plus-mini size-3.5">
+</span>
+</button>
+</div>
+</div>
+</div>
+<div class="cx-pair">
+<div class="cx-mat flex items-stretch gap-1 sm:gap-2 flex-row-reverse">
+<div class="cx-zone cx-command min-w-0 flex-1 cx-target" data-drop="" data-list="true" data-seat="1" data-zone="command" id="cx-zone-1-command" phx-click="zone" phx-value-seat="1" phx-value-zone="command">
+<span class="cx-label cx-row-label">Command</span>
+<div class="flex flex-col flex-wrap content-start gap-1 self-start pt-3">
+<button class="rounded-md bg-black/25 px-1.5 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10 transition hover:bg-black/40 hover:text-white" id="cx-build-1" phx-click="drawer" phx-value-seat="1" phx-value-zone="buildings" type="button">
++ Build
+</button>
+</div>
+</div>
+<div class="cx-zone cx-pile cx-target" data-drop="" data-seat="1" data-zone="workers" id="cx-workers-1" phx-click="zone" phx-value-seat="1" phx-value-zone="workers" title="Workers: 5">
+<span class="cx-label">Workers</span>
+<div class="cx-pile-stack" data-empty="false">
+<div class="cx-card">
+<div class="cx-face cx-back">
+<span>Codex</span>
+</div>
+</div>
+<span class="cx-count" id="cx-workers-1-count">5</span>
+</div>
+</div>
+<div class="flex flex-col items-center gap-1">
+<div class="cx-zone cx-pile cx-target" data-drop="" data-seat="1" data-zone="deck" id="cx-deck-1" phx-click="zone" phx-value-seat="1" phx-value-zone="deck" title="Deck: 3">
+<span class="cx-label">Deck</span>
+<div class="cx-pile-stack" data-empty="false">
+<div class="cx-card">
+<div class="cx-face cx-back">
+<span>Codex</span>
+</div>
+</div>
+<span class="cx-count" id="cx-deck-1-count">3</span>
+</div>
+</div>
+<div class="flex gap-1">
+<button class="cx-mini" id="cx-draw-1" phx-click="draw" phx-value-seat="1" title="Draw a card" type="button">
+Draw
+</button>
+<button aria-label="Shuffle the deck" class="cx-mini" id="cx-shuffle-1" phx-click="shuffle" phx-value-seat="1" phx-value-zone="deck" title="Shuffle the deck" type="button">
+<span class="hero-arrows-right-left-mini size-3">
+</span>
+</button>
+</div>
+</div>
+<div class="cx-zone cx-pile cx-target" data-drop="" data-seat="1" data-zone="discard" id="cx-discard-1" phx-click="zone" phx-value-seat="1" phx-value-zone="discard" title="Discard: 0">
+<span class="cx-label">Discard</span>
+<div class="cx-pile-stack" data-empty="true">
+<div class="cx-pile-empty">
+</div>
+</div>
+</div>
+<div class="cx-zone cx-pile cx-target" data-drop="" data-seat="1" data-zone="codex" id="cx-codex-1" phx-click="zone" phx-value-seat="1" phx-value-zone="codex" title="Codex: 24">
+<span class="cx-label">Codex</span>
+<div class="cx-pile-stack" data-empty="false">
+<div class="cx-card cx-codex-face">
+<div class="cx-face">
+<span>Codex</span>
+</div>
+</div>
+<span class="cx-count" id="cx-codex-1-count">24</span>
+</div>
+</div>
+</div>
+<div class="cx-zone cx-hand cx-hand-far cx-hand-hidden cx-target" data-drop="" data-list="true" data-seat="1" data-zone="hand" id="cx-zone-1-hand" phx-click="zone" phx-value-seat="1" phx-value-zone="hand">
+<span class="cx-label cx-row-label">Hand · 4</span>
+<div class="cx-fan">
+<div class="cx-card " data-card-id="41" data-hidden="" draggable="false" id="cx-card-41" phx-value-id="41" style="--r: 3.75deg; --y: -2.7px" title="a card">
+<div class="cx-face cx-back">
+<span>Codex</span>
+</div>
+</div>
+<div class="cx-card " data-card-id="49" data-hidden="" draggable="false" id="cx-card-49" phx-value-id="49" style="--r: 1.25deg; --y: -0.3px" title="a card">
+<div class="cx-face cx-back">
+<span>Codex</span>
+</div>
+</div>
+<div class="cx-card " data-card-id="46" data-hidden="" draggable="false" id="cx-card-46" phx-value-id="46" style="--r: -1.25deg; --y: -0.3px" title="a card">
+<div class="cx-face cx-back">
+<span>Codex</span>
+</div>
+</div>
+<div class="cx-card " data-card-id="45" data-hidden="" draggable="false" id="cx-card-45" phx-value-id="45" style="--r: -3.75deg; --y: -2.7px" title="a card">
+<div class="cx-face cx-back">
+<span>Codex</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cx-pair">
+<div class="flex justify-center gap-1 sm:gap-2" id="cx-patrol-1">
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="1" data-slot="squad_leader" data-zone="patrol" id="cx-slot-1-squad_leader" phx-click="zone" phx-value-seat="1" phx-value-slot="squad_leader" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Squad leader">
+<span class="hidden sm:inline">Squad leader</span>
+<span class="sm:hidden">Leader</span>
+</span>
+<div class="cx-slot-card">
+</div>
+</div>
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="1" data-slot="elite" data-zone="patrol" id="cx-slot-1-elite" phx-click="zone" phx-value-seat="1" phx-value-slot="elite" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Elite">
+<span class="hidden sm:inline">Elite</span>
+<span class="sm:hidden">Elite</span>
+</span>
+<div class="cx-slot-card">
+<div class="cx-card cursor-pointer" data-card-id="48" draggable="true" id="cx-card-48" phx-click="select" phx-value-id="48" style="" title="Bloom">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">2</span>
+<span class="cx-name">Bloom</span>
+<span class="cx-type">Minor Spell — Buff</span>
+<span class="cx-text">Put a +1/+1 rune on a friendly unit or hero that doesn&#39;t have a +1/+1 rune.</span>
+</div>
+</div>
+</div>
+</div>
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="1" data-slot="scavenger" data-zone="patrol" id="cx-slot-1-scavenger" phx-click="zone" phx-value-seat="1" phx-value-slot="scavenger" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Scavenger">
+<span class="hidden sm:inline">Scavenger</span>
+<span class="sm:hidden">Scav.</span>
+</span>
+<div class="cx-slot-card">
+</div>
+</div>
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="1" data-slot="technician" data-zone="patrol" id="cx-slot-1-technician" phx-click="zone" phx-value-seat="1" phx-value-slot="technician" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Technician">
+<span class="hidden sm:inline">Technician</span>
+<span class="sm:hidden">Tech.</span>
+</span>
+<div class="cx-slot-card">
+</div>
+</div>
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="1" data-slot="lookout" data-zone="patrol" id="cx-slot-1-lookout" phx-click="zone" phx-value-seat="1" phx-value-slot="lookout" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Lookout">
+<span class="hidden sm:inline">Lookout</span>
+<span class="sm:hidden">Look.</span>
+</span>
+<div class="cx-slot-card">
+<div class="cx-card cursor-pointer" data-card-id="74" draggable="true" id="cx-card-74" phx-click="select" phx-value-id="74" style="" title="River Montoya">
+<div class="cx-face cx-css cx-tone-hero">
+<span class="cx-cost">2</span>
+<span class="cx-name">River Montoya</span>
+<span class="cx-type">Hero — Dancing Fencer</span>
+<span class="cx-text">Lv 3+: ⤵ → Sideline a tech 0 or tech I patroller. (Move it out of the patrol zone.) ◎</span>
+<span class="cx-text">Lv 5+: Your tech 0 units cost ① less to play.</span>
+<span class="cx-stats">2/3</span>
+</div>
+<span class="cx-tok cx-lvl" title="level">L3</span>
+<span class="cx-tok cx-stat" title="ATK/HP now">2/4</span>
+</div>
+</div>
+</div>
+</div>
+<div class="cx-zone cx-row cx-target" data-drop="" data-list="true" data-seat="1" data-zone="in_play" id="cx-zone-1-in_play" phx-click="zone" phx-value-seat="1" phx-value-zone="in_play">
+<span class="cx-label cx-row-label">In play</span>
+<div class="cx-card cursor-pointer" data-card-id="40" draggable="true" id="cx-card-40" phx-click="select" phx-value-id="40" style="" title="Timely Messenger">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">1</span>
+<span class="cx-name">Timely Messenger</span>
+<span class="cx-type">Unit — Mercenary · tech 0</span>
+<span class="cx-text">Haste (Can attack and play ⤵ abilities, if he had any, the turn he arrives.)</span>
+<span class="cx-stats">1/1</span>
+</div>
+<span class="cx-tok cx-dmg" title="damage">1</span>
+</div>
+</div>
+</div>
+</section>
+<div class="flex items-center gap-2 py-0.5">
+<div class="flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow-sm sm:text-sm bg-rose-700" id="cx-active">
+<span class="size-1.5 animate-pulse rounded-full bg-white">
+</span>
+<span class="truncate">
+P1 · turn 2
+</span>
+</div>
+<div class="h-px flex-1 bg-gradient-to-r from-white/5 via-white/20 to-white/5">
+</div>
+<div class="cx-zone cx-pile cx-pile-small cx-target" data-drop="" data-zone="trash" id="cx-trash" phx-click="zone" phx-value-zone="trash" title="Trash: 1">
+<span class="cx-label">Trash</span>
+<div class="cx-pile-stack" data-empty="false">
+<div class="cx-card " data-card-id="44" draggable="true" id="cx-top-44" phx-value-id="44" style="" title="Helpful Turtle">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">2</span>
+<span class="cx-name">Helpful Turtle</span>
+<span class="cx-type">Unit — Cute Animal · tech 0</span>
+<span class="cx-text">Healing 1 (During your upkeep, heal 1 damage from all friendly units and heroes.)</span>
+<span class="cx-stats">1/2</span>
+</div>
+</div>
+<span class="cx-count" id="cx-trash-count">1</span>
+</div>
+</div>
+<button class="flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1.5 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-black/45 active:scale-95 disabled:opacity-35" id="cx-undo" phx-click="undo" title="Undo the last action" type="button">
+<span class="hero-arrow-uturn-left-mini size-4">
+</span>
+<span class="hidden sm:inline">Undo</span>
+</button>
+<button class="rounded-full bg-amber-300 px-3 py-1.5 text-xs font-bold text-stone-900 shadow-md ring-1 ring-amber-100 transition hover:bg-amber-200 active:scale-95 sm:text-sm" id="cx-end-turn" phx-click="end_turn" type="button">
+End turn
+</button>
+</div>
+<section class="flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 sm:gap-2 sm:p-2 bg-rose-950/20 ring-rose-300/15 cx-active-side" data-far="false" id="cx-side-0">
+<div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
+<span class="rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white bg-rose-700">
+P1
+</span>
+<span class="min-w-0 truncate text-xs text-white/80 sm:text-sm">
+<span class="font-semibold text-white">Troq Bashar</span>
+<span class="hidden sm:inline">· Bashing</span>
+</span>
+<span class="text-[11px] text-white/50 tabular-nums">turn 2</span>
+<div class="ml-auto flex items-center gap-1.5">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10" title="Base HP">
+<button aria-label="Base HP -1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-hp-0-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="base_hp" phx-value-seat="0" type="button">
+<span class="hero-minus-mini size-3.5">
+</span>
+</button>
+<span class="flex min-w-9 items-center justify-center gap-0.5 text-sm font-bold tabular-nums">
+<span class="hero-heart-solid size-3.5 text-rose-300">
+</span>
+<span id="cx-hp-0">17</span>
+</span>
+<button aria-label="Base HP +1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-hp-0-plus" phx-click="adjust" phx-value-delta="1" phx-value-key="base_hp" phx-value-seat="0" type="button">
+<span class="hero-plus-mini size-3.5">
+</span>
+</button>
+</div>
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10" title="Gold">
+<button aria-label="Gold -1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-gold-0-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="gold" phx-value-seat="0" type="button">
+<span class="hero-minus-mini size-3.5">
+</span>
+</button>
+<span class="flex min-w-9 items-center justify-center gap-0.5 text-sm font-bold tabular-nums">
+<span class="hero-circle-stack-solid size-3.5 text-amber-300">
+</span>
+<span id="cx-gold-0">3</span>
+</span>
+<button aria-label="Gold +1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-gold-0-plus" phx-click="adjust" phx-value-delta="1" phx-value-key="gold" phx-value-seat="0" type="button">
+<span class="hero-plus-mini size-3.5">
+</span>
+</button>
+</div>
+</div>
+</div>
+<div class="cx-pair">
+<div class="flex justify-center gap-1 sm:gap-2" id="cx-patrol-0">
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="0" data-slot="squad_leader" data-zone="patrol" id="cx-slot-0-squad_leader" phx-click="zone" phx-value-seat="0" phx-value-slot="squad_leader" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Squad leader">
+<span class="hidden sm:inline">Squad leader</span>
+<span class="sm:hidden">Leader</span>
+</span>
+<div class="cx-slot-card">
+<div class="cx-card cursor-pointer" data-card-id="35" draggable="true" id="cx-card-35" phx-click="select" phx-value-id="35" style="" title="Troq Bashar">
+<div class="cx-face cx-css cx-tone-hero">
+<span class="cx-cost">2</span>
+<span class="cx-name">Troq Bashar</span>
+<span class="cx-type">Hero — Renegade Beast</span>
+<span class="cx-text">Lv 5+: Attacks: Deal 1 damage to that opponent&#39;s base. ◎</span>
+<span class="cx-text">Lv 8+: Readiness (Doesn&#39;t exhaust to attack, but can only attack once per turn.)</span>
+<span class="cx-stats">2/3</span>
+</div>
+<span class="cx-tok cx-lvl" title="level">L5</span>
+<span class="cx-tok cx-dmg" title="damage">1</span>
+<span class="cx-tok cx-stat" title="ATK/HP now">3/4</span>
+</div>
+</div>
+</div>
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="0" data-slot="elite" data-zone="patrol" id="cx-slot-0-elite" phx-click="zone" phx-value-seat="0" phx-value-slot="elite" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Elite">
+<span class="hidden sm:inline">Elite</span>
+<span class="sm:hidden">Elite</span>
+</span>
+<div class="cx-slot-card">
+</div>
+</div>
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="0" data-slot="scavenger" data-zone="patrol" id="cx-slot-0-scavenger" phx-click="zone" phx-value-seat="0" phx-value-slot="scavenger" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Scavenger">
+<span class="hidden sm:inline">Scavenger</span>
+<span class="sm:hidden">Scav.</span>
+</span>
+<div class="cx-slot-card">
+</div>
+</div>
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="0" data-slot="technician" data-zone="patrol" id="cx-slot-0-technician" phx-click="zone" phx-value-seat="0" phx-value-slot="technician" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Technician">
+<span class="hidden sm:inline">Technician</span>
+<span class="sm:hidden">Tech.</span>
+</span>
+<div class="cx-slot-card">
+</div>
+</div>
+<div class="cx-zone cx-slot cx-target" data-drop="" data-seat="0" data-slot="lookout" data-zone="patrol" id="cx-slot-0-lookout" phx-click="zone" phx-value-seat="0" phx-value-slot="lookout" phx-value-zone="patrol">
+<span class="cx-label truncate" title="Lookout">
+<span class="hidden sm:inline">Lookout</span>
+<span class="sm:hidden">Look.</span>
+</span>
+<div class="cx-slot-card">
+</div>
+</div>
+</div>
+<div class="cx-zone cx-row cx-target" data-drop="" data-list="true" data-seat="0" data-zone="in_play" id="cx-zone-0-in_play" phx-click="zone" phx-value-seat="0" phx-value-zone="in_play">
+<span class="cx-label cx-row-label">In play</span>
+<div class="cx-card cx-selected cursor-pointer" data-card-id="6" draggable="true" id="cx-card-6" phx-click="select" phx-value-id="6" style="" title="Granfalloon Flagbearer">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">3</span>
+<span class="cx-name">Granfalloon Flagbearer</span>
+<span class="cx-type">Unit — Flagbearer · tech 0</span>
+<span class="cx-text">Whenever an opponent plays a spell or ability that can ◎ a flagbearer, it must ◎ a flagbearer at least once.</span>
+<span class="cx-stats">2/2</span>
+</div>
+</div>
+<div class="cx-card cx-exhausted cursor-pointer" data-card-id="4" draggable="true" id="cx-card-4" phx-click="select" phx-value-id="4" style="" title="Brick Thief">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">2</span>
+<span class="cx-name">Brick Thief</span>
+<span class="cx-type">Unit — Mercenary · tech 0</span>
+<span class="cx-text">Arrives or attacks: Deal 1 damage to a building and repair 1 damage from another building.</span>
+<span class="cx-text">Resist 1 (Opponents must pay ① each time they would ◎ this with a spell or ability.)</span>
+<span class="cx-stats">2/1</span>
+</div>
+<span class="cx-tok cx-plus" title="+1/+1 runes">+1</span>
+<span class="cx-tok cx-stat" title="ATK/HP now">3/2</span>
+</div>
+</div>
+</div>
+<div class="cx-pair">
+<div class="cx-mat flex items-stretch gap-1 sm:gap-2 ">
+<div class="cx-zone cx-command min-w-0 flex-1 cx-target" data-drop="" data-list="true" data-seat="0" data-zone="command" id="cx-zone-0-command" phx-click="zone" phx-value-seat="0" phx-value-zone="command">
+<span class="cx-label cx-row-label">Command</span>
+<div class="flex flex-col flex-wrap content-start gap-1 self-start pt-3">
+<span class="rounded-md bg-amber-200/90 px-1.5 py-0.5 text-[10px] font-bold text-stone-900 shadow-sm" id="cx-building-0-tech_1">
+Tech I
+</span>
+<button class="rounded-md bg-black/25 px-1.5 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10 transition hover:bg-black/40 hover:text-white" id="cx-build-0" phx-click="drawer" phx-value-seat="0" phx-value-zone="buildings" type="button">
++ Build
+</button>
+</div>
+</div>
+<div class="cx-zone cx-pile cx-target" data-drop="" data-seat="0" data-zone="workers" id="cx-workers-0" phx-click="zone" phx-value-seat="0" phx-value-zone="workers" title="Workers: 5">
+<span class="cx-label">Workers</span>
+<div class="cx-pile-stack" data-empty="false">
+<div class="cx-card">
+<div class="cx-face cx-back">
+<span>Codex</span>
+</div>
+</div>
+<span class="cx-count" id="cx-workers-0-count">5</span>
+</div>
+</div>
+<div class="flex flex-col items-center gap-1">
+<div class="cx-zone cx-pile cx-target" data-drop="" data-seat="0" data-zone="deck" id="cx-deck-0" phx-click="zone" phx-value-seat="0" phx-value-zone="deck" title="Deck: 3">
+<span class="cx-label">Deck</span>
+<div class="cx-pile-stack" data-empty="false">
+<div class="cx-card">
+<div class="cx-face cx-back">
+<span>Codex</span>
+</div>
+</div>
+<span class="cx-count" id="cx-deck-0-count">3</span>
+</div>
+</div>
+<div class="flex gap-1">
+<button class="cx-mini" id="cx-draw-0" phx-click="draw" phx-value-seat="0" title="Draw a card" type="button">
+Draw
+</button>
+<button aria-label="Shuffle the deck" class="cx-mini" id="cx-shuffle-0" phx-click="shuffle" phx-value-seat="0" phx-value-zone="deck" title="Shuffle the deck" type="button">
+<span class="hero-arrows-right-left-mini size-3">
+</span>
+</button>
+</div>
+</div>
+<div class="cx-zone cx-pile cx-target" data-drop="" data-seat="0" data-zone="discard" id="cx-discard-0" phx-click="zone" phx-value-seat="0" phx-value-zone="discard" title="Discard: 2">
+<span class="cx-label">Discard</span>
+<div class="cx-pile-stack" data-empty="false">
+<div class="cx-card " data-card-id="11" draggable="true" id="cx-top-11" phx-value-id="11" style="" title="Wrecking Ball">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">0</span>
+<span class="cx-name">Wrecking Ball</span>
+<span class="cx-type">Spell</span>
+<span class="cx-text">Deal 2 damage to a building.</span>
+</div>
+</div>
+<span class="cx-count" id="cx-discard-0-count">2</span>
+</div>
+</div>
+<div class="cx-zone cx-pile cx-target" data-drop="" data-seat="0" data-zone="codex" id="cx-codex-0" phx-click="zone" phx-value-seat="0" phx-value-zone="codex" title="Codex: 23">
+<span class="cx-label">Codex</span>
+<div class="cx-pile-stack" data-empty="false">
+<div class="cx-card cx-codex-face">
+<div class="cx-face">
+<span>Codex</span>
+</div>
+</div>
+<span class="cx-count" id="cx-codex-0-count">23</span>
+</div>
+</div>
+</div>
+<div class="cx-zone cx-hand cx-target" data-drop="" data-list="true" data-seat="0" data-zone="hand" id="cx-zone-0-hand" phx-click="zone" phx-value-seat="0" phx-value-zone="hand">
+<span class="cx-label cx-row-label">Hand · 3</span>
+<div class="cx-fan">
+<div class="cx-card cursor-pointer" data-card-id="5" draggable="true" id="cx-card-5" phx-click="select" phx-value-id="5" style="--r: -2.5deg; --y: 1.2px" title="Helpful Turtle">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">2</span>
+<span class="cx-name">Helpful Turtle</span>
+<span class="cx-type">Unit — Cute Animal · tech 0</span>
+<span class="cx-text">Healing 1 (During your upkeep, heal 1 damage from all friendly units and heroes.)</span>
+<span class="cx-stats">1/2</span>
+</div>
+</div>
+<div class="cx-card cursor-pointer" data-card-id="10" draggable="true" id="cx-card-10" phx-click="select" phx-value-id="10" style="--r: 0.0deg; --y: 0.0px" title="Wither">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">2</span>
+<span class="cx-name">Wither</span>
+<span class="cx-type">Minor Spell — Debuff</span>
+<span class="cx-text">Put a -1/-1 rune on a unit or hero.</span>
+</div>
+</div>
+<div class="cx-card cursor-pointer" data-card-id="7" draggable="true" id="cx-card-7" phx-click="select" phx-value-id="7" style="--r: 2.5deg; --y: 1.2px" title="Fruit Ninja">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">3</span>
+<span class="cx-name">Fruit Ninja</span>
+<span class="cx-type">Unit — Ninja · tech 0</span>
+<span class="cx-text">Frenzy 1 (Gets +1 ATK on your turn.)</span>
+<span class="cx-stats">2/2</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<aside class="z-30 flex-col gap-3 lg:sticky lg:top-4 lg:flex fixed inset-x-0 bottom-0 flex" id="cx-aside">
+<div class="cx-inspector flex flex-col gap-2 rounded-t-2xl max-lg:gap-1.5 max-lg:p-2.5 bg-stone-950/95 p-3 shadow-2xl ring-1 ring-white/15 backdrop-blur lg:rounded-2xl lg:bg-black/35" id="cx-actions">
+<div class="hidden justify-center lg:flex">
+<div class="cx-zoom">
+<div class="cx-card">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">3</span>
+<span class="cx-name">Granfalloon Flagbearer</span>
+<span class="cx-type">Unit — Flagbearer · tech 0</span>
+<span class="cx-text">Whenever an opponent plays a spell or ability that can ◎ a flagbearer, it must ◎ a flagbearer at least once.</span>
+<span class="cx-stats">2/2</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-start gap-2">
+<div class="min-w-0 flex-1">
+<p class="truncate text-sm font-bold" id="cx-actions-name">Granfalloon Flagbearer</p>
+<p class="truncate text-xs text-white/60">
+P1&#39;s · P1 in play<span class="lg:hidden"> · tap a zone to move it</span>
+</p>
+</div>
+<button aria-label="Deselect" class="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 transition hover:bg-white/20" id="cx-act-close" phx-click="deselect" type="button">
+<span class="hero-x-mark-mini size-4">
+</span>
+</button>
+</div>
+<div class="flex flex-wrap gap-1.5">
+<button class="cx-act" id="cx-act-exhaust" phx-click="card" phx-value-op="exhaust" type="button">
+<span class="hero-arrow-path-rounded-square-mini size-4">
+</span>
+Exhaust
+</button>
+<button class="cx-act" id="cx-act-flip" phx-click="card" phx-value-op="flip" type="button">
+<span class="hero-arrows-up-down-mini size-4">
+</span>
+Face down
+</button>
+<button class="cx-act" id="cx-act-hand" phx-click="card" phx-value-op="to" phx-value-zone="hand" type="button">
+To hand
+</button>
+<button class="cx-act" id="cx-act-play" phx-click="card" phx-value-op="to" phx-value-zone="in_play" type="button">
+To play
+</button>
+<button class="cx-act" id="cx-act-discard" phx-click="card" phx-value-op="to" phx-value-zone="discard" type="button">
+Discard
+</button>
+<button class="cx-act cx-act-danger" id="cx-act-trash" phx-click="card" phx-value-op="to" phx-value-zone="trash" type="button">
+Trash
+</button>
+</div>
+<div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-2">
+<div class="flex items-center justify-between gap-1 rounded-xl bg-white/5 py-1 pr-1 pl-2 ring-1 ring-white/10">
+<span class="truncate text-[11px] text-white/70">Damage</span>
+<div class="flex items-center gap-0.5">
+<button aria-label="Damage -1" class="grid size-7 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90" id="cx-act-damage-minus" phx-click="card" phx-value-delta="-1" phx-value-key="damage" phx-value-op="adjust" type="button">
+<span class="hero-minus-mini size-3.5">
+</span>
+</button>
+<span class="min-w-6 rounded-full px-1.5 text-center text-xs font-bold tabular-nums bg-red-600" id="cx-act-damage">
+0
+</span>
+<button aria-label="Damage +1" class="grid size-7 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90" id="cx-act-damage-plus" phx-click="card" phx-value-delta="1" phx-value-key="damage" phx-value-op="adjust" type="button">
+<span class="hero-plus-mini size-3.5">
+</span>
+</button>
+</div>
+</div>
+<div class="flex items-center justify-between gap-1 rounded-xl bg-white/5 py-1 pr-1 pl-2 ring-1 ring-white/10">
+<span class="truncate text-[11px] text-white/70">+1/+1</span>
+<div class="flex items-center gap-0.5">
+<button aria-label="+1/+1 -1" class="grid size-7 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90" id="cx-act-plus-minus" phx-click="card" phx-value-delta="-1" phx-value-key="plus" phx-value-op="adjust" type="button">
+<span class="hero-minus-mini size-3.5">
+</span>
+</button>
+<span class="min-w-6 rounded-full px-1.5 text-center text-xs font-bold tabular-nums bg-emerald-600" id="cx-act-plus">
+0
+</span>
+<button aria-label="+1/+1 +1" class="grid size-7 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90" id="cx-act-plus-plus" phx-click="card" phx-value-delta="1" phx-value-key="plus" phx-value-op="adjust" type="button">
+<span class="hero-plus-mini size-3.5">
+</span>
+</button>
+</div>
+</div>
+<div class="flex items-center justify-between gap-1 rounded-xl bg-white/5 py-1 pr-1 pl-2 ring-1 ring-white/10">
+<span class="truncate text-[11px] text-white/70">−1/−1</span>
+<div class="flex items-center gap-0.5">
+<button aria-label="−1/−1 -1" class="grid size-7 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90" id="cx-act-minus-minus" phx-click="card" phx-value-delta="-1" phx-value-key="minus" phx-value-op="adjust" type="button">
+<span class="hero-minus-mini size-3.5">
+</span>
+</button>
+<span class="min-w-6 rounded-full px-1.5 text-center text-xs font-bold tabular-nums bg-violet-600" id="cx-act-minus">
+0
+</span>
+<button aria-label="−1/−1 +1" class="grid size-7 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90" id="cx-act-minus-plus" phx-click="card" phx-value-delta="1" phx-value-key="minus" phx-value-op="adjust" type="button">
+<span class="hero-plus-mini size-3.5">
+</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-col gap-1 rounded-2xl bg-black/25 p-3 ring-1 ring-white/10 hidden lg:flex" id="cx-log">
+<p class="text-xs font-semibold tracking-wide text-white/60 uppercase">Log</p>
+<ol class="flex max-h-[30vh] flex-col gap-0.5 overflow-y-auto text-xs text-white/80">
+<li class="shrink-0 truncate" id="cx-log-0">
+P1 draws 2
+</li>
+<li class="shrink-0 truncate" id="cx-log-1">
+P1 gold −1
+</li>
+<li class="shrink-0 truncate" id="cx-log-2">
+Bloom → P1 workers
+</li>
+<li class="shrink-0 truncate" id="cx-log-3">
+P2 ends the turn.
+</li>
+<li class="shrink-0 truncate" id="cx-log-4">
+P2 draws 2
+</li>
+<li class="shrink-0 truncate" id="cx-log-5">
+P1 base HP −3
+</li>
+<li class="shrink-0 truncate" id="cx-log-6">
+Helpful Turtle → trash
+</li>
+<li class="shrink-0 truncate" id="cx-log-7">
+Timely Messenger: damage +1
+</li>
+<li class="shrink-0 truncate" id="cx-log-8">
+Timely Messenger → P2 in play
+</li>
+<li class="shrink-0 truncate" id="cx-log-9">
+River Montoya: level +2
+</li>
+<li class="shrink-0 truncate" id="cx-log-10">
+River Montoya → P2 Lookout
+</li>
+<li class="shrink-0 truncate" id="cx-log-11">
+Bloom → P2 Elite
+</li>
+<li class="shrink-0 truncate" id="cx-log-12">
+P2 gold +5
+</li>
+<li class="shrink-0 truncate" id="cx-log-13">
+P1 ends the turn.
+</li>
+<li class="shrink-0 truncate" id="cx-log-14">
+P1 Tech I on/off
+</li>
+<li class="shrink-0 truncate" id="cx-log-15">
+Wrecking Ball → P1 discard
+</li>
+<li class="shrink-0 truncate" id="cx-log-16">
+Older Brother → P1 discard
+</li>
+<li class="shrink-0 truncate" id="cx-log-17">
+Brick Thief: +1/+1 +1
+</li>
+<li class="shrink-0 truncate" id="cx-log-18">
+Brick Thief: exhaust / ready
+</li>
+<li class="shrink-0 truncate" id="cx-log-19">
+Troq Bashar: damage +1
+</li>
+<li class="shrink-0 truncate" id="cx-log-20">
+Troq Bashar: level +4
+</li>
+<li class="shrink-0 truncate" id="cx-log-21">
+Troq Bashar → P1 Squad leader
+</li>
+<li class="shrink-0 truncate" id="cx-log-22">
+Brick Thief → P1 in play
+</li>
+<li class="shrink-0 truncate" id="cx-log-23">
+Granfalloon Flagbearer → P1 in play
+</li>
+<li class="shrink-0 truncate" id="cx-log-24">
+P1 gold +4
+</li>
+<li class="shrink-0 truncate" id="cx-log-25">
+New game: P1 Bashing, P2 Finesse.
+</li>
+</ol>
+</div>
+</aside>
+</div>
+</div>
+</div>
+</main>
+<div aria-live="polite" id="flash-group">
+<div class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-20 sm:left-4 sm:bottom-auto" hidden="" id="client-error" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;key&quot;:&quot;error&quot;},&quot;event&quot;:&quot;lv:clear-flash&quot;}],[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" phx-connected="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}],[&quot;set_attr&quot;,{&quot;attr&quot;:[&quot;hidden&quot;,&quot;&quot;]}]]" phx-disconnected="[[&quot;show&quot;,{&quot;time&quot;:300,&quot;to&quot;:&quot;.phx-client-error #client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-out&quot;,&quot;duration-300&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;]]}],[&quot;remove_attr&quot;,{&quot;to&quot;:&quot;.phx-client-error #client-error&quot;,&quot;attr&quot;:&quot;hidden&quot;}]]" phx-remove="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" role="alert">
+<div class="flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap border-red-300 bg-red-50 text-red-900">
+<span class="hero-exclamation-circle size-5 shrink-0">
+</span>
+<div>
+<p class="font-semibold">We can&#39;t find the internet</p>
+<p>
+Attempting to reconnect
+<span class="hero-arrow-path ml-1 size-3 motion-safe:animate-spin">
+</span>
+</p>
+</div>
+<div class="flex-1">
+</div>
+<button aria-label="close" class="group self-start cursor-pointer" type="button">
+<span class="hero-x-mark size-5 opacity-40 group-hover:opacity-70">
+</span>
+</button>
+</div>
+</div>
+<div class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-20 sm:left-4 sm:bottom-auto" hidden="" id="server-error" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;key&quot;:&quot;error&quot;},&quot;event&quot;:&quot;lv:clear-flash&quot;}],[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" phx-connected="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}],[&quot;set_attr&quot;,{&quot;attr&quot;:[&quot;hidden&quot;,&quot;&quot;]}]]" phx-disconnected="[[&quot;show&quot;,{&quot;time&quot;:300,&quot;to&quot;:&quot;.phx-server-error #server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-out&quot;,&quot;duration-300&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;]]}],[&quot;remove_attr&quot;,{&quot;to&quot;:&quot;.phx-server-error #server-error&quot;,&quot;attr&quot;:&quot;hidden&quot;}]]" phx-remove="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" role="alert">
+<div class="flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap border-red-300 bg-red-50 text-red-900">
+<span class="hero-exclamation-circle size-5 shrink-0">
+</span>
+<div>
+<p class="font-semibold">Something went wrong!</p>
+<p>
+Attempting to reconnect
+<span class="hero-arrow-path ml-1 size-3 motion-safe:animate-spin">
+</span>
+</p>
+</div>
+<div class="flex-1">
+</div>
+<button aria-label="close" class="group self-start cursor-pointer" type="button">
+<span class="hero-x-mark size-5 opacity-40 group-hover:opacity-70">
+</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

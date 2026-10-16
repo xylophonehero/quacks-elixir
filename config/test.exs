@@ -41,3 +41,6 @@ config :quacks, upgrade_ms: 0
 # The gallery and the scenarios (`QuacksWeb.Plugs.Gallery`), so their tests run.
 config :quacks, gallery: true
 config :quacks, hearts_sweep_ms: 0
+
+# Codex: draw the CSS cards, not the local art (`CodexWeb.Board`).
+config :quacks, :codex_art, false

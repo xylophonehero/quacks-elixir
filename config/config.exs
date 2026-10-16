@@ -31,6 +31,14 @@ config :quacks, Table,
       board: CodenamesDuetWeb.Board,
       setup: "/games/codenames_duet/new",
       icon: "🕵️"
+    },
+    "codex" => %{
+      name: "Codex (sandbox)",
+      blurb: "Card-time strategy for 2, hot-seat. A free table: move the cards by hand.",
+      game: Codex.Table,
+      board: CodexWeb.Board,
+      setup: "/games/codex/new",
+      icon: "⚔️"
     }
   }
 
