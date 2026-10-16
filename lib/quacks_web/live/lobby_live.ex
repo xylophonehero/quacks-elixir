@@ -666,6 +666,13 @@ defmodule QuacksWeb.LobbyLive do
             No public games now: start one, or join with a room code.
           </li>
         </ul>
+        <.link
+          id="other-games"
+          navigate={~p"/games"}
+          class="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-full text-sm font-semibold text-ink-soft ring-1 ring-ink-soft/40 transition-colors duration-150 hover:bg-ink/10 hover:text-ink"
+        >
+          <span class="text-base text-red-700" aria-hidden="true">♥</span> Other games: Hearts
+        </.link>
         <%!-- Shown by app.js only: the install button after `beforeinstallprompt`, the
                hint on iOS Safari outside the installed app, the browser-menu hint when
                the prompt did not come (see `.pwa-install` in app.css). --%>
