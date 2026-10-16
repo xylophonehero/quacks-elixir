@@ -154,7 +154,7 @@ defmodule QuacksWeb.FinalComponents do
         :if={@share_url}
         phx-click={
           JS.dispatch("quacks:share",
-            detail: %{text: share_text(@game, @names), url: @share_url}
+            detail: Jason.OrderedObject.new(text: share_text(@game, @names), url: @share_url)
           )
         }
         variant={:secondary}

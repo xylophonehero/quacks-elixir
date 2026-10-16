@@ -1035,11 +1035,12 @@ defmodule QuacksWeb.GameLive do
               id="share-game"
               phx-click={
                 JS.dispatch("quacks:share",
-                  detail: %{
-                    title: "Quacks",
-                    text: "Join my Quacks game. Room code: #{@id}",
-                    url: url(~p"/g/#{@id}")
-                  }
+                  detail:
+                    Jason.OrderedObject.new(
+                      title: "Quacks",
+                      text: "Join my Quacks game. Room code: #{@id}",
+                      url: url(~p"/g/#{@id}")
+                    )
                 )
               }
               variant={:primary}
