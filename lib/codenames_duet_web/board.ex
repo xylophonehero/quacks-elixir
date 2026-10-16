@@ -3,9 +3,9 @@ defmodule CodenamesDuetWeb.Board do
   The Codenames Duet board on the table page (`TableWeb.TableLive`, a
   `TableWeb.Board`). It draws one seat's `Table.View` (`CodenamesDuet.Game.view/2`).
 
-  - The 5 × 5 words. Your side of the key is a colour edge on the bottom of each
-    card (green agent, dark assassin, tan bystander) and a corner for agents and
-    assassins. Only your own side is in the view, so only your own side is in the
+  - The 5 × 5 words. Your side of the key tints each whole card (green agent,
+    near-black assassin with a red edge, sand bystander), and an agent or an
+    assassin has an icon (a person, a skull), so the key reads without colour. Only your own side is in the view, so only your own side is in the
     page; "Hide my key" takes it out of the page too (for screen sharing).
   - The clue giver types one word and picks a number 0..9; the engine's error
     (`{:invalid_clue, reason}`) shows under the field (`act_error/3`).
@@ -17,7 +17,7 @@ defmodule CodenamesDuetWeb.Board do
   - The status row: whose turn, the clue, the agents found (of 15), the timer
     tokens. A banner in sudden death. The log lists each clue with its guesses.
   - At the end: the result, the score of a win (rulebook §6.4), both sides of the
-    key on every card (your side at the bottom edge, your partner's at the top),
+    key on every card (your side as the tint, your partner's as a band on the top),
     and Play again.
 
   The colours are the table themes (`TableWeb.Components.Theme`, `--tb-*`); the
@@ -246,6 +246,59 @@ defmodule CodenamesDuetWeb.Board do
     """
   end
 
+  @doc """
+  The gallery's theme story: the grid and the key legend of one board in every
+  table theme, side by side (as the Hearts themes story).
+  """
+  def themes(assigns) do
+    v = assigns.view
+    over? = v.phase == :over
+
+    assigns =
+      assign(assigns,
+        partner: 1 - assigns.me,
+        over?: over?,
+        show_key?: assigns.seat != :spectator and !assigns.hide_key and !over?
+      )
+
+    ~H"""
+    <div class="min-h-dvh bg-neutral-900 p-2 sm:p-4" data-role="duet-themes">
+      <div class="mx-auto grid max-w-[90rem] grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
+        <Theme.root
+          :for={t <- Theme.themes()}
+          id={"th-#{t.id}"}
+          theme={t.id}
+          class="flex flex-col gap-2 overflow-hidden rounded-tb bg-tb-base-200 p-2 ring-1 ring-white/10"
+        >
+          <h2 class="flex items-center justify-between text-sm font-bold">
+            {t.name}
+            <span class="text-xs font-normal text-tb-base-content/60">
+              {if t.dark, do: "dark", else: "light"}
+            </span>
+          </h2>
+          <.grid
+            view={@view}
+            me={@me}
+            partner={@partner}
+            actions={@actions}
+            picked={@picked}
+            fresh={[]}
+            show_key?={@show_key?}
+            over?={@over?}
+            prefix={"th-#{t.id}"}
+          />
+          <.key_legend
+            hide_key={@hide_key}
+            over?={@over?}
+            partner_name="Bob"
+            prefix={"th-#{t.id}"}
+          />
+        </Theme.root>
+      </div>
+    </div>
+    """
+  end
+
   defp name(_seats, me, me, false), do: "You"
   defp name(seats, s, _me, _spectator?), do: get_in(seats, [s, :name]) || "Player #{s + 1}"
 
@@ -399,7 +452,7 @@ defmodule CodenamesDuetWeb.Board do
           do: ", minus 1 for sudden death"}. More than 5 is good; 9 or 10 is great.
       </p>
       <p class="text-xs opacity-80">
-        The whole key shows: your side on the bottom edge of each card, {possessive(@name.(@partner))} on the top edge.
+        The whole key shows: your side as the colour of each card, {possessive(@name.(@partner))} as the band on the top edge.
       </p>
       <div class="flex gap-2">
         <.link
@@ -440,6 +493,7 @@ defmodule CodenamesDuetWeb.Board do
   attr :fresh, :list, default: []
   attr :show_key?, :boolean, required: true
   attr :over?, :boolean, required: true
+  attr :prefix, :string, default: "duet", doc: "the DOM id prefix (the themes story has 8 grids)"
 
   defp grid(assigns) do
     v = assigns.view
@@ -449,8 +503,8 @@ defmodule CodenamesDuetWeb.Board do
 
     ~H"""
     <div class="tb-felt rounded-tb p-1.5 sm:p-3">
-      <div id="duet-grid" class="cd-grid" lang="en">
-        <.card :for={c <- @cards} card={c} me={@me} />
+      <div id={"#{@prefix}-grid"} class="cd-grid" lang="en">
+        <.card :for={c <- @cards} card={c} me={@me} prefix={@prefix} />
       </div>
     </div>
     """
@@ -491,6 +545,7 @@ defmodule CodenamesDuetWeb.Board do
 
   attr :card, :map, required: true
   attr :me, :integer, required: true
+  attr :prefix, :string, default: "duet"
 
   defp card(assigns) do
     {text, fit} = fit(assigns.card.word)
@@ -498,7 +553,7 @@ defmodule CodenamesDuetWeb.Board do
 
     ~H"""
     <button
-      id={"duet-card-#{@card.index}"}
+      id={"#{@prefix}-card-#{@card.index}"}
       type="button"
       class="cd-card"
       data-state={@card.state}
@@ -519,6 +574,14 @@ defmodule CodenamesDuetWeb.Board do
           <.icon name="hero-user-solid" class="size-full" />
         </span>
         <span
+          :if={@card.key in [:green, :assassin] and @card.state != "covered"}
+          class="cd-key-icon"
+          data-icon={@card.key}
+          aria-hidden="true"
+        >
+          <.key_icon colour={@card.key} />
+        </span>
+        <span
           :for={side <- @card.marks}
           class="cd-mark"
           data-side={if side == @me, do: "me", else: "partner"}
@@ -527,6 +590,26 @@ defmodule CodenamesDuetWeb.Board do
         <span :if={@card.state == "picked"} class="cd-pick" aria-hidden="true">Guess?</span>
       </span>
     </button>
+    """
+  end
+
+  attr :colour, :atom, required: true
+
+  # The icon of a key colour: a person for an agent, a skull for an assassin.
+  defp key_icon(%{colour: :green} = assigns),
+    do: ~H"""
+    <.icon name="hero-user-solid" class="size-full" />
+    """
+
+  defp key_icon(%{colour: :assassin} = assigns) do
+    ~H"""
+    <svg viewBox="0 0 24 24" fill="currentColor" class="size-full">
+      <path
+        fill-rule="evenodd"
+        clip-rule="evenodd"
+        d="M12 2C6.9 2 3 5.6 3 10.3c0 2.7 1.3 4.9 3.4 6.3V19a2 2 0 0 0 2 2h7.2a2 2 0 0 0 2-2v-2.4c2.1-1.4 3.4-3.6 3.4-6.3C21 5.6 17.1 2 12 2Zm-3.5 7.3a2.1 2.1 0 1 0 0 4.2 2.1 2.1 0 0 0 0-4.2Zm7 0a2.1 2.1 0 1 0 0 4.2 2.1 2.1 0 0 0 0-4.2ZM12 14.2l-1.4 2.3h2.8L12 14.2Z"
+      />
+    </svg>
     """
   end
 
@@ -744,24 +827,27 @@ defmodule CodenamesDuetWeb.Board do
   attr :over?, :boolean, required: true
   attr :greens_left, :integer, default: nil
   attr :partner_name, :string, required: true
+  attr :prefix, :string, default: "duet"
 
   defp key_legend(assigns) do
     ~H"""
     <div
-      id="duet-key-legend"
+      id={"#{@prefix}-key-legend"}
       class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tb bg-tb-base-100 px-3 py-2 text-xs ring-1 ring-tb-base-content/10"
     >
       <span class="font-semibold">{if @over?, do: "The key", else: "Your key"}</span>
-      <span class="flex items-center gap-1"><span class="cd-swatch" data-swatch="green"></span>agent</span>
       <span class="flex items-center gap-1">
-        <span class="cd-swatch" data-swatch="assassin"></span>assassin
+        <span class="cd-swatch" data-swatch="green"><.key_icon colour={:green} /></span>agent
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="cd-swatch" data-swatch="assassin"><.key_icon colour={:assassin} /></span>assassin
       </span>
       <span class="flex items-center gap-1">
         <span class="cd-swatch" data-swatch="neutral"></span>bystander
       </span>
       <button
         :if={!@over?}
-        id="hide-key"
+        id={if @prefix == "duet", do: "hide-key", else: "#{@prefix}-hide-key"}
         type="button"
         phx-click="toggle_key"
         aria-pressed={to_string(@hide_key)}

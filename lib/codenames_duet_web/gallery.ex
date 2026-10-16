@@ -55,6 +55,13 @@ defmodule CodenamesDuetWeb.Gallery do
     %{view: :duet_board, board: socket.assigns}
   end
 
+  @doc "Every theme: the grid and the key legend of the board story's state."
+  @spec themes_story(map) :: map
+  def themes_story(args) do
+    %{board: board} = board_story(Map.put(args, "theme", nil))
+    %{view: :duet_themes, board: board}
+  end
+
   defp words(game, "longest") do
     longest =
       Words.all()
