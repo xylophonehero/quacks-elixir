@@ -15,7 +15,7 @@ defmodule HeartsWeb.Gallery do
 
   @doc "The board states."
   @spec states() :: [String.t()]
-  def states, do: ~w(pass waiting play collect scores over)
+  def states, do: ~w(pass waiting received play collect last-trick ending scores over)
 
   @names ~w(Ada Basil Clove Dill)
 
@@ -43,6 +43,7 @@ defmodule HeartsWeb.Gallery do
       |> put(before, nil)
       |> put(now, before)
       |> sweep(state)
+      |> Phoenix.Component.assign(last_open: state == "last-trick")
 
     %{view: :hearts_board, board: Map.put(socket.assigns, :selected, selected)}
   end
@@ -78,7 +79,7 @@ defmodule HeartsWeb.Gallery do
     }
   end
 
-  # The scores and the game over open after the last trick flies.
+  # The scores and the game over open after the last trick flies ("ending": before).
   defp sweep(socket, state) when state in ~w(scores over) do
     {:noreply, socket} = Board.handle_info({:hearts_sweep, socket.assigns.env.version}, socket)
     socket
@@ -95,12 +96,17 @@ defmodule HeartsWeb.Gallery do
     {nil, now, []}
   end
 
+  defp reach("received", game), do: until(game, &match?([{:pass, _, _} | _], &1.log))
+
+  defp reach("last-trick", game),
+    do: until(game, &(&1.phase == :playing and &1.turn == 0 and &1.tricks >= 2))
+
   defp reach("play", game),
     do: until(game, &(&1.phase == :playing and &1.turn == 0 and length(&1.trick) >= 2))
 
   defp reach("collect", game), do: until(game, &match?([{:trick_won, _, _, _} | _], &1.log))
 
-  defp reach(state, game) when state in ~w(scores over),
+  defp reach(state, game) when state in ~w(ending scores over),
     do: until(game, &Enum.any?(&1.log, fn e -> match?({:hand_scored, _}, e) end), state)
 
   defp until(game, done?, state \\ nil) do

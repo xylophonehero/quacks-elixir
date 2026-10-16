@@ -34,6 +34,13 @@ defmodule Table.Server do
   times the `:table_bot_speed` config: 0 in tests). On a tick every bot seat
   that can act does one action: in a phase where all seats act at once (the
   Hearts pass) all bots act together.
+
+  ## Hold
+
+  After a state where the adapter's optional `hold?/1` is true (Hearts: a new
+  hand is dealt, so the hand's score table is open), the bots wait until every
+  seated human sends `ready/3` (the page closes its dialog). A seat that joins
+  again (a reload) is ready: its page shows no dialog.
   """
   use GenServer
 
@@ -60,6 +67,9 @@ defmodule Table.Server do
   @callback bot_choose(level :: atom, view :: term, bot :: term) :: {term, term}
   @doc "How long the next bot waits (ms) after this state: lets the motion play."
   @callback bot_delay(state :: term) :: non_neg_integer
+  @doc "True: after this state the bots wait for every seated human's `ready/3`."
+  @callback hold?(state :: term) :: boolean
+  @optional_callbacks hold?: 1
 
   @idle_ms :timer.minutes(30)
   @alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -151,6 +161,10 @@ defmodule Table.Server do
   @spec act(key, code, String.t(), term) :: {:ok, View.t()} | {:error, term}
   def act(key, code, token, action), do: call(key, code, {:act, token, action})
 
+  @doc "The seat of `token` is ready: the bots wait no more for it (see Hold)."
+  @spec ready(key, code, String.t()) :: :ok | {:error, term}
+  def ready(key, code, token), do: call(key, code, {:ready, token})
+
   @doc "After the game is over: a new game at the same seats (any seated human)."
   @spec play_again(key, code, String.t()) :: :ok | {:error, term}
   def play_again(key, code, token), do: call(key, code, {:play_again, token})
@@ -192,13 +206,14 @@ defmodule Table.Server do
 
   @impl true
   def init(fields) do
-    state = Map.merge(fields, %{version: 1, timer: nil, pages: %{}, idle: nil})
+    state = Map.merge(fields, %{version: 1, timer: nil, pages: %{}, idle: nil, held: []})
     {:ok, state |> idle() |> schedule()}
   end
 
   @impl true
   def handle_call({:join, token}, {pid, _}, state) do
     {seat, state} = take_seat(state, token)
+    state = release(state, seat)
 
     state =
       if Map.has_key?(state.pages, pid),
@@ -231,9 +246,19 @@ defmodule Table.Server do
     end
   end
 
+  def handle_call({:ready, token}, _from, state) do
+    case seat_of(state, token) do
+      {:ok, seat} -> {:reply, :ok, release(state, seat)}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
   def handle_call(:state, _from, state), do: {:reply, state, state}
 
   @impl true
+  def handle_info(:tick, %{held: [_ | _]} = state),
+    do: {:noreply, %{state | timer: nil}}
+
   def handle_info(:tick, state) do
     state = %{state | timer: nil}
     {:playing, active} = state.adapter.status(state.game)
@@ -302,9 +327,9 @@ defmodule Table.Server do
     end)
   end
 
-  # A new game state: count up, push every seat's view.
+  # A new game state: count up, hold the bots if the adapter says so, push every seat's view.
   defp changed(state, game) do
-    state = %{state | game: game, version: state.version + 1}
+    state = %{state | game: game, version: state.version + 1, held: held(state, game)}
 
     for seat <- state.adapter.seats(game),
         do:
@@ -323,6 +348,19 @@ defmodule Table.Server do
     state
   end
 
+  # The seated humans the bots wait for (see Hold); a state without a hold keeps the old wait.
+  defp held(%{adapter: adapter, seats: seats, held: held}, game) do
+    if function_exported?(adapter, :hold?, 1) and adapter.hold?(game),
+      do: for({s, %{bot: nil, token: t}} <- Enum.sort(seats), t != nil, do: s),
+      else: held
+  end
+
+  defp release(%{held: held} = state, seat) do
+    if seat in held,
+      do: schedule(%{state | held: List.delete(held, seat)}),
+      else: state
+  end
+
   defp envelope(state, seat) do
     %View{
       version: state.version,
@@ -335,6 +373,8 @@ defmodule Table.Server do
   end
 
   defp broadcast(_state, topic, msg), do: Phoenix.PubSub.broadcast(Quacks.PubSub, topic, msg)
+
+  defp schedule(%{held: [_ | _]} = state), do: state
 
   defp schedule(%{timer: nil} = state) do
     with {:playing, active} <- state.adapter.status(state.game),

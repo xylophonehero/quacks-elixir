@@ -16,9 +16,12 @@ defmodule TableWeb.Board do
   """
   @callback put_view(Socket.t(), new :: Table.View.t(), old :: Table.View.t() | nil) :: Socket.t()
 
-  @doc "A page event: `{:act, action, socket}` sends the action to the room."
+  @doc """
+  A page event: `{:act, action, socket}` sends the action to the room;
+  `{:ready, socket}` tells the room that this seat is ready (`Table.Server.ready/3`).
+  """
   @callback handle_event(String.t(), map, Socket.t()) ::
-              {:noreply, Socket.t()} | {:act, term, Socket.t()}
+              {:noreply, Socket.t()} | {:act, term, Socket.t()} | {:ready, Socket.t()}
 
   @doc "A message for the board (its own timers)."
   @callback handle_info(term, Socket.t()) :: {:noreply, Socket.t()}

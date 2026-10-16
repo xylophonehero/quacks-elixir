@@ -63,6 +63,7 @@ defmodule TableWeb.TableLive do
   def handle_event(event, params, socket) do
     case socket.assigns.board.handle_event(event, params, socket) do
       {:act, action, socket} -> act(socket, action)
+      {:ready, socket} -> ready(socket)
       {:noreply, socket} -> {:noreply, socket}
     end
   end
@@ -74,6 +75,12 @@ defmodule TableWeb.TableLive do
       {:ok, env} -> {:noreply, put_env(socket, env)}
       {:error, reason} -> {:noreply, put_flash(socket, :error, "Not now (#{inspect(reason)}).")}
     end
+  end
+
+  defp ready(socket) do
+    %{key: key, code: code, token: token} = socket.assigns
+    _ = Server.ready(key, code, token)
+    {:noreply, socket}
   end
 
   @impl true

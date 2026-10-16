@@ -4,8 +4,10 @@ defmodule Hearts.Table do
   `Hearts.Game` and the bots (`Hearts.AI.Heuristic`, `Hearts.AI.Random`).
 
   The bot delays (`bot_delay/1`) follow the last log event, so the page can
-  play its motion first: a card about 750 ms, a full trick a longer look, a pass
-  and a new deal longer again.
+  play its motion first: a card about 750 ms, a full trick a longer look (the
+  page shows it for 1.45 s, then it flies), a pass and a new deal longer again.
+  After a new hand is dealt the bots hold (`hold?/1`) until every human has
+  closed the hand's score table.
   """
   @behaviour Table.Server
 
@@ -45,7 +47,12 @@ defmodule Hearts.Table do
   def bot_delay(%Game{log: [event | _]}), do: delay(event)
   def bot_delay(%Game{}), do: 750
 
-  defp delay({:trick_won, _, _, _}), do: 1600
+  # A new hand after the first: the hand's score table is open on the pages.
+  @impl true
+  def hold?(%Game{log: [{:deal, hand_no, _, _} | _]}), do: hand_no > 1
+  def hold?(%Game{}), do: false
+
+  defp delay({:trick_won, _, _, _}), do: 2300
   defp delay({:deal, _, _, _}), do: 2600
   defp delay({:pass, _, _}), do: 1800
   defp delay({:pass_chosen, _}), do: 500

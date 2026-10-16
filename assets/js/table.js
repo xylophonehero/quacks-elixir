@@ -7,7 +7,8 @@
 //   - a new one with `data-from="<id>"` flies in from that element;
 //   - one that goes away with `data-to="<id>"` (on the render before) flies there
 //     as a copy and fades;
-//   - `data-flip-delay="<ms>"` starts it later.
+//   - `data-flip-delay="<ms>"` starts it later; `data-leave-delay` (if set) starts
+//     the flight to `data-to` later instead.
 // WAAPI on `translate`, `scale`, `rotate` and `opacity` only (the compositor). The
 // face inside a card keeps its own `translate` for the lift, so they do not fight.
 // No `phx-update="ignore"` on the table: WAAPI writes no attributes. The copies go
@@ -49,7 +50,7 @@ export const TableMotion = {
         w: cardWidth(el),
         rotate: flip ? angle(getComputedStyle(el).rotate) : "0deg",
         to: el.dataset.to,
-        delay: +(el.dataset.flipDelay || 0),
+        delay: +(el.dataset.leaveDelay ?? el.dataset.flipDelay ?? 0),
         node: flip && el.dataset.to ? el.cloneNode(true) : null,
       })
     })
