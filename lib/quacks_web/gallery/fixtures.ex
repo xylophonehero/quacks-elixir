@@ -96,6 +96,14 @@ defmodule QuacksWeb.Gallery.Fixtures do
         900,
         "QuacksWeb.Sounds + assets/js/sound.js: one button per sound, at its game gain",
         [{"all", "Every sound", fn -> %{view: :sounds} end}]
+      ),
+      # The card table (Hearts first): stories with args only (`Stories.arg_stories/1`).
+      component(
+        "hearts",
+        "Hearts",
+        780,
+        "TableWeb.Components (Cards, HeartsTable, Theme) + assets/css/table.css + assets/js/table.js",
+        []
       )
     ]
   end

@@ -82,6 +82,10 @@ An old variant URL that a story with args took over (for example
 | | Round scored | `players 2..8`, `step standings\|shop`, `long_names`, `vp_digits 1..3` |
 | | Shop, Game over | `players 1..8`, `long_names` |
 | | Copper witch: Upgrade (C1) | `players 1..8`, `state one\|last_two\|picked\|upgraded\|visit`, `long_names` |
+| Hearts | Hearts · themes (every theme side by side) | `state play\|pass\|collect\|deal`, `four_colour`, `long_names` |
+| | Hearts · table and picker (taps play or pick) | `theme stored\|<id>`, `state`, `four_colour`, `long_names` |
+| | Hearts · motion: tap Play | `motion deal\|play\|collect\|pass-left\|pass-right\|pass-across`, `theme`, `four_colour` |
+| | Hearts · the 52 cards, Hearts · hand | `theme`, `four_colour`; hand: `cards 1..13`, `mode play\|pass\|view` |
 | Scenarios | every item | `step 1..n`, `players 2..5` |
 
 The setup story at `/dev/gallery/setup/presets` renders the lobby's Ingredient

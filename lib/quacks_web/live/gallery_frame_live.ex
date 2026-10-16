@@ -39,6 +39,7 @@ defmodule QuacksWeb.GalleryFrameLive do
 
   alias QuacksWeb.Gallery.Stories
   alias QuacksWeb.Sounds
+  alias TableWeb.Gallery.Hearts
 
   # The choices that put an info row in the fuse row's place (as `GameLive` does).
   @info_choices [
@@ -97,6 +98,10 @@ defmodule QuacksWeb.GalleryFrameLive do
   def handle_event("motion", %{"to" => to}, socket) when to in ["before", "after"],
     do: {:noreply, assign(socket, stage: String.to_existing_atom(to))}
 
+  # The Hearts stories: a tap on your hand plays a card or picks it for the pass.
+  def handle_event("hearts_tap", %{"card" => code}, socket),
+    do: {:noreply, assign(socket, Hearts.tap(socket.assigns, code))}
+
   # The components send their real events; the gallery ignores them.
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
@@ -150,6 +155,8 @@ defmodule QuacksWeb.GalleryFrameLive do
     </Layouts.app>
     """
   end
+
+  defp frame(%{view: :hearts} = assigns), do: Hearts.frame(assigns)
 
   defp frame(%{view: :error} = assigns) do
     ~H"""

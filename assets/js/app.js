@@ -27,6 +27,7 @@ import topbar from "../vendor/topbar"
 import {play as playSound, potSound, SoundCue, SoundReplay, SoundSettings} from "./sound"
 import {ChipMorph as chipMorphHook} from "./chip_morph"
 import {potMoves} from "./pot_moves"
+import {TableMotion, TableTheme} from "./table"
 
 // "Report a problem" (bug_report_components.ex): keep the last 10 console errors,
 // and on submit put them with the browser details in the form's hidden field.
@@ -387,7 +388,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 6000,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, Boom, ChipMorph: chipMorphHook(playSound), ConfigMemory, NameMemory, PotMotion, RevealSettings, SoundCue, SoundReplay, SoundSettings},
+  hooks: {...colocatedHooks, Boom, ChipMorph: chipMorphHook(playSound), ConfigMemory, NameMemory, PotMotion, RevealSettings, SoundCue, SoundReplay, SoundSettings, TableMotion, TableTheme},
   // Hotkeys (`hotkey` in game_live.ex): each keydown also says whether the focus
   // is in a field, on a control that Space/Enter already press, or whether a modal
   // dialog is open. The server decides from that; no key logic here.

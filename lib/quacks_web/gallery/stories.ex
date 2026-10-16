@@ -25,6 +25,8 @@ defmodule QuacksWeb.Gallery.Stories do
   alias Quacks.Scenarios.Script
   alias QuacksWeb.Gallery.Fixtures
   alias QuacksWeb.LobbyLive
+  alias TableWeb.Components.Theme
+  alias TableWeb.Gallery.Hearts
 
   @typedoc """
   One arg: `name` (its URL key), `type` (`:int` with `min`/`max`, `:bool`, or
@@ -428,6 +430,67 @@ defmodule QuacksWeb.Gallery.Stories do
           presets: [
             {"tied", "Ties (5 players)", %{"players" => 5, "spread" => "tied"}},
             {"8p", "8 players, big gaps", %{"players" => 8, "spread" => "big-gaps"}}
+          ]
+        }
+      )
+    ]
+  end
+
+  # The card table: every theme side by side, one table with the picker, the
+  # motion, the 52 cards and a hand.
+  defp arg_stories("hearts") do
+    themes = enum("theme", Theme.ids(), Theme.default())
+    four = bool("four_colour")
+    names = bool("long_names")
+    state = enum("state", Hearts.states(), "play")
+
+    [
+      arg_story("themes", "Hearts · themes", [state, four, names], &Hearts.themes_story/1, %{
+        presets: [
+          {"pass", "Pass: 3 cards picked", %{"state" => "pass"}},
+          {"collect", "A trick taken", %{"state" => "collect"}},
+          {"four", "4-colour deck", %{"four_colour" => true}}
+        ]
+      }),
+      arg_story(
+        "table",
+        "Hearts · table and picker",
+        [enum("theme", ["stored" | Theme.ids()], "stored"), state, four, names],
+        &Hearts.table_story/1,
+        %{
+          presets: [
+            {"pass", "Pass: tap to pick", %{"state" => "pass"}},
+            {"collect", "A trick taken", %{"state" => "collect"}},
+            {"deal", "Before the deal", %{"state" => "deal"}},
+            {"long", "Long names", %{"long_names" => true}},
+            {"dark", "Forest (dark), 4 colours", %{"theme" => "forest", "four_colour" => true}}
+          ]
+        }
+      ),
+      arg_story(
+        "motion",
+        "Hearts · motion: tap Play",
+        [enum("motion", Hearts.motions(), "play"), themes, four],
+        &Hearts.motion_story/1,
+        %{presets: for(m <- Hearts.motions() -- ["play"], do: {m, m, %{"motion" => m}})}
+      ),
+      arg_story("deck", "Hearts · the 52 cards", [themes, four], &Hearts.deck_story/1, %{
+        presets: [
+          {"four", "4-colour deck", %{"four_colour" => true}},
+          {"dark", "Dracula (dark)", %{"theme" => "dracula"}}
+        ]
+      }),
+      arg_story(
+        "hand",
+        "Hearts · hand",
+        [int("cards", 1, 13, 13), enum("mode", ~w(play pass view), "play"), themes, four],
+        &Hearts.hand_story/1,
+        %{
+          presets: [
+            {"pass", "Pass: 3 picked", %{"mode" => "pass"}},
+            {"view", "Not your turn", %{"mode" => "view"}},
+            {"one", "1 card", %{"cards" => 1}},
+            {"seven", "7 cards", %{"cards" => 7}}
           ]
         }
       )
