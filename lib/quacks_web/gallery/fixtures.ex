@@ -105,6 +105,14 @@ defmodule QuacksWeb.Gallery.Fixtures do
         780,
         "TableWeb.Components (Cards, HeartsTable, Theme) + assets/css/table.css + assets/js/table.js",
         []
+      ),
+      # Codenames Duet: the board page at a game state (`Stories.arg_stories/1`).
+      component(
+        "codenames",
+        "Codenames Duet",
+        780,
+        "CodenamesDuetWeb.Board + assets/css/codenames.css (the table themes of table.css)",
+        []
       )
     ]
   end

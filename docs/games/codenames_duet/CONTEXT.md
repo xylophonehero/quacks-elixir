@@ -24,13 +24,15 @@ Terms used in the code, tests and docs of Codenames Duet. Rules: `rulebook.md`. 
 | **event log** | `game.log`, newest first; the UI animates from it. Events: `{:setup, words, timer}`, `{:clue, giver, word, number}`, `{:guess, guesser, index, colour}` (the colour of the deciding side, which the table marks), `{:side_done, seat}`, `{:turn_end, guesser, how, timer_left}`, `{:sudden_death, guessers}`, `{:game_over, :won \| :lost, :all_found \| :assassin \| :sudden_death}`. No event holds a hidden colour. |
 | **bot** | None. The game needs two people (`CodenamesDuet.Table.bot_levels/0` is `[]`). |
 
-## UI ideas (for the board, not built yet)
+## The board
 
-From the codenames.game Duet flow and the rulebook. ⚠️ Not checked against the live site in this round.
+`CodenamesDuetWeb.Board` (a `TableWeb.Board` on `/games/codenames_duet/<code>`), set-up page `CodenamesDuetWeb.SetupLive`, CSS `assets/css/codenames.css`. Gallery: `/dev/gallery/codenames/board`. The ideas came from the codenames.game Duet flow and the rulebook. ⚠️ Not checked against the live site.
 
-- Clue entry: one text field and a number picker 0..9; the engine error (`{:invalid_clue, reason}`) shows under the field.
-- The guesser touches a card; an "End guessing" button shows after the first guess (`:end_turn` in `legal_actions`).
-- Card marks: a green agent card covers a found word; a bystander mark is a small token on the clue giver's edge of the card (one per side); a word with two marks is greyed.
-- Each seat sees its own key as a thin colour edge or corner on each card (`view.key`).
-- The time bank: 9 tokens in a row; a used token flips (bystander side or check side, from `:turn_end`).
-- Colours from the card table themes (`TableWeb.Components.Theme`, the daisyUI values as `--tb-*` tokens in `assets/css/table.css`), as the Hearts board does (Nick: "use the Daisy themes again").
+- **Clue entry**: one text field and a number picker 0..9. The engine error (`{:invalid_clue, reason}`) shows under the field (`TableWeb.Board.act_error/3`).
+- **Guess**: the guesser taps a card to pick it, then taps it again (or "Guess") to guess. "End guessing" shows after the first guess (`:end_turn` in `legal_actions`).
+- **Key edge**: each seat sees its own side as a colour edge at the bottom of each card, and a corner for an agent or an assassin. "Hide my key" takes the key out of the page (for screen sharing).
+- **Marks**: a found agent turns its card green (a flip). A bystander mark is a token on the clue giver's edge: your side at the bottom, your partner's at the top. Two marks cover the card.
+- **Status row**: whose turn, the clue, the agents found (x/15), the timer tokens (a used token is a ring). A banner shows in sudden death.
+- **Game over**: the result, the score of a win, both sides of the key on every card (your side at the bottom edge, your partner's at the top), Play again.
+- **Long words**: a word of 9 or more letters gets a soft hyphen before a common ending (or in the middle, from 10 letters), and the font size fits the longest line (`Board.fit/1`).
+- Colours: the card table themes (`TableWeb.Components.Theme`, `--tb-*` tokens in `assets/css/table.css`), as on the Hearts board (Nick: "use the Daisy themes again").

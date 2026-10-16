@@ -76,7 +76,7 @@ defmodule TableWeb.GamesLive do
                 class="group flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-900/10 transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
               >
                 <span class="grid size-14 shrink-0 place-items-center rounded-xl bg-emerald-100 text-3xl text-red-600">
-                  ♥
+                  {Map.get(g, :icon, "♥")}
                 </span>
                 <span class="flex min-w-0 flex-col">
                   <span class="text-lg font-semibold">{g.name}</span>
