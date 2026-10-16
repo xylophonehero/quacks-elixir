@@ -160,7 +160,7 @@ defmodule QuacksWeb.RubiesAndWitchesTest do
     {id, view, token}
   end
 
-  defp reveal(view), do: :sys.get_state(view.pid).socket.assigns.reveal
+  defp reveal(view), do: reveal_state(view)
 
   describe "the reveal overlay" do
     test "the round's card: one slide; closing marks it seen" do

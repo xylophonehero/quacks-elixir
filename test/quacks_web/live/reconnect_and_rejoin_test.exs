@@ -4,7 +4,7 @@ defmodule QuacksWeb.ReconnectAndRejoinTest do
   """
   use QuacksWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
-  import Quacks.GameHelpers, only: [replace_game: 2]
+  import Quacks.GameHelpers, only: [replace_game: 2, send_game_update: 3]
   import QuacksWeb.LiveHelpers
   alias Quacks.Game
   alias Quacks.GameHelpers, as: H
@@ -77,8 +77,8 @@ defmodule QuacksWeb.ReconnectAndRejoinTest do
     white = Game.white_sum(new, 0)
     assert white > 0
 
-    send(view.pid, {:game, id, new})
-    send(view.pid, {:game, id, old})
+    send_game_update(view.pid, id, new)
+    send_game_update(view.pid, id, old)
 
     assert has_element?(view, ~s(#fuse-meter[data-white="#{white}"]))
   end

@@ -446,6 +446,17 @@ defmodule Quacks.GameServer do
           {:ok, Game.t()} | {:error, :too_late | :not_started | :not_found}
   def keep_white(id, seat), do: call(id, {:keep_white, seat})
 
+  @doc false
+  # A test seam (architecture review G6): the game file's pending write and delete
+  # timers (a reference or nil) and its directory (nil: not stored), so tests do not
+  # read the server's state shape.
+  @spec store_status(id) :: %{
+          write: reference | nil,
+          expire: reference | nil,
+          store: Path.t() | nil
+        }
+  def store_status(id), do: call(id, :store_status)
+
   @doc "Take back the last action. Solo games only."
   @spec undo(id) :: {:ok, Game.t()} | {:error, :not_solo | :not_started | :not_found}
   def undo(id), do: call(id, :undo)
@@ -734,6 +745,11 @@ defmodule Quacks.GameServer do
   def terminate(_reason, _state), do: :ok
 
   defp server_call(:get, _from, state), do: {:reply, {:ok, table(state)}, state, @idle_timeout}
+
+  defp server_call(:store_status, _from, state) do
+    status = %{write: state.write_timer, expire: state.expire_timer, store: state.store}
+    {:reply, status, state, @idle_timeout}
+  end
 
   defp server_call({:listing, token}, _from, state),
     do: {:reply, {:ok, Map.put(table(state), :mine, state.tokens[token])}, state, @idle_timeout}

@@ -630,7 +630,19 @@ defmodule QuacksWeb.Gallery.Stories do
           {"8p", "8 long names", %{"players" => 8, "long_names" => true}}
         ]
       ),
-      screen("over", "Game over", [int("players", 1, 8, 4), names], &Fixtures.over_screen/1)
+      screen("over", "Game over", [int("players", 1, 8, 4), names], &Fixtures.over_screen/1),
+      screen(
+        "waiting",
+        "Waiting for players",
+        [int("players", 1, 8, 4), int("seated", 1, 8, 2), bool("guest"), bool("bot"), names],
+        &Fixtures.waiting_screen/1,
+        presets: [
+          {"guest", "Not the host", %{"guest" => true}},
+          {"full", "Every seat taken, one bot", %{"seated" => 4, "bot" => true}},
+          {"8p-long", "8 seats, long names",
+           %{"players" => 8, "seated" => 6, "long_names" => true}}
+        ]
+      )
     ]
   end
 

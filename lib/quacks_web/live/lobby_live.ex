@@ -345,9 +345,22 @@ defmodule QuacksWeb.LobbyLive do
   def handle_event("join_code", _params, socket), do: {:noreply, socket}
 
   # A game started, filled up, stopped or reached a new round: list the games again.
+  # Listing calls every game on the node, and every game's change sends this message;
+  # so the waiting ones go with it and the games are listed once. (Before, many busy
+  # games queued one full listing per change, and the page fell behind its events.)
   @impl true
-  def handle_info(:games_changed, socket),
-    do: {:noreply, assign(socket, games: GameServer.games(socket.assigns.token))}
+  def handle_info(:games_changed, socket) do
+    :ok = drop_queued(:games_changed)
+    {:noreply, assign(socket, games: GameServer.games(socket.assigns.token))}
+  end
+
+  defp drop_queued(message) do
+    receive do
+      ^message -> drop_queued(message)
+    after
+      0 -> :ok
+    end
+  end
 
   # A settings change: assign it and keep it in the browser.
   defp change(socket, changes) do

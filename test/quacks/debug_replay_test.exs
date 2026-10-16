@@ -2,6 +2,9 @@ defmodule Quacks.DebugReplayTest do
   @moduledoc "Debug tables rebuilt from a bundle (`GameServer.start_from_bundle/2`)."
   use ExUnit.Case, async: true
 
+  import Quacks.GameHelpers,
+    only: [assert_game_update: 1, assert_game_update: 2, refute_game_update: 0]
+
   alias Quacks.{Game, GameServer, Session}
 
   # A bundle from a solo-human game with a bot in seat 1, `draws` draws in.
@@ -61,15 +64,15 @@ defmodule Quacks.DebugReplayTest do
     assert :draw in Game.legal_actions(before, 1)
 
     {:ok, _} = GameServer.apply(id, 0, :draw)
-    assert_receive {:game, ^id, after_draw}
-    refute_receive {:game, ^id, _}, 50
+    after_draw = assert_game_update(id)
+    refute_game_update()
     {:ok, %{game: ^after_draw}} = GameServer.get(id)
 
     # Unfrozen, the bot brews in one go once the human stops (round 36).
     :ok = GameServer.set_frozen(id, false)
-    assert_receive {:game, ^id, _}
+    assert_game_update(id)
     {:ok, _} = GameServer.apply(id, 0, :stop)
-    assert_receive {:game, ^id, %Game{} = game}, 500
+    %Game{} = game = assert_game_update(id, timeout: 500)
 
     assert Enum.count(game.log, &match?({1, :draw}, &1)) >
              Enum.count(after_draw.log, &match?({1, :draw}, &1))

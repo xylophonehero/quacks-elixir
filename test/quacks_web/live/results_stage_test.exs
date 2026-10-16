@@ -287,8 +287,7 @@ defmodule QuacksWeb.ResultsStageTest do
       assert has_element?(view, "#results-stage[data-kind=#{first.kind}]")
       refute has_element?(view, "[data-role=tile-next]")
 
-      %{reveal: %{tick: ref}} = :sys.get_state(view.pid).socket.assigns
-      send(view.pid, {:reveal_tick, ref})
+      tick_reveal(view)
       assert has_element?(view, "#results-stage[data-kind=#{second.kind}]")
     end
   end
@@ -384,9 +383,8 @@ defmodule QuacksWeb.ResultsStageTest do
 
     # The step on show (the panel hides while a choice waits on it).
     defp shown(view) do
-      %{slides: slides, index: index} = :sys.get_state(view.pid).socket.assigns.reveal
-      slide = Enum.at(slides, index - 1)
-      {slide.kind, slide[:book]}
+      %{kind: kind, book: book} = reveal_state(view)
+      {kind, book}
     end
 
     defp act(view, action),
@@ -417,7 +415,7 @@ defmodule QuacksWeb.ResultsStageTest do
       next(view)
       assert has_element?(view, "#bar-droplet")
       refute has_element?(view, "#results-stage")
-      assert :sys.get_state(view.pid).socket.assigns.reveal.index == 2
+      assert reveal_state(view).index == 2
       act(view, {:droplet, :pot})
 
       # Green: only the green book's chips; the purple trade waits for its step.
@@ -454,9 +452,7 @@ defmodule QuacksWeb.ResultsStageTest do
     test "Auto never closes the steps while this seat's choice waits on the last one" do
       {_id, _game, view} = choices_game(false)
 
-      tick = fn ->
-        send(view.pid, {:reveal_tick, :sys.get_state(view.pid).socket.assigns.reveal.tick})
-      end
+      tick = fn -> tick_reveal(view) end
 
       # The die, then the black step's droplet move, then "Done" on green: purple is
       # the last step while the choices wait.
@@ -473,7 +469,7 @@ defmodule QuacksWeb.ResultsStageTest do
       end
 
       assert has_element?(view, "#bar-chip-actions-1")
-      assert %{reveal: %{tiles: true}} = :sys.get_state(view.pid).socket.assigns
+      assert %{tiles: true} = reveal_state(view)
     end
 
     test "live/2: while choosing, a book with a choice has its step, no space yet" do

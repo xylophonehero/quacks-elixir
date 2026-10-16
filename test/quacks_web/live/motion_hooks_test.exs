@@ -216,7 +216,7 @@ defmodule QuacksWeb.MotionHooksTest do
       assert has_element?(view, ~s(#fuse-meter[data-exploded="false"]))
 
       GameHelpers.replace_game(id, &GameHelpers.put(&1, 0, exploded?: true))
-      send(view.pid, {:game, id, game(id)})
+      GameHelpers.send_game_update(view.pid, id, game(id))
       assert has_element?(view, ~s(#fuse-meter[data-exploded="true"]))
     end
   end
