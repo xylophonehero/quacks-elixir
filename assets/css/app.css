@@ -3,9 +3,11 @@
 
 @import "tailwindcss" source(none);
 @import "phoenix-colocated/quacks/colocated.css";
+@import "./table.css";
 @source "../css";
 @source "../js";
 @source "../../lib/quacks_web";
+@source "../../lib/table_web";
 /* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
 @source "../../_build/dev/phoenix-colocated/quacks/*/";
 
