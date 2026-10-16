@@ -465,6 +465,25 @@ defmodule QuacksWeb.BarChoicesTest do
   end
 
   describe "Mandrake" do
+    # Bug #89: the bar showed Done only; the ruby offer had no button.
+    test "Set 6: the bar offers to pay 1 ruby; a tap moves the yellow 3 more" do
+      {id, view} = solo(%{})
+
+      replace_game(id, fn g ->
+        %{g | sets: Map.put(g.sets, :yellow, 6)}
+        |> H.put(drawn: [{{:orange, 1}, 1}], pot_index: 1, rubies: 1, bag: [{:yellow, 2}])
+      end)
+
+      view |> element("button[data-slot=draw]") |> render_click()
+      bar = "[data-role=bar-chip-actions]"
+      assert has_element?(view, "#{bar} [data-role=info-title]", "Mandrake")
+      assert has_element?(view, "#{bar} button[data-role=chip-action]", "Done")
+
+      view |> element("#{bar} button[data-role=chip-action][aria-label*=ruby]") |> render_click()
+      {:ok, %{game: game}} = GameServer.get(id)
+      assert %{rubies: 0, drawn: [{{:yellow, 2}, 6} | _]} = Game.player(game, 0)
+    end
+
     test "the server put the white chip back; the button keeps it, once" do
       {id, alice, bob} = duo()
 

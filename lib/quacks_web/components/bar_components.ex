@@ -1509,11 +1509,14 @@ defmodule QuacksWeb.BarComponents do
   defp rung_words({:chip, {:pay_ruby_move, k}}, _label),
     do: {"Pay #{k}", "droplet +#{k}", {:piece, :ruby}}
 
+  defp rung_words({:chip, :yellow_ruby}, _label), do: {"Pay 1", "yellow +3", {:piece, :ruby}}
+
   defp rung_words(nil, label),
     do: {"Swap", label |> String.split(": ") |> List.last(), {:chips, [{:purple, 1}], false}}
 
   defp rung_title(%{action: {:chip, {:purple_trade, _}}}), do: "Ghost's breath: trade purple"
   defp rung_title(%{action: {:chip, {:pay_ruby_move, _}}}), do: "Garden spider: pay rubies"
+  defp rung_title(%{action: {:chip, :yellow_ruby}}), do: "Mandrake: pay 1 ruby, move 3 more"
   defp rung_title(%{action: nil}), do: "Ghost's breath: swap"
 
   attr :icon, :any, required: true
@@ -1961,6 +1964,12 @@ defmodule QuacksWeb.BarComponents do
         reason: ruby_reason(action in actions, k, greens, me)
       }
     end
+  end
+
+  # Mandrake VI (bug #89): the engine offers it only with a ruby in hand.
+  defp rungs(:yellow_ruby, _me, _purple, actions, label) do
+    action = {:chip, :yellow_ruby}
+    if action in actions, do: [%{action: action, label: label.(action), reason: nil}], else: []
   end
 
   # Ghost's breath IV: the swaps are chip picks; the tiers above the pot's purple
