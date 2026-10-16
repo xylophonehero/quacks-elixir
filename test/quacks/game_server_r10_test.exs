@@ -108,6 +108,7 @@ defmodule Quacks.GameServerR10Test do
       {:ok, _} = GameServer.apply(id, 0, {:buy, [{:orange, 1}]})
       {:ok, game} = GameServer.apply(id, 0, :end_round)
       refute [{:orange, 1}] in bot_buys(game)
+      assert game.round == 1 and Game.phase(game, 1) == :shop
 
       # the bot decides again (ticks) and the round ends
       game = await_game(id, &(&1.round == 2))

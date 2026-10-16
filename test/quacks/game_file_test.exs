@@ -3,14 +3,16 @@ defmodule Quacks.GameFileTest do
   Game files (`Quacks.GameStore`) from before a refactor still load, and a restored
   game plays on as if it never stopped (architecture review §5.4).
 
-  - G2: `test/fixtures/game_files/herb_witches_bots.json` is a game file the server
-    wrote on 2026-10-16: 1 human, 2 bots, The Herb Witches given as the old
-    `expansion` option (`Session.encode_opts/1`), 2 draws into round 1. #79 removes
-    `expansion`; the file must still restore and play.
+  - G2: two game files the server wrote on 2026-10-16 with The Herb Witches given
+    as the old `expansion` option (`Session.encode_opts/1`):
+    `herb_witches_bots.json` (playing: 1 human, 2 bots, 2 draws into round 1) and
+    `herb_witches_waiting.json` (a waiting table). #79 removes `expansion`; the
+    files must still restore, keep the expansion and play.
   - G4: a stored game with 2 bots restores and its bots play the same actions as
-    the same game that was never stored (their rngs come back from the file).
+    the same game that was never stored, and their rngs end in the same state
+    (they come back from the file).
 
-  Record the file again (only when its format is meant to change) with
+  Record the files again (only when its format is meant to change) with
   `GOLDEN_RECORD=1 mix test test/quacks/game_file_test.exs`.
   """
   # Not async: the games directory is app config, read when a game starts.
@@ -18,9 +20,10 @@ defmodule Quacks.GameFileTest do
 
   import Quacks.GameHelpers, only: [play_human: 3]
 
-  alias Quacks.{Game, GameServer, GameStore, Golden}
+  alias Quacks.{AI, Game, GameServer, GameStore, Golden, Session}
 
   @file_path Path.expand("../fixtures/game_files/herb_witches_bots.json", __DIR__)
+  @waiting_path Path.expand("../fixtures/game_files/herb_witches_waiting.json", __DIR__)
 
   setup_all do
     Golden.load_atoms()
@@ -104,13 +107,50 @@ defmodule Quacks.GameFileTest do
     shut_down(id)
   end
 
+  test "G2: a waiting table's file from before the refactors keeps its expansion", %{dir: dir} do
+    if Golden.record?() do
+      {:ok, id} = GameServer.start(3, {64, 65, 66})
+      {:ok, 0} = GameServer.claim_seat(id, "ann", watch: false)
+      {:ok, _} = GameServer.configure(id, "ann", %{expansion: :herb_witches})
+      {:ok, 1} = GameServer.add_bot(id, "ann")
+      body = stored_file(dir, id)
+      File.write!(@waiting_path, [Jason.encode_to_iodata!(body, pretty: true), "\n"])
+    end
+
+    body = @waiting_path |> File.read!() |> Jason.decode!()
+    assert body["table"]["status"] == "waiting"
+    assert body["table"]["opts"]["expansion"] == "herb_witches"
+    id = body["table"]["id"]
+
+    assert {:ok, ^id} = GameServer.start_from_bundle(body, restore: true, dir: dir)
+    assert {:ok, %{status: :waiting, expansions: expansions}} = GameServer.get(id)
+    assert :herb_witches in expansions
+
+    # the game begins with The Herb Witches and plays
+    {:ok, 2} = GameServer.add_bot(id, "ann")
+    assert {:ok, %Game{} = game} = GameServer.begin(id, "ann")
+    assert :herb_witches in game.expansions
+    assert {:ok, %Game{}} = GameServer.apply(id, 0, hd(Game.legal_actions(game, 0)))
+    shut_down(id)
+  end
+
   test "G4: restored bots play the same actions as bots that never stopped", %{dir: dir} do
-    # the same game twice; one of them goes through its game file
-    stored = started({71, 72, 73})
-    plain = started({71, 72, 73})
+    # The same game twice, from one game file with 2 `:balanced` bots (their rngs pick
+    # among the fortune cards' answers; the `:expert` bots of today never use theirs).
+    # One of them stops in round 4 and comes back from its new game file.
+    seed = {71, 72, 73}
+    stored = with_bots(seed, "g4stored")
+    plain = with_bots(seed, "g4plain")
+    # (each `play_human/3` call starts the human's own rng again, so both games
+    # play in the same two parts)
+    play_human(stored, 0, &(&1.round >= 4))
+    play_human(plain, 0, &(&1.round >= 4))
 
     body = stored_file(dir, stored)
-    assert body["table"]["bot_rngs"] |> length() == 2
+    fresh = for seat <- [1, 2], do: [seat, rng_pair(:rand.export_seed_s(AI.new_rng(seed, seat)))]
+    assert length(body["table"]["bot_rngs"]) == 2
+    # the bots used their rngs before the stop: the file must bring them back
+    assert body["table"]["bot_rngs"] != fresh
     assert {:ok, ^stored} = GameServer.start_from_bundle(body, restore: true, dir: dir)
 
     a = play_human(stored, 0, &before_round_9/1)
@@ -123,5 +163,35 @@ defmodule Quacks.GameFileTest do
 
     assert la == lb,
            "the logs part at #{at}: #{inspect(Enum.slice(la, at, 6))} / #{inspect(Enum.slice(lb, at, 6))}"
+
+    # and the bots' rngs are where they would be (their next files say so)
+    assert stored_file(dir, stored)["table"]["bot_rngs"] ==
+             stored_file(dir, plain)["table"]["bot_rngs"]
+  end
+
+  defp rng_pair({:exsss, [s0 | s1]}), do: [s0, s1]
+
+  # A playing game of 3 seats with the fortune cards, from a game file: "ann" in
+  # seat 0, `:balanced` bots in 1 and 2, no action yet.
+  defp with_bots(seed, id) do
+    body =
+      Session.new(seed, 3)
+      |> Session.bundle()
+      |> Map.merge(%{names: ["Ann", "Bo", "Cy"], bots: [1, 2]})
+      |> Map.put(:table, %{
+        id: id,
+        status: "playing",
+        max_players: 3,
+        seed: Tuple.to_list(seed),
+        opts: Session.encode_opts([]),
+        tokens: %{"ann" => 0},
+        names: [[0, "Ann"], [1, "Bo"], [2, "Cy"]],
+        colours: [[0, 0], [1, 1], [2, 2]],
+        bots: [[1, "balanced"], [2, "balanced"]],
+        creator: "ann"
+      })
+
+    {:ok, ^id} = GameServer.start_from_bundle(body, restore: true)
+    id
   end
 end
