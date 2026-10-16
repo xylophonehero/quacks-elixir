@@ -60,6 +60,10 @@ A builder is done when:
 3. After a UI change: a real browser check. Builders start their own server on a
    free port from the worktree and drive a separate Chrome (`--remote-debugging-port=9223`),
    at phone size 390×844, never Nick's own browser.
+   Also run the visual diff against the base branch
+   (`mix quacks.visual origin/staging`, chapter 12) and put the path of the
+   report in the PR checklist. Make sure that each changed shot is a change that
+   you planned.
 4. The Log entry lists what was not checked (for example "Not checked on a real
    phone / Safari").
 

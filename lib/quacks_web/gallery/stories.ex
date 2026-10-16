@@ -135,6 +135,32 @@ defmodule QuacksWeb.Gallery.Stories do
          do: {s, claims[variant]}
   end
 
+  @doc """
+  Every page the gallery can show, as `{name, frame path}`: each story with its
+  default args and with each preset, and each step of each scenario. The name is
+  `<group>/<story>/<preset or step-N>`. The HTML snapshots
+  (`test/quacks_web/ui_snapshot_test.exs`) and the visual diff
+  (`mix quacks.visual`) both use this list.
+  """
+  @spec frames() :: [{String.t(), String.t()}]
+  def frames do
+    for g <- catalog(), s <- g.stories, frame <- frames(g, s), do: frame
+  end
+
+  defp frames(g, %{scenario: entry} = s) do
+    {:ok, script} = Scenarios.build(entry)
+
+    for i <- 1..length(script.steps),
+        do: {"#{g.id}/#{s.id}/step-#{i}", "/dev/gallery/frame/#{g.id}/#{s.id}?step=#{i}"}
+  end
+
+  defp frames(g, s) do
+    for {id, _title, args} <- [{"default", "", %{}} | s.presets] do
+      query = query(s, args(s, stringify(args)))
+      {"#{g.id}/#{s.id}/#{id}", "/dev/gallery/frame/#{g.id}/#{s.id}?#{URI.encode_query(query)}"}
+    end
+  end
+
   @doc "The story's args for the raw URL params `params`."
   @spec specs(story, map) :: [arg]
   def specs(%{args: args}, params) when is_function(args), do: args.(params)

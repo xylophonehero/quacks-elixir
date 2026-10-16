@@ -144,6 +144,82 @@ args and with each preset, and every scenario step, so a broken fixture fails
 UI change: check it in `/dev/gallery` at 360/392/1280, and add a story, an arg or
 a preset for any new state.
 
+## Visual diff: see each pixel that changed
+
+The HTML snapshots (`mix test --only snapshot`) do not see a change in CSS, in an
+asset or in JS. The visual diff does. It takes a screenshot of every gallery frame
+on two git refs and shows the shots that are not the same.
+
+```
+mix quacks.visual origin/staging            # origin/staging against HEAD
+mix quacks.visual BASE HEAD --only screens/ # only the frames whose name has the text
+```
+
+Commit your change first: the task compares refs, not the files in your checkout.
+
+What it does:
+
+1. The frame list is `QuacksWeb.Gallery.Stories.frames/0`, the same list as the
+   HTML snapshots: each story with its default args and each preset, and each
+   scenario step (about 460 frames). Each frame gets a shot at 360, 392 and 1280
+   px (`--widths`). The list comes from your checkout. A frame that the other ref
+   does not have shows as a changed shot.
+2. For each ref, the task makes a worktree in `tmp/visual/` (the deps are a link,
+   `_build` is a copy of yours, so the build is short), builds the assets and
+   starts a server in the test env on ports 4105 and 4106 (`--ports`). The test
+   env is what the HTML snapshots render: no code reload, no live reload, and no
+   server timers that move the page on (`show_move_ms: 0`, `upgrade_ms: 0` in
+   `config/test.exs`).
+3. It uses the Chrome on `CDP_PORT` (default 9223). If no Chrome is there, it
+   starts a headless Chrome and stops it at the end. `node docs/assets/visual.mjs`
+   takes the shots and compares the pixels in a canvas of that Chrome (no
+   npm packages). `--jobs` (default 4) sets the number of tabs.
+4. At the end, also after an error, it stops the servers and its Chrome and
+   removes `tmp/visual/` (`--keep` keeps the worktrees).
+
+How a shot stays the same from run to run:
+
+- Reduced motion is on, every CSS animation and transition has 0 s duration and
+  0 s delay, and `Element.animate` gets 0 s duration and delay too. An animation
+  with fill shows its last frame; an animation without fill shows the rest state.
+- The shot waits until the page is loaded, its LiveView is connected and the
+  fonts are in. Then it takes captures until two captures in a row are the same
+  (max. 2 s). The report names a shot that did not settle or whose LiveView did
+  not connect in 7.5 s.
+- A Chrome call that gets no answer in 30 s fails. The shot then goes again in
+  new tabs; if it fails again, the report names it as not settled, with the
+  error, and the run goes on.
+- A pixel counts as changed only when a colour channel is more than 4 off
+  (`--tolerance`, 0..255). Text and gradients can be 1 or 2 off from one render
+  to the next.
+- A shot that is not the same on the two servers is taken again on both, up to
+  2 times. It counts as changed only when it is different each time. The report
+  names the shots that were the same only after a retry ("flaky").
+- The headless Chrome that the task starts has no GPU (`--disable-gpu`): GPU
+  raster gave small differences in gradients from run to run.
+- The viewport is the gallery's frame size: 780 px high on a phone width, 800 px
+  on a desktop width. The shot is the full page.
+
+Flake check: `mix quacks.visual HEAD HEAD` must show 0 changed shots.
+
+### Read the report
+
+The report is in `docs/assets/visual/<base>..<head>/index.html` (`--out`; git
+ignores `docs/assets/visual/`). `summary.json` has the same data.
+
+- The top line gives the two refs with their commits, the number of changed
+  shots and the run time.
+- The list has only the changed shots, with the largest change first. The number
+  is the percentage of the pixels that changed.
+- Each entry shows **base | head | diff**. In the diff, the base is faint grey and
+  each pixel that changed is red. A small change (some tens of pixels) can
+  be hard to see: look for the red dots. "size A → B" tells you that the page height
+  changed. Click a picture to see it full size. "head page" opens the frame on
+  the head server (only while the task runs).
+
+A change that you did not plan is a regression: find the frame in the gallery and
+look at it at that width.
+
 ## Scenarios
 
 A scenario is a real game that plays to the moment where one rules item acts. You

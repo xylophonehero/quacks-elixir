@@ -15,7 +15,6 @@ defmodule QuacksWeb.UiSnapshotTest do
 
   import Phoenix.LiveViewTest
 
-  alias Quacks.Scenarios
   alias QuacksWeb.Gallery.Stories
 
   @moduletag :snapshot
@@ -24,26 +23,7 @@ defmodule QuacksWeb.UiSnapshotTest do
   @context 3
   @max_lines 60
 
-  cases =
-    for g <- Stories.catalog(), s <- g.stories do
-      case s do
-        %{scenario: entry} ->
-          {:ok, script} = Scenarios.build(entry)
-
-          for i <- 1..length(script.steps),
-              do: {"#{g.id}/#{s.id}/step-#{i}", "/dev/gallery/frame/#{g.id}/#{s.id}?step=#{i}"}
-
-        _ ->
-          for {id, _title, args} <- [{"default", "", %{}} | s.presets] do
-            args = Map.new(args, fn {k, v} -> {k, to_string(v)} end)
-            query = Stories.query(s, Stories.args(s, args))
-
-            {"#{g.id}/#{s.id}/#{id}",
-             "/dev/gallery/frame/#{g.id}/#{s.id}?#{URI.encode_query(query)}"}
-          end
-      end
-    end
-    |> List.flatten()
+  cases = Stories.frames()
 
   @names MapSet.new(cases, &elem(&1, 0))
 
