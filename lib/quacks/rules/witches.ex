@@ -7,6 +7,8 @@ defmodule Quacks.Rules.Witches do
   silver cards have a printed header in the rulebook; the other titles are ours ⚠️.
   """
 
+  alias Table.Kit.Rng
+
   @type colour :: :silver | :copper | :gold
   @type id :: :s1 | :s2 | :s3 | :s4 | :c1 | :c2 | :c3 | :c4 | :g1 | :g2 | :g3 | :g4
   @type card :: %{id: id, colour: colour, title: String.t(), text: String.t()}
@@ -116,10 +118,9 @@ defmodule Quacks.Rules.Witches do
   @spec deal(:rand.state()) :: %{colour => id}
   def deal(rng) do
     {witches, _rng} =
-      Enum.map_reduce([:silver, :copper, :gold], rng |> :rand.jump() |> :rand.jump(), fn
-        colour, rng ->
-          {i, rng} = :rand.uniform_s(4, rng)
-          {{colour, Enum.at(ids(colour), i - 1)}, rng}
+      Enum.map_reduce([:silver, :copper, :gold], Rng.fork(rng, 2), fn colour, rng ->
+        {id, rng} = Rng.pick(ids(colour), rng)
+        {{colour, id}, rng}
       end)
 
     Map.new(witches)

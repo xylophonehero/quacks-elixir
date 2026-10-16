@@ -26,6 +26,7 @@ defmodule Quacks.Game.Evaluation do
   alias Quacks.Game.{Fortune, Witches}
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
+  alias Table.Kit.Dice
 
   # Rulebook §3.2. ⚠️ Sixth face not in any rulebook found; assumed a second "1 VP".
   @die [{:vp, 1}, {:vp, 1}, {:vp, 2}, :ruby, :droplet, :orange]
@@ -121,9 +122,7 @@ defmodule Quacks.Game.Evaluation do
   @doc false
   # Roll the bonus die for `seat` and pay the face out; the caller logs it.
   def roll(g, seat) do
-    die = die(g.rules.die)
-    {i, rng} = :rand.uniform_s(length(die), g.rng)
-    face = Enum.at(die, i - 1)
+    {face, rng} = Dice.roll(die(g.rules.die), g.rng)
     g = %{g | rng: rng}
 
     g =

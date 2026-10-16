@@ -20,6 +20,7 @@ defmodule Quacks.AI do
   alias Quacks.AI.{Choice, Expectimax, Odds, Profile, Shop}
   alias Quacks.Game
   alias Quacks.Game.Potions
+  alias Table.Kit.Rng
 
   @shift_cap 0.10
   # The phases that `choice_rule` decides.
@@ -33,7 +34,7 @@ defmodule Quacks.AI do
   The bot's own rng for `seat` in a game with seed `seed`; separate from the game rng.
   """
   @spec new_rng({integer, integer, integer}, Game.seat()) :: :rand.state()
-  def new_rng({a, b, c}, seat), do: :rand.seed_s(:exsss, {a, b, c + 7919 * (seat + 1)})
+  def new_rng({a, b, c}, seat), do: Rng.seed({a, b, c + 7919 * (seat + 1)})
 
   @impl true
   @spec decide(Game.t(), Game.seat(), Profile.t(), :rand.state()) ::
@@ -284,10 +285,7 @@ defmodule Quacks.AI do
     end
   end
 
-  defp random(list, rng) do
-    {i, rng} = :rand.uniform_s(length(list), rng)
-    {Enum.at(list, i - 1), rng}
-  end
+  defp random(list, rng), do: Rng.pick(list, rng)
 
   defp first(legal, fun), do: Enum.find(legal, fun)
 end

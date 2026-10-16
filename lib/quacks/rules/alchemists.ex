@@ -15,6 +15,7 @@ defmodule Quacks.Rules.Alchemists do
   """
 
   alias Quacks.Rules.Chips
+  alias Table.Kit.Rng
 
   @type id ::
           :nervousness
@@ -160,14 +161,7 @@ defmodule Quacks.Rules.Alchemists do
   """
   @spec deal(:rand.state()) :: [id]
   def deal(rng) do
-    rng = rng |> :rand.jump() |> :rand.jump() |> :rand.jump()
-
-    {keyed, _rng} =
-      Enum.map_reduce(@patients, rng, fn id, rng ->
-        {u, rng} = :rand.uniform_s(rng)
-        {{u, id}, rng}
-      end)
-
-    keyed |> Enum.sort() |> Enum.take(3) |> Enum.map(&elem(&1, 1))
+    {patients, _rng} = Rng.shuffle(@patients, Rng.fork(rng, 3))
+    Enum.take(patients, 3)
   end
 end
