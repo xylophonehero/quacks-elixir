@@ -1,6 +1,6 @@
 # Go Fish (generic table)
 
-Spec: `go_fish.json`. No referee yet: step B (an LLM referee) plays it from these
+Spec: `priv/games/generic/go_fish.json`. No referee yet: step B (an LLM referee) plays it from these
 notes. Public-domain rules, in a short form.
 
 ## Set-up
