@@ -267,4 +267,59 @@ defmodule TableWeb.CodenamesDuetLiveTest do
     assert game(code).result == :lost
     assert has_element?(a, "#duet-over[data-result=lost]")
   end
+
+  # Lets the room and the page take every message sent so far (bot ticks come at 0 ms).
+  defp settle(view, code) do
+    [{pid, _}] = Registry.lookup(Table.Registry, {@key, code})
+
+    Enum.reduce_while(1..200, nil, fn _, last ->
+      _ = :sys.get_state(pid)
+      v = Server.state(@key, code).version
+      _ = render(view)
+      if v == last, do: {:halt, v}, else: {:cont, v}
+    end)
+  end
+
+  test "set up with a bot partner: the game starts at once and the bot's clue shows", %{
+    conn: conn
+  } do
+    conn = init_test_session(conn, player_token: token("solo"))
+    {:ok, setup, _} = live(conn, "/games/#{@key}/new")
+    assert has_element?(setup, "#partner-friend:checked")
+
+    setup |> form("#duet-setup", setup: %{partner: "bot"}) |> render_change()
+    assert has_element?(setup, "#partner-bot:checked")
+
+    assert {:error, {:live_redirect, %{to: "/games/codenames_duet/" <> code = to}}} =
+             setup
+             |> form("#duet-setup", setup: %{name: "Ann", partner: "bot"})
+             |> render_submit()
+
+    assert %{bot: :vectors} = Server.state(@key, code).seats[1]
+
+    {:ok, room, _} = live(conn, to)
+    settle(room, code)
+    refute has_element?(room, "#duet-invite")
+    assert has_element?(room, "#duet-players", "Ada")
+    assert has_element?(room, "#duet-log li[data-clue]")
+    assert has_element?(room, "#duet-clue")
+    assert has_element?(room, "#guess-bar")
+  end
+
+  test "a bot partner guesses your clue: its guess shows on the board" do
+    ann = token("ann")
+    {:ok, code} = Server.create(@key, %{opts: %{}, name: "Ann", bots: 1, level: :vectors}, ann)
+    [{pid, _}] = Registry.lookup(Table.Registry, {@key, code})
+    # Ann's clue is given (the bot could give the first clue before a page sends one).
+    game = Scenario.fixed() |> Scenario.clue(0, "tennis", 1)
+    :sys.replace_state(pid, &%{&1 | game: game})
+
+    {:ok, a, _} = open_room(ann, code)
+    send(pid, :tick)
+    settle(a, code)
+
+    # Index 6 is "golf", green on Ann's side: the bot finds it.
+    assert has_element?(a, "#duet-card-6[data-agent]")
+    assert has_element?(a, "#duet-log [data-guess][data-colour=green]")
+  end
 end
