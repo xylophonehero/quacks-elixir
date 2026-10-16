@@ -721,7 +721,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
   @spec brewing_screen(map) :: map
   def brewing_screen(%{"players" => n} = a), do: screen(brewing(n), a)
 
-  @doc "A choice for you (seat 0) while the others brew: `crow`, `mandrake`, `explosion`, `chip_choice`, `toadstool`."
+  @doc "A choice for you (seat 0) while the others brew: `crow`, `mandrake`, `mandrake_ruby`, `explosion`, `chip_choice`, `toadstool`."
   @spec choice_screen(map) :: map
   def choice_screen(%{"players" => n, "choice" => choice} = a),
     do: screen(choice_game(n, choice), a)
@@ -730,6 +730,15 @@ defmodule QuacksWeb.Gallery.Fixtures do
 
   defp choice_game(n, "mandrake"),
     do: n |> others_brew() |> draws(0, [{:orange, 1}, {:white, 2}, {:yellow, 1}])
+
+  # Bug #89: yellow Set 6 with a ruby in hand: pay it, the yellow moves 3 more.
+  defp choice_game(n, "mandrake_ruby") do
+    g = others_brew(n)
+
+    %{g | sets: Map.put(g.sets, :yellow, 6)}
+    |> put(0, rubies: 1)
+    |> draws(0, [{:orange, 1}, {:white, 2}, {:yellow, 2}])
+  end
 
   defp choice_game(n, "explosion"), do: n |> others_brew() |> draws(0, boom())
 
