@@ -31,6 +31,14 @@ config :quacks, Table,
       board: CodenamesDuetWeb.Board,
       setup: "/games/codenames_duet/new",
       icon: "🕵️"
+    },
+    "generic" => %{
+      name: "Crazy Eights",
+      blurb: "Match the suit or the rank; an 8 is wild. 2 to 5. A generic table: zones and ops.",
+      game: Table.Generic.Table,
+      board: TableWeb.GenericBoard,
+      setup: "/games/generic/new?spec=crazy_eights",
+      icon: "8"
     }
   }
 
