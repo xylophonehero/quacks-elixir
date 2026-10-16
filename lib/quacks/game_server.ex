@@ -348,6 +348,8 @@ defmodule Quacks.GameServer do
 
   # A game file back as a running game (see `start_from_bundle/2`).
   defp restore(%{"table" => t} = bundle, opts) do
+    Session.ensure_atoms()
+
     session =
       case t["status"] do
         "playing" -> with {:ok, session} <- Session.from_bundle(bundle), do: session
