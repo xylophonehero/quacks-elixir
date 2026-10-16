@@ -102,7 +102,8 @@ defmodule Quacks.HouseRulesTest do
   test "overflow (default, every game): chips past the last space go in the bowl" do
     spoon = [drawn: [{{:orange, 1}, 52}], pot_index: 52]
     g = new(%{}) |> put(spoon) |> force_draws([{:white, 2}])
-    assert g.expansion == nil and me(g).bowl == [{:white, 2}]
+    refute Game.expansion?(g, :herb_witches)
+    assert me(g).bowl == [{:white, 2}]
     assert {0, {:overflow, {:white, 2}}} in g.log
     assert {0, {:bowl, [{:white, 2}], 1}} in apply!(g, :stop).log
 

@@ -120,8 +120,9 @@ defmodule QuacksWeb.GameLive do
   import QuacksWeb.ScenarioComponents
 
   alias Quacks.{Game, GameServer, Player}
-  alias Quacks.Game.{Fortune, Witches}
   alias Quacks.Rules.Books
+  alias Quacks.Rules.Fortune
+  alias Quacks.Rules.Witches
   alias QuacksWeb.{BarComponents, Replay, Reveal, TileReveal, Tips}
 
   # The small choices in the bar (`BarComponents.pick_choices/0`).
@@ -1155,7 +1156,7 @@ defmodule QuacksWeb.GameLive do
           <button
             type="button"
             popovertarget="sheet-books"
-            aria-label={"Ingredient books (#{length(Books.in_play(@game.expansion, @game.sets))})"}
+            aria-label={"Ingredient books (#{length(Books.in_play(@game.expansions, @game.sets))})"}
             class="relative -mx-1 inline-flex size-11 shrink-0 items-center justify-center xl:hidden"
             data-role="open-books"
           >
@@ -1165,7 +1166,7 @@ defmodule QuacksWeb.GameLive do
               aria-hidden="true"
               data-role="books-count"
             >
-              {length(Books.in_play(@game.expansion, @game.sets))}
+              {length(Books.in_play(@game.expansions, @game.sets))}
             </span>
           </button>
           <.bug_report_button :if={@seat} n={@reports} class="-mx-1" />
@@ -1962,7 +1963,7 @@ defmodule QuacksWeb.GameLive do
         <.card_reveals
           id="sheet-fortune-reveals"
           card={@game.fortune_card}
-          reveals={Quacks.Game.Fortune.reveals(@game)}
+          reveals={Game.card_reveals(@game)}
           order={Game.turn_order(@game)}
           seat={@seat}
           names={@names}
@@ -2067,7 +2068,7 @@ defmodule QuacksWeb.GameLive do
           data-role="books-in-play"
         >
           <.book_tile
-            :for={{colour, set} <- Books.in_play(@game.expansion, @game.sets)}
+            :for={{colour, set} <- Books.in_play(@game.expansions, @game.sets)}
             colour={colour}
             set={set}
             players={@players}
@@ -2675,14 +2676,14 @@ defmodule QuacksWeb.GameLive do
 
   defp card_vt(socket, _was), do: socket
 
-  # Round 30: the cards that drew chips for every player (`Fortune.reveals/1`).
+  # Round 30: the cards that drew chips for every player (`Game.card_reveals/1`).
   defp card_rows?(%{slides: [%{reveals: reveals} | _]}), do: map_size(reveals) > 0
   defp card_rows?(_reveal), do: false
 
   # Round 31: one line for what the card did to this seat (`Reveal`, the slide's
   # `outcomes`), e.g. "Drop It: droplet +1". Nothing for a card that did nothing.
   defp card_toast(socket, %{key: {:card, round}, slides: [%{outcomes: [_ | _]} = slide | _]}) do
-    name = Quacks.Rules.Fortune.card(slide.card).name
+    name = Fortune.card(slide.card).name
     did = Enum.map_join(slide.outcomes, ", ", &card_outcome(&1, slide.card))
     assign(socket, card_toast: %{round: round, text: "#{name}: #{did}"})
   end
@@ -2861,7 +2862,7 @@ defmodule QuacksWeb.GameLive do
 
   # The tap layer reads the card for screen readers (the big card is aria-hidden).
   defp card_tap_label(id) do
-    card = Quacks.Rules.Fortune.card(id)
+    card = Fortune.card(id)
     "#{card.name}: #{card.text} Continue"
   end
 
@@ -2994,7 +2995,7 @@ defmodule QuacksWeb.GameLive do
   defp mark_round_change(socket, _game), do: socket
 
   # Round 35: this seat just made the choice of a card that offers everyone one:
-  # the card grows over the pot with what everyone took (`Fortune.reveals/1`),
+  # the card grows over the pot with what everyone took (`Game.card_reveals/1`),
   # live while the others still choose; a tap or Continue shrinks it.
   # Round 37 (item 10): Flea Market too, so the trade shows before the round goes on.
   defp chose_card?(%{decision: :fortune_choice, game: old}, decision, game)

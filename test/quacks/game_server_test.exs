@@ -280,7 +280,10 @@ defmodule Quacks.GameServerTest do
              GameServer.configure(id, "a", %{players: 5, expansion: :herb_witches})
 
     {:ok, game} = GameServer.begin(id, "a")
-    assert {game.sets.black, game.rules.overflow, game.expansion} == {2, false, :herb_witches}
+
+    assert {game.sets.black, game.rules.overflow, Game.expansion?(game, :herb_witches)} ==
+             {2, false, true}
+
     assert GameServer.configure(id, "a", %{players: 2}) == {:error, :already_started}
   end
 

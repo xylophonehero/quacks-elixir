@@ -306,7 +306,7 @@ defmodule QuacksWeb.PanelComponents do
   def books_in_play(assigns) do
     assigns =
       assign(assigns,
-        books: Books.in_play(assigns.game.expansion, assigns.game.sets),
+        books: Books.in_play(assigns.game.expansions, assigns.game.sets),
         players: map_size(assigns.game.players)
       )
 

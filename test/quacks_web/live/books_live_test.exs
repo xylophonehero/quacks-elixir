@@ -110,7 +110,7 @@ defmodule QuacksWeb.BooksLiveTest do
     pick(view, %{"sets" => %{"orange" => "2", "locoweed" => "1"}})
 
     game = start_solo(view)
-    assert game.expansion == nil
+    refute Game.expansion?(game, :herb_witches)
     assert %{orange: 2, locoweed: 1} = game.sets
   end
 
@@ -177,7 +177,7 @@ defmodule QuacksWeb.BooksLiveTest do
     assert has_element?(view, "input[name='sets[locoweed]'][value='4'][checked]")
 
     game = start_solo(view)
-    assert game.expansion == :herb_witches
+    assert Game.expansion?(game, :herb_witches)
     assert %{green: 5, orange: 2, locoweed: 4, black: 3} = game.sets
 
     # with no books picked the toggle keeps orange 1 and no locoweed

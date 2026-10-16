@@ -218,7 +218,7 @@ reads the log gets it for free. When a new effect has no label yet, the page sho
 `inspect(entry)`: ugly, but visible, and a test can find it.
 
 The rule for engine code: **every change to a player's resources logs an event.**
-Book effects use one helper for that, `Game.effect/4`, which logs
+Book effects use one helper for that, `State.effect/4`, which logs
 `{seat, {:effect, {colour, set}, detail}}` (`lib/quacks/game.ex:980-982`).
 
 ## What to try in IEx

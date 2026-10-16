@@ -9,7 +9,6 @@ defmodule QuacksWeb.TileComponents do
 
   alias Phoenix.LiveView.JS
   alias Quacks.{Game, Player}
-  alias Quacks.Game.Potions
   alias Quacks.Rules.{Alchemists, PotTrack}
   alias QuacksWeb.{AlchemistsComponents, Replay}
 
@@ -161,7 +160,7 @@ defmodule QuacksWeb.TileComponents do
         first: length(game.seats) > 1 and Game.start_seat(game) == seat,
         coins: PotTrack.at(index).coins,
         white: Game.white_sum(game, seat),
-        limit: Potions.explode_above(game, seat),
+        limit: Game.white_limit(game, seat),
         black: Enum.count(Player.pot_chips(p), &match?({:black, _}, &1)),
         pennies: Enum.count([:copper, :silver, :gold], &p.pennies[&1])
       )
@@ -393,7 +392,7 @@ defmodule QuacksWeb.TileComponents do
     p = game.players[seat]
     state = seat_state(game, seat)
     white = Game.white_sum(game, seat)
-    limit = Potions.explode_above(game, seat)
+    limit = Game.white_limit(game, seat)
 
     assigns =
       assign(assigns,

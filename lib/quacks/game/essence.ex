@@ -27,7 +27,7 @@ defmodule Quacks.Game.Essence do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.{Evaluation, Fortune, Potions}
+  alias Quacks.Game.{Evaluation, Fortune, Potions, Round, State}
   alias Quacks.Player
   alias Quacks.Rules.{Alchemists, Chips, PotTrack}
   alias Table.Kit.Rng
@@ -43,7 +43,7 @@ defmodule Quacks.Game.Essence do
   @spec setup(Game.t()) :: Game.t()
   def setup(g) do
     patients = Alchemists.deal(g.rng)
-    Game.record(%{g | patients: patients, phase: :patient_choice}, {:patients, patients})
+    State.record(%{g | patients: patients, phase: :patient_choice}, {:patients, patients})
   end
 
   @doc """
@@ -96,11 +96,11 @@ defmodule Quacks.Game.Essence do
   @doc "The essence and patient actions `seat` has now (any game phase)."
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
   def legal_actions(%{phase: :patient_choice} = g, seat) do
-    if Game.player(g, seat).patient, do: [], else: Enum.map(g.patients, &{:patient, &1})
+    if State.player(g, seat).patient, do: [], else: Enum.map(g.patients, &{:patient, &1})
   end
 
   def legal_actions(%{phase: :essence} = g, seat) do
-    case Game.player(g, seat) do
+    case State.player(g, seat) do
       %{phase: :essence_choice, essence_pending: {:space, reach}} ->
         for n <- 0..reach, do: space(n)
 
@@ -119,7 +119,7 @@ defmodule Quacks.Game.Essence do
   end
 
   def legal_actions(%{phase: :potions} = g, seat) do
-    case Game.player(g, seat) do
+    case State.player(g, seat) do
       %{phase: :essence_offer, essence_pending: {:offers, [offer | _]}} = p ->
         offer_actions(offer, p) ++ [{:essence, :pass}]
 
@@ -168,11 +168,11 @@ defmodule Quacks.Game.Essence do
   @doc "Apply one legal essence or patient action for `seat`. The action is already logged."
   @spec step(Game.t(), Game.seat(), Game.action()) :: Game.t()
   def step(%{phase: :patient_choice} = g, seat, {:patient, id}) do
-    g = Game.update_player(g, seat, &%{&1 | patient: id})
-    g = Enum.reduce(Alchemists.get(id).start_chips, g, &Game.add_from_supply(&2, seat, &1))
+    g = State.update_player(g, seat, &%{&1 | patient: id})
+    g = Enum.reduce(Alchemists.get(id).start_chips, g, &State.add_from_supply(&2, seat, &1))
 
     if Enum.all?(g.players, fn {_seat, p} -> p.patient end),
-      do: Game.start_round(%{g | phase: :potions}),
+      do: Round.start_round(%{g | phase: :potions}),
       else: g
   end
 
@@ -181,13 +181,13 @@ defmodule Quacks.Game.Essence do
 
   def step(g, seat, {:essence, {:place, chip}}) do
     g
-    |> Game.update_player(seat, &%{&1 | display: List.delete(&1.display, chip)})
+    |> State.update_player(seat, &%{&1 | display: List.delete(&1.display, chip)})
     |> Potions.resolve_draw(seat, chip)
   end
 
   def step(g, seat, {:essence, {:forget, {_, value} = chip}}) do
     g
-    |> Game.update_player(seat, fn p ->
+    |> State.update_player(seat, fn p ->
       drawn = List.keydelete(p.drawn, chip, 0)
       %{p | drawn: drawn, pot_index: Potions.last_index(drawn, p)}
     end)
@@ -196,30 +196,30 @@ defmodule Quacks.Game.Essence do
   end
 
   def step(g, seat, {:essence, choice}) do
-    {:offers, [offer | rest]} = Game.player(g, seat).essence_pending
+    {:offers, [offer | rest]} = State.player(g, seat).essence_pending
 
     g
-    |> Game.update_player(seat, &%{&1 | essence_pending: {:offers, rest}, phase: :potions})
+    |> State.update_player(seat, &%{&1 | essence_pending: {:offers, rest}, phase: :potions})
     |> answer(seat, choice, offer)
   end
 
   defp essence_step(g, seat, {:essence, {:space, n}}), do: land(g, seat, n)
 
   defp essence_step(g, seat, :draw) do
-    {:ear_worm, n} = Game.player(g, seat).essence_pending
-    g = Game.update_player(g, seat, &%{&1 | essence_pending: {:ear_worm, n - 1}})
+    {:ear_worm, n} = State.player(g, seat).essence_pending
+    g = State.update_player(g, seat, &%{&1 | essence_pending: {:ear_worm, n - 1}})
     {[chip], g} = Potions.take_random(g, seat, 1)
     Potions.resolve_draw(g, seat, chip)
   end
 
   defp essence_step(g, seat, {:essence, {:swap, {colour, 1} = chip}}) do
-    {:swap, 1, to} = Game.player(g, seat).essence_pending
+    {:swap, 1, to} = State.player(g, seat).essence_pending
     big = {colour, to}
 
     g
-    |> Game.return_supply(chip)
-    |> Game.take_supply(big)
-    |> Game.update_player(seat, fn p ->
+    |> State.return_supply(chip)
+    |> State.take_supply(big)
+    |> State.update_player(seat, fn p ->
       {^chip, index} = List.keyfind(p.drawn, chip, 0)
 
       %{
@@ -233,25 +233,25 @@ defmodule Quacks.Game.Essence do
 
   defp essence_step(g, seat, {:essence, {:buy, chip}}) do
     g
-    |> Game.update_player(seat, &%{&1 | essence_pending: nil, phase: :done})
-    |> Game.record(seat, {:bought, [chip]})
-    |> Game.buy(seat, [], [chip])
+    |> State.update_player(seat, &%{&1 | essence_pending: nil, phase: :done})
+    |> State.record(seat, {:bought, [chip]})
+    |> State.buy(seat, [], [chip])
   end
 
   defp essence_step(g, seat, {:essence, :pass}),
-    do: Game.update_player(g, seat, &%{&1 | essence_pending: nil, phase: :done})
+    do: State.update_player(g, seat, &%{&1 | essence_pending: nil, phase: :done})
 
   # Ear worm on-draw choices (blue offer, yellow, Y6, locoweed V).
   defp essence_step(g, seat, action), do: Potions.step(g, seat, action)
 
   # Back from an Ear worm draw or its choice: draw on while draws and chips are left.
   defp settle(g, seat) do
-    case Game.player(g, seat) do
+    case State.player(g, seat) do
       %{phase: phase, essence_pending: {:ear_worm, n}, bag: bag}
       when phase in [:potions, :ear_worm] ->
         if n > 0 and bag != [],
-          do: Game.update_player(g, seat, &%{&1 | phase: :ear_worm}),
-          else: Game.update_player(g, seat, &%{&1 | phase: :done, essence_pending: nil})
+          do: State.update_player(g, seat, &%{&1 | phase: :ear_worm}),
+          else: State.update_player(g, seat, &%{&1 | phase: :done, essence_pending: nil})
 
       _ ->
         g
@@ -259,7 +259,7 @@ defmodule Quacks.Game.Essence do
   end
 
   defp close(g) do
-    if Enum.any?(g.seats, &(Game.player(g, &1).phase in @open)),
+    if Enum.any?(g.seats, &(State.player(g, &1).phase in @open)),
       do: g,
       else: g |> Fortune.after_essence() |> Evaluation.run()
   end
@@ -276,7 +276,7 @@ defmodule Quacks.Game.Essence do
   end
 
   defp open(g) do
-    order = Game.turn_order(g)
+    order = State.turn_order(g)
     # All seats count first: the neighbours' explosions are read before any draw.
     reaches = Map.new(order, &{&1, count(g, &1)})
 
@@ -285,8 +285,8 @@ defmodule Quacks.Game.Essence do
         {reach, parts} = reaches[seat]
 
         g
-        |> Game.update_player(seat, &%{&1 | essence: 0, essence_pending: nil})
-        |> Game.record(seat, {:essence, reach, parts})
+        |> State.update_player(seat, &%{&1 | essence: 0, essence_pending: nil})
+        |> State.record(seat, {:essence, reach, parts})
       end)
 
     if g.round == @last_round,
@@ -300,17 +300,17 @@ defmodule Quacks.Game.Essence do
       {n, _parts} = reaches[seat]
 
       g
-      |> Game.update_player(seat, &%{&1 | essence: n, vp: &1.vp + n})
-      |> Game.record(seat, {:essence_vp, n})
+      |> State.update_player(seat, &%{&1 | essence: n, vp: &1.vp + n})
+      |> State.record(seat, {:essence_vp, n})
     end)
   end
 
   defp reach(g, seat, reaches) do
     {reach, _parts} = reaches[seat]
 
-    if lower_choice?(Game.player(g, seat).patient, reach),
+    if lower_choice?(State.player(g, seat).patient, reach),
       do:
-        Game.update_player(
+        State.update_player(
           g,
           seat,
           &%{&1 | phase: :essence_choice, essence_pending: {:space, reach}}
@@ -341,7 +341,7 @@ defmodule Quacks.Game.Essence do
       if g.sets[:locoweed] == 3, do: Enum.count(chips, &match?({:locoweed, _}, &1)), else: 0
 
     white7 = if Enum.sum(for {:white, v} <- chips, do: v) == 7, do: 1, else: 0
-    neighbours = Enum.count(neighbours(g, seat), &Game.player(g, &1).exploded?)
+    neighbours = Enum.count(neighbours(g, seat), &State.player(g, &1).exploded?)
     card = Fortune.essence_bonus(g, seat)
 
     parts = %{
@@ -381,22 +381,22 @@ defmodule Quacks.Game.Essence do
 
   # The marker lands on `space`: its glass pays now.
   defp land(g, seat, space) do
-    g = Game.update_player(g, seat, &%{&1 | essence: space, essence_pending: nil, phase: :done})
-    Enum.reduce(Alchemists.slot(Game.player(g, seat).patient, space), g, &pay(&2, seat, &1))
+    g = State.update_player(g, seat, &%{&1 | essence: space, essence_pending: nil, phase: :done})
+    Enum.reduce(Alchemists.slot(State.player(g, seat).patient, space), g, &pay(&2, seat, &1))
   end
 
   # One glass (or a Witch's hump bonus). `:rat` and `{:draw, n}` act next round.
   defp pay(g, seat, term),
-    do: g |> Game.record(seat, {:essence_bonus, term}) |> pay_now(seat, term)
+    do: g |> State.record(seat, {:essence_bonus, term}) |> pay_now(seat, term)
 
-  defp pay_now(g, seat, {:vp, n}), do: Game.update_player(g, seat, &%{&1 | vp: &1.vp + n})
+  defp pay_now(g, seat, {:vp, n}), do: State.update_player(g, seat, &%{&1 | vp: &1.vp + n})
 
   defp pay_now(g, seat, {:rubies, n}),
-    do: Game.update_player(g, seat, &%{&1 | rubies: &1.rubies + n})
+    do: State.update_player(g, seat, &%{&1 | rubies: &1.rubies + n})
 
-  defp pay_now(g, seat, {:chip, chip}), do: Game.add_from_supply(g, seat, chip)
-  defp pay_now(g, seat, :flask), do: Game.update_player(g, seat, &%{&1 | flask: true})
-  defp pay_now(g, seat, {:droplet, n}), do: Game.move_droplet(g, seat, n)
+  defp pay_now(g, seat, {:chip, chip}), do: State.add_from_supply(g, seat, chip)
+  defp pay_now(g, seat, :flask), do: State.update_player(g, seat, &%{&1 | flask: true})
+  defp pay_now(g, seat, {:droplet, n}), do: State.move_droplet(g, seat, n)
   defp pay_now(g, seat, {:dice, n}), do: Enum.reduce(1..n, g, fn _, g -> roll(g, seat) end)
   defp pay_now(g, seat, {:ear_worm, _} = term), do: wait(g, seat, term, :ear_worm)
   defp pay_now(g, seat, {:swap, 1, _} = term), do: wait(g, seat, term, :essence_bonus)
@@ -405,8 +405,8 @@ defmodule Quacks.Game.Essence do
 
   # The seat acts on the bonus, if it can.
   defp wait(g, seat, term, phase) do
-    if can_wait?(g, Game.player(g, seat), term),
-      do: Game.update_player(g, seat, &%{&1 | essence_pending: term, phase: phase}),
+    if can_wait?(g, State.player(g, seat), term),
+      do: State.update_player(g, seat, &%{&1 | essence_pending: term, phase: phase}),
       else: g
   end
 
@@ -416,13 +416,13 @@ defmodule Quacks.Game.Essence do
 
   defp roll(g, seat) do
     {face, g} = Evaluation.roll(g, seat)
-    Game.record(g, seat, {:bonus_die, face})
+    State.record(g, seat, {:bonus_die, face})
   end
 
   # Chicken eyes: the coloured 1-chips in the pot that have a `to`-chip in the supply.
   defp swaps(g, p, to) do
     for {{colour, 1}, _} <- p.drawn,
-        colour in [:green, :blue, :red, :yellow] and Game.in_supply?(g, {colour, to}),
+        colour in [:green, :blue, :red, :yellow] and State.in_supply?(g, {colour, to}),
         uniq: true,
         do: {colour, 1}
   end
@@ -430,7 +430,7 @@ defmodule Quacks.Game.Essence do
   # Vampirism: one chip for at most `coins`, from this round's shop.
   defp buys(g, coins) do
     for chip <- Chips.shop(g.expansions, g.sets),
-        Chips.price(chip, g.sets) <= coins and Game.available?(g, chip),
+        Chips.price(chip, g.sets) <= coins and State.available?(g, chip),
         do: chip
   end
 
@@ -443,11 +443,11 @@ defmodule Quacks.Game.Essence do
   @spec rats(Game.t()) :: Game.t()
   def rats(g) do
     g.seats
-    |> Enum.filter(&(:rat in glass(Game.player(g, &1))))
+    |> Enum.filter(&(:rat in glass(State.player(g, &1))))
     |> Enum.reduce(g, fn seat, g ->
       g
-      |> Game.update_player(seat, &rat/1)
-      |> Game.record(seat, {:essence_rat, 1})
+      |> State.update_player(seat, &rat/1)
+      |> State.record(seat, {:essence_rat, 1})
     end)
   end
 
@@ -464,7 +464,7 @@ defmodule Quacks.Game.Essence do
   @spec display(Game.t()) :: Game.t()
   def display(g) do
     Enum.reduce(g.seats, g, fn seat, g ->
-      p = Game.player(g, seat)
+      p = State.player(g, seat)
 
       case glass(p) do
         [{:draw, n}] ->
@@ -472,8 +472,8 @@ defmodule Quacks.Game.Essence do
           {whites, rest} = Enum.split_with(chips, &match?({:white, _}, &1))
 
           g
-          |> Game.update_player(seat, &%{&1 | display: rest, bag: whites ++ &1.bag})
-          |> Game.record(seat, {:display, chips})
+          |> State.update_player(seat, &%{&1 | display: rest, bag: whites ++ &1.bag})
+          |> State.record(seat, {:display, chips})
 
         _ ->
           g
@@ -488,7 +488,7 @@ defmodule Quacks.Game.Essence do
   """
   @spec after_place(Game.t(), Game.seat(), Chips.chip(), term) :: Game.t()
   def after_place(%{phase: :potions} = g, seat, chip, book) do
-    p = Game.player(g, seat)
+    p = State.player(g, seat)
     in_pot? = book != :bowl
 
     offer =
@@ -501,7 +501,8 @@ defmodule Quacks.Game.Essence do
       end
 
     if offer,
-      do: Game.update_player(g, seat, &%{&1 | essence_pending: {:offers, offers(&1) ++ [offer]}}),
+      do:
+        State.update_player(g, seat, &%{&1 | essence_pending: {:offers, offers(&1) ++ [offer]}}),
       else: g
   end
 
@@ -520,8 +521,10 @@ defmodule Quacks.Game.Essence do
   @spec open_offers(Game.t()) :: Game.t()
   def open_offers(g) do
     g.seats
-    |> Enum.filter(&match?(%{phase: :potions, essence_pending: {:offers, _}}, Game.player(g, &1)))
-    |> Enum.reduce(g, &Game.update_player(&2, &1, fn p -> open_offer(p) end))
+    |> Enum.filter(
+      &match?(%{phase: :potions, essence_pending: {:offers, _}}, State.player(g, &1))
+    )
+    |> Enum.reduce(g, &State.update_player(&2, &1, fn p -> open_offer(p) end))
   end
 
   defp open_offer(p) do
@@ -546,7 +549,7 @@ defmodule Quacks.Game.Essence do
   # The pumpkin goes to the next ruby space; the next chip counts from there.
   defp answer(g, seat, :carrot, {:carrot, _}) do
     g
-    |> Game.update_player(seat, fn %{drawn: [{chip, i} | rest]} = p ->
+    |> State.update_player(seat, fn %{drawn: [{chip, i} | rest]} = p ->
       j = next_ruby(i)
       %{p | drawn: [{chip, j} | rest], pot_index: j}
     end)
@@ -556,7 +559,7 @@ defmodule Quacks.Game.Essence do
   # The white moves its value once more. ⚠️ It still counts toward the explosion.
   defp answer(g, seat, :double, {:wing, _}) do
     g
-    |> Game.update_player(seat, fn %{drawn: [{{:white, v} = chip, i} | rest]} = p ->
+    |> State.update_player(seat, fn %{drawn: [{{:white, v} = chip, i} | rest]} = p ->
       j = PotTrack.chip_index(i + v)
       %{p | drawn: [{chip, j} | rest], pot_index: j}
     end)
@@ -571,7 +574,7 @@ defmodule Quacks.Game.Essence do
 
   defp spend(g, seat, n, what) do
     g
-    |> Game.update_player(seat, &%{&1 | essence: &1.essence - n})
-    |> Game.record(seat, {:essence_spent, n, what})
+    |> State.update_player(seat, &%{&1 | essence: &1.essence - n})
+    |> State.record(seat, {:essence_spent, n, what})
   end
 end

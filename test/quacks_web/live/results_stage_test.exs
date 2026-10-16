@@ -8,6 +8,7 @@ defmodule QuacksWeb.ResultsStageTest do
   import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
   alias Quacks.Game
+  alias Quacks.Game.Round
   alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
@@ -773,7 +774,7 @@ defmodule QuacksWeb.ResultsStageTest do
         |> GameHelpers.put(0, bag: [{:green, 1}, {:white, 1}, {:orange, 1}, {:red, 1}])
         |> GameHelpers.put(0, drawn: [], pending: [])
         |> GameHelpers.put(fortune_deck: [:p13], round: 2)
-        |> Game.start_round()
+        |> Round.start_round()
       end)
 
       skip_results(view)

@@ -4,6 +4,7 @@ defmodule Quacks.FortuneRatsOrderTest do
   import Quacks.GameHelpers
 
   alias Quacks.Game
+  alias Quacks.Game.Round
 
   # Rulebook §3: the Fortune Teller card first, then the rat tails (round 28).
   defp round_start(vps, card) do
@@ -13,7 +14,7 @@ defmodule Quacks.FortuneRatsOrderTest do
     |> Enum.with_index()
     |> Enum.reduce(g, fn {vp, seat}, g -> put(g, seat, vp: vp) end)
     |> put(round: 3, fortune_deck: List.wrap(card))
-    |> Game.start_round()
+    |> Round.start_round()
   end
 
   test "VP from a purple choice counts for the rat tails" do

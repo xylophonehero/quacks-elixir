@@ -6,7 +6,7 @@ defmodule Quacks.Game do
   track, bags, draw/stop, explosion, flask, rats, bonus die, rubies, the Ingredient
   Set 1 chip effects, a shared chip supply, buying chips and end-game scoring.
 
-  Each seat (`0..3`, turn order) has a `Quacks.Player`. Game phases: `:potions`, where
+  Each seat (`0..7`, turn order) has a `Quacks.Player`. Game phases: `:potions`, where
   every player not yet `:done` acts in any order (each has their own potions-phase
   `phase`; `:stop` only marks a player `:stopped`, and they may `:resume` while
   someone else still brews), then — as soon as nobody brews any more — the evaluation
@@ -24,7 +24,7 @@ defmodule Quacks.Game do
   the round-6 white chip, the cards, the rats, solo black, the die and the starting
   rubies. The defaults are the rulebook game.
 
-  The Herb Witches (`expansion: :herb_witches`, `docs/research/herb-witches.md`) adds
+  The Herb Witches (`expansions: [:herb_witches]`, `docs/research/herb-witches.md`) adds
   its chips to the supply, the overflow bowl (`Quacks.Player.bowl`) and the herb witches
   (`Quacks.Game.Witches`): one witch of each penny colour is turned up at `new/1`
   (`witches`), and every player may call each of them once per game with
@@ -32,7 +32,7 @@ defmodule Quacks.Game do
   evaluation put the game in `:witch_choice` (every helped seat at once).
 
   Reverse pot side (`rules: %{pot_side: :back}`, `docs/research/pot-reverse-and-faq.md`
-  §1): every droplet move goes through `move_droplet/3` and waits for the player's
+  §1): every droplet move goes through one engine helper and waits for the player's
   choice: `{:droplet, :pot}` (the pot droplet) or `{:droplet, :tube}` (one glass on the
   test-tube track, its bonus at once, `Quacks.Rules.TestTubes`), one action per move.
   While a seat has moves waiting, those two are its only actions (`phase/2` is
@@ -45,8 +45,8 @@ defmodule Quacks.Game do
   picks one in `:patient_choice` before round 1. Each round, after the potions phase
   (and B2), the `:essence` phase moves every essence marker and pays its glass before
   the evaluation; patient actions follow in the next potions phase. `expansions` is a
-  `MapSet`; `expansion` is the old single field (`:herb_witches` or `nil`), kept for
-  callers that only know The Herb Witches. Use `expansion?/2`.
+  `MapSet`; use `expansion?/2`. (The old single field `expansion` is gone; `new/1`
+  still takes `expansion: :herb_witches` as an alias, for old callers and files.)
 
   Fortune Teller cards (`Quacks.Game.Fortune`): each round starts by turning up a
   card. A purple card with a choice puts the game in `:fortune_choice` (every seat
@@ -66,9 +66,22 @@ defmodule Quacks.Game do
   """
 
   import Kernel, except: [apply: 2, apply: 3]
-  alias Quacks.Game.{Essence, Evaluation, Fortune, Potions, Witches}
+  alias Quacks.Game.{Essence, Evaluation, Fortune, Potions, Round, State, Witches}
+
+  import State,
+    only: [
+      add_from_supply: 3,
+      buy: 4,
+      buys: 2,
+      done_buying: 2,
+      pot_droplet: 2,
+      record: 2,
+      record: 3,
+      update_player: 3
+    ]
+
   alias Quacks.Player
-  alias Quacks.Rules.{Alchemists, Chips, ScoringTrack, TestTubes}
+  alias Quacks.Rules.{Alchemists, Chips, TestTubes}
   alias Quacks.Rules.Witches, as: WitchCards
   alias Table.Kit.Rng
 
@@ -78,8 +91,6 @@ defmodule Quacks.Game do
   # wait; they come in the shop. Round 35: in the chip actions' choices they come
   # first (rulebook §3.2 B: black, then green and purple; the die before them all).
   @droplets_wait [:witch_choice]
-  # Rulebook §4: yellow enters the shop in round 2, purple in round 3.
-  @from_round %{yellow: 2, purple: 3}
   # Ingredient Sets (research `ingredient-sets-and-customisation.md`): Set 1 by default.
   # Black has a book too (1 = the base book, 5, 6), in every game.
   @sets %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}
@@ -126,14 +137,13 @@ defmodule Quacks.Game do
             fortune_card: nil,
             sets: @sets,
             rules: @rules,
-            expansion: nil,
             expansions: MapSet.new(),
             witches: nil,
             visitor: nil,
             visited: [],
             patients: nil
 
-  @type seat :: 0..4
+  @type seat :: 0..7
   @type phase ::
           :patient_choice
           | :potions
@@ -311,7 +321,6 @@ defmodule Quacks.Game do
           fortune_card: Quacks.Rules.Fortune.id() | nil,
           sets: Chips.sets(),
           rules: rules,
-          expansion: nil | :herb_witches,
           expansions: MapSet.t(expansion),
           witches: nil | %{WitchCards.colour() => WitchCards.id()},
           visitor: nil | WitchCards.id(),
@@ -427,7 +436,6 @@ defmodule Quacks.Game do
       fortune_deck: deck,
       sets: sets,
       rules: rules,
-      expansion: if(herb?, do: :herb_witches),
       expansions: expansions,
       witches: if(herb?, do: rng |> WitchCards.deal() |> pick_witches(opts[:witches]))
     }
@@ -439,7 +447,7 @@ defmodule Quacks.Game do
 
     if MapSet.member?(expansions, :alchemists),
       do: game |> Essence.setup() |> Essence.prepick(opts[:patients]),
-      else: start_round(game)
+      else: Round.start_round(game)
   end
 
   # The host's picks replace the dealt witch of their colour (nil: dealt). The deal
@@ -551,7 +559,94 @@ defmodule Quacks.Game do
 
   @doc "The seat that starts this round; it rotates one seat per round."
   @spec start_seat(t) :: seat
-  def start_seat(%__MODULE__{round: round, seats: seats}), do: rem(round - 1, length(seats))
+  defdelegate start_seat(game), to: State
+
+  # -- reads for the board and the bots (issue #79) -----------------------------------
+  #
+  # Callers outside the engine read the game through these functions and the struct's
+  # fields. They do not call `Quacks.Game.State` or an engine submodule
+  # (`test/quacks/game_facade_test.exs`).
+
+  @doc "`seat`'s `Quacks.Player`."
+  @spec player(t, seat) :: Player.t()
+  defdelegate player(game, seat), to: State
+
+  @doc "The seats from this round's start seat round the table."
+  @spec turn_order(t) :: [seat]
+  defdelegate turn_order(game), to: State
+
+  @doc """
+  The highest white sum that does not explode: the house rule's limit (default 7),
+  or more with B5 or the Y3 mandrake. The highest of the three wins. Takes a seat, or
+  a `Quacks.Player` that the page shows for this game.
+  """
+  @spec white_limit(t, seat | Player.t()) :: 5..9
+  def white_limit(%__MODULE__{} = g, %Player{} = p),
+    do: Enum.max([g.rules.explode_above, p.mods.explode_above, Fortune.explode_above(g)])
+
+  def white_limit(%__MODULE__{} = g, seat), do: Potions.explode_above(g, seat)
+
+  @doc "Second Chances (B3): `seat`'s next draw cannot explode the pot."
+  @spec safe_draw?(t, seat) :: boolean
+  def safe_draw?(%__MODULE__{} = g, seat), do: Fortune.safe_draw?(g, player(g, seat))
+
+  @doc """
+  What the round's Fortune Teller card gave each seat: the chips it drew, or the
+  choice it took. See `Quacks.Game.Fortune.reveals/1` for the row shape; an empty
+  map under any other card.
+  """
+  @spec card_reveals(t) :: %{seat => map}
+  defdelegate card_reveals(game), to: Fortune, as: :reveals
+
+  @doc """
+  Why Flea Market (P13) cannot trade `chip` up now, or nil when it can: `:white`,
+  `:top` (no higher value) or `:none_left` (none in the supply, or its book is not
+  out yet).
+  """
+  @spec flea_block(t, Chips.chip()) :: nil | :white | :top | :none_left
+  defdelegate flea_block(game, chip), to: Fortune
+
+  @doc "Whether the shop sells `chip` this round: its book is out and the supply has one."
+  @spec available?(t, Chips.chip()) :: boolean
+  def available?(%__MODULE__{} = g, chip), do: State.available?(g, chip)
+
+  @doc "Whether the supply has `chip` (an infinite supply has every chip of the box)."
+  @spec in_supply?(t, Chips.chip()) :: boolean
+  def in_supply?(%__MODULE__{} = g, chip), do: State.in_supply?(g, chip)
+
+  @doc """
+  The seats whose black chips black book I compares with `seat`'s: both neighbours,
+  or the seats ranked above (`black_rule: :standings`). Empty solo.
+  """
+  @spec black_targets(t, seat) :: [seat]
+  defdelegate black_targets(game, seat), to: Evaluation, as: :targets
+
+  @doc """
+  The seats from the leader down: most VP first; a tie goes to fewer rubies, then
+  to the lower seat number.
+  """
+  @spec standings(t) :: [seat]
+  defdelegate standings(game), to: Evaluation
+
+  @doc """
+  The Alchemists: the space `seat`'s essence marker reaches this round (at most 10)
+  and its parts: the colours in the pot, locoweed (book III), white 7, exploded
+  neighbours and the card.
+  """
+  @spec essence_reach(t, seat) ::
+          {0..10,
+           %{
+             colours: non_neg_integer,
+             locoweed: non_neg_integer,
+             white7: 0 | 1,
+             neighbours: 0..2,
+             card: non_neg_integer
+           }}
+  defdelegate essence_reach(game, seat), to: Essence, as: :count
+
+  @doc "The Alchemists: the 3 patients that seed `seed` deals at `new/1`."
+  @spec dealt_patients({integer, integer, integer}) :: [Alchemists.id()]
+  defdelegate dealt_patients(seed), to: Essence, as: :dealt
 
   @doc """
   Every action `apply/3` accepts for `seat` right now. During `:potions` every seat
@@ -674,13 +769,8 @@ defmodule Quacks.Game do
   # The test-tube droplet can still move (reverse pot side, not on the last glass).
   defp tube?(g, p), do: g.rules.pot_side == :back and p.tube < TestTubes.last()
 
-  @doc false
-  # The seat may still buy chips (and use the copper witches C1, C3): before round 9,
-  # once.
-  def shop_open?(g, %Player{bought?: bought?}), do: g.round < @rounds and not bought?
-
   # An exploded player who took the VP buys nothing (unless C4 gave them coins).
-  defp may_buy?(g, p), do: shop_open?(g, p) and (p.explosion_choice != :vp or p.coins > 0)
+  defp may_buy?(g, p), do: State.shop_open?(g, p) and (p.explosion_choice != :vp or p.coins > 0)
 
   @doc "`apply/3` for seat 0."
   @spec apply(t, action) :: {:ok, t} | {:error, {:illegal_action, action, phase | Player.phase()}}
@@ -865,24 +955,8 @@ defmodule Quacks.Game do
           else: g
       end)
 
-    start_round(%{g | round: round, phase: :potions})
+    Round.start_round(%{g | round: round, phase: :potions})
   end
-
-  # Rulebook §3 steps 1–2: the Fortune Teller card, then the rats. A purple card's
-  # VP (its choices included) count for the rats, so `Fortune.resolve/1` places them
-  # once the card is through (`rats/1`); only the cards about the rats (Infestation,
-  # Good Start) find them placed first (round 28). Nervousness lays out its chips.
-  @doc false
-  def start_round(g) do
-    g
-    |> Fortune.draw()
-    |> Fortune.resolve()
-    |> Essence.display()
-  end
-
-  @doc false
-  # The round's rats; The Alchemists: a rat-tail glass adds to them.
-  def rats(g), do: g |> place_rats() |> Essence.rats()
 
   # Rulebook §7: 5 coins or 2 rubies buy 1 VP, as often as you like. Whatever the seat
   # still has at its round-9 "Done" converts by itself.
@@ -904,85 +978,6 @@ defmodule Quacks.Game do
       vp -> g |> update_player(seat, &%{&1 | vp: &1.vp + vp}) |> record(seat, {:pennies, vp})
     end
   end
-
-  # Rulebook §3 step 2 (round 2+, 2+ players): everyone behind the leader counts the
-  # rat tails up to the leader and starts that many spaces past their droplet.
-  defp place_rats(%{seats: [_]} = g), do: g
-  defp place_rats(%{rules: %{rats: false}} = g), do: g
-
-  defp place_rats(g) do
-    leader = g.players |> Map.values() |> Enum.map(& &1.vp) |> Enum.max()
-
-    Enum.reduce(g.seats, g, fn seat, g ->
-      case ScoringTrack.rat_tails(player(g, seat).vp, leader) do
-        0 ->
-          g
-
-        tails ->
-          g
-          |> update_player(seat, &%{&1 | rat_stone: tails, pot_index: &1.droplet + tails})
-          |> record(seat, {:rats, tails})
-      end
-    end)
-  end
-
-  @doc false
-  # Every purchase `coins` pay for: nothing, one chip, or two chips of different
-  # colours (the shop, and purple Set 5's step-B purchase).
-  def buys(g, coins) do
-    price = &Chips.price(&1, g.sets)
-
-    singles =
-      Enum.filter(Chips.shop(g.expansions, g.sets), &(price.(&1) <= coins and available?(g, &1)))
-
-    pairs =
-      for {ca, _} = a <- singles,
-          {cb, _} = b <- singles,
-          a < b and ca != cb and price.(a) + price.(b) <= coins,
-          do: [a, b]
-
-    [[] | Enum.map(singles, &[&1])] ++ pairs
-  end
-
-  # -- shared helpers for Potions and Evaluation --------------------------------------
-
-  @doc false
-  # Pay for `chips` and put them, plus the `free` ones (the copper witch C3), in the
-  # bag. Black book II: a black chip goes to the player on the left (`give_black/2`).
-  def buy(g, seat, chips, free \\ []) do
-    cost = chips |> Enum.map(&Chips.price(&1, g.sets)) |> Enum.sum()
-    all = chips ++ free
-    g = Enum.reduce(all, g, &take_supply(&2, &1))
-    {black, mine} = Enum.split_with(all, &(&1 == {:black, 1} and g.sets[:black] == 2))
-    g = update_player(g, seat, &%{&1 | coins: &1.coins - cost, bag: mine ++ &1.bag})
-    g = if chips == [], do: g, else: record(g, seat, {:bought, chips})
-
-    Enum.reduce(black, g, fn _, g -> g |> give_black(seat) |> move_droplet(seat, 1) end)
-  end
-
-  @doc """
-  Move `seat`'s droplet `n` spaces: every chip action, die face, card and book that
-  moves the droplet calls this. Front side: the pot droplet moves now. Reverse side
-  (`pot_side: :back`): the moves wait in `droplet_moves` for the player's
-  `{:droplet, :pot | :tube}` choices; with the test-tube droplet on the last glass,
-  the pot droplet takes them at once. Before the round's first draw the pot's start
-  follows the droplet.
-  """
-  @spec move_droplet(t, seat, non_neg_integer) :: t
-  def move_droplet(%__MODULE__{} = g, _seat, 0), do: g
-
-  def move_droplet(%__MODULE__{} = g, seat, n) do
-    if g.rules.pot_side == :back and player(g, seat).tube < TestTubes.last(),
-      do: update_player(g, seat, &%{&1 | droplet_moves: &1.droplet_moves + n}),
-      else: update_player(g, seat, &pot_droplet(&1, n))
-  end
-
-  defp pot_droplet(%Player{drawn: []} = p, n) do
-    p = %{p | droplet: p.droplet + n}
-    %{p | pot_index: Player.start_index(p)}
-  end
-
-  defp pot_droplet(%Player{} = p, n), do: %{p | droplet: p.droplet + n}
 
   # One waiting move is done; on the last glass the rest go to the pot droplet.
   defp droplet_moved(g, seat) do
@@ -1010,98 +1005,4 @@ defmodule Quacks.Game do
 
     record(g, seat, {:tube, glass, bonus})
   end
-
-  @doc false
-  def player(%__MODULE__{players: players}, seat), do: Map.fetch!(players, seat)
-
-  @doc false
-  def update_player(%__MODULE__{players: players} = g, seat, fun),
-    do: %{g | players: Map.update!(players, seat, fun)}
-
-  @doc false
-  def record(%__MODULE__{log: log} = g, entry), do: %{g | log: [entry | log]}
-
-  @doc false
-  def record(%__MODULE__{} = g, seat, entry), do: record(g, {seat, entry})
-
-  # A chip can be bought or taken: its book is out this round and the box has one.
-  @doc false
-  def available?(%__MODULE__{round: round} = g, {colour, _} = chip),
-    do: round >= Map.get(@from_round, colour, 1) and in_supply?(g, chip)
-
-  # The box has `n` of `chip`; an infinite supply always has (if the chip is in the box).
-  @doc false
-  def in_supply?(%__MODULE__{} = g, chip, n \\ 1),
-    do: Map.has_key?(g.supply, chip) and (g.rules.supply == :infinite or g.supply[chip] >= n)
-
-  # An infinite supply is never counted: taking and returning leave it as it is.
-  @doc false
-  def take_supply(%__MODULE__{rules: %{supply: :infinite}} = g, _chip), do: g
-
-  def take_supply(%__MODULE__{} = g, chip),
-    do: %{g | supply: Map.update!(g.supply, chip, &(&1 - 1))}
-
-  @doc false
-  def return_supply(%__MODULE__{rules: %{supply: :infinite}} = g, _chip), do: g
-
-  def return_supply(%__MODULE__{} = g, chip),
-    do: %{g | supply: Map.update!(g.supply, chip, &(&1 + 1))}
-
-  # Move a chip from the supply into a bag; nothing happens when the box is empty.
-  @doc false
-  def add_from_supply(%__MODULE__{} = g, seat, chip) do
-    if in_supply?(g, chip),
-      do: g |> take_supply(chip) |> update_player(seat, &%{&1 | bag: [chip | &1.bag]}),
-      else: g
-  end
-
-  @doc false
-  # The seat to the left of `seat` (the next seat in turn order); `nil` solo.
-  # ⚠️ "Left" read as the next seat clockwise, the direction of play.
-  def left(%__MODULE__{seats: [_]}, _seat), do: nil
-  def left(%__MODULE__{seats: seats}, seat), do: rem(seat + 1, length(seats))
-
-  @doc false
-  # Black book II: a black chip out of the supply goes into the left player's bag
-  # (solo: back to the supply). The caller moves the receiver's droplet.
-  def give_black(%__MODULE__{} = g, seat) do
-    case left(g, seat) do
-      nil ->
-        g
-        |> return_supply({:black, 1})
-        |> effect(seat, {:black, 2}, :to_supply)
-
-      left ->
-        g
-        |> update_player(left, &%{&1 | bag: [{:black, 1} | &1.bag]})
-        |> effect(seat, {:black, 2}, {:to_left, left})
-    end
-  end
-
-  @doc false
-  # Log a Set 2–6 chip effect: `{seat, {:effect, {colour, set}, detail}}`.
-  def effect(%__MODULE__{} = g, seat, book, detail), do: record(g, seat, {:effect, book, detail})
-
-  # The seats from this round's start player round the table.
-  @doc false
-  def turn_order(%__MODULE__{seats: seats} = g) do
-    {before, from} = Enum.split(seats, start_seat(g))
-    from ++ before
-  end
-
-  # Open the shop for every seat at once, in one step (`:shop`): buy once, spend
-  # rubies, end. ponytail: round 9 has no buy; chips bought now are useless (§7).
-  # Coins stay on the player and convert to VP at the seat's `:end_round`.
-  # Round 45: a seat the copper witch C1 can help starts in `:upgrade`.
-  @doc false
-  def to_shop(%__MODULE__{} = g) do
-    Enum.reduce(g.seats, %{g | phase: :shopping}, fn seat, g ->
-      g
-      |> update_player(seat, &%{&1 | phase: :shop})
-      |> Witches.open_upgrade(seat)
-    end)
-  end
-
-  @doc false
-  def done_buying(g, seat), do: update_player(g, seat, &%{&1 | bought?: true})
 end

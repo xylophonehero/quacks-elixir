@@ -15,7 +15,6 @@ defmodule Quacks.AI.Choice do
 
   alias Quacks.AI.Profile
   alias Quacks.Game
-  alias Quacks.Game.Potions
   alias Quacks.Rules.Chips
 
   # The P13 upgrades (`Quacks.Game.Fortune`), also the copper witch C1's.
@@ -148,7 +147,7 @@ defmodule Quacks.AI.Choice do
 
   # B7: a coloured chip moves the pot; a white only when it cannot explode.
   defp place({:white, w}, game, seat, profile) do
-    room = Potions.explode_above(game, seat) - Game.white_sum(game, seat)
+    room = Game.white_limit(game, seat) - Game.white_sum(game, seat)
     if w <= room, do: w * space(game.round, profile) - 0.5, else: -10
   end
 

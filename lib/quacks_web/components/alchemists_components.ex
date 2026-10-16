@@ -12,7 +12,6 @@ defmodule QuacksWeb.AlchemistsComponents do
   import QuacksWeb.GameText, only: [chip_name: 1]
 
   alias Quacks.Game
-  alias Quacks.Game.Essence
   alias Quacks.Rules.Alchemists
 
   # Patients whose essence pays for actions in the next preparation phase.
@@ -328,12 +327,12 @@ defmodule QuacksWeb.AlchemistsComponents do
   @doc """
   The space the essence would reach from the pot of `seat` as it is now, while the
   game brews (`:potions`); else `nil`. The essence phase count
-  (`Quacks.Game.Essence.count/2`) without the exploded neighbours, which are not
+  (`Quacks.Game.essence_reach/2`) without the exploded neighbours, which are not
   known until they stop.
   """
   @spec preview_space(Game.t(), Game.seat()) :: 0..10 | nil
   def preview_space(%{phase: :potions} = game, seat) do
-    {_reach, parts} = Essence.count(game, seat)
+    {_reach, parts} = Game.essence_reach(game, seat)
     min(parts.colours + parts.locoweed + parts.white7 + parts.card, Alchemists.max_space())
   end
 

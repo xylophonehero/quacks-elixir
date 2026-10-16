@@ -5,7 +5,6 @@ defmodule Quacks.AI.Odds do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.{Fortune, Potions}
   alias Quacks.Player
 
   @doc """
@@ -54,9 +53,9 @@ defmodule Quacks.AI.Odds do
   def next_draw_count(game, seat) do
     p = Game.player(game, seat)
 
-    if Fortune.safe_draw?(game, p) or p.starters != [],
+    if Game.safe_draw?(game, seat) or p.starters != [],
       do: {0, length(p.bag)},
-      else: bust_count(p.bag, Player.white_sum(p), Potions.explode_above(game, seat))
+      else: bust_count(p.bag, Player.white_sum(p), Game.white_limit(game, seat))
   end
 
   @doc """
@@ -66,6 +65,6 @@ defmodule Quacks.AI.Odds do
   @spec after_return(Game.t(), Game.seat(), pos_integer) :: float
   def after_return(game, seat, w) do
     p = Game.player(game, seat)
-    bust([{:white, w} | p.bag], Player.white_sum(p) - w, Potions.explode_above(game, seat))
+    bust([{:white, w} | p.bag], Player.white_sum(p) - w, Game.white_limit(game, seat))
   end
 end

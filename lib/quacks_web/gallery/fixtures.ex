@@ -16,6 +16,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
   """
 
   alias Quacks.Game
+  alias Quacks.Game.State
   alias Quacks.Rules.Chips
   alias Quacks.Scenarios.Script
   alias QuacksWeb.{Reveal, TileReveal, Tips}
@@ -682,7 +683,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
     aft =
       g
       |> put(0, drawn: List.keydelete(p.drawn, {:green, 1}, 0), bag: [{:green, 2} | p.bag])
-      |> Game.effect(0, {:purple, 4}, {:upgrade, {:green, 1}, {:green, 2}})
+      |> State.effect(0, {:purple, 4}, {:upgrade, {:green, 1}, {:green, 2}})
 
     {g, aft, false}
   end
@@ -785,8 +786,8 @@ defmodule QuacksWeb.Gallery.Fixtures do
     g =
       n
       |> brewed_round(round_opts(a))
-      |> Game.update_player(0, &%{&1 | rubies: &1.rubies + 2})
-      |> Game.record(0, {:fortune, :ap3, :rubies})
+      |> State.update_player(0, &%{&1 | rubies: &1.rubies + 2})
+      |> State.record(0, {:fortune, :ap3, :rubies})
 
     screen(g, a, seen: %{}, step: :rubies)
   end

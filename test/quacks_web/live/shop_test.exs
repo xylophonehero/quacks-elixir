@@ -9,6 +9,7 @@ defmodule QuacksWeb.ShopTest do
   import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
   alias Quacks.Game
+  alias Quacks.Game.Round
   alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
@@ -55,7 +56,7 @@ defmodule QuacksWeb.ShopTest do
       refute has_element?(view, "dialog [data-role=purple-buy]")
       assert has_element?(view, "[data-area=context] > #{@panel}.pick-panel")
 
-      shop = List.flatten(ShopComponents.shop_rows(game.expansion, game.sets))
+      shop = List.flatten(ShopComponents.shop_rows(game.expansions, game.sets))
       assert length(shop) == length(view |> render() |> chips_in("#{@panel} label"))
 
       for chip <- shop, Chips.price(chip, game.sets) > coins do
@@ -211,7 +212,7 @@ defmodule QuacksWeb.ShopTest do
       g
       |> GameHelpers.put(0, bag: bag, drawn: [], pending: [])
       |> GameHelpers.put(fortune_deck: [:p13], round: 2)
-      |> Game.start_round()
+      |> Round.start_round()
     end)
 
     skip_results(view)
@@ -280,7 +281,7 @@ defmodule QuacksWeb.ShopTest do
       view |> element("#new-game") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
-    assert game.expansion == nil
+    refute Game.expansion?(game, :herb_witches)
     assert game.sets.black == 3
   end
 
@@ -550,7 +551,7 @@ defmodule QuacksWeb.ShopTest do
         g
         |> H.put(0, explosion_choice: :vp, coins: 0, rubies: 3)
         |> H.put(1, coins: 20)
-        |> Quacks.Game.to_shop()
+        |> Round.to_shop()
       end)
 
       %{alice: alice, bob: bob}

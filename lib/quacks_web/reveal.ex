@@ -26,7 +26,7 @@ defmodule QuacksWeb.Reveal do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.{Evaluation, Fortune}
+  alias Quacks.Rules.Fortune
   alias Quacks.Rules.PotTrack
   alias QuacksWeb.Replay
 
@@ -113,7 +113,7 @@ defmodule QuacksWeb.Reveal do
 
   @doc """
   Round 37 (item 5): the everyone-card rows of the results panel: the rows of
-  `Quacks.Game.Fortune.reveals/1`, and for Take a Chance (P12, everyone rolls the
+  `Quacks.Game.card_reveals/1`, and for Take a Chance (P12, everyone rolls the
   bonus die) a row per seat with the face (`die`) and what it gave (`gains`).
   """
   @spec card_reveals(Game.t()) :: %{Game.seat() => map}
@@ -141,7 +141,7 @@ defmodule QuacksWeb.Reveal do
     |> Map.new()
   end
 
-  def card_reveals(game), do: Fortune.reveals(game)
+  def card_reveals(game), do: Game.card_reveals(game)
 
   defp die_gains({:vp, n}), do: [{:vp, n}]
   defp die_gains(:ruby), do: [{:rubies, 1}]
@@ -310,7 +310,7 @@ defmodule QuacksWeb.Reveal do
   end
 
   # One book's slide: a row per seat with the chips that count, what it is compared
-  # with (black: `Evaluation.targets/2`), its result lines and the reward. `pick`
+  # with (black: `Game.black_targets/2`), its result lines and the reward. `pick`
   # selects the book's lines; no seat with a line, no slide.
   defp book_slide(game, lines, order, colour, pick) do
     mine = Map.new(order, fn s -> {s, Enum.filter(lines[s], pick)} end)
@@ -414,7 +414,7 @@ defmodule QuacksWeb.Reveal do
     end
   end
 
-  # Black book I compares the black chips with `Evaluation.targets/2` (both
+  # Black book I compares the black chips with `Game.black_targets/2` (both
   # neighbours, or the players ranked above): `[{seat, count}]` of the targets, with
   # the standings before this round's results (`before`, `Replay.before/2`). Not
   # black, or solo: nobody to compare with.
@@ -422,12 +422,12 @@ defmodule QuacksWeb.Reveal do
   defp compare(%Game{seats: [_]}, _before, _seat), do: []
 
   defp compare(game, before, seat),
-    do: for(s <- Evaluation.targets(before, seat), do: {s, blacks(game, s)})
+    do: for(s <- Game.black_targets(before, seat), do: {s, blacks(game, s)})
 
   # The game with every seat's VP and rubies as they were before the round's results.
   defp before_game(game) do
     Enum.reduce(before_results(game), game, fn {s, {vp, rubies}}, g ->
-      Game.update_player(g, s, &%{&1 | vp: vp, rubies: rubies})
+      %{g | players: Map.update!(g.players, s, &%{&1 | vp: vp, rubies: rubies})}
     end)
   end
 
@@ -502,7 +502,7 @@ defmodule QuacksWeb.Reveal do
     do: Map.update(totals, s, {vp, rubies}, fn {v, r} -> {v + vp, r + rubies} end)
 
   # Seats in VP order: most VP first, a tie to fewer rubies, then the lower seat (the
-  # order of `Quacks.Game.Evaluation.standings/1`).
+  # order of `Quacks.Game.standings/1`).
   defp standings_of(totals) do
     totals
     |> Map.keys()

@@ -6,6 +6,7 @@ defmodule QuacksWeb.TileTotalsTest do
   """
   use ExUnit.Case, async: true
   alias Quacks.Game
+  alias Quacks.Game.State
   alias QuacksWeb.{Replay, TileReveal}
 
   # Seat 0 got 2 rubies from "Give and take" (AP3) and 1 from the scoring space.
@@ -13,9 +14,9 @@ defmodule QuacksWeb.TileTotalsTest do
     g = Game.new(seed: {1, 2, 3}, players: 2)
 
     %{g | phase: :shopping}
-    |> Game.update_player(0, &%{&1 | rubies: rubies})
-    |> Game.record(0, {:fortune, :ap3, :rubies})
-    |> Game.record(0, {:pot_ruby, 12})
+    |> State.update_player(0, &%{&1 | rubies: rubies})
+    |> State.record(0, {:fortune, :ap3, :rubies})
+    |> State.record(0, {:pot_ruby, 12})
   end
 
   @space %{kind: :space, rows: [], gains: %{0 => {0, 1}, 1 => {0, 0}}}

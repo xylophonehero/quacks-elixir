@@ -36,31 +36,24 @@ defmodule Quacks.Game.Witches do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.{Evaluation, Potions}
+  alias Quacks.Game.{Evaluation, Potions, State}
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
   alias Quacks.Rules.Witches, as: WitchCards
   alias Table.Kit.Rng
 
-  # C1: one level up. ⚠️ Only colours with 2- and 4-chips (not white, orange, locoweed).
-  @upgrade for c <- [:green, :blue, :red, :yellow],
-               {from, to} <- [{1, 2}, {2, 4}],
-               into: %{},
-               do: {{c, from}, {c, to}}
+  # C1: one level up (rules data, `Quacks.Rules.Witches.upgrade/1`).
+  @upgrade WitchCards.upgrades()
 
   # G1: VP by the number of different colours in the pot (white not counted).
   @g1 %{1 => 3, 2 => 3, 3 => 3, 4 => 3, 5 => 4, 6 => 7, 7 => 10, 8 => 14}
-
-  @doc "C1: the chip one level up from `chip` (nil: C1 cannot upgrade it)."
-  @spec upgrade(Quacks.Rules.Chips.chip()) :: Quacks.Rules.Chips.chip() | nil
-  def upgrade(chip), do: @upgrade[chip]
 
   @doc "Every witch action `seat` may take now (`[]` in the base game)."
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
   def legal_actions(%{witches: nil}, _seat), do: []
 
   def legal_actions(g, seat) do
-    p = Game.player(g, seat)
+    p = State.player(g, seat)
 
     offer =
       if p.witch_offer != [] and g.phase == :potions and p.phase == :potions,
@@ -102,7 +95,7 @@ defmodule Quacks.Game.Witches do
   def visit(g) do
     free = WitchCards.ids() -- Map.values(g.witches)
     {id, rng} = Rng.pick(free, g.rng)
-    Game.record(%{g | visitor: id, visited: [], rng: rng}, {:visitor, id})
+    State.record(%{g | visitor: id, visited: [], rng: rng}, {:visitor, id})
   end
 
   @doc "The end of the round: the visiting witch leaves (`{:visitor_left, id}`)."
@@ -110,7 +103,7 @@ defmodule Quacks.Game.Witches do
   def leave(%{visitor: nil} = g), do: g
 
   def leave(%{visitor: id} = g),
-    do: Game.record(%{g | visitor: nil, visited: []}, {:visitor_left, id})
+    do: State.record(%{g | visitor: nil, visited: []}, {:visitor_left, id})
 
   # Is it the right moment for a witch of this colour?
   defp now?(%{phase: :potions}, _seat, p, :silver),
@@ -142,11 +135,11 @@ defmodule Quacks.Game.Witches do
 
   # Round 45: C1 has her own step before the shop (`:upgrade`), where the pot is in view.
   defp actions(g, %{phase: :upgrade} = p, :c1),
-    do: if(Game.shop_open?(g, p), do: copper(g, p, :c1), else: [])
+    do: if(State.shop_open?(g, p), do: copper(g, p, :c1), else: [])
 
   # C3 belongs to the buy; C2 and C4 too, and in round 9 before the conversion.
   defp actions(g, %{phase: :shop} = p, id) when id in [:c2, :c3, :c4] do
-    if Game.shop_open?(g, p) or (g.round == 9 and id in [:c2, :c4]),
+    if State.shop_open?(g, p) or (g.round == 9 and id in [:c2, :c4]),
       do: copper(g, p, id),
       else: []
   end
@@ -168,9 +161,9 @@ defmodule Quacks.Game.Witches do
   defp copper(_g, %{coins: coins}, :c2) when coins > 0, do: [{:witch, :copper}]
 
   defp copper(g, p, :c3) do
-    for chips <- Game.buys(g, p.coins),
+    for chips <- State.buys(g, p.coins),
         copy <- Enum.uniq(chips),
-        Game.in_supply?(g, copy, Enum.count(chips, &(&1 == copy)) + 1),
+        State.in_supply?(g, copy, Enum.count(chips, &(&1 == copy)) + 1),
         do: {:witch, :copper, {:buy, chips, copy}}
   end
 
@@ -188,7 +181,7 @@ defmodule Quacks.Game.Witches do
 
     g.seats
     |> Enum.reduce(g, fn seat, g ->
-      asked = Game.update_player(g, seat, &%{&1 | phase: :witch_choice})
+      asked = State.update_player(g, seat, &%{&1 | phase: :witch_choice})
       if legal_actions(asked, seat) != [], do: asked, else: g
     end)
     |> close_gold()
@@ -196,13 +189,13 @@ defmodule Quacks.Game.Witches do
 
   # Once no seat decides any more: steps C/D.
   defp close_gold(g) do
-    if Enum.any?(g.seats, &(Game.player(g, &1).phase == :witch_choice)),
+    if Enum.any?(g.seats, &(State.player(g, &1).phase == :witch_choice)),
       do: g,
       else: Evaluation.score(g)
   end
 
   defp gold_done(g, seat),
-    do: g |> Game.update_player(seat, &%{&1 | phase: :done}) |> close_gold()
+    do: g |> State.update_player(seat, &%{&1 | phase: :done}) |> close_gold()
 
   @doc """
   Round 45: the copper witch C1 (own or visiting) has her own step before the shop.
@@ -213,7 +206,7 @@ defmodule Quacks.Game.Witches do
   def open_upgrade(%{witches: nil} = g, _seat), do: g
 
   def open_upgrade(g, seat) do
-    asked = Game.update_player(g, seat, &%{&1 | phase: :upgrade})
+    asked = State.update_player(g, seat, &%{&1 | phase: :upgrade})
     if Enum.any?(legal_actions(asked, seat), &upgrade?/1), do: asked, else: g
   end
 
@@ -229,10 +222,10 @@ defmodule Quacks.Game.Witches do
   def step(g, seat, {:witch, :silver, {:place, chip}}) do
     g =
       g
-      |> Game.update_player(seat, &%{&1 | witch_offer: List.delete(&1.witch_offer, chip)})
+      |> State.update_player(seat, &%{&1 | witch_offer: List.delete(&1.witch_offer, chip)})
       |> Potions.resolve_draw(seat, chip)
 
-    if Game.player(g, seat).exploded?, do: return_offer(g, seat), else: g
+    if State.player(g, seat).exploded?, do: return_offer(g, seat), else: g
   end
 
   def step(g, seat, {:witch, :silver, :return_all}), do: return_offer(g, seat)
@@ -250,12 +243,12 @@ defmodule Quacks.Game.Witches do
   defp spend(g, seat, :visit), do: %{g | visited: [seat | g.visited]}
 
   defp spend(g, seat, colour),
-    do: Game.update_player(g, seat, &%{&1 | pennies: %{&1.pennies | colour => false}})
+    do: State.update_player(g, seat, &%{&1 | pennies: %{&1.pennies | colour => false}})
 
   # S1: the flask after the explosion; the player brews on.
   defp call(g, seat, :s1) do
     g
-    |> Game.update_player(seat, &%{&1 | flask: false, exploded?: false, phase: :potions})
+    |> State.update_player(seat, &%{&1 | flask: false, exploded?: false, phase: :potions})
     |> Potions.take_back(seat)
     |> log(seat, :s1, :flask)
   end
@@ -265,38 +258,38 @@ defmodule Quacks.Game.Witches do
     {offer, g} = Potions.take_random(g, seat, 6)
 
     g
-    |> Game.update_player(seat, &%{&1 | witch_offer: offer})
+    |> State.update_player(seat, &%{&1 | witch_offer: offer})
     |> log(seat, :s2, {:offer, length(offer)})
   end
 
   # S4: VP and coins after the explosion, and the bonus die (`explosion_choice: :witch`).
   defp call(g, seat, :s4) do
     g
-    |> Game.update_player(seat, &%{&1 | explosion_choice: :witch})
+    |> State.update_player(seat, &%{&1 | explosion_choice: :witch})
     |> log(seat, :s4, :no_penalty)
     |> Potions.finish(seat)
   end
 
   defp call(g, seat, :c2) do
-    g = Game.update_player(g, seat, &%{&1 | coins: 2 * &1.coins})
-    log(g, seat, :c2, {:coins, Game.player(g, seat).coins})
+    g = State.update_player(g, seat, &%{&1 | coins: 2 * &1.coins})
+    log(g, seat, :c2, {:coins, State.player(g, seat).coins})
   end
 
   defp call(g, seat, :c4) do
-    n = 2 * Game.player(g, seat).rubies
+    n = 2 * State.player(g, seat).rubies
 
     g
-    |> Game.update_player(seat, &%{&1 | coins: &1.coins + n})
+    |> State.update_player(seat, &%{&1 | coins: &1.coins + n})
     |> log(seat, :c4, {:coins, n})
   end
 
   defp call(g, seat, id) when id in [:g1, :g2, :g3] do
-    n = gold_gain(g, Game.player(g, seat), id)
+    n = gold_gain(g, State.player(g, seat), id)
 
     g =
       case id do
-        :g3 -> Game.update_player(g, seat, &%{&1 | rubies: &1.rubies + n})
-        _ -> Game.update_player(g, seat, &%{&1 | vp: &1.vp + n})
+        :g3 -> State.update_player(g, seat, &%{&1 | rubies: &1.rubies + n})
+        _ -> State.update_player(g, seat, &%{&1 | vp: &1.vp + n})
       end
 
     g = log(g, seat, id, if(id == :g3, do: {:rubies, n}, else: {:vp, n}))
@@ -307,18 +300,18 @@ defmodule Quacks.Game.Witches do
 
   # G4: 1 ruby per droplet or flask for the rest of this shop.
   defp call(g, seat, :g4),
-    do: g |> Game.update_player(seat, &%{&1 | ruby_price: 1}) |> log(seat, :g4, :ruby_price)
+    do: g |> State.update_player(seat, &%{&1 | ruby_price: 1}) |> log(seat, :g4, :ruby_price)
 
   # S3: the newest `n` white chips in the pot go back in the bag; their spaces stay
   # empty and the next chip counts from the newest chip left (as the mandrake does).
   # ⚠️ Returning 1 returns the newest white; bowl whites are not "in your pot".
   defp call(g, seat, :s3, n) do
-    p = Game.player(g, seat)
+    p = State.player(g, seat)
     whites = p.drawn |> Enum.filter(&match?({{:white, _}, _}, &1)) |> Enum.take(n)
     drawn = p.drawn -- whites
 
     g =
-      Game.update_player(g, seat, &%{&1 | drawn: drawn, pot_index: Potions.last_index(drawn, p)})
+      State.update_player(g, seat, &%{&1 | drawn: drawn, pot_index: Potions.last_index(drawn, p)})
 
     whites
     |> Enum.reduce(g, fn {chip, _}, g -> Potions.return_to_bag(g, seat, chip) end)
@@ -331,9 +324,9 @@ defmodule Quacks.Game.Witches do
     chips
     |> Enum.reduce(g, fn chip, g ->
       g
-      |> Game.update_player(seat, &%{&1 | drawn: List.keydelete(&1.drawn, chip, 0)})
-      |> Game.return_supply(chip)
-      |> Game.add_from_supply(seat, @upgrade[chip])
+      |> State.update_player(seat, &%{&1 | drawn: List.keydelete(&1.drawn, chip, 0)})
+      |> State.return_supply(chip)
+      |> State.add_from_supply(seat, @upgrade[chip])
     end)
     |> log(seat, :c1, {:upgrade, chips})
     |> to_shop(seat)
@@ -342,9 +335,9 @@ defmodule Quacks.Game.Witches do
   # C3: buy `chips` and take one more `copy` for free; the seat's buying ends.
   defp call(g, seat, :c3, {:buy, chips, copy}) do
     g
-    |> Game.buy(seat, chips, [copy])
+    |> State.buy(seat, chips, [copy])
     |> log(seat, :c3, {:copy, copy})
-    |> Game.done_buying(seat)
+    |> State.done_buying(seat)
   end
 
   # C1 choices: one upgradable pot chip, or the last two chips when both are.
@@ -363,7 +356,7 @@ defmodule Quacks.Game.Witches do
     chips
     |> Enum.map(&@upgrade[&1])
     |> Enum.frequencies()
-    |> Enum.all?(fn {chip, n} -> Game.in_supply?(g, chip, n) end)
+    |> Enum.all?(fn {chip, n} -> State.in_supply?(g, chip, n) end)
   end
 
   # What a gold witch G1–G3 would give `p` now: VP (G1, G2) or rubies (G3).
@@ -391,12 +384,12 @@ defmodule Quacks.Game.Witches do
   end
 
   defp return_offer(g, seat) do
-    offer = Game.player(g, seat).witch_offer
-    g = Game.update_player(g, seat, &%{&1 | witch_offer: []})
+    offer = State.player(g, seat).witch_offer
+    g = State.update_player(g, seat, &%{&1 | witch_offer: []})
     Enum.reduce(offer, g, &Potions.return_to_bag(&2, seat, &1))
   end
 
-  defp to_shop(g, seat), do: Game.update_player(g, seat, &%{&1 | phase: :shop})
+  defp to_shop(g, seat), do: State.update_player(g, seat, &%{&1 | phase: :shop})
 
-  defp log(g, seat, id, outcome), do: Game.record(g, seat, {:witch, id, outcome})
+  defp log(g, seat, id, outcome), do: State.record(g, seat, {:witch, id, outcome})
 end

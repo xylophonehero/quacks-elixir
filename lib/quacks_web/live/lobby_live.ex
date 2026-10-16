@@ -79,7 +79,6 @@ defmodule QuacksWeb.LobbyLive do
   import QuacksWeb.AlchemistsComponents, only: [patient_picker: 1, parse_patient: 2]
 
   alias Quacks.{Game, GameServer}
-  alias Quacks.Game.Essence
   alias Quacks.Rules.{Alchemists, BookPresets}
 
   @max_players 8
@@ -949,7 +948,7 @@ defmodule QuacksWeb.LobbyLive do
       <.patient_picker
         :if={@alchemists}
         id="lobby-patient"
-        patients={Essence.dealt(@seed)}
+        patients={Game.dealt_patients(@seed)}
         chosen={@patient}
       />
       <p :if={!@alchemists} class="text-sm text-ink-soft" data-role="expansion-off">
@@ -1283,7 +1282,7 @@ defmodule QuacksWeb.LobbyLive do
         do: {name, icon}
   end
 
-  defp dealt(socket), do: Essence.dealt(socket.assigns.seed)
+  defp dealt(socket), do: Game.dealt_patients(socket.assigns.seed)
 
   # Not the engine: the process's `:rand` is fine.
   defp random_seed,

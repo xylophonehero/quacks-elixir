@@ -99,6 +99,20 @@ defmodule Quacks.Rules.Witches do
 
   @by_id Map.new(@cards, &{&1.id, &1})
 
+  # C1: one level up. ⚠️ Only colours with 2- and 4-chips (not white, orange, locoweed).
+  @upgrade for c <- [:green, :blue, :red, :yellow],
+               {from, to} <- [{1, 2}, {2, 4}],
+               into: %{},
+               do: {{c, from}, {c, to}}
+
+  @doc "C1: the chip one level up from `chip` (nil: C1 cannot upgrade it)."
+  @spec upgrade(Quacks.Rules.Chips.chip()) :: Quacks.Rules.Chips.chip() | nil
+  def upgrade(chip), do: @upgrade[chip]
+
+  @doc "C1: every upgrade, `%{from => to}`."
+  @spec upgrades() :: %{Quacks.Rules.Chips.chip() => Quacks.Rules.Chips.chip()}
+  def upgrades, do: @upgrade
+
   @doc "The card with `id`."
   @spec card(id) :: card
   def card(id), do: Map.fetch!(@by_id, id)

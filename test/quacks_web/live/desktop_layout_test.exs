@@ -83,7 +83,7 @@ defmodule QuacksWeb.DesktopLayoutTest do
     test "a Books button with the count opens the books in a drawer; no tabs" do
       {id, view} = start("drawer", %{fortune: false})
       {:ok, %{game: game}} = GameServer.get(id)
-      count = length(Books.in_play(game.expansion, game.sets))
+      count = length(Books.in_play(game.expansions, game.sets))
 
       refute has_element?(view, "[data-role=side-tabs]")
       refute has_element?(view, "#books-tab")

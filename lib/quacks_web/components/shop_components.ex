@@ -43,7 +43,7 @@ defmodule QuacksWeb.ShopComponents do
     actions = Enum.map(buys, fn {:chip, buy} -> buy end)
 
     tiles =
-      for chip <- List.flatten(shop_rows(game.expansion, game.sets)) do
+      for chip <- List.flatten(shop_rows(game.expansions, game.sets)) do
         price = Chips.price(chip, game.sets)
         %{chip: chip, price: price, off: purple_off(chip, price, remaining, selected, actions)}
       end
@@ -190,7 +190,7 @@ defmodule QuacksWeb.ShopComponents do
           Enum.reject(actions, &(match?({:buy, _}, &1) or &1 in [:end_round | copper ++ visit])),
         owned: Player.pot_chips(me) ++ me.bowl ++ me.bag,
         sets: sets,
-        rows: shop_rows(assigns.game.expansion, sets),
+        rows: shop_rows(assigns.game.expansions, sets),
         total: total,
         remaining: me.coins - total
       )
@@ -213,7 +213,7 @@ defmodule QuacksWeb.ShopComponents do
                 {Books.get({elem(hd(row), 0), 1}).name}
               </span>
               <span class="text-tag text-ink-soft">
-                {elem(hd(row), 0)} · book {roman(Chips.set(@game.expansion, @sets, elem(hd(row), 0)))}
+                {elem(hd(row), 0)} · book {roman(Chips.set(@game.expansions, @sets, elem(hd(row), 0)))}
               </span>
               <%!-- The book's text opens in place, under the row (not another sheet).
                    Round 35: the sheet scrolls so all of it shows (`quacks:reveal`). --%>
@@ -463,7 +463,7 @@ defmodule QuacksWeb.ShopComponents do
 
   # The books of the colours in a shop row (one colour per row).
   defp row_books([{colour, _value} | _], game),
-    do: [{colour, Chips.set(game.expansion, game.sets, colour)}]
+    do: [{colour, Chips.set(game.expansions, game.sets, colour)}]
 
   @doc """
   An ⓘ button for a dialog that offers chips: it opens a sheet with the ingredient
@@ -484,7 +484,7 @@ defmodule QuacksWeb.ShopComponents do
           for(
             colour <- @book_colours,
             colour in colours,
-            do: {colour, Chips.set(assigns.game.expansion, assigns.game.sets, colour)}
+            do: {colour, Chips.set(assigns.game.expansions, assigns.game.sets, colour)}
           )
       )
 

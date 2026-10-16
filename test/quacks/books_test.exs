@@ -105,8 +105,8 @@ defmodule Quacks.BooksTest do
         sets: %{locoweed: nil, orange: 1}
       )
 
-    refute {:locoweed, 1} in Chips.shop(g.expansion, g.sets)
-    refute {:orange, 6} in Chips.shop(g.expansion, g.sets)
+    refute {:locoweed, 1} in Chips.shop(g.expansions, g.sets)
+    refute {:orange, 6} in Chips.shop(g.expansions, g.sets)
     assert_raise ArgumentError, fn -> base(%{locoweed: 3}) end
   end
 

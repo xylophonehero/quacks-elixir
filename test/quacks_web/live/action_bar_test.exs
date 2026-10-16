@@ -11,6 +11,7 @@ defmodule QuacksWeb.ActionBarTest do
   import QuacksWeb.RevealHelpers
   alias Quacks.Game
   alias Quacks.Game.Potions
+  alias Quacks.Game.Round
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
   alias Quacks.Player
@@ -663,7 +664,7 @@ defmodule QuacksWeb.ActionBarTest do
         |> Quacks.GameHelpers.put(a, bag: List.duplicate({:white, 1}, 5), drawn: [], pending: [])
         |> Quacks.GameHelpers.put(b, bag: List.duplicate({:green, 2}, 5), drawn: [], pending: [])
         |> Quacks.GameHelpers.put(fortune_deck: [:p8], round: 2)
-        |> Game.start_round()
+        |> Round.start_round()
       end)
 
       skip_results(alice)

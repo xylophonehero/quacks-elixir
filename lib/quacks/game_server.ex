@@ -91,7 +91,6 @@ defmodule Quacks.GameServer do
 
   alias Quacks.{AI, Game, GameStore, Session}
   alias Quacks.AI.{Names, Profile}
-  alias Quacks.Game.Essence
 
   @idle_timeout :timer.hours(2)
   @rejoin_after_ms :timer.seconds(30)
@@ -195,7 +194,7 @@ defmodule Quacks.GameServer do
   which takes seat 0 and is the host, and `bots`: the seats (1 and up) that get a
   bot. With no seat left for a human the game begins at once (solo, or every other
   seat a bot). With The Alchemists, `patient` is the host's patient: one of the 3
-  that `seed` deals (`Quacks.Game.Essence.dealt/1`), else (or left out) `:random`.
+  that `seed` deals (`Quacks.Game.dealt_patients/1`), else (or left out) `:random`.
   `{:error, :invalid}` when the settings make no game.
   """
   @spec create(map, String.t(), {integer, integer, integer} | nil) ::
@@ -245,7 +244,7 @@ defmodule Quacks.GameServer do
 
   # `pick` when the game with `seed` deals it, else `:random`.
   defp dealt_pick(pick, seed) do
-    if is_atom(pick) and pick in Essence.dealt(seed), do: pick, else: :random
+    if is_atom(pick) and pick in Game.dealt_patients(seed), do: pick, else: :random
   end
 
   # A game's `expansions` (a MapSet) or the old single `expansion`.
@@ -1017,7 +1016,7 @@ defmodule Quacks.GameServer do
       not Map.has_key?(state.names, seat) or Map.has_key?(state.bots, seat) ->
         {:reply, {:error, :invalid}, state, @idle_timeout}
 
-      pick != :random and pick not in Essence.dealt(state.seed) ->
+      pick != :random and pick not in Game.dealt_patients(state.seed) ->
         {:reply, {:error, :invalid}, state, @idle_timeout}
 
       true ->
@@ -1743,7 +1742,7 @@ defmodule Quacks.GameServer do
       sets: state.opts[:sets],
       rules: state.opts[:rules],
       witches: state.opts[:witches] || %{},
-      patients: if(alchemists?(state.opts), do: Essence.dealt(state.seed)),
+      patients: if(alchemists?(state.opts), do: Game.dealt_patients(state.seed)),
       patient_picks: state.opts[:patients] || %{},
       expansion: state.opts[:expansion],
       expansions:

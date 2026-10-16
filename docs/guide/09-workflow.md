@@ -81,7 +81,7 @@ A builder is done when:
    - in step B: a `defp chip_action(g, seat, {colour, set})` clause
      (`lib/quacks/game/evaluation.ex:145-300`); a choice adds to `chip_choices` and
      needs `options/3` and `choose/3` clauses (`lib/quacks/game/evaluation.ex:316-414`).
-5. Log it with `Game.effect/4` and add a label: `defp effect(book, detail)` in
+5. Log it with `State.effect/4` and add a label: `defp effect(book, detail)` in
    `lib/quacks_web/game_text.ex`.
 6. Tests: `force_draws/3` in `test/quacks/chip_effects_test.exs` or
    `test/quacks/ingredient_sets_test.exs`. Update `docs/CONTEXT.md`.

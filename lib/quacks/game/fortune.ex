@@ -16,7 +16,7 @@ defmodule Quacks.Game.Fortune do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.{Essence, Evaluation, Potions, Witches}
+  alias Quacks.Game.{Essence, Evaluation, Potions, Round, State, Witches}
   alias Quacks.Player
   alias Quacks.Rules.{Chips, ScoringTrack}
   alias Quacks.Rules.Fortune, as: Cards
@@ -26,51 +26,16 @@ defmodule Quacks.Game.Fortune do
   @solo_skip [:p7, :p9]
   # The cards about the rats: the rats are placed before they resolve.
   @rats_first [:p7, :p9, :ap1, :ap4, :ap5, :ap6, :ap9]
-  # Round 30: the cards that draw chips for each seat (`reveals/1`).
-  @reveal_cards [:p8, :p13, :b7, :ap2]
-  # Round 35: the cards that offer every seat a choice (`reveals/1` has a row for
-  # each seat that chose or still chooses). Toil and Trouble offers only the seats
-  # whose right neighbour exploded.
-  @choice_cards [
-    :p1,
-    :p3,
-    :p6,
-    :p9,
-    :p10,
-    :p11,
-    :b2,
-    :ap1,
-    :ap3,
-    :ap4,
-    :ap6,
-    :ap7,
-    :ap8,
-    :ap9,
-    :ap10
-  ]
+  # The card lists and Flea Market's trade-ups are rules data (`Quacks.Rules.Fortune`).
+  @reveal_cards Cards.reveal_cards()
+  @choice_cards Cards.choice_cards()
+  @upgrade Cards.upgrades()
   # Useful rodent (AP9): the rat tails a chip of each value costs.
   @rodent %{1 => 2, 2 => 4, 4 => 6}
   # A powerful tipple (AP10): the droplet spaces back for a chip of each value.
   @tipple %{2 => 1, 4 => 2}
   # A joyful reunion (AB10): the penny that comes back first.
   @reunion [:gold, :copper, :silver]
-  # Flea Market (P13): the next higher value of the same colour. ⚠️ White is not
-  # traded up (a bigger white chip only hurts); orange, purple and black have no
-  # higher value.
-  @upgrade %{
-    {:green, 1} => {:green, 2},
-    {:green, 2} => {:green, 4},
-    {:blue, 1} => {:blue, 2},
-    {:blue, 2} => {:blue, 4},
-    {:red, 1} => {:red, 2},
-    {:red, 2} => {:red, 4},
-    {:yellow, 1} => {:yellow, 2},
-    {:yellow, 2} => {:yellow, 4}
-  }
-
-  @doc "Flea Market (P13): the chip `chip` trades up to, or nil."
-  @spec upgrade(Chips.chip()) :: Chips.chip() | nil
-  def upgrade(chip), do: Map.get(@upgrade, chip)
 
   @doc """
   The deck for `players`, shuffled with a jump of the game's `rng`: the deck comes
@@ -94,8 +59,8 @@ defmodule Quacks.Game.Fortune do
     g = %{g | fortune_deck: rest}
 
     if id in @solo_skip and length(g.seats) == 1,
-      do: g |> Game.record({:fortune_skipped, id}) |> draw(),
-      else: %{g | fortune_card: id} |> Game.record({:fortune_drawn, id}) |> visit(id)
+      do: g |> State.record({:fortune_skipped, id}) |> draw(),
+      else: %{g | fortune_card: id} |> State.record({:fortune_drawn, id}) |> visit(id)
   end
 
   # AB8 Visit from a witch: a witch not in play visits this round.
@@ -103,21 +68,21 @@ defmodule Quacks.Game.Fortune do
   defp visit(g, _id), do: g
 
   @doc """
-  Resolve the round's card, then place the rats (`Game.rats/1`): a purple card's
+  Resolve the round's card, then place the rats (`Round.rats/1`): a purple card's
   automatic part and its choices first, so the VP they give count for the rats.
   Infestation and Good Start act on the rats, so the rats come first for them. Blue
   (or no card): the rats at once.
   """
   @spec resolve(Game.t()) :: Game.t()
   def resolve(%{fortune_card: id} = g) when id in @rats_first,
-    do: g |> Game.rats() |> auto(id) |> open_choices()
+    do: g |> Round.rats() |> auto(id) |> open_choices()
 
-  def resolve(%{fortune_card: nil} = g), do: Game.rats(g)
+  def resolve(%{fortune_card: nil} = g), do: Round.rats(g)
 
   def resolve(g) do
     if Cards.card(g.fortune_card).colour == :purple,
       do: g |> auto(g.fortune_card) |> open_choices(),
-      else: Game.rats(g)
+      else: Round.rats(g)
   end
 
   @doc """
@@ -130,7 +95,7 @@ defmodule Quacks.Game.Fortune do
 
   @doc """
   Round 30: what this round's card drew for each seat and what it gave, from the log,
-  for the cards that draw chips per seat (`reveal_card?/1`: P8 Less is More, P13 Flea
+  for the cards that draw chips per seat (`Quacks.Rules.Fortune.reveal_card?/1`: P8 Less is More, P13 Flea
   Market, B7 Safety Procedure). Per seat that drew: `drew` (the chips, in draw order),
   `number` (P8: their sum, else nil), `traded` (P13: the chip traded up, or nil),
   `gains` (`{:chip, chip}` taken from the supply, `{:rubies, n}`, `{:placed, chip}`
@@ -138,7 +103,7 @@ defmodule Quacks.Game.Fortune do
   `choosing?` (the seat still chooses). The card sheet, the corner card and the
   player tiles show it.
 
-  Round 35: also for the cards that offer each seat a choice (`choice_card?/1`):
+  Round 35: also for the cards that offer each seat a choice (`Quacks.Rules.Fortune.choice_card?/1`):
   a row per seat that chose or still chooses, with `drew` empty and `gains` what it
   took, also `{:rubies, -1}` (P3's price), `{:vp, n}`, `{:droplet, 2}`,
   `{:removed, chip}` (P6's white 1) and `{:rats, -n}` (P9); `[]` for a pass.
@@ -183,7 +148,7 @@ defmodule Quacks.Game.Fortune do
          row
          | gains: Enum.reverse(row.gains),
            best?: row.number != nil and row.number == low,
-           choosing?: Game.player(g, seat).phase == :fortune_choice
+           choosing?: State.player(g, seat).phase == :fortune_choice
        }}
     end)
   end
@@ -212,10 +177,6 @@ defmodule Quacks.Game.Fortune do
 
   def reveals(_g), do: %{}
 
-  @doc "Round 35: whether card `id` offers every seat a choice (`reveals/1` has rows)."
-  @spec choice_card?(atom | nil) :: boolean
-  def choice_card?(id), do: id in @choice_cards
-
   defp choice_row(gains, choosing?),
     do: %{drew: [], number: nil, traded: nil, gains: gains, best?: false, choosing?: choosing?}
 
@@ -240,10 +201,6 @@ defmodule Quacks.Game.Fortune do
   defp choice_gains(_id, :remove_white), do: [{:removed, {:white, 1}}]
   defp choice_gains(_id, {:rats_back, n}), do: [{:rats, -n}, {:rubies, n}]
   defp choice_gains(_id, _outcome), do: []
-
-  @doc "Whether card `id` draws chips for each seat (`reveals/1` has rows for it)."
-  @spec reveal_card?(atom | nil) :: boolean
-  def reveal_card?(id), do: id in @reveal_cards
 
   defp reveal_entry({seat, {:fortune, id, {:drew, chips}}}, acc, id) do
     number = if id == :p8, do: chips |> Enum.map(&elem(&1, 1)) |> Enum.sum()
@@ -276,20 +233,20 @@ defmodule Quacks.Game.Fortune do
   def flea_block(g, chip) do
     case @upgrade[chip] do
       nil -> :top
-      up -> if Game.available?(g, up), do: nil, else: :none_left
+      up -> if State.available?(g, up), do: nil, else: :none_left
     end
   end
 
   @doc "The card actions `seat` has right now."
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
   def legal_actions(%{phase: :fortune_choice} = g, seat) do
-    if Game.player(g, seat).phase == :fortune_choice,
+    if State.player(g, seat).phase == :fortune_choice,
       do: Enum.map(choices(g, seat), &{:fortune, &1}),
       else: []
   end
 
   def legal_actions(%{phase: :potions, fortune_card: :ab1} = g, seat) do
-    case Game.player(g, seat) do
+    case State.player(g, seat) do
       %Player{phase: :fortune_choice} = p ->
         case swapping(g, seat) do
           nil -> Enum.map(olds(p), &{:fortune, {:swap, &1}}) ++ [{:fortune, :keep}]
@@ -302,7 +259,7 @@ defmodule Quacks.Game.Fortune do
   end
 
   def legal_actions(%{phase: :potions} = g, seat),
-    do: Enum.map(potion_choices(g.fortune_card, Game.player(g, seat)), &{:fortune, &1})
+    do: Enum.map(potion_choices(g.fortune_card, State.player(g, seat)), &{:fortune, &1})
 
   def legal_actions(_g, _seat), do: []
 
@@ -318,12 +275,12 @@ defmodule Quacks.Game.Fortune do
   # from an earlier round stay beside the pot (house reading).
   def step(g, seat, {:fortune, :restart_round}) do
     this_round = set_aside_this_round(g, seat)
-    p = Game.player(g, seat)
+    p = State.player(g, seat)
     back = this_round -- (this_round -- p.aside)
 
     g
     |> log(seat, {:drew, Enum.reverse(Player.pot_chips(p))})
-    |> Game.update_player(seat, fn p ->
+    |> State.update_player(seat, fn p ->
       %{
         p
         | bag: Player.pot_chips(p) ++ p.bowl ++ back ++ p.pending ++ p.bag,
@@ -342,17 +299,17 @@ defmodule Quacks.Game.Fortune do
   # B10 Cauldron Bubble: like the flask, for the first white chip, without the flask.
   def step(g, seat, {:fortune, :return_white}) do
     g
-    |> Game.update_player(seat, &%{&1 | fortune_used?: true})
+    |> State.update_player(seat, &%{&1 | fortune_used?: true})
     |> Potions.take_back(seat)
     |> log(seat, :return_white)
   end
 
   # B7 Safety Procedure: one chip of the offer goes on the pot, the rest back in the bag.
   def step(g, seat, {:fortune, {:place, chip}}) do
-    rest = List.delete(Game.player(g, seat).pending, chip)
+    rest = List.delete(State.player(g, seat).pending, chip)
 
     g
-    |> Game.update_player(seat, &%{&1 | pending: [], bag: rest ++ &1.bag})
+    |> State.update_player(seat, &%{&1 | pending: [], bag: rest ++ &1.bag})
     |> log(seat, {:place, chip})
     |> Potions.place_last(seat, chip)
   end
@@ -366,7 +323,7 @@ defmodule Quacks.Game.Fortune do
     old = swapping(g, seat)
 
     g
-    |> Game.update_player(seat, fn p ->
+    |> State.update_player(seat, fn p ->
       i = Enum.find_index(p.drawn, &(elem(&1, 0) == old))
 
       %{
@@ -375,15 +332,15 @@ defmodule Quacks.Game.Fortune do
           phase: :potions
       }
     end)
-    |> Game.return_supply(old)
-    |> Game.take_supply(new)
+    |> State.return_supply(old)
+    |> State.take_supply(new)
     |> log(seat, {:better, old, new})
     |> Potions.finish(seat)
   end
 
   def step(g, seat, {:fortune, :keep}) do
     g
-    |> Game.update_player(seat, &%{&1 | phase: :potions})
+    |> State.update_player(seat, &%{&1 | phase: :potions})
     |> log(seat, :keep)
     |> Potions.finish(seat)
   end
@@ -393,7 +350,7 @@ defmodule Quacks.Game.Fortune do
   def step(g, seat, {:fortune, :return_white3}) do
     g =
       g
-      |> Game.update_player(seat, &%{&1 | fortune_used?: true})
+      |> State.update_player(seat, &%{&1 | fortune_used?: true})
       |> Potions.take_back(seat)
       |> log(seat, :return_white3)
 
@@ -405,7 +362,7 @@ defmodule Quacks.Game.Fortune do
 
   def step(g, seat, {:fortune, :return_all}) do
     g
-    |> Game.update_player(seat, &%{&1 | pending: [], bag: &1.pending ++ &1.bag})
+    |> State.update_player(seat, &%{&1 | pending: [], bag: &1.pending ++ &1.bag})
     |> log(seat, :return_all)
     |> Potions.finish(seat)
   end
@@ -443,7 +400,7 @@ defmodule Quacks.Game.Fortune do
   @spec on_stop(Game.t(), Game.seat()) :: Game.t()
   def on_stop(%{fortune_card: :b1} = g, seat) do
     if Game.white_sum(g, seat) == 7,
-      do: g |> Game.move_droplet(seat, 1) |> log(seat, :droplet),
+      do: g |> State.move_droplet(seat, 1) |> log(seat, :droplet),
       else: g
   end
 
@@ -455,18 +412,18 @@ defmodule Quacks.Game.Fortune do
       {offer, g} ->
         g
         |> log(seat, {:drew, offer})
-        |> Game.update_player(seat, &%{&1 | pending: offer, phase: :fortune_choice})
+        |> State.update_player(seat, &%{&1 | pending: offer, phase: :fortune_choice})
     end
   end
 
   # AB1: a coloured 2- or 4-chip in the pot can be swapped (player phase
   # `:fortune_choice`: `{:swap, old}` then `{:take, new}`, or `:keep`).
   def on_stop(%{fortune_card: :ab1} = g, seat) do
-    p = Game.player(g, seat)
+    p = State.player(g, seat)
 
     if Enum.all?(olds(p), &(news(g, &1) == [])),
       do: g,
-      else: Game.update_player(g, seat, &%{&1 | phase: :fortune_choice})
+      else: State.update_player(g, seat, &%{&1 | phase: :fortune_choice})
   end
 
   def on_stop(g, _seat), do: g
@@ -484,13 +441,13 @@ defmodule Quacks.Game.Fortune do
   end
 
   def after_payout(%{fortune_card: :ab4} = g, seat) do
-    p = Game.player(g, seat)
+    p = State.player(g, seat)
 
     if p.explosion_choice == :vp or p.rat_stone == 0,
       do: g,
       else:
         g
-        |> Game.update_player(seat, &%{&1 | coins: &1.coins + 2 * p.rat_stone})
+        |> State.update_player(seat, &%{&1 | coins: &1.coins + 2 * p.rat_stone})
         |> log(seat, {:coins, 2 * p.rat_stone})
   end
 
@@ -502,10 +459,10 @@ defmodule Quacks.Game.Fortune do
   """
   @spec essence_bonus(Game.t(), Game.seat()) :: non_neg_integer
   def essence_bonus(%{fortune_card: :ab6} = g, seat),
-    do: if(Game.player(g, seat).exploded?, do: 2, else: 0)
+    do: if(State.player(g, seat).exploded?, do: 2, else: 0)
 
   def essence_bonus(%{fortune_card: :ab9} = g, seat) do
-    case Game.player(g, seat) do
+    case State.player(g, seat) do
       %Player{drawn: [{_chip, i}, {_prev, j} | _]} -> max(i - j, 0)
       %Player{drawn: [{_chip, i}]} = p -> max(i - Player.start_index(p), 0)
       _p -> 0
@@ -524,14 +481,14 @@ defmodule Quacks.Game.Fortune do
     high = g.players |> Map.values() |> Enum.map(& &1.essence) |> Enum.max()
 
     g
-    |> Game.turn_order()
-    |> Enum.filter(&(Game.player(g, &1).essence == high))
+    |> State.turn_order()
+    |> Enum.filter(&(State.player(g, &1).essence == high))
     |> Enum.reduce(g, fn seat, g ->
-      if Game.player(g, seat).flask do
+      if State.player(g, seat).flask do
         {face, g} = Evaluation.roll(g, seat)
         log(g, seat, {:rolled, face})
       else
-        g |> Game.update_player(seat, &%{&1 | flask: true}) |> log(seat, :flask)
+        g |> State.update_player(seat, &%{&1 | flask: true}) |> log(seat, :flask)
       end
     end)
   end
@@ -542,7 +499,7 @@ defmodule Quacks.Game.Fortune do
   @spec sale(Game.t(), [Chips.chip()]) :: [Chips.chip()]
   def sale(%{fortune_card: :ab2} = g, [_, _] = chips) do
     cheap = Enum.min_by(chips, &Chips.price(&1, g.sets))
-    if Game.available?(g, cheap), do: [cheap], else: []
+    if State.available?(g, cheap), do: [cheap], else: []
   end
 
   def sale(_g, _chips), do: []
@@ -550,10 +507,10 @@ defmodule Quacks.Game.Fortune do
   @doc "Step C/D extra for a scoring space with a ruby: B8 gives 2 VP, B11 a ruby."
   @spec ruby_space(Game.t(), Game.seat()) :: Game.t()
   def ruby_space(%{fortune_card: :b8} = g, seat),
-    do: g |> Game.update_player(seat, &%{&1 | vp: &1.vp + 2}) |> log(seat, {:vp, 2})
+    do: g |> State.update_player(seat, &%{&1 | vp: &1.vp + 2}) |> log(seat, {:vp, 2})
 
   def ruby_space(%{fortune_card: :b11} = g, seat),
-    do: g |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + 1}) |> log(seat, :ruby)
+    do: g |> State.update_player(seat, &%{&1 | rubies: &1.rubies + 1}) |> log(seat, :ruby)
 
   def ruby_space(g, _seat), do: g
 
@@ -561,16 +518,16 @@ defmodule Quacks.Game.Fortune do
   @spec refill_flasks(Game.t()) :: Game.t()
   def refill_flasks(%{fortune_card: :b9} = g) do
     g.seats
-    |> Enum.reject(&Game.player(g, &1).flask)
+    |> Enum.reject(&State.player(g, &1).flask)
     |> Enum.reduce(g, fn seat, g ->
-      g |> Game.update_player(seat, &%{&1 | flask: true}) |> log(seat, :flask)
+      g |> State.update_player(seat, &%{&1 | flask: true}) |> log(seat, :flask)
     end)
   end
 
   # AB10 A joyful reunion: one spent witch penny comes back (gold first).
   def refill_flasks(%{fortune_card: :ab10} = g) do
     Enum.reduce(g.seats, g, fn seat, g ->
-      p = Game.player(g, seat)
+      p = State.player(g, seat)
 
       case Enum.find(@reunion, &(Map.get(p.pennies, &1) == false)) do
         nil ->
@@ -578,7 +535,7 @@ defmodule Quacks.Game.Fortune do
 
         colour ->
           g
-          |> Game.update_player(seat, &%{&1 | pennies: %{&1.pennies | colour => true}})
+          |> State.update_player(seat, &%{&1 | pennies: %{&1.pennies | colour => true}})
           |> log(seat, {:penny, colour})
       end
     end)
@@ -588,7 +545,7 @@ defmodule Quacks.Game.Fortune do
 
   # -- purple: the automatic part ------------------------------------------------------
 
-  defp auto(g, :p2), do: each(g, &(&1 |> Game.move_droplet(&2, 1) |> log(&2, :droplet)))
+  defp auto(g, :p2), do: each(g, &(&1 |> State.move_droplet(&2, 1) |> log(&2, :droplet)))
 
   defp auto(g, :p4) do
     fewest = g |> fewest(& &1.rubies)
@@ -602,7 +559,7 @@ defmodule Quacks.Game.Fortune do
 
   defp auto(g, :p7) do
     each(g, fn g, seat ->
-      case Game.player(g, seat).rat_stone do
+      case State.player(g, seat).rat_stone do
         0 -> g
         rats -> g |> move_rats(seat, rats) |> log(seat, {:rats, rats})
       end
@@ -612,11 +569,11 @@ defmodule Quacks.Game.Fortune do
   # Less is More: everyone peeks at 5 random chips; the lowest sum takes a blue 2.
   defp auto(g, :p8) do
     {sums, g} =
-      Enum.map_reduce(Game.turn_order(g), g, fn seat, g ->
+      Enum.map_reduce(State.turn_order(g), g, fn seat, g ->
         {chips, g} = Potions.take_random(g, seat, 5)
         sum = chips |> Enum.map(&elem(&1, 1)) |> Enum.sum()
         g = log(g, seat, {:drew, chips})
-        {{seat, sum}, Game.update_player(g, seat, &%{&1 | bag: chips ++ &1.bag})}
+        {{seat, sum}, State.update_player(g, seat, &%{&1 | bag: chips ++ &1.bag})}
       end)
 
     low = sums |> Enum.map(&elem(&1, 1)) |> Enum.min()
@@ -638,7 +595,7 @@ defmodule Quacks.Game.Fortune do
   defp auto(g, :p13) do
     each(g, fn g, seat ->
       {offer, g} = Potions.take_random(g, seat, 4)
-      g = g |> log(seat, {:drew, offer}) |> Game.update_player(seat, &%{&1 | pending: offer})
+      g = g |> log(seat, {:drew, offer}) |> State.update_player(seat, &%{&1 | pending: offer})
       if upgrades(g, seat) == [], do: g |> return_offer(seat) |> take(seat, {:green, 1}), else: g
     end)
   end
@@ -653,7 +610,7 @@ defmodule Quacks.Game.Fortune do
         {[{_, v} = chip], g} ->
           g
           |> log(seat, {:drew, [chip]})
-          |> Game.update_player(seat, &%{&1 | bag: [chip | &1.bag], rubies: &1.rubies + v})
+          |> State.update_player(seat, &%{&1 | bag: [chip | &1.bag], rubies: &1.rubies + v})
           |> log(seat, {:rubies, v})
       end
     end)
@@ -662,7 +619,7 @@ defmodule Quacks.Game.Fortune do
   # A small donation: 2+ rat tails roll the die once (a roll has no downside).
   defp auto(g, :ap5) do
     each(g, fn g, seat ->
-      if Game.player(g, seat).rat_stone >= 2, do: roll(g, seat), else: g
+      if State.player(g, seat).rat_stone >= 2, do: roll(g, seat), else: g
     end)
   end
 
@@ -675,7 +632,7 @@ defmodule Quacks.Game.Fortune do
     g.seats
     |> Enum.filter(&(choices(g, &1) != []))
     |> Enum.reduce(%{g | phase: :fortune_choice}, fn seat, g ->
-      Game.update_player(g, seat, &%{&1 | phase: :fortune_choice})
+      State.update_player(g, seat, &%{&1 | phase: :fortune_choice})
     end)
     |> close_choices()
   end
@@ -686,31 +643,31 @@ defmodule Quacks.Game.Fortune do
   # choosing.
   defp answered(%{fortune_card: id} = g, seat) when id in [:ap7, :ap8] do
     if choices(g, seat) == [],
-      do: Game.update_player(g, seat, &%{&1 | phase: :potions}),
+      do: State.update_player(g, seat, &%{&1 | phase: :potions}),
       else: g
   end
 
   defp answered(g, seat) do
     back = if g.fortune_card == :b2, do: :done, else: :potions
-    Game.update_player(g, seat, &%{&1 | phase: back})
+    State.update_player(g, seat, &%{&1 | phase: back})
   end
 
   # A seat whose choices ran out (a limited supply, first come) is through as well.
   # Once nobody answers any more, the round carries on.
   defp close_choices(g) do
-    open = Enum.filter(g.seats, &(Game.player(g, &1).phase == :fortune_choice))
+    open = Enum.filter(g.seats, &(State.player(g, &1).phase == :fortune_choice))
     g = open |> Enum.filter(&(choices(g, &1) == [])) |> Enum.reduce(g, &answered(&2, &1))
 
-    if Enum.any?(g.seats, &(Game.player(g, &1).phase == :fortune_choice)),
+    if Enum.any?(g.seats, &(State.player(g, &1).phase == :fortune_choice)),
       do: g,
       else: continue(%{g | phase: :potions})
   end
 
   defp continue(%{fortune_card: :b2} = g), do: Essence.run(g)
   defp continue(%{fortune_card: id} = g) when id in @rats_first, do: g
-  defp continue(g), do: Game.rats(g)
+  defp continue(g), do: Round.rats(g)
 
-  defp choices(%{fortune_card: id} = g, seat), do: choices(id, g, Game.player(g, seat), seat)
+  defp choices(%{fortune_card: id} = g, seat), do: choices(id, g, State.player(g, seat), seat)
 
   defp choices(:p1, g, _p, _seat),
     do: takes(g, &(&1 == {:black, 1} or elem(&1, 1) == 2)) ++ [:rubies]
@@ -735,7 +692,7 @@ defmodule Quacks.Game.Fortune do
 
   # The card grants the purple chip, so the shop's "purple from round 3" does not apply.
   defp choices(:p11, g, _p, _seat),
-    do: [:droplet | if(Game.in_supply?(g, {:purple, 1}), do: [{:take, {:purple, 1}}], else: [])]
+    do: [:droplet | if(State.in_supply?(g, {:purple, 1}), do: [{:take, {:purple, 1}}], else: [])]
 
   defp choices(:p13, g, %{pending: [_ | _]}, seat),
     do: Enum.map(upgrades(g, seat), &{:upgrade, &1}) ++ [:skip]
@@ -743,7 +700,7 @@ defmodule Quacks.Game.Fortune do
   # Toil and Trouble: the player to the right (the seat before) exploded.
   defp choices(:b2, %{seats: seats} = g, _p, seat) when length(seats) > 1 do
     right = rem(seat - 1 + length(seats), length(seats))
-    if Game.player(g, right).exploded?, do: takes(g, &(elem(&1, 1) == 2)), else: []
+    if State.player(g, right).exploded?, do: takes(g, &(elem(&1, 1) == 2)), else: []
   end
 
   defp choices(:ap1, g, _p, _seat), do: [:bundle | takes(g, &(&1 == {:red, 2}))]
@@ -807,12 +764,12 @@ defmodule Quacks.Game.Fortune do
     do: g |> add_rubies(seat, -1) |> take(seat, chip)
 
   defp choose(g, seat, :p13, {:upgrade, chip}) do
-    rest = List.delete(Game.player(g, seat).pending, chip)
+    rest = List.delete(State.player(g, seat).pending, chip)
 
     g
-    |> Game.update_player(seat, &%{&1 | pending: [], bag: rest ++ &1.bag})
-    |> Game.return_supply(chip)
-    |> Game.add_from_supply(seat, @upgrade[chip])
+    |> State.update_player(seat, &%{&1 | pending: [], bag: rest ++ &1.bag})
+    |> State.return_supply(chip)
+    |> State.add_from_supply(seat, @upgrade[chip])
     |> log(seat, {:upgrade, chip})
   end
 
@@ -826,7 +783,7 @@ defmodule Quacks.Game.Fortune do
     back = @tipple[v]
 
     g
-    |> Game.update_player(seat, &restart(%{&1 | droplet: &1.droplet - back}))
+    |> State.update_player(seat, &restart(%{&1 | droplet: &1.droplet - back}))
     |> take(seat, chip)
   end
 
@@ -840,11 +797,11 @@ defmodule Quacks.Game.Fortune do
     left = left(g, seat)
     g = log(g, seat, {:gift, :white})
 
-    if {:white, 1} in Game.player(g, left).bag,
+    if {:white, 1} in State.player(g, left).bag,
       do:
         g
-        |> Game.update_player(left, &%{&1 | bag: List.delete(&1.bag, {:white, 1})})
-        |> Game.return_supply({:white, 1})
+        |> State.update_player(left, &%{&1 | bag: List.delete(&1.bag, {:white, 1})})
+        |> State.return_supply({:white, 1})
         |> log(left, :remove_white),
       else: g
   end
@@ -855,7 +812,7 @@ defmodule Quacks.Game.Fortune do
 
     if choices(g, left) == [],
       do: g,
-      else: Game.update_player(g, left, &%{&1 | phase: :fortune_choice})
+      else: State.update_player(g, left, &%{&1 | phase: :fortune_choice})
   end
 
   defp choose(g, seat, :ap1, :bundle) do
@@ -875,14 +832,14 @@ defmodule Quacks.Game.Fortune do
     do: Enum.reduce(1..4, log(g, seat, :rolls), fn _, g -> roll(g, seat) end)
 
   defp choose(g, seat, :ap4, :droplet),
-    do: g |> Game.move_droplet(seat, 3) |> log(seat, {:droplet, 3})
+    do: g |> State.move_droplet(seat, 3) |> log(seat, {:droplet, 3})
 
   defp choose(g, seat, :ap6, {:cherish, k}),
     do: g |> add_rubies(seat, -k) |> move_rats(seat, 3 * k) |> log(seat, {:cherish, k})
 
   defp choose(g, seat, :ap7, {:penny, colour}) do
     g
-    |> Game.update_player(seat, &%{&1 | pennies: %{&1.pennies | colour => false}})
+    |> State.update_player(seat, &%{&1 | pennies: %{&1.pennies | colour => false}})
     |> log(seat, {:penny, colour})
   end
 
@@ -896,15 +853,17 @@ defmodule Quacks.Game.Fortune do
 
   defp choose(g, seat, :p6, :remove_white) do
     g
-    |> Game.update_player(seat, &%{&1 | bag: List.delete(&1.bag, {:white, 1})})
-    |> Game.return_supply({:white, 1})
+    |> State.update_player(seat, &%{&1 | bag: List.delete(&1.bag, {:white, 1})})
+    |> State.return_supply({:white, 1})
     |> log(seat, :remove_white)
   end
 
   defp choose(g, seat, :p9, {:rats_back, n}),
     do: g |> move_rats(seat, -n) |> add_rubies(seat, n) |> log(seat, {:rats_back, n})
 
-  defp choose(g, seat, :p11, :droplet), do: g |> Game.move_droplet(seat, 2) |> log(seat, :droplet)
+  defp choose(g, seat, :p11, :droplet),
+    do: g |> State.move_droplet(seat, 2) |> log(seat, :droplet)
+
   defp choose(g, seat, :p13, :skip), do: g |> return_offer(seat) |> log(seat, :skip)
   defp choose(g, seat, _id, :skip), do: log(g, seat, :skip)
 
@@ -961,7 +920,7 @@ defmodule Quacks.Game.Fortune do
       not Enum.any?(card_log(g, seat), &match?({:gift_taken, _}, &1))
   end
 
-  defp each(g, fun), do: Enum.reduce(Game.turn_order(g), g, &fun.(&2, &1))
+  defp each(g, fun), do: Enum.reduce(State.turn_order(g), g, &fun.(&2, &1))
 
   # A bonus-die roll from a card, logged as `{:rolled, face}`.
   defp roll(g, seat) do
@@ -1008,7 +967,7 @@ defmodule Quacks.Game.Fortune do
   defp fewest(g, field) do
     values = Map.new(g.players, fn {seat, p} -> {seat, field.(p)} end)
     low = values |> Map.values() |> Enum.min()
-    for seat <- Game.turn_order(g), values[seat] == low, do: seat
+    for seat <- State.turn_order(g), values[seat] == low, do: seat
   end
 
   # The shop chips matching `fun` that can be taken now (in the shop and in supply).
@@ -1017,30 +976,30 @@ defmodule Quacks.Game.Fortune do
       for(
         chip <- Chips.shop(g.expansions, g.sets),
         fun.(chip),
-        Game.available?(g, chip),
+        State.available?(g, chip),
         do: {:take, chip}
       )
 
   defp upgrades(g, seat) do
-    Game.player(g, seat).pending
+    State.player(g, seat).pending
     |> Enum.uniq()
     |> Enum.sort()
-    |> Enum.filter(&(Map.has_key?(@upgrade, &1) and Game.available?(g, @upgrade[&1])))
+    |> Enum.filter(&(Map.has_key?(@upgrade, &1) and State.available?(g, @upgrade[&1])))
   end
 
   # Black book II: a black chip from a card goes to the left player; droplet +1.
   defp take(%{sets: %{black: 2}} = g, seat, {:black, 1} = chip) do
-    if Game.in_supply?(g, chip),
+    if State.in_supply?(g, chip),
       do:
         g
         |> log(seat, {:take, chip})
-        |> Game.take_supply(chip)
-        |> Game.give_black(seat)
-        |> Game.move_droplet(seat, 1),
+        |> State.take_supply(chip)
+        |> State.give_black(seat)
+        |> State.move_droplet(seat, 1),
       else: g
   end
 
-  defp take(g, seat, chip), do: g |> Game.add_from_supply(seat, chip) |> log(seat, {:take, chip})
+  defp take(g, seat, chip), do: g |> State.add_from_supply(seat, chip) |> log(seat, {:take, chip})
 
   # The red chips (R2, R6) `seat` set aside since the round began, from the log.
   defp set_aside_this_round(g, seat) do
@@ -1053,20 +1012,20 @@ defmodule Quacks.Game.Fortune do
   end
 
   defp return_offer(g, seat),
-    do: Game.update_player(g, seat, &%{&1 | pending: [], bag: &1.pending ++ &1.bag})
+    do: State.update_player(g, seat, &%{&1 | pending: [], bag: &1.pending ++ &1.bag})
 
   defp rat_tails(g, seat) do
     leader = g.players |> Map.values() |> Enum.map(& &1.vp) |> Enum.max()
-    ScoringTrack.rat_tails(Game.player(g, seat).vp, leader)
+    ScoringTrack.rat_tails(State.player(g, seat).vp, leader)
   end
 
   defp move_rats(g, seat, n),
-    do: Game.update_player(g, seat, &restart(%{&1 | rat_stone: &1.rat_stone + n}))
+    do: State.update_player(g, seat, &restart(%{&1 | rat_stone: &1.rat_stone + n}))
 
   defp restart(p), do: %{p | pot_index: Player.start_index(p)}
 
-  defp add_rubies(g, seat, n), do: Game.update_player(g, seat, &%{&1 | rubies: &1.rubies + n})
-  defp add_vp(g, seat, n), do: Game.update_player(g, seat, &%{&1 | vp: &1.vp + n})
+  defp add_rubies(g, seat, n), do: State.update_player(g, seat, &%{&1 | rubies: &1.rubies + n})
+  defp add_vp(g, seat, n), do: State.update_player(g, seat, &%{&1 | vp: &1.vp + n})
 
-  defp log(g, seat, outcome), do: Game.record(g, seat, {:fortune, g.fortune_card, outcome})
+  defp log(g, seat, outcome), do: State.record(g, seat, {:fortune, g.fortune_card, outcome})
 end
