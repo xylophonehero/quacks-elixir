@@ -15,7 +15,7 @@ defmodule CodexWeb.Gallery do
 
   @doc "The board states."
   @spec states() :: [String.t()]
-  def states, do: ~w(mid-game start selected codex discard buildings log)
+  def states, do: ~w(mid-game start selected codex discard buildings log free)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -61,6 +61,12 @@ defmodule CodexWeb.Gallery do
     do: Phoenix.Component.assign(socket, drawer: {0, :buildings})
 
   defp extra(socket, "log", _game), do: Phoenix.Component.assign(socket, drawer: :log)
+
+  defp extra(socket, "free", game) do
+    {:ok, game} = Game.apply(game, 0, {:free_mode, true})
+    Board.put_view(socket, envelope(game), nil)
+  end
+
   defp extra(socket, _state, _game), do: socket
 
   # Turn 3 of P1: heroes out with levels, units in play and on patrol, tokens,
@@ -73,6 +79,7 @@ defmodule CodexWeb.Gallery do
     [x | _] = game.sides[0].zones.codex
 
     [
+      {:free_mode, true},
       {:adjust, 0, :gold, 4},
       {:move, a, {0, :in_play}, nil},
       {:move, b, {0, :in_play}, nil},
@@ -97,7 +104,8 @@ defmodule CodexWeb.Gallery do
       :end_turn,
       {:move, d, {0, :workers}, nil},
       {:adjust, 0, :gold, -1},
-      {:draw, 0, 2}
+      {:draw, 0, 2},
+      {:free_mode, false}
     ]
     |> Enum.reduce(game, fn action, game ->
       {:ok, game} = Game.apply(game, 0, action)

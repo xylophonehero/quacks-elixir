@@ -1,27 +1,37 @@
 defmodule Codex.Game do
   @moduledoc """
-  The Codex sandbox engine: pure functions over a `%Codex.Game{}` struct.
-
-  This round is a **sandbox**: a table where the players move cards by hand. The
-  engine does not enforce the rules of Codex. It keeps one fact: every card is in
-  exactly one zone (card conservation). Later rounds add the rules one by one.
-  Rules and card data: `docs/research/codex.md`.
+  The Codex engine: pure functions over a `%Codex.Game{}` struct. Rules and card
+  data: `docs/research/codex.md` (rulebook v46 and the official rulings).
 
   The API follows the table contract of `Hearts.Game` (`new/2`,
   `legal_actions/2`, `apply/3`, `status/1`, `view/2`).
+
+  ## Two modes
+
+  - **Rules mode** (the default): only the active side acts, and only with the
+    actions of `Codex.Rules` (hire a worker, play a card, attack, ...).
+    `legal_actions/2` lists every legal action; any other action is refused.
+  - **Free mode** (`{:free_mode, true}`): the sandbox actions below also work, on
+    both sides, so a player can fix a state by hand. The rules actions still
+    work in free mode.
+
+  Each mode keeps one fact: every card is in exactly one zone (card
+  conservation). After every action the state checks run (`Codex.Rules.cleanup/1`):
+  units and heroes with no HP left die, and a base at 0 HP ends the game.
 
   ## Seats
 
   The game has two sides, seat 0 (P1) and seat 1 (P2). It is hot-seat: one
   browser plays both sides, so the room has one table seat (`table_seats/0`) and
-  the actions of that seat can change both sides.
+  its actions are those of the active side.
 
   ## Set-up (rulebook first game, research §2)
 
   Each side gets the neutral starting deck (10 cards, shuffled, 5 drawn), its
   spec's hero in the command zone and the 24 codex cards of its spec (2 copies of
   12) in the codex zone. P1 is Bashing (Troq Bashar) with 4 workers; P2 is
-  Finesse (River Montoya) with 5 workers. Base 20 HP, gold 0.
+  Finesse (River Montoya) with 5 workers. Base 20 HP, gold 0. Then P1's first
+  turn starts (`Codex.Rules.start_turn/2`): its upkeep gives it 4 gold.
 
   ## Zones
 
@@ -30,7 +40,7 @@ defmodule Codex.Game do
   and `patrol` (5 named slots, `patrol_slots/0`, each empty or one card). One
   `trash` for the table. A zone is addressed as `{seat, name}` or `:trash`.
 
-  ## Actions (`apply/3`)
+  ## Sandbox actions (free mode only)
 
   - `{:move, card_id, zone, slot_or_index}`: move a card. For `patrol`, a slot
     (it must be empty); for a list zone, the index in the new list (0 is the top
@@ -44,10 +54,12 @@ defmodule Codex.Game do
     (+1/+1 runes), `:minus` (-1/-1 runes) or `:level` (heroes, 1..max level).
   - `{:toggle, card_id, :exhausted | :face_down}`.
   - `{:adjust, seat, :gold | :base_hp, delta}`: 0..99.
-  - `{:building, seat, building}`: build or remove a tech building or add-on
+  - `{:building, seat, building}`: a finished tech building or add-on on or off
     (`buildings/0`).
-  - `:end_turn` (also `{:end_turn}`): the other side becomes active; its turn
-    count goes up by 1.
+
+  ## In both modes
+
+  - `{:free_mode, boolean}`: free mode on or off.
   - `:undo` (also `{:undo}`): go back to the state before the last action. The
     game keeps the last 50 states.
 
@@ -61,18 +73,21 @@ defmodule Codex.Game do
       5
       iex> length(game.sides[1].zones.workers)
       5
+      iex> game.sides[0].gold
+      4
   """
 
-  alias Codex.Cards
+  alias Codex.{Cards, Rules, Zones}
   alias Table.Kit.Rng
 
   @history 50
-  @patrol_slots [:squad_leader, :elite, :scavenger, :technician, :lookout]
-  @list_zones [:deck, :hand, :discard, :codex, :command, :workers, :in_play]
+  @patrol_slots Zones.patrol_slots()
+  @list_zones Zones.list_zones()
   @play_zones [:in_play, :patrol]
   @buildings [:tech_1, :tech_2, :tech_3, :tower, :surplus, :tech_lab, :heroes_hall]
   @card_keys [:damage, :plus, :minus, :level]
   @max_counter 99
+  @sandbox [:move, :draw, :shuffle, :adjust_card, :toggle, :adjust, :building]
 
   @setup %{
     0 => %{spec: "Bashing", workers: 4},
@@ -86,7 +101,20 @@ defmodule Codex.Game do
   @type slot :: :squad_leader | :elite | :scavenger | :technician | :lookout
   @type card_id :: pos_integer
 
-  @typedoc "One card on the table: an instance of a card definition (`Codex.Cards`)."
+  @typedoc """
+  One card on the table: an instance of a card definition (`Codex.Cards`).
+
+  - `seat`: the owner. The controller is the side whose zone holds the card.
+  - `damage`, `plus` (+1/+1 runes), `minus` (-1/-1 runes), `level` (heroes).
+  - `exhausted`, `face_down`.
+  - `fatigued`: it came under its controller's control this turn (arrival
+    fatigue); cleared in the controller's ready step.
+  - `attacked`: it attacked this turn (readiness).
+  - `armor_used`: the squad leader's armor took a hit this turn.
+  - `tmp_atk`, `tmp_hp`: changes until the end of the turn (Intimidate, Discord).
+  - `stealth`: stealth this turn (Sneaky Pig).
+  - `extra`: card state (Harmony's Dancer count, Two Step's partners).
+  """
   @type card :: %{
           id: card_id,
           card: String.t(),
@@ -96,15 +124,38 @@ defmodule Codex.Game do
           minus: non_neg_integer,
           level: pos_integer | nil,
           exhausted: boolean,
-          face_down: boolean
+          face_down: boolean,
+          fatigued: boolean,
+          attacked: boolean,
+          armor_used: boolean,
+          tmp_atk: integer,
+          tmp_hp: integer,
+          stealth: boolean,
+          extra: map
         }
 
+  @typedoc """
+  One side. `tech_buildings`: finished tech buildings and add-ons; `pending`:
+  started this turn, finished at the end of the turn; `building_damage`: damage
+  per building; `destroyed`: tech buildings lost (rebuilt for 0 gold). `hired`:
+  a worker hired this turn; `reshuffled`: the discard pile was shuffled into the
+  deck in this main phase. `summon_after`: the hero cannot be summoned again
+  until the side's turn count is above this. `tower_used`: the Tower detected a
+  stealth or invisible attacker this turn.
+  """
   @type side :: %{
           spec: String.t(),
           gold: non_neg_integer,
-          base_hp: non_neg_integer,
+          base_hp: integer,
           tech_buildings: [atom],
+          pending: [atom],
+          building_damage: %{atom => non_neg_integer},
+          destroyed: [atom],
           turn: non_neg_integer,
+          hired: boolean,
+          reshuffled: boolean,
+          summon_after: non_neg_integer | nil,
+          tower_used: boolean,
           zones: %{
             required(:patrol) => %{slot => card_id | nil},
             optional(zone_name) => [card_id]
@@ -115,6 +166,9 @@ defmodule Codex.Game do
           seed: {integer, integer, integer},
           rng: :rand.state(),
           active: seat,
+          phase: :main | :tech | :over,
+          free: boolean,
+          winner: seat | nil,
           cards: %{card_id => card},
           sides: %{seat => side},
           trash: [card_id],
@@ -122,7 +176,19 @@ defmodule Codex.Game do
           history: [t]
         }
 
-  defstruct [:seed, :rng, active: 0, cards: %{}, sides: %{}, trash: [], log: [], history: []]
+  defstruct [
+    :seed,
+    :rng,
+    :winner,
+    active: 0,
+    phase: :main,
+    free: false,
+    cards: %{},
+    sides: %{},
+    trash: [],
+    log: [],
+    history: []
+  ]
 
   @doc "The 5 patrol slots, left to right."
   @spec patrol_slots() :: [slot]
@@ -146,7 +212,7 @@ defmodule Codex.Game do
 
   # -- set-up --------------------------------------------------------------------------
 
-  @doc "A new sandbox game (the first-game set-up). `opts` is not used yet."
+  @doc "A new game (the first-game set-up), in P1's first main phase. `opts` is not used yet."
   @spec new(map | keyword, {integer, integer, integer}) :: {:ok, t} | {:error, term}
   def new(opts \\ %{}, seed)
 
@@ -156,7 +222,8 @@ defmodule Codex.Game do
       when is_map(opts) and is_integer(a) and is_integer(b) and is_integer(c) do
     game = %__MODULE__{seed: seed, rng: Rng.seed(seed)}
     game = Enum.reduce([0, 1], game, &setup_side/2)
-    {:ok, %{game | log: [{:setup, seed}]}}
+    game = Rules.start_turn(%{game | log: [{:setup, seed}]}, 0)
+    {:ok, game}
   end
 
   def new(_opts, _seed), do: {:error, :invalid_seed}
@@ -167,7 +234,14 @@ defmodule Codex.Game do
     {game, codex} = add_cards(game, seat, Enum.flat_map(Cards.codex(spec), &[&1, &1]))
     {game, command} = add_cards(game, seat, [Cards.hero(spec)])
     {game, worker_ids} = add_cards(game, seat, List.duplicate("worker", workers))
-    game = Enum.reduce(worker_ids, game, &update_card(&2, &1, fn c -> %{c | face_down: true} end))
+
+    game =
+      Enum.reduce(
+        worker_ids,
+        game,
+        &Zones.update_card(&2, &1, fn c -> %{c | face_down: true} end)
+      )
+
     {deck, rng} = Rng.shuffle(deck, game.rng)
     {hand, deck} = Enum.split(deck, 5)
 
@@ -176,7 +250,14 @@ defmodule Codex.Game do
       gold: 0,
       base_hp: 20,
       tech_buildings: [],
-      turn: if(seat == 0, do: 1, else: 0),
+      pending: [],
+      building_damage: %{},
+      destroyed: [],
+      turn: 0,
+      hired: false,
+      reshuffled: false,
+      summon_after: nil,
+      tower_used: false,
       zones: %{
         deck: deck,
         hand: hand,
@@ -192,7 +273,9 @@ defmodule Codex.Game do
     %{game | rng: rng, sides: Map.put(game.sides, seat, side)}
   end
 
-  defp add_cards(game, seat, slugs) do
+  @doc "Add new cards of `slugs` for `seat` (in no zone yet). Returns the game and the new ids."
+  @spec add_cards(t, seat, [String.t()]) :: {t, [card_id]}
+  def add_cards(game, seat, slugs) do
     Enum.reduce(slugs, {game, []}, fn slug, {game, ids} ->
       id = map_size(game.cards) + 1
       card = new_card(id, slug, seat)
@@ -200,7 +283,9 @@ defmodule Codex.Game do
     end)
   end
 
-  defp new_card(id, slug, seat) do
+  @doc "A fresh instance of card `slug` (no tokens, level 1 for a hero)."
+  @spec new_card(card_id, String.t(), seat) :: card
+  def new_card(id, slug, seat) do
     %{
       id: id,
       card: slug,
@@ -210,27 +295,36 @@ defmodule Codex.Game do
       minus: 0,
       level: if(Cards.hero?(slug), do: 1),
       exhausted: false,
-      face_down: false
+      face_down: false,
+      fatigued: false,
+      attacked: false,
+      armor_used: false,
+      tmp_atk: 0,
+      tmp_hp: 0,
+      stealth: false,
+      extra: %{}
     }
   end
 
   # -- the table contract ------------------------------------------------------------------
 
   @doc """
-  The action kinds of the sandbox. A sandbox action has too many forms to list
-  each one, so this gives one atom per kind (`:undo` only when there is a state to
-  go back to).
+  The legal actions of table seat 0: the rules actions of the active side
+  (`Codex.Rules.legal/1`), `{:free_mode, _}` and `:undo` (when there is a state
+  to go back to). In free mode also one atom per sandbox action kind.
   """
-  @spec legal_actions(t, non_neg_integer) :: [atom]
+  @spec legal_actions(t, non_neg_integer) :: [term]
   def legal_actions(%__MODULE__{} = game, 0) do
-    kinds = [:move, :draw, :shuffle, :adjust_card, :toggle, :adjust, :building, :end_turn]
-    if game.history == [], do: kinds, else: kinds ++ [:undo]
+    extra = [{:free_mode, !game.free}] ++ if(game.history == [], do: [], else: [:undo])
+    sandbox = if game.free, do: @sandbox, else: []
+    Rules.legal(game) ++ sandbox ++ extra
   end
 
   def legal_actions(%__MODULE__{}, _seat), do: []
 
-  @doc "The sandbox never ends: always `{:playing, [0]}` (the one table seat)."
-  @spec status(t) :: {:playing, [0]}
+  @doc "`{:over, %{winner: seat}}` when a base is destroyed, else `{:playing, [0]}`."
+  @spec status(t) :: {:playing, [0]} | {:over, map}
+  def status(%__MODULE__{phase: :over, winner: winner}), do: {:over, %{winner: winner}}
   def status(%__MODULE__{}), do: {:playing, [0]}
 
   @doc """
@@ -240,9 +334,12 @@ defmodule Codex.Game do
   def apply(%__MODULE__{} = game, 0, action) when action in [:undo, {:undo}], do: undo(game)
 
   def apply(%__MODULE__{} = game, 0, action) do
-    case do_apply(game, normalize(action)) do
+    action = normalize(action)
+
+    case do_apply(game, action) do
       {:ok, new} ->
-        entry = {:action, game.active, normalize(action)}
+        new = Rules.cleanup(new)
+        entry = {:action, game.active, action}
         {:ok, %{new | log: [entry | new.log], history: push(game)}}
 
       {:error, _} = error ->
@@ -262,51 +359,66 @@ defmodule Codex.Game do
 
   # -- the actions ---------------------------------------------------------------------------
 
-  defp do_apply(game, {:move, id, zone, at}) do
+  defp do_apply(game, {:free_mode, on}) when is_boolean(on), do: {:ok, %{game | free: on}}
+
+  defp do_apply(%__MODULE__{free: false} = game, action) when elem(action, 0) in @sandbox,
+    do: if(game.phase == :over, do: {:error, :game_over}, else: {:error, :free_mode_off})
+
+  defp do_apply(%__MODULE__{free: true} = game, action)
+       when is_tuple(action) and elem(action, 0) in @sandbox,
+       do: sandbox(game, action)
+
+  defp do_apply(game, action), do: Rules.act(game, action)
+
+  defp sandbox(game, {:move, id, zone, at}) do
     with {:ok, _card} <- fetch_card(game, id),
          :ok <- check_zone(zone),
          :ok <- check_at(game, id, zone, at) do
-      from = locate(game, id)
-      game = game |> remove(id) |> insert(id, zone, at)
-      {:ok, update_card(game, id, &moved(&1, from, zone))}
+      from = Zones.locate(game, id)
+      game = Zones.move(game, id, zone, at)
+      {:ok, Zones.update_card(game, id, &moved(&1, from, zone))}
     end
   end
 
-  defp do_apply(game, {:draw, seat, n}) when n in 1..10 do
+  defp sandbox(game, {:draw, seat, n}) when n in 1..10 do
     with :ok <- check_seat(seat) do
-      draw(game, seat, n)
+      zones = game.sides[seat].zones
+
+      if zones.deck == [] and zones.discard == [],
+        do: {:error, :empty_deck},
+        else: {:ok, Rules.draw(game, seat, n, :free)}
     end
   end
 
-  defp do_apply(_game, {:draw, _seat, _n}), do: {:error, :invalid_count}
+  defp sandbox(_game, {:draw, _seat, _n}), do: {:error, :invalid_count}
 
-  defp do_apply(game, {:shuffle, seat, zone}) do
+  defp sandbox(game, {:shuffle, seat, zone}) do
     with :ok <- check_seat(seat),
          :ok <- if(zone in @list_zones, do: :ok, else: {:error, :invalid_zone}) do
-      {ids, rng} = Rng.shuffle(zone_ids(game, {seat, zone}), game.rng)
-      {:ok, %{put_zone(game, {seat, zone}, ids) | rng: rng}}
+      {ids, rng} = Rng.shuffle(Zones.zone_ids(game, {seat, zone}), game.rng)
+      {:ok, %{Zones.put_zone(game, {seat, zone}, ids) | rng: rng}}
     end
   end
 
-  defp do_apply(game, {:adjust_card, id, key, delta})
+  defp sandbox(game, {:adjust_card, id, key, delta})
        when key in @card_keys and is_integer(delta) and delta != 0 do
     with {:ok, card} <- fetch_card(game, id),
          {:ok, value} <- card_value(card, key, delta) do
-      {:ok, update_card(game, id, &Map.put(&1, key, value))}
+      {:ok, Zones.update_card(game, id, &Map.put(&1, key, value))}
     end
   end
 
-  defp do_apply(_game, {:adjust_card, _id, _key, _delta}), do: {:error, :invalid_adjust}
+  defp sandbox(_game, {:adjust_card, _id, _key, _delta}), do: {:error, :invalid_adjust}
 
-  defp do_apply(game, {:toggle, id, key}) when key in [:exhausted, :face_down] do
+  defp sandbox(game, {:toggle, id, key}) when key in [:exhausted, :face_down] do
     with {:ok, _card} <- fetch_card(game, id) do
-      {:ok, update_card(game, id, &Map.update!(&1, key, fn v -> !v end))}
+      {:ok, Zones.update_card(game, id, &Map.update!(&1, key, fn v -> !v end))}
     end
   end
 
-  defp do_apply(_game, {:toggle, _id, _key}), do: {:error, :invalid_toggle}
+  defp sandbox(_game, {:toggle, _id, _key}), do: {:error, :invalid_toggle}
 
-  defp do_apply(game, {:adjust, seat, key, delta})
+  defp sandbox(game, {:adjust, seat, key, delta})
        when key in [:gold, :base_hp] and is_integer(delta) and delta != 0 do
     with :ok <- check_seat(seat) do
       value = game.sides[seat][key] + delta
@@ -317,9 +429,9 @@ defmodule Codex.Game do
     end
   end
 
-  defp do_apply(_game, {:adjust, _seat, _key, _delta}), do: {:error, :invalid_adjust}
+  defp sandbox(_game, {:adjust, _seat, _key, _delta}), do: {:error, :invalid_adjust}
 
-  defp do_apply(game, {:building, seat, building}) when building in @buildings do
+  defp sandbox(game, {:building, seat, building}) when building in @buildings do
     with :ok <- check_seat(seat) do
       {:ok,
        update_in(game.sides[seat].tech_buildings, fn list ->
@@ -328,42 +440,8 @@ defmodule Codex.Game do
     end
   end
 
-  defp do_apply(_game, {:building, _seat, _building}), do: {:error, :invalid_building}
-
-  defp do_apply(game, :end_turn) do
-    next = 1 - game.active
-    game = %{game | active: next}
-    {:ok, update_in(game.sides[next].turn, &(&1 + 1))}
-  end
-
-  defp do_apply(_game, _action), do: {:error, :invalid_action}
-
-  # Draw one at a time; an empty deck takes the shuffled discard pile first.
-  defp draw(game, seat, n) do
-    zones = game.sides[seat].zones
-
-    if zones.deck == [] and zones.discard == [],
-      do: {:error, :empty_deck},
-      else: {:ok, Enum.reduce(1..n, game, fn _, game -> draw_one(game, seat) end)}
-  end
-
-  defp draw_one(game, seat) do
-    case game.sides[seat].zones do
-      %{deck: [top | rest], hand: hand} ->
-        game |> put_zone({seat, :deck}, rest) |> put_zone({seat, :hand}, hand ++ [top])
-
-      %{deck: [], discard: []} ->
-        game
-
-      %{deck: [], discard: discard} ->
-        {deck, rng} = Rng.shuffle(discard, game.rng)
-
-        %{game | rng: rng, log: [{:reshuffle, seat} | game.log]}
-        |> put_zone({seat, :discard}, [])
-        |> put_zone({seat, :deck}, deck)
-        |> draw_one(seat)
-    end
-  end
+  defp sandbox(_game, {:building, _seat, _building}), do: {:error, :invalid_building}
+  defp sandbox(_game, _action), do: {:error, :invalid_action}
 
   defp card_value(card, :level, _delta) when card.level == nil, do: {:error, :not_a_hero}
 
@@ -378,21 +456,19 @@ defmodule Codex.Game do
     if value in 0..@max_counter, do: {:ok, value}, else: {:error, :out_of_range}
   end
 
-  # What a card keeps after a move from zone `from` to zone `to`.
+  # What a card keeps after a sandbox move from zone `from` to zone `to`.
   defp moved(card, from, to) do
     card =
-      if zone_name(from) in @play_zones and zone_name(to) not in @play_zones,
-        do: %{card | damage: 0, plus: 0, minus: 0, exhausted: false, level: card.level && 1},
+      if Zones.zone_name(from) in @play_zones and Zones.zone_name(to) not in @play_zones,
+        do: Rules.reset(card),
         else: card
 
     cond do
-      zone_name(to) == :workers -> %{card | face_down: true}
-      zone_name(from) == :workers -> %{card | face_down: false}
+      Zones.zone_name(to) == :workers -> %{card | face_down: true}
+      Zones.zone_name(from) == :workers -> %{card | face_down: false}
       true -> card
     end
   end
-
-  # -- zones -------------------------------------------------------------------------------
 
   defp check_seat(seat) when seat in [0, 1], do: :ok
   defp check_seat(_seat), do: {:error, :invalid_seat}
@@ -414,56 +490,6 @@ defmodule Codex.Game do
   defp check_at(_game, _id, _zone, i) when is_integer(i) and i >= 0, do: :ok
   defp check_at(_game, _id, _zone, _at), do: {:error, :invalid_index}
 
-  @doc """
-  The zone of card `id`: `{seat, name}`, `{seat, :patrol, slot}` or `:trash`
-  (nil when it is in no zone). Works on a game and on a view (`view/2`).
-  """
-  @spec locate(map, card_id) :: zone | {seat, :patrol, slot} | nil
-  def locate(game, id), do: Enum.find_value(placements(game), fn {i, at} -> i == id && at end)
-
-  @doc "Every card in a zone, as `{id, location}` (see `locate/2`). A view's decks are counts: left out."
-  @spec placements(map) :: [{card_id, zone | {seat, :patrol, slot}}]
-  def placements(%{sides: sides, trash: trash}),
-    do: Enum.map(trash, &{&1, :trash}) ++ Enum.flat_map(sides, &side_placements/1)
-
-  defp side_placements({seat, side}), do: Enum.flat_map(side.zones, &zone_placements(seat, &1))
-
-  defp zone_placements(seat, {:patrol, slots}),
-    do: for({slot, id} <- slots, id, do: {id, {seat, :patrol, slot}})
-
-  defp zone_placements(seat, {zone, ids}) when is_list(ids),
-    do: for(id <- ids, do: {id, {seat, zone}})
-
-  defp zone_placements(_seat, {_zone, _count}), do: []
-
-  defp zone_name(:trash), do: :trash
-  defp zone_name({_seat, zone}), do: zone
-  defp zone_name({_seat, :patrol, _slot}), do: :patrol
-  defp zone_name(nil), do: nil
-
-  @doc "The card ids of a list zone (`{seat, name}` or `:trash`)."
-  @spec zone_ids(t, zone) :: [card_id]
-  def zone_ids(game, :trash), do: game.trash
-  def zone_ids(game, {seat, zone}), do: Map.fetch!(game.sides[seat].zones, zone)
-
-  defp put_zone(game, :trash, ids), do: %{game | trash: ids}
-  defp put_zone(game, {seat, zone}, ids), do: put_in(game.sides[seat].zones[zone], ids)
-
-  defp remove(game, id) do
-    case locate(game, id) do
-      {seat, :patrol, slot} -> put_in(game.sides[seat].zones.patrol[slot], nil)
-      zone -> put_zone(game, zone, List.delete(zone_ids(game, zone), id))
-    end
-  end
-
-  defp insert(game, id, {seat, :patrol}, slot),
-    do: put_in(game.sides[seat].zones.patrol[slot], id)
-
-  defp insert(game, id, zone, nil), do: put_zone(game, zone, zone_ids(game, zone) ++ [id])
-
-  defp insert(game, id, zone, i),
-    do: put_zone(game, zone, List.insert_at(zone_ids(game, zone), i, id))
-
   defp fetch_card(game, id) do
     case Map.fetch(game.cards, id) do
       {:ok, card} -> {:ok, card}
@@ -471,17 +497,30 @@ defmodule Codex.Game do
     end
   end
 
-  defp update_card(game, id, fun), do: %{game | cards: Map.update!(game.cards, id, fun)}
+  # -- zones (the API of `Codex.Zones`) --------------------------------------------------------
+
+  @doc "See `Codex.Zones.locate/2`."
+  @spec locate(map, card_id) :: zone | {seat, :patrol, slot} | nil
+  defdelegate locate(game, id), to: Zones
+
+  @doc "See `Codex.Zones.placements/1`."
+  @spec placements(map) :: [{card_id, zone | {seat, :patrol, slot}}]
+  defdelegate placements(game), to: Zones
+
+  @doc "See `Codex.Zones.zone_ids/2`."
+  @spec zone_ids(t, zone) :: [card_id]
+  defdelegate zone_ids(game, zone), to: Zones
 
   @doc "Every card id in every zone, with repeats (the conservation check)."
   @spec all_placed(t) :: [card_id]
-  def all_placed(game), do: Enum.map(placements(game), &elem(&1, 0))
+  def all_placed(game), do: Enum.map(Zones.placements(game), &elem(&1, 0))
 
   # -- the view ------------------------------------------------------------------------------
 
   @doc """
   What a page sees. Hot-seat: both hands, the codex and the workers are in the
   view (the board hides the other side's hand). The decks are only counts.
+  `stats` has each card's ATK/HP now (`Codex.Rules.stats/2`).
   """
   @spec view(t, non_neg_integer | :spectator) :: map
   def view(%__MODULE__{} = game, _seat) do
@@ -489,6 +528,9 @@ defmodule Codex.Game do
 
     %{
       active: game.active,
+      phase: game.phase,
+      free: game.free,
+      winner: game.winner,
       sides:
         Map.new(game.sides, fn {seat, side} ->
           zones = side.zones
@@ -496,6 +538,7 @@ defmodule Codex.Game do
         end),
       trash: game.trash,
       cards: Map.drop(game.cards, deck_ids),
+      stats: Rules.all_stats(game),
       log: Enum.take(game.log, 30),
       undo: game.history != []
     }

@@ -28,6 +28,7 @@ defmodule CodexWeb.Board do
   use QuacksWeb, :html
 
   alias Codex.{Cards, Game}
+  alias CodexWeb.Moves
 
   @zone_names Map.new([:patrol | Game.list_zones()], &{Atom.to_string(&1), &1})
   @slot_names Map.new(Game.patrol_slots(), &{Atom.to_string(&1), &1})
@@ -35,6 +36,14 @@ defmodule CodexWeb.Board do
   @counters %{"gold" => :gold, "base_hp" => :base_hp}
   @building_names Map.new(Game.buildings(), &{Atom.to_string(&1), &1})
   @drawers ~w(discard codex workers trash)a
+  @target_buildings %{
+    "base" => :base,
+    "tech_1" => :tech_1,
+    "tech_2" => :tech_2,
+    "tech_3" => :tech_3,
+    "tower" => :tower,
+    "surplus" => :surplus
+  }
 
   @slot_labels %{
     squad_leader: {"Squad leader", "Leader"},
@@ -76,7 +85,9 @@ defmodule CodexWeb.Board do
       pov: 0,
       selected: nil,
       drawer: nil,
-      reveal: false
+      reveal: false,
+      targeting: nil,
+      actions: []
     )
   end
 
@@ -88,14 +99,25 @@ defmodule CodexWeb.Board do
 
     Phoenix.Component.assign(socket,
       view: v,
+      actions: env.actions,
       spectator?: env.seat == :spectator,
       pov: if(turned?, do: v.active, else: a.pov),
       reveal: if(turned?, do: false, else: a.reveal),
-      selected: if(Map.has_key?(v.cards, a.selected), do: a.selected)
+      selected: if(Map.has_key?(v.cards, a.selected), do: a.selected),
+      targeting: nil,
+      drawer: drawer_after(a.drawer, v)
     )
   end
 
+  # The tech sheet opens by itself in the tech step and closes after it.
+  defp drawer_after(_drawer, %{phase: :tech, active: s}), do: {s, :tech}
+  defp drawer_after({_s, :tech}, _v), do: nil
+  defp drawer_after(drawer, _v), do: drawer
+
   @impl true
+  def handle_event("select", %{"id" => id}, %{assigns: %{targeting: %{}}} = socket),
+    do: pick(socket, int(id))
+
   def handle_event("select", %{"id" => id}, socket) do
     id = int(id)
     a = socket.assigns
@@ -120,8 +142,14 @@ defmodule CodexWeb.Board do
     with {:ok, zone} <- target(params),
          {:ok, at} <- at(zone, params) do
       case {a.selected, zone} do
+        {id, _} when is_integer(id) and not a.view.free ->
+          rules_drop(socket, id, zone, at)
+
         {id, _} when is_integer(id) ->
           {:act, {:move, id, zone, at}, Phoenix.Component.assign(socket, selected: nil)}
+
+        {nil, {_seat, :deck}} when not a.view.free ->
+          {:noreply, socket}
 
         {nil, {seat, :deck}} ->
           {:act, {:draw, seat, 1}, socket}
@@ -144,11 +172,40 @@ defmodule CodexWeb.Board do
   def handle_event("move", %{"id" => id} = params, socket) do
     with {:ok, zone} <- target(params),
          {:ok, at} <- at(zone, params) do
-      {:act, {:move, int(id), zone, at}, Phoenix.Component.assign(socket, selected: nil)}
+      if socket.assigns.view.free,
+        do: {:act, {:move, int(id), zone, at}, Phoenix.Component.assign(socket, selected: nil)},
+        else: rules_drop(socket, int(id), zone, at)
     else
       _ -> {:noreply, socket}
     end
   end
+
+  # Rules mode: a legal action of the selected card (`CodexWeb.Moves.buttons/2`).
+  def handle_event("rule", %{"key" => key}, %{assigns: %{selected: id}} = socket)
+      when is_integer(id) do
+    case Enum.find(Moves.buttons(socket.assigns.actions, id), &(&1.key == key)) do
+      %{do: action} -> {:act, action, socket}
+      %{target: tkey} -> {:noreply, start_pick(socket, tkey)}
+      nil -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("pick_building", %{"seat" => s, "name" => name}, socket) do
+    with {:ok, seat} <- seat(s),
+         {:ok, b} <- Map.fetch(@target_buildings, name) do
+      pick(socket, {:building, seat, b})
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("skip_target", _params, socket), do: pick(socket, nil)
+
+  def handle_event("cancel_target", _params, socket),
+    do: {:noreply, Phoenix.Component.assign(socket, targeting: nil)}
+
+  def handle_event("free", _params, socket),
+    do: {:act, {:free_mode, !socket.assigns.view.free}, socket}
 
   def handle_event("card", %{"op" => op} = params, %{assigns: %{selected: id}} = socket)
       when is_integer(id) do
@@ -243,12 +300,59 @@ defmodule CodexWeb.Board do
   @impl true
   def handle_info(_msg, socket), do: {:noreply, socket}
 
+  # -- rules mode: drops and target picks -------------------------------------------------
+
+  defp rules_drop(socket, id, zone, at) do
+    case Moves.drop(socket.assigns.actions, id, zone, at) do
+      {:act, action} -> {:act, action, Phoenix.Component.assign(socket, selected: nil)}
+      {:target, key} -> {:noreply, start_pick(socket, key)}
+      :error -> {:noreply, Phoenix.LiveView.put_flash(socket, :error, drop_text(zone))}
+    end
+  end
+
+  defp drop_text({_s, :workers}),
+    do: "You can hire one worker per turn, from your hand, for 1 gold."
+
+  defp drop_text({_s, :patrol}),
+    do: "Only your ready units and heroes in play can patrol, in your main phase."
+
+  defp drop_text(_zone),
+    do: "That move is not a legal action now. Turn on Free mode to move cards by hand."
+
+  defp start_pick(socket, {_kind, id, _name} = key) do
+    targeting = %{key: key, picked: []}
+    Phoenix.Component.assign(socket, selected: id, targeting: targeting)
+  end
+
+  # A tapped target: the full action acts; else the pick goes on.
+  defp pick(%{assigns: %{targeting: %{key: key, picked: picked}}} = socket, value) do
+    picked = picked ++ [value]
+    opts = Moves.options(socket.assigns.actions, key, picked)
+
+    cond do
+      opts.complete && opts.values == [] ->
+        {:act, opts.complete, Phoenix.Component.assign(socket, targeting: nil, selected: nil)}
+
+      opts.complete || opts.values != [] ->
+        {:noreply, Phoenix.Component.assign(socket, targeting: %{key: key, picked: picked})}
+
+      true ->
+        {:noreply, socket}
+    end
+  end
+
+  defp pick(socket, _value), do: {:noreply, socket}
+
   defp error_text(:slot_taken), do: "That patrol slot is taken. Move its card first."
   defp error_text(:empty_deck), do: "The deck and the discard pile are empty."
   defp error_text(:out_of_range), do: "That value is at its limit."
   defp error_text(:not_a_hero), do: "Only a hero has a level."
   defp error_text(:nothing_to_undo), do: "Nothing to undo."
   defp error_text(:no_seat), do: "You watch this table: only its player moves the cards."
+  defp error_text(:free_mode_off), do: "Turn on Free mode to move cards by hand."
+  defp error_text(:worker_hired), do: "You already hired a worker this turn."
+  defp error_text(:no_gold), do: "Not enough gold."
+  defp error_text(:game_over), do: "The game is over."
   defp error_text(reason), do: "Not now (#{inspect(reason)})."
 
   defp card_action("exhaust", _params, c), do: {:ok, {:toggle, c.id, :exhausted}, true}
@@ -327,13 +431,24 @@ defmodule CodexWeb.Board do
     pov = assigns.pov
     selected = assigns.selected && v.cards[assigns.selected]
 
+    pick =
+      assigns[:targeting] &&
+        Moves.options(assigns.actions, assigns.targeting.key, assigns.targeting.picked)
+
+    values = if pick, do: pick.values, else: []
+
     assigns =
       assign(assigns,
         opp: 1 - pov,
         art: art(),
         sel: selected,
         where: selected && where(v, selected.id),
-        players: assigns[:seats] || %{}
+        players: assigns[:seats] || %{},
+        pick: pick,
+        tg: MapSet.new(values),
+        buttons:
+          if(selected && !v.free, do: Moves.buttons(assigns.actions, selected.id), else: []),
+        free: v.free
       )
 
     ~H"""
@@ -348,9 +463,16 @@ defmodule CodexWeb.Board do
     >
       <div class="mx-auto max-w-[90rem] px-2 pt-2 pb-40 sm:px-3 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-4 lg:px-4 lg:pb-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div class="flex min-w-0 flex-col gap-1.5 sm:gap-2">
-          <.top_bar code={@code} pov={@pov} reveal={@reveal} opp={@opp} spectator?={@spectator?} />
+          <.top_bar
+            code={@code}
+            pov={@pov}
+            reveal={@reveal}
+            opp={@opp}
+            spectator?={@spectator?}
+            free={@free}
+          />
           <.side {assigns} seat={@opp} far />
-          <.center view={@view} art={@art} sel={@sel} />
+          <.center view={@view} art={@art} sel={@sel} tg={@tg} actions={@actions} />
           <.side {assigns} seat={@pov} far={false} />
         </div>
 
@@ -364,7 +486,17 @@ defmodule CodexWeb.Board do
             )
           ]}
         >
-          <.inspector :if={@sel} card={@sel} where={@where} art={@art} />
+          <.inspector
+            :if={@sel}
+            card={@sel}
+            where={@where}
+            art={@art}
+            free={@free}
+            buttons={@buttons}
+            pick={@pick}
+            targeting={@targeting}
+            stats={@view.stats[@sel.id]}
+          />
           <.inspector_help :if={!@sel} />
           <.log_list view={@view} id="cx-log" class="hidden lg:flex" />
         </aside>
@@ -503,6 +635,7 @@ defmodule CodexWeb.Board do
   attr :opp, :integer, required: true
   attr :reveal, :boolean, required: true
   attr :spectator?, :boolean, required: true
+  attr :free, :boolean, default: false
 
   defp top_bar(assigns) do
     ~H"""
@@ -570,6 +703,23 @@ defmodule CodexWeb.Board do
           <span class="hidden sm:inline">P{@opp + 1} hand</span>
         </button>
         <button
+          id="cx-free"
+          type="button"
+          phx-click="free"
+          aria-pressed={to_string(@free)}
+          class={[
+            "flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition active:scale-95",
+            if(@free,
+              do: "bg-fuchsia-300 text-stone-900 ring-fuchsia-200",
+              else: "bg-black/25 text-white/80 ring-white/10 hover:bg-black/40"
+            )
+          ]}
+          title="Free mode: move cards and change counters by hand, without the rules"
+        >
+          <.icon name="hero-hand-raised-mini" class="size-3.5" />
+          <span class="hidden sm:inline">Free mode</span>
+        </button>
+        <button
           id="cx-log-open"
           type="button"
           phx-click="drawer"
@@ -587,54 +737,107 @@ defmodule CodexWeb.Board do
   attr :view, :map, required: true
   attr :art, :any, required: true
   attr :sel, :map, default: nil
+  attr :tg, :any, default: nil
+  attr :actions, :list, default: []
 
   defp center(assigns) do
+    v = assigns.view
+
+    assigns =
+      assign(assigns, hint: hint(v, assigns.actions), can_end?: :end_turn in assigns.actions)
+
     ~H"""
-    <div class="flex items-center gap-2 py-0.5">
-      <div
-        id="cx-active"
-        class={[
-          "flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow-sm sm:text-sm",
-          seat_bg(@view.active)
-        ]}
-      >
-        <span class="size-1.5 animate-pulse rounded-full bg-white"></span>
-        <span class="truncate">
-          P{@view.active + 1} · turn {@view.sides[@view.active].turn}
-        </span>
+    <div class="flex flex-col gap-1 py-0.5">
+      <div class="flex items-center gap-2">
+        <div
+          id="cx-active"
+          class={[
+            "flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow-sm sm:text-sm",
+            seat_bg(@view.active)
+          ]}
+        >
+          <span class="size-1.5 animate-pulse rounded-full bg-white"></span>
+          <span class="truncate">
+            P{@view.active + 1} · turn {@view.sides[@view.active].turn} · {phase_text(@view.phase)}
+          </span>
+        </div>
+        <div class="h-px flex-1 bg-gradient-to-r from-white/5 via-white/20 to-white/5"></div>
+        <.pile
+          id="cx-trash"
+          zone={:trash}
+          label="Trash"
+          count={length(@view.trash)}
+          top={top_card(@view, @view.trash)}
+          art={@art}
+          target?={@sel != nil and @view.free}
+          small
+        />
+        <button
+          id="cx-undo"
+          type="button"
+          phx-click="undo"
+          disabled={!@view.undo}
+          class="flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1.5 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-black/45 active:scale-95 disabled:opacity-35"
+          title="Undo the last action"
+        >
+          <.icon name="hero-arrow-uturn-left-mini" class="size-4" />
+          <span class="hidden sm:inline">Undo</span>
+        </button>
+        <button
+          :if={@can_end?}
+          id="cx-end-turn"
+          type="button"
+          phx-click="end_turn"
+          class="rounded-full bg-amber-300 px-3 py-1.5 text-xs font-bold text-stone-900 shadow-md ring-1 ring-amber-100 transition hover:bg-amber-200 active:scale-95 sm:text-sm"
+        >
+          End turn
+        </button>
       </div>
-      <div class="h-px flex-1 bg-gradient-to-r from-white/5 via-white/20 to-white/5"></div>
-      <.pile
-        id="cx-trash"
-        zone={:trash}
-        label="Trash"
-        count={length(@view.trash)}
-        top={top_card(@view, @view.trash)}
-        art={@art}
-        target?={@sel != nil}
-        small
-      />
-      <button
-        id="cx-undo"
-        type="button"
-        phx-click="undo"
-        disabled={!@view.undo}
-        class="flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1.5 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-black/45 active:scale-95 disabled:opacity-35"
-        title="Undo the last action"
+      <p
+        :if={@view.phase == :over}
+        id="cx-winner"
+        class="rounded-xl bg-amber-300 px-3 py-2 text-center text-sm font-bold text-stone-900 shadow"
       >
-        <.icon name="hero-arrow-uturn-left-mini" class="size-4" />
-        <span class="hidden sm:inline">Undo</span>
-      </button>
-      <button
-        id="cx-end-turn"
-        type="button"
-        phx-click="end_turn"
-        class="rounded-full bg-amber-300 px-3 py-1.5 text-xs font-bold text-stone-900 shadow-md ring-1 ring-amber-100 transition hover:bg-amber-200 active:scale-95 sm:text-sm"
-      >
-        End turn
-      </button>
+        P{@view.winner + 1} wins: the base of P{1 - @view.winner + 1} is destroyed.
+      </p>
+      <p :if={@hint} id="cx-hint" class="px-1 text-xs text-white/70">{@hint}</p>
     </div>
     """
+  end
+
+  defp phase_text(:main), do: "main phase"
+  defp phase_text(:tech), do: "tech"
+  defp phase_text(:over), do: "game over"
+
+  # What the active side can do now, in a line (rules mode).
+  defp hint(%{phase: :over}, _actions), do: nil
+  defp hint(_v, []), do: nil
+  defp hint(%{phase: :tech}, _actions), do: "Pick codex cards for your discard pile."
+
+  defp hint(%{free: true}, _actions),
+    do: "Free mode: drag cards and change counters by hand. The rules do not check them."
+
+  defp hint(_v, actions) do
+    kinds = for a <- actions, is_tuple(a), uniq: true, do: elem(a, 0)
+
+    can =
+      [
+        hire: "hire a worker",
+        summon: "summon your hero",
+        level_up: "level up",
+        play: "play a card",
+        patrol: "set patrollers",
+        attack: "attack",
+        ability: "use an ability",
+        build: "build"
+      ]
+      |> Enum.filter(fn {k, _} -> k in kinds end)
+      |> Enum.map(&elem(&1, 1))
+
+    case can do
+      [] -> "Nothing more to do: end the turn."
+      list -> "You can " <> Enum.join(list, ", ") <> ". Tap a card to see its actions."
+    end
   end
 
   # -- a side ------------------------------------------------------------------------------
@@ -644,6 +847,7 @@ defmodule CodexWeb.Board do
   attr :view, :map, required: true
   attr :art, :any, required: true
   attr :sel, :map, default: nil
+  attr :tg, :any, default: nil
   attr :reveal, :boolean, default: false
   attr :players, :map, default: %{}
 
@@ -662,7 +866,7 @@ defmodule CodexWeb.Board do
       ]}
       data-far={to_string(@far)}
     >
-      <.side_header seat={@seat} side={@side} view={@view} />
+      <.side_header seat={@seat} side={@side} view={@view} free={@view.free} tg={@tg} />
       <%= if @far do %>
         <div class="cx-pair">
           <.mat {assigns} />
@@ -672,22 +876,47 @@ defmodule CodexWeb.Board do
             view={@view}
             art={@art}
             sel={@sel}
+            tg={@tg}
             hidden?={!@reveal}
             far
           />
         </div>
         <div class="cx-pair">
-          <.patrol seat={@seat} slots={@zones.patrol} view={@view} art={@art} sel={@sel} />
-          <.row seat={@seat} zone={:in_play} ids={@zones.in_play} view={@view} art={@art} sel={@sel} />
+          <.patrol seat={@seat} slots={@zones.patrol} view={@view} art={@art} sel={@sel} tg={@tg} />
+          <.row
+            seat={@seat}
+            zone={:in_play}
+            ids={@zones.in_play}
+            view={@view}
+            art={@art}
+            sel={@sel}
+            tg={@tg}
+          />
         </div>
       <% else %>
         <div class="cx-pair">
-          <.patrol seat={@seat} slots={@zones.patrol} view={@view} art={@art} sel={@sel} />
-          <.row seat={@seat} zone={:in_play} ids={@zones.in_play} view={@view} art={@art} sel={@sel} />
+          <.patrol seat={@seat} slots={@zones.patrol} view={@view} art={@art} sel={@sel} tg={@tg} />
+          <.row
+            seat={@seat}
+            zone={:in_play}
+            ids={@zones.in_play}
+            view={@view}
+            art={@art}
+            sel={@sel}
+            tg={@tg}
+          />
         </div>
         <div class="cx-pair">
           <.mat {assigns} />
-          <.hand seat={@seat} ids={@zones.hand} view={@view} art={@art} sel={@sel} hidden?={false} />
+          <.hand
+            seat={@seat}
+            ids={@zones.hand}
+            view={@view}
+            art={@art}
+            sel={@sel}
+            tg={@tg}
+            hidden?={false}
+          />
         </div>
       <% end %>
     </section>
@@ -697,6 +926,8 @@ defmodule CodexWeb.Board do
   attr :seat, :integer, required: true
   attr :side, :map, required: true
   attr :view, :map, required: true
+  attr :free, :boolean, default: false
+  attr :tg, :any, default: nil
 
   defp side_header(assigns) do
     hero = Cards.hero(assigns.side.spec)
@@ -724,6 +955,9 @@ defmodule CodexWeb.Board do
           icon="hero-heart-solid"
           tone="text-rose-300"
           label="Base HP"
+          free={@free}
+          target={@tg && {:building, @seat, :base} in @tg}
+          building="base"
         />
         <.stepper
           id={"cx-gold-#{@seat}"}
@@ -733,6 +967,7 @@ defmodule CodexWeb.Board do
           icon="hero-circle-stack-solid"
           tone="text-amber-300"
           label="Gold"
+          free={@free}
         />
       </div>
     </div>
@@ -747,10 +982,25 @@ defmodule CodexWeb.Board do
   attr :tone, :string, required: true
   attr :label, :string, required: true
 
+  attr :free, :boolean, default: true
+  attr :target, :any, default: false
+  attr :building, :string, default: nil
+
   defp stepper(assigns) do
     ~H"""
-    <div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10" title={@label}>
+    <div
+      class={[
+        "flex items-center rounded-full bg-black/30 ring-1 ring-white/10",
+        @target && "cx-targetable-pill cursor-pointer"
+      ]}
+      title={@label}
+      phx-click={@target && "pick_building"}
+      phx-value-seat={@seat}
+      phx-value-name={@building}
+      id={@target && "#{@id}-target"}
+    >
       <button
+        :if={@free}
         id={"#{@id}-minus"}
         type="button"
         phx-click="adjust"
@@ -762,11 +1012,12 @@ defmodule CodexWeb.Board do
       >
         <.icon name="hero-minus-mini" class="size-3.5" />
       </button>
-      <span class="flex min-w-9 items-center justify-center gap-0.5 text-sm font-bold tabular-nums">
+      <span class="flex min-w-9 items-center justify-center gap-0.5 px-1 text-sm font-bold tabular-nums">
         <.icon name={@icon} class={["size-3.5", @tone]} />
         <span id={@id}>{@value}</span>
       </span>
       <button
+        :if={@free}
         id={"#{@id}-plus"}
         type="button"
         phx-click="adjust"
@@ -787,6 +1038,7 @@ defmodule CodexWeb.Board do
   attr :view, :map, required: true
   attr :art, :any, required: true
   attr :sel, :map, default: nil
+  attr :tg, :any, default: nil
 
   defp patrol(assigns) do
     assigns = assign(assigns, order: Game.patrol_slots(), labels: @slot_labels)
@@ -816,6 +1068,7 @@ defmodule CodexWeb.Board do
             c={@view.cards[@slots[slot]]}
             art={@art}
             selected={@sel && @sel.id == @slots[slot]}
+            target={@tg && @slots[slot] in @tg}
           />
         </div>
       </div>
@@ -829,6 +1082,7 @@ defmodule CodexWeb.Board do
   attr :view, :map, required: true
   attr :art, :any, required: true
   attr :sel, :map, default: nil
+  attr :tg, :any, default: nil
 
   defp row(assigns) do
     ~H"""
@@ -849,6 +1103,7 @@ defmodule CodexWeb.Board do
         c={@view.cards[id]}
         art={@art}
         selected={@sel && @sel.id == id}
+        target={@tg && id in @tg}
       />
     </div>
     """
@@ -859,6 +1114,7 @@ defmodule CodexWeb.Board do
   attr :view, :map, required: true
   attr :art, :any, required: true
   attr :sel, :map, default: nil
+  attr :tg, :any, default: nil
   attr :hidden?, :boolean, default: false
   attr :far, :boolean, default: false
 
@@ -892,6 +1148,7 @@ defmodule CodexWeb.Board do
           art={@art}
           hidden={@hidden?}
           selected={@sel && @sel.id == id}
+          target={@tg && id in @tg}
           style={fan_style(i, @mid, @far)}
         />
       </div>
@@ -937,7 +1194,13 @@ defmodule CodexWeb.Board do
         class={["cx-zone cx-command min-w-0 flex-1", @sel && "cx-target"]}
       >
         <span class="cx-label cx-row-label">Command</span>
-        <.card :for={id <- @command} c={@view.cards[id]} art={@art} selected={@sel && @sel.id == id} />
+        <.card
+          :for={id <- @command}
+          c={@view.cards[id]}
+          art={@art}
+          selected={@sel && @sel.id == id}
+          target={@tg && id in @tg}
+        />
         <div class="flex flex-col flex-wrap content-start gap-1 self-start pt-3">
           <span
             :for={b <- @buildings}
@@ -947,6 +1210,9 @@ defmodule CodexWeb.Board do
             {building_label(b)}
           </span>
           <button
+            :if={
+              @view.free or (@view.active == @seat and Enum.any?(@actions, &match?({:build, _}, &1)))
+            }
             id={"cx-build-#{@seat}"}
             type="button"
             phx-click="drawer"
@@ -979,7 +1245,7 @@ defmodule CodexWeb.Board do
           art={@art}
           target?={@sel != nil}
         />
-        <div class="flex gap-1">
+        <div :if={@view.free} class="flex gap-1">
           <button
             id={"cx-draw-#{@seat}"}
             type="button"
@@ -1080,6 +1346,7 @@ defmodule CodexWeb.Board do
   attr :c, :map, required: true, doc: "a card instance from the view"
   attr :art, :any, required: true
   attr :selected, :any, default: false
+  attr :target, :any, default: false, doc: "a legal target of the pick in progress"
   attr :hidden, :boolean, default: false, doc: "draw the back (the other side's hand)"
   attr :peek, :boolean, default: false, doc: "draw the face of a face-down card (a sheet)"
   attr :prefix, :string, default: "cx-card"
@@ -1116,6 +1383,7 @@ defmodule CodexWeb.Board do
         "cx-card",
         @c.exhausted && "cx-exhausted",
         @selected && "cx-selected",
+        @target && "cx-targetable",
         @click && !@hidden && "cursor-pointer"
       ]}
     >
@@ -1204,6 +1472,12 @@ defmodule CodexWeb.Board do
   attr :where, :string, required: true
   attr :art, :any, required: true
 
+  attr :free, :boolean, default: false
+  attr :buttons, :list, default: []
+  attr :pick, :map, default: nil
+  attr :targeting, :map, default: nil
+  attr :stats, :any, default: nil
+
   defp inspector(assigns) do
     c = assigns.card
     d = Cards.fetch!(c.card)
@@ -1232,7 +1506,7 @@ defmodule CodexWeb.Board do
         <div class="min-w-0 flex-1">
           <p id="cx-actions-name" class="truncate text-sm font-bold">{@d.name}</p>
           <p class="truncate text-xs text-white/60">
-            P{@card.seat + 1}'s · {@where}<span class="lg:hidden"> · tap a zone to move it</span>
+            P{@card.seat + 1}'s · {@where}<span :if={@free} class="lg:hidden"> · tap a zone to move it</span>
           </p>
         </div>
         <button
@@ -1245,93 +1519,136 @@ defmodule CodexWeb.Board do
           <.icon name="hero-x-mark-mini" class="size-4" />
         </button>
       </div>
-      <div class="flex flex-wrap gap-1.5">
-        <button
-          id="cx-act-exhaust"
-          type="button"
-          phx-click="card"
-          phx-value-op="exhaust"
-          class="cx-act"
-        >
-          <.icon name="hero-arrow-path-rounded-square-mini" class="size-4" />
-          {if @card.exhausted, do: "Ready", else: "Exhaust"}
-        </button>
-        <button id="cx-act-flip" type="button" phx-click="card" phx-value-op="flip" class="cx-act">
-          <.icon name="hero-arrows-up-down-mini" class="size-4" />
-          {if @card.face_down, do: "Face up", else: "Face down"}
-        </button>
-        <button
-          id="cx-act-hand"
-          type="button"
-          phx-click="card"
-          phx-value-op="to"
-          phx-value-zone="hand"
-          class="cx-act"
-        >
-          To hand
-        </button>
-        <button
-          id="cx-act-play"
-          type="button"
-          phx-click="card"
-          phx-value-op="to"
-          phx-value-zone="in_play"
-          class="cx-act"
-        >
-          To play
-        </button>
-        <button
-          id="cx-act-discard"
-          type="button"
-          phx-click="card"
-          phx-value-op="to"
-          phx-value-zone="discard"
-          class="cx-act"
-        >
-          Discard
-        </button>
-        <button
-          id="cx-act-trash"
-          type="button"
-          phx-click="card"
-          phx-value-op="to"
-          phx-value-zone="trash"
-          class="cx-act cx-act-danger"
-        >
-          Trash
-        </button>
+      <p :if={@stats} id="cx-actions-stats" class="text-xs text-white/70">
+        ATK {elem(@stats, 0)} · HP {elem(@stats, 1) - @card.damage} of {elem(@stats, 1)}
+      </p>
+      <div
+        :if={@targeting}
+        id="cx-pick"
+        class="flex flex-col gap-1.5 rounded-xl bg-amber-300/15 p-2 ring-1 ring-amber-200/40"
+      >
+        <p class="text-xs font-semibold text-amber-100">
+          {pick_text(@targeting, @pick)}
+        </p>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            :if={nil in @pick.values}
+            id="cx-pick-skip"
+            type="button"
+            phx-click="skip_target"
+            class="cx-act"
+          >
+            Skip this part
+          </button>
+          <button id="cx-pick-cancel" type="button" phx-click="cancel_target" class="cx-act">
+            Cancel
+          </button>
+        </div>
       </div>
-      <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-2">
-        <.token_stepper
-          id="cx-act-damage"
-          label="Damage"
-          key="damage"
-          value={@card.damage}
-          tone="bg-red-600"
-        />
-        <.token_stepper
-          id="cx-act-plus"
-          label="+1/+1"
-          key="plus"
-          value={@card.plus}
-          tone="bg-emerald-600"
-        />
-        <.token_stepper
-          id="cx-act-minus"
-          label="−1/−1"
-          key="minus"
-          value={@card.minus}
-          tone="bg-violet-600"
-        />
-        <.token_stepper
-          :if={@card.level}
-          id="cx-act-level"
-          label={"Level (max #{@max})"}
-          key="level"
-          value={@card.level}
-          tone="bg-amber-500"
-        />
+      <div :if={!@free and !@targeting} class="flex flex-wrap gap-1.5">
+        <button
+          :for={b <- @buttons}
+          id={"cx-rule-#{b.key}"}
+          type="button"
+          phx-click="rule"
+          phx-value-key={b.key}
+          class="cx-act cx-act-rule"
+        >
+          {b.label}
+        </button>
+        <p :if={@buttons == []} class="text-xs text-white/50">
+          No action for this card now.
+        </p>
       </div>
+      <%= if @free do %>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            id="cx-act-exhaust"
+            type="button"
+            phx-click="card"
+            phx-value-op="exhaust"
+            class="cx-act"
+          >
+            <.icon name="hero-arrow-path-rounded-square-mini" class="size-4" />
+            {if @card.exhausted, do: "Ready", else: "Exhaust"}
+          </button>
+          <button id="cx-act-flip" type="button" phx-click="card" phx-value-op="flip" class="cx-act">
+            <.icon name="hero-arrows-up-down-mini" class="size-4" />
+            {if @card.face_down, do: "Face up", else: "Face down"}
+          </button>
+          <button
+            id="cx-act-hand"
+            type="button"
+            phx-click="card"
+            phx-value-op="to"
+            phx-value-zone="hand"
+            class="cx-act"
+          >
+            To hand
+          </button>
+          <button
+            id="cx-act-play"
+            type="button"
+            phx-click="card"
+            phx-value-op="to"
+            phx-value-zone="in_play"
+            class="cx-act"
+          >
+            To play
+          </button>
+          <button
+            id="cx-act-discard"
+            type="button"
+            phx-click="card"
+            phx-value-op="to"
+            phx-value-zone="discard"
+            class="cx-act"
+          >
+            Discard
+          </button>
+          <button
+            id="cx-act-trash"
+            type="button"
+            phx-click="card"
+            phx-value-op="to"
+            phx-value-zone="trash"
+            class="cx-act cx-act-danger"
+          >
+            Trash
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-2">
+          <.token_stepper
+            id="cx-act-damage"
+            label="Damage"
+            key="damage"
+            value={@card.damage}
+            tone="bg-red-600"
+          />
+          <.token_stepper
+            id="cx-act-plus"
+            label="+1/+1"
+            key="plus"
+            value={@card.plus}
+            tone="bg-emerald-600"
+          />
+          <.token_stepper
+            id="cx-act-minus"
+            label="−1/−1"
+            key="minus"
+            value={@card.minus}
+            tone="bg-violet-600"
+          />
+          <.token_stepper
+            :if={@card.level}
+            id="cx-act-level"
+            label={"Level (max #{@max})"}
+            key="level"
+            value={@card.level}
+            tone="bg-amber-500"
+          />
+        </div>
+      <% end %>
     </div>
     """
   end
@@ -1381,6 +1698,10 @@ defmodule CodexWeb.Board do
     </div>
     """
   end
+
+  defp pick_text(%{key: {:attack, _, _}}, _pick), do: "Tap what to attack."
+  defp pick_text(%{key: {_, _, _}, picked: []}, _pick), do: "Tap a target."
+  defp pick_text(%{picked: picked}, _pick), do: "Tap target #{length(picked) + 1}."
 
   defp inspector_help(assigns) do
     ~H"""
@@ -1488,7 +1809,7 @@ defmodule CodexWeb.Board do
         <div class="flex items-center gap-2">
           <h2 id="cx-drawer-title" class="text-base font-bold">{@title}</h2>
           <button
-            :if={match?({_, z} when z in [:discard, :codex], @drawer)}
+            :if={@view.free and match?({_, z} when z in [:discard, :codex], @drawer)}
             id="cx-drawer-shuffle"
             type="button"
             phx-click="shuffle"

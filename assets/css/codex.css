@@ -369,3 +369,15 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
 @media (min-width: 1024px) { .cx-pair > .cx-hand { --cx-w: 4.6rem; } }
 @media (min-width: 1280px) { .cx-pair > .cx-hand { --cx-w: 5.1rem; } }
 @media (max-width: 1023px) { .cx-act { padding: 5px 9px; } }
+
+/* Rules mode: a legal target of the pick in progress, and the rules buttons. */
+.cx-card.cx-targetable { cursor: crosshair; }
+.cx-card.cx-targetable > .cx-face {
+  box-shadow: 0 0 0 2.5px oklch(78% 0.17 30), 0 0 18px -2px oklch(70% 0.2 30 / 0.8);
+  animation: cx-glow 1.1s ease-in-out infinite alternate;
+}
+.cx-targetable-pill { box-shadow: 0 0 0 2px oklch(78% 0.17 30); animation: cx-glow 1.1s ease-in-out infinite alternate; }
+@keyframes cx-glow { from { filter: brightness(1); } to { filter: brightness(1.25); } }
+.cx-act-rule { background: oklch(85% 0.15 85 / 0.18); box-shadow: inset 0 0 0 1px oklch(85% 0.15 85 / 0.45); }
+.cx-act-rule:hover { background: oklch(85% 0.15 85 / 0.3); }
+@media (prefers-reduced-motion: reduce) { .cx-card.cx-targetable > .cx-face, .cx-targetable-pill { animation: none; } }

@@ -19,6 +19,13 @@ defmodule TableWeb.CodexLiveTest do
     %{view: view, code: code, token: token}
   end
 
+  # The sandbox tests: free mode on.
+  defp free_room do
+    %{view: view} = r = room()
+    view |> element("#cx-free") |> render_click()
+    r
+  end
+
   defp game(code), do: Server.state(@key, code).game
   defp zone(code, seat, z), do: game(code).sides[seat].zones[z]
 
@@ -53,7 +60,7 @@ defmodule TableWeb.CodexLiveTest do
   end
 
   test "tap a card, tap a patrol slot: the card moves" do
-    %{view: view, code: code} = room()
+    %{view: view, code: code} = free_room()
     [id | _] = zone(code, 0, :hand)
 
     view |> element("#cx-card-#{id}") |> render_click()
@@ -66,7 +73,7 @@ defmodule TableWeb.CodexLiveTest do
   end
 
   test "a drop from the hook moves a card to the other side's in play, at an index" do
-    %{view: view, code: code} = room()
+    %{view: view, code: code} = free_room()
     [a, b | _] = zone(code, 0, :hand)
 
     render_hook(view, "move", %{
@@ -90,7 +97,7 @@ defmodule TableWeb.CodexLiveTest do
   end
 
   test "tokens on the selected card, to discard and trash" do
-    %{view: view, code: code} = room()
+    %{view: view, code: code} = free_room()
     [hero] = zone(code, 0, :command)
     [a | _] = zone(code, 0, :hand)
 
@@ -118,7 +125,7 @@ defmodule TableWeb.CodexLiveTest do
   end
 
   test "draw, counters, buildings, end turn and undo" do
-    %{view: view, code: code} = room()
+    %{view: view, code: code} = free_room()
 
     view |> element("#cx-draw-0") |> render_click()
     assert length(zone(code, 0, :hand)) == 6
@@ -127,7 +134,7 @@ defmodule TableWeb.CodexLiveTest do
 
     view |> element("#cx-gold-0-plus") |> render_click()
     view |> element("#cx-hp-1-minus") |> render_click()
-    assert has_element?(view, "#cx-gold-0", "1")
+    assert has_element?(view, "#cx-gold-0", "5")
     assert has_element?(view, "#cx-hp-1", "19")
 
     view |> element("#cx-build-0") |> render_click()
@@ -146,7 +153,7 @@ defmodule TableWeb.CodexLiveTest do
   end
 
   test "an error shows a flash and changes nothing" do
-    %{view: view, code: code} = room()
+    %{view: view, code: code} = free_room()
     [a, b | _] = zone(code, 0, :hand)
     render_hook(view, "move", %{"id" => a, "seat" => "0", "zone" => "patrol", "slot" => "elite"})
     render_hook(view, "move", %{"id" => b, "seat" => "0", "zone" => "patrol", "slot" => "elite"})
@@ -171,7 +178,72 @@ defmodule TableWeb.CodexLiveTest do
     %{code: code} = room()
     {:ok, other, _} = live(browser(token("bob")), "/games/#{@key}/#{code}")
     assert has_element?(other, "#cx-root")
-    other |> element("#cx-end-turn") |> render_click()
+    # A spectator has no actions: no End turn.
+    refute has_element?(other, "#cx-end-turn")
     assert game(code).active == 0
+  end
+
+  describe "rules mode" do
+    test "a new room is in rules mode: no sandbox controls, a hire button on a hand card" do
+      %{view: view, code: code} = room()
+      assert has_element?(view, "#cx-free[aria-pressed=false]")
+      refute has_element?(view, "#cx-gold-0-plus")
+      refute has_element?(view, "#cx-draw-0")
+      assert has_element?(view, "#cx-hint")
+
+      [id | _] = zone(code, 0, :hand)
+      view |> element("#cx-card-#{id}") |> render_click()
+      refute has_element?(view, "#cx-act-exhaust")
+      view |> element("#cx-rule-hire") |> render_click()
+
+      assert id in zone(code, 0, :workers)
+      assert has_element?(view, "#cx-gold-0", "3")
+      # One worker per turn.
+      [other | _] = zone(code, 0, :hand)
+      view |> element("#cx-card-#{other}") |> render_click()
+      refute has_element?(view, "#cx-rule-hire")
+    end
+
+    test "a drop on the workers hires; a drop that is no legal action shows a flash" do
+      %{view: view, code: code} = room()
+      [a, b | _] = zone(code, 0, :hand)
+
+      render_hook(view, "move", %{
+        "id" => to_string(a),
+        "seat" => "0",
+        "zone" => "workers",
+        "slot" => ""
+      })
+
+      assert a in zone(code, 0, :workers)
+
+      html =
+        render_hook(view, "move", %{
+          "id" => to_string(b),
+          "seat" => "1",
+          "zone" => "discard",
+          "slot" => ""
+        })
+
+      assert html =~ "not a legal action"
+      assert b in zone(code, 0, :hand)
+    end
+
+    test "end turn: P2's turn, the table turns to P2" do
+      %{view: view, code: code} = room()
+      view |> element("#cx-end-turn") |> render_click()
+      assert game(code).active == 1
+      assert has_element?(view, "#cx-pov-1[aria-pressed=true]")
+      assert has_element?(view, "#cx-gold-1", "5")
+    end
+
+    test "free mode on shows the sandbox controls; off hides them" do
+      %{view: view} = room()
+      view |> element("#cx-free") |> render_click()
+      assert has_element?(view, "#cx-free[aria-pressed=true]")
+      assert has_element?(view, "#cx-gold-0-plus")
+      view |> element("#cx-free") |> render_click()
+      refute has_element?(view, "#cx-gold-0-plus")
+    end
   end
 end

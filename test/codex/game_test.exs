@@ -8,7 +8,13 @@ defmodule Codex.GameTest do
 
   @seed {1, 2, 3}
 
-  defp new, do: elem(Game.new(%{}, @seed), 1)
+  # The sandbox actions need free mode.
+  defp new, do: free(elem(Game.new(%{}, @seed), 1))
+
+  defp free(game) do
+    {:ok, game} = Game.apply(game, 0, {:free_mode, true})
+    game
+  end
 
   defp ok!(game, action) do
     assert {:ok, game} = Game.apply(game, 0, action)
@@ -37,7 +43,8 @@ defmodule Codex.GameTest do
         assert zone(game, seat, :discard) == []
         assert zone(game, seat, :in_play) == []
         assert zone(game, seat, :patrol) == Map.new(Game.patrol_slots(), &{&1, nil})
-        assert game.sides[seat].gold == 0
+        # P1's first upkeep: 4 gold for 4 workers.
+        assert game.sides[seat].gold == if(seat == 0, do: 4, else: 0)
         assert game.sides[seat].base_hp == 20
         assert game.sides[seat].tech_buildings == []
 
@@ -72,8 +79,9 @@ defmodule Codex.GameTest do
       game = new()
       assert Game.status(game) == {:playing, [0]}
       assert Game.table_seats() == [0]
-      refute :undo in Game.legal_actions(game, 0)
-      assert :undo in Game.legal_actions(ok!(game, :end_turn), 0)
+      {:ok, fresh} = Game.new(%{}, @seed)
+      refute :undo in Game.legal_actions(fresh, 0)
+      assert :undo in Game.legal_actions(game, 0)
     end
   end
 
@@ -241,9 +249,9 @@ defmodule Codex.GameTest do
 
     test "gold and base HP stay in 0..99" do
       game = new() |> ok!({:adjust, 0, :gold, 4}) |> ok!({:adjust, 1, :base_hp, -3})
-      assert game.sides[0].gold == 4
+      assert game.sides[0].gold == 8
       assert game.sides[1].base_hp == 17
-      assert Game.apply(game, 0, {:adjust, 0, :gold, -5}) == {:error, :out_of_range}
+      assert Game.apply(game, 0, {:adjust, 0, :gold, -9}) == {:error, :out_of_range}
       assert Game.apply(game, 0, {:adjust, 0, :base_hp, 80}) == {:error, :out_of_range}
       assert Game.apply(game, 0, {:adjust, 0, :workers, 1}) == {:error, :invalid_adjust}
     end
@@ -277,6 +285,9 @@ defmodule Codex.GameTest do
       assert %{undone | history: []} == %{after_move | history: []}
       undone = ok!(undone, {:undo})
       assert undone == game
+      # The last undo turns free mode off again.
+      undone = ok!(undone, :undo)
+      refute undone.free
       assert Game.apply(undone, 0, :undo) == {:error, :nothing_to_undo}
     end
 
@@ -301,7 +312,8 @@ defmodule Codex.GameTest do
     assert length(view.sides[1].zones.hand) == 5
     for id <- zone(game, 0, :deck), do: refute(Map.has_key?(view.cards, id))
     for id <- zone(game, 1, :hand), do: assert(Map.has_key?(view.cards, id))
-    refute view.undo
+    assert view.undo
+    refute Game.view(elem(Game.new(%{}, @seed), 1), 0).undo
   end
 
   describe "card conservation" do
@@ -310,7 +322,7 @@ defmodule Codex.GameTest do
     test "every card is in exactly one zone after random actions" do
       for seed <- 1..25 do
         rng = :rand.seed_s(:exsss, {seed, 7, 11})
-        {:ok, game} = Game.new(%{}, {seed, 1, 1})
+        game = free(elem(Game.new(%{}, {seed, 1, 1}), 1))
 
         Enum.reduce(1..120, {game, rng}, fn _, {game, rng} ->
           {action, rng} = random_action(game, rng)
@@ -328,7 +340,7 @@ defmodule Codex.GameTest do
     end
 
     test "undo after random actions gives back the earlier states" do
-      {:ok, game} = Game.new(%{}, {5, 6, 7})
+      game = free(elem(Game.new(%{}, {5, 6, 7}), 1))
       rng = :rand.seed_s(:exsss, {1, 1, 1})
 
       {games, _} =

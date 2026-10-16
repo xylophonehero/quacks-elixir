@@ -182,6 +182,11 @@ View P2
 </span>
 <span class="hidden sm:inline">P2 hand</span>
 </button>
+<button aria-pressed="false" class="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition active:scale-95 bg-black/25 text-white/80 ring-white/10 hover:bg-black/40" id="cx-free" phx-click="free" title="Free mode: move cards and change counters by hand, without the rules" type="button">
+<span class="hero-hand-raised-mini size-3.5">
+</span>
+<span class="hidden sm:inline">Free mode</span>
+</button>
 <button aria-label="Log" class="grid size-7 place-items-center rounded-full bg-black/25 ring-1 ring-white/10 transition hover:bg-black/40 lg:hidden" id="cx-log-open" phx-click="drawer" phx-value-zone="log" type="button">
 <span class="hero-list-bullet-mini size-4">
 </span>
@@ -199,35 +204,19 @@ P2
 </span>
 <span class="text-[11px] text-white/50 tabular-nums">turn 1</span>
 <div class="ml-auto flex items-center gap-1.5">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10" title="Base HP">
-<button aria-label="Base HP -1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-hp-1-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="base_hp" phx-value-seat="1" type="button">
-<span class="hero-minus-mini size-3.5">
-</span>
-</button>
-<span class="flex min-w-9 items-center justify-center gap-0.5 text-sm font-bold tabular-nums">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="1" title="Base HP">
+<span class="flex min-w-9 items-center justify-center gap-0.5 px-1 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
 </span>
 <span id="cx-hp-1">20</span>
 </span>
-<button aria-label="Base HP +1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-hp-1-plus" phx-click="adjust" phx-value-delta="1" phx-value-key="base_hp" phx-value-seat="1" type="button">
-<span class="hero-plus-mini size-3.5">
-</span>
-</button>
 </div>
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10" title="Gold">
-<button aria-label="Gold -1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-gold-1-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="gold" phx-value-seat="1" type="button">
-<span class="hero-minus-mini size-3.5">
-</span>
-</button>
-<span class="flex min-w-9 items-center justify-center gap-0.5 text-sm font-bold tabular-nums">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-seat="1" title="Gold">
+<span class="flex min-w-9 items-center justify-center gap-0.5 px-1 text-sm font-bold tabular-nums">
 <span class="hero-circle-stack-solid size-3.5 text-amber-300">
 </span>
-<span id="cx-gold-1">5</span>
+<span id="cx-gold-1">10</span>
 </span>
-<button aria-label="Gold +1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-gold-1-plus" phx-click="adjust" phx-value-delta="1" phx-value-key="gold" phx-value-seat="1" type="button">
-<span class="hero-plus-mini size-3.5">
-</span>
-</button>
 </div>
 </div>
 </div>
@@ -236,9 +225,6 @@ P2
 <div class="cx-zone cx-command min-w-0 flex-1 " data-drop="" data-list="true" data-seat="1" data-zone="command" id="cx-zone-1-command" phx-click="zone" phx-value-seat="1" phx-value-zone="command">
 <span class="cx-label cx-row-label">Command</span>
 <div class="flex flex-col flex-wrap content-start gap-1 self-start pt-3">
-<button class="rounded-md bg-black/25 px-1.5 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10 transition hover:bg-black/40 hover:text-white" id="cx-build-1" phx-click="drawer" phx-value-seat="1" phx-value-zone="buildings" type="button">
-+ Build
-</button>
 </div>
 </div>
 <div class="cx-zone cx-pile " data-drop="" data-seat="1" data-zone="workers" id="cx-workers-1" phx-click="zone" phx-value-seat="1" phx-value-zone="workers" title="Workers: 5">
@@ -253,7 +239,7 @@ P2
 </div>
 </div>
 <div class="flex flex-col items-center gap-1">
-<div class="cx-zone cx-pile " data-drop="" data-seat="1" data-zone="deck" id="cx-deck-1" phx-click="zone" phx-value-seat="1" phx-value-zone="deck" title="Deck: 3">
+<div class="cx-zone cx-pile " data-drop="" data-seat="1" data-zone="deck" id="cx-deck-1" phx-click="zone" phx-value-seat="1" phx-value-zone="deck" title="Deck: 2">
 <span class="cx-label">Deck</span>
 <div class="cx-pile-stack" data-empty="false">
 <div class="cx-card">
@@ -261,17 +247,8 @@ P2
 <span>Codex</span>
 </div>
 </div>
-<span class="cx-count" id="cx-deck-1-count">3</span>
+<span class="cx-count" id="cx-deck-1-count">2</span>
 </div>
-</div>
-<div class="flex gap-1">
-<button class="cx-mini" id="cx-draw-1" phx-click="draw" phx-value-seat="1" title="Draw a card" type="button">
-Draw
-</button>
-<button aria-label="Shuffle the deck" class="cx-mini" id="cx-shuffle-1" phx-click="shuffle" phx-value-seat="1" phx-value-zone="deck" title="Shuffle the deck" type="button">
-<span class="hero-arrows-right-left-mini size-3">
-</span>
-</button>
 </div>
 </div>
 <div class="cx-zone cx-pile " data-drop="" data-seat="1" data-zone="discard" id="cx-discard-1" phx-click="zone" phx-value-seat="1" phx-value-zone="discard" title="Discard: 0">
@@ -294,24 +271,29 @@ Draw
 </div>
 </div>
 <div class="cx-zone cx-hand cx-hand-far cx-hand-hidden" data-drop="" data-list="true" data-seat="1" data-zone="hand" id="cx-zone-1-hand" phx-click="zone" phx-value-seat="1" phx-value-zone="hand">
-<span class="cx-label cx-row-label">Hand · 4</span>
+<span class="cx-label cx-row-label">Hand · 5</span>
 <div class="cx-fan">
-<div class="cx-card " data-card-id="41" data-hidden="" draggable="false" id="cx-card-41" phx-value-id="41" style="--r: 3.75deg; --y: -2.7px" title="a card">
+<div class="cx-card " data-card-id="47" data-hidden="" draggable="false" id="cx-card-47" phx-value-id="47" style="--r: 5.0deg; --y: -4.8px" title="a card">
 <div class="cx-face cx-back">
 <span>Codex</span>
 </div>
 </div>
-<div class="cx-card " data-card-id="49" data-hidden="" draggable="false" id="cx-card-49" phx-value-id="49" style="--r: 1.25deg; --y: -0.3px" title="a card">
+<div class="cx-card " data-card-id="43" data-hidden="" draggable="false" id="cx-card-43" phx-value-id="43" style="--r: 2.5deg; --y: -1.2px" title="a card">
 <div class="cx-face cx-back">
 <span>Codex</span>
 </div>
 </div>
-<div class="cx-card " data-card-id="46" data-hidden="" draggable="false" id="cx-card-46" phx-value-id="46" style="--r: -1.25deg; --y: -0.3px" title="a card">
+<div class="cx-card " data-card-id="42" data-hidden="" draggable="false" id="cx-card-42" phx-value-id="42" style="--r: -0.0deg; --y: -0.0px" title="a card">
 <div class="cx-face cx-back">
 <span>Codex</span>
 </div>
 </div>
-<div class="cx-card " data-card-id="45" data-hidden="" draggable="false" id="cx-card-45" phx-value-id="45" style="--r: -3.75deg; --y: -2.7px" title="a card">
+<div class="cx-card " data-card-id="49" data-hidden="" draggable="false" id="cx-card-49" phx-value-id="49" style="--r: -2.5deg; --y: -1.2px" title="a card">
+<div class="cx-face cx-back">
+<span>Codex</span>
+</div>
+</div>
+<div class="cx-card " data-card-id="41" data-hidden="" draggable="false" id="cx-card-41" phx-value-id="41" style="--r: -5.0deg; --y: -4.8px" title="a card">
 <div class="cx-face cx-back">
 <span>Codex</span>
 </div>
@@ -397,12 +379,13 @@ Draw
 </div>
 </div>
 </section>
-<div class="flex items-center gap-2 py-0.5">
+<div class="flex flex-col gap-1 py-0.5">
+<div class="flex items-center gap-2">
 <div class="flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow-sm sm:text-sm bg-rose-700" id="cx-active">
 <span class="size-1.5 animate-pulse rounded-full bg-white">
 </span>
 <span class="truncate">
-P1 · turn 2
+P1 · turn 2 · main phase
 </span>
 </div>
 <div class="h-px flex-1 bg-gradient-to-r from-white/5 via-white/20 to-white/5">
@@ -431,6 +414,8 @@ P1 · turn 2
 End turn
 </button>
 </div>
+<p class="px-1 text-xs text-white/70" id="cx-hint">You can hire a worker. Tap a card to see its actions.</p>
+</div>
 <section class="flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 sm:gap-2 sm:p-2 bg-rose-950/20 ring-rose-300/15 cx-active-side" data-far="false" id="cx-side-0">
 <div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
 <span class="rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white bg-rose-700">
@@ -442,35 +427,19 @@ P1
 </span>
 <span class="text-[11px] text-white/50 tabular-nums">turn 2</span>
 <div class="ml-auto flex items-center gap-1.5">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10" title="Base HP">
-<button aria-label="Base HP -1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-hp-0-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="base_hp" phx-value-seat="0" type="button">
-<span class="hero-minus-mini size-3.5">
-</span>
-</button>
-<span class="flex min-w-9 items-center justify-center gap-0.5 text-sm font-bold tabular-nums">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="0" title="Base HP">
+<span class="flex min-w-9 items-center justify-center gap-0.5 px-1 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
 </span>
 <span id="cx-hp-0">17</span>
 </span>
-<button aria-label="Base HP +1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-hp-0-plus" phx-click="adjust" phx-value-delta="1" phx-value-key="base_hp" phx-value-seat="0" type="button">
-<span class="hero-plus-mini size-3.5">
-</span>
-</button>
 </div>
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10" title="Gold">
-<button aria-label="Gold -1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-gold-0-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="gold" phx-value-seat="0" type="button">
-<span class="hero-minus-mini size-3.5">
-</span>
-</button>
-<span class="flex min-w-9 items-center justify-center gap-0.5 text-sm font-bold tabular-nums">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-seat="0" title="Gold">
+<span class="flex min-w-9 items-center justify-center gap-0.5 px-1 text-sm font-bold tabular-nums">
 <span class="hero-circle-stack-solid size-3.5 text-amber-300">
 </span>
-<span id="cx-gold-0">3</span>
+<span id="cx-gold-0">11</span>
 </span>
-<button aria-label="Gold +1" class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7" id="cx-gold-0-plus" phx-click="adjust" phx-value-delta="1" phx-value-key="gold" phx-value-seat="0" type="button">
-<span class="hero-plus-mini size-3.5">
-</span>
-</button>
 </div>
 </div>
 </div>
@@ -541,7 +510,7 @@ P1
 <span class="cx-stats">2/2</span>
 </div>
 </div>
-<div class="cx-card cx-exhausted cursor-pointer" data-card-id="4" draggable="true" id="cx-card-4" phx-click="select" phx-value-id="4" style="" title="Brick Thief">
+<div class="cx-card cursor-pointer" data-card-id="4" draggable="true" id="cx-card-4" phx-click="select" phx-value-id="4" style="" title="Brick Thief">
 <div class="cx-face cx-css cx-tone-neutral">
 <span class="cx-cost">2</span>
 <span class="cx-name">Brick Thief</span>
@@ -563,9 +532,6 @@ P1
 <span class="rounded-md bg-amber-200/90 px-1.5 py-0.5 text-[10px] font-bold text-stone-900 shadow-sm" id="cx-building-0-tech_1">
 Tech I
 </span>
-<button class="rounded-md bg-black/25 px-1.5 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10 transition hover:bg-black/40 hover:text-white" id="cx-build-0" phx-click="drawer" phx-value-seat="0" phx-value-zone="buildings" type="button">
-+ Build
-</button>
 </div>
 </div>
 <div class="cx-zone cx-pile " data-drop="" data-seat="0" data-zone="workers" id="cx-workers-0" phx-click="zone" phx-value-seat="0" phx-value-zone="workers" title="Workers: 5">
@@ -580,7 +546,7 @@ Tech I
 </div>
 </div>
 <div class="flex flex-col items-center gap-1">
-<div class="cx-zone cx-pile " data-drop="" data-seat="0" data-zone="deck" id="cx-deck-0" phx-click="zone" phx-value-seat="0" phx-value-zone="deck" title="Deck: 3">
+<div class="cx-zone cx-pile " data-drop="" data-seat="0" data-zone="deck" id="cx-deck-0" phx-click="zone" phx-value-seat="0" phx-value-zone="deck" title="Deck: 2">
 <span class="cx-label">Deck</span>
 <div class="cx-pile-stack" data-empty="false">
 <div class="cx-card">
@@ -588,31 +554,15 @@ Tech I
 <span>Codex</span>
 </div>
 </div>
-<span class="cx-count" id="cx-deck-0-count">3</span>
+<span class="cx-count" id="cx-deck-0-count">2</span>
 </div>
 </div>
-<div class="flex gap-1">
-<button class="cx-mini" id="cx-draw-0" phx-click="draw" phx-value-seat="0" title="Draw a card" type="button">
-Draw
-</button>
-<button aria-label="Shuffle the deck" class="cx-mini" id="cx-shuffle-0" phx-click="shuffle" phx-value-seat="0" phx-value-zone="deck" title="Shuffle the deck" type="button">
-<span class="hero-arrows-right-left-mini size-3">
-</span>
-</button>
 </div>
-</div>
-<div class="cx-zone cx-pile " data-drop="" data-seat="0" data-zone="discard" id="cx-discard-0" phx-click="zone" phx-value-seat="0" phx-value-zone="discard" title="Discard: 2">
+<div class="cx-zone cx-pile " data-drop="" data-seat="0" data-zone="discard" id="cx-discard-0" phx-click="zone" phx-value-seat="0" phx-value-zone="discard" title="Discard: 0">
 <span class="cx-label">Discard</span>
-<div class="cx-pile-stack" data-empty="false">
-<div class="cx-card " data-card-id="11" draggable="true" id="cx-top-11" phx-value-id="11" style="" title="Wrecking Ball">
-<div class="cx-face cx-css cx-tone-bashing">
-<span class="cx-cost">0</span>
-<span class="cx-name">Wrecking Ball</span>
-<span class="cx-type">Spell</span>
-<span class="cx-text">Deal 2 damage to a building.</span>
+<div class="cx-pile-stack" data-empty="true">
+<div class="cx-pile-empty">
 </div>
-</div>
-<span class="cx-count" id="cx-discard-0-count">2</span>
 </div>
 </div>
 <div class="cx-zone cx-pile " data-drop="" data-seat="0" data-zone="codex" id="cx-codex-0" phx-click="zone" phx-value-seat="0" phx-value-zone="codex" title="Codex: 23">
@@ -628,18 +578,9 @@ Draw
 </div>
 </div>
 <div class="cx-zone cx-hand " data-drop="" data-list="true" data-seat="0" data-zone="hand" id="cx-zone-0-hand" phx-click="zone" phx-value-seat="0" phx-value-zone="hand">
-<span class="cx-label cx-row-label">Hand · 3</span>
+<span class="cx-label cx-row-label">Hand · 6</span>
 <div class="cx-fan">
-<div class="cx-card cursor-pointer" data-card-id="5" draggable="true" id="cx-card-5" phx-click="select" phx-value-id="5" style="--r: -2.5deg; --y: 1.2px" title="Helpful Turtle">
-<div class="cx-face cx-css cx-tone-neutral">
-<span class="cx-cost">2</span>
-<span class="cx-name">Helpful Turtle</span>
-<span class="cx-type">Unit — Cute Animal · tech 0</span>
-<span class="cx-text">Healing 1 (During your upkeep, heal 1 damage from all friendly units and heroes.)</span>
-<span class="cx-stats">1/2</span>
-</div>
-</div>
-<div class="cx-card cursor-pointer" data-card-id="10" draggable="true" id="cx-card-10" phx-click="select" phx-value-id="10" style="--r: 0.0deg; --y: 0.0px" title="Wither">
+<div class="cx-card cursor-pointer" data-card-id="10" draggable="true" id="cx-card-10" phx-click="select" phx-value-id="10" style="--r: -6.25deg; --y: 7.5px" title="Wither">
 <div class="cx-face cx-css cx-tone-neutral">
 <span class="cx-cost">2</span>
 <span class="cx-name">Wither</span>
@@ -647,13 +588,47 @@ Draw
 <span class="cx-text">Put a -1/-1 rune on a unit or hero.</span>
 </div>
 </div>
-<div class="cx-card cursor-pointer" data-card-id="7" draggable="true" id="cx-card-7" phx-click="select" phx-value-id="7" style="--r: 2.5deg; --y: 1.2px" title="Fruit Ninja">
+<div class="cx-card cursor-pointer" data-card-id="7" draggable="true" id="cx-card-7" phx-click="select" phx-value-id="7" style="--r: -3.75deg; --y: 2.7px" title="Fruit Ninja">
 <div class="cx-face cx-css cx-tone-neutral">
 <span class="cx-cost">3</span>
 <span class="cx-name">Fruit Ninja</span>
 <span class="cx-type">Unit — Ninja · tech 0</span>
 <span class="cx-text">Frenzy 1 (Gets +1 ATK on your turn.)</span>
 <span class="cx-stats">2/2</span>
+</div>
+</div>
+<div class="cx-card cursor-pointer" data-card-id="8" draggable="true" id="cx-card-8" phx-click="select" phx-value-id="8" style="--r: -1.25deg; --y: 0.3px" title="Spark">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">1</span>
+<span class="cx-name">Spark</span>
+<span class="cx-type">Minor Spell — Burn</span>
+<span class="cx-text">Deal 1 damage to a patroller.</span>
+</div>
+</div>
+<div class="cx-card cursor-pointer" data-card-id="1" draggable="true" id="cx-card-1" phx-click="select" phx-value-id="1" style="--r: 1.25deg; --y: 0.3px" title="Timely Messenger">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">1</span>
+<span class="cx-name">Timely Messenger</span>
+<span class="cx-type">Unit — Mercenary · tech 0</span>
+<span class="cx-text">Haste (Can attack and play ⤵ abilities, if he had any, the turn he arrives.)</span>
+<span class="cx-stats">1/1</span>
+</div>
+</div>
+<div class="cx-card cursor-pointer" data-card-id="2" draggable="true" id="cx-card-2" phx-click="select" phx-value-id="2" style="--r: 3.75deg; --y: 2.7px" title="Tenderfoot">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">1</span>
+<span class="cx-name">Tenderfoot</span>
+<span class="cx-type">Unit — Virtuoso · tech 0</span>
+<span class="cx-stats">1/2</span>
+</div>
+</div>
+<div class="cx-card cursor-pointer" data-card-id="5" draggable="true" id="cx-card-5" phx-click="select" phx-value-id="5" style="--r: 6.25deg; --y: 7.5px" title="Helpful Turtle">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">2</span>
+<span class="cx-name">Helpful Turtle</span>
+<span class="cx-type">Unit — Cute Animal · tech 0</span>
+<span class="cx-text">Healing 1 (During your upkeep, heal 1 damage from all friendly units and heroes.)</span>
+<span class="cx-stats">1/2</span>
 </div>
 </div>
 </div>
@@ -674,81 +649,93 @@ discard pile, the codex, the workers or the trash to look through it.
 <p class="text-xs font-semibold tracking-wide text-white/60 uppercase">Log</p>
 <ol class="flex max-h-[30vh] flex-col gap-0.5 overflow-y-auto text-xs text-white/80">
 <li class="shrink-0 truncate" id="cx-log-0">
-P1 draws 2
+{:free_mode, false}
 </li>
 <li class="shrink-0 truncate" id="cx-log-1">
-P1 gold −1
+P1 draws 2
 </li>
 <li class="shrink-0 truncate" id="cx-log-2">
-Bloom → P1 workers
+P1 shuffles the discard pile into the deck.
 </li>
 <li class="shrink-0 truncate" id="cx-log-3">
-P2 ends the turn.
+P1 gold −1
 </li>
 <li class="shrink-0 truncate" id="cx-log-4">
-P2 draws 2
+Bloom → P1 workers
 </li>
 <li class="shrink-0 truncate" id="cx-log-5">
-P1 base HP −3
+P2 ends the turn.
 </li>
 <li class="shrink-0 truncate" id="cx-log-6">
-Helpful Turtle → trash
+P2 shuffles the discard pile into the deck.
 </li>
 <li class="shrink-0 truncate" id="cx-log-7">
-Timely Messenger: damage +1
+P2 draws 2
 </li>
 <li class="shrink-0 truncate" id="cx-log-8">
-Timely Messenger → P2 in play
+P1 base HP −3
 </li>
 <li class="shrink-0 truncate" id="cx-log-9">
-River Montoya: level +2
+Helpful Turtle → trash
 </li>
 <li class="shrink-0 truncate" id="cx-log-10">
-River Montoya → P2 Lookout
+Timely Messenger: damage +1
 </li>
 <li class="shrink-0 truncate" id="cx-log-11">
-Bloom → P2 Elite
+Timely Messenger → P2 in play
 </li>
 <li class="shrink-0 truncate" id="cx-log-12">
-P2 gold +5
+River Montoya: level +2
 </li>
 <li class="shrink-0 truncate" id="cx-log-13">
-P1 ends the turn.
+River Montoya → P2 Lookout
 </li>
 <li class="shrink-0 truncate" id="cx-log-14">
-P1 Tech I on/off
+Bloom → P2 Elite
 </li>
 <li class="shrink-0 truncate" id="cx-log-15">
-Wrecking Ball → P1 discard
+P2 gold +5
 </li>
 <li class="shrink-0 truncate" id="cx-log-16">
-Older Brother → P1 discard
+P1 ends the turn.
 </li>
 <li class="shrink-0 truncate" id="cx-log-17">
-Brick Thief: +1/+1 +1
+P1 Tech I on/off
 </li>
 <li class="shrink-0 truncate" id="cx-log-18">
-Brick Thief: exhaust / ready
+a card → P1 discard
 </li>
 <li class="shrink-0 truncate" id="cx-log-19">
-Troq Bashar: damage +1
+a card → P1 discard
 </li>
 <li class="shrink-0 truncate" id="cx-log-20">
-Troq Bashar: level +4
+Brick Thief: +1/+1 +1
 </li>
 <li class="shrink-0 truncate" id="cx-log-21">
-Troq Bashar → P1 Squad leader
+Brick Thief: exhaust / ready
 </li>
 <li class="shrink-0 truncate" id="cx-log-22">
-Brick Thief → P1 in play
+Troq Bashar: damage +1
 </li>
 <li class="shrink-0 truncate" id="cx-log-23">
-Granfalloon Flagbearer → P1 in play
+Troq Bashar: level +4
 </li>
 <li class="shrink-0 truncate" id="cx-log-24">
-P1 gold +4
+Troq Bashar → P1 Squad leader
 </li>
 <li class="shrink-0 truncate" id="cx-log-25">
+Brick Thief → P1 in play
+</li>
+<li class="shrink-0 truncate" id="cx-log-26">
+Granfalloon Flagbearer → P1 in play
+</li>
+<li class="shrink-0 truncate" id="cx-log-27">
+P1 gold +4
+</li>
+<li class="shrink-0 truncate" id="cx-log-28">
+{:free_mode, true}
+</li>
+<li class="shrink-0 truncate" id="cx-log-29">
 New game: P1 Bashing, P2 Finesse.
 </li>
 </ol>
@@ -770,81 +757,93 @@ New game: P1 Bashing, P2 Finesse.
 <p class="text-xs font-semibold tracking-wide text-white/60 uppercase">Log</p>
 <ol class="flex max-h-[30vh] flex-col gap-0.5 overflow-y-auto text-xs text-white/80">
 <li class="shrink-0 truncate" id="cx-drawer-log-0">
-P1 draws 2
+{:free_mode, false}
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-1">
-P1 gold −1
+P1 draws 2
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-2">
-Bloom → P1 workers
+P1 shuffles the discard pile into the deck.
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-3">
-P2 ends the turn.
+P1 gold −1
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-4">
-P2 draws 2
+Bloom → P1 workers
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-5">
-P1 base HP −3
+P2 ends the turn.
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-6">
-Helpful Turtle → trash
+P2 shuffles the discard pile into the deck.
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-7">
-Timely Messenger: damage +1
+P2 draws 2
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-8">
-Timely Messenger → P2 in play
+P1 base HP −3
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-9">
-River Montoya: level +2
+Helpful Turtle → trash
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-10">
-River Montoya → P2 Lookout
+Timely Messenger: damage +1
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-11">
-Bloom → P2 Elite
+Timely Messenger → P2 in play
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-12">
-P2 gold +5
+River Montoya: level +2
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-13">
-P1 ends the turn.
+River Montoya → P2 Lookout
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-14">
-P1 Tech I on/off
+Bloom → P2 Elite
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-15">
-Wrecking Ball → P1 discard
+P2 gold +5
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-16">
-Older Brother → P1 discard
+P1 ends the turn.
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-17">
-Brick Thief: +1/+1 +1
+P1 Tech I on/off
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-18">
-Brick Thief: exhaust / ready
+a card → P1 discard
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-19">
-Troq Bashar: damage +1
+a card → P1 discard
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-20">
-Troq Bashar: level +4
+Brick Thief: +1/+1 +1
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-21">
-Troq Bashar → P1 Squad leader
+Brick Thief: exhaust / ready
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-22">
-Brick Thief → P1 in play
+Troq Bashar: damage +1
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-23">
-Granfalloon Flagbearer → P1 in play
+Troq Bashar: level +4
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-24">
-P1 gold +4
+Troq Bashar → P1 Squad leader
 </li>
 <li class="shrink-0 truncate" id="cx-drawer-log-25">
+Brick Thief → P1 in play
+</li>
+<li class="shrink-0 truncate" id="cx-drawer-log-26">
+Granfalloon Flagbearer → P1 in play
+</li>
+<li class="shrink-0 truncate" id="cx-drawer-log-27">
+P1 gold +4
+</li>
+<li class="shrink-0 truncate" id="cx-drawer-log-28">
+{:free_mode, true}
+</li>
+<li class="shrink-0 truncate" id="cx-drawer-log-29">
 New game: P1 Bashing, P2 Finesse.
 </li>
 </ol>
