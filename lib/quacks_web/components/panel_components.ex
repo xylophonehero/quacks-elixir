@@ -697,13 +697,13 @@ defmodule QuacksWeb.PanelComponents do
 
     ~H"""
     <section
-      class="paper fortune-face card-portrait relative mx-auto flex aspect-[5/7] w-full max-w-60 flex-col overflow-hidden rounded-lg text-sm shadow-md ring-1 shadow-black/25 ring-ink/20"
+      class="paper fortune-face card-portrait relative mx-auto flex aspect-[5/7] w-full max-w-60 flex-col rounded-lg text-sm shadow-md ring-1 shadow-black/25 ring-ink/20"
       aria-label="Fortune teller card"
       data-role="fortune-card"
       data-colour={@card.colour}
     >
       <div class={[
-        "flex items-center gap-1 px-2 py-1 text-[10px] font-semibold tracking-wide whitespace-nowrap text-white uppercase",
+        "flex items-center gap-1 rounded-t-lg px-2 py-1 text-[10px] font-semibold tracking-wide whitespace-nowrap text-white uppercase",
         @card.colour == :blue && "bg-chip-blue",
         @card.colour == :purple && "bg-chip-purple"
       ]}>
@@ -713,7 +713,10 @@ defmodule QuacksWeb.PanelComponents do
         />
         <span class="truncate">{band_text(@card.colour, @choice)}</span>
       </div>
-      <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-3 text-center">
+      <div
+        class="flex flex-1 flex-col items-center justify-center gap-2 p-3 text-center"
+        data-role="card-body"
+      >
         <div
           class={[
             "grid size-16 shrink-0 place-items-center rounded-full ring-2",
@@ -727,12 +730,12 @@ defmodule QuacksWeb.PanelComponents do
           <.card_motif motif={@motif} />
         </div>
         <h2 class="font-hand text-xl leading-tight font-bold text-balance">{@card.name}</h2>
-        <p class="min-h-0 overflow-y-auto leading-snug text-pretty text-ink-soft">{@card.text}</p>
+        <p class="leading-snug text-pretty text-ink-soft" data-role="card-text">{@card.text}</p>
       </div>
       <p
         :if={@visitor}
         class={[
-          "flex items-center justify-center gap-1 px-2 py-1 text-xs leading-tight font-semibold text-ink",
+          "flex items-center justify-center gap-1 rounded-b-lg px-2 py-1 text-xs leading-tight font-semibold text-ink",
           penny_class(Witches.card(@visitor).colour)
         ]}
         data-role="card-visitor"
