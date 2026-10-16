@@ -1,0 +1,19 @@
+{
+  "name": "go_fish",
+  "title": "Go Fish",
+  "players": {"min": 2, "max": 6},
+  "deck": "standard52",
+  "referee": null,
+  "zones": [
+    {"id": "ocean", "label": "Ocean", "visibility": "hidden", "layout": "pile", "deck": true},
+    {"id": "hand", "label": "Hand", "per_seat": true, "visibility": "owner", "layout": "hand"},
+    {"id": "books", "label": "Books", "per_seat": true, "visibility": "public", "layout": "row"}
+  ],
+  "counters": [
+    {"id": "books", "label": "Books", "per_seat": true, "value": 0}
+  ],
+  "setup": [
+    {"op": "shuffle", "zone": "ocean"},
+    {"op": "deal", "n": {"2": 7, "3": 7, "*": 5}, "from": "ocean", "to": ["hand:*"]}
+  ]
+}

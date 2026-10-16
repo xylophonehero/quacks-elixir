@@ -21,6 +21,14 @@ config :quacks, Table,
       game: Hearts.Table,
       board: HeartsWeb.Board,
       setup: "/games/hearts/new"
+    },
+    "generic" => %{
+      name: "Crazy Eights",
+      blurb: "Match the suit or the rank; an 8 is wild. 2 to 5. A generic table: zones and ops.",
+      game: Table.Generic.Table,
+      board: TableWeb.GenericBoard,
+      setup: "/games/generic/new?spec=crazy_eights",
+      icon: "8"
     }
   }
 
