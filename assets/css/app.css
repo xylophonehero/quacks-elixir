@@ -548,6 +548,23 @@ body {
     }
   }
 
+  /* Tidy 1: a long sheet with nothing in the bar under it (the patient choice)
+     goes down to the screen's foot on a portrait phone: the pot's height left
+     about 120 px empty under it and its list scrolled. */
+  @media (orientation: portrait) {
+    .sheet[data-pot].sheet-tall {
+      bottom: max(0.5rem, env(safe-area-inset-bottom));
+      max-height: calc(100dvh - 10rem);
+    }
+
+    @supports (anchor-name: --a) {
+      .sheet[data-pot].sheet-tall {
+        inset: anchor(top) anchor(right) max(0px, env(safe-area-inset-bottom)) anchor(left);
+        max-height: none;
+      }
+    }
+  }
+
   @starting-style {
     .sheet[data-pot][open],
     .sheet.sheet-pot:popover-open {

@@ -1035,11 +1035,12 @@ defmodule QuacksWeb.GameLive do
               id="share-game"
               phx-click={
                 JS.dispatch("quacks:share",
-                  detail: %{
-                    title: "Quacks",
-                    text: "Join my Quacks game. Room code: #{@id}",
-                    url: url(~p"/g/#{@id}")
-                  }
+                  detail:
+                    Jason.OrderedObject.new(
+                      title: "Quacks",
+                      text: "Join my Quacks game. Room code: #{@id}",
+                      url: url(~p"/g/#{@id}")
+                    )
                 )
               }
               variant={:primary}
@@ -1506,6 +1507,7 @@ defmodule QuacksWeb.GameLive do
           <.dialog_sheet
             :if={@decision && @decision != :fortune_choice && !@bar_choice}
             id={"decision-#{@decision}"}
+            class={@decision == :patient_choice && "sheet-tall"}
             label={phase_name(@decision)}
             auto_open={is_nil(@reveal)}
             focus_self={not primary_on_open?(@decision, @all_actions)}

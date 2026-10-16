@@ -672,6 +672,13 @@ defmodule QuacksWeb.Gallery.Stories do
           {"5p", "5 players: the smallest pot", %{"players" => 5}}
         ]
       ),
+      screen(
+        "patient",
+        "Choose your patient (Alchemists)",
+        [int("players", 2, 4, 2)],
+        &patient_screen/1,
+        presets: [{"4p", "4 players: the tallest players row", %{"players" => 4}}]
+      ),
       screen("shop", "Shop", [int("players", 1, 8, 4), names], &Fixtures.shop_screen/1),
       screen(
         "visit",
@@ -727,6 +734,13 @@ defmodule QuacksWeb.Gallery.Stories do
 
   defp card_screen(%{"card" => id, "players" => players}) do
     entry = Enum.find(Scenarios.all(), &(&1.kind == "card" and &1.id == id))
+    scenario_screen(entry, %{"step" => 1, "players" => players})
+  end
+
+  # The patient choice of round 1: step 1 of a patient's scenario. On a portrait
+  # phone the sheet goes down to the screen's foot (app.css `.sheet-tall`).
+  defp patient_screen(%{"players" => players}) do
+    entry = Enum.find(Scenarios.all(), &(&1.kind == "patient" and &1.id == "witch_hump"))
     scenario_screen(entry, %{"step" => 1, "players" => players})
   end
 

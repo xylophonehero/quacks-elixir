@@ -25,10 +25,6 @@ defmodule Quacks.GameFileTest do
   @file_path Path.expand("../fixtures/game_files/herb_witches_bots.json", __DIR__)
   @waiting_path Path.expand("../fixtures/game_files/herb_witches_waiting.json", __DIR__)
 
-  setup_all do
-    Golden.load_atoms()
-  end
-
   setup do
     %{dir: Quacks.GameHelpers.games_dir()}
   end
