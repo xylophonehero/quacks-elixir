@@ -13,9 +13,10 @@ The file keeps:
 
 - the board words (priv/games/codenames_duet/words.txt), all of them;
 - a clue vocabulary: the most frequent GloVe words (GloVe lists them by
-  frequency) that are 3..12 lower-case letters, a word or a simple form of a word
-  in lower case in /usr/share/dict/words (this drops most names: the dictionary
-  has them with a capital letter only), not a stop word and not in BLOCK.
+  frequency) that are 3..12 lower-case letters, a word in lower case in
+  /usr/share/dict/words (a base form: no plurals or past tenses, and most names
+  drop out, as the dictionary has them with a capital letter only), not a stop
+  word and not in BLOCK. (The bot reads a clue such as "ships" as "ship".)
 
 Format (little endian), read by CodenamesDuet.AI.Vectors.Data:
 
@@ -36,7 +37,7 @@ ROOT = Path(__file__).resolve().parents[3]
 WORDS = ROOT / "priv/games/codenames_duet/words.txt"
 OUT = ROOT / "priv/games/codenames_duet/vectors.bin"
 SCAN = 45_000  # the most frequent GloVe words to read
-CLUES = 20_000  # the clue vocabulary
+CLUES = 20_000  # the clue vocabulary, at most (45,000 words give about 17,500)
 K = 300  # nearest clue words per board word
 
 STOP = set("""
@@ -54,6 +55,8 @@ another anyone anything around away back became become becomes did even get gets
 got gotten goes going gone made make makes many still well went whatever whenever whereas
 wherever whichever whoever already almost always often never sometimes usually yes okay
 mr mrs ms dr inc ltd etc via vs ago yesterday today tomorrow tonight percent
+amid amidst near nearest nearby toward towards across along alongside onto beside besides
+despite unlike regarding whereby thereby hence inside outside beyond behind
 """.split())
 
 # Not family-friendly, or a slur, or too grim for a party game.
@@ -80,23 +83,6 @@ def dictionary():
     return {w for w in words if w.islower()}
 
 
-def known(w, lower):
-    if w in lower:
-        return True
-    for e in ("s", "es", "ed", "ing", "d", "er", "ers", "ies", "ied", "ly", "men"):
-        if w.endswith(e) and len(w) - len(e) >= 3:
-            b = w[: -len(e)]
-            if b in lower:
-                return True
-            if e in ("ies", "ied") and b + "y" in lower:
-                return True
-            if e in ("ed", "ing", "er", "ers") and b + "e" in lower:
-                return True
-            if e == "men" and b + "man" in lower:
-                return True
-    return False
-
-
 def main(glove):
     board = [w.strip() for w in WORDS.read_text().split("\n") if w.strip()]
     board_set = set(board)
@@ -114,7 +100,7 @@ def main(glove):
                 and re.fullmatch("[a-z]{3,12}", word)
                 and word not in STOP
                 and word not in BLOCK
-                and known(word, lower)
+                and word in lower
             ):
                 clue_words.append(word)
                 vectors[word] = np.array(rest.split(), dtype=np.float32)

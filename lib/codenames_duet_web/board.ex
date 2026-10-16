@@ -331,7 +331,11 @@ defmodule CodenamesDuetWeb.Board do
         id="duet-players"
         class="ml-auto min-w-0 truncate text-xs text-tb-base-content/70 sm:text-sm"
       >
-        {seat_name(@seats, 0)} &amp; {seat_name(@seats, 1)}
+        {seat_name(@seats, 0)} &amp; {seat_name(@seats, 1)}<.icon
+          :if={get_in(@seats, [1, :bot])}
+          name="hero-cpu-chip-mini"
+          class="ml-0.5 size-3.5 align-[-2px]"
+        />
       </span>
     </header>
     """
@@ -348,7 +352,16 @@ defmodule CodenamesDuetWeb.Board do
   defp status_row(assigns) do
     v = assigns.view
     used = v.options.timer - v.timer
-    assigns = assign(assigns, used: used, status: status(assigns))
+    partner_bot? = get_in(assigns.seats, [assigns.partner, :bot]) == true
+
+    assigns =
+      assign(assigns,
+        used: used,
+        status: status(assigns),
+        thinking?:
+          partner_bot? and !assigns.over? and assigns.partner in assigns.view.acting and
+            !assigns.spectator?
+      )
 
     ~H"""
     <div
@@ -356,7 +369,7 @@ defmodule CodenamesDuetWeb.Board do
       class="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-tb bg-tb-base-100 px-3 py-2 ring-1 ring-tb-base-content/10"
     >
       <p id="duet-status" class="min-w-0 flex-1 basis-40 text-sm font-semibold sm:text-base">
-        {@status}
+        {@status}<span :if={@thinking?} id="duet-thinking" class="cd-thinking" aria-hidden="true"><span></span><span></span><span></span></span>
       </p>
       <p
         :if={@view.clue && !@over?}

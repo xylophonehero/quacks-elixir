@@ -31,7 +31,10 @@ defmodule CodenamesDuet.TableTest do
   @tag rule: "§1.1"
   test "a room for two people: no bot seat, each seat its own view" do
     host = "host-#{System.unique_integer()}"
-    assert {:error, :invalid_level} = Room.create(@key, %{opts: %{}, bots: 1, level: :random}, host)
+
+    assert {:error, :invalid_level} =
+             Room.create(@key, %{opts: %{}, bots: 1, level: :random}, host)
+
     assert {:error, :invalid_bots} = Room.create(@key, %{opts: %{}, bots: 2}, host)
     assert {:ok, code} = Room.create(@key, %{opts: %{}, bots: 0, name: "Nick"}, host)
 
@@ -48,8 +51,7 @@ defmodule CodenamesDuet.TableTest do
     assert %{bot: true, open: false} = seats[1]
     assert {:ok, %{seat: :spectator}} = Room.join(@key, code, "guest")
 
-    [{pid, _}] = Registry.lookup(Elixir.Table.Registry, {@key, code})
-    game = settle(pid, code)
+    game = await(code, :guess, 1)
     assert {:clue, 1, _word, n} = Enum.find(Enum.reverse(game.log), &match?({:clue, _, _, _}, &1))
     assert n >= 1
     assert game.phase == :guess
@@ -64,20 +66,27 @@ defmodule CodenamesDuet.TableTest do
     :sys.replace_state(pid, &%{&1 | game: game})
     send(pid, :tick)
 
-    # Index 6 is "golf", green on seat 0's side.
-    game = settle(pid, code)
+    # Index 6 is "golf", green on seat 0's side. Then the bot gives a clue.
+    game = await(code, :guess, 1)
     assert {:guess, 1, 6, :green} in game.log
     assert Enum.count(game.log, &match?({:clue, 1, _, _}, &1)) == 1
   end
 
-  # Lets the room take every bot tick sent so far (ticks come at 0 ms in tests).
-  defp settle(pid, code) do
-    Enum.reduce_while(1..200, nil, fn _, last ->
-      _ = :sys.get_state(pid)
-      v = Room.state(@key, code).version
-      if v == last, do: {:halt, v}, else: {:cont, v}
-    end)
-
+  # Waits until seat 0's view is `phase` with `giver` (the bot ticks at 0 ms in
+  # tests, but a timer message can come a little later), then gives the game.
+  defp await(code, phase, giver) do
+    Phoenix.PubSub.subscribe(Quacks.PubSub, Room.seat_topic(@key, code, 0))
+    game = Room.state(@key, code).game
+    unless game.phase == phase and game.giver == giver, do: wait_view(phase, giver)
     Room.state(@key, code).game
+  end
+
+  defp wait_view(phase, giver) do
+    receive do
+      {:table_view, %{view: %{phase: ^phase, giver: ^giver}}} -> :ok
+      {:table_view, _} -> wait_view(phase, giver)
+    after
+      2000 -> flunk("no view in #{phase} with giver #{giver}")
+    end
   end
 end

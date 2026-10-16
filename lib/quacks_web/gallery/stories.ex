@@ -587,7 +587,9 @@ defmodule QuacksWeb.Gallery.Stories do
             {"watching", "A spectator", %{"state" => "watching"}},
             {"longest", "The 25 longest words", %{"words" => "longest", "state" => "bystander"}},
             {"hidden", "Hide my key", %{"hide_key" => true, "state" => "bystander"}},
-            {"dark", "Dracula (dark), guessing", %{"theme" => "dracula", "state" => "guessing"}}
+            {"dark", "Dracula (dark), guessing", %{"theme" => "dracula", "state" => "guessing"}},
+            {"bot-thinking", "Bot partner: thinking of a clue", %{"state" => "bot-thinking"}},
+            {"bot-guessing", "Bot partner: guessing your clue", %{"state" => "bot-guessing"}}
           ]
         }
       )

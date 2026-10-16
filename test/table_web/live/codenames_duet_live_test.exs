@@ -268,16 +268,24 @@ defmodule TableWeb.CodenamesDuetLiveTest do
     assert has_element?(a, "#duet-over[data-result=lost]")
   end
 
-  # Lets the room and the page take every message sent so far (bot ticks come at 0 ms).
-  defp settle(view, code) do
-    [{pid, _}] = Registry.lookup(Table.Registry, {@key, code})
+  # Waits until the room's game is in `phase` with `giver` (the bot ticks at 0 ms
+  # in tests, but a timer message can come a little later), then lets the page
+  # take the view.
+  defp await(view, code, phase, giver) do
+    Phoenix.PubSub.subscribe(Quacks.PubSub, Server.seat_topic(@key, code, 0))
+    game = game(code)
+    unless game.phase == phase and game.giver == giver, do: wait_view(phase, giver)
+    _ = Server.state(@key, code)
+    render(view)
+  end
 
-    Enum.reduce_while(1..200, nil, fn _, last ->
-      _ = :sys.get_state(pid)
-      v = Server.state(@key, code).version
-      _ = render(view)
-      if v == last, do: {:halt, v}, else: {:cont, v}
-    end)
+  defp wait_view(phase, giver) do
+    receive do
+      {:table_view, %{view: %{phase: ^phase, giver: ^giver}}} -> :ok
+      {:table_view, _} -> wait_view(phase, giver)
+    after
+      2000 -> flunk("no view in #{phase} with giver #{giver}")
+    end
   end
 
   test "set up with a bot partner: the game starts at once and the bot's clue shows", %{
@@ -298,7 +306,7 @@ defmodule TableWeb.CodenamesDuetLiveTest do
     assert %{bot: :vectors} = Server.state(@key, code).seats[1]
 
     {:ok, room, _} = live(conn, to)
-    settle(room, code)
+    await(room, code, :guess, 1)
     refute has_element?(room, "#duet-invite")
     assert has_element?(room, "#duet-players", "Ada")
     assert has_element?(room, "#duet-log li[data-clue]")
@@ -316,7 +324,7 @@ defmodule TableWeb.CodenamesDuetLiveTest do
 
     {:ok, a, _} = open_room(ann, code)
     send(pid, :tick)
-    settle(a, code)
+    await(a, code, :guess, 1)
 
     # Index 6 is "golf", green on Ann's side: the bot finds it.
     assert has_element?(a, "#duet-card-6[data-agent]")

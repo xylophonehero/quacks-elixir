@@ -22,7 +22,7 @@ Terms used in the code, tests and docs of Codenames Duet. Rules: `rulebook.md`. 
 | **score** | `Game.score/1`: the debriefing score of a win (§6.4), else nil. |
 | **view** | `Game.view(game, seat \| :spectator)`: the words, the viewer's own side (`key`), its `greens_left`, the marks, timer, clue, `done`, `acting`, `legal_actions` and the `log`. The partner's side is never in the view while the game is on; `revealed_key` shows both sides when it is over. |
 | **event log** | `game.log`, newest first; the UI animates from it. Events: `{:setup, words, timer}`, `{:clue, giver, word, number}`, `{:guess, guesser, index, colour}` (the colour of the deciding side, which the table marks), `{:side_done, seat}`, `{:turn_end, guesser, how, timer_left}`, `{:sudden_death, guessers}`, `{:game_over, :won \| :lost, :all_found \| :assassin \| :sudden_death}`. No event holds a hidden colour. |
-| **bot** | None. The game needs two people (`CodenamesDuet.Table.bot_levels/0` is `[]`). |
+| **bot** | A bot partner at seat 1, level `:vectors` (`CodenamesDuet.AI.Vectors`): GloVe word vectors (`CodenamesDuet.AI.Vectors.Data`, `priv/games/codenames_duet/vectors.bin`, PDDL), no network. It reads only its own view. Clue: the nearest clue words of its greens, scored by how many greens beat the best other word (an assassin counts 0.1 more) by a margin. Guess: the words nearest the clue, up to the number, one more only when sure. Bench: `CodenamesDuet.AI.Bench` (bot + bot). Set-up: "Partner: a friend / a bot". |
 
 ## The board
 

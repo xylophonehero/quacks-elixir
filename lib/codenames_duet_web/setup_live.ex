@@ -1,10 +1,11 @@
 defmodule CodenamesDuetWeb.SetupLive do
   @moduledoc """
-  `/games/codenames_duet/new`: set up a Codenames Duet room. Your name and the
-  timer tokens (`CodenamesDuet.Game.defaults/0`, 1 to 11; more tokens make the
-  game easier, rulebook §1.5). Create makes the room (`Table.Server.create/3`,
-  you get seat 0) and opens it at `/games/codenames_duet/<code>`, where the code
-  and the invite link show until your partner joins.
+  `/games/codenames_duet/new`: set up a Codenames Duet room. Your name, your
+  partner (a friend, or a bot: `CodenamesDuet.AI.Vectors`) and the timer tokens
+  (`CodenamesDuet.Game.defaults/0`, 1 to 11; more tokens make the game easier,
+  rulebook §1.5). Create makes the room (`Table.Server.create/3`, you get seat 0)
+  and opens it at `/games/codenames_duet/<code>`. With a friend, the code and the
+  invite link show until your friend joins; with a bot, the game starts at once.
   """
   use QuacksWeb, :live_view
 
@@ -16,7 +17,7 @@ defmodule CodenamesDuetWeb.SetupLive do
 
   @impl true
   def mount(_params, session, socket) do
-    params = %{"name" => "", "timer" => to_string(Game.defaults().timer)}
+    params = %{"name" => "", "partner" => "friend", "timer" => to_string(Game.defaults().timer)}
 
     {:ok,
      assign(socket,
@@ -45,9 +46,10 @@ defmodule CodenamesDuetWeb.SetupLive do
     end
   end
 
-  defp config(params) do
-    %{name: params["name"], opts: %{timer: timer(params)}}
-  end
+  defp config(%{"partner" => "bot"} = params),
+    do: %{name: params["name"], opts: %{timer: timer(params)}, bots: 1, level: :vectors}
+
+  defp config(params), do: %{name: params["name"], opts: %{timer: timer(params)}}
 
   defp timer(params) do
     default = Game.defaults().timer
@@ -60,7 +62,12 @@ defmodule CodenamesDuetWeb.SetupLive do
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, timer: timer(assigns.params), timers: @timers)
+    assigns =
+      assign(assigns,
+        timer: timer(assigns.params),
+        timers: @timers,
+        bot?: assigns.params["partner"] == "bot"
+      )
 
     ~H"""
     <Layouts.app flash={@flash} full>
@@ -100,6 +107,37 @@ defmodule CodenamesDuetWeb.SetupLive do
             />
 
             <fieldset class="flex flex-col gap-2">
+              <legend class="mb-2 text-sm font-semibold">Partner</legend>
+              <div class="grid grid-cols-2 gap-2">
+                <label
+                  :for={{value, title, note, icon} <- partners()}
+                  for={"partner-#{value}"}
+                  class={[
+                    "flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 ring-1 transition active:scale-[0.98]",
+                    if(@params["partner"] == value,
+                      do: "bg-emerald-700 text-white ring-emerald-700",
+                      else: "bg-white text-stone-800 ring-stone-300 hover:bg-stone-50"
+                    )
+                  ]}
+                >
+                  <input
+                    type="radio"
+                    id={"partner-#{value}"}
+                    name="setup[partner]"
+                    value={value}
+                    checked={@params["partner"] == value}
+                    class="sr-only"
+                  />
+                  <.icon name={icon} class="size-6 shrink-0" />
+                  <span class="flex flex-col leading-tight">
+                    <span class="font-semibold">{title}</span>
+                    <span class="text-xs opacity-80">{note}</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="flex flex-col gap-2">
               <legend class="mb-2 text-sm font-semibold">Timer tokens (turns)</legend>
               <div class="grid grid-cols-6 gap-2 sm:grid-cols-11">
                 <label
@@ -134,8 +172,10 @@ defmodule CodenamesDuetWeb.SetupLive do
             >
               Create game
             </button>
-            <p class="-mt-2 text-sm text-stone-600">
-              You get a code and a link to send to your partner.
+            <p id="create-note" class="-mt-2 text-sm text-stone-600">
+              {if @bot?,
+                do: "The game starts at once. The bot reads word links from GloVe word vectors.",
+                else: "You get a code and a link to send to your partner."}
             </p>
           </.form>
         </div>
@@ -143,6 +183,12 @@ defmodule CodenamesDuetWeb.SetupLive do
     </Layouts.app>
     """
   end
+
+  defp partners,
+    do: [
+      {"friend", "A friend", "Send a link", "hero-user-plus"},
+      {"bot", "A bot", "Play now", "hero-cpu-chip"}
+    ]
 
   defp timer_note(9), do: "9 is the standard game."
   defp timer_note(n) when n > 9, do: "#{n} turns: easier than the standard 9."
