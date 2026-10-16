@@ -10,10 +10,11 @@
 .tb-slot[data-seat="nw"] > .tb-card { rotate: -3deg; }
 .tb-slot[data-seat="ne"] > .tb-card { rotate: 4deg; }
 
-/* 3 seats: no north, so a shorter trick. */
-.tb-trick[data-players="3"] { height: calc(var(--card-w) * 2.5); }
+/* 3 seats: no north, so a shorter trick. With no seat over it, it sits a little
+   lower than the middle of its row, so the felt over it is not empty. */
+.tb-trick[data-players="3"] { height: calc(var(--card-w) * 2.5); translate: 0 calc(var(--card-w) * 0.3); }
 .tb-trick[data-players="3"] .tb-slot[data-seat="w"],
-.tb-trick[data-players="3"] .tb-slot[data-seat="e"] { top: 38%; }
+.tb-trick[data-players="3"] .tb-slot[data-seat="e"] { top: 40%; }
 
 /* A seat's label: the lit ring of the seat to play pulses softly. */
 @keyframes hb-turn { 50% { box-shadow: 0 0 0 4px color-mix(in oklab, var(--tb-accent) 35%, transparent); } }

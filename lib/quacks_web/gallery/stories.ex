@@ -514,8 +514,13 @@ defmodule QuacksWeb.Gallery.Stories do
         %{
           presets: [
             {"waiting", "Passed: waiting for the others", %{"state" => "waiting"}},
+            {"received", "Received cards (marked)", %{"state" => "received"}},
             {"play", "Mid-trick, your turn", %{"state" => "play"}},
-            {"collect", "A trick taken", %{"state" => "collect"}},
+            {"collect", "Trick complete, before it flies", %{"state" => "collect"}},
+            {"last-trick", "Last trick view", %{"state" => "last-trick"}},
+            {"last-trick-5", "Last trick view, 5 players",
+             %{"state" => "last-trick", "players" => 5}},
+            {"ending", "Hand's last trick, before the scores", %{"state" => "ending"}},
             {"scores", "Hand end: scores", %{"state" => "scores"}},
             {"over", "Game over", %{"state" => "over"}},
             {"five", "5 players, mid-trick", %{"state" => "play", "players" => 5}},

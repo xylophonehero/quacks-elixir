@@ -89,9 +89,46 @@ defmodule TableWeb.HeartsLiveTest do
 
     assert has_element?(view, "#hearts-scores")
     assert has_element?(view, "#score-table [data-role=total]")
+
+    # The bots wait while your score table is open.
+    settle(view, code)
+    assert game(code).hand_no == 2
+    assert game(code).passes == %{}
+
     view |> element("#next-hand") |> render_click()
     refute has_element?(view, "#hearts-scores")
-    assert game(code).hand_no == 2
+    settle(view, code)
+    assert map_size(game(code).passes) == 3
+  end
+
+  test "Last trick shows the newest trick of the hand", %{conn: conn} do
+    me = token("me")
+    code = create(me, %{})
+    {:ok, view, _} = live(init_test_session(conn, player_token: me), "/games/hearts/#{code}")
+    Enum.each(Enum.take(game(code).hands[0], 3), &tap_card(view, &1))
+    view |> element("#pass-button") |> render_click()
+    refute has_element?(view, "#last-trick-open")
+
+    _ =
+      Enum.reduce_while(1..20, nil, fn _, _ ->
+        settle(view, code)
+        g = game(code)
+
+        cond do
+          g.tricks >= 1 -> {:halt, :ok}
+          g.turn == 0 -> {:cont, tap_card(view, hd(Hearts.Game.legal_cards(g, 0)))}
+          true -> {:cont, nil}
+        end
+      end)
+
+    view |> element("#last-trick-open") |> render_click()
+    assert has_element?(view, "#hearts-last-trick")
+
+    assert view |> element("#last-trick-cards") |> render() |> String.split("<li") |> length() ==
+             5
+
+    view |> element("#last-trick-close") |> render_click()
+    refute has_element?(view, "#hearts-last-trick")
   end
 
   defp play_hand(view, code, hand) do
@@ -110,6 +147,7 @@ defmodule TableWeb.HeartsLiveTest do
             {:cont, nil}
 
           true ->
+            next_hand(view)
             {:cont, nil}
         end
       end)

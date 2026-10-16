@@ -14,15 +14,21 @@ defmodule HeartsWeb.Board do
 
   - another seat's card flies from its hand to the trick; yours slides (same id);
   - a full trick stays in the middle with the winner's card lit, then flies to the
-    winner's pile (`{:hearts_sweep, version}` after `@sweep_ms`);
+    winner's pile (`{:hearts_sweep, version}` after `@sweep_ms`: the last card
+    lands in `TableMotion`'s 420 ms, then all the cards stay at rest for about
+    1 s). The last trick of a hand shows too, before the score table opens;
   - your passed cards fly to the seat you pass to, the cards you get fly in
-    from the seat that passes them and stay marked until you play;
+    from the seat that passes them and stay marked until you play a card or
+    for `@new_ms` (`{:hearts_seen, cards}`), whichever comes first;
   - a new hand: the cards fly from the deck to every seat.
 
   ## Dialogs
 
   At the end of a hand (after the last trick flies) the score table opens; "Next
-  hand" closes it and deals. At the end of the game it says who won and has
+  hand" closes it, deals, and tells the room that this seat is ready: the bots
+  wait for every seated human (`Table.Server`, Hold). "Last trick" (over your
+  hand, once a trick of this hand is taken) shows the cards of the newest
+  trick and who played them. At the end of the game it says who won and has
   "Play again". The header's Scores button opens the same table at any time.
   """
   @behaviour TableWeb.Board
@@ -35,7 +41,8 @@ defmodule HeartsWeb.Board do
   alias Phoenix.LiveView
   alias TableWeb.Components.{Cards, Theme}
 
-  @sweep_ms Application.compile_env(:quacks, :hearts_sweep_ms, 1100)
+  @sweep_ms Application.compile_env(:quacks, :hearts_sweep_ms, 1450)
+  @new_ms 2800
   @deal_step 28
   @table "ht"
 
@@ -50,6 +57,7 @@ defmodule HeartsWeb.Board do
       scores: nil,
       scores_open: false,
       history_open: false,
+      last_open: false,
       dealing: false,
       motion: %{}
     )
@@ -91,6 +99,7 @@ defmodule HeartsWeb.Board do
           do: later(socket, {:hearts_sweep, env.version}, @sweep_ms)
 
         {received, hand_motion} = received(events, me, pos)
+        mark_until_seen(socket, received)
 
         scores =
           Enum.find_value(events, a.scores, fn
@@ -142,8 +151,11 @@ defmodule HeartsWeb.Board do
 
     if socket.assigns.view.phase == :over,
       do: {:noreply, socket},
-      else: {:noreply, deal(socket, socket.assigns.env.version)}
+      else: {:ready, deal(socket, socket.assigns.env.version)}
   end
+
+  def handle_event("last_trick", %{"open" => open}, socket),
+    do: {:noreply, Phoenix.Component.assign(socket, last_open: open == "true")}
 
   def handle_event("history", %{"open" => open}, socket),
     do: {:noreply, Phoenix.Component.assign(socket, history_open: open == "true")}
@@ -162,6 +174,12 @@ defmodule HeartsWeb.Board do
            scores_open: a.scores != nil,
            motion: %{}
          )},
+      else: {:noreply, socket}
+  end
+
+  def handle_info({:hearts_seen, cards}, socket) do
+    if socket.assigns.new_cards == cards,
+      do: {:noreply, Phoenix.Component.assign(socket, new_cards: [])},
       else: {:noreply, socket}
   end
 
@@ -195,7 +213,8 @@ defmodule HeartsWeb.Board do
       else: new_log |> Enum.take(added) |> Enum.reverse()
   end
 
-  # A full trick stays in the middle until the sweep. Its cards fly to the winner.
+  # A full trick stays in the middle until the sweep. Its cards fly to the winner,
+  # one after the other (`leave_delay`); the last card flies in at once.
   defp collect(old, events, v, pos, trick_motion, version) do
     case Enum.find(events, &match?({:trick_won, _, _, _}, &1)) do
       {:trick_won, winner, _cards, points} ->
@@ -206,7 +225,7 @@ defmodule HeartsWeb.Board do
           plays
           |> Enum.with_index()
           |> Map.new(fn {{_s, c}, i} ->
-            {c, Map.merge(%{to: to, delay: i * 40}, Map.get(trick_motion, c, %{}))}
+            {c, Map.merge(%{to: to, leave_delay: i * 40}, Map.get(trick_motion, c, %{}))}
           end)
 
         {%{
@@ -300,6 +319,10 @@ defmodule HeartsWeb.Board do
     )
   end
 
+  # The received cards stay marked for @new_ms (or until you play).
+  defp mark_until_seen(socket, []), do: socket
+  defp mark_until_seen(socket, cards), do: later(socket, {:hearts_seen, cards}, @new_ms)
+
   defp later(socket, msg, ms) do
     cond do
       !LiveView.connected?(socket) or socket.assigns[:static] -> nil
@@ -345,6 +368,7 @@ defmodule HeartsWeb.Board do
       assign(assigns,
         table: table_assigns(assigns),
         history: history(assigns.view.log),
+        newest: newest_trick(assigns.view),
         open_seats: for({s, %{open: true}} <- assigns.seats, do: s)
       )
 
@@ -356,14 +380,24 @@ defmodule HeartsWeb.Board do
       data-phase={@view.phase}
     >
       <div class="mx-auto flex max-w-3xl flex-col gap-2 px-2 pt-2 pb-4 sm:gap-3 sm:px-4 sm:pt-4">
-        <.top_bar code={@code} view={@view} me={@me} n={@n} seat={@seat} />
+        <.top_bar code={@code} view={@view} scores={@scores} />
         <.hearts_table id="ht" {@table}>
           <:status>
-            <span id="hearts-status">{status(assigns)}</span>
+            <button
+              :if={@newest}
+              id="last-trick-open"
+              type="button"
+              phx-click="last_trick"
+              phx-value-open="true"
+              class="inline-flex shrink-0 items-center gap-1 rounded-full bg-tb-base-100/90 px-2 py-0.5 text-[11px] font-semibold text-tb-base-content shadow-sm ring-1 ring-black/10 transition hover:bg-tb-base-100 active:scale-95 sm:text-xs"
+            >
+              <.icon name="hero-arrow-uturn-left-mini" class="size-3" /> Last trick
+            </button>
+            <span id="hearts-status" class="min-w-0 truncate">{status(assigns)}</span>
           </:status>
         </.hearts_table>
         <.pass_bar
-          :if={passing?(assigns)}
+          :if={passing?(assigns) and @scores == nil}
           view={@view}
           selected={@selected}
           to={name(@seats, Game.pass_target(@me, @view.pass_direction, @n), @me)}
@@ -380,6 +414,9 @@ defmodule HeartsWeb.Board do
       </.hb_dialog>
       <.hb_dialog :if={@scores_open and @view.phase != :over} id="hearts-scores">
         <.hand_scores scores={@scores} seats={@seats} me={@me} history={@history} />
+      </.hb_dialog>
+      <.hb_dialog :if={@last_open and @newest != nil and !@scores_open} id="hearts-last-trick">
+        <.last_trick_view trick={@newest} seats={@seats} me={@me} />
       </.hb_dialog>
       <.hb_dialog :if={@history_open and !@scores_open} id="hearts-history">
         <h2 class="text-lg font-bold">Scores</h2>
@@ -402,13 +439,14 @@ defmodule HeartsWeb.Board do
   # The table's attrs from the page's assigns (also for the gallery).
   def table_assigns(assigns) do
     %{view: v, me: me, n: n, collect: collect} = assigns
-    hidden = assigns.scores != nil
+    mode = mode(assigns)
+    hidden = mode != :live
     dealing = assigns.dealing != false
     hand = if hidden, do: [], else: v.hand
 
     %{
       players: n,
-      seats: seat_infos(assigns, hidden),
+      seats: seat_infos(assigns, mode),
       hand: hand,
       legal: legal(assigns),
       selected: if(v.pass, do: v.pass, else: assigns.selected),
@@ -416,11 +454,17 @@ defmodule HeartsWeb.Board do
       on_tap: if(tappable?(assigns), do: "tap"),
       plays: plays(v, collect, me, n),
       winner: collect && collect.winner,
-      deck: if(hidden, do: v.hand_sizes |> Map.values() |> Enum.sum(), else: 0),
+      deck: if(mode == :hidden, do: v.hand_sizes |> Map.values() |> Enum.sum(), else: 0),
       drain: if(dealing and !hidden, do: total(v) * @deal_step, else: 0),
       motion: assigns.motion
     }
   end
+
+  # :live, :ending (the hand's last trick is still on the table: the view is the
+  # next hand already) or :hidden (the hand's scores show, the next hand waits).
+  defp mode(%{scores: nil}), do: :live
+  defp mode(%{collect: %{}}), do: :ending
+  defp mode(_assigns), do: :hidden
 
   defp total(v), do: v.hand_sizes |> Map.values() |> Enum.sum()
 
@@ -433,8 +477,9 @@ defmodule HeartsWeb.Board do
   defp tappable?(%{view: %{phase: :playing}, actions: [_ | _]}), do: true
   defp tappable?(assigns), do: passing?(assigns)
 
-  defp seat_infos(assigns, hidden) do
+  defp seat_infos(assigns, mode) do
     %{view: v, me: me, n: n, seats: seats, collect: collect} = assigns
+    ended = if mode == :ending, do: ended_hand(v.log)
 
     Map.new(v.seats, fn s ->
       seat = Map.get(seats, s, %{name: "Player #{s + 1}", bot: false, open: false})
@@ -444,19 +489,51 @@ defmodule HeartsWeb.Board do
          name: if(s == me and assigns.seat != :spectator, do: "You", else: seat.name),
          bot: seat.bot,
          open: seat.open,
-         score: v.scores[s],
+         score: score(v, s, mode, assigns.scores),
          passed: v.phase == :passing and s in v.passed,
-         turn: v.phase == :playing and v.turn == s and collect == nil and !hidden
+         turn: v.phase == :playing and v.turn == s and collect == nil and mode == :live
        }
-       |> Map.merge(this_hand(v, s, n, hidden))}
+       |> Map.merge(this_hand(v, s, n, mode, ended))}
     end)
   end
 
-  # While the hand's scores show, the new hand is not on the table yet.
-  defp this_hand(_v, _s, _n, true), do: %{points: 0, count: 0, tricks: 0}
+  # While the hand's last trick shows, the score before the hand.
+  defp score(v, s, :ending, scores), do: v.scores[s] - scores.points[s]
+  defp score(v, s, _mode, _scores), do: v.scores[s]
 
-  defp this_hand(v, s, n, false),
+  # While the hand's scores show, the new hand is not on the table yet; while its
+  # last trick shows, the seats show the hand that ends.
+  defp this_hand(v, s, n, :live, _ended),
     do: %{points: v.points_taken[s], count: v.hand_sizes[s], tricks: div(length(v.taken[s]), n)}
+
+  defp this_hand(_v, s, _n, :ending, ended) do
+    won = for {:trick_won, ^s, _cards, p} <- ended, do: p
+    %{points: Enum.sum(won), count: 0, tricks: length(won)}
+  end
+
+  defp this_hand(_v, _s, _n, :hidden, _ended), do: %{points: 0, count: 0, tricks: 0}
+
+  # The log events of the hand that just ended (newest first).
+  defp ended_hand(log) do
+    log
+    |> Enum.drop_while(&(not match?({:hand_scored, _}, &1)))
+    |> Enum.drop(1)
+    |> Enum.take_while(&(not match?({:deal, _, _, _}, &1)))
+  end
+
+  # The newest trick taken in this hand: who took it, the points, the plays
+  # (`[{seat, card}]` in play order). Nil before the first trick of a hand.
+  defp newest_trick(%{log: log, seats: seats}) do
+    hand = Enum.take_while(log, &(not match?({:deal, _, _, _}, &1)))
+
+    case Enum.find(hand, &match?({:trick_won, _, _, _}, &1)) do
+      {:trick_won, winner, _cards, points} ->
+        %{winner: winner, points: points, plays: last_trick(hand, length(seats))}
+
+      nil ->
+        nil
+    end
+  end
 
   defp name(seats, s, me) do
     if s == me, do: "You", else: get_in(seats, [s, :name]) || "Player #{s + 1}"
@@ -504,9 +581,10 @@ defmodule HeartsWeb.Board do
 
   attr :code, :string, required: true
   attr :view, :map, required: true
-  attr :me, :integer, required: true
-  attr :n, :integer, required: true
-  attr :seat, :any, required: true
+
+  attr :scores, :map,
+    default: nil,
+    doc: "the hand that ended, while its last trick or scores show"
 
   defp top_bar(assigns) do
     ~H"""
@@ -527,7 +605,11 @@ defmodule HeartsWeb.Board do
         {@code}
       </span>
       <span class="ml-auto truncate text-xs text-tb-base-content/70 sm:text-sm" id="hearts-hand-no">
-        Hand {@view.hand_no}{direction_text(@view)}
+        <%= if @scores do %>
+          Hand {@scores.hand}
+        <% else %>
+          Hand {@view.hand_no}{direction_text(@view)}
+        <% end %>
       </span>
       <button
         id="history-open"
@@ -611,6 +693,48 @@ defmodule HeartsWeb.Board do
         {render_slot(@inner_block)}
       </div>
     </div>
+    """
+  end
+
+  attr :trick, :map, required: true
+  attr :seats, :map, required: true
+  attr :me, :integer, required: true
+
+  defp last_trick_view(assigns) do
+    ~H"""
+    <h2 class="text-lg font-bold">Last trick</h2>
+    <p class="text-sm text-tb-base-content/80">
+      {name(@seats, @trick.winner, @me)} took it{points_note(@trick.points)}.
+    </p>
+    <ol
+      id="last-trick-cards"
+      class="tb-felt flex justify-center gap-2 rounded-tb p-3 sm:gap-3"
+      style={"--card-w: " <> if(length(@trick.plays) > 4, do: "clamp(2.9rem, 13vw, 4.5rem)", else: "clamp(3.4rem, 17vw, 4.5rem)")}
+    >
+      <li
+        :for={{s, c} <- @trick.plays}
+        class="flex min-w-0 flex-col items-center gap-1"
+        data-seat={s}
+        data-winner={to_string(s == @trick.winner)}
+      >
+        <Cards.card card={c} state={if s == @trick.winner, do: :won} />
+        <span class={[
+          "max-w-[var(--card-w)] truncate text-xs text-tb-felt-ink",
+          s == @trick.winner && "font-bold"
+        ]}>
+          {name(@seats, s, @me)}
+        </span>
+      </li>
+    </ol>
+    <button
+      id="last-trick-close"
+      type="button"
+      phx-click="last_trick"
+      phx-value-open="false"
+      class={button_class(:quiet)}
+    >
+      Close
+    </button>
     """
   end
 

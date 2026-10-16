@@ -24,9 +24,11 @@ defmodule TableWeb.Components.Cards do
   - An element that goes away with `data-to="<dom id>"` (set on the render
     before) flies to that element as a copy, and fades there.
   - `data-flip-delay="<ms>"` starts the move later (the deal, a bot's card).
+  - `data-leave-delay="<ms>"` starts the flight to `data-to` later (else the
+    flip delay): the cards of a trick go one after the other.
 
   The components take these per card in their `motion` attr:
-  `%{card_or_index => %{from: dom_id, to: dom_id, delay: ms}}`.
+  `%{card_or_index => %{from: dom_id, to: dom_id, delay: ms, leave_delay: ms}}`.
   """
   use Phoenix.Component
 
@@ -104,7 +106,9 @@ defmodule TableWeb.Components.Cards do
   attr :state, :atom, default: nil, values: [nil, :legal, :illegal, :selected, :new, :won]
   attr :as, :string, default: "div"
   attr :class, :any, default: nil
-  attr :rest, :global, include: ~w(disabled type data-from data-to data-flip-delay)
+
+  attr :rest, :global,
+    include: ~w(disabled type data-from data-to data-flip-delay data-leave-delay)
 
   def card(assigns) do
     {rank, suit} = assigns.card
@@ -141,7 +145,7 @@ defmodule TableWeb.Components.Cards do
   attr :id, :string, default: nil
   attr :flip, :boolean, default: true, doc: "false: not a motion target, even with an id"
   attr :class, :any, default: nil
-  attr :rest, :global, include: ~w(style data-from data-to data-flip-delay)
+  attr :rest, :global, include: ~w(style data-from data-to data-flip-delay data-leave-delay)
 
   def card_back(assigns) do
     ~H"""
@@ -345,7 +349,7 @@ defmodule TableWeb.Components.Cards do
         as={if @on_tap, do: "button", else: "div"}
         type={@on_tap && "button"}
         state={hand_state(c, @legal, @selected, @new, @on_tap)}
-        disabled={@on_tap && hand_state(c, @legal, @selected, @new, @on_tap) == :illegal}
+        disabled={disabled?(c, @legal, @selected, @on_tap)}
         phx-click={@on_tap && tap(@on_tap)}
         phx-value-card={code(c)}
         style={style}
@@ -377,10 +381,18 @@ defmodule TableWeb.Components.Cards do
       card in selected -> :selected
       card in new -> :new
       is_nil(on_tap) -> nil
-      legal == :all or card in legal -> :legal
+      playable?(card, legal) -> :legal
       true -> :illegal
     end
   end
+
+  defp playable?(card, legal), do: legal == :all or card in legal
+
+  # A tap on a card you may not play does nothing (also on a marked new card).
+  defp disabled?(_card, _legal, _selected, nil), do: nil
+
+  defp disabled?(card, legal, selected, _on_tap),
+    do: card not in selected and not playable?(card, legal)
 
   @doc false
   def motion_attrs(motion, key) do
@@ -392,7 +404,8 @@ defmodule TableWeb.Components.Cards do
         %{
           "data-from" => m[:from],
           "data-to" => m[:to],
-          "data-flip-delay" => m[:delay]
+          "data-flip-delay" => m[:delay],
+          "data-leave-delay" => m[:leave_delay]
         }
     end
   end

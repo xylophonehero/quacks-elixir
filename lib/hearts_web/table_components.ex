@@ -106,7 +106,7 @@ defmodule HeartsWeb.TableComponents do
           <div class="flex w-full items-center justify-between gap-2 px-1">
             <.seat_label id={@id} pos={:s} info={@seats[:s]} />
             <div
-              class="min-w-0 truncate text-right text-xs font-medium text-tb-felt-ink/85 sm:text-sm"
+              class="flex min-w-0 items-center justify-end gap-2 text-right text-xs font-medium text-tb-felt-ink/85 sm:text-sm"
               data-role="table-status"
             >
               {render_slot(@status)}
@@ -198,7 +198,10 @@ defmodule HeartsWeb.TableComponents do
           ✓
         </span>
       </span>
-      <span class="flex items-center gap-1.5 text-xs tabular-nums">
+      <span class={[
+        "flex items-center text-xs tabular-nums",
+        if(@stacked, do: "gap-1 sm:gap-1.5", else: "gap-1.5")
+      ]}>
         <span class="font-bold" data-role="score" title="score">{@info.score}</span>
         <span
           :if={@info.points != 0}
