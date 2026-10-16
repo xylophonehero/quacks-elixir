@@ -174,8 +174,8 @@ What it does:
    starts a headless Chrome and stops it at the end. `node docs/assets/visual.mjs`
    takes the shots and compares the pixels in a canvas of that Chrome (no
    npm packages). `--jobs` (default 4) sets the number of tabs.
-4. At the end it stops the servers and removes the worktrees (`--keep` keeps
-   the worktrees).
+4. At the end, also after an error, it stops the servers and its Chrome and
+   removes `tmp/visual/` (`--keep` keeps the worktrees).
 
 How a shot stays the same from run to run:
 
@@ -186,6 +186,9 @@ How a shot stays the same from run to run:
   fonts are in. Then it takes captures until two captures in a row are the same
   (max. 2 s). The report names a shot that did not settle or whose LiveView did
   not connect in 7.5 s.
+- A Chrome call that gets no answer in 30 s fails. The shot then goes again in
+  new tabs; if it fails again, the report names it as not settled, with the
+  error, and the run goes on.
 - A pixel counts as changed only when a colour channel is more than 4 off
   (`--tolerance`, 0..255). Text and gradients can be 1 or 2 off from one render
   to the next.

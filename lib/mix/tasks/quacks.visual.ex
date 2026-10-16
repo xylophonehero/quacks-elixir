@@ -91,11 +91,11 @@ defmodule Mix.Tasks.Quacks.Visual do
         {_, status} = System.cmd("node", [Path.join(root, @script), path], into: IO.stream())
         if status != 0, do: Mix.raise("#{@script} failed (#{status})")
       after
-        stop(chrome)
+        stop_chrome(chrome)
       end
     after
       Enum.each(sides, &stop_server(&1, root))
-      unless opts[:keep], do: Enum.each(sides, &remove(&1, root))
+      unless opts[:keep], do: clean(sides, root)
     end
 
     info("Done in #{div(System.monotonic_time(:millisecond) - started, 1000)} s")
@@ -167,6 +167,8 @@ defmodule Mix.Tasks.Quacks.Visual do
     end
   end
 
+  # Both servers make the same URLs (a join link shows host and port), so the
+  # port is not a change.
   # A server in the test env, as the HTML snapshots render: no watchers, no code
   # or live reload, and no timers that move the page on by themselves
   # (`show_move_ms: 0`, `upgrade_ms: 0` in config/test.exs). A shot would catch
@@ -174,7 +176,7 @@ defmodule Mix.Tasks.Quacks.Visual do
   @serve """
   File.write!("server.pid", System.pid())
   config = Application.get_env(:quacks, QuacksWeb.Endpoint)
-  config = Keyword.merge(config, server: true, check_origin: false)
+  config = Keyword.merge(config, server: true, check_origin: false, url: [host: "localhost", port: 4000])
   Application.put_env(:quacks, QuacksWeb.Endpoint, config)
   {:ok, _} = Application.ensure_all_started(:quacks)
   """
@@ -277,8 +279,32 @@ defmodule Mix.Tasks.Quacks.Visual do
     end
   end
 
+  # Our own Chrome: stop it and wait (max. 5 s) until it is gone, so that it
+  # does not write its profile again after `clean/2`.
+  defp stop_chrome(nil), do: :ok
+
+  defp stop_chrome(pid) do
+    stop(pid)
+    Enum.find(1..25, &chrome_gone?/1)
+  end
+
+  defp chrome_gone?(_try) do
+    if cdp_up?() do
+      Process.sleep(200)
+      false
+    else
+      true
+    end
+  end
+
   defp stop(nil), do: :ok
   defp stop(pid), do: System.cmd("kill", [to_string(pid)], stderr_to_stdout: true)
+
+  # Every exit: the worktrees and the rest of tmp/visual (the Chrome profile).
+  defp clean(sides, root) do
+    Enum.each(sides, &remove(&1, root))
+    File.rm_rf!(Path.join(root, "tmp/visual"))
+  end
 
   defp remove(side, root) do
     dir = dir(side, root)

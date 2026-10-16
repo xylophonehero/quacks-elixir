@@ -39,8 +39,11 @@ const NO_MOTION = `{
   });
 }`;
 
+// A CDP call that gets no answer in this time fails (a hung or closed tab).
+const CALL_MS = 30000;
+
 async function tab() {
-  const target = await (await fetch(`${CDP}/json/new?about:blank`, { method: "PUT" })).json();
+  const target = await (await fetch(`${CDP}/json/new?about:blank`, { method: "PUT", signal: AbortSignal.timeout(CALL_MS) })).json();
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((r, j) => ((ws.onopen = r), (ws.onerror = j)));
   let next = 0;
@@ -49,10 +52,25 @@ async function tab() {
     const msg = JSON.parse(m.data);
     if (waiting.has(msg.id)) waiting.get(msg.id)(msg), waiting.delete(msg.id);
   };
+  // A closed socket fails every call that waits, and every call after it.
+  let closed = null;
+  ws.onclose = ws.onerror = () => {
+    closed = new Error("the tab's DevTools socket closed");
+    for (const done of waiting.values()) done({ error: { message: closed.message } });
+    waiting.clear();
+  };
   const send = (method, params = {}) =>
     new Promise((resolve, reject) => {
+      if (closed) return reject(closed);
       const id = ++next;
-      waiting.set(id, (msg) => (msg.error ? reject(new Error(`${method}: ${msg.error.message}`)) : resolve(msg.result)));
+      const timer = setTimeout(() => {
+        waiting.delete(id);
+        reject(new Error(`${method}: no answer in ${CALL_MS / 1000} s`));
+      }, CALL_MS);
+      waiting.set(id, (msg) => {
+        clearTimeout(timer);
+        msg.error ? reject(new Error(`${method}: ${msg.error.message}`)) : resolve(msg.result);
+      });
       ws.send(JSON.stringify({ id, method, params }));
     });
   const js = async (expression) => {
@@ -60,7 +78,10 @@ async function tab() {
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
     return r.result.value;
   };
-  const close = async () => (ws.close(), await fetch(`${CDP}/json/close/${target.id}`));
+  const close = async () => {
+    ws.close();
+    await fetch(`${CDP}/json/close/${target.id}`, { signal: AbortSignal.timeout(5000) }).catch(() => {});
+  };
   return { send, js, close };
 }
 
@@ -140,33 +161,52 @@ const started = Date.now();
 let done = 0;
 
 async function worker() {
-  const s = await shooter();
-  const d = await tab();
+  let s = await shooter();
+  let d = await tab();
+  // A hung or closed tab: new tabs, and the shot again once. If it fails again,
+  // the shot counts as not settled (with the error) and the worker goes on.
+  const fresh = async () => {
+    await Promise.all([s.close(), d.close()]);
+    [s, d] = await Promise.all([shooter(), tab()]);
+  };
   for (let item; (item = items.shift()); ) {
-    const compare = async () => {
-      const base = await s.shot(job.base.url + item.path, item.w);
-      const head = await s.shot(job.head.url + item.path, item.w);
-      const diff = base.png === head.png ? null : await d.js(`(${DIFF})(${JSON.stringify(base.png)}, ${JSON.stringify(head.png)}, ${job.tolerance})`);
-      return { base, head, diff: diff?.changed > 0 ? diff : null };
-    };
-    // A difference must show again: shoot both again, up to 2 times. Under load a
-    // page can hold a state for longer than the settle time (a JS timer).
-    let { base, head, diff } = await compare();
-    let retries = 0;
-    while (diff && retries < 2) retries++, ({ base, head, diff } = await compare());
-    const r = { ...item, settled: base.settled && head.settled, retries, changed: 0, pct: 0 };
-    if (diff) {
-      const file = `${item.name.replaceAll("/", "__")}@${item.w}`;
-      Object.assign(r, { changed: diff.changed, pct: diff.pct, size: [diff.base, diff.head], file });
-      for (const [kind, png] of [["base", base.png], ["head", head.png], ["diff", diff.png]]) {
-        writeFileSync(join(job.out, kind, `${file}.png`), Buffer.from(png, "base64"));
+    let r;
+    for (let attempt = 0; !r; attempt++) {
+      try {
+        r = await check(item, s, d);
+      } catch (e) {
+        console.log(`  ${item.name}@${item.w}: ${e.message}${attempt ? "" : " (again, in new tabs)"}`);
+        await fresh().catch((e2) => console.log(`  new tabs: ${e2.message}`));
+        if (attempt) r = { ...item, settled: false, error: e.message, retries: 0, changed: 0, pct: 0 };
       }
     }
     results.push(r);
     if (++done % 50 === 0) console.log(`  ${done} shots compared (${Math.round((Date.now() - started) / 1000)} s)`);
   }
-  await s.close();
-  await d.close();
+  await Promise.all([s.close(), d.close()]);
+}
+
+async function check(item, s, d) {
+  const compare = async () => {
+    const base = await s.shot(job.base.url + item.path, item.w);
+    const head = await s.shot(job.head.url + item.path, item.w);
+    const diff = base.png === head.png ? null : await d.js(`(${DIFF})(${JSON.stringify(base.png)}, ${JSON.stringify(head.png)}, ${job.tolerance})`);
+    return { base, head, diff: diff?.changed > 0 ? diff : null };
+  };
+  // A difference must show again: shoot both again, up to 2 times. Under load a
+  // page can hold a state for longer than the settle time (a JS timer).
+  let { base, head, diff } = await compare();
+  let retries = 0;
+  while (diff && retries < 2) retries++, ({ base, head, diff } = await compare());
+  const r = { ...item, settled: base.settled && head.settled, retries, changed: 0, pct: 0 };
+  if (diff) {
+    const file = `${item.name.replaceAll("/", "__")}@${item.w}`;
+    Object.assign(r, { changed: diff.changed, pct: diff.pct, size: [diff.base, diff.head], file });
+    for (const [kind, png] of [["base", base.png], ["head", head.png], ["diff", diff.png]]) {
+      writeFileSync(join(job.out, kind, `${file}.png`), Buffer.from(png, "base64"));
+    }
+  }
+  return r;
 }
 
 for (const kind of ["base", "head", "diff"]) mkdirSync(join(job.out, kind), { recursive: true });
@@ -174,7 +214,7 @@ await Promise.all(Array.from({ length: job.jobs }, worker));
 
 const seconds = Math.round((Date.now() - started) / 1000);
 const changed = results.filter((r) => r.changed > 0).sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
-const unsettled = results.filter((r) => !r.settled).map((r) => `${r.name}@${r.w}`);
+const unsettled = results.filter((r) => !r.settled).map((r) => `${r.name}@${r.w}${r.error ? ` (${r.error})` : ""}`);
 // Shots that were not the same at first and the same after a retry: a flake.
 const flaky = results.filter((r) => r.retries > 0 && r.changed === 0).map((r) => `${r.name}@${r.w}`);
 const summary = { base: job.base, head: job.head, shots: results.length, changed: changed.length, seconds, unsettled, flaky };
@@ -209,7 +249,7 @@ writeFileSync(
 <p>${changed.length} of ${results.length} shots changed (${job.frames.length} frames × ${job.widths.join("/")} px), ${seconds} s.
 Sorted by the part of the shot that changed. Red in the diff: a pixel that is not the same (a channel more than ${job.tolerance} off).
 ${flaky.length ? `<br>Same only after a retry (flaky, not in the list): ${flaky.map(esc).join(", ")}` : ""}
-${unsettled.length ? `<br><b>Not settled</b> (not connected in 7.5 s, or still moving after 2 s): ${unsettled.map(esc).join(", ")}` : ""}</p>
+${unsettled.length ? `<br><b>Not settled</b> (not connected in 7.5 s, still moving after 2 s, or the tab failed twice): ${unsettled.map(esc).join(", ")}` : ""}</p>
 ${changed.length ? `<ol>${changed.map((r) => `<li><a href="#${esc(r.file)}">${esc(r.name)} @${r.w}</a> ${r.pct.toFixed(2)}%</li>`).join("")}</ol>` : "<p>No changes.</p>"}
 ${changed.map(row).join("")}
 `,
