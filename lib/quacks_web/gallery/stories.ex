@@ -26,6 +26,7 @@ defmodule QuacksWeb.Gallery.Stories do
   alias QuacksWeb.Gallery.Fixtures
   alias QuacksWeb.LobbyLive
   alias TableWeb.Components.Theme
+  alias TableWeb.Gallery.Generic, as: GenericGallery
   alias TableWeb.Gallery.Hearts
 
   @typedoc """
@@ -116,8 +117,33 @@ defmodule QuacksWeb.Gallery.Stories do
     components ++
       [
         %{id: "setup", title: "Setup", stories: [setup]},
+        %{id: "generic", title: "Generic table", stories: [generic_board()]},
         %{id: "screens", title: "Screens", stories: screens()}
       ] ++ scenario_groups()
+  end
+
+  # The generic table (`TableWeb.GenericBoard`): Crazy Eights with the scripted referee.
+  defp generic_board do
+    story(
+      "generic",
+      "board",
+      "Generic table · Crazy Eights",
+      "TableWeb.GenericBoard: a real game from a seed",
+      :screen,
+      [enum("state", GenericGallery.states(), "play"), int("players", 2, 5, 4)],
+      &GenericGallery.board_story/1,
+      %{
+        presets: [
+          {"start", "The first turn", %{"state" => "start"}},
+          {"suit", "An 8: choose the suit", %{"state" => "suit"}},
+          {"waiting", "Another seat's turn", %{"state" => "waiting"}},
+          {"spectator", "Watching", %{"state" => "spectator"}},
+          {"over", "Game over", %{"state" => "over"}},
+          {"two", "2 players", %{"players" => 2}},
+          {"five", "5 players", %{"players" => 5}}
+        ]
+      }
+    )
   end
 
   @doc "The story `id` of group `group`, or nil."

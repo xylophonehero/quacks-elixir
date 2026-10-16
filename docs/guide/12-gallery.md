@@ -88,6 +88,7 @@ An old variant URL that a story with args took over (for example
 | | Hearts · motion: tap Play | `motion deal\|play\|collect\|pass-left\|pass-right\|pass-across`, `theme`, `four_colour` |
 | | Hearts · the 52 cards, Hearts · hand | `theme`, `four_colour`; hand: `cards 1..13`, `mode play\|pass\|view` |
 | | Hearts · the game page (`HeartsWeb.Board`, a real game from a seed) | `state pass\|waiting\|play\|collect\|scores\|over`, `players 3..5` |
+| Generic table | Generic table · Crazy Eights (`TableWeb.GenericBoard`, a real game from a seed) | `state start\|play\|suit\|waiting\|spectator\|over`, `players 2..5` |
 | Codenames Duet | Codenames Duet · the game page (`CodenamesDuetWeb.Board`, a real game from a seed) | `state clue\|clue-error\|guessing\|bystander\|sudden-death\|won\|lost\|waiting\|watching`, `words list\|longest` (the 25 longest words of the list), `hide_key`, `theme` |
 | Scenarios | every item | `step 1..n`, `players 2..5` |
 
