@@ -7,6 +7,7 @@ defmodule Quacks.AlchCardsTest do
   alias Quacks.{AI, Game}
   alias Quacks.AI.{Profile, Sim}
   alias Quacks.Game.Fortune
+  alias Quacks.Game.Round
   alias Quacks.Rules.Alchemists
   alias Quacks.Rules.Fortune, as: Cards
 
@@ -227,7 +228,7 @@ defmodule Quacks.AlchCardsTest do
     end
 
     test "AB4 A rat's blessing: 2 coins per rat tail" do
-      g = with_rats() |> blue(:ab4) |> Game.rats()
+      g = with_rats() |> blue(:ab4) |> Round.rats()
       rats = me(g, 1).rat_stone
       g = g |> force_draws(1, [{:orange, 1}]) |> apply!(1, :stop)
       g = g |> force_draws(0, [{:orange, 1}]) |> apply!(0, :stop)

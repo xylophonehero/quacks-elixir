@@ -130,7 +130,7 @@ stateDiagram-v2
 `round_start`, `after_potions` and `evaluation` are not values of `game.phase`. They
 are functions that run *inside* one `apply/3` call:
 
-- `start_round/1` (`lib/quacks/game.ex:770-777`) draws the fortune card, places the
+- `Round.start_round/1` (`lib/quacks/game/round.ex`) draws the fortune card, places the
   rats, then resolves a purple card.
 - `Fortune.after_potions/1` (`lib/quacks/game/fortune.ex:83-84`) and
   `Essence.run/1` (`lib/quacks/game/essence.ex:226-228`) pick the next step.
@@ -281,7 +281,7 @@ When the last seat is done, `Evaluation.run/1` runs for all seats in turn order
   seat has one, the game waits in `:chip_choice`. If not, `close_choices/1` goes on
   at once.
 - Steps C and D, `payout/2` (`lib/quacks/game/evaluation.ex:527-552`): rubies, VP,
-  coins from the scoring space. Then `Game.to_shop/1` opens `:shopping`.
+  coins from the scoring space. Then `Round.to_shop/1` opens `:shopping`.
 
 ## Fortune cards, witches, the Alchemists
 
@@ -333,7 +333,7 @@ the callers do not care if the field is a set, a list or two booleans.
 ### One door for droplet moves
 
 Many rules move the droplet: the bonus die, black chips, fortune cards, an essence
-glass. All of them call `Game.move_droplet/3` (`lib/quacks/game.ex:863-870`):
+glass. All of them call `State.move_droplet/3` (`lib/quacks/game/state.ex`):
 
 ```elixir
 def move_droplet(%__MODULE__{} = g, _seat, 0), do: g
@@ -410,7 +410,12 @@ a new random *seed*. That is outside the engine and is fine.)
 
 ## Small helpers you see everywhere
 
-`Game.player/2`, `Game.update_player/3` and `Game.record/2,3`
-(`lib/quacks/game.ex:907-917`) read a seat, change a seat and append to the log. Most
+`State.player/2`, `State.update_player/3` and `State.record/2,3`
+(`lib/quacks/game/state.ex`) read a seat, change a seat and append to the log.
+`Quacks.Game.State` is internal (`@moduledoc false`): only the engine, the engine
+tests and the gallery fixtures call it. Code outside the engine uses the reads of
+`Quacks.Game` (`player/2`, `turn_order/1`, `white_limit/2`, `card_reveals/1`, ...).
+`test/quacks/game_facade_test.exs` fails when the facade grows or when a module
+outside the engine calls an engine submodule. Most
 engine code is a pipeline of them: `g |> update_player(seat, fn p -> ... end) |>
 record(seat, event)`. Chapter 10 explains the short `&%{&1 | ...}` syntax.

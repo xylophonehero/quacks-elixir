@@ -5,7 +5,7 @@ defmodule QuacksWeb.CardRevealComponents do
   disc, the drawn chips, the key number (P8: the sum) and what the card gave.
   Round 35: also a card that offers everyone a choice (Choices, Choices, Decisions,
   Decisions…): per row what the player took, with icons (or "choosing…"). Data:
-  `Quacks.Game.Fortune.reveals/1`. The card's result sheet, the fortune sheet and the
+  `Quacks.Game.card_reveals/1`. The card's result sheet, the fortune sheet and the
   grown corner card show it.
   """
   use Phoenix.Component
@@ -15,7 +15,8 @@ defmodule QuacksWeb.CardRevealComponents do
 
   import QuacksWeb.GameText, only: [chip_name: 1, flea_reason: 1]
 
-  alias Quacks.Game.Fortune
+  alias Quacks.Game
+  alias Quacks.Rules.Fortune
 
   @doc """
   Every seat that drew, one row each: your row first (ringed), then the turn order.
@@ -24,7 +25,7 @@ defmodule QuacksWeb.CardRevealComponents do
   """
   attr :id, :string, required: true
   attr :card, :atom, required: true, doc: "`game.fortune_card`"
-  attr :reveals, :map, required: true, doc: "`Quacks.Game.Fortune.reveals/1`"
+  attr :reveals, :map, required: true, doc: "`Quacks.Game.card_reveals/1`"
   attr :order, :list, required: true, doc: "the seats in turn order"
   attr :seat, :integer, default: nil, doc: "this browser's seat, or nil"
   attr :names, :map, required: true
@@ -96,7 +97,7 @@ defmodule QuacksWeb.CardRevealComponents do
       :if={@seats != []}
       id={@id}
       class="results-stage"
-      aria-label={"#{Quacks.Rules.Fortune.card(@card).name}: what everyone got"}
+      aria-label={"#{Fortune.card(@card).name}: what everyone got"}
       data-role="card-stage"
       data-card={@card}
     >
@@ -105,7 +106,7 @@ defmodule QuacksWeb.CardRevealComponents do
           class="font-hand text-lg leading-none font-bold whitespace-nowrap"
           data-role="stage-title"
         >
-          {Quacks.Rules.Fortune.card(@card).name}
+          {Fortune.card(@card).name}
         </span>
         <%!-- Round 47 (R5): a long rule takes two lines, not an ellipsis. --%>
         <span
@@ -373,7 +374,7 @@ defmodule QuacksWeb.CardRevealComponents do
   defp note(:p13, row, game, true, chip, i) when game != nil do
     cond do
       traded?(row, chip, i) -> "traded up"
-      reason = Fortune.flea_block(game, chip) -> flea_reason(reason)
+      reason = Game.flea_block(game, chip) -> flea_reason(reason)
       true -> "kept"
     end
   end

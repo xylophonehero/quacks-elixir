@@ -79,7 +79,7 @@ defmodule QuacksWeb.TrackComponents do
   @doc """
   The pot spaces of a player's rat pebbles: the spaces after the droplet, at most
   `rat_stone` of them, and never past `mods.rat_end` (the stone's space). Before the first draw
-  the start follows the droplet (`Game.move_droplet/3`); after it the rats stay put,
+  the start follows the droplet (the engine's droplet helper); after it the rats stay put,
   so a droplet move takes the first rat's space and that rat goes (round 35).
   """
   @spec rat_spaces(Player.t()) :: [non_neg_integer]

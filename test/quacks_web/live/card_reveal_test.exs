@@ -10,6 +10,7 @@ defmodule QuacksWeb.CardRevealTest do
   import QuacksWeb.RevealHelpers
   alias Quacks.Game
   alias Quacks.Game.Fortune
+  alias Quacks.Game.Round
   alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
@@ -279,7 +280,7 @@ defmodule QuacksWeb.CardRevealTest do
       |> GameHelpers.put(a, bag: List.duplicate({:white, 1}, 5), drawn: [], pending: [])
       |> GameHelpers.put(b, bag: List.duplicate({:green, 2}, 5), drawn: [], pending: [])
       |> GameHelpers.put(fortune_deck: [:p8], round: 2)
-      |> Game.start_round()
+      |> Round.start_round()
     end)
 
     skip_results(alice)

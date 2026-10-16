@@ -22,8 +22,9 @@ defmodule QuacksWeb.BarComponents do
   alias Phoenix.LiveView.JS
   alias Quacks.AI.Odds
   alias Quacks.{Game, Player}
-  alias Quacks.Game.{Fortune, Potions, Witches}
   alias Quacks.Rules.{Alchemists, Books, Chips, PotTrack, TestTubes}
+  alias Quacks.Rules.Fortune
+  alias Quacks.Rules.Witches, as: WitchCards
 
   @doc """
   The action bar: Stop (or Resume), the flask (from 64rem; on the pot it is on
@@ -114,7 +115,7 @@ defmodule QuacksWeb.BarComponents do
 
   @doc """
   The white total as a fuse: one notch per white point the pot may hold
-  (`Potions.explode_above/2`), lit by the white sum. It turns amber one point
+  (`Quacks.Game.white_limit/2`), lit by the white sum. It turns amber one point
   before the limit and red at the limit (one more white explodes) or after an
   explosion. The label inside says "White 5 / 7".
   """
@@ -123,7 +124,7 @@ defmodule QuacksWeb.BarComponents do
 
   def fuse_meter(assigns) do
     white = Game.white_sum(assigns.game, assigns.seat)
-    limit = Potions.explode_above(assigns.game, assigns.seat)
+    limit = Game.white_limit(assigns.game, assigns.seat)
     exploded? = assigns.game.players[assigns.seat].exploded?
 
     level =
@@ -555,7 +556,7 @@ defmodule QuacksWeb.BarComponents do
     <section
       id={"bar-card-#{@game.round}"}
       class="bar-choice relative z-50 flex min-h-12 items-center justify-center gap-2.5"
-      aria-label={"#{Quacks.Rules.Fortune.card(:p1).name}: take one"}
+      aria-label={"#{Fortune.card(:p1).name}: take one"}
       data-role="bar-card"
       data-card="p1"
     >
@@ -612,7 +613,7 @@ defmodule QuacksWeb.BarComponents do
     <section
       id={"bar-card-#{@game.round}"}
       class="bar-choice relative z-50"
-      aria-label={"#{Quacks.Rules.Fortune.card(@card).name}: choose one"}
+      aria-label={"#{Fortune.card(@card).name}: choose one"}
       data-role="bar-card"
     >
       <.chip_row :if={@options != []} options={@options}>
@@ -1280,12 +1281,12 @@ defmodule QuacksWeb.BarComponents do
       kind: if(one?, do: "one", else: "last-two"),
       chips:
         if(one?,
-          do: [hd(chips), Witches.upgrade(hd(chips))],
-          else: Enum.map(chips, &Witches.upgrade/1)
+          do: [hd(chips), WitchCards.upgrade(hd(chips))],
+          else: Enum.map(chips, &WitchCards.upgrade/1)
         ),
       arrow?: one?,
       title: if(one?, do: "This one", else: "Last 2"),
-      hint: Enum.map_join(chips, " + ", &chip_name(Witches.upgrade(&1))),
+      hint: Enum.map_join(chips, " + ", &chip_name(WitchCards.upgrade(&1))),
       label: action_label(action, game, me)
     }
   end
@@ -1740,7 +1741,7 @@ defmodule QuacksWeb.BarComponents do
 
   # Round 28: under a Flea Market chip that cannot go up, the reason.
   defp blocked_reason(%Game{fortune_card: :p13} = game, [chip]) do
-    case Fortune.flea_block(game, chip) do
+    case Game.flea_block(game, chip) do
       nil -> nil
       reason -> flea_reason(reason)
     end
@@ -1787,7 +1788,7 @@ defmodule QuacksWeb.BarComponents do
           ]
       end
 
-    limit = white_limit(assigns.game, assigns.me)
+    limit = Game.white_limit(assigns.game, assigns.me)
 
     groups =
       for {title, tiles} <- groups, tiles != [] do
@@ -1883,10 +1884,6 @@ defmodule QuacksWeb.BarComponents do
   def pick_chips({:chip, {:buy, chips}}), do: chips
   def pick_chips({:essence, {kind, chip}}) when kind in [:swap, :buy], do: [chip]
   def pick_chips(_action), do: []
-
-  # The highest white sum that does not explode, for `me` (the rule, B5, Wing ears…).
-  defp white_limit(game, me),
-    do: Enum.max([game.rules.explode_above, me.mods.explode_above, Fortune.explode_above(game)])
 
   # A white chip whose placing takes the pot over the limit: `:explodes`, or `:safe`
   # for Safety Procedure (B7: a placed chip cannot explode the pot).

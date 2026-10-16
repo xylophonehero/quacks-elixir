@@ -5,6 +5,7 @@ defmodule Quacks.CardRevealsTest do
 
   alias Quacks.Game
   alias Quacks.Game.Fortune
+  alias Quacks.Rules.Fortune, as: FortuneCards
 
   defp new(players), do: Game.new(seed: {1, 2, 3}, players: players, fortune: false)
 
@@ -54,11 +55,11 @@ defmodule Quacks.CardRevealsTest do
     end
 
     test "reveal_card?/1: the cards that draw chips for each seat" do
-      assert Enum.filter(Quacks.Rules.Fortune.all(), &Fortune.reveal_card?(&1.id))
+      assert Enum.filter(FortuneCards.all(), &FortuneCards.reveal_card?(&1.id))
              |> Enum.map(& &1.id)
              |> Enum.sort() == [:ap2, :b7, :p13, :p8]
 
-      refute Fortune.reveal_card?(nil)
+      refute FortuneCards.reveal_card?(nil)
     end
   end
 
@@ -75,8 +76,8 @@ defmodule Quacks.CardRevealsTest do
       assert %{drew: [], gains: [{:rubies, 3}], choosing?: false} = rows[0]
       assert %{gains: [{:chip, {:black, 1}}], choosing?: false} = rows[1]
       assert %{gains: [], choosing?: true} = rows[2]
-      assert Fortune.choice_card?(:p1)
-      refute Fortune.reveal_card?(:p1)
+      assert FortuneCards.choice_card?(:p1)
+      refute FortuneCards.reveal_card?(:p1)
     end
 
     test "Boomberry Cleanse and Decisions, Decisions: VP, the white chip, the droplet" do

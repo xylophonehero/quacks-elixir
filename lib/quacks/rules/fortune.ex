@@ -170,6 +170,66 @@ defmodule Quacks.Rules.Fortune do
   # Alchemists box: our solo game has no rats and no left neighbour.
   @not_solo [:p4, :p5, :p8, :b2, :ap5, :ap6, :ap8, :ap9, :ab4]
 
+  # Round 30: the cards that draw chips for each seat (`Quacks.Game.card_reveals/1`).
+  @reveal_cards [:p8, :p13, :b7, :ap2]
+  # Round 35: the cards that offer every seat a choice (`Quacks.Game.card_reveals/1`
+  # has a row for each seat that chose or still chooses). Toil and Trouble offers only
+  # the seats whose right neighbour exploded.
+  @choice_cards [
+    :p1,
+    :p3,
+    :p6,
+    :p9,
+    :p10,
+    :p11,
+    :b2,
+    :ap1,
+    :ap3,
+    :ap4,
+    :ap6,
+    :ap7,
+    :ap8,
+    :ap9,
+    :ap10
+  ]
+  # Flea Market (P13): the next higher value of the same colour. ⚠️ White is not
+  # traded up (a bigger white chip only hurts); orange, purple and black have no
+  # higher value.
+  @upgrade %{
+    {:green, 1} => {:green, 2},
+    {:green, 2} => {:green, 4},
+    {:blue, 1} => {:blue, 2},
+    {:blue, 2} => {:blue, 4},
+    {:red, 1} => {:red, 2},
+    {:red, 2} => {:red, 4},
+    {:yellow, 1} => {:yellow, 2},
+    {:yellow, 2} => {:yellow, 4}
+  }
+
+  @doc "Whether card `id` draws chips for each seat (`Quacks.Game.card_reveals/1` has rows for it)."
+  @spec reveal_card?(atom | nil) :: boolean
+  def reveal_card?(id), do: id in @reveal_cards
+
+  @doc "Round 35: whether card `id` offers every seat a choice (`Quacks.Game.card_reveals/1` has rows)."
+  @spec choice_card?(atom | nil) :: boolean
+  def choice_card?(id), do: id in @choice_cards
+
+  @doc "The ids of `reveal_card?/1`, for the engine's guards."
+  @spec reveal_cards() :: [id]
+  def reveal_cards, do: @reveal_cards
+
+  @doc "The ids of `choice_card?/1`, for the engine's guards."
+  @spec choice_cards() :: [id]
+  def choice_cards, do: @choice_cards
+
+  @doc "Flea Market (P13): the chip `chip` trades up to, or nil."
+  @spec upgrade(Quacks.Rules.Chips.chip()) :: Quacks.Rules.Chips.chip() | nil
+  def upgrade(chip), do: Map.get(@upgrade, chip)
+
+  @doc "Flea Market (P13): every trade-up, `%{from => to}`."
+  @spec upgrades() :: %{Quacks.Rules.Chips.chip() => Quacks.Rules.Chips.chip()}
+  def upgrades, do: @upgrade
+
   @doc "All 44 cards: the 24 base cards (blue first), then the 20 of The Alchemists."
   @spec all() :: [card]
   def all, do: Enum.map(@ids, &card/1)

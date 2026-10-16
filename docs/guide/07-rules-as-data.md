@@ -222,7 +222,7 @@ tuple, glass 0 to 12 (`lib/quacks/rules/test_tubes.ex:12-14`):
 ```
 
 `bonus/1` is `elem(@glasses, glass)` and `last/0` is `tuple_size(@glasses) - 1`, so
-the end of the track follows the data. The engine (`Game.move_droplet/3`,
+the end of the track follows the data. The engine (`State.move_droplet/3`,
 chapter 2) and the pot component (`lib/quacks_web/components/pot_components.ex`)
 both read `TestTubes.last()`, never a literal 12.
 

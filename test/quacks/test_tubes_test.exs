@@ -6,6 +6,7 @@ defmodule Quacks.TestTubesTest do
   alias Quacks.AI.{Profile, Shop}
   alias Quacks.Game
   alias Quacks.Game.{Evaluation, Fortune}
+  alias Quacks.Game.State
   alias Quacks.Rules.TestTubes
 
   doctest TestTubes
@@ -158,12 +159,12 @@ defmodule Quacks.TestTubesTest do
     g = new(:back) |> put(tube: 12, phase: :rubies, rubies: 2)
     refute {:rubies, :tube} in Game.legal_actions(g)
 
-    g = Game.move_droplet(g, 0, 2)
+    g = State.move_droplet(g, 0, 2)
     assert {me(g).droplet, me(g).droplet_moves} == {2, 0}
   end
 
   test "a 2-space move on glass 11: the second move goes to the pot by itself" do
-    g = new(:back) |> put(tube: 11) |> Game.move_droplet(0, 2)
+    g = new(:back) |> put(tube: 11) |> State.move_droplet(0, 2)
     assert me(g).droplet_moves == 2
 
     g = apply!(g, {:droplet, :tube})

@@ -13,7 +13,7 @@ defmodule QuacksWeb.TileReveal do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.Fortune
+  alias Quacks.Rules.Fortune
   alias QuacksWeb.{Replay, Reveal}
 
   # The overlay's slides the tiles play; the results table and the standings are
@@ -570,11 +570,11 @@ defmodule QuacksWeb.TileReveal do
 
   # Round 28: Flea Market (P13): the chip `seat` traded and the chip it got, once
   # chosen. Round 30: every card that draws chips per seat (Less is More too): the
-  # chip or ruby it gave (`Quacks.Game.Fortune.reveals/1`). B7's placed chip is a
+  # chip or ruby it gave (`Quacks.Game.card_reveals/1`). B7's placed chip is a
   # draw: the draw news shows it.
   # Round 35: not for a choice card (its rows are for the grown card).
   defp card_news(game, seat) do
-    case Fortune.reveal_card?(game.fortune_card) && Fortune.reveals(game)[seat] do
+    case Fortune.reveal_card?(game.fortune_card) && Game.card_reveals(game)[seat] do
       %{choosing?: false, traded: traded, gains: gains} ->
         Enum.flat_map(gains, fn
           {:chip, chip} -> [{:card, game.fortune_card, traded, chip}]

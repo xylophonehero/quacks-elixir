@@ -19,7 +19,7 @@ defmodule QuacksWeb.GameText do
   def trigger_label(:passive), do: "All round"
   def trigger_label(:none), do: "No action"
 
-  @doc "Why Flea Market cannot trade a chip up (`Fortune.flea_block/2`), in a few words."
+  @doc "Why Flea Market cannot trade a chip up (`Quacks.Game.flea_block/2`), in a few words."
   def flea_reason(:white), do: "white stays"
   def flea_reason(:top), do: "no higher value"
   def flea_reason(:none_left), do: "none to trade for"

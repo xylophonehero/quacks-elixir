@@ -19,7 +19,6 @@ defmodule Quacks.AI do
 
   alias Quacks.AI.{Choice, Expectimax, Odds, Profile, Shop}
   alias Quacks.Game
-  alias Quacks.Game.Potions
   alias Table.Kit.Rng
 
   @shift_cap 0.10
@@ -204,7 +203,7 @@ defmodule Quacks.AI do
   # and (round 41) it adds no risk: the next draw's bust chance stays as it is, or
   # the bot stops anyway. Else the white goes back (the bag keeps it either way).
   defp blue(%{game: game, seat: seat, legal: legal} = ctx) do
-    room = Potions.explode_above(game, seat) - Game.white_sum(game, seat)
+    room = Game.white_limit(game, seat) - Game.white_sum(game, seat)
     places = for {:place, chip} <- legal, do: chip
     {whites, coloured} = Enum.split_with(places, &match?({:white, _}, &1))
     safe = Enum.filter(whites, fn {:white, w} -> w <= room and no_risk?(ctx, {:white, w}) end)

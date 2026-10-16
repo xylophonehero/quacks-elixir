@@ -1551,15 +1551,15 @@ a chip choice is asked, so the pot and the test tubes show.
 - **Choices, Choices** (P1, `:fortune_choice` with `fortune_card: :p1`) is one row
   of the black chip, the 2-chips and the ruby with "3" inside
   (`data-role=ruby-count`); no info row, no grid. Other card choices keep the grid.
-- **What everyone took.** `Fortune.reveals/1` also has rows for the cards that
-  offer every seat a choice (`Fortune.choice_card?/1`: P1, P3, P6, P9, P10, P11,
+- **What everyone took.** `Game.card_reveals/1` also has rows for the cards that
+  offer every seat a choice (`Rules.Fortune.choice_card?/1`: P1, P3, P6, P9, P10, P11,
   B2). When this seat leaves `:fortune_choice` (`chose_card?/3` in `put_game/2`),
   the card grows over the pot (`card_grown`) with `card_reveals compact`: one row
   per player, the disc and initial, then what it took with icons (`+3` ruby, `+4`
   VP, `+2` droplet, a chip, `−` the white chip, `−n` rat), "passed", or
   "choosing…" while that player still chooses (it updates live). Continue or a tap
   shrinks it. The new card's slide and the result tiles keep rows for the draw
-  cards only (`Fortune.reveal_card?/1`).
+  cards only (`Rules.Fortune.reveal_card?/1`).
 - **The Toadstools beside the pot** (`aside/1`) stack in a column with a small gap,
   so each value badge shows.
 - **The shop** has no Skip: a player always buys a chip (a UI rule; the engine

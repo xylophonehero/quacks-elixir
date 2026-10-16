@@ -8,6 +8,7 @@ defmodule QuacksWeb.PotBoardTest do
   import QuacksWeb.LiveHelpers
   import QuacksWeb.LiveHelpers
   alias Quacks.Game
+  alias Quacks.Game.State
   alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
@@ -268,7 +269,9 @@ defmodule QuacksWeb.PotBoardTest do
       before =
         chips
         |> Enum.with_index(1)
-        |> Enum.reduce(drew(chips), fn {chip, i}, g -> Game.record(g, 0, {:drew, chip, i}) end)
+        |> Enum.reduce(drew(chips), fn {chip, i}, g ->
+          State.record(g, 0, {:drew, chip, i})
+        end)
 
       p = before.players[0]
 
@@ -278,7 +281,7 @@ defmodule QuacksWeb.PotBoardTest do
           drawn: List.keydelete(p.drawn, {:green, 1}, 0),
           bag: [{:green, 2} | p.bag]
         )
-        |> Game.effect(0, {:purple, 4}, {:upgrade, {:green, 1}, {:green, 2}})
+        |> State.effect(0, {:purple, 4}, {:upgrade, {:green, 1}, {:green, 2}})
 
       assert PotComponents.held(game, 0) == [{{:green, 2}, 2}]
       assert PotComponents.shown_bag(game, 0) == p.bag
@@ -481,7 +484,7 @@ defmodule QuacksWeb.PotBoardTest do
     end
 
     test "before the first draw the rats follow the droplet" do
-      game = rat_game() |> Game.move_droplet(1, 1)
+      game = rat_game() |> State.move_droplet(1, 1)
       assert TrackComponents.rat_spaces(game.players[1]) == [2, 3, 4]
       assert game.players[1].pot_index == 4
     end
@@ -491,17 +494,17 @@ defmodule QuacksWeb.PotBoardTest do
       assert game.players[1].mods.rat_end == 3
       assert TrackComponents.rat_spaces(game.players[1]) == [1, 2, 3]
 
-      game = Game.move_droplet(game, 1, 1)
+      game = State.move_droplet(game, 1, 1)
       assert TrackComponents.rat_spaces(game.players[1]) == [2, 3]
       # Locoweed 5 still reads the distance moved at round start.
       assert game.players[1].rat_stone == 3
 
-      game = Game.move_droplet(game, 1, 3)
+      game = State.move_droplet(game, 1, 3)
       assert TrackComponents.rat_spaces(game.players[1]) == []
     end
 
     test "the pot draws one pebble per rat space, keyed by its space" do
-      game = H.force_draws(rat_game(), 1, [{:white, 2}]) |> Game.move_droplet(1, 1)
+      game = H.force_draws(rat_game(), 1, [{:white, 2}]) |> State.move_droplet(1, 1)
 
       html =
         render_component(&PotComponents.pot/1, game: game, seat: 1, size: :lg)

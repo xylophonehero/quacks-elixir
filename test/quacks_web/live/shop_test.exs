@@ -9,6 +9,7 @@ defmodule QuacksWeb.ShopTest do
   import QuacksWeb.LiveHelpers
   import QuacksWeb.RevealHelpers
   alias Quacks.Game
+  alias Quacks.Game.Round
   alias Quacks.GameHelpers
   alias Quacks.GameHelpers, as: H
   alias Quacks.GameServer
@@ -211,7 +212,7 @@ defmodule QuacksWeb.ShopTest do
       g
       |> GameHelpers.put(0, bag: bag, drawn: [], pending: [])
       |> GameHelpers.put(fortune_deck: [:p13], round: 2)
-      |> Game.start_round()
+      |> Round.start_round()
     end)
 
     skip_results(view)
@@ -550,7 +551,7 @@ defmodule QuacksWeb.ShopTest do
         g
         |> H.put(0, explosion_choice: :vp, coins: 0, rubies: 3)
         |> H.put(1, coins: 20)
-        |> Quacks.Game.to_shop()
+        |> Round.to_shop()
       end)
 
       %{alice: alice, bob: bob}

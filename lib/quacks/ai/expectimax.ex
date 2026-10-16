@@ -17,7 +17,6 @@ defmodule Quacks.AI.Expectimax do
 
   alias Quacks.AI.Profile
   alias Quacks.Game
-  alias Quacks.Game.Potions
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
 
@@ -81,7 +80,7 @@ defmodule Quacks.AI.Expectimax do
   defp context(game, seat, profile) do
     %{
       round: game.round,
-      limit: Potions.explode_above(game, seat),
+      limit: Game.white_limit(game, seat),
       profile: profile,
       vp?: game.round == 9 or game.round >= profile.explode_vp_from
     }

@@ -31,7 +31,7 @@ defmodule Quacks.Game.Potions do
   """
 
   alias Quacks.Game
-  alias Quacks.Game.{Essence, Fortune}
+  alias Quacks.Game.{Essence, Fortune, State}
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
   alias Table.Kit.Bag
@@ -42,7 +42,7 @@ defmodule Quacks.Game.Potions do
   """
   @spec legal_actions(Game.t(), Game.seat()) :: [Game.action()]
   def legal_actions(%{sets: %{red: 6}} = g, seat) do
-    p = Game.player(g, seat)
+    p = State.player(g, seat)
     places = for chip <- Enum.sort(Enum.uniq(p.aside)), do: {:red, {:place, chip}}
 
     case p.phase do
@@ -52,7 +52,7 @@ defmodule Quacks.Game.Potions do
     end
   end
 
-  def legal_actions(g, seat), do: legal_actions(Game.player(g, seat))
+  def legal_actions(g, seat), do: legal_actions(State.player(g, seat))
 
   @doc "What `player` may do right now in the potions phase, from its own state."
   @spec legal_actions(Player.t()) :: [Game.action()]
@@ -92,15 +92,15 @@ defmodule Quacks.Game.Potions do
   # Green Set 5: the chosen starter chips come out of the bag first, in order. A
   # starter no longer in the bag (traded away since) is skipped.
   def step(g, seat, :draw) do
-    case Game.player(g, seat) do
+    case State.player(g, seat) do
       %{starters: [chip | rest], bag: bag} ->
-        g = Game.update_player(g, seat, &%{&1 | starters: rest})
+        g = State.update_player(g, seat, &%{&1 | starters: rest})
 
         if chip in bag do
           g
-          |> Game.update_player(seat, &%{&1 | bag: List.delete(&1.bag, chip)})
+          |> State.update_player(seat, &%{&1 | bag: List.delete(&1.bag, chip)})
           |> resolve_draw(seat, chip)
-          |> Game.effect(seat, {:green, 5}, {:first, chip})
+          |> State.effect(seat, {:green, 5}, {:first, chip})
         else
           step(g, seat, :draw)
         end
@@ -114,36 +114,36 @@ defmodule Quacks.Game.Potions do
   # The flask takes the newest chip off the pot; the pot position falls back to the
   # chip before it (or the start space when the pot is empty).
   def step(g, seat, :use_flask),
-    do: g |> Game.update_player(seat, &%{&1 | flask: false}) |> take_back(seat)
+    do: g |> State.update_player(seat, &%{&1 | flask: false}) |> take_back(seat)
 
   # Soft stop: the player waits as `:stopped` and may `:resume` while someone else
   # still brews. `Quacks.Game` makes the stop final (`stop/2`) once nobody brews.
   def step(g, seat, :stop) do
-    g = Game.update_player(g, seat, &%{&1 | phase: :stopped})
-    if length(g.seats) > 1, do: Game.record(g, seat, :stopped), else: g
+    g = State.update_player(g, seat, &%{&1 | phase: :stopped})
+    if length(g.seats) > 1, do: State.record(g, seat, :stopped), else: g
   end
 
   def step(g, seat, :resume),
-    do: g |> Game.update_player(seat, &%{&1 | phase: :potions}) |> Game.record(seat, :resumed)
+    do: g |> State.update_player(seat, &%{&1 | phase: :potions}) |> State.record(seat, :resumed)
 
   # Yellow (§4): the white chip directly before the yellow goes back in the bag; its
   # space stays empty, the yellow chip does not move back, the white sum reverts.
   def step(g, seat, :return_white) do
-    %{drawn: [yellow, {white, _index} | rest]} = Game.player(g, seat)
-    g = Game.update_player(g, seat, &%{&1 | drawn: [yellow | rest], phase: :potions})
+    %{drawn: [yellow, {white, _index} | rest]} = State.player(g, seat)
+    g = State.update_player(g, seat, &%{&1 | drawn: [yellow | rest], phase: :potions})
     return_to_bag(g, seat, white)
   end
 
-  def step(g, seat, :keep), do: Game.update_player(g, seat, &%{&1 | phase: :potions})
+  def step(g, seat, :keep), do: State.update_player(g, seat, &%{&1 | phase: :potions})
 
   # Yellow Set 6: 1 ruby, the yellow (the newest chip) moves 3 more spaces.
   def step(g, seat, {:chip, :yellow_ruby}) do
     g
-    |> Game.update_player(seat, fn %{drawn: [{chip, i} | rest]} = p ->
+    |> State.update_player(seat, fn %{drawn: [{chip, i} | rest]} = p ->
       i = PotTrack.chip_index(i + 3)
       %{p | rubies: p.rubies - 1, drawn: [{chip, i} | rest], pot_index: i}
     end)
-    |> Game.effect(seat, {:yellow, 6}, {:extra, 3})
+    |> State.effect(seat, {:yellow, 6}, {:extra, 3})
     |> step(seat, :chip_done)
   end
 
@@ -151,39 +151,39 @@ defmodule Quacks.Game.Potions do
   # empty. When it is the newest chip, the next chip counts from the chip before it.
   def step(g, seat, {:chip, {:return, chip}}) do
     g
-    |> Game.update_player(seat, fn p ->
+    |> State.update_player(seat, fn p ->
       drawn = List.keydelete(p.drawn, chip, 0)
       %{p | drawn: drawn, pot_index: last_index(drawn, p)}
     end)
     |> return_to_bag(seat, chip)
-    |> Game.effect(seat, {:locoweed, 5}, {:returned, chip})
+    |> State.effect(seat, {:locoweed, 5}, {:returned, chip})
     |> step(seat, :chip_done)
   end
 
   def step(g, seat, :chip_done),
-    do: Game.update_player(g, seat, &%{&1 | chip_choices: [], phase: :potions})
+    do: State.update_player(g, seat, &%{&1 | chip_choices: [], phase: :potions})
 
   # Blue (§4): one of the extra chips becomes the next chip and resolves normally.
   def step(g, seat, {:place, chip}) do
-    rest = List.delete(Game.player(g, seat).pending, chip)
+    rest = List.delete(State.player(g, seat).pending, chip)
     g = g |> clear_offer(seat) |> return_all(seat, rest)
     resolve_draw(g, seat, chip)
   end
 
   def step(g, seat, :return_all) do
-    pending = Game.player(g, seat).pending
+    pending = State.player(g, seat).pending
     g |> clear_offer(seat) |> return_all(seat, pending)
   end
 
   def step(g, seat, {:explosion_choice, choice}),
-    do: g |> Game.update_player(seat, &%{&1 | explosion_choice: choice}) |> finish(seat)
+    do: g |> State.update_player(seat, &%{&1 | explosion_choice: choice}) |> finish(seat)
 
   # Red Set 6 while brewing: a chip set aside goes in the pot as a normal draw.
   def step(%{sets: %{red: 6}} = g, seat, {:red, {:place, chip}} = action) do
-    case Game.player(g, seat) do
+    case State.player(g, seat) do
       %{phase: :potions} ->
         g
-        |> Game.update_player(seat, &%{&1 | aside: List.delete(&1.aside, chip)})
+        |> State.update_player(seat, &%{&1 | aside: List.delete(&1.aside, chip)})
         |> resolve_draw(seat, chip)
 
       _ ->
@@ -193,33 +193,33 @@ defmodule Quacks.Game.Potions do
 
   # R2: one chip from beside the pot. A placed red moves only its own value.
   def step(g, seat, {:red, {how, chip}}) do
-    g = Game.update_player(g, seat, &%{&1 | pending: List.delete(&1.pending, chip)})
+    g = State.update_player(g, seat, &%{&1 | pending: List.delete(&1.pending, chip)})
 
     g =
       case how do
-        :place -> put_on_pot(g, seat, chip, Game.player(g, seat).pot_index + elem(chip, 1))
-        :keep -> Game.update_player(g, seat, &%{&1 | aside: [chip | &1.aside]})
+        :place -> put_on_pot(g, seat, chip, State.player(g, seat).pot_index + elem(chip, 1))
+        :keep -> State.update_player(g, seat, &%{&1 | aside: [chip | &1.aside]})
         :return -> return_to_bag(g, seat, chip)
       end
 
-    if Game.player(g, seat).pending == [], do: done(g, seat), else: g
+    if State.player(g, seat).pending == [], do: done(g, seat), else: g
   end
 
   # Red Set 6 after stopping (or exploding): the chip moves its own value with no
   # action (⚠️, like R2); a white one can still explode the pot. Then the chips still
   # aside wait until the explosion choice is made.
   defp place_aside(g, seat, {:red, {:place, chip}}) do
-    p = Game.player(g, seat)
-    g = Game.update_player(g, seat, &%{&1 | pending: List.delete(&1.pending, chip)})
+    p = State.player(g, seat)
+    g = State.update_player(g, seat, &%{&1 | pending: List.delete(&1.pending, chip)})
     g = put_on_pot(g, seat, chip, p.pot_index + elem(chip, 1))
 
     cond do
       not p.exploded? and exploded?(g, seat) ->
         g
-        |> Game.update_player(seat, &%{&1 | aside: &1.pending, pending: []})
+        |> State.update_player(seat, &%{&1 | aside: &1.pending, pending: []})
         |> explode(seat)
 
-      Game.player(g, seat).pending == [] ->
+      State.player(g, seat).pending == [] ->
         done(g, seat)
 
       true ->
@@ -232,30 +232,33 @@ defmodule Quacks.Game.Potions do
   # done (after the red chips beside the pot).
   def stop(g, seat) do
     g = Fortune.on_stop(g, seat)
-    if Game.player(g, seat).phase == :fortune_choice, do: g, else: finish(g, seat)
+    if State.player(g, seat).phase == :fortune_choice, do: g, else: finish(g, seat)
   end
 
   @doc false
   # The player stopped or settled an explosion. R2 chips beside the pot come first.
   def finish(g, seat) do
-    case Game.player(g, seat).aside do
-      [] -> done(g, seat)
-      aside -> Game.update_player(g, seat, &%{&1 | aside: [], pending: aside, phase: :red_choice})
+    case State.player(g, seat).aside do
+      [] ->
+        done(g, seat)
+
+      aside ->
+        State.update_player(g, seat, &%{&1 | aside: [], pending: aside, phase: :red_choice})
     end
   end
 
-  defp done(g, seat), do: Game.update_player(g, seat, &%{&1 | phase: :done, done?: true})
+  defp done(g, seat), do: State.update_player(g, seat, &%{&1 | phase: :done, done?: true})
 
   @doc false
   # The newest chip leaves the pot (or the overflow bowl) for the bag (flask, B10).
   def take_back(g, seat) do
-    case Game.player(g, seat) do
+    case State.player(g, seat) do
       %{bowl: [chip | rest]} ->
-        g |> Game.update_player(seat, &%{&1 | bowl: rest}) |> return_to_bag(seat, chip)
+        g |> State.update_player(seat, &%{&1 | bowl: rest}) |> return_to_bag(seat, chip)
 
       %{drawn: [{chip, _index} | rest]} = p ->
         g
-        |> Game.update_player(seat, &%{&1 | drawn: rest, pot_index: last_index(rest, p)})
+        |> State.update_player(seat, &%{&1 | drawn: rest, pot_index: last_index(rest, p)})
         |> return_to_bag(seat, chip)
     end
   end
@@ -271,12 +274,12 @@ defmodule Quacks.Game.Potions do
   # either (red, Y2 doubling): the bonus is the chip's action.
   def place_last(g, seat, {_colour, value} = chip) do
     g
-    |> put_on_pot(seat, chip, Game.player(g, seat).pot_index + value)
+    |> put_on_pot(seat, chip, State.player(g, seat).pot_index + value)
     |> finish(seat)
   end
 
   defp clear_offer(g, seat),
-    do: Game.update_player(g, seat, &%{&1 | pending: [], phase: :potions})
+    do: State.update_player(g, seat, &%{&1 | pending: [], phase: :potions})
 
   defp return_all(g, seat, chips), do: Enum.reduce(chips, g, &return_to_bag(&2, seat, &1))
 
@@ -285,8 +288,8 @@ defmodule Quacks.Game.Potions do
   # R2: a drawn red chip is not placed; it goes beside the pot.
   def resolve_draw(%{sets: %{red: 2}} = g, seat, {:red, _} = chip) do
     g
-    |> Game.update_player(seat, &%{&1 | aside: [chip | &1.aside]})
-    |> Game.effect(seat, {:red, 2}, {:aside, chip})
+    |> State.update_player(seat, &%{&1 | aside: [chip | &1.aside]})
+    |> State.effect(seat, {:red, 2}, {:aside, chip})
   end
 
   # Place a chip as the next chip in the pot, then run its on-draw effect (§3.1).
@@ -294,7 +297,7 @@ defmodule Quacks.Game.Potions do
   # B3: a draw the card asks for cannot explode the pot (`Fortune.safe_draw?/2`).
   # Overflow bowl: the chip goes in the bowl, with no action (book `:bowl`).
   def resolve_draw(g, seat, chip) do
-    p = Game.player(g, seat)
+    p = State.player(g, seat)
     protected? = p.mods.protect > 0
     # The Alchemists' Ear worm draws in the essence phase cannot explode the pot.
     safe? = g.phase == :essence or Fortune.safe_draw?(g, p)
@@ -331,7 +334,7 @@ defmodule Quacks.Game.Potions do
   # goes in the bowl). Blue Set 1 (the offer) and Y2 (next chip double).
   defp next_chip_lost(%{rules: %{overflow: true}} = g, seat, book)
        when book in [{:blue, 1}, {:yellow, 2}] do
-    if Game.player(g, seat).pot_index >= PotTrack.last_chip(), do: :bowl, else: book
+    if State.player(g, seat).pot_index >= PotTrack.last_chip(), do: :bowl, else: book
   end
 
   defp next_chip_lost(_g, _seat, book), do: book
@@ -358,7 +361,7 @@ defmodule Quacks.Game.Potions do
   def explode_above(g, seat) do
     Enum.max([
       g.rules.explode_above,
-      Game.player(g, seat).mods.explode_above,
+      State.player(g, seat).mods.explode_above,
       Fortune.explode_above(g)
     ])
   end
@@ -367,25 +370,25 @@ defmodule Quacks.Game.Potions do
 
   defp explode(g, seat) do
     g
-    |> Game.update_player(
+    |> State.update_player(
       seat,
       &%{&1 | exploded?: true, phase: :explosion_choice, essence_pending: nil}
     )
-    |> Game.record(seat, {:exploded, Game.white_sum(g, seat)})
+    |> State.record(seat, {:exploded, Game.white_sum(g, seat)})
   end
 
   # B2: VP and coins (`explosion_choice` stays nil), still no bonus die.
   defp protected_explosion(g, seat) do
     g
-    |> Game.update_player(seat, &%{&1 | exploded?: true})
-    |> Game.record(seat, {:exploded, Game.white_sum(g, seat)})
-    |> Game.effect(seat, {:blue, 2}, :protected_explosion)
+    |> State.update_player(seat, &%{&1 | exploded?: true})
+    |> State.record(seat, {:exploded, Game.white_sum(g, seat)})
+    |> State.effect(seat, {:blue, 2}, :protected_explosion)
     |> finish(seat)
   end
 
   defp on_draw(g, seat, {:yellow, _}, {:yellow, 1}) do
-    case Game.player(g, seat).drawn do
-      [_, {{:white, _}, _} | _] -> Game.update_player(g, seat, &%{&1 | phase: :yellow_choice})
+    case State.player(g, seat).drawn do
+      [_, {{:white, _}, _} | _] -> State.update_player(g, seat, &%{&1 | phase: :yellow_choice})
       _ -> g
     end
   end
@@ -393,25 +396,25 @@ defmodule Quacks.Game.Potions do
   defp on_draw(g, seat, {:blue, value}, {:blue, 1}) do
     case take_random(g, seat, value) do
       {[], g} -> g
-      {extra, g} -> Game.update_player(g, seat, &%{&1 | pending: extra, phase: :blue_choice})
+      {extra, g} -> State.update_player(g, seat, &%{&1 | pending: extra, phase: :blue_choice})
     end
   end
 
   # Windows do not add up: the larger of what is left and the new chip's value.
   defp on_draw(g, seat, {:blue, value}, {:blue, 2} = book) do
-    window = max(Game.player(g, seat).mods.protect, value)
+    window = max(State.player(g, seat).mods.protect, value)
 
     g
     |> update_mods(seat, &%{&1 | protect: window})
-    |> Game.effect(seat, book, {:protect, window})
+    |> State.effect(seat, book, {:protect, window})
   end
 
   defp on_draw(g, seat, _chip, {:blue, 3} = book) do
     if on_ruby?(g, seat),
       do:
         g
-        |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + 1})
-        |> Game.effect(seat, book, :ruby),
+        |> State.update_player(seat, &%{&1 | rubies: &1.rubies + 1})
+        |> State.effect(seat, book, :ruby),
       else: g
   end
 
@@ -419,8 +422,8 @@ defmodule Quacks.Game.Potions do
     if on_ruby?(g, seat),
       do:
         g
-        |> Game.update_player(seat, &%{&1 | vp: &1.vp + value})
-        |> Game.effect(seat, book, {:vp, value}),
+        |> State.update_player(seat, &%{&1 | vp: &1.vp + value})
+        |> State.effect(seat, book, {:vp, value}),
       else: g
   end
 
@@ -430,12 +433,12 @@ defmodule Quacks.Game.Potions do
     do: update_mods(g, seat, &%{&1 | next_chip_x2: true})
 
   defp on_draw(g, seat, _chip, {:yellow, 3} = book) do
-    case count(Game.player(g, seat).drawn, :yellow) do
+    case count(State.player(g, seat).drawn, :yellow) do
       1 ->
-        g |> update_mods(seat, &%{&1 | explode_above: 8}) |> Game.effect(seat, book, {:limit, 8})
+        g |> update_mods(seat, &%{&1 | explode_above: 8}) |> State.effect(seat, book, {:limit, 8})
 
       3 ->
-        g |> update_mods(seat, &%{&1 | explode_above: 9}) |> Game.effect(seat, book, {:limit, 9})
+        g |> update_mods(seat, &%{&1 | explode_above: 9}) |> State.effect(seat, book, {:limit, 9})
 
       _ ->
         g
@@ -444,17 +447,17 @@ defmodule Quacks.Game.Potions do
 
   # Blue Set 5: VP by value when the pot has at least that many orange chips.
   defp on_draw(g, seat, {:blue, value}, {:blue, 5} = book) do
-    if count(Game.player(g, seat).drawn, :orange) >= value,
+    if count(State.player(g, seat).drawn, :orange) >= value,
       do:
         g
-        |> Game.update_player(seat, &%{&1 | vp: &1.vp + value})
-        |> Game.effect(seat, book, {:vp, value}),
+        |> State.update_player(seat, &%{&1 | vp: &1.vp + value})
+        |> State.effect(seat, book, {:vp, value}),
       else: g
   end
 
   # Blue Set 6: a ruby per white 1-chip among the `value` chips before the blue.
   defp on_draw(g, seat, {:blue, value}, {:blue, 6} = book) do
-    [_blue | before] = Game.player(g, seat).drawn
+    [_blue | before] = State.player(g, seat).drawn
 
     case before |> Enum.take(value) |> Enum.count(&match?({{:white, 1}, _}, &1)) do
       0 ->
@@ -462,8 +465,8 @@ defmodule Quacks.Game.Potions do
 
       n ->
         g
-        |> Game.update_player(seat, &%{&1 | rubies: &1.rubies + n})
-        |> Game.effect(seat, book, {:rubies, n})
+        |> State.update_player(seat, &%{&1 | rubies: &1.rubies + n})
+        |> State.effect(seat, book, {:rubies, n})
     end
   end
 
@@ -476,11 +479,11 @@ defmodule Quacks.Game.Potions do
 
       {[{_, v} = peek], g} ->
         g
-        |> Game.update_player(seat, fn %{drawn: [{chip, i} | rest]} = p ->
+        |> State.update_player(seat, fn %{drawn: [{chip, i} | rest]} = p ->
           i = PotTrack.chip_index(i + v)
           %{p | drawn: [{chip, i} | rest], pot_index: i, bag: [peek | p.bag]}
         end)
-        |> Game.effect(seat, book, {:peek, peek})
+        |> State.effect(seat, book, {:peek, peek})
     end
   end
 
@@ -492,27 +495,28 @@ defmodule Quacks.Game.Potions do
 
       {[aside], g} ->
         g
-        |> Game.update_player(seat, &%{&1 | aside: [aside | &1.aside]})
-        |> Game.effect(seat, book, {:aside, aside})
+        |> State.update_player(seat, &%{&1 | aside: [aside | &1.aside]})
+        |> State.effect(seat, book, {:aside, aside})
     end
   end
 
   # Yellow Set 6: with a ruby, the player may pay it for 3 more spaces (a choice).
   defp on_draw(g, seat, _chip, {:yellow, 6}) do
-    if Game.player(g, seat).rubies > 0,
-      do: Game.update_player(g, seat, &%{&1 | chip_choices: [:yellow_ruby], phase: :chip_choice}),
+    if State.player(g, seat).rubies > 0,
+      do:
+        State.update_player(g, seat, &%{&1 | chip_choices: [:yellow_ruby], phase: :chip_choice}),
       else: g
   end
 
   # Locoweed 5: the player may return one coloured pot chip (this locoweed too).
   defp on_draw(g, seat, _chip, {:locoweed, 5}) do
     choices =
-      for {{colour, _} = chip, _} <- Game.player(g, seat).drawn,
+      for {{colour, _} = chip, _} <- State.player(g, seat).drawn,
           colour != :white,
           uniq: true,
           do: {:return, chip}
 
-    Game.update_player(g, seat, &%{&1 | chip_choices: Enum.sort(choices), phase: :chip_choice})
+    State.update_player(g, seat, &%{&1 | chip_choices: Enum.sort(choices), phase: :chip_choice})
   end
 
   defp on_draw(g, _seat, _chip, _book), do: g
@@ -524,7 +528,7 @@ defmodule Quacks.Game.Potions do
   defp place(g, seat, chip, _acting, :bowl), do: put_on_pot(g, seat, chip, PotTrack.last_chip())
 
   defp place(g, seat, chip, {_, value} = acting, book) do
-    p = Game.player(g, seat)
+    p = State.player(g, seat)
     {bonus, effects} = bonus(acting, book, p)
     move = value + bonus + Fortune.extra_move(g, acting)
 
@@ -541,7 +545,7 @@ defmodule Quacks.Game.Potions do
       |> update_mods(seat, &%{&1 | next_chip_x2: false})
       |> put_on_pot(seat, chip, p.pot_index + move)
 
-    Enum.reduce(effects, g, fn {book, detail}, g -> Game.effect(g, seat, book, detail) end)
+    Enum.reduce(effects, g, fn {book, detail}, g -> State.effect(g, seat, book, detail) end)
   end
 
   # Round 35: the first chip in the pot fixes the rat stone's space; a later droplet
@@ -555,19 +559,19 @@ defmodule Quacks.Game.Potions do
   # becomes the newest chip.
   # With `overflow` and a chip already on the last space, it goes in the bowl.
   defp put_on_pot(g, seat, chip, index) do
-    if overflow?(g, Game.player(g, seat)) do
+    if overflow?(g, State.player(g, seat)) do
       g
-      |> Game.update_player(seat, &%{&1 | bowl: [chip | &1.bowl]})
-      |> Game.record(seat, {:overflow, chip})
+      |> State.update_player(seat, &%{&1 | bowl: [chip | &1.bowl]})
+      |> State.record(seat, {:overflow, chip})
     else
       index = PotTrack.chip_index(index)
 
       g
-      |> Game.update_player(
+      |> State.update_player(
         seat,
         &%{fix_rats(&1) | drawn: [{chip, index} | &1.drawn], pot_index: index}
       )
-      |> Game.record(seat, {:drew, chip, index})
+      |> State.record(seat, {:drew, chip, index})
     end
   end
 
@@ -624,9 +628,9 @@ defmodule Quacks.Game.Potions do
 
   defp set(g, colour), do: Map.get(g.sets, colour, 1)
   defp count(drawn, colour), do: Enum.count(drawn, &match?({{^colour, _}, _}, &1))
-  defp on_ruby?(g, seat), do: PotTrack.at(Game.player(g, seat).pot_index).ruby?
+  defp on_ruby?(g, seat), do: PotTrack.at(State.player(g, seat).pot_index).ruby?
 
-  defp update_mods(g, seat, fun), do: Game.update_player(g, seat, &%{&1 | mods: fun.(&1.mods)})
+  defp update_mods(g, seat, fun), do: State.update_player(g, seat, &%{&1 | mods: fun.(&1.mods)})
 
   # The space of the newest chip in the pot, or the start space when the pot is empty.
   @doc false
@@ -636,15 +640,15 @@ defmodule Quacks.Game.Potions do
   @doc false
   def return_to_bag(g, seat, chip) do
     g
-    |> Game.update_player(seat, &%{&1 | bag: [chip | &1.bag]})
-    |> Game.record(seat, {:returned, chip})
+    |> State.update_player(seat, &%{&1 | bag: [chip | &1.bag]})
+    |> State.record(seat, {:returned, chip})
   end
 
   @doc false
   # Draw up to `n` random chips from the seat's bag (fewer when the bag runs short),
   # newest first.
   def take_random(g, seat, n) do
-    {chips, bag, rng} = Bag.draw(Game.player(g, seat).bag, n, g.rng)
-    {Enum.reverse(chips), %{Game.update_player(g, seat, &%{&1 | bag: bag}) | rng: rng}}
+    {chips, bag, rng} = Bag.draw(State.player(g, seat).bag, n, g.rng)
+    {Enum.reverse(chips), %{State.update_player(g, seat, &%{&1 | bag: bag}) | rng: rng}}
   end
 end
