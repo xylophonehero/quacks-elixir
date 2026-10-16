@@ -4,7 +4,9 @@
 // server and of the head server in the same tab, then a pixel compare in a canvas
 // of the same Chrome. Writes <out>/index.html with only the changed shots.
 //   node docs/assets/visual.mjs <job.json>
-// Job: {frames: [[name, path]], widths, base: {url, ref}, head: {url, ref}, out, cdp, jobs}
+// Job: {frames: [{name, base, head}], widths, base: {url, ref}, head: {url, ref}, out, cdp, jobs}
+// A frame's base or head is its path on that server, null when the ref does not
+// have the frame: then the frame is "new" (only head) or "removed" (only base).
 // ponytail: no deps, node's built-in fetch and WebSocket.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -155,7 +157,7 @@ const DIFF = `async (a, b, tolerance) => {
   return { changed: n, pct: (100 * n) / (w * h), w, h, base: [A.width, A.height], head: [B.width, B.height], png: url.split(",")[1] };
 }`;
 
-const items = job.frames.flatMap(([name, path]) => job.widths.map((w) => ({ name, path, w })));
+const items = job.frames.flatMap((f) => job.widths.map((w) => ({ ...f, w })));
 const results = [];
 const started = Date.now();
 let done = 0;
@@ -186,10 +188,22 @@ async function worker() {
   await Promise.all([s.close(), d.close()]);
 }
 
+const fileName = (item) => `${item.name.replaceAll("/", "__")}@${item.w}`;
+
+// A frame that only one ref has: its one shot, kind "new" or "removed".
+async function single(item, s) {
+  const [kind, side] = item.base ? ["removed", "base"] : ["new", "head"];
+  const shot = await s.shot(job[side].url + item[side], item.w);
+  const file = fileName(item);
+  writeFileSync(join(job.out, side, `${file}.png`), Buffer.from(shot.png, "base64"));
+  return { ...item, kind, side, file, settled: shot.settled, retries: 0, changed: 0, pct: 0 };
+}
+
 async function check(item, s, d) {
+  if (!item.base || !item.head) return single(item, s);
   const compare = async () => {
-    const base = await s.shot(job.base.url + item.path, item.w);
-    const head = await s.shot(job.head.url + item.path, item.w);
+    const base = await s.shot(job.base.url + item.base, item.w);
+    const head = await s.shot(job.head.url + item.head, item.w);
     const diff = base.png === head.png ? null : await d.js(`(${DIFF})(${JSON.stringify(base.png)}, ${JSON.stringify(head.png)}, ${job.tolerance})`);
     return { base, head, diff: diff?.changed > 0 ? diff : null };
   };
@@ -200,7 +214,7 @@ async function check(item, s, d) {
   while (diff && retries < 2) retries++, ({ base, head, diff } = await compare());
   const r = { ...item, settled: base.settled && head.settled, retries, changed: 0, pct: 0 };
   if (diff) {
-    const file = `${item.name.replaceAll("/", "__")}@${item.w}`;
+    const file = fileName(item);
     Object.assign(r, { changed: diff.changed, pct: diff.pct, size: [diff.base, diff.head], file });
     for (const [kind, png] of [["base", base.png], ["head", head.png], ["diff", diff.png]]) {
       writeFileSync(join(job.out, kind, `${file}.png`), Buffer.from(png, "base64"));
@@ -214,10 +228,17 @@ await Promise.all(Array.from({ length: job.jobs }, worker));
 
 const seconds = Math.round((Date.now() - started) / 1000);
 const changed = results.filter((r) => r.changed > 0).sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
+const byName = (a, b) => a.name.localeCompare(b.name) || a.w - b.w;
+const added = results.filter((r) => r.kind === "new").sort(byName);
+const removed = results.filter((r) => r.kind === "removed").sort(byName);
 const unsettled = results.filter((r) => !r.settled).map((r) => `${r.name}@${r.w}${r.error ? ` (${r.error})` : ""}`);
 // Shots that were not the same at first and the same after a retry: a flake.
 const flaky = results.filter((r) => r.retries > 0 && r.changed === 0).map((r) => `${r.name}@${r.w}`);
-const summary = { base: job.base, head: job.head, shots: results.length, changed: changed.length, seconds, unsettled, flaky };
+const names = (list) => list.map((r) => `${r.name}@${r.w}`);
+const summary = {
+  base: job.base, head: job.head, shots: results.length, changed: changed.length,
+  new: names(added), removed: names(removed), seconds, unsettled, flaky,
+};
 writeFileSync(join(job.out, "summary.json"), JSON.stringify({ ...summary, results: changed }, null, 2));
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -225,13 +246,23 @@ const row = (r) => `
 <section id="${esc(r.file)}">
   <h2><a href="#${esc(r.file)}">${esc(r.name)}</a> <span>${r.w} px</span> <b>${r.pct.toFixed(r.pct < 0.1 ? 3 : 1)}%</b>
     <small>${r.changed} px${r.size[0].join("x") === r.size[1].join("x") ? "" : `, size ${r.size[0].join("x")} → ${r.size[1].join("x")}`}</small>
-    <a class="open" href="${esc(job.head.url + r.path)}">head page</a></h2>
+    <a class="open" href="${esc(job.head.url + r.head)}">head page</a></h2>
   <div class="row">
     <figure><figcaption>base</figcaption><a href="base/${esc(r.file)}.png"><img loading="lazy" src="base/${esc(r.file)}.png"></a></figure>
     <figure><figcaption>head</figcaption><a href="head/${esc(r.file)}.png"><img loading="lazy" src="head/${esc(r.file)}.png"></a></figure>
     <figure><figcaption>diff</figcaption><a href="diff/${esc(r.file)}.png"><img loading="lazy" src="diff/${esc(r.file)}.png"></a></figure>
   </div>
 </section>`;
+// A new or removed frame: its one shot.
+const one = (r) => `
+<section id="${esc(r.file)}">
+  <h2><a href="#${esc(r.file)}">${esc(r.name)}</a> <span>${r.w} px</span> <b>${r.kind}</b>
+    <a class="open" href="${esc(job[r.side].url + r[r.side])}">${r.side} page</a></h2>
+  <div class="row">
+    <figure><figcaption>${r.side} only</figcaption><a href="${r.side}/${esc(r.file)}.png"><img loading="lazy" src="${r.side}/${esc(r.file)}.png"></a></figure>
+  </div>
+</section>`;
+const list = (rs) => `<ol>${rs.map((r) => `<li><a href="#${esc(r.file)}">${esc(r.name)} @${r.w}</a>${r.kind ? "" : ` ${r.pct.toFixed(2)}%`}</li>`).join("")}</ol>`;
 writeFileSync(
   join(job.out, "index.html"),
   `<!doctype html><meta charset="utf-8"><title>Visual diff ${esc(job.base.ref)} → ${esc(job.head.ref)}</title>
@@ -246,13 +277,17 @@ writeFileSync(
   ol { columns: 2; font-size: 12px; } code { font-size: 12px; }
 </style>
 <h1>Visual diff: <code>${esc(job.base.ref)}</code> (${esc(job.base.sha)}) → <code>${esc(job.head.ref)}</code> (${esc(job.head.sha)})</h1>
-<p>${changed.length} of ${results.length} shots changed (${job.frames.length} frames × ${job.widths.join("/")} px), ${seconds} s.
+<p>${changed.length} of ${results.length} shots changed, ${added.length} new, ${removed.length} removed (${job.frames.length} frames × ${job.widths.join("/")} px), ${seconds} s.
 Sorted by the part of the shot that changed. Red in the diff: a pixel that is not the same (a channel more than ${job.tolerance} off).
 ${flaky.length ? `<br>Same only after a retry (flaky, not in the list): ${flaky.map(esc).join(", ")}` : ""}
 ${unsettled.length ? `<br><b>Not settled</b> (not connected in 7.5 s, still moving after 2 s, or the tab failed twice): ${unsettled.map(esc).join(", ")}` : ""}</p>
-${changed.length ? `<ol>${changed.map((r) => `<li><a href="#${esc(r.file)}">${esc(r.name)} @${r.w}</a> ${r.pct.toFixed(2)}%</li>`).join("")}</ol>` : "<p>No changes.</p>"}
+${changed.length ? list(changed) : "<p>No changes.</p>"}
+${added.length ? `<h1>New: only head has the frame</h1>${list(added)}` : ""}
+${removed.length ? `<h1>Removed: only base has the frame</h1>${list(removed)}` : ""}
 ${changed.map(row).join("")}
+${added.map(one).join("")}
+${removed.map(one).join("")}
 `,
 );
-console.log(`${changed.length} of ${results.length} shots changed, ${seconds} s, ${flaky.length} flaky, ${unsettled.length} not settled`);
+console.log(`${changed.length} of ${results.length} shots changed, ${added.length} new, ${removed.length} removed, ${seconds} s, ${flaky.length} flaky, ${unsettled.length} not settled`);
 console.log(join(job.out, "index.html"));
