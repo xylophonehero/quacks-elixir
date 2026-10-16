@@ -30,6 +30,15 @@ defmodule QuacksWeb.Router do
     get "/debug/replay", DebugReplayController, :show
   end
 
+  # The other table games (`Table.games/0`): pick one, set it up, play a room.
+  scope "/games" do
+    pipe_through :browser
+
+    live "/", TableWeb.GamesLive
+    live "/hearts/new", HeartsWeb.SetupLive
+    live "/:game/:code", TableWeb.TableLive
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", QuacksWeb do
   #   pipe_through :api

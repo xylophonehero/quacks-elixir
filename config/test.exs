@@ -23,6 +23,8 @@ config :phoenix,
 
 # Bots act at once in tests (see Quacks.GameServer).
 config :quacks, bot_delay: 0
+# The table games' bots too (`Table.Server`: a factor on each bot's delay).
+config :quacks, table_bot_speed: 0
 
 # Bug reports: GitHub is a `Req.Test` stub, reports go to a temp dir, and the debug
 # replay route is closed (`Quacks.BugReports`, `QuacksWeb.DebugReplayController`).
@@ -38,3 +40,4 @@ config :quacks, upgrade_ms: 0
 
 # The gallery and the scenarios (`QuacksWeb.Plugs.Gallery`), so their tests run.
 config :quacks, gallery: true
+config :quacks, hearts_sweep_ms: 0

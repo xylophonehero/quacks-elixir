@@ -10,6 +10,20 @@ import Config
 config :quacks,
   generators: [timestamp_type: :utc_datetime]
 
+# The table games other than Quacks (`Table.games/0`, RFC `docs/design/table-game.md`):
+# the key is the URL part, `/games/<key>/<code>`. `game` is the `Table.Server`
+# adapter, `board` the `TableWeb.Board` that draws it, `setup` its set-up page.
+config :quacks, Table,
+  games: %{
+    "hearts" => %{
+      name: "Hearts",
+      blurb: "Trick-taking for 3 to 5. Avoid the hearts and the queen of spades.",
+      game: Hearts.Table,
+      board: HeartsWeb.Board,
+      setup: "/games/hearts/new"
+    }
+  }
+
 # Who may show the game in an iframe (CSP `frame-ancestors`, issue #71): WebinarGeek
 # webinars and the Malong GeekBook in dev. Override with `FRAME_ANCESTORS` (runtime.exs).
 config :quacks, :frame_ancestors, "'self' https://*.webinargeek.com http://localhost:3333"

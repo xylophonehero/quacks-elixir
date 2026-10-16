@@ -481,6 +481,23 @@ defmodule QuacksWeb.Gallery.Stories do
         ]
       }),
       arg_story(
+        "board",
+        "Hearts · the game page",
+        [enum("state", HeartsWeb.Gallery.states(), "pass"), int("players", 3, 5, 4)],
+        &HeartsWeb.Gallery.board_story/1,
+        %{
+          presets: [
+            {"waiting", "Passed: waiting for the others", %{"state" => "waiting"}},
+            {"play", "Mid-trick, your turn", %{"state" => "play"}},
+            {"collect", "A trick taken", %{"state" => "collect"}},
+            {"scores", "Hand end: scores", %{"state" => "scores"}},
+            {"over", "Game over", %{"state" => "over"}},
+            {"five", "5 players, mid-trick", %{"state" => "play", "players" => 5}},
+            {"three", "3 players, mid-trick", %{"state" => "play", "players" => 3}}
+          ]
+        }
+      ),
+      arg_story(
         "hand",
         "Hearts · hand",
         [int("cards", 1, 13, 13), enum("mode", ~w(play pass view), "play"), themes, four],
