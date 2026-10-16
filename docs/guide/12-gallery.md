@@ -184,7 +184,8 @@ How a shot stays the same from run to run:
   with fill shows its last frame; an animation without fill shows the rest state.
 - The shot waits until the page is loaded, its LiveView is connected and the
   fonts are in. Then it takes captures until two captures in a row are the same
-  (max. 2 s; the report names a shot that did not settle).
+  (max. 2 s). The report names a shot that did not settle or whose LiveView did
+  not connect in 7.5 s.
 - A pixel counts as changed only when a colour channel is more than 4 off
   (`--tolerance`, 0..255). Text and gradients can be 1 or 2 off from one render
   to the next.

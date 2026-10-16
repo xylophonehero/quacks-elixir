@@ -174,7 +174,7 @@ defmodule Mix.Tasks.Quacks.Visual do
   @serve """
   File.write!("server.pid", System.pid())
   config = Application.get_env(:quacks, QuacksWeb.Endpoint)
-  config = Keyword.merge(config, server: true)
+  config = Keyword.merge(config, server: true, check_origin: false)
   Application.put_env(:quacks, QuacksWeb.Endpoint, config)
   {:ok, _} = Application.ensure_all_started(:quacks)
   """

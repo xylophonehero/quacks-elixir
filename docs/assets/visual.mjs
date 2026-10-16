@@ -87,7 +87,8 @@ async function shooter() {
       // The new page is in, its LiveView is connected (a frame is one) and the fonts are in.
       const ready = `location.href === ${JSON.stringify(url)} && document.readyState !== "loading" &&
         (!document.querySelector("[data-phx-main]") || !!document.querySelector("[data-phx-main].phx-connected"))`;
-      for (let i = 0; i < 300 && !(await t.js(ready).catch(() => false)); i++) await sleep(25);
+      let connected = false;
+      for (let i = 0; i < 300 && !(connected = await t.js(ready).catch(() => false)); i++) await sleep(25);
       await t.js("document.fonts.ready.then(() => true)");
       const t1 = Date.now();
       // Settled: two captures in a row are the same (JS timers, images).
@@ -97,7 +98,7 @@ async function shooter() {
         const again = await capture();
         if (again === shot) {
           if (process.env.VISUAL_DEBUG) console.log(url, w, "load", t1 - t0, "settle", Date.now() - t1, "tries", i);
-          return { png: shot, settled: true };
+          return { png: shot, settled: connected };
         }
         shot = again;
       }
@@ -208,7 +209,7 @@ writeFileSync(
 <p>${changed.length} of ${results.length} shots changed (${job.frames.length} frames × ${job.widths.join("/")} px), ${seconds} s.
 Sorted by the part of the shot that changed. Red in the diff: a pixel that is not the same (a channel more than ${job.tolerance} off).
 ${flaky.length ? `<br>Same only after a retry (flaky, not in the list): ${flaky.map(esc).join(", ")}` : ""}
-${unsettled.length ? `<br><b>Not settled</b> (still moving after 2 s): ${unsettled.map(esc).join(", ")}` : ""}</p>
+${unsettled.length ? `<br><b>Not settled</b> (not connected in 7.5 s, or still moving after 2 s): ${unsettled.map(esc).join(", ")}` : ""}</p>
 ${changed.length ? `<ol>${changed.map((r) => `<li><a href="#${esc(r.file)}">${esc(r.name)} @${r.w}</a> ${r.pct.toFixed(2)}%</li>`).join("")}</ol>` : "<p>No changes.</p>"}
 ${changed.map(row).join("")}
 `,
