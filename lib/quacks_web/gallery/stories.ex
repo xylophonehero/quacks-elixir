@@ -474,14 +474,15 @@ defmodule QuacksWeb.Gallery.Stories do
         "A choice",
         [
           int("players", 1, 8, 2),
-          enum("choice", ~w(crow mandrake chip_choice explosion), "crow"),
+          enum("choice", ~w(crow mandrake chip_choice explosion toadstool), "crow"),
           names
         ],
         &Fixtures.choice_screen/1,
         presets: [
           {"mandrake", "Mandrake", %{"choice" => "mandrake"}},
           {"chip-choice", "Chip choice (green II)", %{"choice" => "chip_choice"}},
-          {"explosion", "Exploded", %{"choice" => "explosion"}}
+          {"explosion", "Exploded", %{"choice" => "explosion"}},
+          {"toadstool", "Toadstool (red VI): chips set aside", %{"choice" => "toadstool"}}
         ]
       ),
       screen(

@@ -1613,7 +1613,9 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </dd>
 </div>
 </dl>
-<div aria-label="Beside the pot: white 2" class="paper flex flex-col items-center gap-1.5 rounded-full p-1 pb-1.5 shadow-md ring-2 ring-ruby/70 " data-role="beside-pot" role="group" title="Toadstool chips beside the pot">
+<div aria-label="Beside the pot: white 2" class="paper flex flex-col items-center gap-1.5 rounded-full p-1 pb-1.5 shadow-md ring-2 ring-gold" data-role="beside-pot" role="group" title="Toadstool chips beside the pot">
+<span class="contents">
+<button aria-label="Place white 2 after your last chip" class="grid cursor-pointer place-items-center rounded-full transition-transform duration-100 ease-out touch-manipulation hover:scale-110 active:scale-90" data-role="aside-place" phx-click="action" phx-value-action="g2gCdwNyZWRoAncFcGxhY2VoAncFd2hpdGVhAg" title="Place white 2" type="button">
 <span aria-label="white 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white" data-role="aside-chip">
 <svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
 <use href="#icon-white">
@@ -1622,6 +1624,8 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 <span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
 2
 </span>
+</span>
+</button>
 </span>
 </div>
 </div>
@@ -1673,19 +1677,31 @@ Count the purple chips in your pot and take the one reward for that count; 4 or 
 </aside>
 <footer class="game-bar" data-area="bar">
 <div class="game-tray">
-<section aria-label="More actions" class="flex flex-col gap-1.5" data-role="extra-action">
-<div aria-live="polite" class="flex min-h-9 min-w-0 items-center gap-2 rounded-lg bg-iron-dark/90 px-2 py-1 text-sm leading-tight font-semibold text-parchment shadow-lg" data-role="info-row">
-<span class="min-w-0 flex-1">
-<span class="block truncate" data-role="info-title">
-Toadstool
+<section aria-label="Toadstool chips set aside" class="flex min-h-11 items-center gap-2 rounded-lg bg-iron-dark/90 py-1 pr-1 pl-2 shadow-lg" data-role="toadstool-places">
+<p class="min-w-0 flex-1 text-sm leading-tight font-semibold text-parchment">
+<span class="block truncate">Toadstool</span>
+<span class="block truncate text-xs font-normal text-parchment-dim">
+Tap a chip to place it
 </span>
-</span>
-</div>
-<button aria-label="Toadstool: place white 2 after your last chip" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 flex-col gap-0! px-1! py-1! leading-tight min-h-11 w-full" data-choice-button="" data-variant="primary" phx-click="action" phx-value-action="g2gCdwNyZWRoAncFcGxhY2VoAncFd2hpdGVhAg" title="Toadstool: place white 2 after your last chip">
+</p>
+<div class="flex shrink-0 gap-1.5 overflow-x-auto">
+<button aria-label="Toadstool: place white 2 after your last chip" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold touch-manipulation select-none transition-[scale,background-color,box-shadow,filter,opacity] duration-150 ease-out active:scale-[.98] phx-click-loading:opacity-70 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-droplet disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:saturate-[.3] disabled:active:scale-100 bg-gold text-ink shadow-md shadow-black/25 hover:brightness-110 flex-col gap-0! px-1! py-1! leading-tight min-h-10 shrink-0 px-2!" data-choice-button="" data-role="toadstool-place" data-variant="primary" phx-click="action" phx-value-action="g2gCdwNyZWRoAncFcGxhY2VoAncFd2hpdGVhAg" title="Toadstool: place white 2 after your last chip">
 <span class="flex max-w-full items-center gap-1 text-sm font-bold tabular-nums">
-<span class="truncate">Place white 2 after your last chip</span>
+<span class="inline-flex shrink-0 items-center pr-1" data-role="choice-icon">
+<span aria-label="white 2" class="chip-token relative inline-flex shrink-0 items-center justify-center rounded-full size-6 bg-chip-white text-ink border-2 border-zinc-400" data-chip-icon="white">
+<svg aria-hidden="true" class="size-[58%] text-ink -translate-x-[8%] -translate-y-[8%]" data-icon="white" fill="currentColor" viewBox="0 0 512 512">
+<use href="#icon-white">
+</use>
+</svg>
+<span class="absolute inline-flex items-center justify-center rounded-full bg-parchment-light font-hand leading-none font-bold text-ink tabular-nums ring-ink -right-1 -bottom-1 size-4 text-tag ring-1" data-role="chip-value">
+2
+</span>
+</span>
+</span>
+<span class="truncate">Place</span>
 </span>
 </button>
+</div>
 </section>
 </div>
 <div class="flex min-w-0 items-center gap-2 " data-role="fuse-row">

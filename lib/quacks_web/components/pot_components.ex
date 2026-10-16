@@ -10,6 +10,7 @@ defmodule QuacksWeb.PotComponents do
   alias Quacks.Game
   alias Quacks.Rules.{Chips, PotTrack, TestTubes}
 
+  import QuacksWeb.ActionCode
   import QuacksWeb.ChipComponents
   import QuacksWeb.GameText
   import QuacksWeb.Icons
@@ -1166,13 +1167,21 @@ defmodule QuacksWeb.PotComponents do
   apart, so each value badge shows. The label is for screen readers only.
   """
   attr :chips, :list, required: true, doc: "the player's `aside` chips"
+
+  attr :actions, :list,
+    default: [],
+    doc: "the seat's actions: a chip with its `{:red, {:place, chip}}` here is a button"
+
   attr :class, :any, default: nil
 
   def aside(assigns) do
+    assigns = assign(assigns, :tappable?, Enum.any?(assigns.chips, &place?(&1, assigns.actions)))
+
     ~H"""
     <div
       class={[
-        "paper flex flex-col items-center gap-1.5 rounded-full p-1 pb-1.5 shadow-md ring-2 ring-ruby/70",
+        "paper flex flex-col items-center gap-1.5 rounded-full p-1 pb-1.5 shadow-md ring-2",
+        if(@tappable?, do: "ring-gold", else: "ring-ruby/70"),
         @class
       ]}
       role="group"
@@ -1180,16 +1189,31 @@ defmodule QuacksWeb.PotComponents do
       title="Toadstool chips beside the pot"
       data-role="beside-pot"
     >
-      <.chip
+      <span
         :for={{chip, i} <- Enum.with_index(@chips)}
         :key={"#{elem(chip, 0)}-#{elem(chip, 1)}-#{length(@chips) - i}"}
-        chip={chip}
-        size={:sm}
-        data-role="aside-chip"
-      />
+        class="contents"
+      >
+        <%!-- Bug #74: red Set 6 while brewing: tap a chip to place it. --%>
+        <button
+          :if={place?(chip, @actions)}
+          type="button"
+          phx-click="action"
+          phx-value-action={encode({:red, {:place, chip}})}
+          aria-label={"Place #{chip_name(chip)} after your last chip"}
+          title={"Place #{chip_name(chip)}"}
+          class="grid cursor-pointer place-items-center rounded-full transition-transform duration-100 ease-out touch-manipulation hover:scale-110 active:scale-90"
+          data-role="aside-place"
+        >
+          <.chip chip={chip} size={:sm} data-role="aside-chip" />
+        </button>
+        <.chip :if={!place?(chip, @actions)} chip={chip} size={:sm} data-role="aside-chip" />
+      </span>
     </div>
     """
   end
+
+  defp place?(chip, actions), do: {:red, {:place, chip}} in actions
 
   @doc """
   The overflow bowl (The Herb Witches): chips drawn after a chip reached the last

@@ -1414,7 +1414,7 @@ defmodule QuacksWeb.GameLive do
                   rubies={ruby_total(@game, @me, @seat, @reveal)}
                   beats={stat_beats(@game, @seat, @seen, @reveal)}
                 />
-                <.aside :if={@me.aside != []} chips={@me.aside} />
+                <.aside :if={@me.aside != []} chips={@me.aside} actions={@actions} />
               </div>
               <%!-- The overflow bowl hangs over the pot's lower rim. --%>
               <div
@@ -1645,6 +1645,34 @@ defmodule QuacksWeb.GameLive do
                 title={extra_words(action, @game, @me) |> elem(1)}
                 class="min-h-11 w-full"
               />
+            </section>
+            <%!-- Bug #74: the red Set 6 chips set aside, in one row with the chips
+                 to tap (the chips beside the pot are tappable too), so the pot
+                 stays in view. --%>
+            <section
+              :if={toadstool_places(@actions) != []}
+              class="flex min-h-11 items-center gap-2 rounded-lg bg-iron-dark/90 py-1 pr-1 pl-2 shadow-lg"
+              aria-label="Toadstool chips set aside"
+              data-role="toadstool-places"
+            >
+              <p class="min-w-0 flex-1 text-sm leading-tight font-semibold text-parchment">
+                <span class="block truncate">Toadstool</span>
+                <span class="block truncate text-xs font-normal text-parchment-dim">
+                  Tap a chip to place it
+                </span>
+              </p>
+              <div class="flex shrink-0 gap-1.5 overflow-x-auto">
+                <.choice_button
+                  :for={chip <- toadstool_places(@actions)}
+                  action={{:red, {:place, chip}}}
+                  label={action_label({:red, {:place, chip}}, @game, @me)}
+                  title="Place"
+                  class="min-h-10 shrink-0 px-2!"
+                  data-role="toadstool-place"
+                >
+                  <:icon><.chip chip={chip} size={:sm} /></:icon>
+                </.choice_button>
+              </div>
             </section>
             <p
               :if={left = @me && ear_worm_left(@me)}
@@ -3289,8 +3317,16 @@ defmodule QuacksWeb.GameLive do
   # Bar actions without a fixed slot (Draw, Stop/Resume) or a pot control (the flask),
   # e.g. B3's restart or R6's place.
   # Patient actions have their own rows (Nervousness display, Forgetfulness sheet).
+  # Red Set 6's places have their own row (`toadstool_places/1`).
   defp extra_actions(actions),
-    do: Enum.reject(actions -- [:draw, :stop, :resume, :use_flask], &match?({:essence, _}, &1))
+    do:
+      Enum.reject(
+        actions -- [:draw, :stop, :resume, :use_flask],
+        &(match?({:essence, _}, &1) or match?({:red, {:place, _}}, &1))
+      )
+
+  # Bug #74: the chips set aside (red Set 6) that may go in the pot now.
+  defp toadstool_places(actions), do: for({:red, {:place, chip}} <- actions, do: chip)
 
   # Round 47 (B6): "Cauldron Bubble: put the white chip back" as the strip's
   # title and the button's words.
