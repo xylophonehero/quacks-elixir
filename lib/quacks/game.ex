@@ -24,7 +24,7 @@ defmodule Quacks.Game do
   the round-6 white chip, the cards, the rats, solo black, the die and the starting
   rubies. The defaults are the rulebook game.
 
-  The Herb Witches (`expansion: :herb_witches`, `docs/research/herb-witches.md`) adds
+  The Herb Witches (`expansions: [:herb_witches]`, `docs/research/herb-witches.md`) adds
   its chips to the supply, the overflow bowl (`Quacks.Player.bowl`) and the herb witches
   (`Quacks.Game.Witches`): one witch of each penny colour is turned up at `new/1`
   (`witches`), and every player may call each of them once per game with
@@ -45,8 +45,8 @@ defmodule Quacks.Game do
   picks one in `:patient_choice` before round 1. Each round, after the potions phase
   (and B2), the `:essence` phase moves every essence marker and pays its glass before
   the evaluation; patient actions follow in the next potions phase. `expansions` is a
-  `MapSet`; `expansion` is the old single field (`:herb_witches` or `nil`), kept for
-  callers that only know The Herb Witches. Use `expansion?/2`.
+  `MapSet`; use `expansion?/2`. (The old single field `expansion` is gone; `new/1`
+  still takes `expansion: :herb_witches` as an alias, for old callers and files.)
 
   Fortune Teller cards (`Quacks.Game.Fortune`): each round starts by turning up a
   card. A purple card with a choice puts the game in `:fortune_choice` (every seat
@@ -137,7 +137,6 @@ defmodule Quacks.Game do
             fortune_card: nil,
             sets: @sets,
             rules: @rules,
-            expansion: nil,
             expansions: MapSet.new(),
             witches: nil,
             visitor: nil,
@@ -322,7 +321,6 @@ defmodule Quacks.Game do
           fortune_card: Quacks.Rules.Fortune.id() | nil,
           sets: Chips.sets(),
           rules: rules,
-          expansion: nil | :herb_witches,
           expansions: MapSet.t(expansion),
           witches: nil | %{WitchCards.colour() => WitchCards.id()},
           visitor: nil | WitchCards.id(),
@@ -438,7 +436,6 @@ defmodule Quacks.Game do
       fortune_deck: deck,
       sets: sets,
       rules: rules,
-      expansion: if(herb?, do: :herb_witches),
       expansions: expansions,
       witches: if(herb?, do: rng |> WitchCards.deal() |> pick_witches(opts[:witches]))
     }

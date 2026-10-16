@@ -33,12 +33,12 @@ defmodule Quacks.HerbWitchesTest do
   describe "the expansion flag" do
     test "stored on the game, logged first; the base game is unchanged" do
       g = new()
-      assert g.expansion == @hw
+      assert Game.expansion?(g, @hw)
       assert List.last(g.log) == {:expansion, @hw}
       assert g.sets == %{green: 1, blue: 1, red: 1, yellow: 1, purple: 1, black: 1}
 
       base = Game.new(seed: @seed, fortune: false)
-      assert base.expansion == nil
+      refute Game.expansion?(base, @hw)
       refute Enum.any?(base.log, &match?({:expansion, _}, &1))
       assert_raise ArgumentError, fn -> Game.new(seed: @seed, expansion: :other) end
     end
@@ -81,7 +81,7 @@ defmodule Quacks.HerbWitchesTest do
     test "Session passes the expansion on, through undo too" do
       s = Session.new(@seed, 5, expansion: @hw, fortune: false, rules: @limited)
       {:ok, s} = Session.apply(s, 4, :draw)
-      assert s.expansion == @hw and Session.undo(s).game.expansion == @hw
+      assert Game.expansion?(s.game, @hw) and Game.expansion?(Session.undo(s).game, @hw)
       assert Session.undo(s).game == new(%{}, 5)
     end
   end
@@ -217,7 +217,8 @@ defmodule Quacks.HerbWitchesTest do
         Game.new(seed: @seed, fortune: false, players: 2, sets: %{black: 2})
         |> put(0, phase: :buy, coins: 10)
 
-      assert g.expansion == nil and g.witches == nil
+      refute Game.expansion?(g, @hw)
+      assert g.witches == nil
       g = apply!(g, 0, {:buy, [{:black, 1}]})
       assert {:black, 1} in me(g, 1).bag and me(g, 0).droplet == 1
     end

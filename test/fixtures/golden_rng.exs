@@ -9,6 +9,7 @@
       {0, :orange},
       {0, {:vp, 1}}
     ],
+    witches: nil,
     patients: nil,
     deck: [
       :b7,
@@ -41,7 +42,7 @@
       :p10,
       :b6
     ],
-    witches: nil,
+    score: %{0 => 54},
     draws: [
       {0, {:white, 1}},
       {0, {:white, 1}},
@@ -147,9 +148,8 @@
       {0, :p13, [white: 2, white: 1, red: 4, white: 1]}
     ],
     visitors: [],
-    score: %{0 => 54},
     log_hash: "9deb62378d22b773ce24820a3c1b7b6b0bfc49ec70b52a2bff1129b06faab26d",
-    game_hash: "1e0e02beb89bec1324c02362a66f34997c392b78bbe5ce7ac98f922119a27d81"
+    game_hash: "127048999ec5182864d91fbcf1bdcf193eff82ed7748f2ccc5ccda9204da61e5"
   },
   duo_no_cards: %{
     die: [
@@ -162,9 +162,10 @@
       {0, {:vp, 1}},
       {0, {:vp, 1}}
     ],
+    witches: nil,
     patients: nil,
     deck: [nil],
-    witches: nil,
+    score: %{0 => 49, 1 => 38},
     draws: [
       {0, {:white, 1}},
       {1, {:white, 1}},
@@ -344,9 +345,8 @@
     ],
     card_draws: [],
     visitors: [],
-    score: %{0 => 49, 1 => 38},
     log_hash: "a42b48a0bc813fde5a544bfe067841eca4d7529dd44bfd4dcf7ffe0e1c8a0819",
-    game_hash: "01925a4c143591fbec68887159d5753a5d70177b858b02795006de0ad2b5ae89"
+    game_hash: "9aba7a2e035e43ed3c1ac2fc6edc513223243922a80e91bf1663aac67904d5b2"
   },
   four_both_expansions: %{
     die: [
@@ -373,6 +373,7 @@
       {0, {:vp, 1}},
       {0, {:vp, 1}}
     ],
+    witches: %{silver: :s4, copper: :c3, gold: :g1},
     patients: [:carrot_nose, :wing_ears, :witch_hump],
     deck: [
       nil,
@@ -421,7 +422,7 @@
       :p6,
       :ab2
     ],
-    witches: %{copper: :c3, gold: :g1, silver: :s4},
+    score: %{0 => 94, 1 => 90, 2 => 77, 3 => 83},
     draws: [
       {0, {:white, 1}},
       {1, {:white, 1}},
@@ -842,9 +843,8 @@
       {3, :p8, [green: 1, white: 2, white: 1, red: 1, orange: 1]}
     ],
     visitors: [],
-    score: %{0 => 94, 1 => 90, 2 => 77, 3 => 83},
     log_hash: "0a0f4baea8a95447a6e09ad5bcd01ad7956e6f81e45e63953598ba19acf73385",
-    game_hash: "7be197557fc5d32ed955fa1402460a404634ebaf2dd64a7a006f32dad8a9e02c"
+    game_hash: "bfc187622a7a6d88719dee4911f1bb35e03a7137f9d8f7d1c288978b3e717323"
   },
   three_house_rules: %{
     die: [
@@ -859,6 +859,7 @@
       {0, {:vp, 1}},
       {1, {:vp, 1}}
     ],
+    witches: nil,
     patients: nil,
     deck: [
       :p3,
@@ -900,7 +901,7 @@
       :ab2,
       :p1
     ],
-    witches: nil,
+    score: %{0 => 50, 1 => 58, 2 => 62},
     draws: [
       {0, {:white, 1}},
       {1, {:white, 2}},
@@ -1225,9 +1226,8 @@
     ],
     card_draws: [],
     visitors: [],
-    score: %{0 => 50, 1 => 58, 2 => 62},
     log_hash: "444e38ed2daa01a72ab68032a7fb508cf2466f0aad86febcdb9b495156ecedb3",
-    game_hash: "ebffa34ab1659a3d753c49aff11a9ca688102d7d5faa0fde0093a423804aae3e"
+    game_hash: "b2247f2a95ee01646e5ce66f58d2f2d9b51db44a4c2acc73cba7ef165145adb9"
   },
   eight_herb_witches: %{
     die: [
@@ -1246,6 +1246,7 @@
       {0, {:vp, 1}},
       {0, :orange}
     ],
+    witches: %{silver: :s1, copper: :c2, gold: :g1},
     patients: nil,
     deck: [
       :ab5,
@@ -1290,7 +1291,7 @@
       :ap3,
       :b3
     ],
-    witches: %{copper: :c2, gold: :g1, silver: :s1},
+    score: %{0 => 74, 1 => 47, 2 => 64, 3 => 65, 4 => 66, 5 => 75, 6 => 57, 7 => 64},
     draws: [
       {0, {:white, 1}},
       {1, {:white, 2}},
@@ -2148,9 +2149,8 @@
     ],
     card_draws: [],
     visitors: [:g3],
-    score: %{0 => 74, 1 => 47, 2 => 64, 3 => 65, 4 => 66, 5 => 75, 6 => 57, 7 => 64},
     log_hash: "bff4cede12cef7d805e5cb305927898f3e5e400f0cb8748abe42199b142bfbde",
-    game_hash: "6b719d6e1699045ecb0f7c22445c6fbc39995c8d064ea21b0fa797e382a537d2"
+    game_hash: "d7dfc502258733102cf8021196b7c479b4f460eb748cbab33dec26f9c3b18fb8"
   },
   duo_alchemists_random_patients: %{
     die: [
@@ -2165,6 +2165,7 @@
       {0, :droplet},
       {0, :droplet}
     ],
+    witches: nil,
     patients: [:carrot_nose, :chicken_eyes, :ear_worm],
     deck: [
       :ap8,
@@ -2209,7 +2210,7 @@
       :p7,
       :b8
     ],
-    witches: nil,
+    score: %{0 => 63, 1 => 58},
     draws: [
       {0, {:green, 1}},
       {1, {:white, 2}},
@@ -2435,12 +2436,12 @@
     ],
     card_draws: [],
     visitors: [],
-    score: %{0 => 63, 1 => 58},
     log_hash: "0a904a99e42a374c63cc9b49b0d49f5fdfdf90b5842bc9565cd92550aeb95f9c",
-    game_hash: "558f0827d9e0bfe7707ff191bf02fdee26777aefa7b6c6bf14ffe8b98b56604b"
+    game_hash: "49309344a09eb45fd0b7e377cfebd932aba6be4ae563eec734b597a1f6d93eb7"
   },
   solo_sets: %{
     die: [{0, {:vp, 1}}, {0, {:vp, 2}}],
+    witches: nil,
     patients: nil,
     deck: [
       :ap2,
@@ -2473,7 +2474,7 @@
       :ab5,
       :ap10
     ],
-    witches: nil,
+    score: %{0 => 31},
     draws: [
       {0, {:white, 1}},
       {0, {:white, 2}},
@@ -2582,9 +2583,8 @@
     ],
     card_draws: [{0, :ap2, [white: 1]}],
     visitors: [],
-    score: %{0 => 31},
     log_hash: "5268396c8e95f1eb474b299974131b31ea1b7f88e300d292cddb7f71ccd57799",
-    game_hash: "248e5468e5fdff34cb8da5aa2dd8c093660949c279db6fdd45014eb56d21996b"
+    game_hash: "cfb4a1eabb81821dbb26b827fa11a454f6796f8dbd1c680489586ce4cc701dda"
   },
   units: %{
     names: ["Griselda", "Wilhelmina", "Wilhelmina"],
@@ -2602,15 +2602,15 @@
          white: 1
        ], [white: 1, white: 1, white: 2, white: 2],
        {:exsss, [37_431_697_535_538_411 | 82_463_460_391_356_558]}},
+    witches: [
+      %{silver: :s2, copper: :c4, gold: :g4},
+      %{silver: :s1, copper: :c1, gold: :g1},
+      %{silver: :s4, copper: :c4, gold: :g4}
+    ],
     patients: [
       [:wing_ears, :vampirism, :chicken_eyes],
       [:carrot_nose, :vampirism, :chicken_eyes],
       [:vampirism, :chicken_eyes, :wing_ears]
-    ],
-    witches: [
-      %{copper: :c4, gold: :g4, silver: :s2},
-      %{copper: :c1, gold: :g1, silver: :s1},
-      %{copper: :c4, gold: :g4, silver: :s4}
     ],
     rolls: [
       :orange,
@@ -2643,6 +2643,12 @@
       {:vp, 1},
       {:vp, 1},
       {:vp, 1}
+    ],
+    bot_rngs: [
+      exsss: [117_085_240_290_607_817 | 61_673_155_453_452_878],
+      exsss: [117_085_240_290_607_817 | 147_902_976_817_627_950],
+      exsss: [117_085_240_290_607_817 | 115_652_429_299_896_234],
+      exsss: [117_085_240_290_607_817 | 85_765_872_217_309_623]
     ],
     decks: [
       [
@@ -2863,17 +2869,11 @@
         :p10,
         :p2
       ]
-    ],
-    bot_rngs: [
-      exsss: [117_085_240_290_607_817 | 61_673_155_453_452_878],
-      exsss: [117_085_240_290_607_817 | 147_902_976_817_627_950],
-      exsss: [117_085_240_290_607_817 | 115_652_429_299_896_234],
-      exsss: [117_085_240_290_607_817 | 85_765_872_217_309_623]
     ]
   },
   session_replay: %{
+    actions: 627,
     score: %{0 => 114, 1 => 131, 2 => 98},
-    game_hash: "f2cf8bdcafb8ba75368f308823d3e0986bc0aa0cd6025a8a9215aa88346ca47e",
-    actions: 627
+    game_hash: "00bedc9d2231fd62746a6eef1637fb1936763c50ede24037988677dace8fd489"
   }
 }

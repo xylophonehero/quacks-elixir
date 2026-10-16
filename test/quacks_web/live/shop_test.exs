@@ -56,7 +56,7 @@ defmodule QuacksWeb.ShopTest do
       refute has_element?(view, "dialog [data-role=purple-buy]")
       assert has_element?(view, "[data-area=context] > #{@panel}.pick-panel")
 
-      shop = List.flatten(ShopComponents.shop_rows(game.expansion, game.sets))
+      shop = List.flatten(ShopComponents.shop_rows(game.expansions, game.sets))
       assert length(shop) == length(view |> render() |> chips_in("#{@panel} label"))
 
       for chip <- shop, Chips.price(chip, game.sets) > coins do
@@ -281,7 +281,7 @@ defmodule QuacksWeb.ShopTest do
       view |> element("#new-game") |> render_click()
 
     {:ok, %{game: game}} = GameServer.get(id)
-    assert game.expansion == nil
+    refute Game.expansion?(game, :herb_witches)
     assert game.sets.black == 3
   end
 

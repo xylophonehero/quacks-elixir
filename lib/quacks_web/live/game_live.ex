@@ -1156,7 +1156,7 @@ defmodule QuacksWeb.GameLive do
           <button
             type="button"
             popovertarget="sheet-books"
-            aria-label={"Ingredient books (#{length(Books.in_play(@game.expansion, @game.sets))})"}
+            aria-label={"Ingredient books (#{length(Books.in_play(@game.expansions, @game.sets))})"}
             class="relative -mx-1 inline-flex size-11 shrink-0 items-center justify-center xl:hidden"
             data-role="open-books"
           >
@@ -1166,7 +1166,7 @@ defmodule QuacksWeb.GameLive do
               aria-hidden="true"
               data-role="books-count"
             >
-              {length(Books.in_play(@game.expansion, @game.sets))}
+              {length(Books.in_play(@game.expansions, @game.sets))}
             </span>
           </button>
           <.bug_report_button :if={@seat} n={@reports} class="-mx-1" />
@@ -2068,7 +2068,7 @@ defmodule QuacksWeb.GameLive do
           data-role="books-in-play"
         >
           <.book_tile
-            :for={{colour, set} <- Books.in_play(@game.expansion, @game.sets)}
+            :for={{colour, set} <- Books.in_play(@game.expansions, @game.sets)}
             colour={colour}
             set={set}
             players={@players}

@@ -87,15 +87,15 @@ defmodule Quacks.EssenceTest do
       g = Game.new(seed: @seed, expansion: :herb_witches, expansions: @al)
       assert g.expansions == MapSet.new([:herb_witches, :alchemists])
       assert Game.expansion?(g, :herb_witches) and Game.expansion?(g, :alchemists)
-      assert g.expansion == :herb_witches and g.witches != nil
+      assert g.witches != nil
 
       assert [{:expansion, :herb_witches}, {:expansion, :alchemists}, {:patients, _}] =
                Enum.reverse(g.log)
 
       base = Game.new(seed: @seed)
-      assert base.expansions == MapSet.new() and base.expansion == nil
+      assert base.expansions == MapSet.new()
       refute Game.expansion?(base, :alchemists)
-      assert Game.new(seed: @seed, expansions: @al).expansion == nil
+      refute Game.expansion?(Game.new(seed: @seed, expansions: @al), :herb_witches)
       assert_raise ArgumentError, fn -> Game.new(seed: @seed, expansions: [:other]) end
     end
 

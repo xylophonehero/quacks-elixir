@@ -42,7 +42,7 @@ defmodule QuacksWeb.HerbWitchesLiveTest do
       view |> element("#new-game") |> render_click()
 
     {:ok, %{game: game, players: 1}} = GameServer.get(id)
-    assert game.expansion == :herb_witches and game.seats == [0]
+    assert Game.expansion?(game, :herb_witches) and game.seats == [0]
     assert %{green: 5, black: 3, locoweed: 2} = game.sets
   end
 

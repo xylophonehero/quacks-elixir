@@ -36,7 +36,7 @@ defmodule Quacks.AlchemistsTest do
       end
 
       g = Game.new(seed: @seed, expansion: :herb_witches, sets: %{locoweed: 5})
-      assert {:locoweed, 1} in Chips.shop(g.expansion, g.sets)
+      assert {:locoweed, 1} in Chips.shop(g.expansions, g.sets)
     end
   end
 
