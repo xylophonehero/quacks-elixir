@@ -1,7 +1,7 @@
 defmodule Table.Generic.Spec do
   @moduledoc """
   A game spec: the data that sets up a table for `Table.Generic.Game`. It is a
-  JSON object (the fixtures are in `docs/games/generic/*.json`, read at compile
+  JSON object (the fixtures are in `priv/games/generic/*.json`, read at compile
   time), or the same map in Elixir with string keys.
 
       {
@@ -57,7 +57,7 @@ defmodule Table.Generic.Spec do
           setup: [map]
         }
 
-  @dir Path.expand("../../../docs/games/generic", __DIR__)
+  @dir Path.expand("../../../priv/games/generic", __DIR__)
   @files Path.wildcard(Path.join(@dir, "*.json"))
   for file <- @files, do: @external_resource(file)
 

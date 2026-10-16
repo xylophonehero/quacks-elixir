@@ -1,6 +1,6 @@
 # Crazy Eights (generic table)
 
-Spec: `crazy_eights.json`. Referee: `Table.Generic.Referee.Scripted`. Public-domain
+Spec: `priv/games/generic/crazy_eights.json`. Referee: `Table.Generic.Referee.Scripted`. Public-domain
 rules, in a short form.
 
 ## Set-up

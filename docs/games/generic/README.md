@@ -8,7 +8,7 @@ the same callback.
 
 | File | What |
 |---|---|
-| `*.json` | Game specs: deck, zones, counters, players, set-up ops (`Table.Generic.Spec`, read at compile time) |
+| `priv/games/generic/*.json` | Game specs: deck, zones, counters, players, set-up ops (`Table.Generic.Spec`, read at compile time) |
 | `crazy_eights.md`, `go_fish.md` | Short rule notes |
 
 ## The parts
