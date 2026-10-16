@@ -6,7 +6,8 @@ defmodule Table do
   (RFC `docs/design/table-game.md` §11, "board lookup").
 
   Each entry: `name`, `blurb`, `game` (a `Table.Server` adapter), `board` (a
-  `TableWeb.Board`) and `setup` (the path of its set-up page).
+  `TableWeb.Board`), `setup` (the path of its set-up page) and `icon` (its mark on
+  the `/games` list).
   """
 
   @doc "Every table game, by key."

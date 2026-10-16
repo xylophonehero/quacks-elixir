@@ -158,6 +158,7 @@ defmodule QuacksWeb.GalleryFrameLive do
 
   defp frame(%{view: :hearts} = assigns), do: Hearts.frame(assigns)
   defp frame(%{view: :hearts_board} = assigns), do: HeartsWeb.Board.page(assigns.board)
+  defp frame(%{view: :duet_board} = assigns), do: CodenamesDuetWeb.Board.page(assigns.board)
 
   defp frame(%{view: :error} = assigns) do
     ~H"""

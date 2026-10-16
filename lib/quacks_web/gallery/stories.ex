@@ -545,6 +545,38 @@ defmodule QuacksWeb.Gallery.Stories do
     ]
   end
 
+  defp arg_stories("codenames") do
+    [
+      arg_story(
+        "board",
+        "Codenames Duet · the game page",
+        [
+          enum("state", CodenamesDuetWeb.Gallery.states(), "clue"),
+          enum("words", ~w(list longest), "list"),
+          bool("hide_key"),
+          enum("theme", Theme.ids(), Theme.default())
+        ],
+        &CodenamesDuetWeb.Gallery.board_story/1,
+        %{
+          height: :screen,
+          presets: [
+            {"clue-error", "Clue entry: the engine's error", %{"state" => "clue-error"}},
+            {"guessing", "Guessing: a card picked", %{"state" => "guessing"}},
+            {"bystander", "After a bystander", %{"state" => "bystander"}},
+            {"sudden-death", "Sudden death", %{"state" => "sudden-death"}},
+            {"won", "Won: the key and the score", %{"state" => "won"}},
+            {"lost", "Lost: an assassin", %{"state" => "lost"}},
+            {"waiting", "Waiting for the partner (invite)", %{"state" => "waiting"}},
+            {"watching", "A spectator", %{"state" => "watching"}},
+            {"longest", "The 25 longest words", %{"words" => "longest", "state" => "bystander"}},
+            {"hidden", "Hide my key", %{"hide_key" => true, "state" => "bystander"}},
+            {"dark", "Dracula (dark), guessing", %{"theme" => "dracula", "state" => "guessing"}}
+          ]
+        }
+      )
+    ]
+  end
+
   defp arg_stories(_component), do: []
 
   # Purple needs seat 1's brew (it explodes with 2 players): no 2-player preset.

@@ -75,6 +75,7 @@ defmodule TableWeb.Components.Theme do
   attr :id, :string, required: true
   attr :theme, :string, default: nil
   attr :deck, :string, default: "2"
+  attr :deck_switch, :boolean, default: true, doc: "show the 4-colour deck switch (cards only)"
   attr :class, :any, default: nil
 
   def picker(assigns) do
@@ -97,6 +98,7 @@ defmodule TableWeb.Components.Theme do
         {t.name}
       </button>
       <button
+        :if={@deck_switch}
         id={"#{@id}-deck"}
         type="button"
         class="flex items-center gap-1.5 rounded-full bg-tb-base-100 px-2.5 py-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent"

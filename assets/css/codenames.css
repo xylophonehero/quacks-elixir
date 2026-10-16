@@ -1,0 +1,196 @@
+/* The Codenames Duet board (`CodenamesDuetWeb.Board`). The colours are the table
+   theme tokens (`table.css`, `--tb-*`), so the theme picker changes them too.
+   The cards are light paper in every theme, as the playing cards are. */
+
+.tb-root {
+  --cd-green: var(--tb-success);
+  --cd-green-ink: var(--tb-success-content);
+  --cd-assassin: var(--tb-neutral);
+  --cd-assassin-ink: var(--tb-neutral-content);
+  --cd-bystander: color-mix(in oklab, var(--tb-warning) 32%, oklch(84% 0.035 80));
+  --cd-bystander-strong: color-mix(in oklab, var(--tb-warning) 45%, oklch(58% 0.06 70));
+}
+
+/* -- the 5 × 5 grid ----------------------------------------------------------- */
+
+.cd-grid {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+@media (min-width: 640px) { .cd-grid { gap: 8px; } }
+@media (min-width: 1024px) { .cd-card { aspect-ratio: 8 / 5; } }
+
+.cd-card {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  perspective: 600px;
+  -webkit-tap-highlight-color: transparent;
+}
+.cd-card:enabled { cursor: pointer; }
+.cd-card:focus-visible { outline: none; }
+.cd-card:focus-visible > .cd-face { box-shadow: 0 0 0 3px var(--tb-accent), 0 3px 8px -4px oklch(0% 0 0 / 0.3); }
+
+.cd-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 3px 3px 6px;
+  overflow: hidden;
+  border-radius: min(calc(var(--tb-radius) * 0.5), 8px);
+  background: var(--tb-card-face);
+  color: var(--tb-card-ink);
+  box-shadow:
+    0 0 0 1px var(--tb-card-edge),
+    0 1px 2px oklch(0% 0 0 / 0.15),
+    0 3px 8px -4px oklch(0% 0 0 / 0.3);
+  transition: translate 140ms var(--ease-out, ease-out), box-shadow 140ms ease, background-color 200ms ease;
+}
+
+/* The word: as large as fits. The server sets `--fit` (the letters of the longest
+   line); a word of 11 or more letters breaks once, with a hyphen. */
+.cd-word {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  text-align: center;
+  text-transform: uppercase;
+  hyphens: manual;
+  overflow-wrap: anywhere;
+  font-size: clamp(8px, calc(16.5cqi / (max(var(--fit, 5), 5) * 0.8)), 19px);
+}
+
+@media (hover: hover) {
+  .cd-card[data-state="open"]:hover > .cd-face { translate: 0 -2px; box-shadow: 0 0 0 1px var(--tb-card-edge), 0 6px 14px -6px oklch(0% 0 0 / 0.4); }
+}
+.cd-card[data-state="picked"] > .cd-face {
+  translate: 0 -3px;
+  box-shadow: 0 0 0 3px var(--tb-accent), 0 8px 18px -8px oklch(0% 0 0 / 0.45);
+}
+.cd-pick {
+  position: absolute;
+  z-index: 2;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 1px 0 2px;
+  background: var(--tb-accent);
+  color: var(--tb-accent-content);
+  font-size: clamp(9px, 2.4cqi, 13px);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* -- the key: your side at the bottom edge (and a corner), your partner's at the
+   top edge when the game is over. ----------------------------------------------- */
+
+.cd-card[data-key="green"] { --cd-k: var(--cd-green); }
+.cd-card[data-key="assassin"] { --cd-k: var(--cd-assassin); }
+.cd-card[data-key="neutral"] { --cd-k: var(--cd-bystander); }
+.cd-card[data-partner-key="green"] { --cd-pk: var(--cd-green); }
+.cd-card[data-partner-key="assassin"] { --cd-pk: var(--cd-assassin); }
+.cd-card[data-partner-key="neutral"] { --cd-pk: var(--cd-bystander); }
+
+.cd-card[data-key][data-partner-key] > .cd-face::after { height: 7px; }
+.cd-card[data-key] > .cd-face::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 5px;
+  background: var(--cd-k);
+}
+.cd-card:is([data-key="green"], [data-key="assassin"]):not([data-partner-key]) > .cd-face::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 18%;
+  aspect-ratio: 1;
+  background: var(--cd-k);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+.cd-card[data-partner-key] > .cd-face::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 7px;
+  background: var(--cd-pk);
+}
+
+/* -- covered: an agent found, or a bystander from both sides ------------------- */
+
+.cd-card[data-agent] > .cd-face { background: var(--cd-green); color: var(--cd-green-ink); }
+.cd-card[data-agent] .cd-word { opacity: 0.75; }
+.cd-agent {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: clamp(10px, 3.2cqi, 18px);
+  aspect-ratio: 1;
+  display: grid;
+  opacity: 0.8;
+}
+.cd-card[data-state="covered"]:not([data-agent]) > .cd-face { background: var(--cd-bystander); }
+.cd-card[data-state="covered"]:not([data-agent]) .cd-word { opacity: 0.45; }
+
+/* The wrong guess that lost the game. */
+.cd-card[data-touched] > .cd-face {
+  background: var(--cd-assassin);
+  color: var(--cd-assassin-ink);
+  box-shadow: 0 0 0 3px var(--tb-error), 0 6px 14px -6px oklch(0% 0 0 / 0.45);
+}
+
+/* A bystander mark: a token on the clue giver's edge. */
+.cd-mark {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  translate: -50% 0;
+  width: 38%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cd-bystander-strong);
+  box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.3);
+}
+.cd-mark[data-side="me"] { bottom: 8px; }
+.cd-mark[data-side="partner"] { top: 3px; }
+
+/* -- motion: a found card flips, a new mark drops in -------------------------- */
+
+@keyframes cd-flip { from { transform: rotateY(90deg); opacity: 0.4; } }
+@keyframes cd-pop { from { scale: 0.4; opacity: 0; } }
+.cd-card[data-fresh][data-agent] > .cd-face,
+.cd-card[data-fresh][data-state="covered"] > .cd-face { animation: cd-flip 420ms var(--ease-out, ease-out) both; }
+.cd-card[data-fresh] .cd-mark { animation: cd-pop 260ms var(--ease-out, ease-out) both; }
+.cd-clue, .cd-banner, .cd-over { animation: cd-pop 240ms var(--ease-out, ease-out) both; }
+
+/* -- the status row, the legend and the log ------------------------------------ */
+
+.cd-token { background: var(--tb-neutral); box-shadow: inset 0 -2px 0 oklch(0% 0 0 / 0.25); transition: background-color 200ms ease, box-shadow 200ms ease; }
+.cd-token[data-used] { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--tb-base-content) 30%, transparent); }
+.cd-agent-dot { background: var(--cd-green); }
+.cd-swatch { display: inline-block; width: 14px; height: 8px; border-radius: 2px; box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.15); }
+.cd-swatch[data-swatch="green"] { background: var(--cd-green); }
+.cd-swatch[data-swatch="assassin"] { background: var(--cd-assassin); }
+.cd-swatch[data-swatch="neutral"] { background: var(--cd-bystander); }
+.cd-guess[data-colour="green"] { background: var(--cd-green); color: var(--cd-green-ink); }
+.cd-guess[data-colour="neutral"] { background: var(--cd-bystander); color: var(--tb-card-ink); }
+.cd-guess[data-colour="assassin"] { background: var(--cd-assassin); color: var(--cd-assassin-ink); }
+.cd-won { background: var(--cd-green); color: var(--cd-green-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-face, .cd-token { transition: none; }
+  .cd-card[data-fresh] > .cd-face, .cd-card[data-fresh] .cd-mark, .cd-clue, .cd-banner, .cd-over { animation: none; }
+}

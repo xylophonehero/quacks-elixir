@@ -16,7 +16,7 @@ defmodule TableWeb.CodenamesDuetLiveTest do
 
   @key "codenames_duet"
 
-  defp create(token, opts \\ %{}) do
+  defp create(token, opts) do
     {:ok, code} = Server.create(@key, %{opts: opts, name: "Ann"}, token)
     code
   end
@@ -33,7 +33,7 @@ defmodule TableWeb.CodenamesDuetLiveTest do
 
   defp game(code), do: Server.state(@key, code).game
 
-  defp open(token, code),
+  defp open_room(token, code),
     do: live(init_test_session(build_conn(), player_token: token), "/games/#{@key}/#{code}")
 
   # Both pages of a fixed room: Ann at seat 0, Bob at seat 1.
@@ -41,8 +41,8 @@ defmodule TableWeb.CodenamesDuetLiveTest do
     ann = token("ann")
     bob = token("bob")
     code = fixed_room(ann, opts)
-    {:ok, a, _} = open(ann, code)
-    {:ok, b, _} = open(bob, code)
+    {:ok, a, _} = open_room(ann, code)
+    {:ok, b, _} = open_room(bob, code)
     _ = render(a)
     %{a: a, b: b, code: code}
   end
@@ -89,19 +89,19 @@ defmodule TableWeb.CodenamesDuetLiveTest do
   test "a second browser takes seat 1, a reload keeps the seat, a third browser watches" do
     ann = token("ann")
     code = fixed_room(ann)
-    {:ok, a, _} = open(ann, code)
+    {:ok, a, _} = open_room(ann, code)
     assert has_element?(a, "#duet-invite")
 
-    {:ok, b, _} = open(token("bob"), code)
+    {:ok, b, _} = open_room(token("bob"), code)
     refute has_element?(b, "#duet-invite")
     _ = render(a)
     refute has_element?(a, "#duet-invite")
 
-    {:ok, a2, _} = open(ann, code)
+    {:ok, a2, _} = open_room(ann, code)
     assert has_element?(a2, "#clue-form")
     assert Server.state(@key, code).seats[0].token == ann
 
-    {:ok, c, _} = open(token("carl"), code)
+    {:ok, c, _} = open_room(token("carl"), code)
     assert has_element?(c, "#duet-status", "watching")
     refute has_element?(c, "#clue-form")
     refute has_element?(c, "[data-key]")
@@ -190,7 +190,7 @@ defmodule TableWeb.CodenamesDuetLiveTest do
   end
 
   defp page_html(token, code) do
-    {:ok, view, _} = open(token, code)
+    {:ok, view, _} = open_room(token, code)
 
     view
     |> element("#duet-grid")
@@ -241,6 +241,7 @@ defmodule TableWeb.CodenamesDuetLiveTest do
     guess(b, 15)
     assert game(code).result == :lost
     assert has_element?(b, "#duet-over[data-result=lost]", "assassin")
+    assert has_element?(b, "#duet-card-15[data-touched]")
     _ = render(a)
     assert has_element?(a, "#duet-over[data-result=lost]")
     refute has_element?(a, "#duet-score")
