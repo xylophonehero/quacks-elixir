@@ -40,6 +40,7 @@ defmodule Quacks.Game.Witches do
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
   alias Quacks.Rules.Witches, as: WitchCards
+  alias Table.Kit.Rng
 
   # C1: one level up. ⚠️ Only colours with 2- and 4-chips (not white, orange, locoweed).
   @upgrade for c <- [:green, :blue, :red, :yellow],
@@ -100,8 +101,7 @@ defmodule Quacks.Game.Witches do
 
   def visit(g) do
     free = WitchCards.ids() -- Map.values(g.witches)
-    {i, rng} = :rand.uniform_s(length(free), g.rng)
-    id = Enum.at(free, i - 1)
+    {id, rng} = Rng.pick(free, g.rng)
     Game.record(%{g | visitor: id, visited: [], rng: rng}, {:visitor, id})
   end
 

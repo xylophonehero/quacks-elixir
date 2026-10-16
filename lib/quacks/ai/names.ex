@@ -5,6 +5,8 @@ defmodule Quacks.AI.Names do
   out the bot is "Bot N".
   """
 
+  alias Table.Kit.Rng
+
   @names ~w(Agatha Balthazar Cordelia Dorian Elspeth Fenwick Griselda Hubert Isolde Jasper
             Lavinia Mortimer Ottoline Percival Quintus Rosalind Septimus Theodora Ulric
             Wilhelmina)
@@ -32,8 +34,7 @@ defmodule Quacks.AI.Names do
          rng}
 
       free ->
-        {i, rng} = :rand.uniform_s(length(free), rng)
-        {Enum.at(free, i - 1), rng}
+        Rng.pick(free, rng)
     end
   end
 end

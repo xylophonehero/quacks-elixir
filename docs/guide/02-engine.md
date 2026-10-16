@@ -265,8 +265,8 @@ highest of three values: the house rule, the yellow Set 3 modifier in the player
 When the last seat is done, `Evaluation.run/1` runs for all seats in turn order
 (`lib/quacks/game/evaluation.ex:46-59`):
 
-- Step A, `bonus_die/2`: the highest scoring space rolls (`:rand.uniform_s` on the
-  game's `rng`, `lib/quacks/game/evaluation.ex:121-136`).
+- Step A, `bonus_die/2`: the highest scoring space rolls (`Table.Kit.Dice.roll/2` on
+  the game's `rng`, `Evaluation.roll/2`).
 - Step B, `chip_actions/3`: black, green, purple, each by its book. Note the third
   argument `g0`, the game before step A: the black book compares pots *before* step
   B changed them, and the standings *before* the die paid VP. Passing the old
@@ -354,20 +354,14 @@ one function, the house rule needed no change in the callers.
 
 ## Randomness lives in the struct
 
-`Game.new/1` seeds a random state and stores it: `rng = :rand.seed_s(:exsss, seed)`
-(`lib/quacks/game.ex:365`). Every random pick reads `g.rng` and writes the new state back
-(`lib/quacks/game/potions.ex:633-642`):
+`Game.new/1` seeds a random state and stores it: `rng = Rng.seed(seed)`
+(`Table.Kit.Rng`, see "The table kit" below). Every random pick reads `g.rng` and
+writes the new state back (`lib/quacks/game/potions.ex`):
 
 ```elixir
 def take_random(g, seat, n) do
-  size = length(Game.player(g, seat).bag)
-
-  Enum.reduce(1..min(n, size)//1, {[], g}, fn _, {taken, g} ->
-    bag = Game.player(g, seat).bag
-    {i, rng} = :rand.uniform_s(length(bag), g.rng)
-    {chip, bag} = List.pop_at(bag, i - 1)
-    {[chip | taken], %{Game.update_player(g, seat, &%{&1 | bag: bag}) | rng: rng}}
-  end)
+  {chips, bag, rng} = Bag.draw(Game.player(g, seat).bag, n, g.rng)
+  {Enum.reverse(chips), %{Game.update_player(g, seat, &%{&1 | bag: bag}) | rng: rng}}
 end
 ```
 
@@ -385,10 +379,31 @@ the engine. Why it matters:
 - **Bots**: a bot reads the game but has its own rng (`Quacks.AI.new_rng/2`,
   `lib/quacks/ai.ex:32`), so adding a bot never changes the chips a human draws.
 
-One more trick: the fortune deck and the witches shuffle with a *jump* of the game
-rng (`:rand.jump/1`, `lib/quacks/game/fortune.ex:48` and
-`lib/quacks/rules/witches.ex:115`). A jump is a separate stream from the same seed.
-So a game with cards draws the same chips as the same seed without cards.
+One more trick: the fortune deck, the witches and the patients shuffle with a *fork*
+of the game rng (`Table.Kit.Rng.fork/2`, a `:rand.jump/1`). A fork is a separate
+stream from the same seed. Each deal uses a different number of jumps (deck 1,
+witches 2, patients 3, patient picks 4). So a game with cards draws the same chips
+as the same seed without cards.
+
+`test/quacks/golden_rng_test.exs` holds the proof: bots play fixed seeds, and every
+random outcome must match `test/fixtures/golden_rng.exs`. If a change must change
+the draws, record again with `GOLDEN_RECORD=1` and tell the reviewer.
+
+## The table kit
+
+`lib/table/kit/` holds small, pure helpers that do not know Quacks. Other games can
+use them too. Each function takes the rng and returns the next rng.
+
+| Module | Use |
+|---|---|
+| `Table.Kit.Rng` | `seed/1`, `uniform/1,2`, `pick/2`, `shuffle/2`, `fork/2` |
+| `Table.Kit.Bag` | random draws from a list: `draw/2,3`, `put/2`, `take/2`, `count/2` |
+| `Table.Kit.Dice` | a die is a list of faces: `roll/2,3`, `d/1` |
+| `Table.Kit.Deck` | draw pile, discard pile, removed cards: `shuffle`, `draw`, `peek`, `discard`, `reshuffle`, `remove`, `deal` |
+| `Table.Kit.Zone` | owner and visibility (`:public`, `:owner`, `:hidden`) for `view/2` |
+| `Table.Kit.PlayingCards` | the 52-card deck, `sort/2`, `playable/2` (follow suit), `trick_winner/2` |
+
+Quacks uses `Rng`, `Bag` and `Dice`. Use them for all new random code in the engine.
 
 (`GameServer` does call `:rand.uniform/1`, at `lib/quacks/game_server.ex:1053-1054`, to make
 a new random *seed*. That is outside the engine and is fine.)

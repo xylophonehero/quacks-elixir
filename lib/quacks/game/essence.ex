@@ -30,6 +30,7 @@ defmodule Quacks.Game.Essence do
   alias Quacks.Game.{Evaluation, Fortune, Potions}
   alias Quacks.Player
   alias Quacks.Rules.{Alchemists, Chips, PotTrack}
+  alias Table.Kit.Rng
 
   @last_round 9
   @cost %{carrot: 2, double: 2, return: 3, hump: 2}
@@ -50,7 +51,7 @@ defmodule Quacks.Game.Essence do
   them before the game exists.
   """
   @spec dealt({integer, integer, integer}) :: [Alchemists.id()]
-  def dealt(seed), do: Alchemists.deal(:rand.seed_s(:exsss, seed))
+  def dealt(seed), do: Alchemists.deal(Rng.seed(seed))
 
   @doc """
   The patients picked before the game (round 26): `picks` maps a seat to one of the
@@ -64,7 +65,7 @@ defmodule Quacks.Game.Essence do
   def prepick(g, nil), do: g
 
   def prepick(g, picks) when is_map(picks) do
-    rng = g.rng |> :rand.jump() |> :rand.jump() |> :rand.jump() |> :rand.jump()
+    rng = Rng.fork(g.rng, 4)
 
     {g, _rng} =
       picks
@@ -82,10 +83,7 @@ defmodule Quacks.Game.Essence do
   def prepick(_g, picks),
     do: raise(ArgumentError, "patients must be a map, got #{inspect(picks)}")
 
-  defp resolve(:random, dealt, rng) do
-    {n, rng} = :rand.uniform_s(length(dealt), rng)
-    {Enum.at(dealt, n - 1), rng}
-  end
+  defp resolve(:random, dealt, rng), do: Rng.pick(dealt, rng)
 
   defp resolve(id, dealt, rng) do
     if id in dealt,

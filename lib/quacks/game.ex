@@ -70,6 +70,7 @@ defmodule Quacks.Game do
   alias Quacks.Player
   alias Quacks.Rules.{Alchemists, Chips, ScoringTrack, TestTubes}
   alias Quacks.Rules.Witches, as: WitchCards
+  alias Table.Kit.Rng
 
   @rounds 9
 
@@ -406,7 +407,7 @@ defmodule Quacks.Game do
         do: Enum.reduce(starting, box, &Map.update!(&2, &1, fn c -> max(c - 1, 0) end)),
         else: box
 
-    rng = :rand.seed_s(:exsss, seed)
+    rng = Rng.seed(seed)
 
     deck =
       if rules.fortune, do: Fortune.deck(rng, n, expansions, rules.alch_cards), else: []

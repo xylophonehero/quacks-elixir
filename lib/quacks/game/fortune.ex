@@ -20,6 +20,7 @@ defmodule Quacks.Game.Fortune do
   alias Quacks.Player
   alias Quacks.Rules.{Chips, ScoringTrack}
   alias Quacks.Rules.Fortune, as: Cards
+  alias Table.Kit.Rng
 
   # Rulebook §6.2: in solo these two are skipped and the next card is drawn.
   @solo_skip [:p7, :p9]
@@ -81,13 +82,8 @@ defmodule Quacks.Game.Fortune do
   def deck(rng, players, expansions \\ [], box? \\ true) do
     ids = if box?, do: Cards.ids(players, expansions), else: Cards.base_ids(players)
 
-    {keyed, _rng} =
-      Enum.map_reduce(ids, :rand.jump(rng), fn id, rng ->
-        {u, rng} = :rand.uniform_s(rng)
-        {{u, id}, rng}
-      end)
-
-    keyed |> Enum.sort() |> Enum.map(&elem(&1, 1))
+    {deck, _rng} = Rng.shuffle(ids, Rng.fork(rng))
+    deck
   end
 
   @doc "Turn up the top card. Solo skips Infestation and Good Start."

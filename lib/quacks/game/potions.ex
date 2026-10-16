@@ -34,6 +34,7 @@ defmodule Quacks.Game.Potions do
   alias Quacks.Game.{Essence, Fortune}
   alias Quacks.Player
   alias Quacks.Rules.PotTrack
+  alias Table.Kit.Bag
 
   @doc """
   What `seat` may do right now in the potions phase. `[]` once done. Red Set 6: a
@@ -640,15 +641,10 @@ defmodule Quacks.Game.Potions do
   end
 
   @doc false
-  # Draw up to `n` random chips from the seat's bag (fewer when the bag runs short).
+  # Draw up to `n` random chips from the seat's bag (fewer when the bag runs short),
+  # newest first.
   def take_random(g, seat, n) do
-    size = length(Game.player(g, seat).bag)
-
-    Enum.reduce(1..min(n, size)//1, {[], g}, fn _, {taken, g} ->
-      bag = Game.player(g, seat).bag
-      {i, rng} = :rand.uniform_s(length(bag), g.rng)
-      {chip, bag} = List.pop_at(bag, i - 1)
-      {[chip | taken], %{Game.update_player(g, seat, &%{&1 | bag: bag}) | rng: rng}}
-    end)
+    {chips, bag, rng} = Bag.draw(Game.player(g, seat).bag, n, g.rng)
+    {Enum.reverse(chips), %{Game.update_player(g, seat, &%{&1 | bag: bag}) | rng: rng}}
   end
 end
