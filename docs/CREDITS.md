@@ -41,3 +41,13 @@ Our own icons, drawn for this project (same licence as the project; no attributi
 Our own SVG in the templates (no licence needed): the pot flask, the droplet on the pot, the bag beside the pot, the bonus die faces, the cauldron board and the test tubes.
 
 The other candidates and their sources: `docs/research/art-assets.md`.
+
+## Card table colour themes
+
+The colour values of the card table themes (Emerald, Light, Cupcake, Retro, Nord,
+Forest, Dracula, Night) come from [daisyUI](https://daisyui.com) 5.0.42, MIT
+License, Copyright (c) 2020 Pouya Saadeghi. Only the values are copied, into
+`assets/css/table.css` as `--tb-*` tokens. daisyUI itself is not installed.
+
+The card faces, the suit shapes and the card back are our own drawings
+(`TableWeb.Components.Cards`).

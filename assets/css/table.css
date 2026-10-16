@@ -1,0 +1,435 @@
+/* Card table (Hearts and the next card games, `TableWeb.Components.*`).
+
+   Everything here is scoped to `.tb-root[data-theme]`, so the Quacks pages do not
+   change. The colour values of the themes below are copied from daisyUI 5.0.42
+   (MIT License, Copyright (c) 2020 Pouya Saadeghi; see docs/CREDITS.md). Only the
+   values: daisyUI itself is not installed. The `--tb-*` names are daisyUI's
+   `--color-*` names with our prefix. The card tokens after the themes are ours. */
+
+@theme inline {
+  --color-tb-base-100: var(--tb-base-100);
+  --color-tb-base-200: var(--tb-base-200);
+  --color-tb-base-300: var(--tb-base-300);
+  --color-tb-base-content: var(--tb-base-content);
+  --color-tb-primary: var(--tb-primary);
+  --color-tb-primary-content: var(--tb-primary-content);
+  --color-tb-secondary: var(--tb-secondary);
+  --color-tb-secondary-content: var(--tb-secondary-content);
+  --color-tb-accent: var(--tb-accent);
+  --color-tb-accent-content: var(--tb-accent-content);
+  --color-tb-neutral: var(--tb-neutral);
+  --color-tb-neutral-content: var(--tb-neutral-content);
+  --color-tb-warning: var(--tb-warning);
+  --color-tb-warning-content: var(--tb-warning-content);
+  --color-tb-felt: var(--tb-felt);
+  --color-tb-felt-ink: var(--tb-felt-ink);
+  --color-tb-card-face: var(--tb-card-face);
+  --color-tb-card-ink: var(--tb-card-ink);
+  --radius-tb: var(--tb-radius);
+}
+
+.tb-root[data-theme="light"] {
+  color-scheme: light;
+  --tb-base-100: oklch(100% 0 0);
+  --tb-base-200: oklch(98% 0 0);
+  --tb-base-300: oklch(95% 0 0);
+  --tb-base-content: oklch(21% .006 285.885);
+  --tb-primary: oklch(45% .24 277.023);
+  --tb-primary-content: oklch(93% .034 272.788);
+  --tb-secondary: oklch(65% .241 354.308);
+  --tb-secondary-content: oklch(94% .028 342.258);
+  --tb-accent: oklch(77% .152 181.912);
+  --tb-accent-content: oklch(38% .063 188.416);
+  --tb-neutral: oklch(14% .005 285.823);
+  --tb-neutral-content: oklch(92% .004 286.32);
+  --tb-info: oklch(74% .16 232.661);
+  --tb-info-content: oklch(29% .066 243.157);
+  --tb-success: oklch(76% .177 163.223);
+  --tb-success-content: oklch(37% .077 168.94);
+  --tb-warning: oklch(82% .189 84.429);
+  --tb-warning-content: oklch(41% .112 45.904);
+  --tb-error: oklch(71% .194 13.428);
+  --tb-error-content: oklch(27% .105 12.094);
+  --tb-radius: .5rem;
+}
+.tb-root[data-theme="cupcake"] {
+  color-scheme: light;
+  --tb-base-100: oklch(97.788% .004 56.375);
+  --tb-base-200: oklch(93.982% .007 61.449);
+  --tb-base-300: oklch(91.586% .006 53.44);
+  --tb-base-content: oklch(23.574% .066 313.189);
+  --tb-primary: oklch(85% .138 181.071);
+  --tb-primary-content: oklch(43% .078 188.216);
+  --tb-secondary: oklch(89% .061 343.231);
+  --tb-secondary-content: oklch(45% .187 3.815);
+  --tb-accent: oklch(90% .076 70.697);
+  --tb-accent-content: oklch(47% .157 37.304);
+  --tb-neutral: oklch(27% .006 286.033);
+  --tb-neutral-content: oklch(92% .004 286.32);
+  --tb-info: oklch(68% .169 237.323);
+  --tb-info-content: oklch(29% .066 243.157);
+  --tb-success: oklch(69% .17 162.48);
+  --tb-success-content: oklch(26% .051 172.552);
+  --tb-warning: oklch(79% .184 86.047);
+  --tb-warning-content: oklch(28% .066 53.813);
+  --tb-error: oklch(64% .246 16.439);
+  --tb-error-content: oklch(27% .105 12.094);
+  --tb-radius: 1rem;
+}
+.tb-root[data-theme="retro"] {
+  color-scheme: light;
+  --tb-base-100: oklch(91.637% .034 90.515);
+  --tb-base-200: oklch(88.272% .049 91.774);
+  --tb-base-300: oklch(84.133% .065 90.856);
+  --tb-base-content: oklch(41% .112 45.904);
+  --tb-primary: oklch(80% .114 19.571);
+  --tb-primary-content: oklch(39% .141 25.723);
+  --tb-secondary: oklch(92% .084 155.995);
+  --tb-secondary-content: oklch(44% .119 151.328);
+  --tb-accent: oklch(68% .162 75.834);
+  --tb-accent-content: oklch(41% .112 45.904);
+  --tb-neutral: oklch(44% .011 73.639);
+  --tb-neutral-content: oklch(86% .005 56.366);
+  --tb-info: oklch(58% .158 241.966);
+  --tb-info-content: oklch(96% .059 95.617);
+  --tb-success: oklch(51% .096 186.391);
+  --tb-success-content: oklch(96% .059 95.617);
+  --tb-warning: oklch(64% .222 41.116);
+  --tb-warning-content: oklch(96% .059 95.617);
+  --tb-error: oklch(70% .191 22.216);
+  --tb-error-content: oklch(40% .123 38.172);
+  --tb-radius: .5rem;
+}
+.tb-root[data-theme="emerald"] {
+  color-scheme: light;
+  --tb-base-100: oklch(100% 0 0);
+  --tb-base-200: oklch(93% 0 0);
+  --tb-base-300: oklch(86% 0 0);
+  --tb-base-content: oklch(35.519% .032 262.988);
+  --tb-primary: oklch(76.662% .135 153.45);
+  --tb-primary-content: oklch(33.387% .04 162.24);
+  --tb-secondary: oklch(61.302% .202 261.294);
+  --tb-secondary-content: oklch(100% 0 0);
+  --tb-accent: oklch(72.772% .149 33.2);
+  --tb-accent-content: oklch(0% 0 0);
+  --tb-neutral: oklch(35.519% .032 262.988);
+  --tb-neutral-content: oklch(98.462% .001 247.838);
+  --tb-info: oklch(72.06% .191 231.6);
+  --tb-info-content: oklch(0% 0 0);
+  --tb-success: oklch(64.8% .15 160);
+  --tb-success-content: oklch(0% 0 0);
+  --tb-warning: oklch(84.71% .199 83.87);
+  --tb-warning-content: oklch(0% 0 0);
+  --tb-error: oklch(71.76% .221 22.18);
+  --tb-error-content: oklch(0% 0 0);
+  --tb-radius: 1rem;
+}
+.tb-root[data-theme="nord"] {
+  color-scheme: light;
+  --tb-base-100: oklch(95.127% .007 260.731);
+  --tb-base-200: oklch(93.299% .01 261.788);
+  --tb-base-300: oklch(89.925% .016 262.749);
+  --tb-base-content: oklch(32.437% .022 264.182);
+  --tb-primary: oklch(59.435% .077 254.027);
+  --tb-primary-content: oklch(11.887% .015 254.027);
+  --tb-secondary: oklch(69.651% .059 248.687);
+  --tb-secondary-content: oklch(13.93% .011 248.687);
+  --tb-accent: oklch(77.464% .062 217.469);
+  --tb-accent-content: oklch(15.492% .012 217.469);
+  --tb-neutral: oklch(45.229% .035 264.131);
+  --tb-neutral-content: oklch(89.925% .016 262.749);
+  --tb-info: oklch(69.207% .062 332.664);
+  --tb-info-content: oklch(13.841% .012 332.664);
+  --tb-success: oklch(76.827% .074 131.063);
+  --tb-success-content: oklch(15.365% .014 131.063);
+  --tb-warning: oklch(85.486% .089 84.093);
+  --tb-warning-content: oklch(17.097% .017 84.093);
+  --tb-error: oklch(60.61% .12 15.341);
+  --tb-error-content: oklch(12.122% .024 15.341);
+  --tb-radius: .5rem;
+}
+.tb-root[data-theme="dracula"] {
+  color-scheme: dark;
+  --tb-base-100: oklch(28.822% .022 277.508);
+  --tb-base-200: oklch(26.805% .02 277.508);
+  --tb-base-300: oklch(24.787% .019 277.508);
+  --tb-base-content: oklch(97.747% .007 106.545);
+  --tb-primary: oklch(75.461% .183 346.812);
+  --tb-primary-content: oklch(15.092% .036 346.812);
+  --tb-secondary: oklch(74.202% .148 301.883);
+  --tb-secondary-content: oklch(14.84% .029 301.883);
+  --tb-accent: oklch(83.392% .124 66.558);
+  --tb-accent-content: oklch(16.678% .024 66.558);
+  --tb-neutral: oklch(39.445% .032 275.524);
+  --tb-neutral-content: oklch(87.889% .006 275.524);
+  --tb-info: oklch(88.263% .093 212.846);
+  --tb-info-content: oklch(17.652% .018 212.846);
+  --tb-success: oklch(87.099% .219 148.024);
+  --tb-success-content: oklch(17.419% .043 148.024);
+  --tb-warning: oklch(95.533% .134 112.757);
+  --tb-warning-content: oklch(19.106% .026 112.757);
+  --tb-error: oklch(68.22% .206 24.43);
+  --tb-error-content: oklch(13.644% .041 24.43);
+  --tb-radius: 1rem;
+}
+.tb-root[data-theme="forest"] {
+  color-scheme: dark;
+  --tb-base-100: oklch(20.84% .008 17.911);
+  --tb-base-200: oklch(18.522% .007 17.911);
+  --tb-base-300: oklch(16.203% .007 17.911);
+  --tb-base-content: oklch(83.768% .001 17.911);
+  --tb-primary: oklch(68.628% .185 148.958);
+  --tb-primary-content: oklch(0% 0 0);
+  --tb-secondary: oklch(69.776% .135 168.327);
+  --tb-secondary-content: oklch(13.955% .027 168.327);
+  --tb-accent: oklch(70.628% .119 185.713);
+  --tb-accent-content: oklch(14.125% .023 185.713);
+  --tb-neutral: oklch(30.698% .039 171.364);
+  --tb-neutral-content: oklch(86.139% .007 171.364);
+  --tb-info: oklch(72.06% .191 231.6);
+  --tb-info-content: oklch(0% 0 0);
+  --tb-success: oklch(64.8% .15 160);
+  --tb-success-content: oklch(0% 0 0);
+  --tb-warning: oklch(84.71% .199 83.87);
+  --tb-warning-content: oklch(0% 0 0);
+  --tb-error: oklch(71.76% .221 22.18);
+  --tb-error-content: oklch(0% 0 0);
+  --tb-radius: 1rem;
+}
+.tb-root[data-theme="night"] {
+  color-scheme: dark;
+  --tb-base-100: oklch(20.768% .039 265.754);
+  --tb-base-200: oklch(19.314% .037 265.754);
+  --tb-base-300: oklch(17.86% .034 265.754);
+  --tb-base-content: oklch(84.153% .007 265.754);
+  --tb-primary: oklch(75.351% .138 232.661);
+  --tb-primary-content: oklch(15.07% .027 232.661);
+  --tb-secondary: oklch(68.011% .158 276.934);
+  --tb-secondary-content: oklch(13.602% .031 276.934);
+  --tb-accent: oklch(72.36% .176 350.048);
+  --tb-accent-content: oklch(14.472% .035 350.048);
+  --tb-neutral: oklch(27.949% .036 260.03);
+  --tb-neutral-content: oklch(85.589% .007 260.03);
+  --tb-info: oklch(68.455% .148 237.251);
+  --tb-info-content: oklch(0% 0 0);
+  --tb-success: oklch(78.452% .132 181.911);
+  --tb-success-content: oklch(15.69% .026 181.911);
+  --tb-warning: oklch(83.242% .139 82.95);
+  --tb-warning-content: oklch(16.648% .027 82.95);
+  --tb-error: oklch(71.785% .17 13.118);
+  --tb-error-content: oklch(14.357% .034 13.118);
+  --tb-radius: 1rem;
+}
+
+/* Our tokens on top of a theme. The felt is the theme's base tinted with its
+   primary. The card faces stay light in every theme (a playing card is white
+   paper), so the suit colours keep their contrast: red 5.6:1, ink 15:1 on the face. */
+.tb-root {
+  --tb-felt: color-mix(in oklab, var(--tb-primary) 24%, var(--tb-base-300));
+  --tb-felt-ink: var(--tb-base-content);
+  --tb-card-face: oklch(99% 0.004 95);
+  --tb-card-edge: oklch(0% 0 0 / 0.22);
+  --tb-card-ink: oklch(23% 0.012 265);
+  --tb-card-red: oklch(53% 0.2 26);
+  --tb-card-blue: oklch(47% 0.16 258);
+  --tb-card-green: oklch(49% 0.13 152);
+  --tb-card-back: var(--tb-primary);
+  --tb-card-back-ink: var(--tb-primary-content);
+  --tb-card-court: color-mix(in oklab, var(--tb-accent) 30%, var(--tb-card-face));
+
+  /* Two colours (the default) or four (`data-deck="4"`: diamonds blue, clubs green). */
+  --suit-hearts: var(--tb-card-red);
+  --suit-diamonds: var(--tb-card-red);
+  --suit-clubs: var(--tb-card-ink);
+  --suit-spades: var(--tb-card-ink);
+
+  --card-w: clamp(4.25rem, 19cqi, 6.75rem);
+
+  --tb-points: var(--tb-card-red);
+
+  color: var(--tb-base-content);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.tb-root[data-deck="4"] {
+  --suit-diamonds: var(--tb-card-blue);
+  --suit-clubs: var(--tb-card-green);
+}
+/* Dark themes: a felt with more of the primary, and a card face with less glare. */
+.tb-root:is([data-theme="dracula"], [data-theme="forest"], [data-theme="night"]) {
+  --tb-felt: color-mix(in oklab, var(--tb-primary) 20%, var(--tb-base-100));
+  --tb-card-face: oklch(95% 0.006 95);
+  --tb-card-edge: oklch(0% 0 0 / 0.5);
+  --tb-points: var(--tb-error);
+}
+
+.tb-table { container-type: inline-size; }
+.tb-felt {
+  background-color: var(--tb-felt);
+  background-image:
+    radial-gradient(ellipse at 50% 40%, oklch(100% 0 0 / 0.08), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, transparent 55%, oklch(0% 0 0 / 0.22));
+}
+
+/* -- one card ------------------------------------------------------------------ */
+
+.tb-card {
+  position: relative;
+  display: block;
+  width: var(--card-w);
+  aspect-ratio: 5 / 7;
+  flex: none;
+  border-radius: calc(var(--card-w) * 0.072);
+  -webkit-tap-highlight-color: transparent;
+}
+.tb-card > .tb-face {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 1px var(--tb-card-edge),
+    0 1px 2px oklch(0% 0 0 / 0.18),
+    0 4px 10px -4px oklch(0% 0 0 / 0.3);
+  transition: translate 160ms var(--ease-out), filter 160ms ease, box-shadow 160ms ease;
+}
+.tb-face-svg { background: var(--tb-card-face); }
+.tb-card[data-suit="hearts"] { color: var(--suit-hearts); }
+.tb-card[data-suit="diamonds"] { color: var(--suit-diamonds); }
+.tb-card[data-suit="clubs"] { color: var(--suit-clubs); }
+.tb-card[data-suit="spades"] { color: var(--suit-spades); }
+.tb-rank { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 800; }
+.tb-court-letter { font-family: Georgia, "Times New Roman", serif; font-weight: 700; }
+
+/* The back: our own lattice, in the theme's primary. */
+.tb-back {
+  background-color: var(--tb-card-back);
+  background-image:
+    radial-gradient(circle at 50% 50%, color-mix(in oklab, var(--tb-card-back-ink) 55%, transparent) 0 9%, transparent 10%),
+    repeating-linear-gradient(45deg, transparent 0 7px, color-mix(in oklab, var(--tb-card-back-ink) 28%, transparent) 7px 8px),
+    repeating-linear-gradient(-45deg, transparent 0 7px, color-mix(in oklab, var(--tb-card-back-ink) 28%, transparent) 7px 8px);
+  border: calc(var(--card-w) * 0.06) solid var(--tb-card-face);
+  outline: 1px solid color-mix(in oklab, var(--tb-card-back) 60%, black);
+  outline-offset: calc(var(--card-w) * -0.1);
+}
+
+/* States in a hand. Lift and dim go on the face, so the card's own translate,
+   rotate and scale stay free for the motion hook. */
+button.tb-card { cursor: pointer; }
+button.tb-card:focus-visible { outline: none; }
+button.tb-card:focus-visible > .tb-face {
+  box-shadow: 0 0 0 3px var(--tb-accent), 0 4px 10px -4px oklch(0% 0 0 / 0.3);
+}
+@media (hover: hover) {
+  .tb-card[data-state="legal"]:hover > .tb-face { translate: 0 -10%; }
+}
+.tb-card[data-state="selected"] > .tb-face {
+  translate: 0 -22%;
+  box-shadow: 0 0 0 3px var(--tb-accent), 0 8px 18px -6px oklch(0% 0 0 / 0.45);
+}
+.tb-card[data-state="illegal"] { cursor: not-allowed; }
+.tb-card[data-state="illegal"] > .tb-face { filter: grayscale(0.25) brightness(0.88); translate: 0 5%; }
+.tb-card[data-state="new"] > .tb-face { box-shadow: 0 0 0 3px var(--tb-warning), 0 4px 10px -4px oklch(0% 0 0 / 0.3); }
+.tb-card[data-state="won"] > .tb-face { box-shadow: 0 0 0 3px var(--tb-warning), 0 6px 14px -6px oklch(0% 0 0 / 0.45); }
+
+/* -- the hand: a fan --------------------------------------------------------- */
+
+/* The server sets --n (cards), --n1 (cards - 1, at least 1), and per card --i,
+   rotate and top. The step is the free width over the cards, at most 62% of a card. */
+.tb-hand {
+  position: relative;
+  height: calc(var(--card-w) * 1.4 + var(--card-w) * 0.3);
+  width: min(100% - var(--card-w) * 0.5, calc(var(--card-w) + var(--n1) * var(--card-w) * 0.62));
+  margin-inline: auto;
+}
+.tb-hand > .tb-card {
+  position: absolute;
+  left: calc(var(--i) * (100% - var(--card-w)) / var(--n1));
+  transform-origin: 50% 120%;
+}
+.tb-hand[data-count="1"] > .tb-card { left: 0; }
+
+/* A small hand of backs (the other seats). */
+.tb-backs { position: relative; --card-w: clamp(2rem, 8.5cqi, 3.25rem); }
+.tb-backs[data-axis="x"] {
+  height: calc(var(--card-w) * 1.4);
+  width: calc(var(--card-w) + var(--n1) * var(--card-w) * 0.22);
+}
+.tb-backs[data-axis="y"] {
+  width: calc(var(--card-w) * 1.4);
+  height: calc(var(--card-w) + var(--n1) * var(--card-w) * 0.2);
+}
+.tb-backs > .tb-card { position: absolute; }
+.tb-backs[data-axis="x"] > .tb-card { left: calc(var(--i) * var(--card-w) * 0.22); top: 0; }
+.tb-backs[data-axis="y"] > .tb-card {
+  top: calc(var(--i) * var(--card-w) * 0.2 - var(--card-w) * 0.2);
+  left: calc(var(--card-w) * 0.2);
+  rotate: 90deg;
+}
+
+/* -- the trick: four slots in a cross ------------------------------------------ */
+
+.tb-trick {
+  --card-w: clamp(3.3rem, 15cqi, 5.25rem);
+  position: relative;
+  width: calc(var(--card-w) * 2.9);
+  height: calc(var(--card-w) * 3);
+}
+.tb-slot {
+  position: absolute;
+  width: var(--card-w);
+  aspect-ratio: 5 / 7;
+  border-radius: calc(var(--card-w) * 0.072);
+}
+.tb-slot[data-empty] { outline: 2px dashed color-mix(in oklab, var(--tb-felt-ink) 22%, transparent); outline-offset: -2px; }
+.tb-slot[data-seat="n"] { left: 50%; top: 0; translate: -50% 0; }
+.tb-slot[data-seat="s"] { left: 50%; bottom: 0; translate: -50% 0; }
+.tb-slot[data-seat="w"] { left: 0; top: 50%; translate: 0 -50%; }
+.tb-slot[data-seat="e"] { right: 0; top: 50%; translate: 0 -50%; }
+.tb-slot > .tb-card { width: 100%; }
+.tb-slot[data-seat="w"] > .tb-card { rotate: -6deg; }
+.tb-slot[data-seat="e"] > .tb-card { rotate: 5deg; }
+.tb-slot[data-seat="n"] > .tb-card { rotate: 2deg; }
+.tb-slot[data-seat="s"] > .tb-card { rotate: -2deg; }
+.tb-lead {
+  position: absolute;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--tb-neutral);
+  color: var(--tb-neutral-content);
+  z-index: 2;
+}
+
+/* -- the deck and a taken pile ------------------------------------------------- */
+
+.tb-deck { position: relative; --card-w: clamp(3rem, 13cqi, 4.5rem); width: var(--card-w); aspect-ratio: 5 / 7; }
+.tb-deck > .tb-card { position: absolute; inset: 0; translate: calc(var(--i) * -1px) calc(var(--i) * -1.2px); }
+.tb-deck[data-count="0"] { outline: 2px dashed color-mix(in oklab, var(--tb-felt-ink) 22%, transparent); border-radius: calc(var(--card-w) * 0.072); }
+
+@keyframes tb-drain { to { opacity: 0; } }
+.tb-drain { animation: tb-drain 1ms linear both; }
+
+.tb-pile-card {
+  position: relative;
+  display: inline-block;
+  width: 1rem;
+  aspect-ratio: 5 / 7;
+  --card-w: 1rem;
+}
+.tb-pile-card > .tb-back {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  border-width: 1.5px;
+  outline: none;
+  box-shadow: 2px -2px 0 -0.5px var(--tb-card-back), 2px -2px 0 0 var(--tb-card-edge);
+}
+.tb-pile[data-count="0"] .tb-pile-card { opacity: 0.35; }
+
+/* The motion hook's flying copies (`assets/js/table.js`). */
+.tb-ghost { position: absolute; margin: 0; pointer-events: none; z-index: 50; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tb-card > .tb-face { transition: none; }
+}

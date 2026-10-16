@@ -1,0 +1,1031 @@
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual" name="viewport"/>
+<meta content="" name="csrf-token"/>
+<meta content="#3e2a16" name="theme-color"/>
+<meta content="yes" name="mobile-web-app-capable"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
+<meta content="Quacks" name="apple-mobile-web-app-title"/>
+<link href="/manifest.webmanifest" rel="manifest"/>
+<link href="/images/pwa/apple-touch-icon.png" rel="apple-touch-icon"/>
+<title data-default="Quacks">hearts/table</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="/assets/css/app.css" phx-track-static="" rel="stylesheet"/>
+<script defer="" phx-track-static="" src="/assets/js/app.js" type="text/javascript">
+</script>
+</head>
+<body class="bg-wood-dark text-parchment antialiased" data-sounds="">
+<svg aria-hidden="true" class="absolute" height="0" id="icon-sprite" width="0">
+<symbol id="icon-bag" viewBox="0 0 512 512">
+<path d="#hash:8dc7e4217f99" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-black" viewBox="0 0 512 512">
+<path d="#hash:27354e45f042" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-blue" viewBox="0 0 512 512">
+<path d="#hash:1e4ec277c55a" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-book" viewBox="0 0 512 512">
+<path d="#hash:3a34a8690632" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-carrot_nose" viewBox="0 0 512 512">
+<path d="#hash:b58f6fd5cce7" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-cauldron" viewBox="0 0 512 512">
+<path d="#hash:d653e1756699" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-chicken_eyes" viewBox="0 0 512 512">
+<path d="#hash:59af8f93a1e3" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-coin" viewBox="0 0 512 512">
+<path d="#hash:8973672ea52b" fill-rule="evenodd" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-die" viewBox="0 0 512 512">
+<path d="#hash:9a04ae45da3c" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-droplet" viewBox="0 0 512 512">
+<path d="#hash:ec0634d1e082" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-ear_worm" viewBox="0 0 512 512">
+<path d="#hash:fd7a21917388" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-explosion" viewBox="0 0 512 512">
+<path d="#hash:fa558936987c" fill="#d6322c" stroke-linejoin="round" stroke-width="12" stroke="#7a1410">
+</path>
+<path d="#hash:ee5463dfb6a6" fill="#f28a1e">
+</path>
+<path d="#hash:cb1676bbc9b3" fill="#ffd94a">
+</path>
+</symbol>
+<symbol id="icon-flask" viewBox="0 0 512 512">
+<path d="#hash:a334df7bc76c" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-forgetfulness" viewBox="0 0 512 512">
+<path d="#hash:d72a28adefa6" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-green" viewBox="0 0 512 512">
+<path d="#hash:22af1efdd719" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-locoweed" viewBox="0 0 512 512">
+<path d="#hash:220cbe959864" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-nervousness" viewBox="0 0 512 512">
+<path d="#hash:88ff549229ae" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-orange" viewBox="0 0 512 512">
+<path d="#hash:5b722b1c3841" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-penny" viewBox="0 0 512 512">
+<path d="#hash:b88cc55eb167" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-pot" viewBox="0 0 512 512">
+<path d="#hash:cbb19e49b69e" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-purple" viewBox="0 0 512 512">
+<path d="#hash:105545848940" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-rat" viewBox="0 0 512 512">
+<path d="#hash:9a99ed142512" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-red" viewBox="0 0 512 512">
+<path d="#hash:029f52480657" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-ruby" viewBox="0 0 512 512">
+<path d="#hash:3284009d91af" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-tube" viewBox="0 0 512 512">
+<path d="#hash:66d78db8cea1" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-vampirism" viewBox="0 0 512 512">
+<path d="#hash:1fdd051e7a6f" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-vp" viewBox="0 0 512 512">
+<path d="#hash:326df0056854" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-white" viewBox="0 0 512 512">
+<path d="#hash:2fca32a95de9" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-wing_ears" viewBox="0 0 512 512">
+<path d="#hash:591cde6eba7d" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-witch" viewBox="0 0 512 512">
+<path d="#hash:fe555ebf06e4" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-witch_hump" viewBox="0 0 512 512">
+<path d="#hash:52ca94e5764a" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-yellow" viewBox="0 0 512 512">
+<path d="#hash:067283cb6d6e" fill="currentColor">
+</path>
+</symbol>
+</svg>
+<div data-phx-main="" data-phx-session="" data-phx-static="" id="phx-ID">
+<main data-layout="full" style="">
+<div class="min-h-dvh" data-component="hearts" data-variant="table" id="gallery-frame">
+<div class="tb-root min-h-dvh bg-tb-base-200 p-2 sm:p-4" data-deck="2" data-theme="emerald" data-themes="emerald light cupcake retro nord forest dracula night" id="hearts-root" phx-hook="TableTheme" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;data-theme&quot;,&quot;data-deck&quot;]}]]">
+<div class="mx-auto flex max-w-3xl flex-col gap-2 sm:gap-3">
+<div class="flex flex-wrap items-center gap-1.5 " data-role="theme-picker" id="hearts-picker">
+<span class="sr-only">Table colours</span>
+<button aria-pressed="true" class="group flex items-center gap-1.5 rounded-full bg-tb-base-100 py-1 pr-2.5 pl-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent" data-pick-theme="emerald" id="hearts-picker-emerald" phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;table:pick&quot;,&quot;detail&quot;:{&quot;theme&quot;:&quot;emerald&quot;}}]]" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;aria-pressed&quot;]}]]" type="button">
+<span aria-hidden="true" class="tb-root relative inline-flex size-6 overflow-hidden rounded-full ring-1 ring-black/20" data-theme="emerald">
+<span class="tb-felt absolute inset-0">
+</span>
+<span class="absolute top-1 left-1.5 h-4 w-3 rounded-[2px] bg-tb-primary ring-1 ring-tb-card-face">
+</span>
+<span class="absolute right-0.5 bottom-0.5 size-2 rounded-full bg-tb-accent">
+</span>
+</span>
+Emerald
+</button>
+<button aria-pressed="false" class="group flex items-center gap-1.5 rounded-full bg-tb-base-100 py-1 pr-2.5 pl-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent" data-pick-theme="light" id="hearts-picker-light" phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;table:pick&quot;,&quot;detail&quot;:{&quot;theme&quot;:&quot;light&quot;}}]]" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;aria-pressed&quot;]}]]" type="button">
+<span aria-hidden="true" class="tb-root relative inline-flex size-6 overflow-hidden rounded-full ring-1 ring-black/20" data-theme="light">
+<span class="tb-felt absolute inset-0">
+</span>
+<span class="absolute top-1 left-1.5 h-4 w-3 rounded-[2px] bg-tb-primary ring-1 ring-tb-card-face">
+</span>
+<span class="absolute right-0.5 bottom-0.5 size-2 rounded-full bg-tb-accent">
+</span>
+</span>
+Light
+</button>
+<button aria-pressed="false" class="group flex items-center gap-1.5 rounded-full bg-tb-base-100 py-1 pr-2.5 pl-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent" data-pick-theme="cupcake" id="hearts-picker-cupcake" phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;table:pick&quot;,&quot;detail&quot;:{&quot;theme&quot;:&quot;cupcake&quot;}}]]" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;aria-pressed&quot;]}]]" type="button">
+<span aria-hidden="true" class="tb-root relative inline-flex size-6 overflow-hidden rounded-full ring-1 ring-black/20" data-theme="cupcake">
+<span class="tb-felt absolute inset-0">
+</span>
+<span class="absolute top-1 left-1.5 h-4 w-3 rounded-[2px] bg-tb-primary ring-1 ring-tb-card-face">
+</span>
+<span class="absolute right-0.5 bottom-0.5 size-2 rounded-full bg-tb-accent">
+</span>
+</span>
+Cupcake
+</button>
+<button aria-pressed="false" class="group flex items-center gap-1.5 rounded-full bg-tb-base-100 py-1 pr-2.5 pl-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent" data-pick-theme="retro" id="hearts-picker-retro" phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;table:pick&quot;,&quot;detail&quot;:{&quot;theme&quot;:&quot;retro&quot;}}]]" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;aria-pressed&quot;]}]]" type="button">
+<span aria-hidden="true" class="tb-root relative inline-flex size-6 overflow-hidden rounded-full ring-1 ring-black/20" data-theme="retro">
+<span class="tb-felt absolute inset-0">
+</span>
+<span class="absolute top-1 left-1.5 h-4 w-3 rounded-[2px] bg-tb-primary ring-1 ring-tb-card-face">
+</span>
+<span class="absolute right-0.5 bottom-0.5 size-2 rounded-full bg-tb-accent">
+</span>
+</span>
+Retro
+</button>
+<button aria-pressed="false" class="group flex items-center gap-1.5 rounded-full bg-tb-base-100 py-1 pr-2.5 pl-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent" data-pick-theme="nord" id="hearts-picker-nord" phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;table:pick&quot;,&quot;detail&quot;:{&quot;theme&quot;:&quot;nord&quot;}}]]" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;aria-pressed&quot;]}]]" type="button">
+<span aria-hidden="true" class="tb-root relative inline-flex size-6 overflow-hidden rounded-full ring-1 ring-black/20" data-theme="nord">
+<span class="tb-felt absolute inset-0">
+</span>
+<span class="absolute top-1 left-1.5 h-4 w-3 rounded-[2px] bg-tb-primary ring-1 ring-tb-card-face">
+</span>
+<span class="absolute right-0.5 bottom-0.5 size-2 rounded-full bg-tb-accent">
+</span>
+</span>
+Nord
+</button>
+<button aria-pressed="false" class="group flex items-center gap-1.5 rounded-full bg-tb-base-100 py-1 pr-2.5 pl-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent" data-pick-theme="forest" id="hearts-picker-forest" phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;table:pick&quot;,&quot;detail&quot;:{&quot;theme&quot;:&quot;forest&quot;}}]]" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;aria-pressed&quot;]}]]" type="button">
+<span aria-hidden="true" class="tb-root relative inline-flex size-6 overflow-hidden rounded-full ring-1 ring-black/20" data-theme="forest">
+<span class="tb-felt absolute inset-0">
+</span>
+<span class="absolute top-1 left-1.5 h-4 w-3 rounded-[2px] bg-tb-primary ring-1 ring-tb-card-face">
+</span>
+<span class="absolute right-0.5 bottom-0.5 size-2 rounded-full bg-tb-accent">
+</span>
+</span>
+Forest
+</button>
+<button aria-pressed="false" class="group flex items-center gap-1.5 rounded-full bg-tb-base-100 py-1 pr-2.5 pl-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent" data-pick-theme="dracula" id="hearts-picker-dracula" phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;table:pick&quot;,&quot;detail&quot;:{&quot;theme&quot;:&quot;dracula&quot;}}]]" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;aria-pressed&quot;]}]]" type="button">
+<span aria-hidden="true" class="tb-root relative inline-flex size-6 overflow-hidden rounded-full ring-1 ring-black/20" data-theme="dracula">
+<span class="tb-felt absolute inset-0">
+</span>
+<span class="absolute top-1 left-1.5 h-4 w-3 rounded-[2px] bg-tb-primary ring-1 ring-tb-card-face">
+</span>
+<span class="absolute right-0.5 bottom-0.5 size-2 rounded-full bg-tb-accent">
+</span>
+</span>
+Dracula
+</button>
+<button aria-pressed="false" class="group flex items-center gap-1.5 rounded-full bg-tb-base-100 py-1 pr-2.5 pl-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent" data-pick-theme="night" id="hearts-picker-night" phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;table:pick&quot;,&quot;detail&quot;:{&quot;theme&quot;:&quot;night&quot;}}]]" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;aria-pressed&quot;]}]]" type="button">
+<span aria-hidden="true" class="tb-root relative inline-flex size-6 overflow-hidden rounded-full ring-1 ring-black/20" data-theme="night">
+<span class="tb-felt absolute inset-0">
+</span>
+<span class="absolute top-1 left-1.5 h-4 w-3 rounded-[2px] bg-tb-primary ring-1 ring-tb-card-face">
+</span>
+<span class="absolute right-0.5 bottom-0.5 size-2 rounded-full bg-tb-accent">
+</span>
+</span>
+Night
+</button>
+<button aria-pressed="false" class="flex items-center gap-1.5 rounded-full bg-tb-base-100 px-2.5 py-1 text-xs font-medium text-tb-base-content ring-1 ring-tb-base-content/15 transition hover:ring-tb-base-content/40 active:scale-[0.97] aria-pressed:ring-2 aria-pressed:ring-tb-accent" data-pick-deck="" id="hearts-picker-deck" phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;table:pick&quot;,&quot;detail&quot;:{&quot;deck&quot;:&quot;toggle&quot;}}]]" phx-mounted="[[&quot;ignore_attrs&quot;,{&quot;attrs&quot;:[&quot;aria-pressed&quot;]}]]" type="button">
+<span aria-hidden="true" class="tb-four flex gap-px font-bold">
+<span class="text-(--tb-card-red)">♥</span>
+<span class="text-(--tb-card-blue)">♦</span>
+<span class="text-(--tb-card-green)">♣</span>
+<span>♠</span>
+</span>
+4-colour deck
+</button>
+</div>
+<div class="tb-table tb-felt relative overflow-hidden rounded-tb " data-role="hearts-table" id="ht" phx-hook="TableMotion">
+<div class="pointer-events-none absolute inset-0" id="ht-fx" phx-update="ignore">
+</div>
+<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[auto_minmax(0,1fr)_auto] gap-x-1 gap-y-2 p-2 sm:gap-x-4 sm:p-4">
+<div class="col-span-3 flex flex-col items-center gap-1">
+<div class="flex max-w-full items-center rounded-tb bg-tb-base-100/90 px-2 py-0.5 text-tb-base-content shadow-sm ring-1 ring-black/10 transition gap-2" data-role="seat" data-seat="n" id="ht-seat-n">
+<span class="truncate text-xs font-semibold sm:max-w-32 sm:text-sm max-w-[9rem]">
+Bram
+</span>
+<span class="flex items-center gap-1.5 text-xs tabular-nums">
+<span class="font-bold" data-role="score" title="score">12</span>
+<span class="text-(--tb-points)" data-role="points" title="points this round">
++1
+</span>
+<span class="tb-pile inline-flex items-center gap-1 text-tb-base-content/70" data-anchor="" data-count="4" id="ht-pile-n" title="4 cards taken">
+<span aria-hidden="true" class="tb-pile-card">
+<span class="tb-back">
+</span>
+</span>
+<span class="tabular-nums">1</span>
+</span>
+</span>
+</div>
+<div aria-label="12 cards" class="tb-backs " data-anchor="" data-axis="x" data-count="12" id="ht-hand-n" role="img" style="--n1: 11">
+<div class="tb-card " data-flip="back" id="ht-hand-n-0" style="--i: 0">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-1" style="--i: 1">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-2" style="--i: 2">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-3" style="--i: 3">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-4" style="--i: 4">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-5" style="--i: 5">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-6" style="--i: 6">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-7" style="--i: 7">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-8" style="--i: 8">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-9" style="--i: 9">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-10" style="--i: 10">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-n-11" style="--i: 11">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+</div>
+</div>
+<div class="flex w-[4.25rem] flex-col items-center justify-center gap-1 sm:w-28">
+<div class="flex max-w-full items-center rounded-tb bg-tb-base-100/90 px-2 py-0.5 text-tb-base-content shadow-sm ring-1 ring-black/10 transition flex-col gap-0 px-1.5 text-center sm:flex-row sm:gap-2 sm:px-2" data-role="seat" data-seat="w" id="ht-seat-w">
+<span class="truncate text-xs font-semibold sm:max-w-32 sm:text-sm max-w-[3.6rem]">
+Ada
+</span>
+<span class="flex items-center gap-1.5 text-xs tabular-nums">
+<span class="font-bold" data-role="score" title="score">0</span>
+<span class="tb-pile inline-flex items-center gap-1 text-tb-base-content/70" data-anchor="" data-count="0" id="ht-pile-w" title="0 cards taken">
+<span aria-hidden="true" class="tb-pile-card">
+<span class="tb-back">
+</span>
+</span>
+<span class="tabular-nums">0</span>
+</span>
+</span>
+</div>
+<div aria-label="12 cards" class="tb-backs " data-anchor="" data-axis="y" data-count="12" id="ht-hand-w" role="img" style="--n1: 11">
+<div class="tb-card " data-flip="back" id="ht-hand-w-0" style="--i: 0">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-1" style="--i: 1">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-2" style="--i: 2">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-3" style="--i: 3">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-4" style="--i: 4">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-5" style="--i: 5">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-6" style="--i: 6">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-7" style="--i: 7">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-8" style="--i: 8">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-9" style="--i: 9">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-10" style="--i: 10">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-w-11" style="--i: 11">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+</div>
+</div>
+<div class="flex min-h-[9rem] items-center justify-center">
+<div class="tb-trick " data-anchor="" data-lead="w" data-winner="n" id="ht-trick">
+<div class="tb-slot" data-seat="n" style="z-index: 2">
+<div aria-label="jack of clubs" class="tb-card" data-card="JC" data-flip="card" data-state="won" data-suit="clubs" id="ht-card-JC">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+J
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+J
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<rect fill="var(--tb-card-court)" height="262" rx="12" stroke-width="3" stroke="currentColor" width="106" x="72" y="44">
+</rect>
+<path d="M94 116 C96 84 110 72 128 72 C146 72 156 84 156 100 L168 106 L156 116 Z" fill="currentColor">
+</path>
+<text class="tb-court-letter" fill="currentColor" font-size="104" text-anchor="middle" x="125" y="214">
+J
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(103 236) scale(0.44)">
+</path>
+</svg>
+</div>
+</div>
+<div class="tb-slot" data-seat="w" style="z-index: 1">
+<div aria-label="3 of clubs" class="tb-card" data-card="3C" data-flip="card" data-suit="clubs" id="ht-card-3C">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+3
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+3
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<g>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(104 41) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(104 154) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 125 288)">
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(104 267) scale(0.42)">
+</path>
+</g>
+</svg>
+</div>
+</div>
+<div class="tb-slot" data-seat="e" style="z-index: 4">
+<div aria-label="6 of clubs" class="tb-card" data-card="6C" data-flip="card" data-suit="clubs" id="ht-card-6C">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+6
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+6
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<g>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(77 41) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(131 41) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 98 288)">
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(77 267) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 152 288)">
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(131 267) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(77 154) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(131 154) scale(0.42)">
+</path>
+</g>
+</svg>
+</div>
+</div>
+<div class="tb-slot" data-seat="s" style="z-index: 3">
+<div aria-label="2 of clubs" class="tb-card" data-card="2C" data-flip="card" data-suit="clubs" id="ht-card-2C">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+2
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+2
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<g>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(104 41) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 125 288)">
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(104 267) scale(0.42)">
+</path>
+</g>
+</svg>
+</div>
+</div>
+</div>
+</div>
+<div class="flex w-[4.25rem] flex-col items-center justify-center gap-1 sm:w-28">
+<div class="flex max-w-full items-center rounded-tb bg-tb-base-100/90 px-2 py-0.5 text-tb-base-content shadow-sm ring-1 ring-black/10 transition flex-col gap-0 px-1.5 text-center sm:flex-row sm:gap-2 sm:px-2" data-role="seat" data-seat="e" id="ht-seat-e">
+<span class="truncate text-xs font-semibold sm:max-w-32 sm:text-sm max-w-[3.6rem]">
+Cleo
+</span>
+<span class="flex items-center gap-1.5 text-xs tabular-nums">
+<span class="font-bold" data-role="score" title="score">5</span>
+<span class="tb-pile inline-flex items-center gap-1 text-tb-base-content/70" data-anchor="" data-count="0" id="ht-pile-e" title="0 cards taken">
+<span aria-hidden="true" class="tb-pile-card">
+<span class="tb-back">
+</span>
+</span>
+<span class="tabular-nums">0</span>
+</span>
+</span>
+</div>
+<div aria-label="12 cards" class="tb-backs " data-anchor="" data-axis="y" data-count="12" id="ht-hand-e" role="img" style="--n1: 11">
+<div class="tb-card " data-flip="back" id="ht-hand-e-0" style="--i: 0">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-1" style="--i: 1">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-2" style="--i: 2">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-3" style="--i: 3">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-4" style="--i: 4">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-5" style="--i: 5">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-6" style="--i: 6">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-7" style="--i: 7">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-8" style="--i: 8">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-9" style="--i: 9">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-10" style="--i: 10">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+<div class="tb-card " data-flip="back" id="ht-hand-e-11" style="--i: 11">
+<span aria-hidden="true" class="tb-face tb-back">
+</span>
+</div>
+</div>
+</div>
+<div class="col-span-3 flex flex-col items-center gap-1">
+<div class="flex w-full items-center justify-between gap-2 px-1">
+<div class="flex max-w-full items-center rounded-tb bg-tb-base-100/90 px-2 py-0.5 text-tb-base-content shadow-sm ring-1 ring-black/10 transition gap-2" data-role="seat" data-seat="s" id="ht-seat-s">
+<span class="truncate text-xs font-semibold sm:max-w-32 sm:text-sm max-w-[9rem]">
+You
+</span>
+<span class="flex items-center gap-1.5 text-xs tabular-nums">
+<span class="font-bold" data-role="score" title="score">9</span>
+<span class="tb-pile inline-flex items-center gap-1 text-tb-base-content/70" data-anchor="" data-count="0" id="ht-pile-s" title="0 cards taken">
+<span aria-hidden="true" class="tb-pile-card">
+<span class="tb-back">
+</span>
+</span>
+<span class="tabular-nums">0</span>
+</span>
+</span>
+</div>
+<p class="min-w-0 truncate text-right text-xs font-medium text-tb-felt-ink/80 sm:text-sm" data-role="table-status">
+Bram takes the trick
+</p>
+</div>
+<div class="tb-hand mt-1" data-anchor="" data-count="12" id="ht-hand-s" style="--n: 12; --n1: 11">
+<div aria-label="4 of clubs" class="tb-card" data-card="4C" data-flip="card" data-suit="clubs" id="ht-card-4C" phx-value-card="4C" style="--i: 0; rotate: -8.0deg; top: calc(var(--card-w) * 0.09)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+4
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+4
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<g>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(77 41) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(131 41) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 98 288)">
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(77 267) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 152 288)">
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(131 267) scale(0.42)">
+</path>
+</g>
+</svg>
+</div>
+<div aria-label="queen of clubs" class="tb-card" data-card="QC" data-flip="card" data-suit="clubs" id="ht-card-QC" phx-value-card="QC" style="--i: 1; rotate: -6.55deg; top: calc(var(--card-w) * 0.06)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+Q
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+Q
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<rect fill="var(--tb-card-court)" height="262" rx="12" stroke-width="3" stroke="currentColor" width="106" x="72" y="44">
+</rect>
+<path d="#hash:197b7f7bdf28" fill="currentColor">
+</path>
+<text class="tb-court-letter" fill="currentColor" font-size="104" text-anchor="middle" x="125" y="214">
+Q
+</text>
+<path d="#hash:aacd884e716f" fill="currentColor" transform="translate(103 236) scale(0.44)">
+</path>
+</svg>
+</div>
+<div aria-label="6 of diamonds" class="tb-card" data-card="6D" data-flip="card" data-suit="diamonds" id="ht-card-6D" phx-value-card="6D" style="--i: 2; rotate: -5.09deg; top: calc(var(--card-w) * 0.036)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+6
+</text>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+6
+</text>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<g>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(77 41) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(131 41) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 98 288)">
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(77 267) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 152 288)">
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(131 267) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(77 154) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(131 154) scale(0.42)">
+</path>
+</g>
+</svg>
+</div>
+<div aria-label="9 of diamonds" class="tb-card" data-card="9D" data-flip="card" data-suit="diamonds" id="ht-card-9D" phx-value-card="9D" style="--i: 3; rotate: -3.64deg; top: calc(var(--card-w) * 0.019)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+9
+</text>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+9
+</text>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<g>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(77 41) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(131 41) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(77 116) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(131 116) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 98 213)">
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(77 192) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 152 213)">
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(131 192) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 98 288)">
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(77 267) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 152 288)">
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(131 267) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(104 154) scale(0.42)">
+</path>
+</g>
+</svg>
+</div>
+<div aria-label="king of diamonds" class="tb-card" data-card="KD" data-flip="card" data-suit="diamonds" id="ht-card-KD" phx-value-card="KD" style="--i: 4; rotate: -2.18deg; top: calc(var(--card-w) * 0.007)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+K
+</text>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+K
+</text>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<rect fill="var(--tb-card-court)" height="262" rx="12" stroke-width="3" stroke="currentColor" width="106" x="72" y="44">
+</rect>
+<path d="M92 112 L86 68 L106 88 L125 60 L144 88 L164 68 L158 112 Z M94 118 h62 v8 h-62 Z" fill="currentColor">
+</path>
+<text class="tb-court-letter" fill="currentColor" font-size="104" text-anchor="middle" x="125" y="214">
+K
+</text>
+<path d="#hash:02b0a98e2edb" fill="currentColor" transform="translate(103 236) scale(0.44)">
+</path>
+</svg>
+</div>
+<div aria-label="2 of spades" class="tb-card" data-card="2S" data-flip="card" data-suit="spades" id="ht-card-2S" phx-value-card="2S" style="--i: 5; rotate: -0.73deg; top: calc(var(--card-w) * 0.001)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+2
+</text>
+<path d="#hash:fff709976e57" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+2
+</text>
+<path d="#hash:fff709976e57" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<g>
+<path d="#hash:fff709976e57" fill="currentColor" transform="translate(104 41) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 125 288)">
+<path d="#hash:fff709976e57" fill="currentColor" transform="translate(104 267) scale(0.42)">
+</path>
+</g>
+</svg>
+</div>
+<div aria-label="king of spades" class="tb-card" data-card="KS" data-flip="card" data-suit="spades" id="ht-card-KS" phx-value-card="KS" style="--i: 6; rotate: 0.73deg; top: calc(var(--card-w) * 0.001)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+K
+</text>
+<path d="#hash:fff709976e57" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+K
+</text>
+<path d="#hash:fff709976e57" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<rect fill="var(--tb-card-court)" height="262" rx="12" stroke-width="3" stroke="currentColor" width="106" x="72" y="44">
+</rect>
+<path d="M92 112 L86 68 L106 88 L125 60 L144 88 L164 68 L158 112 Z M94 118 h62 v8 h-62 Z" fill="currentColor">
+</path>
+<text class="tb-court-letter" fill="currentColor" font-size="104" text-anchor="middle" x="125" y="214">
+K
+</text>
+<path d="#hash:fff709976e57" fill="currentColor" transform="translate(103 236) scale(0.44)">
+</path>
+</svg>
+</div>
+<div aria-label="4 of hearts" class="tb-card" data-card="4H" data-flip="card" data-suit="hearts" id="ht-card-4H" phx-value-card="4H" style="--i: 7; rotate: 2.18deg; top: calc(var(--card-w) * 0.007)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+4
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+4
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<g>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(77 41) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(131 41) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 98 288)">
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(77 267) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 152 288)">
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(131 267) scale(0.42)">
+</path>
+</g>
+</svg>
+</div>
+<div aria-label="5 of hearts" class="tb-card" data-card="5H" data-flip="card" data-suit="hearts" id="ht-card-5H" phx-value-card="5H" style="--i: 8; rotate: 3.64deg; top: calc(var(--card-w) * 0.019)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+5
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+5
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<g>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(77 41) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(131 41) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 98 288)">
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(77 267) scale(0.42)">
+</path>
+</g>
+<g transform="rotate(180 152 288)">
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(131 267) scale(0.42)">
+</path>
+</g>
+<g>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(104 154) scale(0.42)">
+</path>
+</g>
+</svg>
+</div>
+<div aria-label="jack of hearts" class="tb-card" data-card="JH" data-flip="card" data-suit="hearts" id="ht-card-JH" phx-value-card="JH" style="--i: 9; rotate: 5.09deg; top: calc(var(--card-w) * 0.036)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+J
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+J
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<rect fill="var(--tb-card-court)" height="262" rx="12" stroke-width="3" stroke="currentColor" width="106" x="72" y="44">
+</rect>
+<path d="M94 116 C96 84 110 72 128 72 C146 72 156 84 156 100 L168 106 L156 116 Z" fill="currentColor">
+</path>
+<text class="tb-court-letter" fill="currentColor" font-size="104" text-anchor="middle" x="125" y="214">
+J
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(103 236) scale(0.44)">
+</path>
+</svg>
+</div>
+<div aria-label="queen of hearts" class="tb-card" data-card="QH" data-flip="card" data-suit="hearts" id="ht-card-QH" phx-value-card="QH" style="--i: 10; rotate: 6.55deg; top: calc(var(--card-w) * 0.06)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+Q
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+Q
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<rect fill="var(--tb-card-court)" height="262" rx="12" stroke-width="3" stroke="currentColor" width="106" x="72" y="44">
+</rect>
+<path d="#hash:197b7f7bdf28" fill="currentColor">
+</path>
+<text class="tb-court-letter" fill="currentColor" font-size="104" text-anchor="middle" x="125" y="214">
+Q
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(103 236) scale(0.44)">
+</path>
+</svg>
+</div>
+<div aria-label="ace of hearts" class="tb-card" data-card="AH" data-flip="card" data-suit="hearts" id="ht-card-AH" phx-value-card="AH" style="--i: 11; rotate: 8.0deg; top: calc(var(--card-w) * 0.09)">
+<svg aria-hidden="true" class="tb-face tb-face-svg" focusable="false" role="img" viewBox="0 0 250 350">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+A
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+<g transform="rotate(180 125 175)">
+<text class="tb-rank" fill="currentColor" font-size="64" text-anchor="middle" x="40" y="72">
+A
+</text>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(18 82) scale(0.44)">
+</path>
+</g>
+<path d="#hash:8dba0371e994" fill="currentColor" transform="translate(70 120) scale(1.1)">
+</path>
+</svg>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<div aria-live="polite" id="flash-group">
+<div class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-20 sm:left-4 sm:bottom-auto" hidden="" id="client-error" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;key&quot;:&quot;error&quot;},&quot;event&quot;:&quot;lv:clear-flash&quot;}],[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" phx-connected="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}],[&quot;set_attr&quot;,{&quot;attr&quot;:[&quot;hidden&quot;,&quot;&quot;]}]]" phx-disconnected="[[&quot;show&quot;,{&quot;time&quot;:300,&quot;to&quot;:&quot;.phx-client-error #client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-out&quot;,&quot;duration-300&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;]]}],[&quot;remove_attr&quot;,{&quot;to&quot;:&quot;.phx-client-error #client-error&quot;,&quot;attr&quot;:&quot;hidden&quot;}]]" phx-remove="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" role="alert">
+<div class="flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap border-red-300 bg-red-50 text-red-900">
+<span class="hero-exclamation-circle size-5 shrink-0">
+</span>
+<div>
+<p class="font-semibold">We can&#39;t find the internet</p>
+<p>
+Attempting to reconnect
+<span class="hero-arrow-path ml-1 size-3 motion-safe:animate-spin">
+</span>
+</p>
+</div>
+<div class="flex-1">
+</div>
+<button aria-label="close" class="group self-start cursor-pointer" type="button">
+<span class="hero-x-mark size-5 opacity-40 group-hover:opacity-70">
+</span>
+</button>
+</div>
+</div>
+<div class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-20 sm:left-4 sm:bottom-auto" hidden="" id="server-error" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;key&quot;:&quot;error&quot;},&quot;event&quot;:&quot;lv:clear-flash&quot;}],[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" phx-connected="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}],[&quot;set_attr&quot;,{&quot;attr&quot;:[&quot;hidden&quot;,&quot;&quot;]}]]" phx-disconnected="[[&quot;show&quot;,{&quot;time&quot;:300,&quot;to&quot;:&quot;.phx-server-error #server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-out&quot;,&quot;duration-300&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;]]}],[&quot;remove_attr&quot;,{&quot;to&quot;:&quot;.phx-server-error #server-error&quot;,&quot;attr&quot;:&quot;hidden&quot;}]]" phx-remove="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" role="alert">
+<div class="flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap border-red-300 bg-red-50 text-red-900">
+<span class="hero-exclamation-circle size-5 shrink-0">
+</span>
+<div>
+<p class="font-semibold">Something went wrong!</p>
+<p>
+Attempting to reconnect
+<span class="hero-arrow-path ml-1 size-3 motion-safe:animate-spin">
+</span>
+</p>
+</div>
+<div class="flex-1">
+</div>
+<button aria-label="close" class="group self-start cursor-pointer" type="button">
+<span class="hero-x-mark size-5 opacity-40 group-hover:opacity-70">
+</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>
