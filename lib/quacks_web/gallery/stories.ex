@@ -574,6 +574,23 @@ defmodule QuacksWeb.Gallery.Stories do
   defp arg_stories("codenames") do
     [
       arg_story(
+        "themes",
+        "Codenames Duet · the key in every theme",
+        [
+          enum("state", CodenamesDuetWeb.Gallery.states(), "bystander"),
+          bool("hide_key")
+        ],
+        &CodenamesDuetWeb.Gallery.themes_story/1,
+        %{
+          presets: [
+            {"clue", "The first clue: the key only", %{"state" => "clue"}},
+            {"sudden-death", "Sudden death: marks and agents", %{"state" => "sudden-death"}},
+            {"lost", "Lost: both sides of the key", %{"state" => "lost"}},
+            {"hidden", "Hide my key", %{"hide_key" => true}}
+          ]
+        }
+      ),
+      arg_story(
         "board",
         "Codenames Duet · the game page",
         [
@@ -596,7 +613,9 @@ defmodule QuacksWeb.Gallery.Stories do
             {"watching", "A spectator", %{"state" => "watching"}},
             {"longest", "The 25 longest words", %{"words" => "longest", "state" => "bystander"}},
             {"hidden", "Hide my key", %{"hide_key" => true, "state" => "bystander"}},
-            {"dark", "Dracula (dark), guessing", %{"theme" => "dracula", "state" => "guessing"}}
+            {"dark", "Dracula (dark), guessing", %{"theme" => "dracula", "state" => "guessing"}},
+            {"bot-thinking", "Bot partner: thinking of a clue", %{"state" => "bot-thinking"}},
+            {"bot-guessing", "Bot partner: guessing your clue", %{"state" => "bot-guessing"}}
           ]
         }
       )
