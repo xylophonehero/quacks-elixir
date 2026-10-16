@@ -8,15 +8,7 @@ defmodule QuacksWeb.RestoreLiveTest do
   alias Quacks.{GameServer, GameStore}
 
   setup do
-    dir = Path.join("tmp", "test-games-#{System.unique_integer([:positive])}")
-    Application.put_env(:quacks, :games_dir, dir)
-
-    on_exit(fn ->
-      Application.delete_env(:quacks, :games_dir)
-      File.rm_rf!(dir)
-    end)
-
-    %{dir: dir}
+    %{dir: Quacks.GameHelpers.games_dir()}
   end
 
   defp browser(name), do: init_test_session(build_conn(), player_token: name)

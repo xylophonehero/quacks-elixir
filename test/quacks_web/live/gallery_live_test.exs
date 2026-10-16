@@ -96,16 +96,24 @@ defmodule QuacksWeb.GalleryLiveTest do
     refute_patched(view)
   end
 
-  test "every story renders with its default args and with each preset", %{conn: conn} do
-    for g <- Stories.catalog(), not String.starts_with?(g.id, "scenario-"), s <- g.stories do
+  # One test per story and per scenario (not one loop over all of them): under load
+  # a single test that mounts every frame ran past ExUnit's 60 s timeout.
+  for g <- Stories.catalog(), not String.starts_with?(g.id, "scenario-"), s <- g.stories do
+    @tag story: {g.id, s.id}
+    test "story #{g.id}/#{s.id} renders with its default args and with each preset", %{
+      conn: conn,
+      story: {group, id}
+    } do
+      [s] = for g <- Stories.catalog(), g.id == group, s <- g.stories, s.id == id, do: s
+
       for {_id, _title, args} <- [{"default", "", %{}} | s.presets] do
         query = Stories.query(s, Stories.args(s, stringify(args)))
-        path = "/dev/gallery/frame/#{g.id}/#{s.id}?" <> URI.encode_query(query)
+        path = "/dev/gallery/frame/#{group}/#{id}?" <> URI.encode_query(query)
         {:ok, view, _html} = live(conn, path)
 
         assert has_element?(
                  view,
-                 "#gallery-frame[data-component='#{g.id}'][data-variant='#{s.id}']"
+                 "#gallery-frame[data-component='#{group}'][data-variant='#{id}']"
                ),
                path
 
@@ -124,13 +132,17 @@ defmodule QuacksWeb.GalleryLiveTest do
     assert has_element?(view, "[data-area=bar]")
   end
 
-  test "every scenario step renders as a full screen", %{conn: conn} do
-    for e <- Scenarios.all() do
+  for e <- Scenarios.all() do
+    @tag scenario: {e.kind, e.id}
+    test "every step of scenario #{e.kind}/#{e.id} renders as a full screen", %{
+      conn: conn,
+      scenario: {kind, id}
+    } do
+      e = Scenarios.get(kind, id)
       {:ok, script} = Scenarios.build(e)
-      id = Stories.scenario_id(e)
 
       for i <- 1..length(script.steps) do
-        path = "/dev/gallery/frame/scenario-#{e.kind}/#{id}?step=#{i}"
+        path = "/dev/gallery/frame/scenario-#{e.kind}/#{Stories.scenario_id(e)}?step=#{i}"
         {:ok, view, _html} = live(conn, path)
         assert has_element?(view, "#gallery-frame[data-view=screen] #game"), path
       end

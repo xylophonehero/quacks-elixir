@@ -862,6 +862,22 @@ defmodule QuacksWeb.Gallery.Fixtures do
     screen(g, a, opts)
   end
 
+  @doc "The waiting panel before the game begins (`GameLive.preview/3` with no game)."
+  @spec waiting_screen(map) :: map
+  def waiting_screen(%{"players" => n, "seated" => k} = a) do
+    %{
+      view: :screen,
+      game: nil,
+      preview: [
+        players: n,
+        seated: k,
+        host: not a["guest"],
+        bot: a["bot"],
+        names: names(n, long(a))
+      ]
+    }
+  end
+
   @doc "The game over: bots play every seat through round 9 (`Quacks.Scenarios.Script`)."
   @spec over_screen(map) :: map
   def over_screen(%{"players" => n} = a) do

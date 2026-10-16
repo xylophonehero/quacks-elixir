@@ -7,25 +7,19 @@ defmodule Quacks.GameStoreTest do
   alias Quacks.{Game, GameServer, GameStore, Session}
 
   setup do
-    dir = Path.join("tmp", "test-games-#{System.unique_integer([:positive])}")
-    Application.put_env(:quacks, :games_dir, dir)
-
-    on_exit(fn ->
-      Application.delete_env(:quacks, :games_dir)
-      File.rm_rf!(dir)
-    end)
-
-    %{dir: dir}
+    %{dir: Quacks.GameHelpers.games_dir()}
   end
 
   defp pid(id), do: GenServer.whereis({:via, Registry, {Quacks.GameRegistry, id}})
 
+  # The game file's timers and directory (`GameServer.store_status/1`).
+  defp status(id), do: GameServer.store_status(id)
+
   # The pending debounced write, done now (as its timer would do it).
   defp flush_write(id) do
-    pid = pid(id)
-    %{write_timer: ref} = :sys.get_state(pid)
-    send(pid, {:write, ref})
-    :sys.get_state(pid)
+    %{write: ref} = status(id)
+    send(pid(id), {:write, ref})
+    status(id)
   end
 
   # A deploy: the supervisor shuts the game down (`terminate/2` writes).
@@ -173,51 +167,47 @@ defmodule Quacks.GameStoreTest do
   test "a burst of changes is written once", %{dir: dir} do
     {:ok, id} = GameServer.start(1)
     {:ok, 0} = GameServer.claim_seat(id, "ann", watch: false)
-    %{write_timer: ref} = :sys.get_state(pid(id))
+    %{write: ref} = status(id)
     assert is_reference(ref)
 
     for _ <- 1..3, do: act(id, 0)
     # the same pending write, nothing on disk yet
-    assert %{write_timer: ^ref} = :sys.get_state(pid(id))
+    assert %{write: ^ref} = status(id)
     refute File.exists?(file(dir, id))
 
-    assert %{write_timer: nil} = flush_write(id)
+    assert %{write: nil} = flush_write(id)
     assert {:ok, %{"log" => log}} = GameStore.read(file(dir, id))
     assert length(log) == 3
 
     # the timer's own message comes later and is stale now: no second write
     File.rm!(file(dir, id))
     send(pid(id), {:write, ref})
-    :sys.get_state(pid(id))
+    status(id)
     refute File.exists?(file(dir, id))
 
     # a read changes nothing, so it writes nothing
     {:ok, _} = GameServer.get(id)
-    assert %{write_timer: nil} = :sys.get_state(pid(id))
+    assert %{write: nil} = status(id)
   end
 
   test "a finished game keeps its file until every human saw the result", %{dir: dir} do
-    {:ok, id} = GameServer.start(2)
-    {:ok, 0} = GameServer.claim_seat(id, "ann", watch: false)
-    {:ok, 1} = GameServer.add_bot(id, "ann")
-    {:ok, _} = GameServer.begin(id, "ann")
-    replace_session(id, finished_session())
+    id = finished_game(dir)
     :ok = GameServer.ack(id, 0, :card, 9)
     flush_write(id)
     assert File.exists?(file(dir, id))
-    assert %{expire_timer: nil} = :sys.get_state(pid(id))
+    assert %{expire: nil} = status(id)
 
     # the bot needs no ack; the human's ack of the final scoring starts the clock
     :ok = GameServer.ack(id, 0, :final, 9)
-    assert %{expire_timer: timer} = :sys.get_state(pid(id))
+    assert %{expire: timer} = status(id)
     assert is_reference(timer)
 
     send(pid(id), :expire)
-    :sys.get_state(pid(id))
+    status(id)
     refute File.exists?(file(dir, id))
     # the game itself stays until it idles out, and writes no more
     :ok = GameServer.rename(id, 0, "Ann")
-    assert %{write_timer: nil} = :sys.get_state(pid(id))
+    assert %{write: nil, store: nil} = status(id)
   end
 
   test "an idle game deletes its file", %{dir: dir} do
@@ -237,7 +227,7 @@ defmodule Quacks.GameStoreTest do
     bundle = Session.bundle(Session.new({1, 2, 3}, 2))
     {:ok, id} = GameServer.start_from_bundle(bundle)
     {:ok, _} = GameServer.apply(id, 0, :draw)
-    assert %{write_timer: nil, store: nil} = :sys.get_state(pid(id))
+    assert %{write: nil, store: nil} = status(id)
     refute File.exists?(file(dir, id))
   end
 
@@ -258,6 +248,28 @@ defmodule Quacks.GameStoreTest do
     |> Enum.find(&Game.over?(&1.game))
   end
 
-  defp replace_session(id, session),
-    do: :sys.replace_state(pid(id), &%{&1 | session: session, bot_ticks: %{}, queued: %{}})
+  # A finished game of "ann" (seat 0) and a bot (seat 1), from its game file.
+  defp finished_game(dir) do
+    id = "fin#{System.unique_integer([:positive])}"
+
+    body =
+      finished_session()
+      |> Session.bundle()
+      |> Map.merge(%{names: ["Ann", "Rob"], bots: [1]})
+      |> Map.put(:table, %{
+        id: id,
+        status: "playing",
+        max_players: 2,
+        seed: [1, 2, 3],
+        opts: Session.encode_opts([]),
+        tokens: %{"ann" => 0},
+        names: [[0, "Ann"], [1, "Rob"]],
+        colours: [[0, 0], [1, 1]],
+        bots: [[1, "expert"]],
+        creator: "ann"
+      })
+
+    {:ok, ^id} = GameServer.start_from_bundle(body, restore: true, dir: dir)
+    id
+  end
 end

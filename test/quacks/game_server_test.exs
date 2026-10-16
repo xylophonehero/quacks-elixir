@@ -1,8 +1,11 @@
 defmodule Quacks.GameServerTest do
   use ExUnit.Case, async: true
 
-  alias Quacks.{AI, Game, GameServer}
+  import Quacks.GameHelpers,
+    only: [assert_game_update: 1, assert_game_update: 2, play_human: 2, refute_game_update: 0]
+
   alias Quacks.AI.Names
+  alias Quacks.{Game, GameServer}
 
   # A process that subscribes to the game and forwards everything to the test.
   defp listener(id) do
@@ -120,7 +123,7 @@ defmodule Quacks.GameServerTest do
     assert game.seats == [0, 1]
     assert GameServer.claim_seat(id, "c") == {:ok, 1}
     assert {:ok, %{names: %{0 => "Player 1", 1 => "Cleo"}}} = GameServer.get(id)
-    assert_receive {:forwarded, ^one, {:game, ^id, ^game}}
+    assert assert_game_update(id, via: one) == game
 
     # once playing, leaving changes nothing
     :ok = GameServer.leave_seat(id, "c")
@@ -148,13 +151,13 @@ defmodule Quacks.GameServerTest do
 
     assert {:ok, game} = GameServer.apply(id, 1, :draw)
     assert length(game.players[1].drawn) == 1
-    assert_receive {:forwarded, ^one, {:game, ^id, ^game}}
-    assert_receive {:forwarded, ^two, {:game, ^id, ^game}}
+    assert assert_game_update(id, via: one) == game
+    assert assert_game_update(id, via: two) == game
 
     assert {:error, {:illegal_action, :end_round, :potions}} =
              GameServer.apply(id, 0, :end_round)
 
-    refute_receive {:forwarded, _, {:game, _, _}}
+    refute_game_update()
   end
 
   test "claiming a seat and renaming broadcast the names" do
@@ -432,7 +435,6 @@ defmodule Quacks.GameServerTest do
       {:ok, 2} = GameServer.add_bot(id, "a")
       {:ok, _table} = GameServer.configure(id, "a", %{rules: %{fortune: false}})
       {:ok, game} = GameServer.begin(id, "a")
-      [{pid, _}] = Registry.lookup(Quacks.GameRegistry, id)
       assert game.phase == :potions
       :ok = Phoenix.PubSub.subscribe(Quacks.PubSub, "game:" <> id)
 
@@ -441,9 +443,9 @@ defmodule Quacks.GameServerTest do
       for _ <- 1..2 do
         {:ok, before} = GameServer.get(id)
         {:ok, game} = GameServer.apply(id, 0, :draw)
-        assert_receive {:game, ^id, ^game}
-        refute_receive {:game, ^id, _}, 50
-        assert :sys.get_state(pid).bot_ticks == %{}
+        # no bot tick follows: nothing more for the pages
+        assert assert_game_update(id) == game
+        refute_game_update()
 
         for bot <- [1, 2], brewing?(before.game, bot) do
           new = Enum.take(game.log, length(game.log) - length(before.game.log))
@@ -454,8 +456,8 @@ defmodule Quacks.GameServerTest do
       # the human stops: the bots brew to the end in this one call and one broadcast
       {:ok, game} = GameServer.apply(id, 0, :stop)
       assert game.phase != :potions or game.round > 1
-      assert_receive {:game, ^id, ^game}
-      refute_receive {:game, ^id, _}, 50
+      assert assert_game_update(id) == game
+      refute_game_update()
       assert bot_draws(game) >= 2
 
       # the bundle (game file, bug report) replays to the same game
@@ -497,52 +499,23 @@ defmodule Quacks.GameServerTest do
       {:ok, id} = GameServer.start(2, {1, 2, 3})
       {:ok, 0} = GameServer.claim_seat(id, "a")
       {:ok, 1} = GameServer.add_bot(id, "a")
-      {:ok, _game} = GameServer.begin(id, "a")
+      {:ok, game} = GameServer.begin(id, "a")
       [{pid, _}] = Registry.lookup(Quacks.GameRegistry, id)
-      # forget the pending tick: every tick in the mailbox is stale now
-      state = :sys.replace_state(pid, &%{&1 | bot_ticks: %{}})
-      send(pid, {:bot, 1, state.tick})
-      send(pid, {:bot, 1, state.tick + 100})
-      game = state.session.game
+      :ok = Phoenix.PubSub.subscribe(Quacks.PubSub, GameServer.topic(id))
+
+      # the potions phase of round 1: the bot waits for the human's draws, so it has
+      # no tick pending and every tick is stale
+      assert game.phase == :potions
+      for tick <- [0, 1, 100, 100_000], do: send(pid, {:bot, 1, tick})
       assert {:ok, %{game: ^game}} = GameServer.get(id)
+      refute_game_update()
     end
   end
 
   # Drive a game with bots to the end: the human at `human` stops at once and
-  # otherwise plays like a cautious bot; bot ticks are sent by hand, in order.
-  defp play_with_bots(id, human, steps \\ 5000) do
-    [{pid, _}] = Registry.lookup(Quacks.GameRegistry, id)
-    profile = AI.Profile.get(:cautious)
+  # otherwise plays like a cautious bot; the bots play through the server.
+  defp play_with_bots(id, human), do: play_human(id, human)
 
-    Enum.reduce_while(1..steps, AI.new_rng({0, 0, 0}, human), fn _, rng ->
-      state = :sys.get_state(pid)
-      game = state.session.game
-      legal = Game.legal_actions(game, human)
-
-      cond do
-        Game.over?(game) ->
-          {:halt, game}
-
-        :stop in legal ->
-          {:ok, _} = GameServer.apply(id, human, :stop)
-          {:cont, rng}
-
-        legal != [] and Game.phase(game, human) != :stopped ->
-          {action, rng} = AI.decide(game, human, profile, rng)
-          {:ok, _} = GameServer.apply(id, human, action)
-          {:cont, rng}
-
-        state.bot_ticks != %{} ->
-          send_ticks(pid, state.bot_ticks)
-          {:cont, rng}
-
-        true ->
-          flunk("nobody can act in round #{game.round}")
-      end
-    end)
-  end
-
-  # Send the pending bot ticks until there are none; then the game.
   describe "create/3 (the spell book)" do
     test "the host sits in seat 0 with name and colour; bots fill their seats" do
       sets = %{green: 2, black: 1}
@@ -610,7 +583,4 @@ defmodule Quacks.GameServerTest do
 
   # The bot seat still brews (its next action is a draw or its stop).
   defp brewing?(game, seat), do: Game.player(game, seat).phase == :potions
-
-  defp send_ticks(pid, ticks),
-    do: Enum.each(ticks, fn {seat, tick} -> send(pid, {:bot, seat, tick}) end)
 end

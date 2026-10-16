@@ -12,7 +12,7 @@ defmodule Quacks.GoldenRngTest do
   """
   use ExUnit.Case, async: true
 
-  alias Quacks.{AI, Game, Session}
+  alias Quacks.{AI, Game, Golden, Session}
   alias Quacks.AI.{Bench, Names, Profile}
   alias Quacks.Game.{Evaluation, Fortune, Potions}
   alias Quacks.Rules.Alchemists
@@ -39,13 +39,9 @@ defmodule Quacks.GoldenRngTest do
   test "every recorded game plays out the same" do
     actual = record()
 
-    if System.get_env("GOLDEN_RECORD") do
-      File.mkdir_p!(Path.dirname(@fixture))
-      text = inspect(actual, limit: :infinity, printable_limit: :infinity)
-      File.write!(@fixture, [Code.format_string!(text), "\n"])
-    end
+    if Golden.record?(), do: Golden.write_term!(@fixture, actual)
 
-    expected = @fixture |> Code.eval_file() |> elem(0)
+    expected = Golden.read_term!(@fixture)
 
     for {name, want} <- expected do
       got = Map.fetch!(actual, name)
@@ -120,7 +116,7 @@ defmodule Quacks.GoldenRngTest do
         rules: %{pot_side: :back, explode_above: 8},
         expansions: [:herb_witches, :alchemists]
       )
-      |> play()
+      |> Golden.play()
 
     {:ok, rebuilt} =
       session |> Session.bundle() |> Jason.encode!() |> Jason.decode!() |> Session.from_bundle()
@@ -132,33 +128,5 @@ defmodule Quacks.GoldenRngTest do
     }
   end
 
-  # Bots (`:balanced`) play every seat of `session` to the end.
-  defp play(session) do
-    profile = Profile.get(:balanced)
-    rngs = Map.new(session.game.seats, &{&1, AI.new_rng(session.seed, &1)})
-
-    Enum.reduce_while(1..5000, {session, rngs}, fn _, {s, rngs} ->
-      next = Enum.find_value(s.game.seats, &decision(s.game, &1, profile, rngs[&1]))
-
-      with {seat, action, rng} <- next,
-           {:ok, s} <- Session.apply(s, seat, action) do
-        {:cont, {s, Map.put(rngs, seat, rng)}}
-      else
-        _over -> {:halt, {s, rngs}}
-      end
-    end)
-    |> elem(0)
-  end
-
-  defp decision(game, seat, profile, rng) do
-    with [_ | _] <- Game.legal_actions(game, seat),
-         {action, rng} <- AI.decide(game, seat, profile, rng),
-         do: {seat, action, rng},
-         else: (_none -> nil)
-  end
-
-  defp hash(term) do
-    :crypto.hash(:sha256, :erlang.term_to_binary(term, [:deterministic]))
-    |> Base.encode16(case: :lower)
-  end
+  defp hash(term), do: Golden.hash(term)
 end

@@ -1,0 +1,56 @@
+{
+  "table": {
+    "bot_rngs": [],
+    "bots": [
+      [
+        1,
+        "expert"
+      ]
+    ],
+    "colours": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "creator": "ann",
+    "id": "iapzlz",
+    "max_players": 3,
+    "names": [
+      [
+        0,
+        "Player 1"
+      ],
+      [
+        1,
+        "Balthazar"
+      ]
+    ],
+    "next_id": null,
+    "opts": {
+      "expansion": "herb_witches",
+      "expansions": [],
+      "patients": {
+        "m": []
+      },
+      "rules": {},
+      "sets": {},
+      "witches": {}
+    },
+    "public": true,
+    "seed": [
+      64,
+      65,
+      66
+    ],
+    "seen": [],
+    "status": "waiting",
+    "tokens": {
+      "ann": 0
+    }
+  }
+}

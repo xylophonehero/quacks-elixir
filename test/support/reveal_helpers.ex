@@ -44,4 +44,34 @@ defmodule QuacksWeb.RevealHelpers do
       view
     end
   end
+
+  @doc """
+  The reveal on show, read from the page (`#reveal-state`, architecture review G8):
+  `%{index, tiles, kind, book, tick}`; nil when no reveal plays. `kind` and `book`
+  are the step on the tiles; `tick` is the Auto timer's reference, or nil.
+  """
+  def reveal_state(view) do
+    if has_element?(view, "#reveal-state") do
+      node = view |> element("#reveal-state") |> render() |> LazyHTML.from_fragment()
+      attr = fn name -> node |> LazyHTML.attribute(name) |> List.first() end
+
+      %{
+        index: String.to_integer(attr.("data-index")),
+        tiles: attr.("data-tiles") == "true",
+        kind: atom(attr.("data-kind")),
+        book: atom(attr.("data-book")),
+        tick: attr.("data-tick") && :erlang.list_to_ref(String.to_charlist(attr.("data-tick")))
+      }
+    end
+  end
+
+  defp atom(nil), do: nil
+  defp atom(name), do: String.to_existing_atom(name)
+
+  @doc "Fire the reveal's Auto timer now, as its own timer would (`tick`: the step's)."
+  def tick_reveal(view, tick \\ nil) do
+    state = reveal_state(view)
+    send(view.pid, {:reveal_tick, tick || (state && state.tick)})
+    view
+  end
 end

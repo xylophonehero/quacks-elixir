@@ -1,0 +1,158 @@
+{
+  "bots": [
+    1,
+    2
+  ],
+  "log": [
+    [
+      0,
+      "draw"
+    ],
+    [
+      1,
+      "draw"
+    ],
+    [
+      2,
+      "draw"
+    ],
+    [
+      0,
+      "draw"
+    ],
+    [
+      1,
+      "draw"
+    ],
+    [
+      2,
+      "draw"
+    ]
+  ],
+  "names": [
+    "Player 1",
+    "Ulric",
+    "Balthazar"
+  ],
+  "opts": {
+    "expansions": [
+      "herb_witches"
+    ],
+    "patients": {
+      "m": []
+    },
+    "rules": {
+      "alch_cards": true,
+      "black_rule": "neighbours",
+      "black_solo": "droplet",
+      "die": "standard",
+      "explode_above": 7,
+      "fortune": false,
+      "overflow": true,
+      "pot_side": "front",
+      "rats": true,
+      "round6_white": true,
+      "starting_rubies": 1,
+      "supply": "infinite"
+    },
+    "sets": {
+      "black": 1,
+      "blue": 1,
+      "green": 1,
+      "purple": 1,
+      "red": 1,
+      "yellow": 1
+    },
+    "witches": {}
+  },
+  "players": 3,
+  "seed": [
+    61,
+    62,
+    63
+  ],
+  "table": {
+    "bot_rngs": [
+      [
+        1,
+        [
+          217622934958843397,
+          25126971481004116
+        ]
+      ],
+      [
+        2,
+        [
+          217622934958843397,
+          77478844618168101
+        ]
+      ]
+    ],
+    "bots": [
+      [
+        1,
+        "expert"
+      ],
+      [
+        2,
+        "expert"
+      ]
+    ],
+    "colours": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        2,
+        2
+      ]
+    ],
+    "creator": "ann",
+    "id": "acbzpv",
+    "max_players": 3,
+    "names": [
+      [
+        0,
+        "Player 1"
+      ],
+      [
+        1,
+        "Ulric"
+      ],
+      [
+        2,
+        "Balthazar"
+      ]
+    ],
+    "next_id": null,
+    "opts": {
+      "expansion": "herb_witches",
+      "expansions": [],
+      "patients": {
+        "m": []
+      },
+      "rules": {
+        "fortune": false
+      },
+      "sets": {},
+      "witches": {}
+    },
+    "public": true,
+    "seed": [
+      61,
+      62,
+      63
+    ],
+    "seen": [],
+    "status": "playing",
+    "tokens": {
+      "ann": 0
+    }
+  },
+  "version": 1
+}

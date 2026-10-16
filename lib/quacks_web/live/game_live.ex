@@ -2119,6 +2119,10 @@ defmodule QuacksWeb.GameLive do
         }
         close_label={close_label(@reveal, @decision, @skip_rubies)}
       />
+      <%!-- A test seam (architecture review G8): the reveal's step, its book and its
+           Auto timer, so tests read the page, not the socket. Not in the gallery's
+           frames (their snapshots stay the same). --%>
+      <span :if={@reveal && @id != "gallery"} id="reveal-state" hidden {reveal_state(@reveal)}></span>
     </Layouts.app>
     """
   end
@@ -2222,7 +2226,38 @@ defmodule QuacksWeb.GameLive do
   book colour). A waiting decision opens (`quacks:open`) when no reveal plays.
   """
   @spec preview(Phoenix.LiveView.Socket.t(), Game.t(), keyword) :: Phoenix.LiveView.Socket.t()
-  def preview(socket, %Game{} = game, opts \\ []) do
+  def preview(socket, game, opts \\ [])
+
+  # The waiting panel (no game yet): `players:` seats, the first `seated:` taken
+  # (seat 0 is this browser; the last taken one a bot when `bot:`), `host:` whether
+  # this browser is the host.
+  def preview(socket, nil, opts) do
+    players = Keyword.get(opts, :players, 4)
+    seated = opts |> Keyword.get(:seated, 2) |> min(players)
+    given = Keyword.get(opts, :names, %{})
+    names = Map.new(0..(seated - 1), &{&1, given[&1] || GameServer.default_name(&1)})
+    bots = if opts[:bot] and seated > 1, do: %{(seated - 1) => :expert}, else: %{}
+
+    table = %{
+      players: players,
+      names: names,
+      colours: Map.new(Map.keys(names), &{&1, &1}),
+      bots: bots,
+      creator: if(Keyword.get(opts, :host, true), do: 0, else: 1),
+      rejoinable: [],
+      debug: nil,
+      sets: %{},
+      patients: nil,
+      patient_picks: %{}
+    }
+
+    socket
+    |> assign(id: "quacks", token: nil, seat: 0, seed: {0, 0, 0}, copied: false, game: nil)
+    |> new_report()
+    |> assign_table(table)
+  end
+
+  def preview(socket, %Game{} = game, opts) do
     seats = game.seats
 
     names =
@@ -3129,6 +3164,19 @@ defmodule QuacksWeb.GameLive do
 
   # Round 31: the step Next scored last (nil before the first), and whether the
   # bonus die strip plays (while the die step is the last scored).
+  # The `data-` attributes of `#reveal-state` (see `render/1`).
+  defp reveal_state(reveal) do
+    slide = if reveal[:tiles], do: tile_slide(reveal)
+
+    [
+      "data-index": reveal.index,
+      "data-tiles": reveal[:tiles] == true && "true",
+      "data-kind": slide && slide.kind,
+      "data-book": slide && slide[:book],
+      "data-tick": reveal.tick && List.to_string(:erlang.ref_to_list(reveal.tick))
+    ]
+  end
+
   defp tile_slide(%{index: 0}), do: nil
   defp tile_slide(%{slides: slides, index: index}), do: Enum.at(slides, index - 1)
 
