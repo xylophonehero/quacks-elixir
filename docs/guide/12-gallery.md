@@ -89,6 +89,7 @@ An old variant URL that a story with args took over (for example
 | | Hearts · the 52 cards, Hearts · hand | `theme`, `four_colour`; hand: `cards 1..13`, `mode play\|pass\|view` |
 | | Hearts · the game page (`HeartsWeb.Board`, a real game from a seed) | `state pass\|waiting\|play\|collect\|scores\|over`, `players 3..5` |
 | Generic table | Generic table · Crazy Eights (`TableWeb.GenericBoard`, a real game from a seed) | `state start\|play\|suit\|waiting\|spectator\|over`, `players 2..5` |
+| Codenames Duet | Codenames Duet · the game page (`CodenamesDuetWeb.Board`, a real game from a seed) | `state clue\|clue-error\|guessing\|bystander\|sudden-death\|won\|lost\|waiting\|watching`, `words list\|longest` (the 25 longest words of the list), `hide_key`, `theme` |
 | Scenarios | every item | `step 1..n`, `players 2..5` |
 
 The setup story at `/dev/gallery/setup/presets` renders the lobby's Ingredient
@@ -163,21 +164,31 @@ What it does:
 
 1. The frame list is `QuacksWeb.Gallery.Stories.frames/0`, the same list as the
    HTML snapshots: each story with its default args and each preset, and each
-   scenario step (about 460 frames). Each frame gets a shot at 360, 392 and 1280
-   px (`--widths`). The list comes from your checkout. A frame that the other ref
-   does not have shows as a changed shot.
-2. For each ref, the task makes a worktree in `tmp/visual/` (the deps are a link,
-   `_build` is a copy of yours, so the build is short), builds the assets and
-   starts a server in the test env on ports 4105 and 4106 (`--ports`). The test
+   scenario step (about 500 frames). Each frame gets a shot at 360, 392 and 1280
+   px (`--widths`). Each ref gives its own list. A frame that only head has is
+   **new**: the report shows only its head shot. A frame that only base has is
+   **removed**: the report shows only its base shot. A ref older than
+   `Stories.frames/0` has no list: the task then uses the frames of your
+   checkout that its server gives (status 200).
+2. For each ref, the task makes a worktree in `tmp/visual/<role>-<port>/` (the
+   deps are a link, `_build` is a copy of yours, so the build is short), builds
+   the assets and starts a server in the test env on ports 4105 and 4106
+   (`--ports`). When a build fails, the task copies its log to
+   `build-<role>.log` in the report folder, shows its last 30 lines and stops. The test
    env is what the HTML snapshots render: no code reload, no live reload, and no
    server timers that move the page on (`show_move_ms: 0`, `upgrade_ms: 0` in
    `config/test.exs`).
-3. It uses the Chrome on `CDP_PORT` (default 9223). If no Chrome is there, it
+3. It uses the Chrome on `--cdp-port` (else `CDP_PORT`, else 9223). If no Chrome is there, it
    starts a headless Chrome and stops it at the end. `node docs/assets/visual.mjs`
    takes the shots and compares the pixels in a canvas of that Chrome (no
    npm packages). `--jobs` (default 4) sets the number of tabs.
-4. At the end, also after an error, it stops the servers and its Chrome and
-   removes `tmp/visual/` (`--keep` keeps the worktrees).
+4. At the end, also after an error, it stops the servers and its Chrome, and
+   removes its worktrees (also from `git worktree list`) and its Chrome profile.
+   `--keep` keeps the worktrees: remove them with `git worktree remove --force DIR`.
+
+Two runs at once: give each run its own ports and its own Chrome, for example
+`--ports 4113,4114 --cdp-port 9230`. Do not let two runs use one headless Chrome:
+the run that started it stops it at its end.
 
 How a shot stays the same from run to run:
 
@@ -212,7 +223,9 @@ ignores `docs/assets/visual/`). `summary.json` has the same data.
 - The top line gives the two refs with their commits, the number of changed
   shots and the run time.
 - The list has only the changed shots, with the largest change first. The number
-  is the percentage of the pixels that changed.
+  is the percentage of the pixels that changed. Then come the lists of the new
+  and the removed frames, each with its one shot. `summary.json` has them in
+  `new` and `removed`.
 - Each entry shows **base | head | diff**. In the diff, the base is faint grey and
   each pixel that changed is red. A small change (some tens of pixels) can
   be hard to see: look for the red dots. "size A → B" tells you that the page height

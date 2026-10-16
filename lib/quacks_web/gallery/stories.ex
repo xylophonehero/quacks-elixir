@@ -571,6 +571,38 @@ defmodule QuacksWeb.Gallery.Stories do
     ]
   end
 
+  defp arg_stories("codenames") do
+    [
+      arg_story(
+        "board",
+        "Codenames Duet · the game page",
+        [
+          enum("state", CodenamesDuetWeb.Gallery.states(), "clue"),
+          enum("words", ~w(list longest), "list"),
+          bool("hide_key"),
+          enum("theme", Theme.ids(), Theme.default())
+        ],
+        &CodenamesDuetWeb.Gallery.board_story/1,
+        %{
+          height: :screen,
+          presets: [
+            {"clue-error", "Clue entry: the engine's error", %{"state" => "clue-error"}},
+            {"guessing", "Guessing: a card picked", %{"state" => "guessing"}},
+            {"bystander", "After a bystander", %{"state" => "bystander"}},
+            {"sudden-death", "Sudden death", %{"state" => "sudden-death"}},
+            {"won", "Won: the key and the score", %{"state" => "won"}},
+            {"lost", "Lost: an assassin", %{"state" => "lost"}},
+            {"waiting", "Waiting for the partner (invite)", %{"state" => "waiting"}},
+            {"watching", "A spectator", %{"state" => "watching"}},
+            {"longest", "The 25 longest words", %{"words" => "longest", "state" => "bystander"}},
+            {"hidden", "Hide my key", %{"hide_key" => true, "state" => "bystander"}},
+            {"dark", "Dracula (dark), guessing", %{"theme" => "dracula", "state" => "guessing"}}
+          ]
+        }
+      )
+    ]
+  end
+
   defp arg_stories(_component), do: []
 
   # Purple needs seat 1's brew (it explodes with 2 players): no 2-player preset.
@@ -666,6 +698,13 @@ defmodule QuacksWeb.Gallery.Stories do
           {"5p", "5 players: the smallest pot", %{"players" => 5}}
         ]
       ),
+      screen(
+        "patient",
+        "Choose your patient (Alchemists)",
+        [int("players", 2, 4, 2)],
+        &patient_screen/1,
+        presets: [{"4p", "4 players: the tallest players row", %{"players" => 4}}]
+      ),
       screen("shop", "Shop", [int("players", 1, 8, 4), names], &Fixtures.shop_screen/1),
       screen(
         "visit",
@@ -721,6 +760,13 @@ defmodule QuacksWeb.Gallery.Stories do
 
   defp card_screen(%{"card" => id, "players" => players}) do
     entry = Enum.find(Scenarios.all(), &(&1.kind == "card" and &1.id == id))
+    scenario_screen(entry, %{"step" => 1, "players" => players})
+  end
+
+  # The patient choice of round 1: step 1 of a patient's scenario. On a portrait
+  # phone the sheet goes down to the screen's foot (app.css `.sheet-tall`).
+  defp patient_screen(%{"players" => players}) do
+    entry = Enum.find(Scenarios.all(), &(&1.kind == "patient" and &1.id == "witch_hump"))
     scenario_screen(entry, %{"step" => 1, "players" => players})
   end
 

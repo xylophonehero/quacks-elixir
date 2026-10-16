@@ -73,8 +73,15 @@ defmodule TableWeb.TableLive do
 
     case Server.act(key, code, token, action) do
       {:ok, env} -> {:noreply, put_env(socket, env)}
-      {:error, reason} -> {:noreply, put_flash(socket, :error, "Not now (#{inspect(reason)}).")}
+      {:error, reason} -> {:noreply, act_error(socket, reason, action)}
     end
+  end
+
+  # The board shows the error itself when it can (`TableWeb.Board.act_error/3`).
+  defp act_error(%{assigns: %{board: board}} = socket, reason, action) do
+    if function_exported?(board, :act_error, 3),
+      do: board.act_error(reason, action, socket),
+      else: put_flash(socket, :error, "Not now (#{inspect(reason)}).")
   end
 
   defp ready(socket) do

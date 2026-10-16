@@ -12,7 +12,8 @@ config :quacks,
 
 # The table games other than Quacks (`Table.games/0`, RFC `docs/design/table-game.md`):
 # the key is the URL part, `/games/<key>/<code>`. `game` is the `Table.Server`
-# adapter, `board` the `TableWeb.Board` that draws it, `setup` its set-up page.
+# adapter, `board` the `TableWeb.Board` that draws it, `setup` its set-up page,
+# `icon` the mark on the `/games` list.
 config :quacks, Table,
   games: %{
     "hearts" => %{
@@ -20,7 +21,16 @@ config :quacks, Table,
       blurb: "Trick-taking for 3 to 5. Avoid the hearts and the queen of spades.",
       game: Hearts.Table,
       board: HeartsWeb.Board,
-      setup: "/games/hearts/new"
+      setup: "/games/hearts/new",
+      icon: "♥"
+    },
+    "codenames_duet" => %{
+      name: "Codenames Duet",
+      blurb: "Word clues for 2, side by side. Find all 15 agents before the time runs out.",
+      game: CodenamesDuet.Table,
+      board: CodenamesDuetWeb.Board,
+      setup: "/games/codenames_duet/new",
+      icon: "🕵️"
     },
     "generic" => %{
       name: "Crazy Eights",

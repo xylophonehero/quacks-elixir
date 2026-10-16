@@ -23,6 +23,13 @@ defmodule TableWeb.Board do
   @callback handle_event(String.t(), map, Socket.t()) ::
               {:noreply, Socket.t()} | {:act, term, Socket.t()} | {:ready, Socket.t()}
 
+  @doc """
+  Optional. The room refused `action` with `reason`: the board shows it (for
+  example under a form field). Without it the page shows a flash.
+  """
+  @callback act_error(reason :: term, action :: term, Socket.t()) :: Socket.t()
+  @optional_callbacks act_error: 3
+
   @doc "A message for the board (its own timers)."
   @callback handle_info(term, Socket.t()) :: {:noreply, Socket.t()}
 
