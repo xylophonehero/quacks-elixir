@@ -83,33 +83,38 @@ defmodule Mix.Tasks.Quacks.Visual do
       [base_frames, head_frames] = Enum.map(sides, &served_frames/1)
       frames = frames(base_frames, head_frames, only)
       info(frames_line(frames))
-      chrome = chrome(root, cdp)
-
-      try do
-        job = %{
-          frames: frames,
-          widths: widths(opts[:widths]),
-          base: url(hd(sides)),
-          head: url(List.last(sides)),
-          out: out,
-          cdp: cdp,
-          jobs: opts[:jobs] || 4,
-          tolerance: opts[:tolerance] || 4
-        }
-
-        path = Path.join(out, "job.json")
-        File.write!(path, Jason.encode!(job))
-        {_, status} = System.cmd("node", [Path.join(root, @script), path], into: IO.stream())
-        if status != 0, do: Mix.raise("#{@script} failed (#{status})")
-      after
-        stop_chrome(chrome, cdp)
-      end
+      shoot(sides, frames, opts, %{out: out, cdp: cdp, root: root})
     after
       Enum.each(sides, &stop_server/1)
       if opts[:keep], do: kept(sides, root, cdp), else: clean(sides, root, cdp)
     end
 
     info("Done in #{div(System.monotonic_time(:millisecond) - started, 1000)} s")
+  end
+
+  # The shots and the report (visual.mjs), in the Chrome on the CDP port.
+  defp shoot(sides, frames, opts, %{out: out, cdp: cdp, root: root}) do
+    chrome = chrome(root, cdp)
+
+    try do
+      job = %{
+        frames: frames,
+        widths: widths(opts[:widths]),
+        base: url(hd(sides)),
+        head: url(List.last(sides)),
+        out: out,
+        cdp: cdp,
+        jobs: opts[:jobs] || 4,
+        tolerance: opts[:tolerance] || 4
+      }
+
+      path = Path.join(out, "job.json")
+      File.write!(path, Jason.encode!(job))
+      {_, status} = System.cmd("node", [Path.join(root, @script), path], into: IO.stream())
+      if status != 0, do: Mix.raise("#{@script} failed (#{status})")
+    after
+      stop_chrome(chrome, cdp)
+    end
   end
 
   defp refs!([base]), do: {base, "HEAD"}
