@@ -597,6 +597,18 @@ defmodule QuacksWeb.Gallery.Stories do
            %{"players" => 8, "long_names" => true, "vp_digits" => 3}}
         ]
       ),
+      screen(
+        "card",
+        "New fortune card",
+        [enum("card", card_ids(), "ab1"), int("players", 2, 5, 4)],
+        &card_screen/1,
+        presets: [
+          {"flea-market", "Flea Market: a choice, the rows over the bar", %{"card" => "p13"}},
+          {"visit", "Visit from a witch: the witch strip", %{"card" => "ab8"}},
+          {"useful-rodent", "Useful rodent (Nick's phone)", %{"card" => "ap9"}},
+          {"5p", "5 players: the smallest pot", %{"players" => 5}}
+        ]
+      ),
       screen("shop", "Shop", [int("players", 1, 8, 4), names], &Fixtures.shop_screen/1),
       screen(
         "visit",
@@ -644,6 +656,15 @@ defmodule QuacksWeb.Gallery.Stories do
         ]
       )
     ]
+  end
+
+  # The new card of the round over the pot: step 1 of the card's scenario. The
+  # default (AB1) has the longest text.
+  defp card_ids, do: for(%{kind: "card", id: id} <- Scenarios.all(), do: id)
+
+  defp card_screen(%{"card" => id, "players" => players}) do
+    entry = Enum.find(Scenarios.all(), &(&1.kind == "card" and &1.id == id))
+    scenario_screen(entry, %{"step" => 1, "players" => players})
   end
 
   defp screen(id, title, args, build, extra \\ []),

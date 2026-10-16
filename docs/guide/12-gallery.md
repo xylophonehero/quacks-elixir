@@ -80,6 +80,7 @@ An old variant URL that a story with args took over (for example
 | | A choice | `players 1..8`, `choice crow\|mandrake\|chip_choice\|explosion\|toadstool` (`toadstool`: red Set 6 chips set aside, tap to place), `long_names` |
 | | Evaluation step | `players 2..8`, `step die\|black\|green\|purple\|space\|rubies`, `long_names`, `exploded 0..7` (`rubies`: the "Spend rubies" step after a card gave 2 rubies) |
 | | Round scored | `players 2..8`, `step standings\|shop`, `long_names`, `vp_digits 1..3` |
+| | New fortune card (the card over the pot, step 1 of the card's scenario) | `card` (any card id; default `ab1`, the longest text), `players 2..5`; presets: Flea Market (a choice, the rows over the bar), Visit from a witch (the witch strip), Useful rodent, 5 players |
 | | Shop, Game over | `players 1..8`, `long_names` |
 | | Copper witch: Upgrade (C1) | `players 1..8`, `state one\|last_two\|picked\|upgraded\|visit`, `long_names` |
 | Hearts | Hearts · themes (every theme side by side) | `state play\|pass\|collect\|deal`, `four_colour`, `long_names` |

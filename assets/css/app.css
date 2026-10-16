@@ -2891,6 +2891,75 @@ html:not([data-fullscreen]) .fullscreen-toggle,
   filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.45));
 }
 
+/* Fortune card space: on a phone the pot square is small (about 200 px with 4
+   players at 360 px), and a 5:7 card in it cut the text. The card takes the
+   width of the pot's box (`.pot-box`, the column less its 1rem gutters), its
+   height follows the text, and the motif is smaller. Its centre is a little above the pot's centre: the space
+   over the pot (the track) is free, the bar under it is not. */
+@media (width < 64rem) {
+  .pot-card {
+    top: 42%;
+    width: min(100cqw, 22rem);
+    max-width: none;
+  }
+
+  .pot-card .fortune-face {
+    aspect-ratio: auto;
+    font-size: 0.9375rem;
+  }
+
+  .pot-card [data-role="card-body"] {
+    gap: 0.375rem;
+    padding: 0.625rem 0.875rem 0.875rem;
+  }
+
+  .pot-card [data-role="card-motif"] {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .pot-card [data-role="card-motif"] > * {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  /* The card's rows (`card_stage/1`) sit over the bar and take the lower part of
+     the pot. The card then starts at the pot's top, and the motif goes next to the
+     name, so the text stays above the rows. */
+  #game:has(.game-bar .results-stage) .pot-card {
+    top: 0;
+    translate: -50% 0;
+  }
+
+  #game:has(.game-bar .results-stage) .pot-card .fortune-face {
+    font-size: 0.875rem;
+  }
+
+  #game:has(.game-bar .results-stage) .pot-card [data-role="card-body"] {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 0.625rem;
+    row-gap: 0.25rem;
+    padding: 0.5rem 0.75rem 0.625rem;
+    text-align: left;
+  }
+
+  #game:has(.game-bar .results-stage) .pot-card [data-role="card-motif"] {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  #game:has(.game-bar .results-stage) .pot-card [data-role="card-motif"] > * {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  #game:has(.game-bar .results-stage) .pot-card [data-role="card-text"] {
+    grid-column: 1 / -1;
+  }
+}
+
 /* Large screens: a bigger card, a little above the centre, clear of the sheet. */
 @media (width >= 64rem) {
   .pot-card {
