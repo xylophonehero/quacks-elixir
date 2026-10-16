@@ -54,7 +54,7 @@ defmodule Table.Server do
   @callback apply(state :: term, seat, action :: term) :: {:ok, term} | {:error, term}
   @callback status(state :: term) :: {:playing, [seat]} | {:over, map}
   @callback view(state :: term, seat | :spectator) :: term
-  @doc "The bot levels; the first is the default."
+  @doc "The bot levels; the first is the default. `[]`: a game for people only (0 bots)."
   @callback bot_levels() :: [atom]
   @callback bot_new(level :: atom, seed :: {integer, integer, integer}) :: term
   @callback bot_choose(level :: atom, view :: term, bot :: term) :: {term, term}
@@ -100,13 +100,13 @@ defmodule Table.Server do
   defp seats(adapter, game, config, token) do
     all = adapter.seats(game)
     bots = Map.get(config, :bots, 0)
-    level = Map.get(config, :level) || hd(adapter.bot_levels())
+    level = Map.get(config, :level) || List.first(adapter.bot_levels())
 
     cond do
       bots not in 0..(length(all) - 1)//1 ->
         {:error, :invalid_bots}
 
-      level not in adapter.bot_levels() ->
+      bots > 0 and level not in adapter.bot_levels() ->
         {:error, :invalid_level}
 
       true ->
