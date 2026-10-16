@@ -721,7 +721,7 @@ defmodule QuacksWeb.Gallery.Fixtures do
   @spec brewing_screen(map) :: map
   def brewing_screen(%{"players" => n} = a), do: screen(brewing(n), a)
 
-  @doc "A choice for you (seat 0) while the others brew: `crow`, `mandrake`, `explosion`, `chip_choice`."
+  @doc "A choice for you (seat 0) while the others brew: `crow`, `mandrake`, `explosion`, `chip_choice`, `toadstool`."
   @spec choice_screen(map) :: map
   def choice_screen(%{"players" => n, "choice" => choice} = a),
     do: screen(choice_game(n, choice), a)
@@ -732,6 +732,16 @@ defmodule QuacksWeb.Gallery.Fixtures do
     do: n |> others_brew() |> draws(0, [{:orange, 1}, {:white, 2}, {:yellow, 1}])
 
   defp choice_game(n, "explosion"), do: n |> others_brew() |> draws(0, boom())
+
+  # Bug #74: red Set 6. You drew two red chips, so two chips wait beside the pot
+  # to be placed while you brew (the "Toadstool" row and the tappable pill).
+  defp choice_game(n, "toadstool") do
+    g = new(n, sets: %{red: 6})
+
+    (g.seats -- [0])
+    |> Enum.reduce(g, fn s, g -> draws(g, s, Enum.take(mid_brew(), 2 + rem(s, 3))) end)
+    |> draws(0, [{:orange, 1}, {:red, 1}, {:green, 1}, {:red, 1}])
+  end
 
   defp choice_game(n, "chip_choice") do
     g = new(n, sets: %{green: 2})
