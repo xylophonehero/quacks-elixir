@@ -51,3 +51,23 @@ License, Copyright (c) 2020 Pouya Saadeghi. Only the values are copied, into
 
 The card faces, the suit shapes and the card back are our own drawings
 (`TableWeb.Components.Cards`).
+
+## Codenames Duet word list
+
+`priv/games/codenames_duet/words.txt` (599 words) is the noun part of
+C. K. Ogden's **Basic English** word list: the 400 "general" words and the 200
+"picturable" words, less the word "sex" and one heading line. Ogden published the
+list in *Basic English: A General Introduction with Rules and Grammar* (1930).
+The book is in the public domain in the United States (published 1930, so its
+95-year term ended on 1 January 2026), and a plain list of common English words
+has little or no copyright of its own.
+
+We took the words from the transcription on Wiktionary,
+[Appendix:Basic English word list](https://en.wiktionary.org/wiki/Appendix:Basic_English_word_list)
+(read 2026-10-16; Wiktionary text is CC BY-SA 4.0, credited here). We copied only
+the words, in lower case, one per line, in alphabetical order.
+
+This list is not the Codenames word list. Codenames and Codenames: Duet are games
+by Vlaada Chvátil and Scot Eaton, © Czech Games Edition; we do not copy their
+words, rules text or art. The rules in `docs/games/codenames_duet/rulebook.md` are
+in our own words.
