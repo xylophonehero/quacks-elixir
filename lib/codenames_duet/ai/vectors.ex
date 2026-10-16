@@ -53,7 +53,7 @@ defmodule CodenamesDuet.AI.Vectors do
   # A word that is an assassin on the guesser's own side.
   @own_assassin_penalty 0.12
   # The cost of a rare clue word (the data lists the clue words by frequency).
-  @rare_cost 0.15
+  @rare_cost 0.4
   # The candidates that get an exact score (the nearest by the neighbour lists).
   @shortlist 150
 
