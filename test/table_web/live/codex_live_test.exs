@@ -408,12 +408,29 @@ defmodule TableWeb.CodexLiveTest do
       view |> element("#cx-rule-attack") |> render_click()
       assert has_element?(view, "#cx-root[data-targeting=true]")
       assert has_element?(view, "#cx-pick.cx-a-status")
-      refute has_element?(view, "#cx-status")
+      # A phone: the banner takes the place of the status bar.
+      assert has_element?(view, "#cx-status.max-lg\\:hidden")
       assert has_element?(view, "#cx-aside.max-lg\\:hidden")
       view |> element("#cx-base-1") |> render_click()
 
       assert game(code).sides[1].base_hp == 19
       assert has_element?(view, "#cx-root[data-targeting=false]")
+    end
+
+    test "attack on a desktop: nothing pushes the board; the banner and the base tile float" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      game = ok!(game, {:play, a, []})
+      %{view: view} = room_with(game)
+
+      view |> element("#cx-card-#{a}") |> render_click()
+      view |> element("#cx-rule-attack") |> render_click()
+      # The status bar stays in its row (hidden on a phone only); the banner floats over it.
+      assert has_element?(view, "#cx-status")
+      refute has_element?(view, "#cx-status.lg\\:hidden")
+      assert has_element?(view, "#cx-pick.cx-float-lg")
+      # The base tile is a phone row only: on a desktop the base itself is the target.
+      assert has_element?(view, "#cx-base-1.lg\\:hidden")
+      assert has_element?(view, "#cx-hp-1-target")
     end
 
     test "Cancel ends a pick" do
@@ -456,6 +473,8 @@ defmodule TableWeb.CodexLiveTest do
       assert has_element?(view, "#cx-pov-0[aria-pressed=true]")
       # What the bot did, until OK.
       assert has_element?(view, "#cx-summary #cx-summary-0")
+      # A desktop: a toast over the board, not a row that pushes it down.
+      assert has_element?(view, "#cx-summary.cx-toast-lg")
       view |> element("#cx-summary-ok") |> render_click()
       refute has_element?(view, "#cx-summary")
     end

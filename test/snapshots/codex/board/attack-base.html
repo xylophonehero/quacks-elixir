@@ -231,7 +231,7 @@ P2
 </button>
 </div>
 </div>
-<button class="cx-base-tile cx-targetable-pill" id="cx-base-1" phx-click="pick_building" phx-value-name="base" phx-value-seat="1" type="button">
+<button class="cx-base-tile cx-targetable-pill lg:hidden" id="cx-base-1" phx-click="pick_building" phx-value-name="base" phx-value-seat="1" type="button">
 <span class="hero-home-solid size-5">
 </span>
 <span class="font-bold">Attack the base of P2</span>
@@ -395,7 +395,34 @@ P2
 </div>
 </div>
 </section>
-<div class="cx-a-status cx-banner" id="cx-pick" role="status">
+<div class="cx-a-status cx-status max-lg:hidden" id="cx-status">
+<div class="cx-st-pill flex min-w-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white shadow-sm sm:text-sm bg-rose-700" id="cx-active">
+<span class="size-1.5 shrink-0 animate-pulse rounded-full bg-white">
+</span>
+<span class="truncate sm:hidden">
+P1 · T2 · Main
+</span>
+<span class="hidden truncate sm:inline">
+P1 · turn 2 · main phase
+</span>
+</div>
+<div class="cx-st-line h-px bg-gradient-to-r from-white/5 via-white/20 to-white/5">
+</div>
+<button aria-label="Undo" class="cx-st-undo cx-icon-btn sm:w-auto sm:gap-1 sm:px-3" id="cx-undo" phx-click="undo" title="Undo the last action" type="button">
+<span class="hero-arrow-uturn-left-mini size-4">
+</span>
+<span class="hidden text-xs font-semibold sm:inline">Undo</span>
+</button>
+<button class="cx-st-end min-h-11 shrink-0 rounded-full bg-amber-300 px-4 text-sm font-bold whitespace-nowrap text-stone-900 shadow-md ring-1 ring-amber-100 transition hover:bg-amber-200 active:scale-95" id="cx-end-turn" phx-click="end_turn" type="button">
+End turn
+</button>
+<div class="cx-st-hint flex min-w-0 items-center gap-2 px-1">
+<p class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-2" id="cx-hint">
+You can hire a worker, level up, play a card, set patrollers, attack, build. Tap a card to see its actions.
+</p>
+</div>
+</div>
+<div class="cx-a-status cx-banner cx-float-lg" id="cx-pick" role="status">
 <div class="flex items-center gap-2">
 <span class="grid size-9 shrink-0 place-items-center rounded-full bg-amber-300 text-stone-900">
 <span class="hero-bolt-solid size-5">
@@ -405,7 +432,7 @@ P2
 <span class="block truncate font-bold text-amber-100">Granfalloon Flagbearer</span>
 <span class="block truncate text-xs text-white/80">Attacks: tap a glowing target.</span>
 </p>
-<button class="cx-act" id="cx-pick-cancel" phx-click="cancel_target" type="button">
+<button class="cx-act cx-pick-ctl" id="cx-pick-cancel" phx-click="cancel_target" title="Cancel (Esc)" type="button">
 Cancel
 </button>
 </div>

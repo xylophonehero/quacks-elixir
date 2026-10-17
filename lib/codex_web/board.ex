@@ -614,11 +614,7 @@ defmodule CodexWeb.Board do
           class="cx-backdrop lg:hidden"
           aria-label={"Close the side of P#{@opp + 1}"}
         ></button>
-        <.center
-          :if={!@targeting}
-          view={@view}
-          actions={@actions}
-        />
+        <.center view={@view} actions={@actions} targeting={@targeting != nil} />
         <.pick_banner :if={@targeting} targeting={@targeting} pick={@pick} view={@view} />
         <.turn_summary_card :if={@summary} summary={@summary} />
         <.side {assigns} seat={@pov} far={false} />
@@ -930,7 +926,7 @@ defmodule CodexWeb.Board do
     assigns = assign(assigns, lines: lines, more: length(more))
 
     ~H"""
-    <div id="cx-summary" class="cx-a-note cx-summary" role="status">
+    <div id="cx-summary" class="cx-a-note cx-summary cx-toast-lg" role="status">
       <div class="flex items-center gap-2">
         <span class={[
           "rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white",
@@ -1063,7 +1059,10 @@ defmodule CodexWeb.Board do
 
   attr :view, :map, required: true
   attr :actions, :list, default: []
+  attr :targeting, :boolean, default: false
 
+  # The status bar. In a target pick it stays in its row on a desktop (the
+  # banner floats over it: nothing moves); a phone shows the banner in its place.
   defp center(assigns) do
     v = assigns.view
 
@@ -1071,7 +1070,7 @@ defmodule CodexWeb.Board do
       assign(assigns, hint: hint(v, assigns.actions), can_end?: :end_turn in assigns.actions)
 
     ~H"""
-    <div id="cx-status" class="cx-a-status cx-status">
+    <div id="cx-status" class={["cx-a-status cx-status", @targeting && "max-lg:hidden"]}>
       <div
         id="cx-active"
         class={[
@@ -1231,7 +1230,7 @@ defmodule CodexWeb.Board do
         phx-click="pick_building"
         phx-value-seat={@seat}
         phx-value-name="base"
-        class="cx-base-tile cx-targetable-pill"
+        class="cx-base-tile cx-targetable-pill lg:hidden"
       >
         <.icon name="hero-home-solid" class="size-5" />
         <span class="font-bold">Attack the base of P{@seat + 1}</span>
@@ -2282,8 +2281,9 @@ defmodule CodexWeb.Board do
   defp value_label(_v, atom) when is_atom(atom),
     do: atom |> to_string() |> String.replace("_", " ")
 
-  # A target pick in progress: a banner in place of the status bar. The legal
-  # targets glow, the rest of the table dims; each target also has a button here.
+  # A target pick in progress: a banner in place of the status bar (a desktop: a
+  # pill that floats over it). The legal targets glow, the rest of the table dims;
+  # each target also has a button here.
   attr :targeting, :map, required: true
   attr :pick, :map, required: true
   attr :view, :map, required: true
@@ -2298,7 +2298,7 @@ defmodule CodexWeb.Board do
       )
 
     ~H"""
-    <div id="cx-pick" class="cx-a-status cx-banner" role="status">
+    <div id="cx-pick" class="cx-a-status cx-banner cx-float-lg" role="status">
       <div class="flex items-center gap-2">
         <span class="grid size-9 shrink-0 place-items-center rounded-full bg-amber-300 text-stone-900">
           <.icon
@@ -2319,7 +2319,7 @@ defmodule CodexWeb.Board do
           id="cx-pick-skip"
           type="button"
           phx-click="skip_target"
-          class="cx-act"
+          class="cx-act cx-pick-ctl"
         >
           Skip
         </button>
@@ -2328,11 +2328,17 @@ defmodule CodexWeb.Board do
           id="cx-pick-done"
           type="button"
           phx-click="pick_done"
-          class="cx-act cx-act-rule"
+          class="cx-act cx-act-rule cx-pick-ctl"
         >
           Done
         </button>
-        <button id="cx-pick-cancel" type="button" phx-click="cancel_target" class="cx-act">
+        <button
+          id="cx-pick-cancel"
+          type="button"
+          phx-click="cancel_target"
+          class="cx-act cx-pick-ctl"
+          title="Cancel (Esc)"
+        >
           Cancel
         </button>
       </div>
