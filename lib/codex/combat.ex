@@ -80,48 +80,105 @@ defmodule Codex.Combat do
 
     blockers = for {slot, d} <- attackable, not ignores?(game, a, d, stealth?), do: {slot, d}
 
-    cond do
-      Enum.any?(blockers, &(elem(&1, 0) == :squad_leader)) ->
-        [patrollers |> List.keyfind(:squad_leader, 0) |> elem(1)]
+    forced =
+      cond do
+        Enum.any?(blockers, &(elem(&1, 0) == :squad_leader)) ->
+          [patrollers |> List.keyfind(:squad_leader, 0) |> elem(1)]
 
-      blockers != [] ->
-        Enum.map(attackable, &elem(&1, 1))
+        blockers != [] ->
+          Enum.map(attackable, &elem(&1, 1))
 
-      true ->
-        forces =
-          for d <- Zones.in_play(game, opp), Stats.force?(game, d), attackable?(game, a, d), do: d
+        true ->
+          nil
+      end
 
-        cards = for d <- Zones.in_play(game, opp), Stats.building_card?(game, d), do: d
-        buildings = for b <- [:base | game.sides[opp].tech_buildings], do: {:building, opp, b}
-        forces ++ cards ++ buildings
+    case forced do
+      nil -> all_targets(game, a, opp)
+      list -> Enum.uniq(list ++ bypass(game, a, opp))
     end
+  end
+
+  defp all_targets(game, a, opp) do
+    forces =
+      for d <- Zones.in_play(game, opp), Stats.force?(game, d), attackable?(game, a, d), do: d
+
+    forces ++ building_targets(game, a, opp)
+  end
+
+  defp building_targets(game, a, opp) do
+    cards = for d <- Zones.in_play(game, opp), Stats.building_card?(game, d), do: d
+
+    buildings =
+      for b <- [:base | game.sides[opp].tech_buildings],
+          base_attackable?(game, a, opp, b),
+          do: {:building, opp, b}
+
+    cards ++ buildings
+  end
+
+  # Lawbringer Gryphon: "Your base gains flying" (ground forces without anti-air can't attack it).
+  defp base_attackable?(game, a, opp, :base) do
+    not Stats.controls?(game, opp, "lawbringer-gryphon") or Stats.kw?(game, a, :flying) or
+      Stats.kw?(game, a, :anti_air)
+  end
+
+  defp base_attackable?(_game, _a, _opp, _b), do: true
+
+  # The targets that attacker `a` may attack past the patrollers: Traffic
+  # Director ("unstoppable when attacking a building"), Wight ("unstoppable
+  # when attacking heroes").
+  defp bypass(game, a, opp) do
+    buildings =
+      if Stats.kw?(game, a, :vs_building_unstoppable),
+        do: building_targets(game, a, opp),
+        else: []
+
+    heroes =
+      if Stats.kw?(game, a, :vs_hero_unstoppable),
+        do:
+          for(d <- Zones.in_play(game, opp), Stats.hero?(game, d), attackable?(game, a, d), do: d),
+        else: []
+
+    buildings ++ heroes
   end
 
   @doc "True when `a` can attack card `d` at all (flying, invisible, tech 0 vs Tiny Basilisk)."
   def attackable?(game, a, d) do
-    cond do
-      Stats.kw?(game, d, :flying) and
-          not (Stats.kw?(game, a, :flying) or Stats.kw?(game, a, :anti_air)) ->
-        false
+    not (flier_out_of_reach?(game, a, d) or
+           (Stats.kw?(game, d, :invisible) and Zones.slot_of(game, d) == nil) or
+           (Stats.kw?(game, d, :t0_proof) and Stats.tech(game, a) == 0) or
+           Stats.kw?(game, d, :unattackable))
+  end
 
-      Stats.kw?(game, d, :invisible) and Zones.slot_of(game, d) == nil ->
-        false
-
-      Stats.kw?(game, d, :t0_proof) and Stats.tech(game, a) == 0 ->
-        false
-
-      true ->
-        true
-    end
+  defp flier_out_of_reach?(game, a, d) do
+    Stats.kw?(game, d, :flying) and
+      not (Stats.kw?(game, a, :flying) or Stats.kw?(game, a, :anti_air))
   end
 
   # True when attacker `a` may ignore patroller `d`.
   defp ignores?(game, a, d, stealth?) do
-    detected? = tower_ready?(game, 1 - Stats.controller(game, a))
+    defender = 1 - Stats.controller(game, a)
+    detected? = tower_ready?(game, defender) or Stats.detector?(game, defender)
     sneaky? = stealth? or Stats.kw?(game, a, :invisible)
 
     Stats.kw?(game, a, :unstoppable) or (sneaky? and not detected?) or
-      past_tech0?(game, a, d) or flies_past?(game, a, d)
+      past_tech0?(game, a, d) or flies_past?(game, a, d) or unstoppable_by?(game, a, d)
+  end
+
+  # "Unstoppable by" some patrollers: Patriot Gryphon (units with 2 ATK or
+  # less), Shrine of Forbidden Knowledge (your Demons: by units).
+  defp unstoppable_by?(game, a, d) do
+    shrine? =
+      Stats.subtype?(game, a, "Demon") and
+        Stats.controls?(game, Stats.controller(game, a), "shrine-of-forbidden-knowledge")
+
+    (shrine? and Stats.unit?(game, d)) or
+      case game.cards[a].card do
+        "patriot-gryphon" -> Stats.unit?(game, d) and Stats.atk(game, d) <= 2
+        # Cursed Ghoul: unstoppable by units with -1/-1 runes.
+        "cursed-ghoul" -> Stats.unit?(game, d) and game.cards[d].minus > 0
+        _ -> false
+      end
   end
 
   # "Unstoppable by tech 0 units": it may ignore tech 0 patrollers.
@@ -160,6 +217,8 @@ defmodule Codex.Combat do
       end
 
     ctx = %{
+      back: 0,
+      first: :both,
       seen?: seen?,
       tower?: tower?(game, opp),
       flew_over: fly_over(game, a, target),
@@ -176,7 +235,17 @@ defmodule Codex.Combat do
       |> Rules.deaths()
 
     {game, ctx} = fight(game, a, target, ctx)
-    game |> after_combat(s, a, target, ctx) |> Rules.deaths()
+    game |> after_combat(s, a, target, ctx) |> Rules.deaths() |> clear_hits()
+  end
+
+  # The combat-damage marks end with the attack.
+  defp clear_hits(game) do
+    Enum.reduce(game.cards, game, fn {id, c}, game ->
+      if Map.has_key?(c.this_turn, :combat_hit),
+        do:
+          Zones.update_card(game, id, &%{&1 | this_turn: Map.delete(&1.this_turn, :combat_hit)}),
+        else: game
+    end)
   end
 
   defp exhaust(game, a) do
@@ -191,12 +260,23 @@ defmodule Codex.Combat do
 
     game =
       case c.card do
-        "troq-bashar" when c.level >= 5 -> Effects.deal(game, opp_base, 1)
+        "troq-bashar" when c.level >= 5 ->
+          Effects.deal(game, opp_base, 1)
+
         # REVIEW: Brick Thief's "attacks:" building is the attacked building, else the opposing base.
-        "brick-thief" -> Effects.brick(game, s, building_or_base(target, opp_base))
+        "brick-thief" ->
+          Effects.brick(game, s, building_or_base(target, opp_base))
+
         # REVIEW: Trojan Duck's "attacks:" 4 damage goes to the attacked building, else the opposing base.
-        "trojan-duck" -> Effects.deal(game, building_or_base(target, opp_base), 4)
-        _ -> Effects.Red.attacks(game, s, a, c.card) |> Effects.Green.attacks(s, a, c.card)
+        "trojan-duck" ->
+          Effects.deal(game, building_or_base(target, opp_base), 4)
+
+        _ ->
+          game
+          |> Effects.Red.attacks(s, a, c.card)
+          |> Effects.Green.attacks(s, a, c.card)
+          |> Effects.Blue.attacks(s, a, c.card, target)
+          |> Effects.Black.attacks(s, a, c.card, target)
       end
 
     game |> attached_attacks(s, a) |> obliterate(s, a)
@@ -247,9 +327,13 @@ defmodule Codex.Combat do
   # Combat damage. When the attacker or the target is gone (an "Attacks:" ability
   # killed it), there is no combat. # REVIEW: no new target is picked then.
   defp fight(game, a, target, ctx) do
-    if in_play?(game, a) and present?(game, target),
-      do: exchange(game, a, target, ctx, first(game, a, target)),
-      else: {game, ctx}
+    if in_play?(game, a) and present?(game, target) do
+      first = first(game, a, target)
+      ctx = Map.merge(ctx, %{back: back_damage(game, a, target), first: first})
+      exchange(game, a, target, ctx, first)
+    else
+      {game, ctx}
+    end
   end
 
   # Who deals combat damage first: swift strike against no swift strike.
@@ -296,13 +380,13 @@ defmodule Codex.Combat do
           do: CardRules.keyword(game.cards[a].card, :vs_buildings) || 0,
           else: 0
 
-      atk = max(Stats.atk(game, a) + bonus, 0)
+      atk = max(Stats.atk(game, a) + bonus + attack_mod(game, a, target), 0)
       piercing = Stats.kw?(game, a, :armor_piercing)
       excess = excess(game, target, atk, piercing)
 
       game =
         game
-        |> Effects.deal(target, atk, piercing: piercing)
+        |> Effects.deal(target, atk, piercing: piercing, combat: true, runes: runes?(game, a))
         |> deathtouch(a, target, atk)
         |> sparkshot(a, target)
         |> spill(a, target, excess)
@@ -331,8 +415,32 @@ defmodule Codex.Combat do
 
   defp deal_back(game, a, target, n) do
     if in_play?(game, a),
-      do: game |> Effects.deal(a, n) |> deathtouch(target, a, n),
+      do:
+        game
+        |> Effects.deal(a, n, combat: true, runes: is_integer(target) and runes?(game, target))
+        |> deathtouch(target, a, n),
       else: game
+  end
+
+  # "Deals damage to units and heroes in the form of -1/-1 runes."
+  defp runes?(game, id), do: Map.has_key?(game.cards, id) and Stats.kw?(game, id, :rune_damage)
+
+  # ATK changes for this attack only: Air Hammer (+2 against a damaged
+  # building), Debilitator Alpha (as squad leader: its attackers get -1 ATK).
+  defp attack_mod(game, a, target) do
+    hammer =
+      if game.cards[a].card == "air-hammer" and building?(game, target) and
+           Effects.building_damage(game, target) > 0,
+         do: 2,
+         else: 0
+
+    alpha =
+      if is_integer(target) and game.cards[target].card == "debilitator-alpha" and
+           Zones.slot_of(game, target) == :squad_leader,
+         do: -1,
+         else: 0
+
+    hammer + alpha
   end
 
   # A building deals none; a ground defender without anti-air deals none to a
@@ -357,11 +465,24 @@ defmodule Codex.Combat do
   # Deathtouch: its combat damage (even to armor) kills a unit or hero.
   defp deathtouch(game, source, target, n) do
     if n > 0 and is_integer(source) and is_integer(target) and Map.has_key?(game.cards, source) and
-         Stats.kw?(game, source, :deathtouch) and in_play?(game, target) and
+         deathtouch?(game, source, target) and in_play?(game, target) and
          Stats.force?(game, target),
        do:
-         Zones.update_card(game, target, &%{&1 | damage: max(&1.damage, Stats.hp(game, target))}),
+         Zones.update_card(game, target, fn c ->
+           %{
+             c
+             | damage: max(c.damage, Stats.hp(game, target)),
+               this_turn: Map.put(c.this_turn, :combat_hit, true)
+           }
+         end),
        else: game
+  end
+
+  # Deathtouch, and Wight's "deathtouch when attacking heroes".
+  defp deathtouch?(game, source, target) do
+    Stats.kw?(game, source, :deathtouch) or
+      (game.cards[source].card == "wight" and Stats.hero?(game, target) and
+         Stats.controller(game, source) == game.active)
   end
 
   # Damage above what the target can take (its HP left and armor).
@@ -390,7 +511,7 @@ defmodule Codex.Combat do
             do: id
 
       case near do
-        [n | _] -> Effects.deal(game, n, 1)
+        [n | _] -> Effects.deal(game, n, 1, combat: true)
         [] -> game
       end
     else
@@ -409,7 +530,7 @@ defmodule Codex.Combat do
 
     cond do
       Stats.side_effect(game, s, :stampede) == true and Stats.unit?(game, a) ->
-        Effects.deal(game, {:building, 1 - s, :base}, excess)
+        Effects.deal(game, {:building, 1 - s, :base}, excess, combat: true)
 
       Stats.kw?(game, a, :overpower) ->
         overpower(game, a, target, excess)
@@ -427,7 +548,7 @@ defmodule Codex.Combat do
             d != target and attackable?(game, a, d) and d
           end)
 
-        Effects.deal(game, other || {:building, s, :base}, excess)
+        Effects.deal(game, other || {:building, s, :base}, excess, combat: true)
 
       _ ->
         game
@@ -435,12 +556,14 @@ defmodule Codex.Combat do
   end
 
   # The Tower: 1 damage to each attacker it can see.
-  defp tower(game, a, %{tower?: true, seen?: true}), do: Effects.deal(game, a, 1)
+  defp tower(game, a, %{tower?: true, seen?: true}), do: Effects.deal(game, a, 1, combat: true)
   defp tower(game, _a, _ctx), do: game
 
   defp fly_over_damage(game, a, anti_air) do
     Enum.reduce(anti_air, game, fn d, game ->
-      if in_play?(game, d), do: Effects.deal(game, a, max(Stats.atk(game, d), 0)), else: game
+      if in_play?(game, d),
+        do: Effects.deal(game, a, max(Stats.atk(game, d), 0), combat: true),
+        else: game
     end)
   end
 
@@ -449,8 +572,12 @@ defmodule Codex.Combat do
     game = Rules.deaths(game)
     killed? = is_integer(target) and not in_play?(game, target)
 
+    ctx = Map.put(ctx, :killed?, killed?)
+
     game
-    |> Effects.Red.after_combat(s, a, target, Map.put(ctx, :killed?, killed?))
-    |> Effects.Green.after_combat(s, a, target, Map.put(ctx, :killed?, killed?))
+    |> Effects.Red.after_combat(s, a, target, ctx)
+    |> Effects.Green.after_combat(s, a, target, ctx)
+    |> Effects.Blue.after_combat(s, a, target, ctx)
+    |> Effects.Black.after_combat(s, a, target, ctx)
   end
 end

@@ -1,7 +1,7 @@
 defmodule Codex.Cards do
   @moduledoc """
   The Codex card definitions: plain data from the codexcarddb raw files
-  (`priv/codex/neutral.json`, `priv/codex/heroes.json`; research
+  (`priv/codex/<colour>.json`, `priv/codex/heroes.json`; research
   `docs/research/codex.md` §14), read at compile time.
 
   A card is found by its slug: the name in lower case, with each run of other
@@ -21,7 +21,7 @@ defmodule Codex.Cards do
       12
   """
 
-  @files ~w(neutral red green blue heroes)
+  @files ~w(neutral red green blue black heroes)
 
   for file <- @files do
     @external_resource Path.join([__DIR__, "../../priv/codex", file <> ".json"])
@@ -33,6 +33,7 @@ defmodule Codex.Cards do
           name: String.t(),
           type: String.t(),
           subtype: String.t() | nil,
+          subtypes: [String.t()],
           spec: String.t() | nil,
           color: String.t(),
           cost: non_neg_integer | nil,
@@ -97,6 +98,7 @@ defmodule Codex.Cards do
       name: rec["name"],
       type: rec["type"],
       subtype: rec["subtype"],
+      subtypes: String.split(rec["subtype"] || "", ~r/[\s—-]+/, trim: true),
       spec: rec["spec"],
       color: rec["color"],
       cost: rec["cost"],
@@ -115,6 +117,7 @@ defmodule Codex.Cards do
     name: "Worker",
     type: "Worker",
     subtype: nil,
+    subtypes: [],
     spec: nil,
     color: "Neutral",
     cost: nil,
@@ -131,8 +134,6 @@ defmodule Codex.Cards do
     for file <- @files,
         rec <-
           __DIR__ |> Path.join("../../priv/codex/#{file}.json") |> File.read!() |> JSON.decode!(),
-        # Blue: only its tokens (Argagarg Garg's Water Elemental); the rest is a later colour.
-        file != "blue" or rec["starting_zone"] == "trash",
         do: rec
 
   cards = Enum.uniq_by(Enum.map(records, card) ++ [worker], & &1.slug)
@@ -152,14 +153,14 @@ defmodule Codex.Cards do
   @spec fetch!(String.t()) :: t
   def fetch!(slug), do: Map.fetch!(@cards, slug)
 
-  @doc ~s{The 10 slugs of a colour's starting deck (one copy each): "Neutral", "Red", "Green".}
+  @doc ~s{The 10 slugs of a colour's starting deck (one copy each): "Neutral", "Red", "Green", "Blue", "Black".}
   @spec starter(String.t()) :: [String.t()]
   def starter(color \\ "Neutral"),
     do: for(c <- all(), c.zone == "deck", c.color == color, do: c.slug)
 
   @doc "The colours with a starting deck here."
   @spec colors() :: [String.t()]
-  def colors, do: ~w(Neutral Red Green)
+  def colors, do: ~w(Neutral Red Green Blue Black)
 
   @doc "The specs of a colour (Neutral: Bashing, Finesse)."
   @spec specs(String.t()) :: [String.t()]

@@ -638,6 +638,11 @@ defmodule QuacksWeb.Gallery.Stories do
           presets: [
             {"start", "The first-game set-up", %{"state" => "start"}},
             {"red-green", "Red vs Green: 3 heroes each", %{"state" => "red-green"}},
+            {"blue-black", "Blue vs Black: 3 heroes each", %{"state" => "blue-black"}},
+            {"bb-choice", "A choice pick: Reputable Newsman names a cost",
+             %{"state" => "bb-choice"}},
+            {"bb-codex-pick", "A codex pick: Jurisdiction plays a codex spell",
+             %{"state" => "bb-codex-pick"}},
             {"selected", "A card selected: its actions", %{"state" => "selected"}},
             {"chips", "Desktop: the mouse on a card: its action chips", %{"state" => "chips"}},
             {"focus", "Desktop: the keyboard focus ring and chips on a card",

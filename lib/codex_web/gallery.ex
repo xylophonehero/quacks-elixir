@@ -17,23 +17,15 @@ defmodule CodexWeb.Gallery do
   @spec states() :: [String.t()]
   def states,
     do:
-      ~w(mid-game start red-green selected chips focus patrol aim expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
+      ~w(mid-game start red-green blue-black bb-choice bb-codex-pick selected chips focus patrol aim expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
   def board_story(args) do
     state = args["state"]
-    preset = if state == "red-green", do: "red_green", else: "first"
-    {:ok, start} = Game.new(%{bot: state == "bot", preset: preset}, @seed)
 
-    game =
-      case state do
-        "start" -> start
-        "red-green" -> start
-        # Against the bot, on the bot's turn: the page waits.
-        "bot" -> elem(Game.apply(start, 0, :end_turn), 1)
-        _ -> mid_game(start)
-      end
+    {:ok, start} = Game.new(%{bot: state == "bot", preset: preset(state)}, @seed)
+    game = game(state, start)
 
     pov = if args["pov"] == "P2", do: 1, else: 0
 
@@ -49,6 +41,17 @@ defmodule CodexWeb.Gallery do
     %{view: :codex_board, board: socket.assigns}
   end
 
+  defp preset("red-green"), do: "red_green"
+  defp preset("blue-black"), do: "blue_black"
+  defp preset("bb-" <> _), do: "blue_black"
+  defp preset(_state), do: "first"
+
+  defp game(state, start) when state in ["start", "red-green", "blue-black"], do: start
+  defp game("bb-" <> _, start), do: blue_pick(start)
+  # Against the bot, on the bot's turn: the page waits.
+  defp game("bot", start), do: elem(Game.apply(start, 0, :end_turn), 1)
+  defp game(_state, start), do: mid_game(start)
+
   defp envelope(game) do
     %Table.View{
       version: 1,
@@ -57,6 +60,26 @@ defmodule CodexWeb.Gallery do
       actions: Game.legal_actions(game, 0),
       view: Game.view(game, 0)
     }
+  end
+
+  # A choice pick: Reputable Newsman names a cost (a button for each value).
+  defp extra(socket, "bb-choice", game) do
+    id = card_of(game, "reputable-newsman")
+
+    Phoenix.Component.assign(socket,
+      selected: id,
+      targeting: %{key: {:play, id, nil}, picked: []}
+    )
+  end
+
+  # A codex pick: Jurisdiction plays a spell from the codex (a button for each card).
+  defp extra(socket, "bb-codex-pick", game) do
+    id = card_of(game, "jurisdiction")
+
+    Phoenix.Component.assign(socket,
+      selected: id,
+      targeting: %{key: {:play, id, nil}, picked: []}
+    )
   end
 
   defp extra(socket, "selected", game) do
@@ -201,6 +224,30 @@ defmodule CodexWeb.Gallery do
   # Turn 3 of P1: heroes out with levels, units in play and on patrol, tokens,
   # gold, a tech building, cards in the discard piles and the trash. Brick Thief
   # (+1/+1 rune) is exhausted.
+  # Blue vs Black: P1 with Bigby Hayes in play, 10 gold, Reputable Newsman and
+  # Jurisdiction in hand (the new target picks: a choice and a codex card).
+  defp blue_pick(game) do
+    find = fn slug ->
+      Enum.find(
+        Enum.sort(Map.keys(game.cards)),
+        &(game.cards[&1].card == slug and game.cards[&1].seat == 0)
+      )
+    end
+
+    [
+      {:free_mode, true},
+      {:adjust, 0, :gold, 6},
+      {:move, find.("bigby-hayes"), {0, :in_play}, nil},
+      {:move, find.("reputable-newsman"), {0, :hand}, 0},
+      {:move, find.("jurisdiction"), {0, :hand}, 0},
+      {:free_mode, false}
+    ]
+    |> Enum.reduce(game, fn action, game -> elem(Game.apply(game, 0, action), 1) end)
+  end
+
+  defp card_of(game, slug),
+    do: Enum.find(game.sides[0].zones.hand, &(game.cards[&1].card == slug))
+
   defp mid_game(game) do
     [p1_hero] = game.sides[0].zones.command
     [p2_hero] = game.sides[1].zones.command

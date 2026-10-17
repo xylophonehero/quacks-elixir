@@ -148,7 +148,8 @@ defmodule Codex.AI.Bench do
   - `games:` games to play (default 400), rounded up to an even number.
   - `seed:` an integer (default 1). The same seed gives the same games.
   - `preset:` the set-up (default `"first"`, Bashing as P1 vs Finesse as P2);
-    `"finesse_first"` swaps the specs (Finesse as P1).
+    `"finesse_first"` swaps the specs (Finesse as P1); any preset of
+    `Codex.Game.presets/0` (`"red_green"`, `"blue_black"`, `"black_blue"`).
   - `jobs:` games at the same time (default `default_jobs/0`).
   - `progress:` a function that gets `%{done: n, total: n, seconds: s}`.
 

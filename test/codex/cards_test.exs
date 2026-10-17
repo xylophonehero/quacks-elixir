@@ -40,20 +40,35 @@ defmodule Codex.CardsTest do
     assert length(Enum.uniq(cropped)) == length(cropped)
   end
 
-  test "mix codex.cards crops every Red and Green card, hero and token" do
+  test "Blue and Black: 10 starters, 3 specs of 12 codex cards, 3 heroes each" do
+    for color <- ~w(Blue Black) do
+      assert length(Cards.starter(color)) == 10
+      assert length(Cards.specs(color)) == 3
+      for spec <- Cards.specs(color), do: assert(length(Cards.codex(spec)) == 12)
+    end
+
+    assert Cards.specs("Blue") == ~w(Law Peace Truth)
+    assert Cards.specs("Black") == ~w(Demonology Disease Necromancy)
+    assert Cards.colors() == ~w(Neutral Red Green Blue Black)
+    assert %{atk: 1, hp: 1, text: ["Sparkshot"]} = Cards.get("soldier")
+    assert Cards.slug("Terras Q, the Shackled") == "terras-q-the-shackled"
+  end
+
+  test "mix codex.cards crops every Red, Green, Blue and Black card, hero and token" do
     cropped =
       for {_name, map} <- Mix.Tasks.Codex.Cards.sheets(), slug <- Map.values(map), do: slug
 
     assert Enum.all?(cropped, &Cards.get/1), inspect(Enum.reject(cropped, &Cards.get/1))
 
     needed =
-      for color <- ~w(Red Green),
+      for color <- ~w(Red Green Blue Black),
           slug <-
             Cards.starter(color) ++
               Enum.flat_map(Cards.specs(color), &[Cards.hero(&1) | Cards.codex(&1)]),
           do: slug
 
     assert needed -- cropped == []
-    assert ~w(shark pirate wisp frog beast squirrel hunter water-elemental) -- cropped == []
+    assert ~w(shark pirate wisp frog beast squirrel hunter water-elemental soldier
+              mirror-illusion skeleton zombie horror warlock) -- cropped == []
   end
 end

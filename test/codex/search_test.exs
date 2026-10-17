@@ -37,6 +37,12 @@ defmodule Codex.Bot.SearchTest do
     end
   end
 
+  test "Blue vs Black: search against search, legal actions, the game ends" do
+    game = play_out(bot_game({3, 9, 9}, "blue_black"), 4000, %{0 => fast(), 1 => fast()})
+    assert_conserved(game)
+    assert game.phase == :over
+  end
+
   test "with no clock the same view and state give the same action" do
     game = bot_game({4, 5, 6})
     view = Game.bot_view(game, 0)

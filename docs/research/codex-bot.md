@@ -431,6 +431,31 @@ So the search wins about 53.5 % against the stage-1 bot over 800 games (± about
 3. **Speed:** the policy's own look-ahead is most of the time in a rollout (3–5 ms per step). A cheaper rollout policy or a cache of `Stats` per state would give more candidates in the 400 ms.
 4. **Balance:** with equal bots Bashing as P1 still wins 84 %. Check the Finesse tech plan (Harmony, Blademaster earlier) with the search.
 
+## Blue and Black results
+
+Date: 2026-10-17. Branch `codex-blue-black`. Bots: the default search (no clock) and the stage-1 bot `plan`. Each seed is played twice, with the bots in both seats. "±" is the half-width of the 95 % confidence interval. Presets: `blue_black` (Blue as P1), `black_blue` (Black as P1).
+
+### What is new
+
+- `Codex.Bot.TechPlan`: the teching guide's 3-hero plans for Law, Peace, Truth, Demonology, Disease and Necromancy, keyed by the main (first) spec. The plans mix cards of the colour's three specs. The tech II spec is the main spec (the first legal `{:build, :tech_2, spec}`).
+- The bots need no card knowledge for the new cards: each action comes from the legal list, and the look-ahead scores it.
+- Speed: Stats computes a static bonus only when the card that gives it is in play; the death check skips cards that cannot be at 0 HP. Red vs Green and the first game give the same results as before, at about half the time per decision.
+- With a clock, the search stops the policy's turn at 3 budgets (1.2 s) and plays the actions so far; the next call searches again. At the table (400 ms, 4 games, 932 decisions) the mean is 29 ms and the maximum 462 ms.
+
+### Bench (seeds from 10 001 and 20 001)
+
+| Match | Games | Bot A wins | A as P1 | A as P2 | Turns |
+|---|---|---|---|---|---|
+| search vs plan, `blue_black` | 200 | 54.5 % ± 4.0 | 17.0 % | 92.0 % | 26.6 |
+| search vs plan, `black_blue` | 200 | 53.5 % ± 4.2 | 91.0 % | 16.0 % | 26.1 |
+| search vs search, `blue_black` | 200 | 50 % (parity) | 8.0 % | 92.0 % | 24.2 |
+| search vs plan, `first` | 100 | 54.0 % ± 4.7 | 94.0 % | 14.0 % | 18.0 |
+| search vs plan, `red_green` | 100 | 56.0 % ± 4.5 | 12.0 % | 100 % | 20.5 |
+
+All games ended; no action was refused. The `first` and `red_green` rows are the same as on the commit before Blue and Black (the same seeds).
+
+**Colour balance:** with these bots Black wins about 87–92 % in both seats. The bots play Black's cheap units and removal well; Blue's cards need choices over several turns (Jail, Censorship Council, Stash, the Illusion plan). This is a bot weakness, not a rules check: each Blue card has a test. Red vs Green has the same shape (Green wins about 94 %).
+
 ## How the Codex bot works
 
 This section is for a reader who learns Elixir. It tells what the bot does, step by step, and where each step is in the code.

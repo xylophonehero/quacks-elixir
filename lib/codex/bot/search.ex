@@ -105,10 +105,13 @@ defmodule Codex.Bot.Search do
     {g, rng} = Determinize.sample(v, me, rng)
     deadline = st.budget_ms && System.monotonic_time(:millisecond) + st.budget_ms
 
-    ctx = %{me: me, plan: st.plan, w: st.weights, eps: st.eps, prefix: st.prefix}
-    # The policy's turn always finishes; the other candidates stop at the deadline.
+    # With a clock, the policy's turn stops at 3 budgets (a big board): the bot
+    # plays the actions so far and searches again on its next call.
+    hard = st.budget_ms && System.monotonic_time(:millisecond) + 3 * st.budget_ms
+    ctx = %{me: me, plan: st.plan, w: st.weights, eps: st.eps, prefix: st.prefix, hard: hard}
+    # The policy's turn finishes (or stops at `hard`); the other candidates stop at the deadline.
     {score, line, base, memo} = rollout(g, [], 0.0, rng, ctx, %{})
-    ctx = Map.merge(ctx, %{deadline: deadline, floor: score + ctx.w.margin})
+    ctx = Map.merge(ctx, %{deadline: deadline, floor: score + ctx.w.margin, hard: nil})
     {best, left, memo} = enablers(base, {score, line}, st.n - 1, deadline, ctx, memo)
     {{_score, line}, _} = randomised(g, best, left, deadline, rng, ctx, memo)
 
@@ -149,6 +152,10 @@ defmodule Codex.Bot.Search do
     cond do
       late?(ctx[:deadline]) ->
         {-@lost, [], Enum.reverse(r.states), r.memo}
+
+      # The policy's turn ran out of time: the line so far, with no end of the turn.
+      r.k > 0 and late?(ctx[:hard]) ->
+        {r.cur, Enum.reverse(r.line), Enum.reverse(r.states), r.memo}
 
       r.k >= @max_steps or g.phase != :main or g.active != ctx.me ->
         finish(g, ctx, r)

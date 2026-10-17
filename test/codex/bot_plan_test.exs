@@ -39,6 +39,28 @@ defmodule Codex.Bot.PlanTest do
     assert Enum.all?(games, &(Game.status(&1) |> elem(0) == :over))
   end
 
+  test "Blue vs Black (both seatings): legal actions, card conservation, every game ends" do
+    games =
+      for {seed, preset} <- [{1, "blue_black"}, {2, "black_blue"}],
+          do: play_out(bot_game({seed, 2, 3}, preset), 4000)
+
+    Enum.each(games, &assert_conserved/1)
+    assert Enum.all?(games, &(Game.status(&1) |> elem(0) == :over))
+  end
+
+  test "the Blue and Black tech plans name codex cards of their colour" do
+    for {color, specs} <- [
+          {"Blue", ~w(Law Peace Truth)},
+          {"Black", ~w(Demonology Disease Necromancy)}
+        ],
+        spec <- specs do
+      pool = Enum.flat_map(specs, &Codex.Cards.codex/1)
+      assert length(TechPlan.plan(spec)) == 10, spec
+      assert Enum.uniq(TechPlan.plan(spec)) -- pool == [], "#{color} #{spec}"
+      assert TechPlan.fillers(spec) -- pool == [], "#{color} #{spec}"
+    end
+  end
+
   test "the same view gives the same action" do
     game = bot_game({5, 2, 3})
     assert choose(game) == choose(game)

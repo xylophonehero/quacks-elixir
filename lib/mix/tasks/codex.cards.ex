@@ -3,12 +3,13 @@ defmodule Mix.Tasks.Codex.Cards do
   @moduledoc """
   Makes the card art of Codex: one image per card of the neutral sheet (the
   neutral starting deck, the Bashing and Finesse codex cards and heroes, the
-  worker cards, the Dancer tokens, Tower and Surplus), the Red and Green sheets
-  (heroes, starting decks, codex), the add-on and token sheet, and the card back.
+  worker cards, the Dancer tokens, Tower and Surplus), the Red, Green, Blue and
+  Black sheets (heroes, starting decks, codex), the add-on and token sheet, and
+  the card back.
 
       mix codex.cards [--sheet PATH] [--back PATH] [--tts DIR] [--out DIR]
 
-  The Red, Green and token sheets come from the TTS cache (`--tts`, default
+  The colour sheets and the token sheet come from the TTS cache (`--tts`, default
   `~/Library/Tabletop Simulator/Mods/Images`); a missing one is skipped.
 
   The source is the neutral sheet of the TTS mod "Codex Deluxe Set" (research
@@ -102,6 +103,29 @@ defmodule Mix.Tasks.Codex.Cards do
             artisan-mantis oversized-rhinoceros blooming-ancient blooming-elm
             might-of-leaf-and-claw tyrannosaurus-rex moss-ancient guargum-eternal-sentinel)
 
+  # Blue sheet (TTS deck 22), Black (deck 31): the same layout.
+  @blue ~w(bigby-hayes general-onimaru sirus-quince building-inspector spectral-aven
+           bluecoat-musketeer traffic-director porkhand-magistrate reputable-newsman jail
+           lawful-search arrest manufactured-truth injunction community-service jurisdiction
+           judgment-day boot-camp elite-training general-s-hammer the-art-of-war free-speech
+           hallucination dreamscape mind-control tax-collector scribe overeager-cadet
+           brave-knight spectral-flagbearer spectral-hound drill-sergeant flagstone-spy
+           debilitator-alpha air-hammer flagstone-garrison guardian-of-the-gates
+           insurance-agent justice-juggernaut arresting-constable censorship-council
+           macciatus-the-whisperer reteller-of-truths spectral-tiger spectral-roc
+           eyes-of-the-chancellor lawbringer-gryphon patriot-gryphon liberty-gryphon)
+
+  @black ~w(vandy-anadrose orpal-gloor garth-torken pestering-haunt skeleton-javelineer
+            poisonblade-rogue thieving-imp jandra-the-negator graveyard skeletal-archery
+            deteriorate summon-skeletons sacrifice-the-weak soul-stone dark-pact shadow-blade
+            metamorphosis sickness spreading-plague carrion-curse death-and-decay nether-drain
+            lich-s-bargain doom-grasp death-rites gargoyle twilight-baron hooded-executioner
+            bone-collector crypt-crawler plague-spitter voidblocker blackhand-dozer
+            banefire-golem terras-q-the-shackled shrine-of-forbidden-knowledge gorgon
+            cursed-ghoul cursed-crow abomination plague-lab blackhand-resurrector skeletal-lord
+            corpse-catapult wight necromancer zarramonde-the-obliterator plague-lord
+            lord-of-shadows)
+
   # Add-ons and tokens (TTS deck 18).
   @tokens %{
     2 => "tech-lab",
@@ -113,7 +137,13 @@ defmodule Mix.Tasks.Codex.Cards do
     8 => "frog",
     9 => "beast",
     10 => "squirrel",
-    11 => "hunter"
+    11 => "hunter",
+    12 => "soldier",
+    13 => "mirror-illusion",
+    14 => "skeleton",
+    15 => "zombie",
+    16 => "horror",
+    17 => "warlock"
   }
 
   # The TTS cache images (file name ends with the hash of the sheet URL).
@@ -122,6 +152,10 @@ defmodule Mix.Tasks.Codex.Cards do
      Map.new(Enum.with_index(@red), fn {s, i} -> {i, s} end)},
     {"green", "F3853E3A4CBEBFB448859849D52C9656F3D04A60",
      Map.new(Enum.with_index(@green), fn {s, i} -> {i, s} end)},
+    {"blue", "9CA9E96F2BD8F2847536697F95CFEA4365A16116",
+     Map.new(Enum.with_index(@blue), fn {s, i} -> {i, s} end)},
+    {"black", "0BAB8B262622F251EBF7205E30890A85845805D1",
+     Map.new(Enum.with_index(@black), fn {s, i} -> {i, s} end)},
     {"tokens", "1B48A292B49FAFE11630BDCA58BEBDE2257FBFBD", @tokens}
   ]
 

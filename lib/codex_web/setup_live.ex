@@ -1,8 +1,8 @@
 defmodule CodexWeb.SetupLive do
   @moduledoc """
-  `/games/codex/new`: start a Codex room. The first-game set-up is fixed
-  (`Codex.Game.new/2`): P1 Bashing (Troq Bashar) against P2 Finesse (River
-  Montoya). You play P1 against the bot (`Codex.Bot`), or both sides on this
+  `/games/codex/new`: start a Codex room. The set-up is a preset
+  (`Codex.Game.presets/0`: Bashing vs Finesse, Red vs Green, Blue vs Black) or
+  a single-hero pick ("custom": one spec and a starting deck for each side). You play P1 against the bot (`Codex.Bot`), or both sides on this
   screen (hot-seat). Create makes the room (`Table.Server.create/3`) and opens
   it at `/games/codex/<code>`.
   """
@@ -35,10 +35,11 @@ defmodule CodexWeb.SetupLive do
   end
 
   @impl true
-  def handle_event("change", %{"setup" => params}, socket),
-    do:
-      {:noreply,
-       assign(socket, form: to_form(Map.merge(socket.assigns.form.params, params), as: :setup))}
+  def handle_event("change", %{"setup" => params} = event, socket) do
+    params = starter_follows_spec(params, event["_target"])
+    form = to_form(Map.merge(socket.assigns.form.params, params), as: :setup)
+    {:noreply, assign(socket, form: form)}
+  end
 
   def handle_event("create", params, socket) do
     name = get_in(params, ["setup", "name"]) || ""
@@ -55,6 +56,20 @@ defmodule CodexWeb.SetupLive do
         {:noreply, put_flash(socket, :error, "Could not create (#{inspect(reason)}).")}
     end
   end
+
+  # A new spec picks the starting deck of its colour; the deck can still be changed after.
+  defp starter_follows_spec(params, ["setup", "p" <> _ = field]) do
+    with [p, "spec"] <- String.split(field, "_", parts: 2),
+         color when color != nil <- spec_color(params[field]) do
+      Map.put(params, "#{p}_starter", color)
+    else
+      _ -> params
+    end
+  end
+
+  defp starter_follows_spec(params, _target), do: params
+
+  defp spec_color(spec), do: Enum.find(Codex.Cards.colors(), &(spec in Codex.Cards.specs(&1)))
 
   defp spec_options do
     for color <- Codex.Cards.colors(), spec <- Codex.Cards.specs(color) do
@@ -93,14 +108,16 @@ defmodule CodexWeb.SetupLive do
           >
             <fieldset class="flex flex-col gap-2">
               <legend class="mb-2 text-sm font-semibold">Decks</legend>
-              <div class="grid gap-2 sm:grid-cols-3">
+              <div class="grid gap-2 sm:grid-cols-2">
                 <label
                   :for={
                     {value, title, text} <- [
                       {"first", "Bashing vs Finesse", "The first game: neutral decks, 1 hero each."},
+                      {"custom", "Single hero", "Pick one hero (spec) for each side."},
                       {"red_green", "Red vs Green",
                        "3 heroes each: Anarchy, Blood, Fire against Balance, Feral, Growth."},
-                      {"custom", "Custom", "A starting deck and 1 spec for each side."}
+                      {"blue_black", "Blue vs Black",
+                       "3 heroes each: Law, Peace, Truth against Demonology, Disease, Necromancy."}
                     ]
                   }
                   for={"preset-#{value}"}

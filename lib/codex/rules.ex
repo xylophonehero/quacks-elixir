@@ -20,6 +20,12 @@ defmodule Codex.Rules do
      discard pile (2 until the side has 10 workers; then 0, 1 or 2).
   6. Then the other side's turn starts.
 
+  A disabled card (Arrest, Porkhand Magistrate, ...) stays exhausted in its
+  controller's next ready step. Stash (Bigby Hayes) keeps one hand card in
+  the discard step; the side draws one card less. Shrine of Forbidden
+  Knowledge: card draw +1, hand size +1. An Illusion dies when a spell or
+  ability ◎ targets it (`Codex.Stats.illusion?/2`), before the effect.
+
   # REVIEW: patrollers stay in the patrol zone from turn to turn; the owner
   # rearranges them in its main phase (S1 p. 5 does not say that the zone
   # clears).
@@ -59,7 +65,17 @@ defmodule Codex.Rules do
 
   @gold_cap 20
   # Side effects that end with the turn.
-  @turn_effects [:stampede, :spells, :drakk_used, :instant_build, :desperation]
+  @turn_effects [
+    :stampede,
+    :spells,
+    :drakk_used,
+    :instant_build,
+    :desperation,
+    :stash,
+    :played,
+    :built,
+    :death_rites
+  ]
   @hand_cap 5
   @spells ["Spell", "Minor Spell", "Ongoing Spell", "Ultimate Spell"]
 
@@ -121,6 +137,8 @@ defmodule Codex.Rules do
       for id <- Zones.in_play(game, s),
           Stats.hero?(game, id),
           game.cards[id].level < Cards.max_level(game.cards[id].card),
+          # Nether Drain: "can't level up this turn".
+          not Map.get(game.cards[id].this_turn, :no_level, false),
           do: {:level_up, id}
     else
       []
@@ -136,7 +154,8 @@ defmodule Codex.Rules do
         {name, slots, costs} <- ability_list(game, s, id),
         costs_ok?(game, s, id, costs),
         targets <- Targets.combos(game, s, slots, id),
-        Keyword.get(costs, :gold, 0) + Targets.resist_cost(game, s, targets) <= gold,
+        unit_ok?(game, s, costs, targets),
+        ability_gold(game, s, costs, targets) + Targets.resist_cost(game, s, targets) <= gold,
         do: {:ability, id, name, targets}
   end
 
@@ -144,7 +163,12 @@ defmodule Codex.Rules do
   # hero's by level, Harmony's, and Maestro's on your Virtuosos.
   defp ability_list(game, s, id) do
     c = game.cards[id]
-    hero = if c.level, do: CardRules.hero_abilities(c.card, c.level), else: []
+
+    hero =
+      if c.level != nil and not Stats.silenced?(game, id),
+        do: CardRules.hero_abilities(c.card, c.level),
+        else: []
+
     harmony = if c.card == "harmony", do: [{:stop_music, [], []}], else: []
 
     maestro =
@@ -162,11 +186,53 @@ defmodule Codex.Rules do
     Enum.all?(costs, fn
       {:exhaust, true} -> exhaust_ok?(game, id)
       {:blood, n} -> Map.get(c.extra, :blood, 0) >= n
+      {:javelin, n} -> Map.get(c.extra, :javelin, 0) >= n
+      {:corpse, n} -> Map.get(c.extra, :corpse, 0) >= n
       {:rune, true} -> c.plus > 0
       {:spell_played, true} -> Map.get(game.sides[s].effects, :spells, 0) > 0
+      # Once per turn (Orpal Gloor, Garth Torken, Gargoyle).
+      {:once, true} -> not Map.get(c.this_turn, :once, false)
+      # Stash: one card per turn.
+      {:stash, true} -> Stats.side_effect(game, s, :stash) == nil
+      # Sirus Quince: at most n Mirror Illusions.
+      {:mirrors, n} -> Enum.count(Zones.in_play(game, s), &mirror?(game, &1)) < n
+      # Skeletal Lord: exhaust n of your ready Skeletons.
+      {:skeletons, n} -> length(ready_skeletons(game, s)) >= n
       _ -> true
     end)
   end
+
+  defp mirror?(game, id),
+    do:
+      Map.get(game.cards[id].extra, :copy, %{})[:from] == "mirror-illusion" or
+        game.cards[id].card == "mirror-illusion"
+
+  @doc false
+  def ready_skeletons(game, s) do
+    for id <- Zones.in_play(game, s),
+        Stats.unit?(game, id),
+        Stats.subtype?(game, id, "Skeleton"),
+        not game.cards[id].exhausted,
+        do: id
+  end
+
+  # Gold beyond the printed cost of an ability: Graveyard pays the cost of the buried unit.
+  defp ability_gold(game, s, costs, targets) do
+    extra =
+      case {costs[:unit_cost], targets} do
+        {true, [u]} when is_integer(u) -> cost(game, s, u)
+        _ -> 0
+      end
+
+    Keyword.get(costs, :gold, 0) + extra
+  end
+
+  # Graveyard: the buried unit must meet its tech needs.
+  defp unit_ok?(game, s, costs, [u]) when is_integer(u) do
+    if costs[:unit_cost], do: tech_ok?(game, s, Cards.fetch!(game.cards[u].card)), else: true
+  end
+
+  defp unit_ok?(_game, _s, _costs, _targets), do: true
 
   defp exhaust_ok?(game, id) do
     c = game.cards[id]
@@ -209,13 +275,29 @@ defmodule Codex.Rules do
     {workers, needs} = @tech_needs[b]
 
     length(side.zones.workers) >= workers and
-      (needs == nil or needs in side.tech_buildings) and
+      (needs == nil or operational?(side, needs)) and
       not Enum.any?(side.pending, &(&1 not in @add_ons))
+  end
+
+  # A finished tech building that works now (Injunction: not on its side's
+  # next turn; rulings: no next higher tech building then either).
+  defp operational?(side, b) do
+    b in side.tech_buildings and not match?({^b, _}, Map.get(side.effects, :injunction))
   end
 
   @doc "The gold to build `b` (0 to rebuild a destroyed tech building)."
   def build_cost(game, s, b) do
-    if b in game.sides[s].destroyed, do: 0, else: @build_gold[b]
+    base = if b in game.sides[s].destroyed, do: 0, else: @build_gold[b]
+    base + inspector_tax(game, s)
+  end
+
+  # Building Inspector: the first building each opponent builds each turn costs
+  # 1 more (rulings: also a rebuild and a building card), for each Inspector.
+  @doc false
+  def inspector_tax(game, s) do
+    if Stats.side_effect(game, s, :built) == true,
+      do: 0,
+      else: Enum.count(Zones.in_play(game, 1 - s), &(game.cards[&1].card == "building-inspector"))
   end
 
   # The tech step: 2 codex cards into the discard pile, 2 copies of one card or
@@ -252,16 +334,56 @@ defmodule Codex.Rules do
     gold = game.sides[s].gold
 
     for id <- game.sides[s].zones.hand,
+        playable?(game, s, id),
         targets <- play_targets(game, s, id),
         play_cost(game, s, id, targets) <= gold,
         do: {:play, id, targets}
   end
 
+  # Reputable Newsman: opponents can't play spells or upgrades of the chosen
+  # cost. # REVIEW: the printed cost counts.
+  defp playable?(game, s, id) do
+    d = Cards.fetch!(game.cards[id].card)
+    not censored?(game, s) and not baron?(game, s, d) and not banned?(game, s, d)
+  end
+
+  defp banned?(game, s, d) do
+    banned =
+      for n <- Zones.in_play(game, 1 - s),
+          game.cards[n].card == "reputable-newsman",
+          cost = Map.get(game.cards[n].extra, :number),
+          do: cost
+
+    (spell?(d) or String.contains?(d.type, "Upgrade")) and (d.cost || 0) in banned
+  end
+
+  # Censorship Council: opponents can't play more than one card from hand during their turns.
+  defp censored?(game, s) do
+    Stats.controls?(game, 1 - s, "censorship-council") and
+      Map.get(game.sides[s].effects, :played, 0) >= 1
+  end
+
+  # Twilight Baron: "You can't play tech II or III units."
+  defp baron?(game, s, d) do
+    d.type in ["Unit", "Legendary Unit"] and (d.tech || 0) >= 2 and
+      Stats.controls?(game, s, "twilight-baron")
+  end
+
   # Cost + the resist of the targets + boost.
   defp play_cost(game, s, id, targets) do
     boost = if :boost in targets, do: CardRules.boost(game.cards[id].card), else: 0
-    cost(game, s, id) + Targets.resist_cost(game, s, targets) + boost
+    building = if Stats.building_card?(game, id), do: inspector_tax(game, s), else: 0
+
+    cost(game, s, id) + Targets.resist_cost(game, s, targets) + boost + building +
+      inner(game, s, id, targets)
   end
+
+  # Jurisdiction: the cost of the codex spell it plays.
+  defp inner(game, s, id, [c | _]) when is_integer(c) do
+    if game.cards[id].card == "jurisdiction", do: cost(game, s, c), else: 0
+  end
+
+  defp inner(_game, _s, _id, _targets), do: 0
 
   # The target lists a card can be played with ([] when it cannot be played).
   defp play_targets(game, s, id) do
@@ -305,10 +427,25 @@ defmodule Codex.Rules do
       slots == nil -> []
       not hero_for?(game, s, d) -> []
       d.slug == "desperation" and game.sides[s].zones.hand -- [id] != [] -> []
-      slots == [:circle] -> circle_combos(game, s)
-      slots == [] -> [[]]
-      true -> Targets.combos(game, s, slots, id)
+      true -> slot_combos(game, s, id, slots)
     end
+  end
+
+  defp slot_combos(game, s, _id, [:circle]), do: circle_combos(game, s)
+  defp slot_combos(game, s, _id, [:jurisdiction]), do: jurisdiction_combos(game, s)
+  defp slot_combos(_game, _s, _id, []), do: [[]]
+  defp slot_combos(game, s, id, slots), do: Targets.combos(game, s, slots, id)
+
+  # Jurisdiction: a non-ultimate spell from your codex with its targets
+  # (`[codex_id | targets]`); its cost is paid too (`play_cost/4`).
+  defp jurisdiction_combos(game, s) do
+    for c <- Enum.uniq_by(game.sides[s].zones.codex, &game.cards[&1].card),
+        d = Cards.fetch!(game.cards[c].card),
+        spell?(d),
+        not String.contains?(d.type, "Ultimate"),
+        d.slug != "jurisdiction",
+        targets <- spell_combos(game, s, c, d),
+        do: [c | targets]
   end
 
   # Circle of Life: sacrifice a green unit, put a green unit one tech higher
@@ -329,7 +466,9 @@ defmodule Codex.Rules do
   # an ultimate spell, a hero that was at max level at the start of the turn (S1 p. 3).
   # Guargum: Growth spells need no Growth hero.
   defp hero_for?(game, s, d) do
-    heroes = for h <- Zones.in_play(game, s), Stats.hero?(game, h), do: h
+    # Free Speech: a silenced side's heroes can't cast spells.
+    heroes =
+      for h <- Zones.in_play(game, s), Stats.hero?(game, h), not Stats.silenced?(game, h), do: h
 
     heroes =
       if d.spec,
@@ -337,9 +476,17 @@ defmodule Codex.Rules do
         else: heroes
 
     heroes =
-      if String.contains?(d.type, "Ultimate"),
-        do: Enum.filter(heroes, &(&1 in game.sides[s].max_at_start)),
-        else: heroes
+      cond do
+        # Judgment Day: "Your max level Law hero can cast this no matter when he arrived or maxed."
+        d.slug == "judgment-day" ->
+          Enum.filter(heroes, &(game.cards[&1].level >= Cards.max_level(game.cards[&1].card)))
+
+        String.contains?(d.type, "Ultimate") ->
+          Enum.filter(heroes, &(&1 in game.sides[s].max_at_start))
+
+        true ->
+          heroes
+      end
 
     heroes != [] or
       (d.spec == "Growth" and Stats.controls?(game, s, "guargum-eternal-sentinel"))
@@ -350,7 +497,7 @@ defmodule Codex.Rules do
 
   defp tech_ok?(game, s, %{tech: t} = d) do
     side = game.sides[s]
-    built? = String.to_existing_atom("tech_#{t}") in side.tech_buildings
+    built? = operational?(side, String.to_existing_atom("tech_#{t}"))
     # Tech II and III make only the cards of the tech II spec (S1 p. 12).
     spec? = t < 2 or d.spec == nil or d.spec == side.tech_spec
     (built? and spec?) or commander_free?(game, s, d)
@@ -484,7 +631,20 @@ defmodule Codex.Rules do
     s = game.active
     d = Cards.fetch!(game.cards[id].card)
     pay = play_cost(game, s, id, targets)
-    game = update_side(game, s, &%{&1 | gold: &1.gold - pay})
+
+    game =
+      update_side(
+        game,
+        s,
+        &%{
+          &1
+          | gold: &1.gold - pay,
+            effects: Map.update(&1.effects, :played, 1, fn n -> n + 1 end)
+        }
+      )
+
+    {slots, targeted?} = play_slots(game, d, targets)
+    {game, targets} = illusions(game, slots, targets, targeted?)
 
     cond do
       d.type in ["Unit", "Legendary Unit"] -> Effects.arrive_from_hand(game, s, id, targets)
@@ -512,28 +672,12 @@ defmodule Codex.Rules do
 
   defp do_act(game, {:ability, id, name, targets}) do
     s = game.active
-    {_name, _slots, costs} = Enum.find(ability_list(game, s, id), &(elem(&1, 0) == name))
-    gold = Keyword.get(costs, :gold, 0) + Targets.resist_cost(game, s, targets)
+    {_name, slots, costs} = Enum.find(ability_list(game, s, id), &(elem(&1, 0) == name))
+    gold = ability_gold(game, s, costs, targets) + Targets.resist_cost(game, s, targets)
     game = update_side(game, s, &%{&1 | gold: &1.gold - gold})
-    game = if costs[:exhaust], do: Effects.exhaust(game, id), else: game
-
-    game =
-      case costs[:blood] do
-        nil ->
-          game
-
-        n ->
-          Zones.update_card(
-            game,
-            id,
-            &%{&1 | extra: Map.update(&1.extra, :blood, 0, fn b -> b - n end)}
-          )
-      end
-
-    game =
-      if costs[:rune], do: Zones.update_card(game, id, &%{&1 | plus: &1.plus - 1}), else: game
-
-    game = if costs[:sacrifice], do: Effects.sacrifice(game, id), else: game
+    targeted? = ability_targeted?(game, id, name)
+    game = Enum.reduce(costs, game, &pay(&2, s, id, &1))
+    {game, targets} = illusions(game, slots, targets, targeted?)
     Effects.ability(game, s, id, name, targets)
   end
 
@@ -548,7 +692,18 @@ defmodule Codex.Rules do
   defp do_act(game, {:build, b}) do
     s = game.active
     cost = build_cost(game, s, b)
-    game = update_side(game, s, &%{&1 | gold: &1.gold - cost, pending: &1.pending ++ [b]})
+
+    game =
+      update_side(
+        game,
+        s,
+        &%{
+          &1
+          | gold: &1.gold - cost,
+            pending: &1.pending ++ [b],
+            effects: Map.put(&1.effects, :built, true)
+        }
+      )
 
     # Verdant Tree: "Your tech buildings build instantly this turn."
     if Stats.side_effect(game, s, :instant_build) == true and b in [:tech_1, :tech_2, :tech_3],
@@ -569,6 +724,104 @@ defmodule Codex.Rules do
   defp do_act(game, {:sideline, id}), do: Effects.sideline(game, id)
   defp do_act(game, {:attack, a, target}), do: Combat.attack(game, a, target)
   defp do_act(game, :end_turn), do: end_turn(game)
+
+  # Pay one cost of an ability (gold is paid before). The sacrifice comes last.
+  defp pay(game, _s, id, {:exhaust, true}), do: Effects.exhaust(game, id)
+
+  defp pay(game, _s, id, {:once, true}),
+    do: Zones.update_card(game, id, &%{&1 | this_turn: Map.put(&1.this_turn, :once, true)})
+
+  defp pay(game, _s, id, {:rune, true}),
+    do: Zones.update_card(game, id, &%{&1 | plus: &1.plus - 1})
+
+  defp pay(game, _s, id, {:sacrifice, true}), do: Effects.sacrifice(game, id)
+
+  defp pay(game, s, _id, {:skeletons, n}),
+    do: ready_skeletons(game, s) |> Enum.take(n) |> Enum.reduce(game, &Effects.exhaust(&2, &1))
+
+  # Remove n runes of a named kind (blood, javelin, corpse).
+  defp pay(game, _s, id, {kind, n}) when kind in [:blood, :javelin, :corpse],
+    do:
+      Zones.update_card(
+        game,
+        id,
+        &%{&1 | extra: Map.update(&1.extra, kind, 0, fn r -> r - n end)}
+      )
+
+  defp pay(game, _s, _id, _cost), do: game
+
+  # Illusions die when a spell or ability ◎ targets them (Macciatus: not yours).
+  # The effect then skips them (rulings: an insured Illusion never gets its rune).
+  defp illusions(game, _slots, targets, false), do: {game, targets}
+
+  defp illusions(game, slots, targets, true) do
+    dying =
+      for {slot, t} <- slot_pairs(slots, targets),
+          is_integer(t),
+          not CardRules.untargeted?(slot),
+          in_play?(game, t),
+          Stats.illusion?(game, t),
+          not Stats.controls?(game, Stats.controller(game, t), "macciatus-the-whisperer"),
+          uniq: true,
+          do: t
+
+    if dying == [] do
+      {game, targets}
+    else
+      game = Enum.reduce(dying, game, &Effects.die(&2, &1))
+      {game, Enum.map(targets, &if(&1 in dying, do: nil, else: &1))}
+    end
+  end
+
+  # The target slots of a play and whether it ◎ targets (Jurisdiction: those
+  # of the codex spell it plays).
+  defp play_slots(game, %{slug: "jurisdiction"}, [c | _]) do
+    inner = Cards.fetch!(game.cards[c].card)
+    {[:codex_spell | CardRules.spell_targets(inner.slug) || []], CardRules.targets?(inner.slug)}
+  end
+
+  defp play_slots(_game, d, _targets) do
+    slots =
+      if spell?(d),
+        do: CardRules.spell_targets(d.slug) || [],
+        else: CardRules.arrive_targets(d.slug)
+
+    {slots, CardRules.targets?(d.slug)}
+  end
+
+  # Each target with its slot (a divided slot spreads over its n values).
+  defp slot_pairs(slots, targets) do
+    {pairs, _} =
+      Enum.reduce(slots, {[], targets}, fn
+        {:divide, kind, n}, {acc, ts} ->
+          {take, rest} = Enum.split(ts, n)
+          {acc ++ Enum.map(take, &{kind, &1}), rest}
+
+        slot, {acc, [t | rest]} ->
+          {acc ++ [{slot, t}], rest}
+
+        _slot, {acc, []} ->
+          {acc, []}
+      end)
+
+    pairs
+  end
+
+  # A card's ability ◎ targets when the card has the ◎ icon; a hero's, when
+  # the text of the band that gives the ability has it.
+  defp ability_targeted?(game, id, name) do
+    c = game.cards[id]
+
+    if c.level do
+      from =
+        Enum.find_value(CardRules.hero_ability_levels(c.card), fn {n, l} -> n == name && l end)
+
+      band = from && Cards.band(c.card, from)
+      band != nil and Enum.any?(band.text, &String.contains?(&1, "◎"))
+    else
+      CardRules.targets?(c.card)
+    end
+  end
 
   # Why an action is refused: the first rule that it breaks.
   defp reason(%{phase: :over}, _action), do: :game_over
@@ -628,16 +881,24 @@ defmodule Codex.Rules do
   end
 
   defp ready(game, seat) do
+    # A disabled card does not ready in this ready step (its disable ends).
     game =
-      Enum.reduce(Zones.in_play(game, seat), game, fn id, game ->
-        Zones.update_card(game, id, &%{&1 | exhausted: false, fatigued: false, attacked: false})
-      end)
+      Enum.reduce(
+        Zones.in_play(game, seat),
+        game,
+        &Zones.update_card(&2, &1, fn c -> ready_card(c) end)
+      )
 
     # Squad leader armor refreshes each turn.
     Enum.reduce(Map.keys(game.cards), game, fn id, game ->
       Zones.update_card(game, id, &%{&1 | armor_dmg: 0})
     end)
   end
+
+  defp ready_card(%{extra: %{disabled: true}} = c),
+    do: %{c | fatigued: false, attacked: false, extra: Map.delete(c.extra, :disabled)}
+
+  defp ready_card(c), do: %{c | exhausted: false, fatigued: false, attacked: false}
 
   defp upkeep(game, seat) do
     workers = length(game.sides[seat].zones.workers)
@@ -682,8 +943,25 @@ defmodule Codex.Rules do
       |> deaths()
 
     hand = game.sides[s].zones.hand
-    game = discard_hand(game, s)
-    game = draw(game, s, min(length(hand) + 2, @hand_cap), :draw_phase)
+    # Shrine of Forbidden Knowledge: card draw +1, hand size +1.
+    shrines =
+      Enum.count(
+        Zones.in_play(game, s),
+        &(game.cards[&1].card == "shrine-of-forbidden-knowledge")
+      )
+
+    count = min(length(hand) + 2 + shrines, @hand_cap + shrines)
+    # Stash (Bigby Hayes): keep one card, draw one less.
+    # REVIEW: the hand ends at the size it would have had without the stash.
+    {keep, count} =
+      case Stats.side_effect(game, s, :stash_card) do
+        id when is_integer(id) -> if id in hand, do: {id, count - 1}, else: {nil, count}
+        _ -> {nil, count}
+      end
+
+    game = discard_hand(game, s, keep)
+    game = update_side(game, s, &%{&1 | effects: Map.delete(&1.effects, :stash_card)})
+    game = draw(game, s, count, :draw_phase)
     game = game |> Effects.return_to_hand(returns) |> deaths()
 
     if techs(%{game | phase: :tech}, s) == [{:tech, []}],
@@ -691,8 +969,8 @@ defmodule Codex.Rules do
       else: %{game | phase: :tech}
   end
 
-  defp discard_hand(game, s) do
-    Enum.reduce(game.sides[s].zones.hand, game, fn id, game ->
+  defp discard_hand(game, s, keep \\ nil) do
+    Enum.reduce(game.sides[s].zones.hand -- [keep], game, fn id, game ->
       Zones.move(game, id, {s, :discard}, 0)
     end)
   end
@@ -788,16 +1066,30 @@ defmodule Codex.Rules do
   """
   @spec deaths(map) :: map
   def deaths(game) do
-    dead =
-      Enum.find(for(s <- [0, 1], id <- Zones.in_play(game, s), do: id), fn id ->
-        (Stats.force?(game, id) or Stats.building_card?(game, id)) and
-          (Stats.hp(game, id) <= 0 or game.cards[id].damage >= Stats.hp(game, id))
-      end)
+    in_play = for(s <- [0, 1], id <- Zones.in_play(game, s), do: id)
+    # Only Abomination lowers HP from another card: without one, a card with no
+    # damage, no -1/-1 rune and no HP cut this turn has its printed HP (1 or more).
+    abomination? = Enum.any?(in_play, &(game.cards[&1].card == "abomination"))
+
+    dead = Enum.find(in_play, &dying?(game, &1, abomination?))
 
     case dead do
       nil -> sacrifices(game)
       id -> game |> Effects.die(id) |> deaths()
     end
+  end
+
+  defp dying?(game, id, abomination?) do
+    c = game.cards[id]
+
+    (abomination? or c.damage > 0 or c.minus > 0 or c.tmp_hp < 0) and
+      (Stats.force?(game, id) or Stats.building_card?(game, id)) and
+      no_hp?(game, id, c) and not (c.damage == 0 and Stats.kw?(game, id, :indestructible))
+  end
+
+  defp no_hp?(game, id, c) do
+    hp = Stats.hp(game, id)
+    hp <= 0 or c.damage >= hp
   end
 
   defp sacrifices(game) do
@@ -807,8 +1099,51 @@ defmodule Codex.Rules do
       end)
 
     case gone do
-      nil -> game
+      nil -> bound(game)
       {_s, id} -> game |> Effects.sacrifice(id) |> deaths()
+    end
+  end
+
+  # Sirus Quince's max-level copies are trashed when Quince or the original
+  # leaves play.
+  defp bound(game) do
+    gone =
+      Enum.find(for(s <- [0, 1], id <- Zones.in_play(game, s), do: id), fn id ->
+        bound = get_in(game.cards[id].extra, [:copy, :bound]) || []
+        Enum.any?(bound, &(not in_play?(game, &1)))
+      end)
+
+    case gone do
+      nil -> mind_control(game)
+      id -> game |> Effects.trash(id) |> deaths()
+    end
+  end
+
+  # Mind Control left play: the unit goes back to the side that had it.
+  defp mind_control(game) do
+    back =
+      Enum.find_value(
+        for(s <- [0, 1], id <- Zones.in_play(game, s), do: id),
+        &controlled(game, &1)
+      )
+
+    case back do
+      nil ->
+        game
+
+      {id, from} ->
+        game
+        |> Zones.move(id, {from, :in_play})
+        |> Zones.update_card(id, &%{&1 | extra: Map.delete(&1.extra, :mind_control)})
+        |> deaths()
+    end
+  end
+
+  # `{id, side it goes back to}` when the Mind Control on it has left play.
+  defp controlled(game, id) do
+    case Map.get(game.cards[id].extra, :mind_control) do
+      {mc, from} -> if not in_play?(game, mc), do: {id, from}
+      _ -> nil
     end
   end
 

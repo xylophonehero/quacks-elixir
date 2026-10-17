@@ -42,6 +42,17 @@ defmodule Codex.BotTest do
     assert Enum.all?(games, &(Game.status(&1) |> elem(0) == :over))
   end
 
+  test "bot against bot, Blue vs Black: legal actions, card conservation, the games end" do
+    games =
+      for seed <- 1..4 do
+        {:ok, game} = Game.new(%{bot: true, preset: "blue_black"}, {seed, 2, 3})
+        play_out(game, 4000)
+      end
+
+    Enum.each(games, &assert_conserved/1)
+    assert Enum.count(games, &(Game.status(&1) |> elem(0) == :over)) >= 3
+  end
+
   test "against the bot: two seats, each acts only on its own turn" do
     game = bot_game({1, 2, 3})
     assert Game.table_seats(game) == [0, 1]

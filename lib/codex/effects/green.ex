@@ -20,6 +20,11 @@ defmodule Codex.Effects.Green do
   # Nature Reclaims: trash it (then it trashes itself, `Codex.Effects.cast/4`).
   def spell(game, _s, "nature-reclaims", _id, [t]), do: Effects.trash(game, t)
 
+  # A target that died when targeted (an Illusion) is nil: the effect skips it.
+  def spell(game, _s, slug, _id, [nil | _])
+      when slug in ["polymorph-squirrel", "spirit-of-the-panda"],
+      do: game
+
   # Circle of Life: sacrifice a green unit; a green unit one tech higher from the codex into play.
   def spell(game, s, "circle-of-life", _id, [u, c]) do
     game
@@ -129,6 +134,8 @@ defmodule Codex.Effects.Green do
   def ability(game, _s, _id, :argagarg, [t]), do: more(game, t, 1, 1)
 
   # Blooming Elm: three +1/+1 runes on a unit, or one on a hero, without +1/+1 runes.
+  def ability(game, _s, _id, :elm, [nil]), do: game
+
   def ability(game, _s, _id, :elm, [t]) do
     cond do
       game.cards[t].plus > 0 -> game
@@ -234,4 +241,10 @@ defmodule Codex.Effects.Green do
     |> Enum.map(&max(Stats.atk(game, &1), 0))
     |> Enum.sum()
   end
+
+  @doc "A \"Max level:\" trigger of a hero of this colour (none here)."
+  def max_level(game, _s, _id, _slug), do: game
+
+  @doc "A building or upgrade card of this colour comes into play (nothing here)."
+  def permanent(game, _s, _id, _slug), do: game
 end

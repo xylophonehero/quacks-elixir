@@ -196,6 +196,112 @@ defmodule Codex.Targets do
         do: id
   end
 
+  def candidates(game, s, :other_force, src),
+    do: cards(game, s, &(Stats.force?(game, &1) and &1 != src))
+
+  def candidates(game, s, :my_unit_t01, _src) do
+    for id <- Zones.in_play(game, s),
+        Stats.unit?(game, id),
+        Stats.tech(game, id) in [0, 1],
+        do: id
+  end
+
+  def candidates(game, s, :unit_t012, src),
+    do:
+      cards(game, s, &(Stats.unit?(game, &1) and Stats.tech(game, &1) in [0, 1, 2] and &1 != src))
+
+  # Sirus Quince: your Mirror Illusions that are not a copy now.
+  def candidates(game, s, :my_mirror, _src),
+    do: for(id <- Zones.in_play(game, s), game.cards[id].card == "mirror-illusion", do: id)
+
+  def candidates(game, s, :my_non_demon_unit, _src) do
+    for id <- Zones.in_play(game, s),
+        Stats.unit?(game, id),
+        not Stats.subtype?(game, id, "Demon"),
+        Stats.sacrificable?(game, id),
+        do: id
+  end
+
+  def candidates(game, s, :my_skeleton, _src) do
+    for id <- Zones.in_play(game, s),
+        Stats.unit?(game, id),
+        Stats.subtype?(game, id, "Skeleton"),
+        Stats.sacrificable?(game, id),
+        do: id
+  end
+
+  def candidates(game, s, :codex_demonology_spell, _src) do
+    game.sides[s].zones.codex
+    |> Enum.filter(fn id ->
+      d = Codex.Cards.fetch!(game.cards[id].card)
+      d.spec == "Demonology" and String.contains?(d.type, "Spell")
+    end)
+    |> Enum.uniq_by(&game.cards[&1].card)
+  end
+
+  # Graveyard: the units buried in it (they wait in the trash, marked).
+  def candidates(game, _s, :buried_unit, src),
+    do: for(id <- game.trash, Map.get(game.cards[id].extra, :buried_in) == src, do: id)
+
+  def candidates(_game, s, :base, _src), do: [{:building, 1 - s, :base}, {:building, s, :base}]
+
+  # Zarramonde: a unit, hero, worker, upgrade or ongoing spell.
+  def candidates(game, s, :zarramonde, src) do
+    cards(game, s, fn id ->
+      id != src and
+        (Stats.force?(game, id) or Stats.upgrade?(game, id) or Stats.ongoing?(game, id))
+    end) ++ for seat <- [1 - s, s], game.sides[seat].zones.workers != [], do: {:worker, seat}
+  end
+
+  def candidates(game, s, :hero, _src), do: cards(game, s, &Stats.hero?(game, &1))
+
+  def candidates(game, s, :unit_t012_or_hero, _src) do
+    cards(game, s, fn id ->
+      Stats.hero?(game, id) or (Stats.unit?(game, id) and Stats.tech(game, id) in [0, 1, 2])
+    end)
+  end
+
+  # Doom Grasp: a unit of yours that can be sacrificed (no ◎).
+  def candidates(game, s, :my_sac_unit, _src) do
+    for id <- Zones.in_play(game, s), Stats.unit?(game, id), Stats.sacrificable?(game, id), do: id
+  end
+
+  def candidates(game, s, :hand_unit, _src),
+    do: for(id <- game.sides[s].zones.hand, Stats.unit?(game, id), do: id)
+
+  # Blackhand Resurrector: a hero in your command zone that died this game.
+  def candidates(game, s, :dead_hero, _src) do
+    side = game.sides[s]
+    for id <- side.zones.command, Map.has_key?(side.summon_after, id), do: id
+  end
+
+  def candidates(game, s, :flier, _src), do: cards(game, s, &Stats.kw?(game, &1, :flying))
+
+  def candidates(game, s, :my_force, _src),
+    do: for(id <- Zones.in_play(game, s), Stats.force?(game, id), do: id)
+
+  # Boot Camp: a unit or a hero that is not a Peace hero.
+  def candidates(game, s, :force_not_peace_hero, _src) do
+    cards(game, s, fn id ->
+      Stats.unit?(game, id) or (Stats.hero?(game, id) and Stats.spec(game, id) != "Peace")
+    end)
+  end
+
+  def candidates(game, s, :my_peace_hero, _src) do
+    for id <- Zones.in_play(game, s),
+        Stats.hero?(game, id),
+        Stats.spec(game, id) == "Peace",
+        do: id
+  end
+
+  # Injunction: a finished tech I or II building of either side.
+  def candidates(game, _s, :tech12_building, _src) do
+    for seat <- [1, 0],
+        b <- [:tech_1, :tech_2],
+        b in game.sides[seat].tech_buildings,
+        do: {:building, seat, b}
+  end
+
   defp tech_units(game, s, techs),
     do: cards(game, s, &(Stats.unit?(game, &1) and Stats.tech(game, &1) in techs))
 
@@ -228,7 +334,8 @@ defmodule Codex.Targets do
   @doc "True when side `s` may target card `id` (invisible, untargetable)."
   def targetable?(game, s, id) do
     not Stats.kw?(game, id, :untargetable) and
-      (Stats.controller(game, id) == s or not Stats.kw?(game, id, :invisible))
+      (Stats.controller(game, id) == s or not Stats.kw?(game, id, :invisible) or
+         Stats.detector?(game, s))
   end
 
   defp partnered(game) do

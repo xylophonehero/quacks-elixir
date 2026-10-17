@@ -57,6 +57,36 @@ defmodule Codex.Stats do
   @doc "The spec of a card (nil for starting-deck cards and tokens)."
   def spec(game, id), do: def_of(game, id).spec
 
+  @doc ~s{True when the card's subtype has the word `word` ("Demon", "Skeleton", ...).}
+  def subtype?(game, id, word) do
+    # Metamorphosis: the heroes become Demons.
+    (word == "Demon" and Map.get(game.cards[id].extra, :demon) == true) or
+      word in def_of(game, id).subtypes
+  end
+
+  @doc """
+  True for an Illusion now: a unit with the Illusion subtype, a copy that is
+  still an Illusion (Sirus Quince), a unit made an Illusion this turn
+  (Hallucination), or a tech 0-II unit while a Dreamscape is in play.
+  """
+  def illusion?(game, id) do
+    c = game.cards[id]
+
+    unit?(game, id) and
+      (subtype?(game, id, "Illusion") or Map.get(c.extra, :illusion) == true or
+         Map.get(c.this_turn, :illusion) == true or
+         (tech(game, id) in [0, 1, 2] and
+            Enum.any?([0, 1], &controls?(game, &1, "dreamscape"))))
+  end
+
+  @doc "True when card `id` can be sacrificed (not indestructible, not \"can't be sacrificed\")."
+  def sacrificable?(game, id),
+    do: not kw?(game, id, :cant_sacrifice) and not kw?(game, id, :indestructible)
+
+  @doc "True when side `s` has a detector (Eyes of the Chancellor): it sees stealth and invisible."
+  def detector?(_game, nil), do: false
+  def detector?(game, s), do: Enum.any?(Zones.in_play(game, s), &kw?(game, &1, :detector))
+
   @doc "True for a Virtuoso."
   def virtuoso?(game, id), do: def_of(game, id).subtype == "Virtuoso"
 
@@ -111,8 +141,15 @@ defmodule Codex.Stats do
     atk = Map.get(c.this_turn, :printed_atk, atk)
     s = controller(game, id)
 
-    atk + c.plus - c.minus + c.tmp_atk + frenzy(game, id, s) + elite(game, id) +
-      static(game, id, s, :atk) + starlet(c) + ironbark(game, id)
+    atk =
+      atk + c.plus - c.minus + c.tmp_atk + frenzy(game, id, s) + elite(game, id) +
+        static(game, id, s, :atk) + starlet(c) + ironbark(game, id)
+
+    # Pestering Haunt: "Can't have more than 1 ATK."
+    case CardRules.keyword(c.card, :max_atk) do
+      nil -> atk
+      max -> min(atk, max)
+    end
   end
 
   @doc "HP now (before damage)."
@@ -147,7 +184,11 @@ defmodule Codex.Stats do
   end
 
   defp frenzy(game, id, s) do
-    n = (CardRules.keyword(game.cards[id].card, :frenzy) || 0) + drakk_frenzy(game, id, s)
+    c = game.cards[id]
+
+    n =
+      (CardRules.keyword(c.card, :frenzy, hero_level(game, id)) || 0) + drakk_frenzy(game, id, s)
+
     if s == game.active, do: n, else: 0
   end
 
@@ -174,19 +215,51 @@ defmodule Codex.Stats do
   # The bonuses that other cards give, `{atk, hp}` summed, picked by `stat`.
   defp static(_game, _id, nil, _stat), do: 0
 
+  # One look at the cards in play first: a bonus is computed only when the card
+  # that gives it is there (most are not; this is the hot path of the bots).
+  @static [
+    {"grounded-guide", :guide},
+    {"two-step", :partner},
+    {"war-drums", :war_drums},
+    {"master-midori", :midori},
+    {"soul-stone", :attached},
+    {"spirit-of-the-panda", :attached},
+    {"final-showdown", :attached},
+    {"might-of-leaf-and-claw", :leaf_and_claw},
+    {"macciatus-the-whisperer", :whisper},
+    {"abomination", :abomination},
+    {"skeletal-lord", :skeletal_lord}
+  ]
+
+  @static_map Map.new(@static)
+
   defp static(game, id, s, stat) do
-    bonuses = [
-      guide(game, id, s),
-      partner(game, id),
-      war_drums(game, id, s),
-      midori(game, id, s),
-      attached(game, id),
-      leaf_and_claw(game, id, s),
-      stampede(game, id, s)
-    ]
+    cards = game.cards
+
+    kinds =
+      for seat <- [0, 1],
+          c <- Zones.in_play(game, seat),
+          kind = Map.get(@static_map, Map.fetch!(cards, c).card),
+          kind != nil,
+          uniq: true,
+          do: kind
+
+    bonuses =
+      [stampede(game, id, s), marked(game, id), trained(game, id)] ++
+        Enum.map(kinds, &bonus(&1, game, id, s))
 
     Enum.sum(for {a, h} <- bonuses, do: if(stat == :atk, do: a, else: h))
   end
+
+  defp bonus(:guide, game, id, s), do: guide(game, id, s)
+  defp bonus(:partner, game, id, _s), do: partner(game, id)
+  defp bonus(:war_drums, game, id, s), do: war_drums(game, id, s)
+  defp bonus(:midori, game, id, s), do: midori(game, id, s)
+  defp bonus(:attached, game, id, _s), do: attached(game, id)
+  defp bonus(:leaf_and_claw, game, id, s), do: leaf_and_claw(game, id, s)
+  defp bonus(:whisper, game, id, s), do: whisper(game, id, s)
+  defp bonus(:abomination, game, id, _s), do: abomination(game, id)
+  defp bonus(:skeletal_lord, game, id, s), do: skeletal_lord(game, id, s)
 
   # Grounded Guide: your OTHER units get +1 ATK; your Virtuosos +2/+1 instead.
   defp guide(game, id, s) do
@@ -234,6 +307,7 @@ defmodule Codex.Stats do
   defp attached(game, id) do
     Enum.reduce(attachments(game, id), {0, 0}, fn a, {x, y} ->
       case game.cards[a].card do
+        "soul-stone" -> {x + 1, y + 1}
         "spirit-of-the-panda" -> {x + 2, y + 2}
         "final-showdown" -> {x + 3, y + 3}
         _ -> {x, y}
@@ -260,6 +334,50 @@ defmodule Codex.Stats do
     if strong > 0 and force?(game, id), do: {5 * strong, 5 * strong}, else: {0, 0}
   end
 
+  # Skeletal Lord: your Skeletons get +1/+1.
+  defp skeletal_lord(game, id, s) do
+    if subtype?(game, id, "Skeleton") do
+      n = count_in_play(game, s, "skeletal-lord")
+      {n, n}
+    else
+      {0, 0}
+    end
+  end
+
+  # Abomination: all other units get -1/-1.
+  defp abomination(game, id) do
+    if unit?(game, id) do
+      n =
+        Enum.count(for(s <- [0, 1], a <- Zones.in_play(game, s), do: a), fn a ->
+          a != id and game.cards[a].card == "abomination"
+        end)
+
+      {-n, -n}
+    else
+      {0, 0}
+    end
+  end
+
+  # Macciatus, The Whisperer: your Illusion units get +1/+1.
+  defp whisper(game, id, s) do
+    if controls?(game, s, "macciatus-the-whisperer") and illusion?(game, id),
+      do: {1, 1},
+      else: {0, 0}
+  end
+
+  # Elite Training (+1 ATK each) and The Art of War (+2 ATK), until the
+  # caster's next upkeep; an unlocked Gargoyle (+3 ATK).
+  defp trained(game, id) do
+    c = game.cards[id]
+
+    {Map.get(c.extra, :elite, 0) + if(Map.has_key?(c.extra, :art_of_war), do: 2, else: 0) +
+       if(Map.has_key?(c.extra, :gargoyle), do: 3, else: 0), 0}
+  end
+
+  # Vandy Anadrose's max level: +2/+2 until her side's next upkeep.
+  defp marked(game, id),
+    do: if(Map.has_key?(game.cards[id].extra, :vandy), do: {2, 2}, else: {0, 0})
+
   # Stampede: your units get +3 ATK / +3 armor this turn.
   defp stampede(game, id, s) do
     if side_effect(game, s, :stampede) && unit?(game, id), do: {3, 0}, else: {0, 0}
@@ -280,7 +398,8 @@ defmodule Codex.Stats do
     total =
       if(slot == :squad_leader, do: 1, else: 0) +
         if(c.card == "ironbark-treant" and slot != nil, do: 2, else: 0) +
-        c.tmp_armor + if(side_effect(game, s, :stampede) && unit?(game, id), do: 3, else: 0)
+        c.tmp_armor + if(side_effect(game, s, :stampede) && unit?(game, id), do: 3, else: 0) +
+        Map.get(c.extra, :elite, 0) + if(Map.has_key?(c.extra, :art_of_war), do: 2, else: 0)
 
     max(total - c.armor_dmg, 0)
   end
@@ -292,24 +411,49 @@ defmodule Codex.Stats do
     c = game.cards[id]
 
     cond do
-      Map.get(c.extra, :polymorph) -> false
+      lost_kw?(game, id, c, key) -> false
       printed_kw?(game, id, key) -> true
-      Map.get(c.this_turn, key) == true -> true
-      Map.get(c.extra, key) == true -> true
+      Map.get(c.this_turn, key) == true or Map.get(c.extra, key) == true -> true
       granted?(game, id, key) -> true
       key in @mimic_keys and c.card == "wandering-mimic" -> mimic?(game, id, key)
       true -> false
     end
   end
 
+  # No keywords: a polymorph, a silenced hero; Crypt Crawler: "A flier loses
+  # flying this turn."
+  defp lost_kw?(game, id, c, key) do
+    Map.get(c.extra, :polymorph) != nil or silenced?(game, id) or
+      Map.get(c.this_turn, {:lost, key}) == true
+  end
+
   defp printed_kw?(game, id, key) do
     c = game.cards[id]
+    level = hero_level(game, id)
 
     kws =
       CardRules.keywords(c.card) ++
-        if(c.level, do: CardRules.hero_keywords(c.card, c.level), else: [])
+        if(level, do: CardRules.hero_keywords(c.card, level), else: [])
 
     Keyword.get(kws, key) not in [nil, false]
+  end
+
+  # The level of a hero whose abilities count (nil for other cards and for a
+  # silenced hero: Free Speech).
+  defp hero_level(game, id) do
+    if silenced?(game, id), do: nil, else: game.cards[id].level
+  end
+
+  @doc """
+  True for a hero whose side is silenced (Free Speech): it can't cast spells
+  and has no abilities until after that side's next turn.
+  """
+  def silenced?(game, id) do
+    game.cards[id].level != nil and
+      case controller(game, id) do
+        nil -> false
+        s -> side_effect(game, s, :silenced) != nil
+      end
   end
 
   defp mimic?(game, id, key) do
@@ -331,7 +475,7 @@ defmodule Codex.Stats do
     c = game.cards[id]
 
     (c.card == "master-midori" and c.level >= 8 and controller(game, id) == game.active) or
-      feather?(game, c)
+      feather?(game, c) or gargoyle?(game, id, true)
   end
 
   defp granted?(game, id, :stealth) do
@@ -344,16 +488,22 @@ defmodule Codex.Stats do
 
   defp granted?(game, id, :invisible) do
     s = controller(game, id)
+    c = game.cards[id]
 
-    case game.cards[id].card do
-      "stalking-tiger" ->
-        Enum.any?(Zones.in_play(game, s), &(hero?(game, &1) and spec(game, &1) == "Feral"))
+    cond do
+      # Eyes of the Chancellor made it invisible.
+      Map.has_key?(c.extra, :eyes) ->
+        true
 
-      "squirrel" ->
-        controls?(game, s, "moss-ancient")
-
-      _ ->
+      s == nil ->
         false
+
+      # Lord of Shadows: your black units are invisible.
+      unit?(game, id) and color(game, id) == "Black" and controls?(game, s, "lord-of-shadows") ->
+        true
+
+      true ->
+        other_invisible?(game, id, s)
     end
   end
 
@@ -361,7 +511,8 @@ defmodule Codex.Stats do
     s = controller(game, id)
 
     controls?(game, s, "blademaster") or
-      (unit?(game, id) and side_effect(game, s, :ferocity) != nil)
+      (unit?(game, id) and side_effect(game, s, :ferocity) != nil) or
+      Map.has_key?(game.cards[id].extra, :art_of_war)
   end
 
   defp granted?(game, id, :armor_piercing),
@@ -375,7 +526,73 @@ defmodule Codex.Stats do
     c.plus > 0 and force?(game, id) and controls?(game, controller(game, id), "blooming-elm")
   end
 
+  defp granted?(game, id, :long_range) do
+    c = game.cards[id]
+
+    # Bluecoat Musketeer: "While this has exactly 1 ATK, it has long-range."
+    (c.card == "bluecoat-musketeer" and atk(game, id) == 1) or skeletal_archery?(game, id)
+  end
+
+  defp granted?(game, id, :anti_air),
+    do: skeletal_archery?(game, id) or Map.get(game.cards[id].extra, :elite, 0) > 0
+
+  defp granted?(game, id, :sparkshot), do: Map.get(game.cards[id].extra, :elite, 0) > 0
+
+  defp granted?(game, id, :unstoppable),
+    do: Map.has_key?(game.cards[id].extra, :art_of_war) or liberty?(game, id)
+
+  defp granted?(game, id, key) when key in [:unattackable, :untargetable], do: liberty?(game, id)
+
+  # Gargoyle: indestructible, can't attack or patrol, until ① unlocks it.
+  defp granted?(game, id, :indestructible), do: gargoyle?(game, id, false)
+
+  defp granted?(game, id, key) when key in [:cant_attack, :cant_patrol],
+    do: gargoyle?(game, id, false) or shackled?(game, id)
+
   defp granted?(_game, _id, _key), do: false
+
+  defp gargoyle?(game, id, unlocked?) do
+    c = game.cards[id]
+    c.card == "gargoyle" and Map.has_key?(c.extra, :gargoyle) == unlocked?
+  end
+
+  # Terras Q: can't attack or patrol while any of its Warlock tokens are in play.
+  defp shackled?(game, id) do
+    game.cards[id].card == "terras-q-the-shackled" and
+      Enum.any?(for(s <- [0, 1], w <- Zones.in_play(game, s), do: w), fn w ->
+        Map.get(game.cards[w].extra, :shackles) == id
+      end)
+  end
+
+  defp other_invisible?(game, id, s) do
+    case game.cards[id].card do
+      "stalking-tiger" ->
+        Enum.any?(Zones.in_play(game, s), &(hero?(game, &1) and spec(game, &1) == "Feral"))
+
+      "squirrel" ->
+        controls?(game, s, "moss-ancient")
+
+      _ ->
+        false
+    end
+  end
+
+  # Liberty Gryphon: unstoppable, unattackable and untargetable while its side
+  # controls an Illusion with another name.
+  defp liberty?(game, id) do
+    c = game.cards[id]
+    s = controller(game, id)
+
+    c.card == "liberty-gryphon" and s != nil and
+      Enum.any?(Zones.in_play(game, s), fn o ->
+        game.cards[o].card != "liberty-gryphon" and illusion?(game, o)
+      end)
+  end
+
+  # Skeletal Archery: "Your Skeletons have long-range and anti-air."
+  defp skeletal_archery?(game, id) do
+    subtype?(game, id, "Skeleton") and controls?(game, controller(game, id), "skeletal-archery")
+  end
 
   @doc "Haste (S1 p. 17)."
   def haste?(game, id), do: kw?(game, id, :haste)
@@ -397,7 +614,7 @@ defmodule Codex.Stats do
   def resist(game, id) do
     c = game.cards[id]
     s = controller(game, id)
-    printed = CardRules.keyword(c.card, :resist) || 0
+    printed = CardRules.keyword(c.card, :resist, hero_level(game, id)) || 0
     lookout = if patrol_slot(game, id) == :lookout, do: 1, else: 0
 
     calamandra =

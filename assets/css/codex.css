@@ -721,6 +721,8 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
 }
 .cx-banner-choices { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .cx-banner-choices::-webkit-scrollbar { display: none; }
+/* Phone: wrap the choices (Newsman's Cost 0–8) so none hide past the edge. */
+@media (max-width: 1023.98px) { .cx-banner-choices { flex-wrap: wrap; overflow-x: visible; } }
 .cx-base-tile {
   display: flex;
   align-items: center;
