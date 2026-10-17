@@ -156,7 +156,7 @@
 <div data-phx-main="" data-phx-session="" data-phx-static="" id="phx-ID">
 <main data-layout="full" style="">
 <div class="min-h-dvh" data-component="codex" data-variant="board" id="gallery-frame">
-<div class="cx-table text-stone-100 cx-selecting" data-active="0" data-pov="0" id="cx-root" phx-hook="CodexWeb.Board.CodexTable" phx-key="Escape" phx-window-keydown="key">
+<div class="cx-table text-stone-100 cx-selecting" data-active="0" data-pov="0" data-targeting="true" id="cx-root" phx-hook="CodexWeb.Board.CodexTable" phx-key="Escape" phx-window-keydown="key">
 <div class="cx-layout">
 <header class="cx-a-top flex items-center gap-1.5">
 <a aria-label="Games" class="cx-icon-btn shrink-0" data-phx-link-state="push" data-phx-link="redirect" href="/games">
@@ -406,31 +406,24 @@ P2
 </div>
 </div>
 </section>
-<div class="cx-a-status cx-status" id="cx-status">
-<div class="cx-st-pill flex min-w-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white shadow-sm sm:text-sm bg-rose-700" id="cx-active">
-<span class="size-1.5 shrink-0 animate-pulse rounded-full bg-white">
+<div class="cx-a-status cx-banner" id="cx-pick" role="status">
+<div class="flex items-center gap-2">
+<span class="grid size-9 shrink-0 place-items-center rounded-full bg-amber-300 text-stone-900">
+<span class="hero-bolt-solid size-5">
 </span>
-<span class="truncate sm:hidden">
-P1 · T2 · Main
 </span>
-<span class="hidden truncate sm:inline">
-P1 · turn 2 · main phase
-</span>
-</div>
-<div class="cx-st-line h-px bg-gradient-to-r from-white/5 via-white/20 to-white/5">
-</div>
-<button aria-label="Undo" class="cx-st-undo cx-icon-btn sm:w-auto sm:gap-1 sm:px-3" id="cx-undo" phx-click="undo" title="Undo the last action" type="button">
-<span class="hero-arrow-uturn-left-mini size-4">
-</span>
-<span class="hidden text-xs font-semibold sm:inline">Undo</span>
-</button>
-<button class="cx-st-end min-h-11 shrink-0 rounded-full bg-amber-300 px-4 text-sm font-bold whitespace-nowrap text-stone-900 shadow-md ring-1 ring-amber-100 transition hover:bg-amber-200 active:scale-95" id="cx-end-turn" phx-click="end_turn" type="button">
-End turn
-</button>
-<div class="cx-st-hint flex min-w-0 items-center gap-2 px-1">
-<p class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-2" id="cx-hint">
-You can hire a worker, level up, play a card, set patrollers, attack, build. Tap a card to see its actions.
+<p class="min-w-0 flex-1 text-sm leading-tight">
+<span class="block truncate font-bold text-amber-100">Granfalloon Flagbearer</span>
+<span class="block truncate text-xs text-white/80">Attacks: tap a glowing target.</span>
 </p>
+<button class="cx-act" id="cx-pick-cancel" phx-click="cancel_target" type="button">
+Cancel
+</button>
+</div>
+<div class="cx-banner-choices">
+<button class="cx-act cx-act-rule shrink-0" id="cx-pick-0" phx-click="pick_index" phx-value-i="0" type="button">
+River Montoya
+</button>
 </div>
 </div>
 <section class="cx-side flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 lg:gap-2 lg:p-2 cx-a-board bg-rose-950/20 ring-rose-300/15 cx-active-side" data-far="false" data-open="false" id="cx-side-0">
@@ -717,7 +710,7 @@ P1
 </div>
 </div>
 </div>
-<aside class="cx-a-sheet flex-col gap-3 lg:flex flex" id="cx-aside">
+<aside class="cx-a-sheet flex-col gap-3 lg:flex flex max-lg:hidden" id="cx-aside">
 <div class="cx-inspector flex flex-col gap-2 bg-stone-950/95 p-3 shadow-2xl ring-1 ring-white/15 backdrop-blur max-lg:rounded-t-2xl max-lg:px-3 max-lg:pt-1 max-lg:pb-2.5 lg:rounded-2xl lg:bg-black/35" data-expanded="false" data-sel="6" id="cx-actions" phx-hook="CodexWeb.Board.KeepInView">
 <button aria-expanded="false" aria-label="Show the full card and all actions" class="cx-handle lg:hidden" id="cx-sheet-handle" phx-click="expand" type="button">
 <span>
@@ -761,21 +754,9 @@ P1 in play<span id="cx-actions-stats"> · ATK 2 · HP 2/2</span>
 </span>
 </button>
 </div>
-<div class="flex flex-col gap-1.5 rounded-xl bg-amber-300/15 p-2 ring-1 ring-amber-200/40" id="cx-pick">
-<p class="text-xs font-semibold text-amber-100">
-Tap what to attack.
+<p class="py-1 text-xs font-semibold text-amber-100">
+Attacks: tap a glowing target.
 </p>
-<div class="flex flex-wrap gap-1.5">
-<button class="cx-act cx-act-rule" id="cx-pick-0" phx-click="pick_index" phx-value-i="0" type="button">
-River Montoya
-</button>
-</div>
-<div class="flex flex-wrap gap-1.5">
-<button class="cx-act" id="cx-pick-cancel" phx-click="cancel_target" type="button">
-Cancel
-</button>
-</div>
-</div>
 </div>
 </div>
 </div>

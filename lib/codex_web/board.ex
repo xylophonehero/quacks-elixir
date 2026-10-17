@@ -582,6 +582,7 @@ defmodule CodexWeb.Board do
       class={["cx-table text-stone-100", @sel && "cx-selecting"]}
       data-pov={@pov}
       data-active={@view.active}
+      data-targeting={to_string(@targeting != nil)}
     >
       <div class="cx-layout">
         <.top_bar
@@ -601,7 +602,12 @@ defmodule CodexWeb.Board do
           class="cx-backdrop lg:hidden"
           aria-label={"Close the side of P#{@opp + 1}"}
         ></button>
-        <.center view={@view} actions={@actions} />
+        <.center
+          :if={!@targeting}
+          view={@view}
+          actions={@actions}
+        />
+        <.pick_banner :if={@targeting} targeting={@targeting} pick={@pick} view={@view} />
         <.side {assigns} seat={@pov} far={false} />
         <.hand
           seat={@pov}
@@ -623,7 +629,11 @@ defmodule CodexWeb.Board do
         ></button>
         <aside
           id="cx-aside"
-          class={["cx-a-sheet flex-col gap-3 lg:flex", if(@sel, do: "flex", else: "hidden")]}
+          class={[
+            "cx-a-sheet flex-col gap-3 lg:flex",
+            if(@sel, do: "flex", else: "hidden"),
+            @targeting && "max-lg:hidden"
+          ]}
         >
           <.inspector
             :if={@sel}
@@ -1056,6 +1066,21 @@ defmodule CodexWeb.Board do
         far={@far}
         open={@open}
       />
+      <button
+        :if={@tg && {:building, @seat, :base} in @tg}
+        id={"cx-base-#{@seat}"}
+        type="button"
+        phx-click="pick_building"
+        phx-value-seat={@seat}
+        phx-value-name="base"
+        class="cx-base-tile cx-targetable-pill"
+      >
+        <.icon name="hero-home-solid" class="size-5" />
+        <span class="font-bold">Attack the base of P{@seat + 1}</span>
+        <span class="ml-auto flex items-center gap-1 font-black tabular-nums">
+          <.icon name="hero-heart-solid" class="size-4 text-rose-600" />{@side.base_hp}
+        </span>
+      </button>
       <p :if={@far and !@board?} class="cx-strip-empty">No units or heroes in play.</p>
       <div class="cx-side-body">
         <%= if @far do %>
@@ -1824,15 +1849,6 @@ defmodule CodexWeb.Board do
   defp inspector(assigns) do
     c = assigns.card
 
-    assigns =
-      assign(assigns,
-        choices:
-          if(assigns.pick,
-            do: for({v, i} <- Enum.with_index(assigns.pick.values), v != nil, do: {v, i}),
-            else: []
-          )
-      )
-
     d = Cards.fetch!(c.card)
     max = Cards.max_level(c.card)
     acts = if assigns.free, do: free_buttons(c), else: rule_buttons(assigns.buttons)
@@ -1911,50 +1927,9 @@ defmodule CodexWeb.Board do
               <.icon name="hero-x-mark-mini" class="size-4" />
             </button>
           </div>
-          <div
-            :if={@targeting}
-            id="cx-pick"
-            class="flex flex-col gap-1.5 rounded-xl bg-amber-300/15 p-2 ring-1 ring-amber-200/40"
-          >
-            <p class="text-xs font-semibold text-amber-100">
-              {pick_text(@targeting, @pick)}
-            </p>
-            <div :if={@choices != []} class="flex flex-wrap gap-1.5">
-              <button
-                :for={{v, i} <- @choices}
-                id={"cx-pick-#{i}"}
-                type="button"
-                phx-click="pick_index"
-                phx-value-i={i}
-                class="cx-act cx-act-rule"
-              >
-                {value_label(@view, v)}
-              </button>
-            </div>
-            <div class="flex flex-wrap gap-1.5">
-              <button
-                :if={@pick.complete && @pick.values != []}
-                id="cx-pick-done"
-                type="button"
-                phx-click="pick_done"
-                class="cx-act cx-act-rule"
-              >
-                Done
-              </button>
-              <button
-                :if={nil in @pick.values}
-                id="cx-pick-skip"
-                type="button"
-                phx-click="skip_target"
-                class="cx-act"
-              >
-                Skip this part
-              </button>
-              <button id="cx-pick-cancel" type="button" phx-click="cancel_target" class="cx-act">
-                Cancel
-              </button>
-            </div>
-          </div>
+          <p :if={@targeting} class="py-1 text-xs font-semibold text-amber-100">
+            {pick_text(@targeting, @pick)}
+          </p>
           <div :if={!@targeting} class="flex flex-wrap gap-1.5">
             <button
               :for={{b, i} <- @acts}
@@ -2139,8 +2114,78 @@ defmodule CodexWeb.Board do
   defp value_label(_v, atom) when is_atom(atom),
     do: atom |> to_string() |> String.replace("_", " ")
 
-  defp pick_text(%{key: {:attack, _, _}}, _pick), do: "Tap what to attack."
-  defp pick_text(%{key: {_, _, _}, picked: []}, _pick), do: "Tap a target."
+  # A target pick in progress: a banner in place of the status bar. The legal
+  # targets glow, the rest of the table dims; each target also has a button here.
+  attr :targeting, :map, required: true
+  attr :pick, :map, required: true
+  attr :view, :map, required: true
+
+  defp pick_banner(assigns) do
+    {_kind, id, _name} = assigns.targeting.key
+
+    assigns =
+      assign(assigns,
+        who: name(assigns.view, id),
+        choices: for({v, i} <- Enum.with_index(assigns.pick.values), v != nil, do: {v, i})
+      )
+
+    ~H"""
+    <div id="cx-pick" class="cx-a-status cx-banner" role="status">
+      <div class="flex items-center gap-2">
+        <span class="grid size-9 shrink-0 place-items-center rounded-full bg-amber-300 text-stone-900">
+          <.icon
+            name={
+              if match?({:attack, _, _}, @targeting.key),
+                do: "hero-bolt-solid",
+                else: "hero-cursor-arrow-rays-solid"
+            }
+            class="size-5"
+          />
+        </span>
+        <p class="min-w-0 flex-1 text-sm leading-tight">
+          <span class="block truncate font-bold text-amber-100">{@who}</span>
+          <span class="block truncate text-xs text-white/80">{pick_text(@targeting, @pick)}</span>
+        </p>
+        <button
+          :if={nil in @pick.values}
+          id="cx-pick-skip"
+          type="button"
+          phx-click="skip_target"
+          class="cx-act"
+        >
+          Skip
+        </button>
+        <button
+          :if={@pick.complete && @pick.values != []}
+          id="cx-pick-done"
+          type="button"
+          phx-click="pick_done"
+          class="cx-act cx-act-rule"
+        >
+          Done
+        </button>
+        <button id="cx-pick-cancel" type="button" phx-click="cancel_target" class="cx-act">
+          Cancel
+        </button>
+      </div>
+      <div :if={@choices != []} class="cx-banner-choices">
+        <button
+          :for={{v, i} <- @choices}
+          id={"cx-pick-#{i}"}
+          type="button"
+          phx-click="pick_index"
+          phx-value-i={i}
+          class="cx-act cx-act-rule shrink-0"
+        >
+          {value_label(@view, v)}
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  defp pick_text(%{key: {:attack, _, _}}, _pick), do: "Attacks: tap a glowing target."
+  defp pick_text(%{key: {_, _, _}, picked: []}, _pick), do: "Tap a glowing target."
   defp pick_text(%{picked: picked}, _pick), do: "Tap target #{length(picked) + 1}."
 
   attr :free, :boolean, default: false

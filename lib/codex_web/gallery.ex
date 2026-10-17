@@ -17,7 +17,7 @@ defmodule CodexWeb.Gallery do
   @spec states() :: [String.t()]
   def states,
     do:
-      ~w(mid-game start red-green selected expanded zoom opp-open attack tech codex discard buildings log free bot)
+      ~w(mid-game start red-green selected expanded zoom opp-open attack attack-base tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -95,6 +95,27 @@ defmodule CodexWeb.Gallery do
       nil ->
         socket
     end
+  end
+
+  # An attack with no patroller in the way: the base of P2 is a big target tile.
+  defp extra(socket, "attack-base", game) do
+    %{elite: bloom, lookout: river} = game.sides[1].zones.patrol
+
+    game =
+      Enum.reduce(
+        [
+          {:free_mode, true},
+          {:move, bloom, {1, :discard}, 0},
+          {:move, river, {1, :in_play}, nil},
+          {:free_mode, false}
+        ],
+        game,
+        fn action, game -> elem(Game.apply(game, 0, action), 1) end
+      )
+
+    socket
+    |> Board.put_view(envelope(game), nil)
+    |> extra("attack", game)
   end
 
   # The tech step: the codex sheet with one card picked.

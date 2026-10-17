@@ -399,6 +399,23 @@ defmodule TableWeb.CodexLiveTest do
       assert length(zone(code, 1, :workers)) == workers - 1
     end
 
+    test "attack on a phone: a banner, the base as a big tile; the sheet hides" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      view |> element("#cx-card-#{a}") |> render_click()
+      view |> element("#cx-rule-attack") |> render_click()
+      assert has_element?(view, "#cx-root[data-targeting=true]")
+      assert has_element?(view, "#cx-pick.cx-a-status")
+      refute has_element?(view, "#cx-status")
+      assert has_element?(view, "#cx-aside.max-lg\\:hidden")
+      view |> element("#cx-base-1") |> render_click()
+
+      assert game(code).sides[1].base_hp == 19
+      assert has_element?(view, "#cx-root[data-targeting=false]")
+    end
+
     test "Cancel ends a pick" do
       {game, a} = place(new(), 0, "timely-messenger", :hand)
       game = ok!(game, {:play, a, []})
