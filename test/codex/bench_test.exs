@@ -66,7 +66,7 @@ defmodule Codex.AI.BenchTest do
     assert bot.mod == Codex.Bot.Search
     assert %{n: 12, eps: 0.1, prefix: false, budget_ms: nil} = bot.state
     assert bot.state.plan.rules.tower == false
-    assert bot.state.plan.weights.threat_base == 1.0
+    assert bot.state.weights.threat_base == 1.0
     assert %{n: 40, eps: 0.15, prefix: true} = Bench.bot("search").state
   end
 end

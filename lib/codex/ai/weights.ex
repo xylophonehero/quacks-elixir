@@ -13,6 +13,8 @@ defmodule Codex.AI.Weights do
   - `ready`: the bot's forces that are not exhausted (`Codex.AI.Eval.ready/2`).
   - `exhaust_cost`: what `Codex.Bot.Plan` takes off an attack or an exhaust
     ability (the force cannot patrol after it).
+  - `margin`: how much better than the stage-1 turn another turn of
+    `Codex.Bot.Search` must score.
 
   `spec/0` gives each tuned weight a range; `to_unit/1` and `from_unit/1` map
   the weights to `[0, 1]^n` and back for the cross-entropy method.
@@ -41,7 +43,8 @@ defmodule Codex.AI.Weights do
     threat_patrol: 0.0,
     lethal: 0.0,
     ready: 0.0,
-    exhaust_cost: 0.5
+    exhaust_cost: 0.5,
+    margin: 0.0
   }
 
   @defaults @stage1
@@ -68,7 +71,8 @@ defmodule Codex.AI.Weights do
     {:threat_patrol, 0.0, 1.5},
     {:lethal, 0.0, 30.0},
     {:ready, 0.0, 2.0},
-    {:exhaust_cost, 0.0, 2.0}
+    {:exhaust_cost, 0.0, 2.0},
+    {:margin, 0.0, 5.0}
   ]
 
   @doc "The weights of the default bots."

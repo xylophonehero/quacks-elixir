@@ -47,6 +47,8 @@ defmodule Codex.Bot.SearchTest do
     game = bot_game({1, 2, 3})
     {action, bot} = Search.choose(Game.bot_view(game, 0), fast())
     assert bot.queue != []
+    # The plan ends the turn: no new search after its last action.
+    assert {:end_turn, _} = List.last(bot.queue)
     {:ok, game} = Game.apply(game, 0, action)
     [{next, _fp} | _] = bot.queue
     assert {^next, _} = Search.choose(Game.bot_view(game, 0), bot)

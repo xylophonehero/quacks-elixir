@@ -16,10 +16,12 @@ defmodule Codex.Bot.Search do
      - randomised turns: at each step, with chance `eps`, a random legal action
        in place of the policy's action.
   3. Scores each candidate after each of its actions with `Codex.AI.Eval`
-     (so a turn may also stop early), and keeps the best: the policy wins a tie.
-  4. Plays the best turn one action per call. Before each action it checks
-     that the state is the one that it expected (`fingerprint/2`); if not (a
-     card was drawn, a guess was wrong), it searches again.
+     (so a turn may also stop early), and keeps the best. Another turn must
+     beat the policy's turn by the weight `margin`: the policy wins a tie.
+  4. Plays the best turn one action per call, then ends the turn. Before each
+     action (and before the end of the turn) it checks that the state is the
+     one that it expected (`fingerprint/2`); if not (a card was drawn, a guess
+     was wrong), it searches again.
 
   Limits: at most `n` candidates, and at most `budget_ms` milliseconds (nil:
   no clock). With no clock the bot is deterministic: the same view and seed give
@@ -33,14 +35,17 @@ defmodule Codex.Bot.Search do
   alias Table.Kit.Rng
 
   @max_steps 60
+  # The score of a candidate that ran out of time: never chosen.
+  @lost 1.0e9
   @enabler_spells ~w(intimidate discord appel-stomp)
 
   @doc """
   A bot state. Options: `n:` candidates per turn (default 40), `budget_ms:`
   (default 400; nil for no clock), `eps:` (default 0.15), `seed:` (default 1),
   `prefix:` (default true: a turn may stop early when the score after an
-  earlier action is the best), `weights:` (default
-  `Codex.AI.Weights.defaults/0`), `rules:` the stage-1
+  earlier action is the best), `weights:` the evaluator weights for the end
+  of a turn (default `Codex.AI.Weights.defaults/0`; the policy inside keeps
+  `Codex.AI.Weights.stage1/0`), `rules:` the stage-1
   rule changes for the policy (default `[]`).
   """
   @spec new(keyword) :: map
@@ -53,7 +58,9 @@ defmodule Codex.Bot.Search do
       eps: Keyword.get(opts, :eps, 0.15),
       prefix: Keyword.get(opts, :prefix, true),
       seed: Keyword.get(opts, :seed, 1),
-      plan: Plan.new(Keyword.get(opts, :rules, []), weights),
+      # The policy keeps the stage-1 weights; `weights` score the end of a turn.
+      plan: Plan.new(Keyword.get(opts, :rules, []), Weights.stage1()),
+      weights: weights,
       queue: [],
       last: nil
     }
@@ -87,8 +94,10 @@ defmodule Codex.Bot.Search do
     {g, rng} = Determinize.sample(v, me, rng)
     deadline = st.budget_ms && System.monotonic_time(:millisecond) + st.budget_ms
 
-    ctx = %{me: me, plan: st.plan, w: st.plan.weights, eps: st.eps, prefix: st.prefix}
+    ctx = %{me: me, plan: st.plan, w: st.weights, eps: st.eps, prefix: st.prefix}
+    # The policy's turn always finishes; the other candidates stop at the deadline.
     {score, line, base, memo} = rollout(g, [], 0.0, rng, ctx, %{})
+    ctx = Map.merge(ctx, %{deadline: deadline, floor: score + ctx.w.margin})
     {best, left, memo} = enablers(base, {score, line}, st.n - 1, deadline, ctx, memo)
     {{_score, line}, _} = randomised(g, best, left, deadline, rng, ctx, memo)
 
@@ -109,34 +118,48 @@ defmodule Codex.Bot.Search do
   # the memo of policy actions (`%{state key => action}`).
   defp rollout(g, forced, eps, rng, ctx, memo) do
     start = Eval.score(g, ctx.me, ctx.w)
-    walk(g, forced, eps, rng, ctx, memo, {[], start}, [{g, []}], {start, []}, 0)
+    best = {start, [{:end_turn, fingerprint(g, ctx.me)}]}
+    walk(g, forced, eps, rng, ctx, memo, {[], start}, [{g, []}], best, 0)
   end
 
   defp walk(g, forced, eps, rng, ctx, memo, {line, cur}, states, best, k) do
-    if k >= @max_steps or g.phase != :main or g.active != ctx.me do
-      finish(ctx, {line, cur}, states, best, memo)
-    else
-      {action, forced, rng, memo} = next(g, forced, eps, rng, ctx, memo)
+    cond do
+      late?(ctx[:deadline]) ->
+        {-@lost, [], Enum.reverse(states), memo}
 
-      if action == :end_turn do
-        finish(ctx, {line, cur}, states, best, memo)
-      else
-        g1 = Plan.sim(g, action)
-        line = [{action, fingerprint(g, ctx.me)} | line]
-        s = Eval.score(g1, ctx.me, ctx.w)
-        best = if s >= elem(best, 0), do: {s, Enum.reverse(line)}, else: best
-        walk(g1, forced, eps, rng, ctx, memo, {line, s}, [{g1, line} | states], best, k + 1)
-      end
+      k >= @max_steps or g.phase != :main or g.active != ctx.me ->
+        finish(g, ctx, {line, cur}, states, best, memo)
+
+      true ->
+        step(g, forced, eps, rng, ctx, memo, {line, cur}, states, best, k)
+    end
+  end
+
+  defp step(g, forced, eps, rng, ctx, memo, {line, cur}, states, best, k) do
+    {action, forced, rng, memo} = next(g, forced, eps, rng, ctx, memo)
+
+    if action == :end_turn do
+      finish(g, ctx, {line, cur}, states, best, memo)
+    else
+      g1 = Plan.sim(g, action)
+      line = [{action, fingerprint(g, ctx.me)} | line]
+      s = Eval.score(g1, ctx.me, ctx.w)
+      best = if s >= elem(best, 0), do: {s, close(g1, line, ctx)}, else: best
+      walk(g1, forced, eps, rng, ctx, memo, {line, s}, [{g1, line} | states], best, k + 1)
     end
   end
 
   # With `prefix` the best state along the line counts (the turn may stop
   # early); without it, the state at the end of the line.
-  defp finish(%{prefix: true}, _now, states, {score, line}, memo),
+  defp finish(_g, %{prefix: true}, _now, states, {score, line}, memo),
     do: {score, line, Enum.reverse(states), memo}
 
-  defp finish(_ctx, {line, cur}, states, _best, memo),
-    do: {cur, Enum.reverse(line), Enum.reverse(states), memo}
+  defp finish(g, ctx, {line, cur}, states, _best, memo),
+    do: {cur, close(g, line, ctx), Enum.reverse(states), memo}
+
+  # A line (newest action first) in play order, with the end of the turn after
+  # it: the plan ends the turn when the table is as expected.
+  defp close(g, line, ctx), do: Enum.reverse([{:end_turn, fingerprint(g, ctx.me)} | line])
 
   defp next(_g, [a | rest], _eps, rng, _ctx, memo), do: {a, rest, rng, memo}
 
@@ -189,7 +212,7 @@ defmodule Codex.Bot.Search do
         {:halt, {best, left, memo}}
       else
         {s, line, _, memo} = rollout(g, [a], 0.0, nil, ctx, memo)
-        {:cont, {better(best, {s, prefix ++ line}), left - 1, memo}}
+        {:cont, {better(best, {s, prefix ++ line}, ctx), left - 1, memo}}
       end
     end)
   end
@@ -204,14 +227,18 @@ defmodule Codex.Bot.Search do
     else
       {x, rng} = Rng.uniform(1_000_000_000, rng)
       {s, line, _, memo} = rollout(g, [], ctx.eps, Rng.seed({x, left, 7}), ctx, memo)
-      randomised(g, better(best, {s, line}), left - 1, deadline, rng, ctx, memo)
+      randomised(g, better(best, {s, line}, ctx), left - 1, deadline, rng, ctx, memo)
     end
   end
 
-  # A new candidate must be strictly better: the earlier one (the policy) wins a tie.
-  defp better({s0, _} = old, {s1, _} = new), do: if(s1 > s0 + 1.0e-9, do: new, else: old)
+  # A new candidate must be strictly better than the best so far, and better
+  # than the policy's turn by the weight `margin` (a small gain may be an
+  # error of the evaluator): the policy wins a tie.
+  defp better({s0, _} = old, {s1, _} = new, ctx),
+    do: if(s1 > s0 + 1.0e-9 and s1 > ctx.floor, do: new, else: old)
 
   defp late?(nil), do: false
+  defp late?(false), do: false
   defp late?(deadline), do: System.monotonic_time(:millisecond) >= deadline
 
   @doc """
