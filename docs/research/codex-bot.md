@@ -29,7 +29,7 @@ Gaps in the code:
 - `tech_value` gives tech II units 4 + ATK when tech II is not built. The bot never builds it, so these cards are dead.
 - No plan over a turn: each action is greedy. The order "level up before patrol" and "attack before play" is fixed.
 - Level-up takes all the gold that is left. This is the only gold sink, so Troq goes to level 8 in every game.
-- It reads the opponent's hand. `Codex.Game.view/2` hides only the decks (as counts); the hand, discard, codex and workers of the other side are in the map. The moduledoc says "no hidden information beyond what its view holds", but the view holds too much. A fair bot must use an information-set view (§4.2.3).
+- It reads the opponent's hand (fixed: `Codex.Game.bot_view/2`, see "Stage 1 results"). `Codex.Game.view/2` hides only the decks (as counts); the hand, discard, codex and workers of the other side are in the map. The moduledoc says "no hidden information beyond what its view holds", but the view holds too much. A fair bot must use an information-set view (§4.2.3).
 
 ### 1.2 Bot against bot, 200 seeded games [M]
 
@@ -278,6 +278,85 @@ Win rate over both seats against a **field**: the current bot (10 %), the probe/
 | 7 | Optional: 2-ply (2b), then ISMCTS (§4.2.4) | Each ≥ 55 % vs the step before, or drop it | 2–5 days |
 
 Keep the engine pure and the bot deterministic for a given seed (except the wall-clock stop at the table). No `Enum.random`, no `Enum.shuffle`, no `:rand.uniform/1` in `lib/codex/ai/*`.
+
+## Stage 1 results
+
+Date: 2026-10-17. Branch `codex-bot`. Scope: Bashing vs Finesse (first-game decks) only. All numbers are from `mix codex.bench` [M]: each seed is played twice, with the bots in both seats. "±" is the half-width of the 95 % confidence interval (one seed = one sample).
+
+### What is new
+
+- `mix codex.bench` (`Codex.AI.Bench`): win rate per bot and per seat with 95 % CIs, game length, buildings started, workers, gold at the end of a turn, the share of turns that end with an attack still legal, time per decision. Options: `--a`, `--b` (bot specs), `--games`, `--seed`, `--preset` (`first`, `finesse_first`, `red_green`), `--jobs`. Pure and deterministic: the same options give the same numbers for any `--jobs`.
+- Fair view (`Codex.Game.bot_view/2`): the other side's hand, discard pile, codex and workers, and both decks, are counts; their cards are not in the view; the log is empty. `view/2` gives it to the bot seat. The person's view and the hot-seat view do not change (the board still shows both hands). A test checks that the bot's choice does not change when the hidden cards change.
+- `Codex.Bot.Plan`: the stage-1 bot, the new table default (bot level `:plan`). The first bot stays as `Codex.Bot` (bot level `:basic`) for the bench.
+- `Codex.Bot.TechPlan`: the tech plans and the worker order as data.
+- `Codex.Rules.act_legal/2`: does a legal action without the legality check. The look-ahead uses it. Decisions take 0.7–2.2 ms (mean) and at most about 100 ms in the final bench.
+
+### How the stage-1 bot plays
+
+Main phase, in this order: hire (while fewer than 10 workers, community worker order) → build tech I, II, III when legal, a Tower at 8 workers → summon the hero → Harmony → units and spells that make the board better → attacks and Maestro's wreck → level-ups with the gold that is left → fill the empty patrol slots. Plays and attacks use a one-action look-ahead: the bot does each legal action on a copy of the public state and scores the result with `Codex.Bot.Plan.eval/2` (base HP × 1.5 plus a bonus when it is low; ATK + HP left of each force; a hero also 2 + its level; tech buildings 4, add-ons 2; damage on buildings −0.5 a point; gold 0.3; changes "this turn" do not count). An attack must gain more than 0.5 (the force cannot patrol after it). The tech step follows the guide's plan (§3.3); at 10 workers, when the plan is done, it techs no card.
+
+### Finesse check
+
+Each Finesse card and River Montoya was checked against the card texts (`priv/codex`, `docs/research/codex.md` §16.3) and the engine, with the old tests and new tests in `test/codex/codex_cards_test.exs`: Angry Dancers pass the patrol (unstoppable), Maestro with Nimble Fencer wrecks at once with a Virtuoso that just arrived, Maestro makes Blademaster cost 0, swift strike works on defence, Discord kills a 1-HP tech 0 unit. River's sideline (level 3) and her discount (level 5) have tests in `test/codex/heroes_test.exs`. **No engine bug was found.**
+
+The imbalance comes from the seat and from the play, not from a rules gap:
+
+| Set-up (plan vs plan, 1 000 games, seeds from 10 001) | P1 wins | P2 wins |
+|---|---|---|
+| `first`: Bashing P1, Finesse P2 | **83.4 % ± 3.3** | 16.6 % ± 3.3 |
+| `finesse_first`: Finesse P1, Bashing P2 | 50.6 % ± 4.4 | 49.4 % ± 4.4 |
+| Old bot, `first` (§1.2) | 82 % | 18 % |
+| Old bot, `finesse_first` | 8.2 % ± 2.4 | 91.8 % ± 2.4 |
+
+So with this bot, P1 is worth about 17 points and Bashing about 16 points. (The probe of §1.3 had Bashing at 95 %.) Bad bot play on the Finesse side: the "enabler" cards (Discord, Appel Stomp, River's sideline, "stop the music") need a plan over the whole turn. The one-action look-ahead does not find it (see the `enablers` rule below), so the bot techs these cards but does not play them well. That is the work of stage 2.
+
+### Rules: kept and dropped
+
+Each rule was measured alone: the bot with its defaults against the same bot with one rule changed. 400 games, seeds 1–200, unless the row says otherwise. "Win" is the win rate of the bot **with** the rule on.
+
+| Rule | Win with the rule | Result |
+|---|---|---|
+| `tower`: Tower add-on at 8 workers | 58.5 % ± 2.9 | **kept** |
+| `tech_plan`: the guide's tech plan (off: the old bot's tech choice) | 56.5 % ± 2.6 | **kept** |
+| `aggro`: base HP × 1.5 in `eval/2` | 52.8 % ± 2.4; 52.6 % ± 1.7 (800 games, seeds 2–401) | **kept** |
+| `hire_order`: community worker order (off: the cheapest card) | 52.5 % ± 2.2 | **kept** |
+| `tech_zero`: no tech at 10 workers when the plan is done | 52.5 % ± 1.7 | **kept** |
+| Units and spells before the attacks (not after) | 65.5 % ± 3.6 | **kept** (order) |
+| Heroes patrol (not "keep heroes home") | 56.0 % ± 2.7 | **kept** |
+| `surplus` in place of `tower` | 51.2 % ± 2.3 (1 200 games) | dropped: no gain |
+| `enablers`: sideline, Intimidate, Discord, Appel Stomp, "stop the music" before attacks | 48.8 % ± 2.4; 48.6 % ± 1.9 (800); 49.5 % ± 1.9 (800, with a cost for River's exhaust) | dropped: no gain, and up to 470 ms a decision |
+| `band_first`: level to the next band before attacks | 51.7 % ± 2.1; 50.2 % ± 1.1; 50.1 % ± 0.9 (800) | dropped: no gain |
+| `patrol_smart`: weakest forces in scavenger and technician | 49.8 % ± 1.3 | dropped |
+| Tower at 6 workers | 49.3 % ± 2.5 | dropped |
+| Tech 2 more cards at 10 workers with 8+ gold | 49.8 % ± 0.5 | dropped |
+| Exhaust cost 1.5 (cautious) / 0 (reckless) | 49.5 % ± 2.4 / 49.9 % ± 1.1 (800) | dropped |
+| Base HP × 2 (not 1.5) | 49.9 % ± 1.6 (800) | dropped |
+| Tech buildings 6, building damage 1 a point | 46.5 % ± 1.8 | dropped: worse |
+| Gold worth 0 | 48.5 % ± 2.1 | dropped |
+| Enabler spells played like other spells | 49.0 % ± 1.7 | dropped |
+| Hero worth 3 more | 50.0 % ± 0.7 | dropped |
+| Other Finesse plan (Starlet, Leaping Lizard ×2, Harmony) | 48.5 % ± 2.7 | dropped |
+| Keep the best defender home; worker dead codex units | 50.0 % ± 0.0 (never used) | dropped |
+
+Note: the community worker order hurt the old bot (§1.3), but it helps this bot, because this bot plays the codex units and does not need the cheap starter units.
+
+### Final bench (seeds from 10 001, not used for the rules)
+
+| Match (1 000 games, both seats) | New bot wins | P1 | P2 | Turns | Gold left | ms per decision (mean / max) |
+|---|---|---|---|---|---|---|
+| `plan` vs `basic`, `first` | **100 %** (1 000 of 1 000; Wilson 95 % lower bound 99.6 %) | 100 % | 100 % | 16.0 | 1.4 (old: 6.0) | 0.7 / 41 |
+| `plan` vs `basic`, `finesse_first` | **100 %** (1 000 of 1 000) | 100 % | 100 % | 16.1 | 1.1 (old: 6.2) | 0.7 / 46 |
+| `plan` vs `plan`, `first` | 50 % (parity) | 83.4 % ± 3.3 | 16.6 % ± 3.3 | 17.8 | 1.9 | 1.5 / 69 |
+
+The new bot builds 4 buildings a game (tech I, II, III and a Tower), reaches 10 workers, and ends its turns with 1.1–1.9 gold (target < 3). 78 % of its turns end with an attack still legal: it does not attack into bad trades. In Red vs Green (no tech plan for those specs; it falls back to the old tech choice) its decisions take at most about 0.2 s. The table bot ticks every 650 ms.
+
+### What stage 2 should do
+
+1. **A whole-turn search** (§4.2.2). The enablers need it: sideline or Discord, then the attacks; Harmony, then cheap spells, then "stop the music" when the Dancers can attack. The one-action look-ahead cannot see these sequences. Start from the stage-1 policy as one candidate and score the end of the turn with `eval/2`.
+2. **A threat term in `eval/2`**: the damage that the opponent's forces can deal next turn through the patrol. The bot now ignores the counter-attack, and Bashing's big units punish that.
+3. **Cards in hand** in `eval/2`: the draw rule (hand + 2, at most 5) makes a full hand worth cards next turn; Surplus (a card a turn) did as well as the Tower.
+4. **Tune the numbers by self-play** (§4.3): the base weight 1.5, the exhaust cost 0.5, gold 0.3, the building values, the worker order and the tech plan. Measure against a field (old bot, stage-1 bot), in both presets (`first` and `finesse_first`).
+5. **Balance target:** Bashing as P1 wins 83 % with equal bots. Track the `finesse_first` preset too, to split the seat effect from the spec effect.
 
 ## Sources
 
