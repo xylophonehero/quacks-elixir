@@ -258,7 +258,7 @@ P2
 </div>
 </div>
 <div class="flex flex-col items-center gap-1">
-<div class="cx-zone cx-pile " data-drop="" data-seat="1" data-zone="deck" id="cx-deck-1" phx-click="zone" phx-value-seat="1" phx-value-zone="deck" title="Deck: 2">
+<div class="cx-zone cx-pile " data-drop="" data-seat="1" data-zone="deck" id="cx-deck-1" phx-click="zone" phx-value-seat="1" phx-value-zone="deck" title="Deck: 3">
 <span class="cx-label">Deck</span>
 <div class="cx-pile-stack" data-empty="false">
 <div class="cx-card">
@@ -266,7 +266,7 @@ P2
 <span>Codex</span>
 </div>
 </div>
-<span class="cx-count" id="cx-deck-1-count">2</span>
+<span class="cx-count" id="cx-deck-1-count">3</span>
 </div>
 </div>
 <div class="flex gap-1">
@@ -316,12 +316,12 @@ Draw
 <span>Codex</span>
 </div>
 </div>
-<div class="cx-card " data-card-id="49" data-hidden="" draggable="false" id="cx-card-49" phx-value-id="49" style="--r: -2.5deg; --y: -1.2px" title="a card">
+<div class="cx-card " data-card-id="40" data-hidden="" draggable="false" id="cx-card-40" phx-value-id="40" style="--r: -2.5deg; --y: -1.2px" title="a card">
 <div class="cx-face cx-back">
 <span>Codex</span>
 </div>
 </div>
-<div class="cx-card " data-card-id="41" data-hidden="" draggable="false" id="cx-card-41" phx-value-id="41" style="--r: -5.0deg; --y: -4.8px" title="a card">
+<div class="cx-card " data-card-id="49" data-hidden="" draggable="false" id="cx-card-49" phx-value-id="49" style="--r: -5.0deg; --y: -4.8px" title="a card">
 <div class="cx-face cx-back">
 <span>Codex</span>
 </div>
@@ -394,16 +394,6 @@ Draw
 </div>
 <div class="cx-zone cx-row " data-drop="" data-list="true" data-seat="1" data-zone="in_play" id="cx-zone-1-in_play" phx-click="zone" phx-value-seat="1" phx-value-zone="in_play">
 <span class="cx-label cx-row-label">In play</span>
-<div class="cx-card cursor-pointer" data-card-id="40" draggable="true" id="cx-card-40" phx-click="select" phx-value-id="40" style="" title="Timely Messenger">
-<div class="cx-face cx-css cx-tone-neutral">
-<span class="cx-cost">1</span>
-<span class="cx-name">Timely Messenger</span>
-<span class="cx-type">Unit — Mercenary · tech 0</span>
-<span class="cx-text">Haste (Can attack and play ⤵ abilities, if he had any, the turn he arrives.)</span>
-<span class="cx-stats">1/1</span>
-</div>
-<span class="cx-tok cx-dmg" title="damage">1</span>
-</div>
 </div>
 </div>
 </section>
@@ -678,13 +668,12 @@ Draw
 <span class="cx-stats">1/2</span>
 </div>
 </div>
-<div class="cx-card cursor-pointer" data-card-id="5" draggable="true" id="cx-card-5" phx-click="select" phx-value-id="5" style="--r: 6.25deg; --y: 7.5px" title="Helpful Turtle">
+<div class="cx-card cursor-pointer" data-card-id="3" draggable="true" id="cx-card-3" phx-click="select" phx-value-id="3" style="--r: 6.25deg; --y: 7.5px" title="Older Brother">
 <div class="cx-face cx-css cx-tone-neutral">
 <span class="cx-cost">2</span>
-<span class="cx-name">Helpful Turtle</span>
-<span class="cx-type">Unit — Cute Animal · tech 0</span>
-<span class="cx-text">Healing 1 (During your upkeep, heal 1 damage from all friendly units and heroes.)</span>
-<span class="cx-stats">1/2</span>
+<span class="cx-name">Older Brother</span>
+<span class="cx-type">Unit — Drunkard · tech 0</span>
+<span class="cx-stats">2/2</span>
 </div>
 </div>
 </div>
@@ -694,7 +683,7 @@ Draw
 </div>
 <aside class="z-30 flex-col gap-3 lg:sticky lg:top-4 lg:flex hidden" id="cx-aside">
 <div class="hidden rounded-2xl bg-black/25 p-3 text-xs leading-relaxed text-white/70 ring-1 ring-white/10 lg:block">
-<p class="mb-1 font-semibold text-white">A free table</p>
+<p class="mb-1 font-semibold text-white">Free mode</p>
 <p>
 Drag a card to a zone, or click it and click a zone. A selected card shows its
 tokens here. Hover a card to see it large. Click the deck to draw; click the
@@ -705,10 +694,10 @@ discard pile, the codex, the workers or the trash to look through it.
 <p class="text-xs font-semibold tracking-wide text-white/60 uppercase">Log</p>
 <ol class="flex max-h-[30vh] flex-col gap-0.5 overflow-y-auto text-xs text-white/80">
 <li class="shrink-0 truncate" id="cx-log-0">
-{:free_mode, true}
+Free mode on.
 </li>
 <li class="shrink-0 truncate" id="cx-log-1">
-{:free_mode, false}
+Free mode off.
 </li>
 <li class="shrink-0 truncate" id="cx-log-2">
 P1 draws 2
@@ -741,58 +730,58 @@ Helpful Turtle → trash
 Timely Messenger: damage +1
 </li>
 <li class="shrink-0 truncate" id="cx-log-12">
-Timely Messenger → P2 in play
+Timely Messenger dies.
 </li>
 <li class="shrink-0 truncate" id="cx-log-13">
-River Montoya: level +2
+Timely Messenger → P2 in play
 </li>
 <li class="shrink-0 truncate" id="cx-log-14">
-River Montoya → P2 Lookout
+River Montoya: level +2
 </li>
 <li class="shrink-0 truncate" id="cx-log-15">
-Bloom → P2 Elite
+River Montoya → P2 Lookout
 </li>
 <li class="shrink-0 truncate" id="cx-log-16">
-P2 gold +5
+Bloom → P2 Elite
 </li>
 <li class="shrink-0 truncate" id="cx-log-17">
-P1 ends the turn.
+P2 gold +5
 </li>
 <li class="shrink-0 truncate" id="cx-log-18">
-P1 Tech I on/off
+P1 ends the turn.
 </li>
 <li class="shrink-0 truncate" id="cx-log-19">
-a card → P1 discard
+P1 Tech I on/off
 </li>
 <li class="shrink-0 truncate" id="cx-log-20">
 a card → P1 discard
 </li>
 <li class="shrink-0 truncate" id="cx-log-21">
-Brick Thief: +1/+1 +1
+Older Brother → P1 discard
 </li>
 <li class="shrink-0 truncate" id="cx-log-22">
-Brick Thief: exhaust / ready
+Brick Thief: +1/+1 +1
 </li>
 <li class="shrink-0 truncate" id="cx-log-23">
-Troq Bashar: damage +1
+Brick Thief: exhaust / ready
 </li>
 <li class="shrink-0 truncate" id="cx-log-24">
-Troq Bashar: level +4
+Troq Bashar: damage +1
 </li>
 <li class="shrink-0 truncate" id="cx-log-25">
-Troq Bashar → P1 Squad leader
+Troq Bashar: level +4
 </li>
 <li class="shrink-0 truncate" id="cx-log-26">
-Brick Thief → P1 in play
+Troq Bashar → P1 Squad leader
 </li>
 <li class="shrink-0 truncate" id="cx-log-27">
-Granfalloon Flagbearer → P1 in play
+Brick Thief → P1 in play
 </li>
 <li class="shrink-0 truncate" id="cx-log-28">
-P1 gold +4
+Granfalloon Flagbearer → P1 in play
 </li>
 <li class="shrink-0 truncate" id="cx-log-29">
-{:free_mode, true}
+P1 gold +4
 </li>
 </ol>
 </div>

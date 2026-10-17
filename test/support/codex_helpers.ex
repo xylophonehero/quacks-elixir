@@ -30,4 +30,35 @@ defmodule Codex.TestHelpers do
   @doc "Every card is in exactly one zone."
   def assert_conserved(game),
     do: assert(Enum.sort(Game.all_placed(game)) == Enum.sort(Map.keys(game.cards)))
+
+  @doc "The id of the first card `slug` owned by `seat` that is not in play."
+  def find(game, seat, slug) do
+    Enum.find(Enum.sort(Map.keys(game.cards)), fn id ->
+      c = game.cards[id]
+
+      c.card == slug and c.seat == seat and
+        Codex.Zones.zone_name(Codex.Zones.locate(game, id)) not in [:in_play, :patrol]
+    end) || flunk("no free #{slug} of P#{seat + 1}")
+  end
+
+  @doc """
+  Put card `slug` of `seat` into `zone` of `seat` with a free-mode move (a test
+  set-up). Returns `{game, id}`. Free mode stays as it was.
+  """
+  def place(game, seat, slug, zone, at \\ nil) do
+    id = find(game, seat, slug)
+    was = game.free
+    game = game |> ok!({:free_mode, true}) |> ok!({:move, id, {seat, zone}, at})
+    game = if was, do: game, else: ok!(game, {:free_mode, false})
+    {game, id}
+  end
+
+  @doc "Set a side's gold by hand."
+  def gold(game, seat, n), do: put_in(game.sides[seat].gold, n)
+
+  @doc "The legal actions of the game (rules)."
+  def legal(game), do: Game.legal_actions(game, 0)
+
+  @doc "The legal attack targets of `a`."
+  def attack_targets(game, a), do: for({:attack, ^a, t} <- legal(game), do: t)
 end

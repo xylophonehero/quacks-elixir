@@ -381,3 +381,4 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
 .cx-act-rule { background: oklch(85% 0.15 85 / 0.18); box-shadow: inset 0 0 0 1px oklch(85% 0.15 85 / 0.45); }
 .cx-act-rule:hover { background: oklch(85% 0.15 85 / 0.3); }
 @media (prefers-reduced-motion: reduce) { .cx-card.cx-targetable > .cx-face, .cx-targetable-pill { animation: none; } }
+.cx-new { left: 50%; top: -6px; translate: -50% 0; background: oklch(45% 0.05 250 / 0.92); font-size: max(9px, 11cqw); }

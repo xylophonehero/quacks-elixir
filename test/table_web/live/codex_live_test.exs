@@ -26,6 +26,16 @@ defmodule TableWeb.CodexLiveTest do
     r
   end
 
+  # A room with a prepared game (`Codex.TestHelpers`).
+  defp room_with(game) do
+    token = token("cx")
+    {:ok, code} = Server.create(@key, %{opts: %{}, name: "Ann"}, token)
+    [{pid, _}] = Registry.lookup(Table.Registry, {@key, code})
+    :sys.replace_state(pid, &%{&1 | game: game})
+    {:ok, view, _} = live(browser(token), "/games/#{@key}/#{code}")
+    %{view: view, code: code}
+  end
+
   defp game(code), do: Server.state(@key, code).game
   defp zone(code, seat, z), do: game(code).sides[seat].zones[z]
 
@@ -244,6 +254,75 @@ defmodule TableWeb.CodexLiveTest do
       assert has_element?(view, "#cx-gold-0-plus")
       view |> element("#cx-free") |> render_click()
       refute has_element?(view, "#cx-gold-0-plus")
+    end
+  end
+
+  describe "rules mode: play, patrol, attack" do
+    import Codex.TestHelpers, only: [new: 0, place: 4, place: 5, gold: 3, ok!: 2]
+
+    test "drag a unit from the hand to In play plays it; to a patrol slot patrols it" do
+      {game, id} = place(gold(new(), 0, 9), 0, "older-brother", :hand)
+      %{view: view, code: code} = room_with(game)
+
+      render_hook(view, "move", %{
+        "id" => to_string(id),
+        "seat" => "0",
+        "zone" => "in_play",
+        "slot" => ""
+      })
+
+      assert id in zone(code, 0, :in_play)
+      assert has_element?(view, "#cx-zone-0-in_play #cx-card-#{id}")
+
+      render_hook(view, "move", %{
+        "id" => to_string(id),
+        "seat" => "0",
+        "zone" => "patrol",
+        "slot" => "squad_leader"
+      })
+
+      assert zone(code, 0, :patrol).squad_leader == id
+    end
+
+    test "a spell with a target: Play… then tap the glowing target" do
+      {game, spark} = place(gold(new(), 0, 9), 0, "spark", :hand)
+      {game, _} = place(game, 0, "troq-bashar", :in_play)
+      {game, target} = place(game, 1, "tenderfoot", :patrol, :elite)
+      %{view: view, code: code} = room_with(game)
+
+      view |> element("#cx-card-#{spark}") |> render_click()
+      view |> element("#cx-rule-play-pick") |> render_click()
+      assert has_element?(view, "#cx-pick")
+      assert has_element?(view, "#cx-card-#{target}.cx-targetable")
+      view |> element("#cx-card-#{target}") |> render_click()
+
+      assert game(code).cards[target].damage == 1
+      refute has_element?(view, "#cx-pick")
+    end
+
+    test "attack: Attack… then the base" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      view |> element("#cx-card-#{a}") |> render_click()
+      view |> element("#cx-rule-attack") |> render_click()
+      assert has_element?(view, "#cx-hp-1-target")
+      view |> element("#cx-hp-1-target") |> render_click()
+
+      assert game(code).sides[1].base_hp == 19
+      assert game(code).cards[a].exhausted
+    end
+
+    test "Cancel ends a pick" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      game = ok!(game, {:play, a, []})
+      %{view: view} = room_with(game)
+      view |> element("#cx-card-#{a}") |> render_click()
+      view |> element("#cx-rule-attack") |> render_click()
+      view |> element("#cx-pick-cancel") |> render_click()
+      refute has_element?(view, "#cx-pick")
+      assert has_element?(view, "#cx-rule-attack")
     end
   end
 end

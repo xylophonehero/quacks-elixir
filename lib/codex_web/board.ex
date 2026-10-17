@@ -497,7 +497,7 @@ defmodule CodexWeb.Board do
             targeting={@targeting}
             stats={@view.stats[@sel.id]}
           />
-          <.inspector_help :if={!@sel} />
+          <.inspector_help :if={!@sel} free={@free} />
           <.log_list view={@view} id="cx-log" class="hidden lg:flex" />
         </aside>
       </div>
@@ -1398,6 +1398,13 @@ defmodule CodexWeb.Board do
       <span :if={@c.face_down and !@hidden and @peek} class="cx-tok cx-down">face down</span>
       <%= if !@hidden do %>
         <span :if={@c.level} class="cx-tok cx-lvl" title="level">L{@c.level}</span>
+        <span
+          :if={Map.get(@c, :fatigued) && !@c.face_down}
+          class="cx-tok cx-new"
+          title="arrived this turn: cannot attack yet"
+        >
+          new
+        </span>
         <span :if={@c.damage > 0} class="cx-tok cx-dmg" title="damage">{@c.damage}</span>
         <span :if={@c.plus > 0} class="cx-tok cx-plus" title="+1/+1 runes">+{@c.plus}</span>
         <span :if={@c.minus > 0} class="cx-tok cx-minus" title="-1/-1 runes">−{@c.minus}</span>
@@ -1453,18 +1460,12 @@ defmodule CodexWeb.Board do
   defp tone(_d), do: "cx-tone-neutral"
 
   # ATK/HP after the runes and the hero band; nil when it is the printed value.
-  defp stats(c, d) do
-    {atk, hp, banded?} =
-      case c.level && Cards.band(c.card, c.level) do
-        %{atk: a, hp: h, level: l} -> {a, h, l > 1}
-        _ -> {d.atk, d.hp, false}
-      end
-
-    runes = c.plus - c.minus
-
-    if is_integer(atk) and is_integer(hp) and (runes != 0 or banded?),
-      do: "#{atk + runes}/#{hp + runes}"
+  # ATK/HP now (from the view), when it differs from the printed values.
+  defp stats(%{now: {atk, hp}}, d) do
+    if {atk, hp} != {d.atk, d.hp}, do: "#{atk}/#{hp}"
   end
+
+  defp stats(_c, _d), do: nil
 
   # -- the inspector (the selected card) ------------------------------------------------------
 
@@ -1703,10 +1704,28 @@ defmodule CodexWeb.Board do
   defp pick_text(%{key: {_, _, _}, picked: []}, _pick), do: "Tap a target."
   defp pick_text(%{picked: picked}, _pick), do: "Tap target #{length(picked) + 1}."
 
+  attr :free, :boolean, default: false
+
   defp inspector_help(assigns) do
     ~H"""
-    <div class="hidden rounded-2xl bg-black/25 p-3 text-xs leading-relaxed text-white/70 ring-1 ring-white/10 lg:block">
-      <p class="mb-1 font-semibold text-white">A free table</p>
+    <div
+      :if={!@free}
+      class="hidden rounded-2xl bg-black/25 p-3 text-xs leading-relaxed text-white/70 ring-1 ring-white/10 lg:block"
+    >
+      <p class="mb-1 font-semibold text-white">How to play</p>
+      <p>
+        Click a card to see what it can do now: play it, hire it as a worker, attack,
+        summon, level up. Drag a card from your hand to In play to play it, to Workers
+        to hire it, and a unit to a patrol slot to patrol. To attack, pick "Attack…" and
+        click a glowing target. Hover a card to see it large. Free mode lets you fix
+        anything by hand.
+      </p>
+    </div>
+    <div
+      :if={@free}
+      class="hidden rounded-2xl bg-black/25 p-3 text-xs leading-relaxed text-white/70 ring-1 ring-white/10 lg:block"
+    >
+      <p class="mb-1 font-semibold text-white">Free mode</p>
       <p>
         Drag a card to a zone, or click it and click a zone. A selected card shows its
         tokens here. Hover a card to see it large. Click the deck to draw; click the
@@ -1740,8 +1759,34 @@ defmodule CodexWeb.Board do
   defp log_text({:setup, _seed}, _v), do: "New game: P1 Bashing, P2 Finesse."
   defp log_text({:reshuffle, s}, _v), do: "P#{s + 1} shuffles the discard pile into the deck."
   defp log_text({:action, s, :end_turn}, _v), do: "P#{s + 1} ends the turn."
-  defp log_text({:action, _s, action}, v), do: action_text(action, v)
+  defp log_text({:action, s, action}, v), do: action_text(s, action, v)
+  defp log_text({:dies, id}, v), do: "#{name(v, id)} dies."
+  defp log_text({:free_levels, id}, v), do: "#{name(v, id)} gets 2 free levels."
+  defp log_text({:dancer, s}, _v), do: "P#{s + 1} gets a Dancer token."
+  defp log_text({:destroyed, s, b}, _v), do: "P#{s + 1}'s #{target_text(b)} is destroyed."
+  defp log_text({:sacrificed, id}, v), do: "#{name(v, id)} is sacrificed."
   defp log_text(other, _v), do: inspect(other)
+
+  defp action_text(s, {:hire, _id}, _v), do: "P#{s + 1} hires a worker."
+  defp action_text(s, {:play, id, []}, v), do: "P#{s + 1} plays #{name(v, id)}."
+
+  defp action_text(s, {:play, id, targets}, v),
+    do: "P#{s + 1} plays #{name(v, id)} on #{Enum.map_join(targets, ", ", &target_name(v, &1))}."
+
+  defp action_text(_s, {:patrol, id, slot}, v),
+    do: "#{name(v, id)} patrols as #{elem(@slot_labels[slot], 0)}."
+
+  defp action_text(_s, {:sideline, id}, v), do: "#{name(v, id)} leaves the patrol zone."
+  defp action_text(_s, {:attack, a, t}, v), do: "#{name(v, a)} attacks #{target_name(v, t)}."
+  defp action_text(_s, {:free_mode, on}, _v), do: "Free mode #{if on, do: "on", else: "off"}."
+  defp action_text(_s, action, v), do: action_text(action, v)
+
+  defp target_name(_v, nil), do: "nothing"
+  defp target_name(_v, {:building, s, b}), do: "P#{s + 1}'s #{target_text(b)}"
+  defp target_name(v, id), do: name(v, id)
+
+  defp target_text(:base), do: "base"
+  defp target_text(b), do: building_label(b)
 
   defp action_text({:move, id, zone, at}, v), do: "#{name(v, id)} → #{zone_text(zone, at)}"
   defp action_text({:draw, s, n}, _v), do: "P#{s + 1} draws #{n}"

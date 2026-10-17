@@ -156,6 +156,7 @@ defmodule Codex.Game do
           reshuffled: boolean,
           summon_after: non_neg_integer | nil,
           tower_used: boolean,
+          max_at_start: [card_id],
           zones: %{
             required(:patrol) => %{slot => card_id | nil},
             optional(zone_name) => [card_id]
@@ -258,6 +259,7 @@ defmodule Codex.Game do
       reshuffled: false,
       summon_after: nil,
       tower_used: false,
+      max_at_start: [],
       zones: %{
         deck: deck,
         hand: hand,
@@ -524,6 +526,7 @@ defmodule Codex.Game do
   """
   @spec view(t, non_neg_integer | :spectator) :: map
   def view(%__MODULE__{} = game, _seat) do
+    stats = Rules.all_stats(game)
     deck_ids = Enum.flat_map(game.sides, fn {_s, side} -> side.zones.deck end)
 
     %{
@@ -537,10 +540,20 @@ defmodule Codex.Game do
           {seat, %{side | zones: Map.put(zones, :deck, length(zones.deck))}}
         end),
       trash: game.trash,
-      cards: Map.drop(game.cards, deck_ids),
-      stats: Rules.all_stats(game),
+      cards: game.cards |> Map.drop(deck_ids) |> with_stats(stats),
+      stats: stats,
       log: Enum.take(game.log, 30),
       undo: game.history != []
     }
+  end
+
+  # Each unit and hero in play carries its ATK/HP now as `now`.
+  defp with_stats(cards, stats) do
+    Map.new(cards, fn {id, c} ->
+      case stats do
+        %{^id => now} -> {id, Map.put(c, :now, now)}
+        _ -> {id, c}
+      end
+    end)
   end
 end
