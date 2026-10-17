@@ -1,7 +1,8 @@
 defmodule Quacks.AI.BenchTest do
   use ExUnit.Case, async: true
 
-  alias Quacks.AI.{Bench, Profile, Tune, Weights}
+  alias Quacks.AI.{Bench, Profile, Review, Tune, Weights}
+  alias Quacks.Archive
 
   doctest Bench
   doctest Weights
@@ -99,6 +100,39 @@ defmodule Quacks.AI.BenchTest do
       assert %{"generation" => 1} = Tune.run([generations: 1] ++ opts)
       assert {:ok, %{name: :tuned}} = Profile.parse("file:" <> opts[:out])
       assert %{"generation" => 2, "history" => [_, _]} = Tune.run([generations: 2] ++ opts)
+    end
+
+    @tag :tmp_dir
+    test "plays on from start positions; a file: base saves the file's own base", %{
+      tmp_dir: dir
+    } do
+      start = Path.join(dir, "start.json")
+      Weights.save(start, "balanced+strong", Profile.get(:expert))
+
+      {:ok, game} =
+        Archive.load(Path.expand("../../fixtures/bundles/bug_89.json", __DIR__))
+
+      starts = Review.start_positions([game])
+
+      state =
+        Tune.run(
+          base: "file:" <> start,
+          opponent: "balanced+strong",
+          checkpoint: Path.join(dir, "ck.json"),
+          out: Path.join(dir, "out.json"),
+          generations: 1,
+          population: 2,
+          elite: 1,
+          seeds: 2,
+          jobs: 2,
+          starts: starts,
+          start_reps: 1
+        )
+
+      assert %{"generation" => 1} = state
+      out = dir |> Path.join("out.json") |> File.read!() |> Jason.decode!()
+      assert out["base"] == "balanced+strong"
+      assert {:ok, _} = Profile.parse("file:" <> Path.join(dir, "out.json"))
     end
   end
 end

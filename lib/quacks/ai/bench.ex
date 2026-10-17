@@ -16,6 +16,7 @@ defmodule Quacks.AI.Bench do
   alias Quacks.AI
   alias Quacks.AI.{Profile, Stall}
   alias Quacks.Game
+  alias Table.Kit.Rng
 
   @max_steps 20_000
   @z 1.96
@@ -51,6 +52,9 @@ defmodule Quacks.AI.Bench do
   - `progress:` a function that gets `%{done: n, total: n, seconds: s}` after each
     batch.
   - `sets:`, `rules:`, `expansions:` go to `Quacks.Game.new/1`.
+  - `starts:` a list of games (all with `players:` seats) to play on from, in place
+    of new games: seed `i` plays start `rem(i, length(starts))` on with a new game
+    rng (`docs/research/learn-from-nick.md`: positions from Nick's games).
 
   Returns `%{games:, seeds:, players:, seconds:, games_per_s:, jobs:, bots: [bot_summary]}`,
   the bots in the order given (duplicates once).
@@ -63,7 +67,13 @@ defmodule Quacks.AI.Bench do
     seeds = ceil(Keyword.get(opts, :games, 1000) / k)
     jobs = Keyword.get(opts, :jobs, default_jobs())
     seed = Keyword.get(opts, :seed, 1)
-    game_opts = Keyword.take(opts, [:sets, :rules, :expansion, :expansions])
+
+    game_opts =
+      case opts[:starts] do
+        [_ | _] = starts -> [starts: List.to_tuple(starts)]
+        _none -> Keyword.take(opts, [:sets, :rules, :expansion, :expansions])
+      end
+
     progress = Keyword.get(opts, :progress, fn _ -> :ok end)
     started = System.monotonic_time(:millisecond)
     deadline = deadline(opts[:minutes], started)
@@ -113,9 +123,30 @@ defmodule Quacks.AI.Bench do
   and per seat `%{exploded: rounds, rounds: rounds, decisions: %{phase => {n, us, max_us}}}`.
   """
   @spec play([Profile.t()], {integer, integer, integer}, keyword) :: {Game.t(), map}
-  def play(profiles, seed, game_opts \\ []) do
+  def play(profiles, seed, game_opts \\ [])
+
+  def play(profiles, {_, i, _} = seed, starts: starts) do
+    start = elem(starts, rem(i - 1, tuple_size(starts)))
+    from(%{start | rng: Rng.seed(seed)}, seat_map(profiles), seed)
+  end
+
+  def play(profiles, seed, game_opts) do
     game = Game.new([seed: seed, players: length(profiles)] ++ game_opts)
-    bots = profiles |> Enum.with_index() |> Map.new(fn {p, s} -> {s, p} end)
+    from(game, seat_map(profiles), seed)
+  end
+
+  @doc """
+  Play `game` on to its end, `bots` (seat => profile) in every seat, each bot with
+  its own rng from `seed`; the game keeps its rng. Returns the finished game.
+  `Quacks.AI.Review` uses it for rollouts.
+  """
+  @spec play_out(Game.t(), %{Game.seat() => Profile.t()}, {integer, integer, integer}) ::
+          Game.t()
+  def play_out(game, bots, seed), do: game |> from(bots, seed) |> elem(0)
+
+  defp seat_map(profiles), do: profiles |> Enum.with_index() |> Map.new(fn {p, s} -> {s, p} end)
+
+  defp from(game, bots, seed) do
     rngs = Map.new(bots, fn {seat, _} -> {seat, AI.new_rng(seed, seat)} end)
     stats = Map.new(bots, fn {seat, _} -> {seat, %{exploded: 0, rounds: 0, decisions: %{}}} end)
     loop(game, bots, rngs, stats, 0)

@@ -8,6 +8,13 @@ defmodule Quacks.GameStore do
   The `Quacks.GameServer` writes it (debounced) after each change and deletes it when
   the game ends for good. At boot `restore/1` starts a server for every file.
 
+  **Finished games** (the archive): when a game ends, the server writes
+  `<dir>/finished/<id>.json` (`archive/3`): the bundle, the seats (name, human or
+  bot and its profile, VP), the standings, the winners, the app version and
+  `finished_at`. The game file goes later as before; the archive stays. Only the
+  newest 1000 archive files and at most 50 MB stay (`prune/3`). `restore/1`
+  does not read them. `mix quacks.games.pull` copies them to a laptop.
+
   The directory is `config :quacks, :games_dir` (`GAMES_DIR` at runtime); `nil` (the
   test default) turns the store off. A write goes to a temp file first and is then
   renamed, so a crash never leaves half a file.
@@ -44,6 +51,66 @@ defmodule Quacks.GameStore do
       {:error, reason} = error ->
         Logger.warning("game #{id}: cannot write #{file}: #{inspect(reason)}")
         error
+    end
+  end
+
+  @max_finished 1000
+  @max_finished_bytes 50_000_000
+
+  @doc "The directory of the finished games (the archive) in `dir`."
+  @spec finished_dir(Path.t()) :: Path.t()
+  def finished_dir(dir), do: Path.join(dir, "finished")
+
+  @doc """
+  Write `body` (JSON-ready) as the archive file of the finished game `id`, then
+  `prune/3` the archive. A `nil` dir does nothing. A failure is logged and
+  returned, never raised.
+  """
+  @spec archive(Path.t() | nil, GameServer.id(), map) :: :ok | {:error, term}
+  def archive(nil, _id, _body), do: :ok
+
+  def archive(dir, id, body) do
+    fdir = finished_dir(dir)
+
+    case write(fdir, id, body) do
+      :ok ->
+        prune(fdir)
+        :ok
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Keep the newest `max_files` archive files (default #{@max_finished}) whose sizes
+  add up to at most `max_bytes` (default #{@max_finished_bytes}); delete the rest.
+  Newest = the latest modification time. Returns the deleted paths.
+  """
+  @spec prune(Path.t(), pos_integer, pos_integer) :: [Path.t()]
+  def prune(fdir, max_files \\ @max_finished, max_bytes \\ @max_finished_bytes) do
+    files =
+      fdir
+      |> Path.join("*.json")
+      |> Path.wildcard()
+      |> Enum.flat_map(&stat/1)
+      |> Enum.sort_by(fn {path, mtime, _size} -> {mtime, path} end, :desc)
+
+    {_kept, _bytes, gone} =
+      Enum.reduce(files, {0, 0, []}, fn {path, _mtime, size}, {n, bytes, gone} ->
+        if n < max_files and bytes + size <= max_bytes,
+          do: {n + 1, bytes + size, gone},
+          else: {n, bytes, [path | gone]}
+      end)
+
+    Enum.each(gone, &File.rm/1)
+    Enum.reverse(gone)
+  end
+
+  defp stat(path) do
+    case File.stat(path, time: :posix) do
+      {:ok, %{mtime: mtime, size: size}} -> [{path, mtime, size}]
+      {:error, _} -> []
     end
   end
 
