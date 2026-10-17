@@ -1377,7 +1377,7 @@ defmodule CodexWeb.Board do
     <div
       class={[
         "flex items-center rounded-full bg-black/30 ring-1 ring-white/10",
-        @target && "cx-targetable-pill cx-base-target cursor-pointer"
+        @target && "cx-targetable-pill cx-hit cursor-pointer"
       ]}
       title={@label}
       phx-click={@target && "pick_building"}
@@ -2043,7 +2043,7 @@ defmodule CodexWeb.Board do
         phx-click="expand"
         aria-expanded={to_string(@expanded)}
         aria-label={if @expanded, do: "Show less", else: "Show the full card and all actions"}
-        class="cx-handle lg:hidden"
+        class="cx-handle cx-hit lg:hidden"
       >
         <span></span>
       </button>
