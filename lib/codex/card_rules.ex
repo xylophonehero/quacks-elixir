@@ -208,7 +208,7 @@ defmodule Codex.CardRules do
   @manual ~w(burning-volley feral-strike)
   # Not done yet in this round of work (moved out as each spec is done).
   @manual @manual ++
-            ~w(artisan-mantis bamstamper-lizzo barkcoat-bear behind-the-ferns blooming-ancient blooming-elm centaur chameleon cinderblast-dragon circle-of-life dinosize dothram-horselord doubleshot-archer ember-sparks fairie-dragon ferocity final-showdown fire-dart firebat firehouse flame-arrow galina-glimmer gemscout-owl giant-panda gigadon guargum-eternal-sentinel hotter-fire huntress lobber might-of-leaf-and-claw molting-firebird moment-s-peace moss-ancient murkwood-allies nature-reclaims oversized-rhinoceros polymorph-squirrel potent-basilisk predator-tiger rampaging-elephant spirit-of-the-panda stalking-tiger stampede tiny-basilisk tyrannosaurus-rex wandering-mimic)
+            ~w(artisan-mantis barkcoat-bear behind-the-ferns blooming-ancient blooming-elm centaur chameleon circle-of-life dinosize dothram-horselord fairie-dragon ferocity final-showdown galina-glimmer gemscout-owl giant-panda gigadon guargum-eternal-sentinel huntress might-of-leaf-and-claw moment-s-peace moss-ancient murkwood-allies nature-reclaims oversized-rhinoceros polymorph-squirrel potent-basilisk predator-tiger rampaging-elephant spirit-of-the-panda stalking-tiger stampede tiny-basilisk tyrannosaurus-rex wandering-mimic)
 
   # "Arrives:" abilities with a target. The slot may be empty only when there is
   # no legal target ("do as much as you can", S1 p. 17).

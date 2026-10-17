@@ -100,7 +100,33 @@ defmodule Codex.Effects.Red do
 
   def spell(game, _s, "war-drums", _id, []), do: game
 
+  # -- Fire --
+
+  def spell(game, s, "fire-dart", _id, [t]),
+    do: Effects.burn(game, s, "fire-dart", t, if(building?(game, t), do: 2, else: 3))
+
+  def spell(game, s, "flame-arrow", _id, [t]),
+    do: Effects.burn(game, s, "flame-arrow", t, if(building?(game, t), do: 3, else: 4))
+
+  # Ember Sparks: 3 damage divided (one target per point). Hotter Fire adds its
+  # damage to the total. # REVIEW: the extra point goes to the first target.
+  def spell(game, s, "ember-sparks", _id, targets) do
+    extra = Effects.ability_damage(game, s, "ember-sparks", 0)
+    [first | rest] = targets
+    game = Effects.deal(game, first, 1 + extra)
+    Enum.reduce(rest, game, &Effects.deal(&2, &1, 1))
+  end
+
   def spell(game, _s, _slug, _id, _targets), do: game
+
+  defp destroyed?(game, {:building, s, b}),
+    do: b != :base and b not in game.sides[s].tech_buildings
+
+  defp destroyed?(game, id) when is_integer(id), do: not in_play?(game, id)
+
+  defp building?(_game, {:building, _, _}), do: true
+  defp building?(game, id) when is_integer(id), do: Stats.building_card?(game, id)
+  defp building?(_game, _t), do: false
 
   defp in_play?(game, id), do: Zones.zone_name(Zones.locate(game, id)) in [:in_play, :patrol]
 
@@ -116,6 +142,9 @@ defmodule Codex.Effects.Red do
   def arrive(game, s, _id, "marauder", [:boost]), do: Effects.trash_worker(game, 1 - s)
 
   def arrive(game, s, _id, "pirate-gang-commander", []), do: Effects.summon(game, s, "pirate", 3)
+
+  def arrive(game, s, _id, "bamstamper-lizzo", [t]),
+    do: Effects.burn(game, s, "bamstamper-lizzo", t, 3)
 
   def arrive(game, _s, _id, _slug, _targets), do: game
 
@@ -152,6 +181,18 @@ defmodule Codex.Effects.Red do
       )
       |> Effects.arrive(s, u, [])
     end)
+  end
+
+  def ability(game, s, id, :lob, [t]), do: Effects.burn(game, s, slug(game, id), t, 1)
+  def ability(game, s, id, :firebat, [t]), do: Effects.burn(game, s, slug(game, id), t, 2)
+
+  # Firehouse: 2 damage to a unit, hero or building; if that destroys it, ready the Firehouse.
+  def ability(game, s, id, :firehouse, [t]) do
+    game = game |> Effects.burn(s, "firehouse", t, 2) |> Rules.deaths()
+
+    if destroyed?(game, t),
+      do: Zones.update_card(game, id, &%{&1 | exhausted: false}),
+      else: game
   end
 
   # Rickety Mine: gain 3, flip a coin; tails: sacrifice it and the base takes 2.
@@ -233,7 +274,10 @@ defmodule Codex.Effects.Red do
     end
   end
 
-  @doc "Red \"Attacks:\" abilities (after the exhaust, before damage)."
+  @doc "Red \"Attacks:\" abilities (after the exhaust, before damage): Doubleshot Archer."
+  def attacks(game, s, _a, "doubleshot-archer"),
+    do: Effects.burn(game, s, "doubleshot-archer", {:building, 1 - s, :base}, 3)
+
   def attacks(game, _s, _a, _slug), do: game
 
   @doc """
@@ -241,7 +285,7 @@ defmodule Codex.Effects.Red do
   scavenger: 1 gold; a technician: a card).
   """
   def after_combat(game, s, a, target, %{killed?: true, slot: slot} = ctx) do
-    game = recruit(game, s, a, target, ctx)
+    game = game |> recruit(s, a, target, ctx) |> firebird(s, a, ctx)
     c = game.cards[a]
 
     case {c.card, slot} do
@@ -253,7 +297,20 @@ defmodule Codex.Effects.Red do
     end
   end
 
-  def after_combat(game, s, a, target, ctx), do: recruit(game, s, a, target, ctx)
+  def after_combat(game, s, a, target, ctx),
+    do: game |> recruit(s, a, target, ctx) |> firebird(s, a, ctx)
+
+  # Molting Firebird damages a building: 1 damage to every unit and hero that opponent controls.
+  defp firebird(game, s, a, %{building_hit: true}) do
+    if game.cards[a].card == "molting-firebird" do
+      forces = for id <- Zones.in_play(game, 1 - s), Stats.force?(game, id), do: id
+      Enum.reduce(forces, game, &Effects.burn(&2, s, "molting-firebird", &1, 1))
+    else
+      game
+    end
+  end
+
+  defp firebird(game, _s, _a, _ctx), do: game
 
   # Ogre Recruiter: "Attacks: If this survives the combat, gain control of a tech 0 or tech I unit."
   # REVIEW: the engine takes the opposing tech 0/I unit with the most ATK + HP.
