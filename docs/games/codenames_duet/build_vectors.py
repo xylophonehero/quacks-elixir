@@ -11,8 +11,14 @@ Two sources:
   Licence: PDDL. The bench (CodenamesDuet.AI.Bench) uses glove.bin as a
   "human proxy" guesser: a partner that does not share the bot's vectors.
 
-Usage (needs numpy; download the sources once, outside the repo:
-glove.6B.zip is 822 MB, numberbatch-en-19.08.txt.gz is 325 MB):
+A third source marks the concrete clue words: WordNet 3.0 (Princeton
+University, WordNet licence), through NLTK. The file keeps only a flag per word,
+no WordNet data.
+
+Usage (needs numpy and nltk with the wordnet corpus: `NLTK_DATA=<dir> python3 -c
+"import nltk; nltk.download('wordnet', download_dir='<dir>')"`; download the
+sources once, outside the repo: glove.6B.zip is 822 MB,
+numberbatch-en-19.08.txt.gz is 325 MB):
 
     unzip glove.6B.zip glove.6B.100d.txt
     python3 docs/games/codenames_duet/build_vectors.py numberbatch \\
@@ -35,7 +41,8 @@ The file keeps:
 Format (little endian), read by CodenamesDuet.AI.Vectors.Data:
 
     "CDV1"  u32 count  u16 dim  u16 k
-    count x (u8 flags, u8 length, bytes)      flags: 1 = clue word, 2 = board word
+    count x (u8 flags, u8 length, bytes)      flags: 1 = clue word, 2 = board word,
+                                              4 = concrete (see concrete/1)
     count x dim x i8                          each vector scaled to max |x| = 127
     for each board word, in words.txt order:  k x (u16 index, i8 cosine x 127)
                                               its k nearest clue words, nearest first
@@ -99,6 +106,19 @@ def dictionary():
     return {w for w in words if w.islower()}
 
 
+def concrete_test():
+    """A test for concrete nouns: the word's first noun sense is a physical entity."""
+    from nltk.corpus import wordnet as wn
+
+    physical = wn.synset("physical_entity.n.01")
+
+    def concrete(word):
+        senses = wn.synsets(word, "n")
+        return bool(senses) and any(physical in path for path in senses[0].hypernym_paths())
+
+    return concrete
+
+
 def candidates(glove, board_set):
     """The clue words in GloVe frequency order (before the source filter)."""
     lower = dictionary()
@@ -124,7 +144,7 @@ def read_source(kind, path, wanted):
     opener = gzip.open if str(path).endswith(".gz") else open
     with opener(path, "rt", encoding="utf8") as f:
         for n, line in enumerate(f):
-            if kind == "numberbatch" and n == 0:
+            if kind != "glove" and n == 0:
                 continue
             word, rest = line.split(" ", 1)
             if word in wanted and word not in vecs:
@@ -154,10 +174,12 @@ def main(kind, source, glove, out_path):
     unit = mat / np.linalg.norm(mat, axis=1, keepdims=True)
     q = np.round(unit / np.abs(unit).max(axis=1, keepdims=True) * 127).astype(np.int8)
 
+    concrete = concrete_test()
     out = bytearray(b"CDV1")
     out += struct.pack("<IHH", len(order), dim, K)
     for w in order:
         flags = (1 if w in clue_set else 0) | (2 if w in board_set else 0)
+        flags |= 4 if concrete(w) else 0
         b = w.encode()
         out += struct.pack("<BB", flags, len(b)) + b
     out += q.tobytes()
@@ -176,6 +198,6 @@ def main(kind, source, glove, out_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5 or sys.argv[1] not in ("glove", "numberbatch"):
+    if len(sys.argv) != 5 or sys.argv[1] not in ("glove", "numberbatch", "fasttext"):
         sys.exit(__doc__)
     main(*sys.argv[1:])

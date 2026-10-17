@@ -24,7 +24,7 @@ defmodule CodenamesDuet.AI.Bench do
 
   @doc """
   Options: `games` (default 100), `seed` (default 1), `opts` (the game options,
-  default `%{}`), `giver` and `guesser` (the bots' vector sets, default `:main`). Returns `%{games, wins, win_rate, mean_found, assassin_losses,
+  default `%{}`), `giver`, `guesser` and `params` (see `CodenamesDuet.AI.Vectors.new/2`). Returns `%{games, wins, win_rate, mean_found, assassin_losses,
   assassin_rate, sudden_death_losses, mean_score, errors}` (`mean_score`: of the
   won games, rulebook §6.4).
   """
@@ -33,7 +33,7 @@ defmodule CodenamesDuet.AI.Bench do
     games = Keyword.get(opts, :games, 100)
     seed = Keyword.get(opts, :seed, 1)
     game_opts = Keyword.get(opts, :opts, %{})
-    bot_opts = Keyword.take(opts, [:giver, :guesser])
+    bot_opts = Keyword.take(opts, [:giver, :guesser, :params])
 
     results = for i <- 1..games//1, do: play_one(game_opts, {seed, i, 0}, bot_opts)
     n = max(games, 1)

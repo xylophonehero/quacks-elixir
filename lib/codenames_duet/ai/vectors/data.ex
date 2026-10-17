@@ -1,13 +1,15 @@
 defmodule CodenamesDuet.AI.Vectors.Data do
   @moduledoc """
   The word vectors of the Duet bot: `priv/games/codenames_duet/vectors.bin`, a
-  subset of GloVe 6B 100d (PDDL, see `docs/CREDITS.md`). The file holds the 599
-  board words and 17,528 clue words as 8-bit vectors, and the 300 nearest clue
-  words of each board word. `docs/games/codenames_duet/build_vectors.py` makes
-  it and documents the format.
+  subset of ConceptNet Numberbatch 19.08 (CC BY-SA 4.0, see `docs/CREDITS.md`).
+  The file holds the 599 board words and 17,472 clue words as 8-bit vectors
+  (300 dimensions), a flag for the concrete nouns, and the 300 nearest clue
+  words of each board word. `glove.bin` (GloVe 6B 100d, PDDL) has the same form;
+  only the bench uses it. `docs/games/codenames_duet/build_vectors.py` makes the
+  files and documents the format.
 
-  The first call reads the file into `:persistent_term` (about 3 MB); the later
-  calls read it from there.
+  The first call for a set reads its file into `:persistent_term` (about 6 MB
+  for `vectors.bin`); the later calls read it from there.
 
       iex> CodenamesDuet.AI.Vectors.Data.similarity("sea", "ocean") > 0.5
       true
@@ -25,6 +27,7 @@ defmodule CodenamesDuet.AI.Vectors.Data do
           index: %{String.t() => non_neg_integer},
           words: tuple,
           clue: tuple,
+          concrete: tuple,
           vectors: tuple,
           norms: tuple,
           neighbours: %{String.t() => binary},
@@ -66,6 +69,10 @@ defmodule CodenamesDuet.AI.Vectors.Data do
       :error -> false
     end
   end
+
+  @doc "True when the word at index `i` is a concrete noun (WordNet, see the build script)."
+  @spec concrete?(non_neg_integer, set) :: boolean
+  def concrete?(i, set \\ :main), do: elem(data(set).concrete, i)
 
   @doc "The clue words, most frequent first."
   @spec clue_words(set) :: [String.t()]
@@ -137,7 +144,7 @@ defmodule CodenamesDuet.AI.Vectors.Data do
     dot(elem(d.vectors, i), elem(d.vectors, j), 0) / (elem(d.norms, i) * elem(d.norms, j))
   end
 
-  # Four components a step: the vectors have 100 (a multiple of 4).
+  # Four components a step: the vectors have 100 or 300 (a multiple of 4).
   defp dot(
          <<a1::signed-8, a2::signed-8, a3::signed-8, a4::signed-8, ra::binary>>,
          <<b1::signed-8, b2::signed-8, b3::signed-8, b4::signed-8, rb::binary>>,
@@ -163,6 +170,7 @@ defmodule CodenamesDuet.AI.Vectors.Data do
     {entries, rest} = read_words(rest, count, [])
     words = entries |> Enum.map(&elem(&1, 1)) |> List.to_tuple()
     clue = entries |> Enum.map(&(Bitwise.band(elem(&1, 0), 1) == 1)) |> List.to_tuple()
+    concrete = entries |> Enum.map(&(Bitwise.band(elem(&1, 0), 4) == 4)) |> List.to_tuple()
     boards = for {flags, w} <- entries, Bitwise.band(flags, 2) == 2, do: w
 
     size = count * dim
@@ -182,6 +190,7 @@ defmodule CodenamesDuet.AI.Vectors.Data do
       index: index,
       words: words,
       clue: clue,
+      concrete: concrete,
       vectors: vectors,
       norms: norms,
       neighbours: neighbours,
