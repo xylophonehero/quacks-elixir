@@ -91,8 +91,9 @@ defmodule Codex.Game do
 
   @workers %{0 => 4, 1 => 5}
 
-  # The set-ups (research §2): the rulebook's first game (1 hero each), and Red
-  # against Green (3-hero mode: 3 specs, 3 heroes, the colour's starting deck).
+  # The set-ups (research §2): the rulebook's first game (1 hero each), Red
+  # against Green and Blue against Black (3-hero mode: 3 specs, 3 heroes, the
+  # colour's starting deck).
   @presets %{
     "first" => %{
       0 => %{starter: "Neutral", specs: ["Bashing"]},
@@ -101,6 +102,15 @@ defmodule Codex.Game do
     "red_green" => %{
       0 => %{starter: "Red", specs: ["Anarchy", "Blood", "Fire"]},
       1 => %{starter: "Green", specs: ["Balance", "Feral", "Growth"]}
+    },
+    "blue_black" => %{
+      0 => %{starter: "Blue", specs: ["Law", "Peace", "Truth"]},
+      1 => %{starter: "Black", specs: ["Demonology", "Disease", "Necromancy"]}
+    },
+    # The same with the seats swapped (Black as P1), for the bot bench.
+    "black_blue" => %{
+      0 => %{starter: "Black", specs: ["Demonology", "Disease", "Necromancy"]},
+      1 => %{starter: "Blue", specs: ["Law", "Peace", "Truth"]}
     }
   }
 
@@ -258,7 +268,7 @@ defmodule Codex.Game do
 
   def new(_opts, _seed), do: {:error, :invalid_seed}
 
-  @doc ~s{The set-up presets: `"first"` (Bashing vs Finesse) and `"red_green"`.}
+  @doc ~s{The set-up presets: `"first"` (Bashing vs Finesse), `"red_green"` and `"blue_black"`.}
   @spec presets() :: map
   def presets, do: @presets
 

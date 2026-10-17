@@ -1,8 +1,8 @@
 defmodule CodexWeb.SetupLive do
   @moduledoc """
-  `/games/codex/new`: start a Codex room. The first-game set-up is fixed
-  (`Codex.Game.new/2`): P1 Bashing (Troq Bashar) against P2 Finesse (River
-  Montoya). You play P1 against the bot (`Codex.Bot`), or both sides on this
+  `/games/codex/new`: start a Codex room. The set-up is a preset
+  (`Codex.Game.presets/0`: Bashing vs Finesse, Red vs Green, Blue vs Black) or
+  a custom pick of a starting deck and one spec for each side. You play P1 against the bot (`Codex.Bot`), or both sides on this
   screen (hot-seat). Create makes the room (`Table.Server.create/3`) and opens
   it at `/games/codex/<code>`.
   """
@@ -93,13 +93,15 @@ defmodule CodexWeb.SetupLive do
           >
             <fieldset class="flex flex-col gap-2">
               <legend class="mb-2 text-sm font-semibold">Decks</legend>
-              <div class="grid gap-2 sm:grid-cols-3">
+              <div class="grid gap-2 sm:grid-cols-2">
                 <label
                   :for={
                     {value, title, text} <- [
                       {"first", "Bashing vs Finesse", "The first game: neutral decks, 1 hero each."},
                       {"red_green", "Red vs Green",
                        "3 heroes each: Anarchy, Blood, Fire against Balance, Feral, Growth."},
+                      {"blue_black", "Blue vs Black",
+                       "3 heroes each: Law, Peace, Truth against Demonology, Disease, Necromancy."},
                       {"custom", "Custom", "A starting deck and 1 spec for each side."}
                     ]
                   }

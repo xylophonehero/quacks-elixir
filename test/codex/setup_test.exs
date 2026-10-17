@@ -25,6 +25,45 @@ defmodule Codex.SetupTest do
     assert_conserved(game)
   end
 
+  test "Blue vs Black: colour starting decks, 3 heroes, 72 codex cards each" do
+    game = elem(Game.new(%{preset: "blue_black"}, {1, 2, 3}), 1)
+
+    assert Enum.sort(slugs(game, 0, :hand) ++ slugs(game, 0, :deck)) ==
+             Enum.sort(Cards.starter("Blue"))
+
+    assert Enum.sort(slugs(game, 1, :hand) ++ slugs(game, 1, :deck)) ==
+             Enum.sort(Cards.starter("Black"))
+
+    assert Enum.sort(slugs(game, 0, :command)) == ~w(bigby-hayes general-onimaru sirus-quince)
+    assert Enum.sort(slugs(game, 1, :command)) == ~w(garth-torken orpal-gloor vandy-anadrose)
+    assert length(zone(game, 0, :codex)) == 72 and length(zone(game, 1, :codex)) == 72
+    assert game.sides[1].specs == ["Demonology", "Disease", "Necromancy"]
+    assert_conserved(game)
+
+    swapped = elem(Game.new(%{preset: "black_blue"}, {1, 2, 3}), 1)
+    assert swapped.sides[0].starter == "Black" and swapped.sides[1].starter == "Blue"
+  end
+
+  test "custom: the Blue and Black starting decks and specs" do
+    {:ok, game} =
+      Game.new(
+        %{
+          "preset" => "custom",
+          "p1_starter" => "Blue",
+          "p1_spec" => "Truth",
+          "p2_starter" => "Black",
+          "p2_spec" => "Necromancy"
+        },
+        {1, 1, 1}
+      )
+
+    assert slugs(game, 0, :command) == ["sirus-quince"]
+    assert slugs(game, 1, :command) == ["garth-torken"]
+
+    assert Enum.sort(slugs(game, 1, :hand) ++ slugs(game, 1, :deck)) ==
+             Enum.sort(Cards.starter("Black"))
+  end
+
   test "the first game stays the default" do
     game = new()
     assert game.sides[0].specs == ["Bashing"]

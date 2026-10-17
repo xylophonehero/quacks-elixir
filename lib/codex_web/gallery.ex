@@ -17,19 +17,27 @@ defmodule CodexWeb.Gallery do
   @spec states() :: [String.t()]
   def states,
     do:
-      ~w(mid-game start red-green selected chips focus patrol aim expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
+      ~w(mid-game start red-green blue-black selected chips focus patrol aim expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
   def board_story(args) do
     state = args["state"]
-    preset = if state == "red-green", do: "red_green", else: "first"
+
+    preset =
+      case state do
+        "red-green" -> "red_green"
+        "blue-black" -> "blue_black"
+        _ -> "first"
+      end
+
     {:ok, start} = Game.new(%{bot: state == "bot", preset: preset}, @seed)
 
     game =
       case state do
         "start" -> start
         "red-green" -> start
+        "blue-black" -> start
         # Against the bot, on the bot's turn: the page waits.
         "bot" -> elem(Game.apply(start, 0, :end_turn), 1)
         _ -> mid_game(start)
