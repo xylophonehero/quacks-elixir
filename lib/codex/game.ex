@@ -648,8 +648,37 @@ defmodule Codex.Game do
       undo: game.history != []
     }
 
-    # The bot's seat also gets its legal actions (`Codex.Bot`).
-    if seat == game.bot and seat != nil, do: Map.put(view, :legal, Rules.legal(game)), else: view
+    # The bot's seat gets the fair view with its legal actions (`Codex.Bot`).
+    if seat == game.bot and seat != nil, do: bot_view(game, seat), else: view
+  end
+
+  @doc """
+  What a bot in `seat` may see: the view (`view/2`) without the hidden
+  information of the rules (research §15: hand, draw pile order, face-down
+  discard pile, codex picks, workers). The other side's hand, discard pile,
+  codex and workers, and both decks, are only counts; those cards are not in
+  `cards`. The log is empty (it names the tech picks and the hired cards). The
+  bot's own hand, discard pile and codex stay. `legal` has the legal actions
+  when `seat` is the active side, else `[]`.
+
+  The board does not use it: a person in hot-seat sees both hands.
+  """
+  @spec bot_view(t, seat) :: map
+  def bot_view(%__MODULE__{} = game, seat) when seat in [0, 1] do
+    view = view(%{game | bot: nil}, :spectator)
+    opp = 1 - seat
+    zones = game.sides[opp].zones
+    hidden_zones = [:hand, :discard, :codex, :workers]
+    hidden = Enum.flat_map(hidden_zones, &Map.fetch!(zones, &1))
+    counts = Map.new(hidden_zones, &{&1, length(Map.fetch!(zones, &1))})
+
+    view
+    |> Map.put(:bot, game.bot)
+    |> update_in([:sides, opp, :zones], &Map.merge(&1, counts))
+    |> Map.update!(:cards, &Map.drop(&1, hidden))
+    |> Map.update!(:stats, &Map.drop(&1, hidden))
+    |> Map.put(:log, [])
+    |> Map.put(:legal, if(game.active == seat, do: Rules.legal(game), else: []))
   end
 
   # Arrival fatigue matters on its controller's turn only: the view shows it for the active side.

@@ -143,7 +143,7 @@ defmodule Codex.AI.Bench do
 
   defp loop(game, mods, states, stats, k) do
     s = game.active
-    view = Game.view(game, s) |> Map.put(:legal, Codex.Rules.legal(game))
+    view = Game.bot_view(game, s)
     {us, {action, state}} = :timer.tc(fn -> mods[s].choose(view, states[s]) end)
     stats = Map.update!(stats, s, &note(&1, game, view, action, us))
     {:ok, game} = Game.apply(game, s, action)
