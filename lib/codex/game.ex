@@ -348,11 +348,15 @@ defmodule Codex.Game do
     %{game | rng: rng, sides: Map.put(game.sides, seat, side)}
   end
 
-  @doc "Add new cards of `slugs` for `seat` (in no zone yet). Returns the game and the new ids."
+  @doc """
+  Add new cards of `slugs` for `seat` (in no zone yet). Returns the game and
+  the new ids. A new id is the largest id + 1, so it is new also in a bot's
+  copy of the state, where the hidden cards are not in `cards`.
+  """
   @spec add_cards(t, seat, [String.t()]) :: {t, [card_id]}
   def add_cards(game, seat, slugs) do
     Enum.reduce(slugs, {game, []}, fn slug, {game, ids} ->
-      id = map_size(game.cards) + 1
+      id = game.cards |> Map.keys() |> Enum.max(fn -> 0 end) |> Kernel.+(1)
       card = new_card(id, slug, seat)
       {%{game | cards: Map.put(game.cards, id, card)}, ids ++ [id]}
     end)
