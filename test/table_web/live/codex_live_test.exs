@@ -433,6 +433,41 @@ defmodule TableWeb.CodexLiveTest do
       assert has_element?(view, "#cx-hp-1-target")
     end
 
+    test "keyboard: a card is a focusable button; A attacks (one target: at once)" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      assert has_element?(view, "#cx-card-#{a}[tabindex='0'][role=button][aria-pressed=false]")
+      view |> element("#cx-card-#{a}") |> render_click()
+      assert has_element?(view, "#cx-card-#{a}[aria-pressed=true]")
+
+      # The hook sends a card's key (A / L / P) for the focused or selected card.
+      render_hook(view, "chip", %{"id" => to_string(a), "hotkey" => "a"})
+      assert game(code).sides[1].base_hp == 19
+      assert game(code).cards[a].exhausted
+    end
+
+    test "keyboard: Esc ends a pick; P lights the free patrol slots" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, _} = place(game, 1, "tenderfoot", :patrol, :elite)
+      {game, _} = place(game, 1, "older-brother", :patrol, :lookout)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      render_hook(view, "chip", %{"id" => to_string(a), "hotkey" => "a"})
+      assert has_element?(view, "#cx-pick")
+      view |> element("#cx-root") |> render_keydown(%{"key" => "Escape"})
+      refute has_element?(view, "#cx-pick")
+
+      render_hook(view, "chip", %{"id" => to_string(a), "hotkey" => "p"})
+      assert has_element?(view, "#cx-card-#{a}.cx-selected")
+      assert has_element?(view, "#cx-slot-0-elite.cx-slot-lit")
+      refute has_element?(view, "#cx-slot-1-elite.cx-slot-lit")
+      view |> element("#cx-slot-0-elite") |> render_click()
+      assert zone(code, 0, :patrol).elite == a
+    end
+
     test "Cancel ends a pick" do
       {game, a} = place(new(), 0, "timely-messenger", :hand)
       game = ok!(game, {:play, a, []})

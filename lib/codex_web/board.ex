@@ -106,7 +106,9 @@ defmodule CodexWeb.Board do
       zoom: nil,
       opp_open: false,
       expanded: false,
-      summary: nil
+      summary: nil,
+      patrolling: false,
+      focus: nil
     )
   end
 
@@ -130,6 +132,7 @@ defmodule CodexWeb.Board do
       selected: if(kept?, do: a.selected),
       expanded: a.expanded and kept?,
       targeting: nil,
+      patrolling: false,
       tech_pick: if(v.phase == :tech, do: a.tech_pick, else: []),
       drawer: drawer_after(a.drawer, v, env.actions)
     )
@@ -182,8 +185,45 @@ defmodule CodexWeb.Board do
        drawer: nil,
        opp_open: false,
        expanded: false,
-       summary: nil
+       summary: nil,
+       patrolling: false
      )}
+  end
+
+  # An action chip on a card (a desktop), or its key (A, L, P) from the hook:
+  # one legal target acts at once; else a target pick starts, or Patrol lights
+  # the free slots of the selected card.
+  def handle_event("chip", %{"id" => id} = params, socket) do
+    id = int(id)
+    chips = Moves.chips(socket.assigns.actions, id)
+
+    chip =
+      Enum.find(chips, fn c ->
+        c.key == params["key"] or (c.hotkey != nil and c.hotkey == params["hotkey"])
+      end)
+
+    case chip do
+      %{do: action} ->
+        {:act, action,
+         Phoenix.Component.assign(socket, selected: nil, targeting: nil, patrolling: false)}
+
+      %{target: key} ->
+        {:noreply, socket |> start_pick(key) |> Phoenix.Component.assign(patrolling: false)}
+
+      %{patrol: _slots} ->
+        {:noreply,
+         Phoenix.Component.assign(socket,
+           selected: id,
+           targeting: nil,
+           patrolling: true,
+           expanded: false,
+           drawer: nil,
+           summary: nil
+         )}
+
+      nil ->
+        {:noreply, socket}
+    end
   end
 
   # The selected card's sheet on a phone: its peek or the full card and all actions.
@@ -434,7 +474,9 @@ defmodule CodexWeb.Board do
          opp_open: false,
          zoom: nil,
          expanded: false,
-         summary: nil
+         summary: nil,
+         targeting: nil,
+         patrolling: false
        )}
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
@@ -625,6 +667,7 @@ defmodule CodexWeb.Board do
           art={@art}
           sel={@sel}
           tg={@tg}
+          ui={@ui}
           dock
         />
 
@@ -744,6 +787,29 @@ defmodule CodexWeb.Board do
             this.on(el, "touchcancel", release)
             this.on(el, "contextmenu", e => { if (e.target.closest && e.target.closest("[data-card-id]")) e.preventDefault() })
 
+            // Keyboard: Enter or Space on a focused card (or another role=button)
+            // clicks it. A / L / P: attack, level up, patrol with the focused card,
+            // else the selected one (the server checks each action).
+            this.on(window, "pointerdown", () => { this.kbd = false }, {capture: true})
+            this.on(window, "keydown", e => {
+              this.kbd = true
+              if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return
+              const t = e.target
+              if (t.closest && t.closest("input, textarea, select, [contenteditable]")) return
+              if ((e.key === "Enter" || e.key === " ") && t.matches && t.matches('[role="button"][tabindex]') && el.contains(t)) {
+                e.preventDefault()
+                t.click()
+                return
+              }
+              const k = e.key.toLowerCase()
+              if (!["a", "l", "p"].includes(k) || document.getElementById("cx-drawer")) return
+              const card = (el.contains(t) && t.closest && t.closest("[data-card-id]:not([data-hidden])")) ||
+                el.querySelector("[data-card-id].cx-selected")
+              if (!card) return
+              e.preventDefault()
+              this.pushEvent("chip", {id: card.dataset.cardId, hotkey: k})
+            })
+
             // Motion (off with reduced motion): a card that arrives in a zone flies
             // from where it was (FLIP); a number that changes bumps.
             this.reduce = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -759,6 +825,15 @@ defmodule CodexWeb.Board do
             this.on(el, "scroll", resnap, {capture: true, passive: true})
             this.observer = new MutationObserver(muts => this.changed(muts))
             this.observer.observe(el, {subtree: true, childList: true, characterData: true})
+          },
+          updated() {
+            // A pick started from the keyboard: the focus goes to the first lit target.
+            const on = this.el.dataset.targeting === "true"
+            if (on && !this.wasTargeting && this.kbd) {
+              const t = this.el.querySelector(".cx-targetable[tabindex], .cx-targetable-pill[tabindex], #cx-pick button")
+              if (t) t.focus()
+            }
+            this.wasTargeting = on
           },
           on(target, name, fun, opts) {
             this.listeners = this.listeners || []
@@ -914,8 +989,27 @@ defmodule CodexWeb.Board do
       where: selected && where(v, selected.id),
       pick: pick,
       tg: MapSet.new((pick && pick.values) || []),
-      buttons: if(selected && !v.free, do: Moves.buttons(assigns.actions, selected.id), else: [])
+      buttons: if(selected && !v.free, do: Moves.buttons(assigns.actions, selected.id), else: []),
+      ui: ui(assigns, v, selected)
     ]
+  end
+
+  # Per-card marks for the cards on the table: `focus` (the gallery draws a focus
+  # ring on that card) and `lit`: the free patrol slots ({seat, slot}) of the
+  # selected card after Patrol.
+  defp ui(assigns, v, selected) do
+    lit =
+      if assigns[:patrolling] && selected,
+        do:
+          for(
+            {:patrol, id, slot} <- assigns.actions,
+            id == selected.id,
+            into: MapSet.new(),
+            do: {v.active, slot}
+          ),
+        else: MapSet.new()
+
+    %{focus: assigns[:focus], lit: lit}
   end
 
   # What the other side did in its turn: a card over the board until "OK".
@@ -1189,6 +1283,7 @@ defmodule CodexWeb.Board do
   attr :reveal, :boolean, default: false
   attr :players, :map, default: %{}
   attr :actions, :list, default: []
+  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
 
   defp side(assigns) do
     side = assigns.view.sides[assigns.seat]
@@ -1251,12 +1346,21 @@ defmodule CodexWeb.Board do
               sel={@sel}
               tg={@tg}
               hidden?={!@reveal}
+              ui={@ui}
               far
             />
           </div>
         <% end %>
         <div class="cx-pair cx-pair-board">
-          <.patrol seat={@seat} slots={@zones.patrol} view={@view} art={@art} sel={@sel} tg={@tg} />
+          <.patrol
+            seat={@seat}
+            slots={@zones.patrol}
+            view={@view}
+            art={@art}
+            sel={@sel}
+            tg={@tg}
+            ui={@ui}
+          />
           <.row
             seat={@seat}
             zone={:in_play}
@@ -1265,6 +1369,7 @@ defmodule CodexWeb.Board do
             art={@art}
             sel={@sel}
             tg={@tg}
+            ui={@ui}
           />
         </div>
         <div :if={!@far} class="cx-pair cx-pair-mat">
@@ -1384,6 +1489,8 @@ defmodule CodexWeb.Board do
       phx-value-seat={@seat}
       phx-value-name={@building}
       id={@target && "#{@id}-target"}
+      tabindex={@target && "0"}
+      role={@target && "button"}
     >
       <button
         :if={@free}
@@ -1425,6 +1532,7 @@ defmodule CodexWeb.Board do
   attr :art, :any, required: true
   attr :sel, :map, default: nil
   attr :tg, :any, default: nil
+  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
 
   defp patrol(assigns) do
     assigns = assign(assigns, order: Game.patrol_slots(), labels: @slot_labels)
@@ -1443,7 +1551,11 @@ defmodule CodexWeb.Board do
         phx-value-seat={@seat}
         phx-value-zone="patrol"
         phx-value-slot={slot}
-        class={["cx-zone cx-slot", @sel && "cx-target"]}
+        class={[
+          "cx-zone cx-slot",
+          @sel && "cx-target",
+          {@seat, slot} in @ui.lit && "cx-slot-lit"
+        ]}
       >
         <span class="cx-label truncate" title={elem(@labels[slot], 0)}>
           <span class="hidden lg:inline">{elem(@labels[slot], 0)}</span>
@@ -1456,6 +1568,7 @@ defmodule CodexWeb.Board do
             art={@art}
             selected={@sel && @sel.id == @slots[slot]}
             target={@tg && @slots[slot] in @tg}
+            ui={@ui}
           />
         </div>
       </div>
@@ -1470,6 +1583,7 @@ defmodule CodexWeb.Board do
   attr :art, :any, required: true
   attr :sel, :map, default: nil
   attr :tg, :any, default: nil
+  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
 
   defp row(assigns) do
     ~H"""
@@ -1493,6 +1607,7 @@ defmodule CodexWeb.Board do
           art={@art}
           selected={@sel && @sel.id == id}
           target={@tg && id in @tg}
+          ui={@ui}
         />
       </div>
     </div>
@@ -1508,6 +1623,7 @@ defmodule CodexWeb.Board do
   attr :hidden?, :boolean, default: false
   attr :far, :boolean, default: false
   attr :dock, :boolean, default: false
+  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
 
   defp hand(assigns) do
     n = length(assigns.ids)
@@ -1542,6 +1658,7 @@ defmodule CodexWeb.Board do
           selected={@sel && @sel.id == id}
           target={@tg && id in @tg}
           style={fan_style(i, @mid, @far)}
+          ui={@ui}
         />
       </div>
     </div>
@@ -1593,6 +1710,7 @@ defmodule CodexWeb.Board do
           art={@art}
           selected={@sel && @sel.id == id}
           target={@tg && id in @tg}
+          ui={@ui}
         />
         <button
           :for={b <- @buildings}
@@ -1732,6 +1850,7 @@ defmodule CodexWeb.Board do
       class={["cx-zone cx-chip", @target? && "cx-target"]}
       title={"#{@label}: #{@count}"}
       role="button"
+      tabindex="0"
     >
       <span class="flex items-center gap-1">
         <.icon name={@icon} class="size-4 text-white/55" />
@@ -1748,6 +1867,7 @@ defmodule CodexWeb.Board do
   attr :art, :any, required: true
   attr :selected, :any, default: false
   attr :target, :any, default: false, doc: "a legal target of the pick in progress"
+  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
 
   # A card on the board: an art crop, the cost (or the hero level), the name and
   # the ATK/HP now. Colours: green above the printed value, violet below, red HP
@@ -1777,12 +1897,17 @@ defmodule CodexWeb.Board do
       phx-click="select"
       phx-value-id={@c.id}
       title={@d.name}
+      tabindex="0"
+      role="button"
+      aria-pressed={to_string(@selected == true)}
+      aria-label={if(@back?, do: "A face-down card", else: @d.name)}
       class={[
         "cx-mc cursor-pointer",
         tone(@d),
         @c.exhausted && "cx-exhausted",
         @selected && "cx-selected",
-        @target && "cx-targetable"
+        @target && "cx-targetable",
+        @ui.focus == @c.id && "cx-focus"
       ]}
     >
       <div class="cx-mc-art">
@@ -1878,6 +2003,7 @@ defmodule CodexWeb.Board do
   attr :prefix, :string, default: "cx-card"
   attr :click, :boolean, default: true
   attr :style, :string, default: nil
+  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
 
   defp card(assigns) do
     c = assigns.c
@@ -1905,12 +2031,16 @@ defmodule CodexWeb.Board do
       phx-value-id={@c.id}
       title={if(@hidden, do: "a card", else: @d.name)}
       style={@style}
+      tabindex={@click && !@hidden && "0"}
+      role={@click && !@hidden && "button"}
+      aria-pressed={@click && !@hidden && to_string(@selected == true)}
       class={[
         "cx-card",
         @c.exhausted && "cx-exhausted",
         @selected && "cx-selected",
         @target && "cx-targetable",
-        @click && !@hidden && "cursor-pointer"
+        @click && !@hidden && "cursor-pointer",
+        @ui.focus == @c.id && "cx-focus"
       ]}
     >
       <%= cond do %>

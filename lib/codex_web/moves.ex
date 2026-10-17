@@ -67,6 +67,50 @@ defmodule CodexWeb.Moves do
   defp pick_button({:ability, _, name} = key),
     do: %{key: "ability-#{name}", label: ability_label(name) <> "…", target: key}
 
+  @doc """
+  The action chips of card `id` (on the card on a desktop, and its keys): the
+  buttons of `buttons/2` plus Patrol, each with a `kind` and maybe a `hotkey`.
+  A chip with one legal target is the full action (`do`, and `one`: the
+  target), so one click acts. Else it starts a pick (`target`), or for Patrol
+  it lists the free slots (`patrol`).
+  """
+  @spec chips([term], pos_integer) :: [map]
+  def chips(actions, id) do
+    buttons = for b <- buttons(actions, id), do: b |> fold(actions) |> put_kind()
+
+    case for({:patrol, ^id, slot} <- actions, do: slot) do
+      [] -> buttons
+      [slot] -> buttons ++ [put_kind(%{key: "patrol", do: {:patrol, id, slot}})]
+      slots -> buttons ++ [put_kind(%{key: "patrol", patrol: slots})]
+    end
+  end
+
+  # A pick with one legal target and no second step: the full action.
+  defp fold(%{target: key} = b, actions) do
+    with %{values: [value]} when value != nil <- options(actions, key, []),
+         %{complete: action, values: []} when action != nil <- options(actions, key, [value]) do
+      b |> Map.delete(:target) |> Map.merge(%{do: action, one: value})
+    else
+      _ -> b
+    end
+  end
+
+  defp fold(b, _actions), do: b
+
+  defp put_kind(%{key: key} = chip) do
+    {kind, hotkey} = kind(key)
+    chip |> Map.put(:kind, kind) |> Map.put(:hotkey, hotkey)
+  end
+
+  defp kind("attack"), do: {:attack, "a"}
+  defp kind("level"), do: {:level, "l"}
+  defp kind("patrol"), do: {:patrol, "p"}
+  defp kind("sideline"), do: {:sideline, "p"}
+  defp kind("hire"), do: {:hire, nil}
+  defp kind("summon"), do: {:summon, nil}
+  defp kind("play" <> _), do: {:play, nil}
+  defp kind("ability-" <> _), do: {:ability, nil}
+
   @doc "The button text of a card ability."
   @spec ability_label(atom) :: String.t()
   def ability_label(:sideline), do: "Sideline a patroller"
