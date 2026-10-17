@@ -149,6 +149,8 @@ defmodule CodexWeb.Moves do
   def ability_label(:arrest), do: "Disable a tech 0-II unit"
   def ability_label(:eyes), do: "Make a friendly unit invisible"
   def ability_label(:gargoyle), do: "Wake up: +3 ATK, flying (1 gold)"
+  def ability_label(:ground), do: "A flier loses flying (1 gold)"
+  def ability_label(:plague_lab), do: "More runes (2 gold)"
   def ability_label(name), do: name |> to_string() |> String.replace("_", " ")
 
   @doc """

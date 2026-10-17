@@ -183,6 +183,8 @@ defmodule Codex.Combat do
     (shrine? and Stats.unit?(game, d)) or
       case game.cards[a].card do
         "patriot-gryphon" -> Stats.unit?(game, d) and Stats.atk(game, d) <= 2
+        # Cursed Ghoul: unstoppable by units with -1/-1 runes.
+        "cursed-ghoul" -> Stats.unit?(game, d) and game.cards[d].minus > 0
         _ -> false
       end
   end

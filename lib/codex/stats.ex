@@ -226,7 +226,8 @@ defmodule Codex.Stats do
       stampede(game, id, s),
       marked(game, id),
       trained(game, id),
-      whisper(game, id, s)
+      whisper(game, id, s),
+      abomination(game, id)
     ]
 
     Enum.sum(for {a, h} <- bonuses, do: if(stat == :atk, do: a, else: h))
@@ -303,6 +304,20 @@ defmodule Codex.Stats do
       end)
 
     if strong > 0 and force?(game, id), do: {5 * strong, 5 * strong}, else: {0, 0}
+  end
+
+  # Abomination: all other units get -1/-1.
+  defp abomination(game, id) do
+    if unit?(game, id) do
+      n =
+        Enum.count(for(s <- [0, 1], a <- Zones.in_play(game, s), do: a), fn a ->
+          a != id and game.cards[a].card == "abomination"
+        end)
+
+      {-n, -n}
+    else
+      {0, 0}
+    end
   end
 
   # Macciatus, The Whisperer: your Illusion units get +1/+1.

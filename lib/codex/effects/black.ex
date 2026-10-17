@@ -68,6 +68,53 @@ defmodule Codex.Effects.Black do
     end)
   end
 
+  # -- Disease --
+
+  # Sickness: a -1/-1 rune on up to two units and/or heroes.
+  def spell(game, _s, "sickness", _id, targets),
+    do: targets |> Enum.reject(&is_nil/1) |> Enum.reduce(game, &Effects.minus_rune(&2, &1))
+
+  # Spreading Plague: destroy all tech 0-II units and heroes that have -1/-1 runes.
+  def spell(game, _s, "spreading-plague", _id, []) do
+    doomed =
+      for seat <- [0, 1],
+          id <- Zones.in_play(game, seat),
+          game.cards[id].minus > 0,
+          Stats.hero?(game, id) or (Stats.unit?(game, id) and Stats.tech(game, id) in [0, 1, 2]),
+          do: id
+
+    Enum.reduce(doomed, game, fn id, game ->
+      if in_play?(game, id), do: Effects.destroy(game, id), else: game
+    end)
+  end
+
+  # Carrion Curse: look at an opponent's hand, up to two non-unit cards are discarded.
+  # REVIEW: the engine picks the two costliest non-unit cards.
+  def spell(game, s, "carrion-curse", _id, []) do
+    game.sides[1 - s].zones.hand
+    |> Enum.reject(&Stats.unit?(game, &1))
+    |> Enum.sort_by(&{-(Cards.fetch!(game.cards[&1].card).cost || 0), &1})
+    |> Enum.take(2)
+    |> Enum.reduce(game, fn id, game ->
+      game |> Zones.move(id, {1 - s, :discard}, 0) |> Effects.log({:discards, id})
+    end)
+  end
+
+  # Death and Decay: an opponent's units and heroes -3/-3 this turn; 3 damage to all its buildings.
+  def spell(game, s, "death-and-decay", _id, []) do
+    opp = 1 - s
+    forces = for id <- Zones.in_play(game, opp), Stats.force?(game, id), do: id
+
+    game =
+      Enum.reduce(forces, game, fn id, game ->
+        Zones.update_card(game, id, &%{&1 | tmp_atk: &1.tmp_atk - 3, tmp_hp: &1.tmp_hp - 3})
+      end)
+
+    cards = for id <- Zones.in_play(game, opp), Stats.building_card?(game, id), do: id
+    buildings = for b <- [:base | game.sides[opp].tech_buildings], do: {:building, opp, b}
+    Enum.reduce(cards ++ buildings, game, &Effects.burn(&2, s, "death-and-decay", &1, 3))
+  end
+
   def spell(game, _s, _slug, _id, _targets), do: game
 
   # -- arrivals -------------------------------------------------------------------------------
@@ -87,6 +134,9 @@ defmodule Codex.Effects.Black do
       Zones.update_card(game, w, &%{&1 | extra: Map.put(&1.extra, :shackles, id)})
     end)
   end
+
+  def arrive(game, _s, _id, "cursed-ghoul", [t]), do: minus_in_play(game, t)
+  def arrive(game, s, _id, "plague-lord", []), do: plague_lord(game, s)
 
   # Zarramonde, played from hand: destroy a unit, hero, worker, upgrade or ongoing spell.
   def arrive(game, _s, _id, "zarramonde-the-obliterator", [t]), do: Effects.destroy(game, t)
@@ -127,6 +177,31 @@ defmodule Codex.Effects.Black do
 
   def ability(game, s, _id, :bone_draw, [sk]),
     do: game |> Effects.sacrifice(sk) |> Rules.draw(s, 1, :main)
+
+  # Crypt Crawler: a flier loses flying this turn.
+  def ability(game, _s, _id, :ground, [t]),
+    do:
+      Zones.update_card(
+        game,
+        t,
+        &%{&1 | this_turn: Map.put(&1.this_turn, {:lost, :flying}, true)}
+      )
+
+  # Plague Lab: for the cards with runes, another rune of a kind already there.
+  # REVIEW: the engine adds a -1/-1 rune to each opposing card with one and a
+  # +1/+1 rune to each of yours with one (named runes are not counted).
+  def ability(game, s, _id, :plague_lab, []) do
+    Enum.reduce(for(seat <- [0, 1], id <- Zones.in_play(game, seat), do: {seat, id}), game, fn
+      {seat, id}, game ->
+        c = game.cards[id]
+
+        cond do
+          seat != s and c.minus > 0 -> Effects.minus_rune(game, id)
+          seat == s and c.plus > 0 -> Effects.plus_rune(game, id)
+          true -> game
+        end
+    end)
+  end
 
   # Gargoyle: until your next upkeep not indestructible, flying, +3 ATK, it can attack and patrol.
   def ability(game, s, id, :gargoyle, []),
@@ -189,8 +264,19 @@ defmodule Codex.Effects.Black do
 
   def max_level(game, _s, _id, _slug), do: game
 
-  @doc "A Black building or upgrade comes into play."
+  @doc "A Black building or upgrade comes into play: Plague Lab (-1/-1 on each opposing unit)."
+  def permanent(game, s, _id, "plague-lab") do
+    units = for id <- Zones.in_play(game, 1 - s), Stats.unit?(game, id), do: id
+    Enum.reduce(units, game, &Effects.minus_rune(&2, &1))
+  end
+
   def permanent(game, _s, _id, _slug), do: game
+
+  # Plague Lord: a -1/-1 rune on each opposing unit and hero.
+  defp plague_lord(game, s) do
+    forces = for id <- Zones.in_play(game, 1 - s), Stats.force?(game, id), do: id
+    Enum.reduce(forces, game, &Effects.minus_rune(&2, &1))
+  end
 
   @doc """
   Black "Attacks:" abilities: Poisonblade Rogue gets armor piercing and deals
@@ -202,8 +288,9 @@ defmodule Codex.Effects.Black do
     end)
   end
 
-  def attacks(game, s, a, _slug, target) do
-    voidblocker(game, s, a, target)
+  def attacks(game, s, a, slug, target) do
+    game = voidblocker(game, s, a, target)
+    if slug == "plague-lord", do: plague_lord(game, s), else: game
   end
 
   # Voidblocker: an opponent that attacks it exhausts another of its ready units or heroes.
@@ -224,7 +311,11 @@ defmodule Codex.Effects.Black do
 
   defp voidblocker(game, _s, _a, _target), do: game
 
-  @doc "Black abilities after a combat."
+  @doc "Black abilities after a combat: Cursed Crow damages a base (a random discard)."
+  def after_combat(game, _s, a, {:building, opp, :base}, %{base_hit: true}) do
+    if game.cards[a].card == "cursed-crow", do: Effects.discard_random(game, opp), else: game
+  end
+
   def after_combat(game, _s, _a, _target, _ctx), do: game
 
   @doc """
@@ -234,6 +325,7 @@ defmodule Codex.Effects.Black do
   """
   def died(game, ctx) do
     game
+    |> gorgon(ctx)
     |> dozer(ctx)
     |> jandra(ctx)
     |> orpal(ctx)
@@ -253,6 +345,9 @@ defmodule Codex.Effects.Black do
   end
 
   defp jandra(game, _ctx), do: game
+
+  defp gorgon(game, %{slug: "gorgon", s: s}), do: Rules.draw(game, s, 1, :free)
+  defp gorgon(game, _ctx), do: game
 
   # Blackhand Dozer dies: the active player destroys one of its side's lowest tech units.
   # REVIEW: the engine picks for the active player: its own weakest, or the opponent's strongest.
@@ -336,7 +431,7 @@ defmodule Codex.Effects.Black do
   and die.
   """
   def upkeep(game, s) do
-    game = game |> gargoyles(s) |> shrine(s) |> banefire(s)
+    game = game |> gargoyles(s) |> shrine(s) |> banefire(s) |> plague_lord_upkeep(s)
 
     marked =
       for seat <- [0, 1],
@@ -348,6 +443,25 @@ defmodule Codex.Effects.Black do
       game
       |> Zones.update_card(id, &%{&1 | extra: Map.delete(&1.extra, :vandy)})
       |> Effects.destroy(id)
+    end)
+  end
+
+  # Plague Lord: "Upkeep: Each player's base takes 1 damage for each -1/-1 rune
+  # on their units and heroes."
+  defp plague_lord_upkeep(game, s) do
+    lords = Enum.count(Zones.in_play(game, s), &(game.cards[&1].card == "plague-lord"))
+
+    Enum.reduce(1..lords//1, game, fn _, game ->
+      Enum.reduce([0, 1], game, fn seat, game ->
+        runes =
+          game
+          |> Zones.in_play(seat)
+          |> Enum.filter(&Stats.force?(game, &1))
+          |> Enum.map(&game.cards[&1].minus)
+          |> Enum.sum()
+
+        Effects.burn(game, s, "plague-lord", {:building, seat, :base}, runes)
+      end)
     end)
   end
 

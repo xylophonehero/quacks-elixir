@@ -117,6 +117,12 @@ defmodule Codex.CardRules do
     "blackhand-dozer" => [overpower: true],
     "terras-q-the-shackled" => [resist: 3, obliterate: 2],
     "zarramonde-the-obliterator" => [untargetable: true, obliterate: 4],
+    # Disease
+    "crypt-crawler" => [sparkshot: true],
+    "plague-spitter" => [anti_air: true, rune_damage: true],
+    "gorgon" => [deathtouch: true],
+    "cursed-crow" => [flying: true],
+    "plague-lord" => [resist: 2],
     # Tokens
     "soldier" => [sparkshot: true],
     "horror" => [deathtouch: true]
@@ -215,7 +221,12 @@ defmodule Codex.CardRules do
     "soul-stone" => [:unit],
     "dark-pact" => [:base],
     "shadow-blade" => [:patroller],
-    "metamorphosis" => []
+    "metamorphosis" => [],
+    # Disease
+    "sickness" => [:force, {:may, :force}],
+    "spreading-plague" => [],
+    "carrion-curse" => [],
+    "death-and-decay" => []
   }
 
   # Extra gold for a `:boost` target (Boost X).
@@ -264,6 +275,9 @@ defmodule Codex.CardRules do
     "eyes-of-the-chancellor" => [{:eyes, [:my_unit], [exhaust: true]}],
     # Demonology
     "gargoyle" => [{:gargoyle, [], [gold: 1, once: true]}],
+    # Disease
+    "crypt-crawler" => [{:ground, [:flier], [gold: 1]}],
+    "plague-lab" => [{:plague_lab, [], [gold: 2, exhaust: true]}],
     # Graveyard: the gold is the cost of the buried unit (`Codex.Rules`).
     "graveyard" => [{:exhume, [:buried_unit], [exhaust: true, unit_cost: true]}]
   }
@@ -320,6 +334,7 @@ defmodule Codex.CardRules do
     # Blue starting deck
     "insurance-agent" => [:unit],
     "zarramonde-the-obliterator" => [:zarramonde],
+    "cursed-ghoul" => [:unit],
     "reputable-newsman" => [
       {:choice, [:cost_0, :cost_1, :cost_2, :cost_3, :cost_4, :cost_5, :cost_6]}
     ]

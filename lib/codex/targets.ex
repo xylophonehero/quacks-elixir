@@ -253,6 +253,8 @@ defmodule Codex.Targets do
     end) ++ for seat <- [1 - s, s], game.sides[seat].zones.workers != [], do: {:worker, seat}
   end
 
+  def candidates(game, s, :flier, _src), do: cards(game, s, &Stats.kw?(game, &1, :flying))
+
   def candidates(game, s, :my_force, _src),
     do: for(id <- Zones.in_play(game, s), Stats.force?(game, id), do: id)
 
