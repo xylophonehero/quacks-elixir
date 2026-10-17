@@ -44,6 +44,7 @@ defmodule Codex.Bot do
       best(legal, &kill_spell(v, &1)) ||
       best(legal, &attack(v, &1)) ||
       best(legal, &play(v, &1)) ||
+      best(legal, &ability(v, &1)) ||
       find(legal, &match?({:level_up, _}, &1)) ||
       patrol(v, legal) ||
       :end_turn
@@ -87,34 +88,77 @@ defmodule Codex.Bot do
 
   defp play(v, {:play, id, targets}) do
     d = Cards.fetch!(v.cards[id].card)
-    if d.type == "Unit", do: unit_score(v, d, targets), else: spell_score(v, d.slug, targets)
+
+    cond do
+      d.type in ["Unit", "Legendary Unit"] -> unit_score(v, d, targets)
+      d.type in ["Building", "Upgrade"] -> 2
+      true -> spell_score(v, d.slug, targets)
+    end
   end
 
   defp play(_v, _action), do: nil
 
-  defp spell_score(v, "bloom", [t]), do: if(mine?(v, t), do: 3)
+  # Cards whose targets should be your own (buffs, repairs, sacrifices).
+  @friendly ~w(bloom forest-s-favor charge rampant-growth dinosize spirit-of-the-panda
+               bloodlust final-showdown two-step circle-of-life artisan-mantis fairie-dragon)
 
-  defp spell_score(v, slug, [t]) when slug in ["wither", "intimidate"],
-    do: if(enemy?(v, t), do: 2)
+  # Cards the bot does not play (they hurt its side or need a careful moment).
+  @never ~w(maximum-anarchy desperation)
 
+  defp spell_score(_v, slug, _targets) when slug in @never, do: nil
   defp spell_score(_v, slug, _targets) when slug in ["spark", "the-boot"], do: nil
-  defp spell_score(_v, "two-step", _targets), do: 4
-  defp spell_score(v, "wrecking-ball", [t]), do: if(enemy_building?(v, t), do: 2)
+
+  defp spell_score(v, slug, targets) when slug in @friendly,
+    do: if(own_targets?(v, targets), do: 3)
+
+  defp spell_score(_v, _slug, [:boost]), do: 4
+  defp spell_score(_v, _slug, [atom]) when is_atom(atom) and atom != nil, do: 3
   defp spell_score(_v, _slug, []), do: 2
+  defp spell_score(v, _slug, targets), do: if(enemy_targets?(v, targets), do: 3)
 
-  defp spell_score(v, _slug, targets) do
-    if Enum.all?(targets, &(&1 == nil or enemy?(v, &1) or enemy_building?(v, &1))), do: 3
-  end
-
-  # A unit: its stats, and its "Arrives:" target must be the opponent's.
+  # A unit: its stats; its "Arrives:" targets must be on the right side; boost when it can.
   defp unit_score(v, d, targets) do
     base = (d.atk || 0) + (d.hp || 0) + 1
+    if targets == [], do: base, else: arrive_score(v, d, targets, base)
+  end
 
-    case targets do
-      [] -> base
-      [t] -> if enemy?(v, t) or enemy_building?(v, t), do: base + 2, else: nil
+  defp arrive_score(v, d, targets, base) do
+    cond do
+      :boost in targets -> base + 3
+      :plain in targets -> base
+      d.slug in @friendly -> if(own_targets?(v, targets), do: base + 2)
+      enemy_targets?(v, targets) -> base + 2
+      true -> nil
     end
   end
+
+  defp enemy_targets?(v, targets) do
+    real = Enum.reject(targets, &is_nil/1)
+
+    real != [] and
+      Enum.all?(
+        real,
+        &(enemy?(v, &1) or enemy_building?(v, &1) or match?({:worker, s} when s != v.active, &1))
+      )
+  end
+
+  defp own_targets?(v, targets) do
+    real = Enum.reject(targets, &is_nil/1)
+
+    real != [] and
+      Enum.all?(real, &(mine?(v, &1) or match?({:building, s, _} when s == v.active, &1)))
+  end
+
+  # -- abilities --------------------------------------------------------------------------------
+
+  # Gold and damage to the opponent.
+  defp ability(_v, {:ability, _id, name, []}) when name in [:prospect, :mine], do: 2
+
+  defp ability(v, {:ability, _id, name, targets})
+       when name in [:lob, :firebat, :firehouse, :jaina_1, :jaina_3, :wreck, :burn, :shoot],
+       do: if(enemy_targets?(v, targets), do: 2)
+
+  defp ability(_v, _action), do: nil
 
   # -- attacks ----------------------------------------------------------------------------------
 
