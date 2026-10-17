@@ -35,6 +35,20 @@ defmodule Codex.Effects.Green do
     |> Effects.summon(1 - s, "hunter", 2)
   end
 
+  # -- Feral --
+
+  # Ferocity: your units get armor piercing and swift strike until your next upkeep.
+  def spell(game, s, "ferocity", _id, []),
+    do: Rules.update_side(game, s, &%{&1 | effects: Map.put(&1.effects, :ferocity, true)})
+
+  def spell(game, _s, "behind-the-ferns", _id, []), do: game
+
+  # Murkwood Allies: a 4/4 Beast, or four 1/1 Frogs; boosted: both.
+  def spell(game, s, "murkwood-allies", _id, [mode]) do
+    game = if mode in [:beast, :boost], do: Effects.summon(game, s, "beast"), else: game
+    if mode in [:frogs, :boost], do: Effects.summon(game, s, "frog", 4), else: game
+  end
+
   def spell(game, _s, _slug, _id, _targets), do: game
 
   # +atk ATK and +armor armor this turn.
@@ -73,6 +87,8 @@ defmodule Codex.Effects.Green do
     targets |> Enum.reject(&is_nil/1) |> Enum.reduce(game, &Effects.destroy(&2, &1))
   end
 
+  def arrive(game, s, _id, "moss-ancient", []), do: Effects.summon(game, s, "squirrel", 3)
+
   def arrive(game, _s, _id, _slug, _targets), do: game
 
   # -- abilities ------------------------------------------------------------------------------
@@ -107,10 +123,20 @@ defmodule Codex.Effects.Green do
 
   # -- triggers -------------------------------------------------------------------------------
 
-  @doc "Green \"Attacks:\" abilities (after the exhaust, before damage)."
+  @doc "Green \"Attacks:\" abilities (after the exhaust, before damage): Moss Ancient."
+  def attacks(game, s, _a, "moss-ancient"), do: Effects.summon(game, s, "squirrel", 3)
   def attacks(game, _s, _a, _slug), do: game
 
-  @doc "Green abilities after a combat."
+  @doc """
+  Green abilities after a combat: Predator Tiger deals combat damage to a base:
+  trash a worker at that base.
+  """
+  def after_combat(game, s, a, {:building, opp, :base}, %{base_hit: true}) do
+    if game.cards[a].card == "predator-tiger" and s != opp,
+      do: Effects.trash_worker(game, opp),
+      else: game
+  end
+
   def after_combat(game, _s, _a, _target, _ctx), do: game
 
   @doc """
@@ -118,6 +144,9 @@ defmodule Codex.Effects.Green do
   Horselord (it joins the player with more total ATK than each other).
   """
   def upkeep(game, s) do
+    # Ferocity lasts "until your next upkeep".
+    game = Rules.update_side(game, s, &%{&1 | effects: Map.delete(&1.effects, :ferocity)})
+
     Enum.reduce(Zones.in_play(game, s), game, fn id, game ->
       case game.cards[id].card do
         "gemscout-owl" -> Rules.gain_gold(game, s, 1)

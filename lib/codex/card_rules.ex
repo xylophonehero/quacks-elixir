@@ -208,7 +208,7 @@ defmodule Codex.CardRules do
   @manual ~w(burning-volley feral-strike)
   # Not done yet in this round of work (moved out as each spec is done).
   @manual @manual ++
-            ~w(artisan-mantis barkcoat-bear behind-the-ferns blooming-ancient blooming-elm centaur dinosize ferocity galina-glimmer giant-panda gigadon guargum-eternal-sentinel huntress might-of-leaf-and-claw moss-ancient murkwood-allies oversized-rhinoceros polymorph-squirrel predator-tiger rampaging-elephant spirit-of-the-panda stalking-tiger stampede)
+            ~w(artisan-mantis blooming-ancient blooming-elm dinosize galina-glimmer giant-panda guargum-eternal-sentinel might-of-leaf-and-claw oversized-rhinoceros polymorph-squirrel spirit-of-the-panda stampede)
 
   # "Arrives:" abilities with a target. The slot may be empty only when there is
   # no legal target ("do as much as you can", S1 p. 17).
