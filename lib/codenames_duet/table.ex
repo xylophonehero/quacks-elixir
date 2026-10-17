@@ -43,6 +43,11 @@ defmodule CodenamesDuet.Table do
   @impl true
   def apply(game, seat, action), do: Game.apply(game, seat, action)
 
+  # Codenames Duet is co-operative: both seats win together, or nobody.
+  @impl true
+  def winners(%Game{result: :won, seats: seats}), do: seats
+  def winners(%Game{}), do: []
+
   @impl true
   def status(game), do: Game.status(game)
 

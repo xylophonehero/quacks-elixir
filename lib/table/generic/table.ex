@@ -24,6 +24,15 @@ defmodule Table.Generic.Table do
   @impl true
   def apply(game, seat, action), do: Game.apply(game, seat, action)
 
+  # The highest score wins (Crazy Eights: the points left in the other hands).
+  @impl true
+  def winners(%Game{result: %{} = scores}) do
+    best = scores |> Map.values() |> Enum.max()
+    for {seat, score} <- Enum.sort(scores), score == best, do: seat
+  end
+
+  def winners(%Game{}), do: []
+
   @impl true
   def status(game), do: Game.status(game)
 

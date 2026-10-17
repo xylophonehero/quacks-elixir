@@ -28,6 +28,10 @@ defmodule Codex.Table do
   def apply(game, seat, action), do: Game.apply(game, seat, action)
 
   @impl true
+  def winners(%Game{winner: nil}), do: []
+  def winners(%Game{winner: winner}), do: [winner]
+
+  @impl true
   def status(game), do: Game.status(game)
 
   @impl true

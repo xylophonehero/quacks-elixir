@@ -10,7 +10,10 @@ defmodule Quacks.AI.Tune do
      seats one candidate against 3 opponents, at 2 seats one against one, duplicate
      seating, the same seeds for every candidate of a generation.
   3. Fitness: the mean of the 4-seat and the 2-seat win rate, each divided by its
-     parity (1.0 = as good as the opponent).
+     parity (1.0 = as good as the opponent). With `starts:` (positions from real
+     games, `docs/research/learn-from-nick.md`), one more rate per seat count of
+     the starts: the candidate plays each start on in every seat against the
+     opponent, `start_reps` times with new draws.
   4. The new mean and spread move towards the `elite` best candidates.
 
   After every generation the state goes to the checkpoint file and the mean profile
@@ -33,7 +36,10 @@ defmodule Quacks.AI.Tune do
   generation after it). Options: `base:` profile text (default `"balanced+strong"`),
   `opponent:` profile text (default: the base), `checkpoint:` and `out:` paths,
   `population:` (default 24), `elite:` (default 6), `seeds:` per candidate and
-  seat count (default 100), `seed:`, `jobs:`, `log:` a function for one line of text.
+  seat count (default 100), `seed:`, `jobs:`, `log:` a function for one line of text,
+  `starts:` a list of games to play on from (default none), `start_reps:` plays per
+  start and seat (default 2). A `base:` of `"file:<path>"` starts from that weights
+  file; the out file then names the file's own base.
   Returns the last state.
   """
   @spec run(keyword) :: map
@@ -53,13 +59,25 @@ defmodule Quacks.AI.Tune do
       elite: Keyword.get(opts, :elite, 6),
       seeds: Keyword.get(opts, :seeds, 100),
       seed: Keyword.get(opts, :seed, 1),
-      jobs: Keyword.get(opts, :jobs, Bench.default_jobs())
+      jobs: Keyword.get(opts, :jobs, Bench.default_jobs()),
+      starts: length(Keyword.get(opts, :starts, [])),
+      start_reps: Keyword.get(opts, :start_reps, 2)
     }
+
+    starts = opts |> Keyword.get(:starts, []) |> Enum.group_by(&length(&1.seats))
 
     state = resume(checkpoint, base, log) || fresh(base)
     started = System.monotonic_time(:millisecond)
     deadline = if opts[:minutes], do: started + round(opts[:minutes] * 60_000)
-    ctx = %{config: config, base: base, opponent: %{opponent | name: :opponent}, log: log}
+
+    ctx = %{
+      config: config,
+      base: base,
+      base_name: base_name(base_text),
+      opponent: %{opponent | name: :opponent},
+      starts: starts,
+      log: log
+    }
 
     loop(state, ctx, Keyword.get(opts, :generations, 1000), deadline, checkpoint, out)
   end
@@ -128,27 +146,47 @@ defmodule Quacks.AI.Tune do
   end
 
   # The candidate's fitness: 4-seat and 2-seat win rate over parity, averaged.
-  defp fitness(unit, seed, %{config: config, base: base, opponent: opp}) do
+  defp fitness(unit, seed, %{config: config, base: base, opponent: opp} = ctx) do
     cand = %{Weights.from_unit(base, unit) | name: :candidate}
 
     rates =
       for players <- [4, 2] do
-        bots = [cand | List.duplicate(opp, players - 1)]
-
-        %{bots: [%{win_rate: w} | _]} =
-          Bench.run(
-            bots: bots,
-            players: players,
-            games: config.seeds * players,
-            seed: seed,
-            jobs: config.jobs
-          )
-
-        w * players
+        rate(cand, opp, players, config, seed, games: config.seeds * players)
       end
 
-    Enum.sum(rates) / length(rates)
+    start_rates =
+      for {players, games} <- Enum.sort(ctx.starts) do
+        rate(cand, opp, players, config, seed,
+          starts: games,
+          games: length(games) * players * config.start_reps
+        )
+      end
+
+    all = rates ++ start_rates
+    Enum.sum(all) / length(all)
   end
+
+  defp rate(cand, opp, players, config, seed, opts) do
+    %{bots: [%{win_rate: w} | _]} =
+      Bench.run(
+        [bots: [cand | List.duplicate(opp, players - 1)], players: players, seed: seed] ++
+          [jobs: config.jobs] ++ opts
+      )
+
+    w * players
+  end
+
+  # The profile text a weights file names: a `file:` base names the file's own base.
+  defp base_name("file:" <> path) do
+    with {:ok, text} <- File.read(String.trim(path)),
+         {:ok, %{"base" => base}} <- Jason.decode(text) do
+      base_name(base)
+    else
+      _ -> "balanced+strong"
+    end
+  end
+
+  defp base_name(text), do: text
 
   @doc """
   The cross-entropy step: the new mean and spread, moved towards the `elite`
@@ -196,7 +234,7 @@ defmodule Quacks.AI.Tune do
     profile = Weights.from_unit(ctx.base, state["mean"])
     last = List.last(state["history"])
 
-    Weights.save(out, ctx.config.base, profile, %{
+    Weights.save(out, ctx.base_name, profile, %{
       generation: state["generation"],
       mean_fitness: last["mean_fitness"],
       opponent: ctx.config.opponent

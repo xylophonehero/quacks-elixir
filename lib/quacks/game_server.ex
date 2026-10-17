@@ -82,7 +82,8 @@ defmodule Quacks.GameServer do
   (`Quacks.GameStore`), at most once per 500 ms (`@write_delay`), and the app
   restores every file at boot (`start_from_bundle/2` with `restore: true`), bots and
   all. The file goes when the game idles out, or 1 hour after every human seat
-  closed the final scoring. Debug tables are not stored.
+  closed the final scoring. Debug tables are not stored. When a game ends, it also
+  goes to the archive of finished games (`Quacks.GameStore.archive/4`), which stays.
   """
 
   use GenServer, restart: :temporary
@@ -1636,6 +1637,7 @@ defmodule Quacks.GameServer do
   defp changed(state, old) do
     # The Join page shows each game's round.
     if stage(state) != stage(old), do: broadcast_lobby()
+    if finished_now?(state, old), do: archive(state)
 
     if file_view(state) == file_view(old),
       do: state,
@@ -1682,6 +1684,51 @@ defmodule Quacks.GameServer do
   end
 
   defp schedule_expiry(state), do: state
+
+  # The game ended with this message (a restored game that was over already did not).
+  defp finished_now?(%{session: %Session{game: game}}, %{session: %Session{game: before}}),
+    do: Game.over?(game) and not Game.over?(before)
+
+  defp finished_now?(_state, _old), do: false
+
+  # The archive file of a finished game (`GameStore.archive/4`): what a review of the
+  # game needs. Debug tables have no store, so they are not archived.
+  defp archive(%{store: nil}), do: :ok
+
+  defp archive(state),
+    do: GameStore.archive(state.store, "quacks", state.id, archive_body(state))
+
+  defp archive_body(%{session: %Session{game: game} = session} = state) do
+    scores = Game.score(game)
+    standings = Game.standings(game)
+    leader = hd(standings)
+    best = {scores[leader], Game.player(game, leader).rubies}
+
+    %{
+      format: 1,
+      game: "quacks",
+      id: state.id,
+      finished_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+      app_version: Quacks.BugReports.app_version(),
+      players: session.players,
+      seats:
+        for seat <- 0..(session.players - 1) do
+          bot = state.bots[seat]
+
+          %{
+            seat: seat,
+            name: Map.get(state.names, seat, default_name(seat)),
+            human: bot == nil,
+            bot: bot && Atom.to_string(bot),
+            vp: scores[seat],
+            rubies: Game.player(game, seat).rubies
+          }
+        end,
+      standings: standings,
+      winners: Enum.filter(standings, &({scores[&1], Game.player(game, &1).rubies} == best)),
+      bundle: bundle_of(state)
+    }
+  end
 
   # The bundle (absent while waiting) plus the table; `restore/2` reads it back.
   defp file_body(state) do

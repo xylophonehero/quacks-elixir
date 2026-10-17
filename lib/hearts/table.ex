@@ -27,6 +27,9 @@ defmodule Hearts.Table do
   def apply(game, seat, action), do: Game.apply(game, seat, action)
 
   @impl true
+  def winners(%Game{winners: winners}), do: winners
+
+  @impl true
   def status(game), do: Game.status(game)
 
   @impl true

@@ -60,6 +60,10 @@ defmodule Quacks.BugReports do
           browser: browser
         }
 
+  @doc "The app version and its git SHA, e.g. `\"0.1.0 (abc1234)\"`."
+  @spec app_version() :: String.t()
+  def app_version, do: "#{Application.spec(:quacks, :vsn)} (#{@git_sha})"
+
   @doc "The rate limit table. `Quacks.Application` creates it at start."
   @spec create_table() :: :ok
   def create_table do
@@ -195,7 +199,7 @@ defmodule Quacks.BugReports do
       {"Rules", "`#{inspect((game && game.rules) || table.rules)}`"},
       {"Sets", "`#{inspect((game && game.sets) || table.sets)}`"},
       {"Log entries", game && length(game.log)},
-      {"App", "#{Application.spec(:quacks, :vsn)} (#{@git_sha})"}
+      {"App", app_version()}
     ]
 
     ["| | |\n|---|---|\n", Enum.map(rows, fn {k, v} -> "| #{k} | #{cell(v)} |\n" end)]
@@ -269,6 +273,33 @@ defmodule Quacks.BugReports do
       {:ok, %{status: 200, body: %{"body" => body}}} -> extract_bundle(body)
       {:ok, %{status: status}} -> {:error, {:github, status}}
       {:error, exception} -> {:error, {:github, exception}}
+    end
+  end
+
+  @doc """
+  The replay bundles of every bug report issue (label `bug-report`, open or
+  closed, the newest 100), as `{issue number, bundle}`. Issues without a bundle are
+  left out.
+  """
+  @spec list_bundles(String.t() | nil) :: {:ok, [{pos_integer, map}]} | {:error, {:github, term}}
+  def list_bundles(token \\ config(:github_token)) do
+    case Req.get(req(token),
+           url: "/repos/#{repo()}/issues",
+           params: [labels: "bug-report", state: "all", per_page: 100]
+         ) do
+      {:ok, %{status: 200, body: issues}} when is_list(issues) ->
+        bundles =
+          for %{"number" => n, "body" => body} <- issues,
+              {:ok, bundle} <- [extract_bundle(body)],
+              do: {n, bundle}
+
+        {:ok, bundles}
+
+      {:ok, %{status: status}} ->
+        {:error, {:github, status}}
+
+      {:error, exception} ->
+        {:error, {:github, exception}}
     end
   end
 
