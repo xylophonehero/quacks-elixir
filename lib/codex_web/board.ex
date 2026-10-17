@@ -1351,8 +1351,8 @@ defmodule CodexWeb.Board do
   defp value_token(id) when is_integer(id), do: Integer.to_string(id)
   defp value_token({:building, s, b}), do: "b.#{s}.#{b}"
 
-  # What an attack does to the target, as a short line ("2 → 1 HP", "2 → dies",
-  # "Base 20 → 18"). The target's armor counts (`Codex.Stats.armor/2`); other
+  # What an attack does to the target, as a short line: HP now → HP after
+  # ("3 → 1 HP", "3 → dies", "Base 20 → 18"). The target's armor counts (`Codex.Stats.armor/2`); other
   # combat rules (long-range, deathtouch) do not: the engine decides.
   defp preview(v, a, value) do
     atk =
@@ -1378,8 +1378,9 @@ defmodule CodexWeb.Board do
     c = v.cards[t]
     {_atk, hp} = Map.get(c, :now) || {0, Cards.fetch!(c.card).hp || 0}
     dmg = max(atk - Codex.Stats.armor(v, t), 0)
-    left = hp - c.damage - dmg
-    if left <= 0, do: "#{dmg} → dies", else: "#{dmg} → #{left} HP"
+    now = hp - c.damage
+    left = now - dmg
+    if left <= 0, do: "#{now} → dies", else: "#{now} → #{left} HP"
   end
 
   defp card_chips(%{targeting: t}, _v) when t != nil, do: %{}

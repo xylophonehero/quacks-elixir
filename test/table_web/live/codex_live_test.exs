@@ -515,7 +515,7 @@ defmodule TableWeb.CodexLiveTest do
         |> LazyHTML.attribute("data-targets")
 
       targets = Jason.decode!(targets)
-      assert targets["#cx-card-#{t}"] == %{"t" => "atk:#{t}", "p" => "1 → 1 HP"}
+      assert targets["#cx-card-#{t}"] == %{"t" => "atk:#{t}", "p" => "2 → 1 HP"}
       assert targets["#cx-card-#{o}"]["t"] == "atk:#{o}"
       assert targets["#cx-slot-0-squad_leader"]["t"] == "pat:squad_leader"
       refute Map.has_key?(targets, "[data-base='1']")
