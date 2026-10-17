@@ -34,6 +34,14 @@ defmodule Codex.Rules do
   - `{:patrol, card_id, slot}`: a ready unit or hero of yours goes to an empty
     patrol slot. `{:sideline, card_id}`: out of the patrol zone.
   - `{:attack, card_id, target}`: see `Codex.Combat`.
+  - `{:summon, hero_id}`: summon a hero from the command zone (2 gold); it
+    arrives at level 1 with arrival fatigue. At most 1 hero in play; a hero
+    that died waits until after its owner's next turn.
+  - `{:level_up, hero_id}`: 1 gold, 1 level (heals at the middle band and at
+    the max level).
+  - `{:ability, card_id, name, targets}`: an activated ability. River Montoya
+    at level 3+: `:sideline`, exhaust it to sideline a tech 0 or tech I
+    patroller.
   - `:end_turn`.
 
   `legal/1` lists every legal action of the active side; `act/2` refuses any
@@ -55,7 +63,10 @@ defmodule Codex.Rules do
 
   def legal(%{phase: :main, active: s} = game) do
     hires(game, s) ++
+      summons(game, s) ++
+      level_ups(game, s) ++
       plays(game, s) ++
+      abilities(game, s) ++
       patrols(game, s) ++
       attacks(game, s) ++ [:end_turn]
   end
@@ -63,6 +74,62 @@ defmodule Codex.Rules do
   defp hires(game, s) do
     side = game.sides[s]
     if side.hired or side.gold < 1, do: [], else: for(id <- side.zones.hand, do: {:hire, id})
+  end
+
+  # Summon: a hero from the command zone for its cost (2), at level 1, with
+  # arrival fatigue. 1-hero mode: at most 1 hero in play (S1 p. 11). A dead hero
+  # waits until after its owner's next turn (S1 p. 3).
+  defp summons(game, s) do
+    side = game.sides[s]
+    heroes_in_play = Enum.count(Zones.in_play(game, s), &Stats.hero?(game, &1))
+    cooled? = side.summon_after == nil or side.turn > side.summon_after
+
+    for id <- side.zones.command,
+        Stats.hero?(game, id),
+        heroes_in_play < 1,
+        cooled?,
+        side.gold >= (Cards.fetch!(game.cards[id].card).cost || 0),
+        do: {:summon, id}
+  end
+
+  # Level up: 1 gold per level, up to the max level (S1 p. 3). One action per level.
+  defp level_ups(game, s) do
+    if game.sides[s].gold >= 1 do
+      for id <- Zones.in_play(game, s),
+          Stats.hero?(game, id),
+          game.cards[id].level < Cards.max_level(game.cards[id].card),
+          do: {:level_up, id}
+    else
+      []
+    end
+  end
+
+  # Activated abilities with an exhaust cost (⤵): the card must be ready and
+  # without arrival fatigue (or have haste) (S1 p. 17).
+  defp abilities(game, s) do
+    gold = game.sides[s].gold
+
+    for id <- Zones.in_play(game, s),
+        {name, slots} <- ability_slots(game, id),
+        exhaust_ok?(game, id),
+        targets <- Targets.combos(game, s, slots, id),
+        Targets.resist_cost(game, s, targets) <= gold,
+        do: {:ability, id, name, targets}
+  end
+
+  # River Montoya, level 3+: ⤵ → Sideline a tech 0 or tech I patroller.
+  defp ability_slots(game, id) do
+    c = game.cards[id]
+
+    case c.card do
+      "river-montoya" when c.level >= 3 -> [{:sideline, [:opp_patroller_t01]}]
+      _ -> []
+    end
+  end
+
+  defp exhaust_ok?(game, id) do
+    c = game.cards[id]
+    not c.exhausted and (not c.fatigued or Stats.haste?(game, id))
   end
 
   defp plays(game, s) do
@@ -218,6 +285,31 @@ defmodule Codex.Rules do
     end
   end
 
+  defp do_act(game, {:summon, id}) do
+    s = game.active
+    cost = Cards.fetch!(game.cards[id].card).cost || 0
+
+    game
+    |> update_side(s, &%{&1 | gold: &1.gold - cost})
+    |> Zones.move(id, {s, :in_play})
+    |> Zones.update_card(id, &%{&1 | fatigued: true, level: 1})
+  end
+
+  defp do_act(game, {:level_up, id}) do
+    game
+    |> update_side(game.active, &%{&1 | gold: &1.gold - 1})
+    |> Effects.level_up(id, 1)
+  end
+
+  defp do_act(game, {:ability, id, :sideline, [t]}) do
+    s = game.active
+
+    game
+    |> update_side(s, &%{&1 | gold: &1.gold - Targets.resist_cost(game, s, [t])})
+    |> exhaust(id)
+    |> Effects.sideline(t)
+  end
+
   defp do_act(game, {:patrol, id, slot}), do: Zones.move(game, id, {game.active, :patrol}, slot)
   defp do_act(game, {:sideline, id}), do: Effects.sideline(game, id)
   defp do_act(game, {:attack, a, target}), do: Combat.attack(game, a, target)
@@ -331,6 +423,13 @@ defmodule Codex.Rules do
     game
     |> draw(s, min(length(hand) + 2, @hand_cap), :draw_phase)
     |> start_turn(1 - s)
+  end
+
+  # Exhaust a card; an exhausted card cannot patrol (S1 p. 5).
+  defp exhaust(game, id) do
+    game
+    |> Zones.update_card(id, &%{&1 | exhausted: true})
+    |> Effects.sideline(id)
   end
 
   # Only ready cards patrol (S1 p. 5).
