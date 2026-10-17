@@ -512,7 +512,9 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
 .cx-fan > .cx-card:last-child { flex-shrink: 0; }
 .cx-fan > .cx-card > .cx-face { width: var(--cx-w); right: auto; container-type: inline-size; }
 .cx-fan { min-width: 0; }
-@media (max-width: 1023px) { .cx-act { padding: 5px 9px; } }
+/* Every tap target is 44 px or more (a desktop: 36 px). */
+.cx-act { min-height: 44px; padding: 6px 14px; justify-content: center; }
+@media (min-width: 1024px) { .cx-act { min-height: 36px; padding: 6px 11px; } }
 
 /* Rules mode: a legal target of the pick in progress, and the rules buttons. */
 .cx-card.cx-targetable { cursor: crosshair; }

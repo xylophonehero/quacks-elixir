@@ -799,7 +799,7 @@ defmodule CodexWeb.Board do
       </span>
       <div class="ml-auto flex items-center gap-1">
         <div
-          class="flex rounded-full bg-black/30 p-0.5 text-xs font-semibold ring-1 ring-white/10"
+          class="flex rounded-full bg-black/30 text-xs font-semibold ring-1 ring-white/10"
           role="group"
           aria-label="View as"
         >
@@ -811,7 +811,7 @@ defmodule CodexWeb.Board do
             phx-value-seat={s}
             aria-pressed={to_string(@pov == s)}
             class={[
-              "min-h-10 min-w-11 rounded-full px-2.5 transition lg:min-h-8",
+              "min-h-11 min-w-11 rounded-full px-2.5 transition lg:min-h-9",
               if(@pov == s,
                 do: [seat_bg(s), "text-white shadow"],
                 else: "text-white/60 hover:text-white"
@@ -1832,7 +1832,7 @@ defmodule CodexWeb.Board do
           id="cx-act-close"
           type="button"
           phx-click="deselect"
-          class="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 transition hover:bg-white/20"
+          class="cx-icon-btn bg-white/10!"
           aria-label="Deselect"
         >
           <.icon name="hero-x-mark-mini" class="size-4" />
@@ -2011,7 +2011,7 @@ defmodule CodexWeb.Board do
           phx-value-op="adjust"
           phx-value-key={@key}
           phx-value-delta="-1"
-          class="grid size-7 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90"
+          class="grid size-11 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90 lg:size-8"
           aria-label={"#{@label} -1"}
         >
           <.icon name="hero-minus-mini" class="size-3.5" />
@@ -2029,7 +2029,7 @@ defmodule CodexWeb.Board do
           phx-value-op="adjust"
           phx-value-key={@key}
           phx-value-delta="1"
-          class="grid size-7 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90"
+          class="grid size-11 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-90 lg:size-8"
           aria-label={"#{@label} +1"}
         >
           <.icon name="hero-plus-mini" class="size-3.5" />
@@ -2246,7 +2246,7 @@ defmodule CodexWeb.Board do
             phx-click="shuffle"
             phx-value-seat={elem(@drawer, 0)}
             phx-value-zone={elem(@drawer, 1)}
-            class="cx-mini"
+            class="cx-mini min-h-11 px-3"
           >
             Shuffle
           </button>
@@ -2254,7 +2254,7 @@ defmodule CodexWeb.Board do
             id="cx-drawer-close"
             type="button"
             phx-click="close_drawer"
-            class="ml-auto grid size-8 place-items-center rounded-full bg-white/10 transition hover:bg-white/20"
+            class="cx-icon-btn ml-auto bg-white/10!"
             aria-label="Close"
           >
             <.icon name="hero-x-mark-mini" class="size-5" />
@@ -2303,7 +2303,7 @@ defmodule CodexWeb.Board do
         phx-value-building={b}
         aria-pressed={to_string(b in @built)}
         class={[
-          "rounded-xl px-3 py-2.5 text-sm font-semibold ring-1 transition active:scale-[0.98]",
+          "min-h-11 rounded-xl px-3 py-2.5 text-sm font-semibold ring-1 transition active:scale-[0.98]",
           if(b in @built,
             do: "bg-amber-300 text-stone-900 ring-amber-200",
             else: "bg-white/5 text-white/80 ring-white/10 hover:bg-white/10"
@@ -2345,7 +2345,7 @@ defmodule CodexWeb.Board do
         phx-click="build"
         phx-value-building="tech_2"
         phx-value-spec={spec}
-        class="rounded-xl bg-amber-300 px-3 py-2 text-sm font-semibold text-stone-900 ring-1 ring-amber-200 transition hover:bg-amber-200 active:scale-[0.98]"
+        class="min-h-11 rounded-xl bg-amber-300 px-3 py-2 text-sm font-semibold text-stone-900 ring-1 ring-amber-200 transition hover:bg-amber-200 active:scale-[0.98]"
       >
         Tech II · {spec}
       </button>
@@ -2364,7 +2364,7 @@ defmodule CodexWeb.Board do
         phx-value-building={b}
         disabled={state != :can}
         class={[
-          "flex flex-col items-start rounded-xl px-3 py-2.5 text-left text-sm font-semibold ring-1 transition active:scale-[0.98]",
+          "flex min-h-11 flex-col items-start rounded-xl px-3 py-2.5 text-left text-sm font-semibold ring-1 transition active:scale-[0.98]",
           state == :can && "bg-amber-300 text-stone-900 ring-amber-200 hover:bg-amber-200",
           state in [:built, :pending] && "bg-emerald-800/60 text-white ring-emerald-500/40",
           state in [:no, :spec] && "bg-white/5 text-white/40 ring-white/10"
@@ -2455,7 +2455,7 @@ defmodule CodexWeb.Board do
         type="button"
         phx-click="tech_done"
         disabled={@done == nil}
-        class="ml-auto rounded-full bg-amber-300 px-4 py-2 text-sm font-bold text-stone-900 shadow transition hover:bg-amber-200 active:scale-95 disabled:opacity-40"
+        class="ml-auto min-h-11 rounded-full bg-amber-300 px-5 text-sm font-bold text-stone-900 shadow transition hover:bg-amber-200 active:scale-95 disabled:opacity-40"
       >
         {if @pick == [], do: "Pick none", else: "Add to my discard pile"}
       </button>
