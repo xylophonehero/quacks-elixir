@@ -16,7 +16,8 @@ defmodule CodexWeb.Gallery do
   @doc "The board states."
   @spec states() :: [String.t()]
   def states,
-    do: ~w(mid-game start red-green selected attack tech codex discard buildings log free bot)
+    do:
+      ~w(mid-game start red-green selected zoom attack tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -61,6 +62,12 @@ defmodule CodexWeb.Gallery do
   defp extra(socket, "selected", game) do
     [id | _] = game.sides[0].zones.in_play
     Phoenix.Component.assign(socket, selected: id)
+  end
+
+  # A long press on a card on the board: its full face over the table.
+  defp extra(socket, "zoom", game) do
+    [id | _] = game.sides[0].zones.in_play
+    Phoenix.Component.assign(socket, zoom: id)
   end
 
   # A pick in progress: P1's first ready force attacks; its targets glow.
@@ -111,7 +118,8 @@ defmodule CodexWeb.Gallery do
   defp tech(_game, action), do: action
 
   # Turn 3 of P1: heroes out with levels, units in play and on patrol, tokens,
-  # gold, a tech building, cards in the discard piles and the trash.
+  # gold, a tech building, cards in the discard piles and the trash. Brick Thief
+  # (+1/+1 rune) is exhausted.
   defp mid_game(game) do
     [p1_hero] = game.sides[0].zones.command
     [p2_hero] = game.sides[1].zones.command
@@ -148,6 +156,7 @@ defmodule CodexWeb.Gallery do
       {:move, d, {0, :workers}, nil},
       {:adjust, 0, :gold, -1},
       {:draw, 0, 2},
+      {:toggle, b, :exhausted},
       {:free_mode, false}
     ]
     |> Enum.reduce(game, fn action, game ->

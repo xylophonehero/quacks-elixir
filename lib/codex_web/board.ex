@@ -17,6 +17,9 @@ defmodule CodexWeb.Board do
   - A selected card shows its actions: exhaust, damage, +1/+1 and -1/-1 runes,
     hero level, flip, to hand / discard / trash. On a desktop the actions and a
     large face are in the right column; on a phone they are a bar at the bottom.
+  - A card on the board (patrol, in play, command) is a mini card (`mini/1`): an
+    art crop, the cost or the hero level, the name and the ATK/HP now (green: above
+    the printed value, violet: below, red HP: damaged). Exhausted: grey.
   - Hover (mouse) or a long press (touch) shows a large face of a card.
   - The face is the art from `mix codex.cards` (`/images/codex/<slug>.webp`).
     Without the art the card is drawn in CSS from the data (`Codex.Cards`).
@@ -89,7 +92,8 @@ defmodule CodexWeb.Board do
       reveal: false,
       targeting: nil,
       actions: [],
-      tech_pick: []
+      tech_pick: [],
+      zoom: nil
     )
   end
 
@@ -532,7 +536,8 @@ defmodule CodexWeb.Board do
         tg: MapSet.new(values),
         buttons:
           if(selected && !v.free, do: Moves.buttons(assigns.actions, selected.id), else: []),
-        free: v.free
+        free: v.free,
+        zoom: assigns[:zoom] && v.cards[assigns.zoom]
       )
 
     ~H"""
@@ -595,6 +600,18 @@ defmodule CodexWeb.Board do
         actions={@actions}
         tech_pick={@tech_pick}
       />
+
+      <div :if={@zoom} id="cx-zoom" class="cx-preview" data-side="center">
+        <%= if MapSet.member?(@art, @zoom.card) do %>
+          <img
+            class="cx-preview-img"
+            src={"/images/codex/zoom/#{@zoom.card}.webp"}
+            alt={Cards.fetch!(@zoom.card).name}
+          />
+        <% else %>
+          <div class="cx-card cx-preview-card"><.css_face d={Cards.fetch!(@zoom.card)} /></div>
+        <% end %>
+      </div>
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CodexTable">
         export default {
@@ -688,12 +705,15 @@ defmodule CodexWeb.Board do
             const p = document.createElement("div")
             p.className = "cx-preview"
             p.dataset.side = x === null ? "center" : (x < window.innerWidth / 2 ? "right" : "left")
+            const tpl = card.querySelector("template.cx-zoom-tpl")
             if (card.dataset.zoom) {
               const img = document.createElement("img")
               img.src = card.dataset.zoom
               img.alt = card.title || ""
               img.className = "cx-preview-img"
               p.appendChild(img)
+            } else if (tpl) {
+              p.appendChild(tpl.content.cloneNode(true))
             } else {
               const face = card.querySelector(".cx-face")
               if (!face) return
@@ -1176,7 +1196,7 @@ defmodule CodexWeb.Board do
           <span class="sm:hidden">{elem(@labels[slot], 1)}</span>
         </span>
         <div class="cx-slot-card">
-          <.card
+          <.mini
             :if={@slots[slot]}
             c={@view.cards[@slots[slot]]}
             art={@art}
@@ -1211,7 +1231,7 @@ defmodule CodexWeb.Board do
       class={["cx-zone cx-row", @sel && "cx-target"]}
     >
       <span class="cx-label cx-row-label">{label(@zone)}</span>
-      <.card
+      <.mini
         :for={id <- @ids}
         c={@view.cards[id]}
         art={@art}
@@ -1307,7 +1327,7 @@ defmodule CodexWeb.Board do
         class={["cx-zone cx-command min-w-0 flex-1", @sel && "cx-target"]}
       >
         <span class="cx-label cx-row-label">Command</span>
-        <.card
+        <.mini
           :for={id <- @command}
           c={@view.cards[id]}
           art={@art}
@@ -1474,6 +1494,121 @@ defmodule CodexWeb.Board do
   end
 
   # -- a card ------------------------------------------------------------------------------
+
+  attr :c, :map, required: true, doc: "a card instance from the view"
+  attr :art, :any, required: true
+  attr :selected, :any, default: false
+  attr :target, :any, default: false, doc: "a legal target of the pick in progress"
+
+  # A card on the board: an art crop, the cost (or the hero level), the name and
+  # the ATK/HP now. Colours: green above the printed value, violet below, red HP
+  # when damaged. Exhausted: grey. A long press (or a hover) shows the full card.
+  defp mini(assigns) do
+    c = assigns.c
+    d = Cards.fetch!(c.card)
+    art? = MapSet.member?(assigns.art, c.card)
+    back? = c.face_down
+
+    assigns =
+      assign(assigns,
+        d: d,
+        back?: back?,
+        hero?: d.type == "Hero",
+        img: art? && "/images/codex/#{c.card}.webp",
+        zoom: !back? && art? && "/images/codex/zoom/#{c.card}.webp",
+        st: !back? && mini_stats(c, d)
+      )
+
+    ~H"""
+    <div
+      id={"cx-card-#{@c.id}"}
+      data-card-id={@c.id}
+      data-zoom={@zoom}
+      draggable="true"
+      phx-click="select"
+      phx-value-id={@c.id}
+      title={@d.name}
+      class={[
+        "cx-mc cursor-pointer",
+        tone(@d),
+        @c.exhausted && "cx-exhausted",
+        @selected && "cx-selected",
+        @target && "cx-targetable"
+      ]}
+    >
+      <div class="cx-mc-art">
+        <%= cond do %>
+          <% @back? -> %>
+            <.back art={@art} />
+          <% @img -> %>
+            <img class="cx-mc-img" src={@img} alt="" loading="lazy" draggable="false" />
+          <% true -> %>
+            <div class="cx-mc-css"></div>
+        <% end %>
+      </div>
+      <%= if !@back? do %>
+        <span :if={@hero? and @c.level} class="cx-mc-lvl" title="level">
+          <span class="text-[0.7em]">L</span>{@c.level}
+        </span>
+        <span :if={!@hero? and @d.cost} class="cx-mc-cost" title="cost">{@d.cost}</span>
+        <span class="cx-mc-flags">
+          <span :if={@c.exhausted} class="cx-mc-flag" title="exhausted">
+            <.icon name="hero-arrow-path-mini" class="size-3" />
+          </span>
+          <span
+            :if={Map.get(@c, :fatigued)}
+            class="cx-mc-flag cx-mc-new"
+            title="arrived this turn: cannot attack yet"
+          >
+            new
+          </span>
+          <span :if={@c.plus > 0} class="cx-mc-flag cx-mc-plus" title="+1/+1 runes">
+            +{@c.plus}
+          </span>
+          <span :if={@c.minus > 0} class="cx-mc-flag cx-mc-minus" title="-1/-1 runes">
+            −{@c.minus}
+          </span>
+        </span>
+        <div class="cx-mc-foot">
+          <span class="cx-mc-name">{@d.name}</span>
+          <div :if={@st} class="cx-mc-stats">
+            <span class="cx-mc-atk" data-tone={@st.atk_tone} title="ATK">{@st.atk}</span>
+            <span class="cx-mc-hp" data-tone={@st.hp_tone} title="HP left">{@st.hp}</span>
+          </div>
+        </div>
+      <% end %>
+      <template :if={!@img and !@back?} class="cx-zoom-tpl">
+        <div class="cx-card cx-preview-card"><.css_face d={@d} /></div>
+      </template>
+    </div>
+    """
+  end
+
+  # ATK and HP left now, and how they differ from the printed values (a hero: its band).
+  defp mini_stats(c, d) do
+    {base_atk, base_hp} =
+      case d.type == "Hero" && Cards.band(c.card, c.level || 1) do
+        %{atk: a, hp: h} -> {a, h}
+        _ -> {d.atk, d.hp}
+      end
+
+    case Map.get(c, :now) || (base_hp && {base_atk || 0, base_hp}) do
+      {atk, hp} ->
+        %{
+          atk: atk,
+          hp: hp - c.damage,
+          atk_tone: tone_of(atk, base_atk || 0),
+          hp_tone: if(c.damage > 0, do: "hurt", else: tone_of(hp, base_hp || 0))
+        }
+
+      nil ->
+        nil
+    end
+  end
+
+  defp tone_of(now, base) when now > base, do: "up"
+  defp tone_of(now, base) when now < base, do: "down"
+  defp tone_of(_now, _base), do: nil
 
   attr :c, :map, required: true, doc: "a card instance from the view"
   attr :art, :any, required: true

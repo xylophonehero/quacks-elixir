@@ -382,3 +382,153 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
 .cx-act-rule:hover { background: oklch(85% 0.15 85 / 0.3); }
 @media (prefers-reduced-motion: reduce) { .cx-card.cx-targetable > .cx-face, .cx-targetable-pill { animation: none; } }
 .cx-new { left: 50%; top: -6px; translate: -50% 0; background: oklch(45% 0.05 250 / 0.92); font-size: max(9px, 11cqw); }
+
+/* -- a mini card: a card on the board (`mini/1`) ---------------------------------
+   An art crop, the cost (a hero: its level), the name and a bold ATK/HP bar with
+   the values now. Size: `--cx-mw` wide, 7:8. Exhausted = grey, not turned. */
+.cx-table { --cx-mw: 3.5rem; }
+@media (min-width: 640px) { .cx-table { --cx-mw: 4.25rem; } }
+@media (min-width: 1024px) { .cx-table { --cx-mw: 4.75rem; } }
+@media (min-width: 1280px) { .cx-table { --cx-mw: 5.25rem; } }
+
+.cx-mc {
+  position: relative;
+  flex-shrink: 0;
+  width: var(--cx-mw);
+  height: calc(var(--cx-mw) * 8 / 7);
+  border-radius: 0.45rem;
+  container-type: inline-size;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 200ms ease, opacity 200ms ease;
+}
+.cx-mc-art {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--cx-tone, oklch(40% 0.03 80));
+  box-shadow: 0 0 0 1.5px var(--cx-tone, oklch(55% 0.03 80)), 0 1px 2px oklch(0% 0 0 / 0.55), 0 5px 12px -5px oklch(0% 0 0 / 0.7);
+  transition: box-shadow 180ms ease;
+}
+/* The art of a TTS card is its top half: zoom in on it. */
+.cx-mc-img {
+  position: absolute;
+  width: 156%;
+  max-width: none;
+  left: -36%;
+  top: -6%;
+}
+.cx-mc-art > .cx-face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cx-mc-css {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 30%, oklch(100% 0 0 / 0.25), transparent 60%),
+    linear-gradient(160deg, var(--cx-tone), oklch(22% 0.02 60));
+}
+.cx-mc-foot {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10cqw 3px 3px;
+  border-radius: 0 0 0.45rem 0.45rem;
+  background: linear-gradient(to top, oklch(12% 0.01 60 / 0.95) 55%, transparent);
+  pointer-events: none;
+}
+.cx-mc-name {
+  overflow: hidden;
+  font-size: max(8.5px, 15cqw);
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: oklch(100% 0 0 / 0.92);
+  text-shadow: 0 1px 1px oklch(0% 0 0 / 0.8);
+}
+.cx-mc-stats { display: flex; justify-content: space-between; }
+.cx-mc-atk, .cx-mc-hp {
+  min-width: 1.35em;
+  padding: 0 0.3em;
+  border-radius: 0.3rem;
+  font-size: max(13px, 24cqw);
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: white;
+  box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.18);
+}
+.cx-mc-atk { background: oklch(30% 0.02 60); }
+.cx-mc-hp { background: oklch(40% 0.13 15); }
+.cx-mc-atk[data-tone="up"], .cx-mc-hp[data-tone="up"] { background: oklch(52% 0.15 150); }
+.cx-mc-atk[data-tone="down"], .cx-mc-hp[data-tone="down"] { background: oklch(45% 0.18 300); }
+.cx-mc-hp[data-tone="hurt"] { background: oklch(58% 0.23 27); box-shadow: 0 0 0 1.5px oklch(80% 0.15 27), 0 0 8px oklch(60% 0.22 27 / 0.7); }
+.cx-mc-cost, .cx-mc-lvl {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  min-width: 1.45em;
+  height: 1.45em;
+  padding: 0 0.25em;
+  border-radius: 999px;
+  font-size: max(11px, 19cqw);
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px oklch(0% 0 0 / 0.6);
+}
+.cx-mc-cost { background: radial-gradient(circle at 35% 30%, oklch(92% 0.12 90), oklch(72% 0.15 75)); color: oklch(25% 0.05 60); }
+.cx-mc-lvl { display: flex; align-items: baseline; justify-content: center; padding-top: 0.12em; background: oklch(25% 0.03 60); color: oklch(88% 0.14 85); box-shadow: 0 0 0 1.5px oklch(82% 0.15 85), 0 1px 3px oklch(0% 0 0 / 0.6); }
+.cx-mc-flags {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  pointer-events: none;
+}
+.cx-mc-flag {
+  display: grid;
+  place-items: center;
+  min-width: 1.5em;
+  height: 1.5em;
+  padding: 0 0.3em;
+  border-radius: 999px;
+  background: oklch(25% 0.02 260 / 0.95);
+  color: white;
+  font-size: max(9px, 15cqw);
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 3px oklch(0% 0 0 / 0.6);
+}
+.cx-mc-new { background: oklch(45% 0.05 250 / 0.95); }
+.cx-mc-plus { background: oklch(52% 0.15 150); }
+.cx-mc-minus { background: oklch(45% 0.18 300); }
+
+.cx-mc.cx-exhausted .cx-mc-art { filter: grayscale(0.9) brightness(0.6); }
+.cx-mc.cx-exhausted .cx-mc-name { opacity: 0.6; }
+@media (hover: hover) { .cx-mc:hover { transform: translateY(-3px); } }
+.cx-mc.cx-selected { transform: translateY(-4px); z-index: 4; }
+.cx-mc.cx-selected .cx-mc-art { box-shadow: 0 0 0 2.5px var(--cx-gold), 0 10px 22px -8px oklch(0% 0 0 / 0.8); }
+.cx-mc.cx-targetable { cursor: crosshair; }
+.cx-mc.cx-targetable .cx-mc-art {
+  box-shadow: 0 0 0 2.5px oklch(78% 0.17 30), 0 0 18px -2px oklch(70% 0.2 30 / 0.8);
+  animation: cx-glow 1.1s ease-in-out infinite alternate;
+}
+.cx-slot .cx-slot-card { width: var(--cx-mw); height: calc(var(--cx-mw) * 8 / 7); border-radius: 0.45rem; }
+.cx-slot { width: calc(var(--cx-mw) + 8px); }
+.cx-row, .cx-command { min-height: calc(var(--cx-mw) * 8 / 7 + 30px); }
+@media (prefers-reduced-motion: reduce) {
+  .cx-mc, .cx-mc .cx-mc-art { transition: none; animation: none; }
+}
