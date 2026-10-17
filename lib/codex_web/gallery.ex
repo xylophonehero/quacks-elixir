@@ -17,7 +17,7 @@ defmodule CodexWeb.Gallery do
   @spec states() :: [String.t()]
   def states,
     do:
-      ~w(mid-game start red-green selected zoom attack tech codex discard buildings log free bot)
+      ~w(mid-game start red-green selected zoom opp-open attack tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -69,6 +69,9 @@ defmodule CodexWeb.Gallery do
     [id | _] = game.sides[0].zones.in_play
     Phoenix.Component.assign(socket, zoom: id)
   end
+
+  # A phone: the opponent's whole side, open as a sheet from the top.
+  defp extra(socket, "opp-open", _game), do: Phoenix.Component.assign(socket, opp_open: true)
 
   # A pick in progress: P1's first ready force attacks; its targets glow.
   defp extra(socket, "attack", game) do

@@ -640,6 +640,7 @@ defmodule QuacksWeb.Gallery.Stories do
             {"red-green", "Red vs Green: 3 heroes each", %{"state" => "red-green"}},
             {"selected", "A card selected: its actions", %{"state" => "selected"}},
             {"zoom", "A long press on a card: its full face", %{"state" => "zoom"}},
+            {"opp-open", "Phone: the opponent's side open", %{"state" => "opp-open"}},
             {"attack", "Attack…: the targets glow", %{"state" => "attack"}},
             {"tech", "The tech step: pick 2 codex cards", %{"state" => "tech"}},
             {"codex", "The codex sheet", %{"state" => "codex"}},

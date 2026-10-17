@@ -203,6 +203,17 @@ defmodule TableWeb.CodexLiveTest do
     assert has_element?(view, "#cx-card-#{p1}[data-hidden]")
   end
 
+  test "a phone: the opponent strip opens the whole side in a sheet; a tap closes it" do
+    %{view: view} = room()
+    assert has_element?(view, "#cx-side-1[data-open=false]")
+    view |> element("#cx-opp-open") |> render_click()
+    assert has_element?(view, "#cx-side-1[data-open=true]")
+    assert has_element?(view, "#cx-opp-open[aria-expanded=true]")
+    view |> element("#cx-opp-backdrop") |> render_click()
+    assert has_element?(view, "#cx-side-1[data-open=false]")
+    refute has_element?(view, "#cx-opp-backdrop")
+  end
+
   test "a second browser watches" do
     %{code: code} = room()
     {:ok, other, _} = live(browser(token("bob")), "/games/#{@key}/#{code}")

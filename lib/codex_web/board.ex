@@ -6,10 +6,16 @@ defmodule CodexWeb.Board do
 
   - The layout follows the TTS table: the other side at the top, your side at the
     bottom. "View as P1 / P2" turns the table; "End turn" turns it to the side
-    that plays next. Each side: a header (turn, base HP, gold, buildings), the
-    patrol zone (5 named slots), the cards in play, the mat (command zone,
-    workers, deck, discard, codex) and the hand. The other side's hand shows
-    card backs; "Show hand" shows its faces.
+    that plays next. Each side: a header (base HP, gold), the patrol zone (5
+    named slots), the cards in play, the command zone (heroes, buildings) and
+    the piles as counter chips (codex, deck, discard, workers, trash). Your hand
+    is docked at the bottom. The other side's hand shows card backs; "Show
+    hand" shows its faces.
+  - A phone (under 1024 px) is one screen (100dvh) with no page scroll: the top
+    bar, the other side as a strip (its header and one row of its cards; a tap
+    opens the whole side as a sheet), the status bar (phase, Undo, End turn),
+    your board, the selected card and your hand. A row that is too long
+    scrolls sideways inside the row.
   - Move a card: drag it to a zone (a mouse; the hook `.CodexTable`), or tap it
     to select it and tap a zone (a phone). A tap on a pile with no card selected
     opens it: the deck draws 1; the discard pile, the codex, the workers and the
@@ -93,7 +99,8 @@ defmodule CodexWeb.Board do
       targeting: nil,
       actions: [],
       tech_pick: [],
-      zoom: nil
+      zoom: nil,
+      opp_open: false
     )
   end
 
@@ -137,8 +144,12 @@ defmodule CodexWeb.Board do
         true -> a.selected
       end
 
-    {:noreply, Phoenix.Component.assign(socket, selected: selected, drawer: nil)}
+    {:noreply, Phoenix.Component.assign(socket, selected: selected, drawer: nil, opp_open: false)}
   end
+
+  # The opponent's whole side on a phone (a sheet from the top).
+  def handle_event("opp", _params, socket),
+    do: {:noreply, Phoenix.Component.assign(socket, opp_open: !socket.assigns.opp_open)}
 
   def handle_event("deselect", _params, socket),
     do: {:noreply, Phoenix.Component.assign(socket, selected: nil)}
@@ -367,7 +378,9 @@ defmodule CodexWeb.Board do
     do: {:noreply, Phoenix.Component.assign(socket, drawer: nil)}
 
   def handle_event("key", %{"key" => "Escape"}, socket),
-    do: {:noreply, Phoenix.Component.assign(socket, selected: nil, drawer: nil)}
+    do:
+      {:noreply,
+       Phoenix.Component.assign(socket, selected: nil, drawer: nil, opp_open: false, zoom: nil)}
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
@@ -537,6 +550,8 @@ defmodule CodexWeb.Board do
         buttons:
           if(selected && !v.free, do: Moves.buttons(assigns.actions, selected.id), else: []),
         free: v.free,
+        expanded: assigns[:expanded] || false,
+        opp_open: assigns[:opp_open] || false,
         zoom: assigns[:zoom] && v.cards[assigns.zoom]
       )
 
@@ -546,34 +561,43 @@ defmodule CodexWeb.Board do
       phx-hook=".CodexTable"
       phx-window-keydown="key"
       phx-key="Escape"
-      class={["cx-table min-h-dvh text-stone-100", @sel && "cx-selecting"]}
+      class={["cx-table text-stone-100", @sel && "cx-selecting"]}
       data-pov={@pov}
       data-active={@view.active}
     >
-      <div class="mx-auto max-w-[90rem] px-2 pt-2 pb-40 sm:px-3 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-4 lg:px-4 lg:pb-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <div class="flex min-w-0 flex-col gap-1.5 sm:gap-2">
-          <.top_bar
-            code={@code}
-            pov={@pov}
-            reveal={@reveal}
-            opp={@opp}
-            spectator?={@spectator?}
-            free={@free}
-          />
-          <.side {assigns} seat={@opp} far />
-          <.center view={@view} art={@art} sel={@sel} tg={@tg} actions={@actions} />
-          <.side {assigns} seat={@pov} far={false} />
-        </div>
+      <div class="cx-layout">
+        <.top_bar
+          code={@code}
+          pov={@pov}
+          reveal={@reveal}
+          opp={@opp}
+          spectator?={@spectator?}
+          free={@free}
+        />
+        <.side {assigns} seat={@opp} far open={@opp_open} />
+        <button
+          :if={@opp_open}
+          id="cx-opp-backdrop"
+          type="button"
+          phx-click="opp"
+          class="cx-backdrop lg:hidden"
+          aria-label={"Close the side of P#{@opp + 1}"}
+        ></button>
+        <.center view={@view} actions={@actions} />
+        <.side {assigns} seat={@pov} far={false} />
+        <.hand
+          seat={@pov}
+          ids={@view.sides[@pov].zones.hand}
+          view={@view}
+          art={@art}
+          sel={@sel}
+          tg={@tg}
+          dock
+        />
 
         <aside
           id="cx-aside"
-          class={[
-            "z-30 flex-col gap-3 lg:sticky lg:top-4 lg:flex",
-            if(@sel,
-              do: "fixed inset-x-0 bottom-0 flex",
-              else: "hidden"
-            )
-          ]}
+          class={["cx-a-sheet flex-col gap-3 lg:flex", if(@sel, do: "flex", else: "hidden")]}
         >
           <.inspector
             :if={@sel}
@@ -663,7 +687,7 @@ defmodule CodexWeb.Board do
             this.on(el, "touchstart", e => {
               const card = e.target.closest && e.target.closest("[data-card-id]:not([data-hidden])")
               clearTimeout(this.pressTimer)
-              if (card) this.pressTimer = setTimeout(() => { this.pressed = true; this.showPreview(card, null) }, 450)
+              if (card) this.pressTimer = setTimeout(() => { this.pressed = true; this.showPreview(card, null) }, 400)
             }, {passive: true})
             this.on(el, "touchmove", () => clearTimeout(this.pressTimer), {passive: true})
             const release = e => {
@@ -740,7 +764,7 @@ defmodule CodexWeb.Board do
     """
   end
 
-  # -- the top bar and the centre --------------------------------------------------------
+  # -- the top bar and the status bar ----------------------------------------------------
 
   attr :code, :string, required: true
   attr :pov, :integer, required: true
@@ -751,18 +775,18 @@ defmodule CodexWeb.Board do
 
   defp top_bar(assigns) do
     ~H"""
-    <header class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+    <header class="cx-a-top flex items-center gap-1.5">
       <.link
         navigate={~p"/games"}
-        class="grid size-8 shrink-0 place-items-center rounded-full bg-white/10 ring-1 ring-white/15 transition hover:bg-white/20 active:scale-95"
+        class="cx-icon-btn shrink-0"
         aria-label="Games"
       >
         <.icon name="hero-arrow-left" class="size-4" />
       </.link>
-      <h1 class="text-base font-bold tracking-tight sm:text-lg">Codex</h1>
+      <h1 class="hidden text-base font-bold tracking-tight sm:block sm:text-lg">Codex</h1>
       <span
         id="cx-code"
-        class="rounded-full bg-black/25 px-2 py-0.5 font-mono text-xs tracking-widest text-white/80 ring-1 ring-white/10"
+        class="rounded-full bg-black/25 px-2 py-0.5 font-mono text-[11px] tracking-widest text-white/80 ring-1 ring-white/10 max-[379px]:hidden sm:text-xs"
         title="room code"
       >
         {@code}
@@ -773,7 +797,7 @@ defmodule CodexWeb.Board do
       >
         watching
       </span>
-      <div class="ml-auto flex items-center gap-1.5">
+      <div class="ml-auto flex items-center gap-1">
         <div
           class="flex rounded-full bg-black/30 p-0.5 text-xs font-semibold ring-1 ring-white/10"
           role="group"
@@ -787,14 +811,14 @@ defmodule CodexWeb.Board do
             phx-value-seat={s}
             aria-pressed={to_string(@pov == s)}
             class={[
-              "rounded-full px-2.5 py-1 transition",
+              "min-h-10 min-w-11 rounded-full px-2.5 transition lg:min-h-8",
               if(@pov == s,
                 do: [seat_bg(s), "text-white shadow"],
                 else: "text-white/60 hover:text-white"
               )
             ]}
           >
-            View P{s + 1}
+            <span class="hidden sm:inline">View</span> P{s + 1}
           </button>
         </div>
         <button
@@ -803,16 +827,14 @@ defmodule CodexWeb.Board do
           phx-click="reveal"
           aria-pressed={to_string(@reveal)}
           class={[
-            "flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition active:scale-95",
-            if(@reveal,
-              do: "bg-amber-300 text-stone-900 ring-amber-200",
-              else: "bg-black/25 text-white/80 ring-white/10 hover:bg-black/40"
-            )
+            "cx-icon-btn sm:w-auto sm:gap-1 sm:px-3",
+            @reveal && "cx-icon-on bg-amber-300! text-stone-900"
           ]}
           title={"Show or hide the hand of P#{@opp + 1}"}
+          aria-label={"Show or hide the hand of P#{@opp + 1}"}
         >
-          <.icon name={if @reveal, do: "hero-eye-mini", else: "hero-eye-slash-mini"} class="size-3.5" />
-          <span class="hidden sm:inline">P{@opp + 1} hand</span>
+          <.icon name={if @reveal, do: "hero-eye-mini", else: "hero-eye-slash-mini"} class="size-4" />
+          <span class="hidden text-xs font-medium sm:inline">P{@opp + 1} hand</span>
         </button>
         <button
           id="cx-free"
@@ -820,23 +842,21 @@ defmodule CodexWeb.Board do
           phx-click="free"
           aria-pressed={to_string(@free)}
           class={[
-            "flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition active:scale-95",
-            if(@free,
-              do: "bg-fuchsia-300 text-stone-900 ring-fuchsia-200",
-              else: "bg-black/25 text-white/80 ring-white/10 hover:bg-black/40"
-            )
+            "cx-icon-btn sm:w-auto sm:gap-1 sm:px-3",
+            @free && "bg-fuchsia-300! text-stone-900"
           ]}
           title="Free mode: move cards and change counters by hand, without the rules"
+          aria-label="Free mode"
         >
-          <.icon name="hero-hand-raised-mini" class="size-3.5" />
-          <span class="hidden sm:inline">Free mode</span>
+          <.icon name="hero-hand-raised-mini" class="size-4" />
+          <span class="hidden text-xs font-medium sm:inline">Free mode</span>
         </button>
         <button
           id="cx-log-open"
           type="button"
           phx-click="drawer"
           phx-value-zone="log"
-          class="grid size-7 place-items-center rounded-full bg-black/25 ring-1 ring-white/10 transition hover:bg-black/40 lg:hidden"
+          class="cx-icon-btn lg:hidden"
           aria-label="Log"
         >
           <.icon name="hero-list-bullet-mini" class="size-4" />
@@ -847,9 +867,6 @@ defmodule CodexWeb.Board do
   end
 
   attr :view, :map, required: true
-  attr :art, :any, required: true
-  attr :sel, :map, default: nil
-  attr :tg, :any, default: nil
   attr :actions, :list, default: []
 
   defp center(assigns) do
@@ -859,72 +876,66 @@ defmodule CodexWeb.Board do
       assign(assigns, hint: hint(v, assigns.actions), can_end?: :end_turn in assigns.actions)
 
     ~H"""
-    <div class="flex flex-col gap-1 py-0.5">
-      <div class="flex items-center gap-2">
-        <div
-          id="cx-active"
-          class={[
-            "flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow-sm sm:text-sm",
-            seat_bg(@view.active)
-          ]}
-        >
-          <span class="size-1.5 animate-pulse rounded-full bg-white"></span>
-          <span class="truncate">
-            P{@view.active + 1} · turn {@view.sides[@view.active].turn} · {phase_text(@view.phase)}
-          </span>
-        </div>
-        <div class="h-px flex-1 bg-gradient-to-r from-white/5 via-white/20 to-white/5"></div>
-        <.pile
-          id="cx-trash"
-          zone={:trash}
-          label="Trash"
-          count={length(@view.trash)}
-          top={top_card(@view, @view.trash)}
-          art={@art}
-          target?={@sel != nil and @view.free}
-          small
-        />
-        <button
-          id="cx-undo"
-          type="button"
-          phx-click="undo"
-          disabled={!@view.undo}
-          class="flex items-center gap-1 rounded-full bg-black/30 px-2.5 py-1.5 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-black/45 active:scale-95 disabled:opacity-35"
-          title="Undo the last action"
-        >
-          <.icon name="hero-arrow-uturn-left-mini" class="size-4" />
-          <span class="hidden sm:inline">Undo</span>
-        </button>
-        <button
-          :if={@can_end?}
-          id="cx-end-turn"
-          type="button"
-          phx-click="end_turn"
-          class="shrink-0 rounded-full bg-amber-300 px-3 py-1.5 text-xs font-bold whitespace-nowrap text-stone-900 shadow-md ring-1 ring-amber-100 transition hover:bg-amber-200 active:scale-95 sm:text-sm"
-        >
-          End turn
-        </button>
+    <div id="cx-status" class="cx-a-status cx-status">
+      <div
+        id="cx-active"
+        class={[
+          "cx-st-pill flex min-w-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white shadow-sm sm:text-sm",
+          seat_bg(@view.active)
+        ]}
+      >
+        <span class="size-1.5 shrink-0 animate-pulse rounded-full bg-white"></span>
+        <span class="truncate sm:hidden">
+          P{@view.active + 1} · T{@view.sides[@view.active].turn} · {phase_short(@view.phase)}
+        </span>
+        <span class="hidden truncate sm:inline">
+          P{@view.active + 1} · turn {@view.sides[@view.active].turn} · {phase_text(@view.phase)}
+        </span>
       </div>
+      <div class="cx-st-line h-px bg-gradient-to-r from-white/5 via-white/20 to-white/5"></div>
+      <button
+        id="cx-undo"
+        type="button"
+        phx-click="undo"
+        disabled={!@view.undo}
+        class="cx-st-undo cx-icon-btn sm:w-auto sm:gap-1 sm:px-3"
+        title="Undo the last action"
+        aria-label="Undo"
+      >
+        <.icon name="hero-arrow-uturn-left-mini" class="size-4" />
+        <span class="hidden text-xs font-semibold sm:inline">Undo</span>
+      </button>
+      <button
+        :if={@can_end?}
+        id="cx-end-turn"
+        type="button"
+        phx-click="end_turn"
+        class="cx-st-end min-h-11 shrink-0 rounded-full bg-amber-300 px-4 text-sm font-bold whitespace-nowrap text-stone-900 shadow-md ring-1 ring-amber-100 transition hover:bg-amber-200 active:scale-95"
+      >
+        End turn
+      </button>
       <p
         :if={@view.phase == :over}
         id="cx-winner"
-        class="rounded-xl bg-amber-300 px-3 py-2 text-center text-sm font-bold text-stone-900 shadow"
+        class="cx-st-hint rounded-xl bg-amber-300 px-3 py-2 text-center text-sm font-bold text-stone-900 shadow"
       >
         P{@view.winner + 1} wins: the base of P{1 - @view.winner + 1} is destroyed.
       </p>
-      <p :if={@hint} id="cx-hint" class="flex items-center gap-2 px-1 text-xs text-white/70">
-        <span>{@hint}</span>
+      <div :if={@hint && @view.phase != :over} class="cx-st-hint flex min-w-0 items-center gap-2 px-1">
+        <p id="cx-hint" class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-2">
+          {@hint}
+        </p>
         <button
           :if={@view.phase == :tech and @actions != []}
           id="cx-tech-open"
           type="button"
           phx-click="drawer"
           phx-value-zone="tech"
-          class="cx-mini"
+          class="min-h-11 shrink-0 rounded-full bg-amber-300 px-4 text-sm font-bold text-stone-900 shadow"
         >
           Pick codex cards
         </button>
-      </p>
+      </div>
     </div>
     """
   end
@@ -932,6 +943,10 @@ defmodule CodexWeb.Board do
   defp phase_text(:main), do: "main phase"
   defp phase_text(:tech), do: "tech"
   defp phase_text(:over), do: "game over"
+
+  defp phase_short(:main), do: "Main"
+  defp phase_short(:tech), do: "Tech"
+  defp phase_short(:over), do: "Over"
 
   # What the active side can do now, in a line (rules mode).
   defp hint(%{phase: :over}, _actions), do: nil
@@ -966,47 +981,72 @@ defmodule CodexWeb.Board do
   end
 
   # -- a side ------------------------------------------------------------------------------
+  #
+  # The far side (the opponent) on a phone is a strip: its header and one row of
+  # its patrollers and units. "open" shows all of it in a sheet from the top.
 
   attr :seat, :integer, required: true
   attr :far, :boolean, default: false
+  attr :open, :boolean, default: false
   attr :view, :map, required: true
   attr :art, :any, required: true
   attr :sel, :map, default: nil
   attr :tg, :any, default: nil
   attr :reveal, :boolean, default: false
   attr :players, :map, default: %{}
+  attr :actions, :list, default: []
 
   defp side(assigns) do
     side = assigns.view.sides[assigns.seat]
-    assigns = assign(assigns, side: side, zones: side.zones, target?: assigns.sel != nil)
+    zones = side.zones
+
+    assigns =
+      assign(assigns,
+        side: side,
+        zones: zones,
+        board?: zones.in_play != [] or Enum.any?(zones.patrol, fn {_s, id} -> id end)
+      )
 
     ~H"""
     <section
       id={"cx-side-#{@seat}"}
       class={[
-        "flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 sm:gap-2 sm:p-2",
+        "cx-side flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 lg:gap-2 lg:p-2",
+        if(@far, do: "cx-a-opp", else: "cx-a-board"),
         @seat == 0 && "bg-rose-950/20 ring-rose-300/15",
         @seat == 1 && "bg-sky-950/20 ring-sky-300/15",
         @view.active == @seat && "cx-active-side"
       ]}
       data-far={to_string(@far)}
+      data-open={to_string(@open)}
     >
-      <.side_header seat={@seat} side={@side} view={@view} free={@view.free} tg={@tg} />
-      <%= if @far do %>
-        <div class="cx-pair">
-          <.mat {assigns} />
-          <.hand
-            seat={@seat}
-            ids={@zones.hand}
-            view={@view}
-            art={@art}
-            sel={@sel}
-            tg={@tg}
-            hidden?={!@reveal}
-            far
-          />
-        </div>
-        <div class="cx-pair">
+      <.side_header
+        seat={@seat}
+        side={@side}
+        view={@view}
+        free={@view.free}
+        tg={@tg}
+        far={@far}
+        open={@open}
+      />
+      <p :if={@far and !@board?} class="cx-strip-empty">No units or heroes in play.</p>
+      <div class="cx-side-body">
+        <%= if @far do %>
+          <div class="cx-pair cx-pair-mat">
+            <.mat {assigns} />
+            <.hand
+              seat={@seat}
+              ids={@zones.hand}
+              view={@view}
+              art={@art}
+              sel={@sel}
+              tg={@tg}
+              hidden?={!@reveal}
+              far
+            />
+          </div>
+        <% end %>
+        <div class="cx-pair cx-pair-board">
           <.patrol seat={@seat} slots={@zones.patrol} view={@view} art={@art} sel={@sel} tg={@tg} />
           <.row
             seat={@seat}
@@ -1018,32 +1058,10 @@ defmodule CodexWeb.Board do
             tg={@tg}
           />
         </div>
-      <% else %>
-        <div class="cx-pair">
-          <.patrol seat={@seat} slots={@zones.patrol} view={@view} art={@art} sel={@sel} tg={@tg} />
-          <.row
-            seat={@seat}
-            zone={:in_play}
-            ids={@zones.in_play}
-            view={@view}
-            art={@art}
-            sel={@sel}
-            tg={@tg}
-          />
-        </div>
-        <div class="cx-pair">
+        <div :if={!@far} class="cx-pair cx-pair-mat">
           <.mat {assigns} />
-          <.hand
-            seat={@seat}
-            ids={@zones.hand}
-            view={@view}
-            art={@art}
-            sel={@sel}
-            tg={@tg}
-            hidden?={false}
-          />
         </div>
-      <% end %>
+      </div>
     </section>
     """
   end
@@ -1053,6 +1071,8 @@ defmodule CodexWeb.Board do
   attr :view, :map, required: true
   attr :free, :boolean, default: false
   attr :tg, :any, default: nil
+  attr :far, :boolean, default: false
+  attr :open, :boolean, default: false
 
   defp side_header(assigns) do
     side = assigns.side
@@ -1067,19 +1087,19 @@ defmodule CodexWeb.Board do
     assigns = assign(assigns, hero: title, spec_text: Enum.join(specs, ", "))
 
     ~H"""
-    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
+    <div class="flex min-h-9 items-center gap-x-1.5 px-0.5">
       <span class={[
         "rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white",
         seat_bg(@seat)
       ]}>
         P{@seat + 1}
       </span>
-      <span class="min-w-0 truncate text-xs text-white/80 sm:text-sm">
+      <span class="min-w-0 flex-1 truncate text-xs text-white/80 sm:text-sm">
         <span class="font-semibold text-white">{@hero}</span>
         <span class="hidden sm:inline">· {@spec_text}</span>
+        <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn {@side.turn}</span>
       </span>
-      <span class="text-[11px] text-white/50 tabular-nums">turn {@side.turn}</span>
-      <div class="ml-auto flex items-center gap-1.5">
+      <div class="flex shrink-0 items-center gap-1">
         <.stepper
           id={"cx-hp-#{@seat}"}
           seat={@seat}
@@ -1102,6 +1122,30 @@ defmodule CodexWeb.Board do
           label="Gold"
           free={@free}
         />
+        <button
+          :if={@far}
+          id="cx-opp-open"
+          type="button"
+          phx-click="opp"
+          aria-expanded={to_string(@open)}
+          aria-label={"The side of P#{@seat + 1}: hand, workers, deck"}
+          class="flex min-h-11 items-center gap-1.5 rounded-full bg-black/30 pr-2 pl-2.5 text-xs font-bold tabular-nums ring-1 ring-white/10 transition active:scale-95 lg:hidden"
+        >
+          <span class="flex items-center gap-0.5" title="hand">
+            <.icon name="hero-hand-raised-mini" class="size-3.5 text-white/60" />{length(
+              @side.zones.hand
+            )}
+          </span>
+          <span class="flex items-center gap-0.5" title="workers">
+            <.icon name="hero-wrench-mini" class="size-3.5 text-white/60" />{length(
+              @side.zones.workers
+            )}
+          </span>
+          <.icon
+            name={if @open, do: "hero-chevron-up-mini", else: "hero-chevron-down-mini"}
+            class="size-4 text-white/70"
+          />
+        </button>
       </div>
     </div>
     """
@@ -1124,7 +1168,7 @@ defmodule CodexWeb.Board do
     <div
       class={[
         "flex items-center rounded-full bg-black/30 ring-1 ring-white/10",
-        @target && "cx-targetable-pill cursor-pointer"
+        @target && "cx-targetable-pill cx-base-target cursor-pointer"
       ]}
       title={@label}
       phx-click={@target && "pick_building"}
@@ -1140,12 +1184,12 @@ defmodule CodexWeb.Board do
         phx-value-seat={@seat}
         phx-value-key={@key}
         phx-value-delta="-1"
-        class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7"
+        class="cx-hit grid size-7 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90"
         aria-label={"#{@label} -1"}
       >
         <.icon name="hero-minus-mini" class="size-3.5" />
       </button>
-      <span class="flex min-w-9 items-center justify-center gap-0.5 px-1 text-sm font-bold tabular-nums">
+      <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
         <.icon name={@icon} class={["size-3.5", @tone]} />
         <span id={@id}>{@value}</span>
       </span>
@@ -1157,7 +1201,7 @@ defmodule CodexWeb.Board do
         phx-value-seat={@seat}
         phx-value-key={@key}
         phx-value-delta="1"
-        class="grid size-6 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90 sm:size-7"
+        class="cx-hit grid size-7 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90"
         aria-label={"#{@label} +1"}
       >
         <.icon name="hero-plus-mini" class="size-3.5" />
@@ -1177,7 +1221,7 @@ defmodule CodexWeb.Board do
     assigns = assign(assigns, order: Game.patrol_slots(), labels: @slot_labels)
 
     ~H"""
-    <div id={"cx-patrol-#{@seat}"} class="flex justify-center gap-1 sm:gap-2">
+    <div id={"cx-patrol-#{@seat}"} class="cx-patrol">
       <div
         :for={slot <- @order}
         id={"cx-slot-#{@seat}-#{slot}"}
@@ -1185,6 +1229,7 @@ defmodule CodexWeb.Board do
         data-seat={@seat}
         data-zone="patrol"
         data-slot={slot}
+        data-empty={to_string(@slots[slot] == nil)}
         phx-click="zone"
         phx-value-seat={@seat}
         phx-value-zone="patrol"
@@ -1192,8 +1237,8 @@ defmodule CodexWeb.Board do
         class={["cx-zone cx-slot", @sel && "cx-target"]}
       >
         <span class="cx-label truncate" title={elem(@labels[slot], 0)}>
-          <span class="hidden sm:inline">{elem(@labels[slot], 0)}</span>
-          <span class="sm:hidden">{elem(@labels[slot], 1)}</span>
+          <span class="hidden lg:inline">{elem(@labels[slot], 0)}</span>
+          <span class="lg:hidden">{elem(@labels[slot], 1)}</span>
         </span>
         <div class="cx-slot-card">
           <.mini
@@ -1225,19 +1270,22 @@ defmodule CodexWeb.Board do
       data-list="true"
       data-seat={@seat}
       data-zone={@zone}
+      data-empty={to_string(@ids == [])}
       phx-click="zone"
       phx-value-seat={@seat}
       phx-value-zone={@zone}
       class={["cx-zone cx-row", @sel && "cx-target"]}
     >
       <span class="cx-label cx-row-label">{label(@zone)}</span>
-      <.mini
-        :for={id <- @ids}
-        c={@view.cards[id]}
-        art={@art}
-        selected={@sel && @sel.id == id}
-        target={@tg && id in @tg}
-      />
+      <div class="cx-row-cards">
+        <.mini
+          :for={id <- @ids}
+          c={@view.cards[id]}
+          art={@art}
+          selected={@sel && @sel.id == id}
+          target={@tg && id in @tg}
+        />
+      </div>
     </div>
     """
   end
@@ -1250,6 +1298,7 @@ defmodule CodexWeb.Board do
   attr :tg, :any, default: nil
   attr :hidden?, :boolean, default: false
   attr :far, :boolean, default: false
+  attr :dock, :boolean, default: false
 
   defp hand(assigns) do
     n = length(assigns.ids)
@@ -1267,6 +1316,7 @@ defmodule CodexWeb.Board do
       phx-value-zone="hand"
       class={[
         "cx-zone cx-hand",
+        @dock && "cx-a-hand cx-dock",
         @far && "cx-hand-far",
         @hidden? && "cx-hand-hidden",
         @n > 6 && "cx-hand-tight",
@@ -1297,6 +1347,7 @@ defmodule CodexWeb.Board do
     "--r: #{Float.round(r, 2)}deg; --y: #{Float.round(y, 2)}px"
   end
 
+  # The command zone (heroes, buildings) and the piles as counter chips.
   defp mat(assigns) do
     z = assigns.zones
     seat = assigns.seat
@@ -1309,24 +1360,24 @@ defmodule CodexWeb.Board do
         deck: z.deck,
         discard: z.discard,
         codex: z.codex,
-        top_discard: top_card(assigns.view, z.discard),
         seat: seat
       )
 
     ~H"""
-    <div class={["cx-mat flex items-stretch gap-1 sm:gap-2", @far && "flex-row-reverse"]}>
-      <div
-        id={"cx-zone-#{@seat}-command"}
-        data-drop
-        data-list="true"
-        data-seat={@seat}
-        data-zone="command"
-        phx-click="zone"
-        phx-value-seat={@seat}
-        phx-value-zone="command"
-        class={["cx-zone cx-command min-w-0 flex-1", @sel && "cx-target"]}
-      >
-        <span class="cx-label cx-row-label">Command</span>
+    <div
+      id={"cx-zone-#{@seat}-command"}
+      data-drop
+      data-list="true"
+      data-seat={@seat}
+      data-zone="command"
+      phx-click="zone"
+      phx-value-seat={@seat}
+      phx-value-zone="command"
+      data-empty={to_string(@command == [] and @buildings == [] and @side.pending == [])}
+      class={["cx-zone cx-row cx-command", @sel && "cx-target"]}
+    >
+      <span class="cx-label cx-row-label">Command</span>
+      <div class="cx-row-cards">
         <.mini
           :for={id <- @command}
           c={@view.cards[id]}
@@ -1334,114 +1385,118 @@ defmodule CodexWeb.Board do
           selected={@sel && @sel.id == id}
           target={@tg && id in @tg}
         />
-        <div class="flex flex-col flex-wrap content-start gap-1 self-start pt-3">
-          <button
-            :for={b <- @buildings}
-            id={"cx-building-#{@seat}-#{b}"}
-            type="button"
-            phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
-            phx-value-seat={@seat}
-            phx-value-name={b}
-            class={[
-              "rounded-md bg-amber-200/90 px-1.5 py-0.5 text-left text-[10px] font-bold text-stone-900 shadow-sm",
-              @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
-            ]}
-            title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
-          >
-            {building_label(b)}
-            <span :if={Map.get(@side.building_damage, b, 0) > 0} class="text-red-700">
-              −{Map.get(@side.building_damage, b)}
-            </span>
-          </button>
-          <span
-            :for={b <- @side.pending}
-            id={"cx-pending-#{@seat}-#{b}"}
-            class="rounded-md border border-dashed border-amber-200/70 px-1.5 py-0.5 text-[10px] font-bold text-amber-100"
-            title="Building: ready at the end of the turn"
-          >
-            {building_label(b)} …
+        <button
+          :for={b <- @buildings}
+          id={"cx-building-#{@seat}-#{b}"}
+          type="button"
+          phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
+          phx-value-seat={@seat}
+          phx-value-name={b}
+          class={[
+            "cx-building",
+            @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
+          ]}
+          title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
+        >
+          <.icon name="hero-building-library-mini" class="size-4 opacity-70" />
+          <span>{building_label(b)}</span>
+          <span :if={Map.get(@side.building_damage, b, 0) > 0} class="text-red-700">
+            −{Map.get(@side.building_damage, b)}
           </span>
-          <button
-            :if={
-              @view.free or (@view.active == @seat and Enum.any?(@actions, &match?({:build, _}, &1)))
-            }
-            id={"cx-build-#{@seat}"}
-            type="button"
-            phx-click="drawer"
-            phx-value-seat={@seat}
-            phx-value-zone="buildings"
-            class="rounded-md bg-black/25 px-1.5 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10 transition hover:bg-black/40 hover:text-white"
-          >
-            + Build
-          </button>
-        </div>
+        </button>
+        <span
+          :for={b <- @side.pending}
+          id={"cx-pending-#{@seat}-#{b}"}
+          class="cx-building cx-building-pending"
+          title="Building: ready at the end of the turn"
+        >
+          {building_label(b)} …
+        </span>
+        <button
+          :if={
+            @view.free or (@view.active == @seat and Enum.any?(@actions, &match?({:build, _}, &1)))
+          }
+          id={"cx-build-#{@seat}"}
+          type="button"
+          phx-click="drawer"
+          phx-value-seat={@seat}
+          phx-value-zone="buildings"
+          class="cx-chip cx-chip-btn"
+        >
+          <.icon name="hero-plus-mini" class="size-4" /> Build
+        </button>
       </div>
-      <.pile
-        id={"cx-workers-#{@seat}"}
-        zone={:workers}
-        seat={@seat}
-        label="Workers"
-        count={length(@workers)}
-        back
-        art={@art}
-        target?={@sel != nil}
-      />
-      <div class="flex flex-col items-center gap-1">
-        <.pile
-          id={"cx-deck-#{@seat}"}
-          zone={:deck}
-          seat={@seat}
-          label="Deck"
-          count={@deck}
-          back
-          art={@art}
-          target?={@sel != nil}
-        />
-        <div :if={@view.free} class="flex gap-1">
-          <button
-            id={"cx-draw-#{@seat}"}
-            type="button"
-            phx-click="draw"
-            phx-value-seat={@seat}
-            class="cx-mini"
-            title="Draw a card"
-          >
-            Draw
-          </button>
-          <button
-            id={"cx-shuffle-#{@seat}"}
-            type="button"
-            phx-click="shuffle"
-            phx-value-seat={@seat}
-            phx-value-zone="deck"
-            class="cx-mini"
-            title="Shuffle the deck"
-            aria-label="Shuffle the deck"
-          >
-            <.icon name="hero-arrows-right-left-mini" class="size-3" />
-          </button>
-        </div>
-      </div>
-      <.pile
-        id={"cx-discard-#{@seat}"}
-        zone={:discard}
-        seat={@seat}
-        label="Discard"
-        count={length(@discard)}
-        top={@top_discard}
-        art={@art}
-        target?={@sel != nil}
-      />
+    </div>
+    <div class="cx-chips">
       <.pile
         id={"cx-codex-#{@seat}"}
         zone={:codex}
         seat={@seat}
         label="Codex"
+        icon="hero-book-open-mini"
         count={length(@codex)}
-        codex
-        art={@art}
         target?={@sel != nil}
       />
+      <.pile
+        id={"cx-deck-#{@seat}"}
+        zone={:deck}
+        seat={@seat}
+        label="Deck"
+        icon="hero-rectangle-stack-mini"
+        count={@deck}
+        target?={@sel != nil}
+      />
+      <.pile
+        id={"cx-discard-#{@seat}"}
+        zone={:discard}
+        seat={@seat}
+        label="Discard"
+        icon="hero-arrow-down-tray-mini"
+        count={length(@discard)}
+        target?={@sel != nil}
+      />
+      <.pile
+        id={"cx-workers-#{@seat}"}
+        zone={:workers}
+        seat={@seat}
+        label="Workers"
+        icon="hero-wrench-mini"
+        count={length(@workers)}
+        target?={@sel != nil}
+      />
+      <.pile
+        :if={!@far}
+        id="cx-trash"
+        zone={:trash}
+        label="Trash"
+        icon="hero-trash-mini"
+        count={length(@view.trash)}
+        target?={@sel != nil and @view.free}
+      />
+      <button
+        :if={@view.free}
+        id={"cx-draw-#{@seat}"}
+        type="button"
+        phx-click="draw"
+        phx-value-seat={@seat}
+        class="cx-chip cx-chip-btn"
+        title="Draw a card"
+      >
+        Draw
+      </button>
+      <button
+        :if={@view.free}
+        id={"cx-shuffle-#{@seat}"}
+        type="button"
+        phx-click="shuffle"
+        phx-value-seat={@seat}
+        phx-value-zone="deck"
+        class="cx-chip cx-chip-btn"
+        title="Shuffle the deck"
+        aria-label="Shuffle the deck"
+      >
+        <.icon name="hero-arrows-right-left-mini" class="size-4" />
+      </button>
     </div>
     """
   end
@@ -1450,14 +1505,11 @@ defmodule CodexWeb.Board do
   attr :zone, :atom, required: true
   attr :seat, :any, default: nil
   attr :label, :string, required: true
+  attr :icon, :string, required: true
   attr :count, :integer, required: true
-  attr :top, :any, default: nil
-  attr :back, :boolean, default: false
-  attr :codex, :boolean, default: false
-  attr :small, :boolean, default: false
-  attr :art, :any, required: true
   attr :target?, :boolean, default: false
 
+  # A pile as a counter chip: tap it to open it (or to move the selected card there).
   defp pile(assigns) do
     ~H"""
     <div
@@ -1468,27 +1520,15 @@ defmodule CodexWeb.Board do
       phx-click="zone"
       phx-value-seat={@seat}
       phx-value-zone={@zone}
-      class={["cx-zone cx-pile", @small && "cx-pile-small", @target? && "cx-target"]}
+      class={["cx-zone cx-chip", @target? && "cx-target"]}
       title={"#{@label}: #{@count}"}
+      role="button"
     >
-      <span class="cx-label">{@label}</span>
-      <div class="cx-pile-stack" data-empty={to_string(@count == 0)}>
-        <%= cond do %>
-          <% @count == 0 -> %>
-            <div class="cx-pile-empty"></div>
-          <% @top -> %>
-            <.card c={@top} art={@art} prefix="cx-top" click={false} />
-          <% @codex -> %>
-            <div class="cx-card cx-codex-face">
-              <div class="cx-face">
-                <span>Codex</span>
-              </div>
-            </div>
-          <% true -> %>
-            <div class="cx-card"><.back art={@art} /></div>
-        <% end %>
-        <span :if={@count > 0} class="cx-count" id={"#{@id}-count"}>{@count}</span>
-      </div>
+      <span class="flex items-center gap-1">
+        <.icon name={@icon} class="size-4 text-white/55" />
+        <span class="cx-chip-count" id={"#{@id}-count"}>{@count}</span>
+      </span>
+      <span class="cx-chip-label">{@label}</span>
     </div>
     """
   end
@@ -2441,9 +2481,6 @@ defmodule CodexWeb.Board do
 
   defp seat_bg(0), do: "bg-rose-700"
   defp seat_bg(1), do: "bg-sky-700"
-
-  defp top_card(_v, []), do: nil
-  defp top_card(v, [id | _]), do: v.cards[id]
 
   defp where(v, id) do
     case Game.locate(v, id) do

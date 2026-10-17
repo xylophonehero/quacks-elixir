@@ -50,14 +50,6 @@
   box-shadow: 0 0 0 2.5px var(--cx-gold), 0 10px 22px -8px oklch(0% 0 0 / 0.8);
 }
 
-/* Exhausted: turned sideways, with room at its sides in a row. */
-.cx-card.cx-exhausted {
-  transform: rotate(90deg);
-  margin-inline: calc(var(--cx-w) * 0.25);
-}
-.cx-card.cx-exhausted.cx-selected { transform: rotate(90deg) translateX(-6px); }
-.cx-slot .cx-card.cx-exhausted { margin-inline: 0; transform: rotate(90deg) scale(0.71); }
-
 /* The fallback face, drawn from the card data when the art is missing. */
 .cx-css {
   display: flex;
@@ -136,6 +128,94 @@
 .cx-stat { left: 50%; bottom: -6px; translate: -50% 0; background: oklch(18% 0.02 60 / 0.92); }
 .cx-down { left: 50%; top: 40%; translate: -50% 0; background: oklch(25% 0.02 260 / 0.9); font-size: max(9px, 10cqw); }
 
+/* -- the layout ----------------------------------------------------------------
+   A phone (under 1024 px) is one screen (100dvh), no page scroll: the top bar,
+   the opponent strip, the status bar, my board (it scrolls inside if it must),
+   the selected card's sheet and my hand at the bottom. A desktop: the board on
+   the left, the selected card and the log in a column on the right. */
+.cx-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "top" "opp" "status" "board" "sheet" "hand";
+  gap: 6px;
+  height: 100dvh;
+  max-width: 90rem;
+  margin-inline: auto;
+  padding: 6px 8px 0;
+}
+.cx-a-top { grid-area: top; }
+.cx-a-opp { grid-area: opp; }
+.cx-a-status { grid-area: status; }
+.cx-a-board { grid-area: board; }
+.cx-a-sheet { grid-area: sheet; }
+.cx-a-hand { grid-area: hand; }
+@media (max-width: 1023px) {
+  .cx-a-board { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .cx-a-board::-webkit-scrollbar { display: none; }
+  .cx-dock { border-radius: 1rem 1rem 0 0; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+}
+@media (min-width: 1024px) {
+  .cx-layout {
+    height: auto;
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr) 18rem;
+    grid-template-rows: auto auto auto auto auto 1fr;
+    grid-template-areas: "top sheet" "opp sheet" "status sheet" "board sheet" "hand sheet" ". sheet";
+    gap: 8px 16px;
+    padding: 12px 16px 16px;
+  }
+  .cx-a-sheet { align-self: start; position: sticky; top: 16px; }
+}
+@media (min-width: 1280px) { .cx-layout { grid-template-columns: minmax(0, 1fr) 20rem; } }
+
+/* The status bar: phase, Undo, End turn; the hint under it (a desktop: between). */
+.cx-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "pill line undo end" "hint hint hint hint";
+  align-items: center;
+  gap: 4px 6px;
+}
+.cx-st-pill { grid-area: pill; }
+.cx-st-line { grid-area: line; }
+.cx-st-undo { grid-area: undo; }
+.cx-st-end { grid-area: end; }
+.cx-st-hint { grid-area: hint; }
+@media (min-width: 1024px) {
+  .cx-status { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "pill hint undo end"; gap: 12px; }
+  .cx-st-line { display: none; }
+}
+
+/* A desktop: the far side is a little smaller (it is further away). */
+@media (min-width: 1024px) {
+  .cx-side[data-far="true"] { --cx-mw: 3.75rem; }
+  .cx-side[data-far="true"] .cx-hand-far { --cx-w: 2.8rem; min-height: calc(2.8rem * 1.4 + 26px); }
+}
+@media (min-width: 1280px) { .cx-side[data-far="true"] { --cx-mw: 4.25rem; } }
+
+/* A round icon button, 44 px. */
+.cx-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: oklch(0% 0 0 / 0.28);
+  color: oklch(100% 0 0 / 0.85);
+  box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.1);
+  transition: background-color 150ms ease, transform 100ms ease, opacity 150ms ease;
+}
+.cx-icon-btn:hover { background: oklch(0% 0 0 / 0.42); }
+.cx-icon-btn:active { transform: scale(0.94); }
+.cx-icon-btn:disabled { opacity: 0.35; }
+@media (min-width: 1024px) { .cx-icon-btn { height: 36px; min-width: 36px; width: auto; padding-inline: 10px; } }
+/* A small control with a 44 px hit area. */
+.cx-hit { position: relative; }
+.cx-hit::after { content: ""; position: absolute; inset: -8px; }
+
 /* -- zones -------------------------------------------------------------------- */
 
 .cx-zone {
@@ -160,23 +240,25 @@
 @media (min-width: 640px) { .cx-label { font-size: 10px; } }
 .cx-row-label { position: absolute; top: 5px; left: 7px; }
 
-.cx-row, .cx-command {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  min-height: calc(var(--cx-w) * 1.4 + 26px);
-  padding: 18px 6px 6px;
+.cx-pair { display: flex; flex-direction: column; gap: 6px; }
+@media (min-width: 1024px) {
+  .cx-pair { flex-direction: row; align-items: stretch; gap: 8px; }
+  .cx-pair > .cx-row, .cx-pair > .cx-hand { flex: 1 1 0; min-width: 0; }
+  .cx-pair > .cx-patrol, .cx-pair > .cx-chips { flex: 0 0 auto; }
+  .cx-pair-mat > .cx-command { flex: 1 1 0; }
+  .cx-pair-mat > .cx-chips { align-self: start; }
+  .cx-pair-mat > .cx-chips > .cx-chip { flex: 0 0 auto; min-width: 3.75rem; }
 }
-.cx-row { justify-content: center; }
-.cx-command { justify-content: flex-start; }
 
+/* The patrol zone: 5 named slots. */
+.cx-patrol { display: flex; justify-content: center; gap: 4px; }
+@media (min-width: 1024px) { .cx-patrol { gap: 6px; } }
 .cx-slot {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  width: calc(var(--cx-w) + 8px);
+  width: calc(var(--cx-mw) + 8px);
   min-width: 0;
   padding: 5px 4px 4px;
 }
@@ -184,63 +266,137 @@
 .cx-slot-card {
   display: grid;
   place-items: center;
-  width: var(--cx-w);
-  height: calc(var(--cx-w) * 1.4);
-  border-radius: calc(var(--cx-w) * 0.06);
+  width: var(--cx-mw);
+  height: calc(var(--cx-mw) * 8 / 7);
+  border-radius: 0.45rem;
   outline: 1px dashed oklch(100% 0 0 / 0.16);
   outline-offset: -1px;
 }
 
-.cx-pile {
+/* A row of cards (in play, command): one line; it scrolls sideways inside. */
+.cx-row { padding: 16px 4px 2px; min-width: 0; }
+.cx-row-cards {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: calc(var(--cx-mw) * 8 / 7 + 12px);
+  padding: 6px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cx-row-cards::-webkit-scrollbar { display: none; }
+.cx-row:not(.cx-command) .cx-row-cards > :first-child { margin-left: auto; }
+.cx-row:not(.cx-command) .cx-row-cards > :last-child { margin-right: auto; }
+@media (min-width: 1024px) { .cx-row-cards { flex-wrap: wrap; } }
+.cx-command .cx-row-cards { min-height: 56px; }
+@media (max-width: 1023px) { .cx-row[data-empty="true"] .cx-row-cards { min-height: 44px; } }
+.cx-side-body { display: flex; flex-direction: column; gap: 6px; }
+.cx-side[data-far="true"] .cx-command[data-empty="true"] { display: none; }
+@media (min-width: 1024px) { .cx-side-body { gap: 8px; } }
+
+/* Tech buildings in the command row. */
+.cx-building {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 0.7rem;
+  background: oklch(88% 0.11 88 / 0.92);
+  color: oklch(25% 0.03 60);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px oklch(0% 0 0 / 0.4);
+}
+.cx-building-pending { background: transparent; color: oklch(90% 0.08 88); box-shadow: inset 0 0 0 1.5px oklch(88% 0.11 88 / 0.6); border-style: dashed; }
+
+/* The piles as counter chips (44 px): tap to open, or to move the selected card there. */
+.cx-chips { display: flex; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.cx-chips::-webkit-scrollbar { display: none; }
+.cx-chip {
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cx-chip:active { transform: scale(0.97); }
+.cx-chip-count { font-size: 15px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.cx-chip-label {
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: oklch(100% 0 0 / 0.5);
+}
+.cx-chip-btn {
+  flex: 0 0 auto;
+  flex-direction: row;
   gap: 4px;
-  padding: 5px 4px 4px;
+  background: oklch(0% 0 0 / 0.3);
+  color: oklch(100% 0 0 / 0.85);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.12);
+  transition: background-color 150ms ease;
 }
-.cx-pile-stack { position: relative; }
-.cx-pile-stack[data-empty="false"]::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  translate: 3px 3px;
-  border-radius: calc(var(--cx-w) * 0.06);
-  background: oklch(0% 0 0 / 0.45);
+.cx-chip-btn:hover { background: oklch(0% 0 0 / 0.45); }
+
+/* The opponent on a phone: a strip (header + one row of patrollers and units).
+   "open": its whole side as a sheet from the top. */
+.cx-strip-empty { display: none; }
+@media (max-width: 1023px) {
+  .cx-side[data-far="true"][data-open="false"] { gap: 0; padding: 4px 6px; }
+  .cx-side[data-far="true"][data-open="false"] .cx-strip-empty { display: block; padding: 2px 4px 4px; font-size: 11px; color: oklch(100% 0 0 / 0.45); }
+  .cx-side[data-far="true"][data-open="false"] .cx-side-body {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 6px;
+    padding: 4px 4px 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cx-side[data-far="true"][data-open="false"] .cx-side-body::-webkit-scrollbar { display: none; }
+  .cx-side[data-far="true"][data-open="false"] .cx-pair { display: contents; }
+  .cx-side[data-far="true"][data-open="false"] .cx-chips,
+  .cx-side[data-far="true"][data-open="false"] .cx-hand { display: none; }
+  .cx-side[data-far="true"][data-open="false"] .cx-command { order: 3; }
+  .cx-side[data-far="true"][data-open="false"] .cx-patrol { flex: 0 0 auto; justify-content: flex-start; }
+  .cx-side[data-far="true"][data-open="false"] .cx-patrol:not(:has(.cx-slot[data-empty="false"])) { display: none; }
+  .cx-side[data-far="true"][data-open="false"] .cx-slot[data-empty="true"] { display: none; }
+  .cx-side[data-far="true"][data-open="false"] .cx-slot { padding: 2px 0 0; gap: 3px; background: transparent; box-shadow: none; }
+  .cx-side[data-far="true"][data-open="false"] .cx-row { flex: 0 0 auto; padding: 0; background: transparent; box-shadow: none; }
+  .cx-side[data-far="true"][data-open="false"] .cx-row[data-empty="true"] { display: none; }
+  .cx-side[data-far="true"][data-open="false"] .cx-row-label { display: none; }
+  .cx-side[data-far="true"][data-open="false"] .cx-row-cards { min-height: 0; padding: 4px 0 0; overflow: visible; }
+  .cx-side[data-far="true"][data-open="false"] .cx-row-cards > * { margin: 0 !important; }
+
+  .cx-side[data-far="true"][data-open="true"] {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 45;
+    max-height: 88dvh;
+    overflow-y: auto;
+    padding: 8px;
+    border-radius: 0 0 1.25rem 1.25rem;
+    background: oklch(24% 0.035 200);
+    box-shadow: 0 20px 50px -10px oklch(0% 0 0 / 0.8);
+    animation: cx-drop 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .cx-backdrop { position: fixed; inset: 0; z-index: 44; background: oklch(0% 0 0 / 0.55); backdrop-filter: blur(2px); }
 }
-.cx-pile-empty {
-  width: var(--cx-w);
-  height: calc(var(--cx-w) * 1.4);
-  border-radius: calc(var(--cx-w) * 0.06);
-  outline: 1px dashed oklch(100% 0 0 / 0.16);
-  outline-offset: -1px;
-}
-.cx-pile-small { --cx-w: 2.2rem; flex-direction: row; padding: 3px 6px; }
-@media (min-width: 640px) { .cx-pile-small { --cx-w: 2.6rem; } }
-.cx-count {
-  position: absolute;
-  right: -6px;
-  bottom: -6px;
-  z-index: 3;
-  min-width: 1.5em;
-  padding: 0.1em 0.4em;
-  border-radius: 999px;
-  background: oklch(15% 0.01 160);
-  color: white;
-  font-size: 11px;
-  font-weight: 800;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 0 1.5px oklch(100% 0 0 / 0.3);
-}
-.cx-codex-face > .cx-face {
-  display: grid;
-  place-items: center;
-  background: linear-gradient(160deg, oklch(42% 0.09 75), oklch(30% 0.06 60));
-  border: 3cqw solid oklch(75% 0.12 85);
-  color: oklch(92% 0.08 90);
-  font-size: 14cqw;
-  font-weight: 800;
-}
+@keyframes cx-drop { from { transform: translateY(-16px); opacity: 0; } }
 
 /* The hand: a fan. The far side's fan opens downwards. */
 .cx-hand { padding: 18px 6px 8px; min-height: calc(var(--cx-w) * 1.12 * 1.4 + 30px); }
@@ -248,7 +404,7 @@
 @media (min-width: 400px) { .cx-hand { --cx-w: calc(3.6rem * 1.1); } }
 @media (min-width: 640px) { .cx-hand { --cx-w: calc(4.4rem * 1.1); } }
 @media (min-width: 1024px) { .cx-hand { --cx-w: calc(4.6rem * 1.1); } }
-@media (min-width: 1280px) { .cx-hand { --cx-w: calc(5.1rem * 1.1); } }
+@media (min-width: 1280px) { .cx-hand { --cx-w: calc(4.8rem * 1.1); } }
 .cx-hand-far { --cx-w: 2.6rem; min-height: calc(2.6rem * 1.4 + 26px); }
 @media (min-width: 640px) { .cx-hand-far { --cx-w: 3.4rem; min-height: calc(3.4rem * 1.4 + 26px); } }
 .cx-hand-far.cx-hand-hidden .cx-fan > .cx-card + .cx-card { margin-left: calc(var(--cx-w) * -0.45); }
@@ -350,24 +506,12 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
   .cx-card, .cx-inspector, .cx-drawer-panel, .cx-preview { transition: none; animation: none; }
 }
 
-/* Desktop: two zones side by side (patrol | in play, mat | hand), as on the TTS mat. */
-.cx-pair { display: flex; flex-direction: column; gap: 6px; }
-@media (min-width: 1024px) {
-  .cx-pair { flex-direction: row; align-items: stretch; gap: 8px; }
-  .cx-pair > .cx-row, .cx-pair > .cx-hand { flex: 1 1 0; min-width: 0; }
-  .cx-pair > .cx-mat { flex: 0 0 auto; }
-  .cx-pair > .cx-mat .cx-command { min-width: calc(var(--cx-w) * 2.2); }
-  .cx-pair > [id^="cx-patrol"] { flex: 0 0 auto; align-items: stretch; }
-}
-
 /* A full hand overlaps by itself: each card box can shrink, its face keeps the
    full width and lies over the next card. The last card stays whole. */
 .cx-fan > .cx-card { flex: 0 1 var(--cx-w); min-width: calc(var(--cx-w) * 0.28); }
 .cx-fan > .cx-card:last-child { flex-shrink: 0; }
 .cx-fan > .cx-card > .cx-face { width: var(--cx-w); right: auto; container-type: inline-size; }
 .cx-fan { min-width: 0; }
-@media (min-width: 1024px) { .cx-pair > .cx-hand { --cx-w: 4.6rem; } }
-@media (min-width: 1280px) { .cx-pair > .cx-hand { --cx-w: 5.1rem; } }
 @media (max-width: 1023px) { .cx-act { padding: 5px 9px; } }
 
 /* Rules mode: a legal target of the pick in progress, and the rules buttons. */
@@ -389,7 +533,7 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
 .cx-table { --cx-mw: 3.5rem; }
 @media (min-width: 640px) { .cx-table { --cx-mw: 4.25rem; } }
 @media (min-width: 1024px) { .cx-table { --cx-mw: 4.75rem; } }
-@media (min-width: 1280px) { .cx-table { --cx-mw: 5.25rem; } }
+@media (min-width: 1280px) { .cx-table { --cx-mw: 5rem; } }
 
 .cx-mc {
   position: relative;
@@ -526,9 +670,6 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
   box-shadow: 0 0 0 2.5px oklch(78% 0.17 30), 0 0 18px -2px oklch(70% 0.2 30 / 0.8);
   animation: cx-glow 1.1s ease-in-out infinite alternate;
 }
-.cx-slot .cx-slot-card { width: var(--cx-mw); height: calc(var(--cx-mw) * 8 / 7); border-radius: 0.45rem; }
-.cx-slot { width: calc(var(--cx-mw) + 8px); }
-.cx-row, .cx-command { min-height: calc(var(--cx-mw) * 8 / 7 + 30px); }
 @media (prefers-reduced-motion: reduce) {
   .cx-mc, .cx-mc .cx-mc-art { transition: none; animation: none; }
 }
