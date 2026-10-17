@@ -13,7 +13,8 @@ defmodule Mix.Tasks.Codex.Bench do
   - `--games` games (default 400); rounded up to an even number.
   - `--seed` integer (default 1). The same seed gives the same games. Use seeds
     from 10001 for a final check, not the seeds that you tuned on.
-  - `--preset` set-up (default `first`: Bashing as P1 vs Finesse as P2).
+  - `--preset` set-up (default `first`: Bashing as P1 vs Finesse as P2;
+    `finesse_first`: Finesse as P1; `red_green`).
   - `--jobs` games at the same time (default: half the cores).
   - `--quiet` no progress line.
 

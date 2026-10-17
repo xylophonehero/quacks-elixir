@@ -462,6 +462,14 @@ defmodule Codex.Rules do
       else: {:error, reason(game, action)}
   end
 
+  @doc """
+  Do an action that the caller took from `legal(game)`, without the check
+  (`act/2` checks). For a bot's look-ahead, where the check costs more than
+  the action.
+  """
+  @spec act_legal(map, term) :: map
+  def act_legal(game, action), do: do_act(game, action)
+
   defp do_act(game, {:hire, id}) do
     s = game.active
     pay = hire_cost(game, s)

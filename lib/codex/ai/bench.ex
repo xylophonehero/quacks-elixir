@@ -19,6 +19,7 @@ defmodule Codex.AI.Bench do
   Each bot sees only `Codex.Game.bot_view/2` (no hidden cards).
   """
 
+  alias Codex.Bot.Plan
   alias Codex.Game
 
   @max_actions 6000
@@ -42,7 +43,17 @@ defmodule Codex.AI.Bench do
   @spec bot(String.t()) :: bot
   def bot("basic"), do: %{name: "basic", mod: Codex.Bot, state: nil}
 
+  def bot("plan" <> mods = name) do
+    %{name: name, mod: Plan, state: Plan.new(parse_mods(mods))}
+  end
+
   def bot(other), do: raise(ArgumentError, "unknown bot #{inspect(other)}")
+
+  defp parse_mods(mods) do
+    ~r/([+-])([a-z0-9_]+)/
+    |> Regex.scan(mods)
+    |> Enum.map(fn [_, sign, rule] -> {String.to_existing_atom(rule), sign == "+"} end)
+  end
 
   @doc """
   Play the benchmark. Options:
@@ -50,7 +61,8 @@ defmodule Codex.AI.Bench do
   - `bots:` (required) two bot specs or bots, `[a, b]`.
   - `games:` games to play (default 400), rounded up to an even number.
   - `seed:` an integer (default 1). The same seed gives the same games.
-  - `preset:` the set-up (default `"first"`, Bashing vs Finesse).
+  - `preset:` the set-up (default `"first"`, Bashing as P1 vs Finesse as P2);
+    `"finesse_first"` swaps the specs (Finesse as P1).
   - `jobs:` games at the same time (default `default_jobs/0`).
   - `progress:` a function that gets `%{done: n, total: n, seconds: s}`.
 
@@ -128,12 +140,25 @@ defmodule Codex.AI.Bench do
   """
   @spec play([bot], {integer, integer, integer}, String.t()) :: map
   def play(bots, seed, preset \\ "first") do
-    {:ok, game} = Game.new(%{bot: true, preset: preset}, seed)
+    {:ok, game} = Game.new(Map.put(game_opts(preset), :bot, true), seed)
     states = %{0 => Enum.at(bots, 0).state, 1 => Enum.at(bots, 1).state}
     mods = %{0 => Enum.at(bots, 0).mod, 1 => Enum.at(bots, 1).mod}
     stats = %{0 => new_stats(), 1 => new_stats()}
     loop(game, mods, states, stats, 0)
   end
+
+  # "finesse_first": the first-game decks with the seats swapped (Finesse as P1).
+  defp game_opts("finesse_first") do
+    %{
+      preset: "custom",
+      p1_starter: "Neutral",
+      p1_spec: "Finesse",
+      p2_starter: "Neutral",
+      p2_spec: "Bashing"
+    }
+  end
+
+  defp game_opts(preset), do: %{preset: preset}
 
   defp new_stats,
     do: %{builds: 0, end_turns: 0, gold_left: 0, attack_left: 0, n: 0, us: 0, us_max: 0}
