@@ -39,4 +39,21 @@ defmodule Codex.CardsTest do
     assert needed -- cropped == []
     assert length(Enum.uniq(cropped)) == length(cropped)
   end
+
+  test "mix codex.cards crops every Red and Green card, hero and token" do
+    cropped =
+      for {_name, map} <- Mix.Tasks.Codex.Cards.sheets(), slug <- Map.values(map), do: slug
+
+    assert Enum.all?(cropped, &Cards.get/1), inspect(Enum.reject(cropped, &Cards.get/1))
+
+    needed =
+      for color <- ~w(Red Green),
+          slug <-
+            Cards.starter(color) ++
+              Enum.flat_map(Cards.specs(color), &[Cards.hero(&1) | Cards.codex(&1)]),
+          do: slug
+
+    assert needed -- cropped == []
+    assert ~w(shark pirate wisp frog beast squirrel hunter water-elemental) -- cropped == []
+  end
 end

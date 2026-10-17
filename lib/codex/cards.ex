@@ -21,7 +21,7 @@ defmodule Codex.Cards do
       12
   """
 
-  @files ~w(neutral heroes)
+  @files ~w(neutral red green blue heroes)
 
   for file <- @files do
     @external_resource Path.join([__DIR__, "../../priv/codex", file <> ".json"])
@@ -131,6 +131,8 @@ defmodule Codex.Cards do
     for file <- @files,
         rec <-
           __DIR__ |> Path.join("../../priv/codex/#{file}.json") |> File.read!() |> JSON.decode!(),
+        # Blue: only its tokens (Argagarg Garg's Water Elemental); the rest is a later colour.
+        file != "blue" or rec["starting_zone"] == "trash",
         do: rec
 
   cards = Enum.uniq_by(Enum.map(records, card) ++ [worker], & &1.slug)
@@ -150,9 +152,24 @@ defmodule Codex.Cards do
   @spec fetch!(String.t()) :: t
   def fetch!(slug), do: Map.fetch!(@cards, slug)
 
-  @doc "The 10 slugs of the neutral starting deck (one copy each)."
-  @spec starter() :: [String.t()]
-  def starter, do: for(c <- all(), c.zone == "deck", c.color == "Neutral", do: c.slug)
+  @doc ~s{The 10 slugs of a colour's starting deck (one copy each): "Neutral", "Red", "Green".}
+  @spec starter(String.t()) :: [String.t()]
+  def starter(color \\ "Neutral"),
+    do: for(c <- all(), c.zone == "deck", c.color == color, do: c.slug)
+
+  @doc "The colours with a starting deck here."
+  @spec colors() :: [String.t()]
+  def colors, do: ~w(Neutral Red Green)
+
+  @doc "The specs of a colour (Neutral: Bashing, Finesse)."
+  @spec specs(String.t()) :: [String.t()]
+  def specs(color) do
+    for(c <- all(), c.type == "Hero", c.color == color, uniq: true, do: c.spec)
+  end
+
+  @doc "The colour of a spec (its hero's colour)."
+  @spec spec_color(String.t()) :: String.t()
+  def spec_color(spec), do: fetch!(hero(spec)).color
 
   @doc "The 12 codex slugs of `spec` (the codex has 2 copies of each)."
   @spec codex(String.t()) :: [String.t()]

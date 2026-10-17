@@ -1,11 +1,15 @@
 defmodule Mix.Tasks.Codex.Cards do
   @shortdoc "Crops the Codex card art from the TTS sheet into priv/static/images/codex"
   @moduledoc """
-  Makes the card art of the Codex sandbox: one image per card of the first slice
-  (the neutral starting deck, the Bashing and Finesse codex cards and heroes, the
-  worker cards, the Dancer tokens, Tower and Surplus) and the card back.
+  Makes the card art of Codex: one image per card of the neutral sheet (the
+  neutral starting deck, the Bashing and Finesse codex cards and heroes, the
+  worker cards, the Dancer tokens, Tower and Surplus), the Red and Green sheets
+  (heroes, starting decks, codex), the add-on and token sheet, and the card back.
 
-      mix codex.cards [--sheet PATH] [--back PATH] [--out DIR]
+      mix codex.cards [--sheet PATH] [--back PATH] [--tts DIR] [--out DIR]
+
+  The Red, Green and token sheets come from the TTS cache (`--tts`, default
+  `~/Library/Tabletop Simulator/Mods/Images`); a missing one is skipped.
 
   The source is the neutral sheet of the TTS mod "Codex Deluxe Set" (research
   `docs/research/codex.md` §15): a 10 × 7 grid, `http://theshobo.com/codex/deck.png`
@@ -75,11 +79,61 @@ defmodule Mix.Tasks.Codex.Cards do
     43 => "trojan-duck"
   }
 
-  @doc "The sheet index of each card slug."
+  # Red sheet (TTS deck 21), Green (deck 29): heroes 0-2, starting deck 3-12,
+  # codex 13-48 (research §15; named from the sheets).
+  @red ~w(captain-zane drakk-ramhorn jaina-stormborne nautical-dog mad-man bombaster
+          careless-musketeer bloodrage-ogre makeshift-rambaster bloodburn scorch pillage
+          charge chaos-mirror detonate surprise-attack maximum-anarchy desperation
+          kidnapping bloodlust war-drums fire-dart ember-sparks flame-arrow burning-volley
+          calypso-vystari gunpoint-taxman crash-bomber rickety-mine lobber firebat
+          disguised-monkey chameleon-lizzo marauder steam-tank sanatorium shoddy-glider
+          captured-bugblatter crashbarrow land-octopus ogre-recruiter bamstamper-lizzo
+          doubleshot-archer molting-firebird firehouse hotter-fire pirate-gunship
+          pirate-gang-commander cinderblast-dragon)
+
+  @green ~w(master-midori calamandra-moss argagarg-garg merfolk-prospector tiger-cub
+            young-treant playful-panda ironbark-treant spore-shambler verdant-tree
+            rich-earth rampant-growth forest-s-favor moment-s-peace nature-reclaims
+            circle-of-life final-showdown ferocity behind-the-ferns murkwood-allies
+            feral-strike polymorph-squirrel dinosize spirit-of-the-panda stampede
+            gemscout-owl tiny-basilisk huntress centaur galina-glimmer giant-panda
+            chameleon fairie-dragon dothram-horselord wandering-mimic potent-basilisk
+            stalking-tiger predator-tiger barkcoat-bear rampaging-elephant gigadon
+            artisan-mantis oversized-rhinoceros blooming-ancient blooming-elm
+            might-of-leaf-and-claw tyrannosaurus-rex moss-ancient guargum-eternal-sentinel)
+
+  # Add-ons and tokens (TTS deck 18).
+  @tokens %{
+    2 => "tech-lab",
+    3 => "heroes-hall",
+    4 => "pirate",
+    5 => "shark",
+    6 => "water-elemental",
+    7 => "wisp",
+    8 => "frog",
+    9 => "beast",
+    10 => "squirrel",
+    11 => "hunter"
+  }
+
+  # The TTS cache images (file name ends with the hash of the sheet URL).
+  @tts [
+    {"red", "A46870CB2B331265ABD80799E2D08E1DE6BDBA65",
+     Map.new(Enum.with_index(@red), fn {s, i} -> {i, s} end)},
+    {"green", "F3853E3A4CBEBFB448859849D52C9656F3D04A60",
+     Map.new(Enum.with_index(@green), fn {s, i} -> {i, s} end)},
+    {"tokens", "1B48A292B49FAFE11630BDCA58BEBDE2257FBFBD", @tokens}
+  ]
+
+  @doc "The sheet index of each card slug (the neutral sheet)."
   @spec sheet() :: %{non_neg_integer => String.t()}
   def sheet, do: @sheet
 
-  @switches [sheet: :string, back: :string, out: :string]
+  @doc "Every sheet map: `{name, index => slug}`."
+  @spec sheets() :: [{String.t(), %{non_neg_integer => String.t()}}]
+  def sheets, do: [{"neutral", @sheet} | Enum.map(@tts, fn {name, _hash, map} -> {name, map} end)]
+
+  @switches [sheet: :string, back: :string, out: :string, tts: :string]
 
   @impl true
   def run(argv) do
@@ -89,23 +143,20 @@ defmodule Mix.Tasks.Codex.Cards do
     back = opts[:back] || fetch("tmp/codex/card_back.png", @back_url)
     File.mkdir_p!(Path.join(out, "zoom"))
 
-    {w, h} = size(sheet)
-    cw = div(w, @cols)
-    ch = div(h, @rows)
+    count = crop(sheet, @sheet, out)
+    tts = opts[:tts] || Path.expand("~/Library/Tabletop Simulator/Mods/Images")
 
-    crops =
-      Enum.flat_map(Enum.sort(@sheet), fn {i, slug} ->
-        geometry = "#{cw}x#{ch}+#{rem(i, @cols) * cw}+#{div(i, @cols) * ch}"
+    count =
+      Enum.reduce(@tts, count, fn {name, hash, map}, count ->
+        case Path.wildcard(Path.join(tts, "*#{hash}.png")) do
+          [file | _] ->
+            count + crop(file, map, out)
 
-        [
-          ["(", "-clone", "0", "-crop", geometry, "+repage"],
-          ["-write", Path.join([out, "zoom", slug <> ".webp"])],
-          ["-resize", "#{@small}x", "-write", Path.join(out, slug <> ".webp"), "+delete", ")"]
-        ]
-        |> List.flatten()
+          [] ->
+            Mix.shell().info("No #{name} sheet (*#{hash}.png) in #{tts}: skipped.")
+            count
+        end
       end)
-
-    magick!([sheet, "-quality", "84" | crops] ++ ["null:"])
 
     magick!(
       [
@@ -126,7 +177,29 @@ defmodule Mix.Tasks.Codex.Cards do
       |> List.flatten()
     )
 
-    Mix.shell().info("Wrote #{map_size(@sheet) + 1} cards (and their zoom) to #{out}.")
+    Mix.shell().info("Wrote #{count + 1} cards (and their zoom) to #{out}.")
+  end
+
+  # Crop each cell of `map` from a 10 × 7 sheet: a small and a zoom WebP.
+  defp crop(sheet, map, out) do
+    {w, h} = size(sheet)
+    cw = div(w, @cols)
+    ch = div(h, @rows)
+
+    crops =
+      Enum.flat_map(Enum.sort(map), fn {i, slug} ->
+        x = round(rem(i, @cols) * w / @cols)
+        y = round(div(i, @cols) * h / @rows)
+
+        List.flatten([
+          ["(", "-clone", "0", "-crop", "#{cw}x#{ch}+#{x}+#{y}", "+repage"],
+          ["-write", Path.join([out, "zoom", slug <> ".webp"])],
+          ["-resize", "#{@small}x", "-write", Path.join(out, slug <> ".webp"), "+delete", ")"]
+        ])
+      end)
+
+    magick!([sheet, "-quality", "84" | crops] ++ ["null:"])
+    map_size(map)
   end
 
   defp fetch(path, url) do

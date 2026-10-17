@@ -90,7 +90,7 @@ An old variant URL that a story with args took over (for example
 | | Hearts · the game page (`HeartsWeb.Board`, a real game from a seed) | `state pass\|waiting\|play\|collect\|scores\|over`, `players 3..5` |
 | Generic table | Generic table · Crazy Eights (`TableWeb.GenericBoard`, a real game from a seed) | `state start\|play\|suit\|waiting\|spectator\|over`, `players 2..5` |
 | Codenames Duet | Codenames Duet · the game page (`CodenamesDuetWeb.Board`, a real game from a seed) | `state clue\|clue-error\|guessing\|bystander\|sudden-death\|won\|lost\|waiting\|watching`, `words list\|longest` (the 25 longest words of the list), `hide_key`, `theme` |
-| Codex | Codex · the table (`CodexWeb.Board`, a real game from a seed) | `state mid-game\|start\|selected\|attack\|tech\|codex\|discard\|buildings\|log\|free\|bot` (`attack`: a pick with the targets lit; `tech`: the tech step sheet; `free`: free mode; `bot`: the bot's turn), `pov P1\|P2`, `reveal` |
+| Codex | Codex · the table (`CodexWeb.Board`, a real game from a seed) | `state mid-game\|start\|red-green\|selected\|attack\|tech\|codex\|discard\|buildings\|log\|free\|bot` (`red-green`: the Red vs Green set-up; `attack`: a pick with the targets lit; `tech`: the tech step sheet; `free`: free mode; `bot`: the bot's turn), `pov P1\|P2`, `reveal` |
 | Scenarios | every item | `step 1..n`, `players 2..5` |
 
 The setup story at `/dev/gallery/setup/presets` renders the lobby's Ingredient

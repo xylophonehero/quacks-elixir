@@ -110,6 +110,17 @@ defmodule Codex.Stats do
   defp starlet(%{card: "star-crossed-starlet", damage: d}), do: d
   defp starlet(_c), do: 0
 
+  @doc ~s{The colour of a card ("Neutral", "Red", "Green", ...).}
+  def color(game, id), do: Cards.fetch!(game.cards[id].card).color
+
+  @doc "True when side `s` has Master Midori in play at her middle band or above."
+  def midori_mid?(game, s) do
+    Enum.any?(Zones.in_play(game, s), fn h ->
+      c = game.cards[h]
+      c.card == "master-midori" and c.level >= 5
+    end)
+  end
+
   @doc "True for a Virtuoso."
   def virtuoso?(game, id), do: Cards.fetch!(game.cards[id].card).subtype == "Virtuoso"
 

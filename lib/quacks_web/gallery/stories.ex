@@ -637,6 +637,7 @@ defmodule QuacksWeb.Gallery.Stories do
           height: :screen,
           presets: [
             {"start", "The first-game set-up", %{"state" => "start"}},
+            {"red-green", "Red vs Green: 3 heroes each", %{"state" => "red-green"}},
             {"selected", "A card selected: its actions", %{"state" => "selected"}},
             {"attack", "Attack…: the targets glow", %{"state" => "attack"}},
             {"tech", "The tech step: pick 2 codex cards", %{"state" => "tech"}},

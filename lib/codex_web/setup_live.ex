@@ -18,18 +18,34 @@ defmodule CodexWeb.SetupLive do
      assign(socket,
        page_title: "Codex: new sandbox",
        token: session["player_token"],
-       form: to_form(%{"name" => "", "opponent" => "bot"}, as: :setup)
+       form:
+         to_form(
+           %{
+             "name" => "",
+             "opponent" => "bot",
+             "preset" => "first",
+             "p1_starter" => "Red",
+             "p1_spec" => "Fire",
+             "p2_starter" => "Green",
+             "p2_spec" => "Growth"
+           },
+           as: :setup
+         )
      )}
   end
 
   @impl true
   def handle_event("change", %{"setup" => params}, socket),
-    do: {:noreply, assign(socket, form: to_form(params, as: :setup))}
+    do:
+      {:noreply,
+       assign(socket, form: to_form(Map.merge(socket.assigns.form.params, params), as: :setup))}
 
   def handle_event("create", params, socket) do
     name = get_in(params, ["setup", "name"]) || ""
     bot? = get_in(params, ["setup", "opponent"]) != "hotseat"
-    config = %{name: name, opts: %{bot: bot?}, bots: if(bot?, do: 1, else: 0)}
+    p = Map.merge(socket.assigns.form.params, params["setup"] || %{})
+    opts = Map.take(p, ~w(preset p1_starter p1_spec p2_starter p2_spec)) |> Map.put("bot", bot?)
+    config = %{name: name, opts: opts, bots: if(bot?, do: 1, else: 0)}
 
     case Server.create(@key, config, socket.assigns.token) do
       {:ok, code} ->
@@ -37,6 +53,12 @@ defmodule CodexWeb.SetupLive do
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Could not create (#{inspect(reason)}).")}
+    end
+  end
+
+  defp spec_options do
+    for color <- Codex.Cards.colors(), spec <- Codex.Cards.specs(color) do
+      {"#{spec} (#{Codex.Cards.fetch!(Codex.Cards.hero(spec)).name}, #{color})", spec}
     end
   end
 
@@ -58,9 +80,8 @@ defmodule CodexWeb.SetupLive do
           </header>
 
           <p class="text-stone-600">
-            The first game of Codex: P1 plays Bashing (Troq Bashar), P2 plays Finesse
-            (River Montoya). The table follows the rules; Free mode lets you move any card
-            by hand.
+            Codex for two. The table follows the rules; Free mode lets you move any card
+            by hand. P1 starts with 4 workers, P2 with 5.
           </p>
 
           <.form
@@ -70,16 +91,66 @@ defmodule CodexWeb.SetupLive do
             phx-submit="create"
             class="flex flex-col gap-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-900/10 sm:p-6"
           >
-            <ul class="grid gap-2 text-sm text-stone-700 sm:grid-cols-2">
-              <li class="rounded-xl bg-rose-50 p-3 ring-1 ring-rose-200">
-                <strong class="block text-rose-900">P1 · Bashing</strong>
-                Troq Bashar, 4 workers, the neutral starting deck.
-              </li>
-              <li class="rounded-xl bg-sky-50 p-3 ring-1 ring-sky-200">
-                <strong class="block text-sky-900">P2 · Finesse</strong>
-                River Montoya, 5 workers, the neutral starting deck.
-              </li>
-            </ul>
+            <fieldset class="flex flex-col gap-2">
+              <legend class="mb-2 text-sm font-semibold">Decks</legend>
+              <div class="grid gap-2 sm:grid-cols-3">
+                <label
+                  :for={
+                    {value, title, text} <- [
+                      {"first", "Bashing vs Finesse", "The first game: neutral decks, 1 hero each."},
+                      {"red_green", "Red vs Green",
+                       "3 heroes each: Anarchy, Blood, Fire against Balance, Feral, Growth."},
+                      {"custom", "Custom", "A starting deck and 1 spec for each side."}
+                    ]
+                  }
+                  for={"preset-#{value}"}
+                  class={[
+                    "flex cursor-pointer flex-col gap-0.5 rounded-xl p-3 ring-1 transition active:scale-[0.99]",
+                    if(@form[:preset].value == value,
+                      do: "bg-emerald-700 text-white ring-emerald-700",
+                      else: "bg-white text-stone-800 ring-stone-300 hover:bg-stone-50"
+                    )
+                  ]}
+                >
+                  <input
+                    type="radio"
+                    id={"preset-#{value}"}
+                    name="setup[preset]"
+                    value={value}
+                    checked={@form[:preset].value == value}
+                    class="sr-only"
+                  />
+                  <span class="font-semibold">{title}</span>
+                  <span class="text-sm opacity-80">{text}</span>
+                </label>
+              </div>
+              <div
+                :if={@form[:preset].value == "custom"}
+                id="codex-custom"
+                class="grid gap-3 sm:grid-cols-2"
+              >
+                <div
+                  :for={{p, label} <- [{"p1", "P1"}, {"p2", "P2"}]}
+                  class="flex flex-col gap-2 rounded-xl bg-stone-50 p-3 ring-1 ring-stone-200"
+                >
+                  <strong class="text-sm">{label}</strong>
+                  <.input
+                    field={@form[:"#{p}_starter"]}
+                    type="select"
+                    label="Starting deck"
+                    options={Enum.map(Codex.Cards.colors(), &{&1, &1})}
+                    class="w-full rounded-lg border border-stone-300 px-3 py-2"
+                  />
+                  <.input
+                    field={@form[:"#{p}_spec"]}
+                    type="select"
+                    label="Spec (hero)"
+                    options={spec_options()}
+                    class="w-full rounded-lg border border-stone-300 px-3 py-2"
+                  />
+                </div>
+              </div>
+            </fieldset>
             <fieldset class="flex flex-col gap-2">
               <legend class="mb-2 text-sm font-semibold">Opponent</legend>
               <div class="grid gap-2 sm:grid-cols-2">

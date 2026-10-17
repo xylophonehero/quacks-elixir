@@ -91,14 +91,20 @@ defmodule Codex.Rules do
   defp summons(game, s) do
     side = game.sides[s]
     heroes_in_play = Enum.count(Zones.in_play(game, s), &Stats.hero?(game, &1))
-    cooled? = side.summon_after == nil or side.turn > side.summon_after
 
     for id <- side.zones.command,
         Stats.hero?(game, id),
-        heroes_in_play < 1,
-        cooled?,
+        heroes_in_play < hero_limit(side),
+        side.turn > Map.get(side.summon_after, id, -1),
         side.gold >= (Cards.fetch!(game.cards[id].card).cost || 0),
         do: {:summon, id}
+  end
+
+  # Hero limit (S1 p. 11): 1, +1 with a finished tech II, +1 with tech III,
+  # +1 with Heroes' Hall. Checked only when a hero is summoned.
+  defp hero_limit(side) do
+    built = side.tech_buildings
+    1 + Enum.count([:tech_2, :tech_3, :heroes_hall], &(&1 in built))
   end
 
   # Level up: 1 gold per level, up to the max level (S1 p. 3). One action per level.
@@ -155,8 +161,8 @@ defmodule Codex.Rules do
   end
 
   @tech_needs %{tech_1: {6, nil}, tech_2: {8, :tech_1}, tech_3: {10, :tech_2}}
-  @build_gold %{tech_1: 1, tech_2: 4, tech_3: 5, tower: 3, surplus: 5}
-  @add_ons [:tower, :surplus]
+  @build_gold %{tech_1: 1, tech_2: 4, tech_3: 5, tower: 3, surplus: 5, heroes_hall: 2}
+  @add_ons [:tower, :surplus, :heroes_hall]
 
   # Build a tech building or an add-on (S1 p. 4; research §7): at most one tech
   # building and one add-on started per turn, one add-on in all. A destroyed
@@ -170,8 +176,17 @@ defmodule Codex.Rules do
         b not in have,
         build_ok?(game, s, b, have),
         side.gold >= build_cost(game, s, b),
-        do: {:build, b}
+        action <- build_actions(side, b),
+        do: action
   end
+
+  # Tech II: with more than one spec, declare its spec when you build it; it is
+  # locked for the game (S1 p. 12). Heroes' Hall only in 3-hero mode (S1 p. 4).
+  defp build_actions(%{specs: [_, _ | _] = specs, tech_spec: nil}, :tech_2),
+    do: for(spec <- specs, do: {:build, :tech_2, spec})
+
+  defp build_actions(%{specs: [_]}, :heroes_hall), do: []
+  defp build_actions(_side, b), do: [{:build, b}]
 
   defp build_ok?(_game, _s, b, have) when b in @add_ons,
     do: not Enum.any?(have, &(&1 in @add_ons))
@@ -290,12 +305,29 @@ defmodule Codex.Rules do
   # Tech 0 needs the base; tech I, II, III need that finished tech building (S1 p. 4).
   defp tech_ok?(_game, _s, %{tech: t}) when t in [nil, 0], do: true
 
-  defp tech_ok?(game, s, %{tech: t}),
-    do: String.to_existing_atom("tech_#{t}") in game.sides[s].tech_buildings
+  defp tech_ok?(game, s, %{tech: t} = d) do
+    side = game.sides[s]
+    built? = String.to_existing_atom("tech_#{t}") in side.tech_buildings
+    # Tech II and III make only the cards of the tech II spec (S1 p. 12).
+    spec? = t < 2 or d.spec == nil or d.spec == side.tech_spec
+    (built? and spec?) or commander_free?(game, s, d)
+  end
+
+  # Pirate-Gang Commander: "You may play tech I or II Blood units for free and
+  # without any tech buildings."
+  defp commander_free?(game, s, d) do
+    d.type == "Unit" and d.spec == "Blood" and d.tech in [1, 2] and
+      Stats.controls?(game, s, "pirate-gang-commander")
+  end
 
   @doc """
-  The gold cost of card `id` for side `s`: Maestro makes Virtuosos cost 0;
-  River Montoya at max level makes tech 0 units cost 1 less.
+  The gold cost of card `id` for side `s`, with the card effects that change
+  it: Maestro (Virtuosos cost 0), River Montoya at max level (tech 0 units cost
+  1 less), Master Midori's middle band (units with no abilities cost 1 less),
+  Gigadon (1 less per green unit you have), Pirate-Gang Commander (tech I/II
+  Blood units free), Guargum (Growth spells free), and the colour tax: a
+  coloured minor spell costs 1 more without a hero of its colour in play
+  (S1 p. 12).
   """
   def cost(game, s, id) do
     d = Cards.fetch!(game.cards[id].card)
@@ -305,13 +337,47 @@ defmodule Codex.Rules do
       d.subtype == "Virtuoso" and Stats.controls?(game, s, "maestro") ->
         0
 
-      d.type == "Unit" and (d.tech || 0) == 0 and river_max?(game, s) ->
-        max(base - 1, 0)
+      commander_free?(game, s, d) ->
+        0
+
+      d.type in @spells and d.spec == "Growth" and
+          Stats.controls?(game, s, "guargum-eternal-sentinel") ->
+        0
 
       true ->
-        base
+        max(base - discounts(game, s, d) + color_tax(game, s, d), 0)
     end
   end
+
+  defp discounts(game, s, d), do: river(game, s, d) + midori(game, s, d) + gigadon(game, s, d)
+
+  defp river(game, s, %{type: "Unit"} = d),
+    do: if((d.tech || 0) == 0 and river_max?(game, s), do: 1, else: 0)
+
+  defp river(_game, _s, _d), do: 0
+
+  # REVIEW: Master Midori's middle band uses the later patch text (research §14.1):
+  # units with no abilities cost 1 less and get +2/+2.
+  defp midori(game, s, %{type: "Unit", text: []}),
+    do: if(Stats.midori_mid?(game, s), do: 1, else: 0)
+
+  defp midori(_game, _s, _d), do: 0
+
+  defp gigadon(game, s, %{slug: "gigadon"}),
+    do:
+      Enum.count(
+        Zones.in_play(game, s),
+        &(Stats.unit?(game, &1) and Stats.color(game, &1) == "Green")
+      )
+
+  defp gigadon(_game, _s, _d), do: 0
+
+  defp color_tax(game, s, %{type: "Minor Spell", color: color}) when color != "Neutral" do
+    heroes = for h <- Zones.in_play(game, s), Stats.hero?(game, h), do: Stats.color(game, h)
+    if color in heroes, do: 0, else: 1
+  end
+
+  defp color_tax(_game, _s, _d), do: 0
 
   defp river_max?(game, s) do
     Enum.any?(Zones.in_play(game, s), fn h ->
@@ -404,6 +470,14 @@ defmodule Codex.Rules do
 
   defp do_act(game, {:ability, id, :stop_music, []}),
     do: Effects.stop_music(game, game.active, id)
+
+  defp do_act(game, {:build, :tech_2, spec}) do
+    s = game.active
+
+    game
+    |> do_act({:build, :tech_2})
+    |> update_side(s, &%{&1 | tech_spec: spec})
+  end
 
   defp do_act(game, {:build, b}) do
     s = game.active

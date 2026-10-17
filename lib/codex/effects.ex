@@ -130,7 +130,10 @@ defmodule Codex.Effects do
 
           game
           |> leave(id, {owner, :command}, nil)
-          |> Rules.update_side(owner, &%{&1 | summon_after: turn + 1})
+          |> Rules.update_side(
+            owner,
+            &%{&1 | summon_after: Map.put(&1.summon_after, id, turn + 1)}
+          )
           |> free_levels(1 - s)
 
         true ->

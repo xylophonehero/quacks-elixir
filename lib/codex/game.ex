@@ -89,9 +89,19 @@ defmodule Codex.Game do
   @max_counter 99
   @sandbox [:move, :draw, :shuffle, :adjust_card, :toggle, :adjust, :building]
 
-  @setup %{
-    0 => %{spec: "Bashing", workers: 4},
-    1 => %{spec: "Finesse", workers: 5}
+  @workers %{0 => 4, 1 => 5}
+
+  # The set-ups (research §2): the rulebook's first game (1 hero each), and Red
+  # against Green (3-hero mode: 3 specs, 3 heroes, the colour's starting deck).
+  @presets %{
+    "first" => %{
+      0 => %{starter: "Neutral", specs: ["Bashing"]},
+      1 => %{starter: "Neutral", specs: ["Finesse"]}
+    },
+    "red_green" => %{
+      0 => %{starter: "Red", specs: ["Anarchy", "Blood", "Fire"]},
+      1 => %{starter: "Green", specs: ["Balance", "Feral", "Growth"]}
+    }
   }
 
   @type seat :: 0 | 1
@@ -145,6 +155,9 @@ defmodule Codex.Game do
   """
   @type side :: %{
           spec: String.t(),
+          specs: [String.t()],
+          starter: String.t(),
+          tech_spec: String.t() | nil,
           gold: non_neg_integer,
           base_hp: integer,
           tech_buildings: [atom],
@@ -154,7 +167,7 @@ defmodule Codex.Game do
           turn: non_neg_integer,
           hired: boolean,
           reshuffled: boolean,
-          summon_after: non_neg_integer | nil,
+          summon_after: %{card_id => non_neg_integer},
           tower_used: boolean,
           max_at_start: [card_id],
           zones: %{
@@ -228,20 +241,63 @@ defmodule Codex.Game do
 
   def new(opts, {a, b, c} = seed)
       when is_map(opts) and is_integer(a) and is_integer(b) and is_integer(c) do
-    bot = if Map.get(opts, :bot) in [true, "true"], do: 1
-    game = %__MODULE__{seed: seed, rng: Rng.seed(seed), bot: bot}
-    game = Enum.reduce([0, 1], game, &setup_side/2)
-    game = Rules.start_turn(%{game | log: [{:setup, seed}]}, 0)
-    {:ok, game}
+    bot = if opt(opts, :bot) in [true, "true"], do: 1
+
+    with {:ok, setup} <- setup(opts) do
+      game = %__MODULE__{seed: seed, rng: Rng.seed(seed), bot: bot}
+      game = Enum.reduce([0, 1], game, &setup_side(&1, &2, setup[&1]))
+      game = Rules.start_turn(%{game | log: [{:setup, seed}]}, 0)
+      {:ok, game}
+    end
   end
 
   def new(_opts, _seed), do: {:error, :invalid_seed}
 
-  defp setup_side(seat, game) do
-    %{spec: spec, workers: workers} = @setup[seat]
-    {game, deck} = add_cards(game, seat, Cards.starter())
-    {game, codex} = add_cards(game, seat, Enum.flat_map(Cards.codex(spec), &[&1, &1]))
-    {game, command} = add_cards(game, seat, [Cards.hero(spec)])
+  @doc ~s{The set-up presets: `"first"` (Bashing vs Finesse) and `"red_green"`.}
+  @spec presets() :: map
+  def presets, do: @presets
+
+  # The set-up of `opts`: a preset (default "first"), or "custom" with a starting
+  # deck and one spec per side (`p1_starter`, `p1_spec`, `p2_starter`, `p2_spec`).
+  defp setup(opts) do
+    case opt(opts, :preset) || "first" do
+      "custom" ->
+        sides = for s <- [0, 1], into: %{}, do: {s, custom(opts, s)}
+
+        if Enum.all?(Map.values(sides), &valid?/1),
+          do: {:ok, sides},
+          else: {:error, :invalid_setup}
+
+      preset ->
+        preset_setup(preset)
+    end
+  end
+
+  defp preset_setup(preset) do
+    case Map.fetch(@presets, preset) do
+      {:ok, sides} -> {:ok, sides}
+      :error -> {:error, :invalid_setup}
+    end
+  end
+
+  defp custom(opts, s) do
+    p = "p#{s + 1}"
+    %{starter: opt(opts, :"#{p}_starter"), specs: [opt(opts, :"#{p}_spec")]}
+  end
+
+  defp valid?(%{starter: starter, specs: [spec]}) do
+    starter in Cards.colors() and spec in Enum.flat_map(Cards.colors(), &Cards.specs/1)
+  end
+
+  defp opt(opts, key), do: Map.get(opts, key) || Map.get(opts, Atom.to_string(key))
+
+  defp setup_side(seat, game, %{starter: starter, specs: specs}) do
+    workers = @workers[seat]
+    spec = hd(specs)
+    {game, deck} = add_cards(game, seat, Cards.starter(starter))
+    codex_slugs = for sp <- specs, slug <- Cards.codex(sp), copy <- [slug, slug], do: copy
+    {game, codex} = add_cards(game, seat, codex_slugs)
+    {game, command} = add_cards(game, seat, Enum.map(specs, &Cards.hero/1))
     {game, worker_ids} = add_cards(game, seat, List.duplicate("worker", workers))
 
     game =
@@ -256,6 +312,9 @@ defmodule Codex.Game do
 
     side = %{
       spec: spec,
+      specs: specs,
+      starter: starter,
+      tech_spec: if(length(specs) == 1, do: spec),
       gold: 0,
       base_hp: 20,
       tech_buildings: [],
@@ -265,7 +324,7 @@ defmodule Codex.Game do
       turn: 0,
       hired: false,
       reshuffled: false,
-      summon_after: nil,
+      summon_after: %{},
       tower_used: false,
       max_at_start: [],
       zones: %{

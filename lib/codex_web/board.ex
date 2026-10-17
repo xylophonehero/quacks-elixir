@@ -42,7 +42,8 @@ defmodule CodexWeb.Board do
     "tech_2" => :tech_2,
     "tech_3" => :tech_3,
     "tower" => :tower,
-    "surplus" => :surplus
+    "surplus" => :surplus,
+    "heroes_hall" => :heroes_hall
   }
 
   @slot_labels %{
@@ -319,6 +320,11 @@ defmodule CodexWeb.Board do
       nil -> {:noreply, socket}
       action -> {:act, action, Phoenix.Component.assign(socket, tech_pick: [])}
     end
+  end
+
+  def handle_event("build", %{"building" => "tech_2", "spec" => spec}, socket) do
+    action = Enum.find(socket.assigns.actions, &match?({:build, :tech_2, ^spec}, &1))
+    if action, do: {:act, action, socket}, else: {:noreply, socket}
   end
 
   def handle_event("build", %{"building" => b}, socket) do
@@ -1003,8 +1009,16 @@ defmodule CodexWeb.Board do
   attr :tg, :any, default: nil
 
   defp side_header(assigns) do
-    hero = Cards.hero(assigns.side.spec)
-    assigns = assign(assigns, hero: Cards.fetch!(hero).name)
+    side = assigns.side
+    specs = Map.get(side, :specs, [side.spec])
+
+    title =
+      case specs do
+        [spec] -> Cards.fetch!(Cards.hero(spec)).name
+        _ -> Map.get(side, :starter, "")
+      end
+
+    assigns = assign(assigns, hero: title, spec_text: Enum.join(specs, ", "))
 
     ~H"""
     <div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
@@ -1016,7 +1030,7 @@ defmodule CodexWeb.Board do
       </span>
       <span class="min-w-0 truncate text-xs text-white/80 sm:text-sm">
         <span class="font-semibold text-white">{@hero}</span>
-        <span class="hidden sm:inline">· {@side.spec}</span>
+        <span class="hidden sm:inline">· {@spec_text}</span>
       </span>
       <span class="text-[11px] text-white/50 tabular-nums">turn {@side.turn}</span>
       <div class="ml-auto flex items-center gap-1.5">
@@ -2046,21 +2060,32 @@ defmodule CodexWeb.Board do
     side = assigns.view.sides[assigns.seat]
 
     rows =
-      for b <- [:tech_1, :tech_2, :tech_3, :tower, :surplus] do
-        state =
-          cond do
-            b in side.tech_buildings -> :built
-            b in side.pending -> :pending
-            {:build, b} in assigns.actions -> :can
-            true -> :no
-          end
-
+      for b <- [:tech_1, :tech_2, :tech_3, :tower, :surplus, :heroes_hall],
+          b != :heroes_hall or length(Map.get(side, :specs, [])) > 1 do
+        state = build_state(side, assigns.actions, b)
         {b, state}
       end
 
-    assigns = assign(assigns, rows: rows)
+    tech2 = for {:build, :tech_2, spec} <- assigns.actions, do: spec
+    assigns = assign(assigns, rows: rows, tech2: tech2)
 
     ~H"""
+    <p :if={@tech2 != []} class="text-xs font-semibold text-amber-100">
+      Tech II: pick its spec. Tech II and III then make only that spec's cards.
+    </p>
+    <div :if={@tech2 != []} class="flex flex-wrap gap-2">
+      <button
+        :for={spec <- @tech2}
+        id={"cx-build-tech_2-#{spec}"}
+        type="button"
+        phx-click="build"
+        phx-value-building="tech_2"
+        phx-value-spec={spec}
+        class="rounded-xl bg-amber-300 px-3 py-2 text-sm font-semibold text-stone-900 ring-1 ring-amber-200 transition hover:bg-amber-200 active:scale-[0.98]"
+      >
+        Tech II · {spec}
+      </button>
+    </div>
     <p class="text-xs text-white/60">
       Tech I: 6 workers, 1 gold. Tech II: 8 workers, tech I, 4 gold. Tech III: 10
       workers, tech II, 5 gold. One add-on: Tower (3 gold) or Surplus (5 gold). A
@@ -2078,7 +2103,7 @@ defmodule CodexWeb.Board do
           "flex flex-col items-start rounded-xl px-3 py-2.5 text-left text-sm font-semibold ring-1 transition active:scale-[0.98]",
           state == :can && "bg-amber-300 text-stone-900 ring-amber-200 hover:bg-amber-200",
           state in [:built, :pending] && "bg-emerald-800/60 text-white ring-emerald-500/40",
-          state == :no && "bg-white/5 text-white/40 ring-white/10"
+          state in [:no, :spec] && "bg-white/5 text-white/40 ring-white/10"
         ]}
       >
         {building_label(b)}
@@ -2091,10 +2116,21 @@ defmodule CodexWeb.Board do
   defp building_hp_left(side, b),
     do: Codex.Effects.building_hp(b) - Map.get(side.building_damage, b, 0)
 
+  defp build_state(side, actions, b) do
+    cond do
+      b in side.tech_buildings -> :built
+      b in side.pending -> :pending
+      {:build, b} in actions -> :can
+      b == :tech_2 and Enum.any?(actions, &match?({:build, :tech_2, _}, &1)) -> :spec
+      true -> :no
+    end
+  end
+
   defp build_state_text(:built), do: "built"
   defp build_state_text(:pending), do: "building: ready next turn"
   defp build_state_text(:can), do: "build"
   defp build_state_text(:no), do: "not yet"
+  defp build_state_text(:spec), do: "pick a spec above"
 
   attr :seat, :integer, required: true
   attr :view, :map, required: true
