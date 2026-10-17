@@ -205,11 +205,9 @@ defmodule Codex.CardRules do
 
   # Cards played as "manual": paid for and put into play; their text is not run.
   # A player resolves it in free mode. (A unit's printed keywords still work.)
+  # REVIEW: Burning Volley (5 damage divided among any number of targets) and
+  # Feral Strike (two modes, units from the codex or the hand) are manual.
   @manual ~w(burning-volley feral-strike)
-  # Not done yet in this round of work (moved out as each spec is done).
-  @manual @manual ++
-            ~w(artisan-mantis blooming-ancient blooming-elm dinosize galina-glimmer giant-panda guargum-eternal-sentinel might-of-leaf-and-claw oversized-rhinoceros polymorph-squirrel spirit-of-the-panda stampede)
-
   # "Arrives:" abilities with a target. The slot may be empty only when there is
   # no legal target ("do as much as you can", S1 p. 17).
   @arrive_targets %{

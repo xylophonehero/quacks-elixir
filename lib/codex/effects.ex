@@ -198,6 +198,7 @@ defmodule Codex.Effects do
   technician slot a card (S1 p. 5). Then the death triggers.
   """
   def die(game, id) do
+    game = unpolymorph(game, id)
     c = game.cards[id]
     loc = Zones.locate(game, id)
     s = Zones.zone_seat(loc)
@@ -303,9 +304,20 @@ defmodule Codex.Effects do
     end
   end
 
+  @doc "A polymorphed card becomes itself again."
+  def unpolymorph(game, id) do
+    case game.cards[id].extra do
+      %{polymorph: %{from: from}} ->
+        Zones.update_card(game, id, &%{&1 | card: from, extra: Map.delete(&1.extra, :polymorph)})
+
+      _ ->
+        game
+    end
+  end
+
   @doc "Move a card out of play to `zone`, with its state reset (`Codex.Rules.reset/1`)."
   def leave(game, id, zone, at) do
-    game |> Zones.move(id, zone, at) |> Zones.update_card(id, &Rules.reset/1)
+    game |> unpolymorph(id) |> Zones.move(id, zone, at) |> Zones.update_card(id, &Rules.reset/1)
   end
 
   @doc """

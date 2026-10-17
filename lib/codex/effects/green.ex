@@ -49,6 +49,25 @@ defmodule Codex.Effects.Green do
     if mode in [:frogs, :boost], do: Effects.summon(game, s, "frog", 4), else: game
   end
 
+  # -- Growth --
+
+  # Polymorph: Squirrel: a 1/1 Squirrel with no abilities until your next upkeep.
+  def spell(game, s, "polymorph-squirrel", _id, [t]) do
+    Zones.update_card(game, t, fn c ->
+      %{c | card: "squirrel", extra: Map.put(c.extra, :polymorph, %{from: c.card, by: s})}
+    end)
+  end
+
+  def spell(game, _s, "dinosize", _id, [t]), do: more(game, t, 6, 6)
+
+  # Spirit of the Panda: attach to a unit (+2/+2, "Attacks: Gain ①", healing 1: `Codex.Stats`, `Codex.Combat`).
+  def spell(game, _s, "spirit-of-the-panda", id, [t]),
+    do: Zones.update_card(game, id, &%{&1 | extra: Map.put(&1.extra, :attached, t)})
+
+  # Stampede: your units get +3 ATK / +3 armor this turn; excess combat damage hits the base.
+  def spell(game, s, "stampede", _id, []),
+    do: Rules.update_side(game, s, &%{&1 | effects: Map.put(&1.effects, :stampede, true)})
+
   def spell(game, _s, _slug, _id, _targets), do: game
 
   # +atk ATK and +armor armor this turn.
@@ -88,6 +107,7 @@ defmodule Codex.Effects.Green do
   end
 
   def arrive(game, s, _id, "moss-ancient", []), do: Effects.summon(game, s, "squirrel", 3)
+  def arrive(game, _s, _id, "artisan-mantis", [t]), do: Effects.repair(game, t, 3)
 
   def arrive(game, _s, _id, _slug, _targets), do: game
 
@@ -107,6 +127,15 @@ defmodule Codex.Effects.Green do
   end
 
   def ability(game, _s, _id, :argagarg, [t]), do: more(game, t, 1, 1)
+
+  # Blooming Elm: three +1/+1 runes on a unit, or one on a hero, without +1/+1 runes.
+  def ability(game, _s, _id, :elm, [t]) do
+    cond do
+      game.cards[t].plus > 0 -> game
+      Stats.hero?(game, t) -> Effects.plus_rune(game, t)
+      true -> game |> Effects.plus_rune(t) |> Effects.plus_rune(t) |> Effects.plus_rune(t)
+    end
+  end
 
   # Calamandra Moss: discard two cards → she gets stealth this turn.
   def ability(game, s, id, :hide, [a, b]) do
@@ -131,29 +160,66 @@ defmodule Codex.Effects.Green do
   Green abilities after a combat: Predator Tiger deals combat damage to a base:
   trash a worker at that base.
   """
-  def after_combat(game, s, a, {:building, opp, :base}, %{base_hit: true}) do
+  def after_combat(game, s, a, target, ctx),
+    do: game |> predator(s, a, target, ctx) |> leaf_and_claw(s, ctx)
+
+  defp predator(game, s, a, {:building, opp, :base}, %{base_hit: true}) do
     if game.cards[a].card == "predator-tiger" and s != opp,
       do: Effects.trash_worker(game, opp),
       else: game
   end
 
-  def after_combat(game, _s, _a, _target, _ctx), do: game
+  defp predator(game, _s, _a, _target, _ctx), do: game
+
+  # Might of Leaf and Claw: whenever you deal combat damage with an attacker, a growth rune.
+  defp leaf_and_claw(game, s, %{dealt: dealt}) when dealt > 0 do
+    Enum.reduce(Zones.in_play(game, s), game, fn m, game ->
+      if game.cards[m].card == "might-of-leaf-and-claw",
+        do: Effects.add_counter(game, m, :growth, 1),
+        else: game
+    end)
+  end
+
+  defp leaf_and_claw(game, _s, _ctx), do: game
 
   @doc """
   Green upkeep abilities of side `s`: Gemscout Owl (gain 1), Dothram
   Horselord (it joins the player with more total ATK than each other).
   """
   def upkeep(game, s) do
-    # Ferocity lasts "until your next upkeep".
+    # Ferocity lasts "until your next upkeep"; so does Polymorph: Squirrel.
     game = Rules.update_side(game, s, &%{&1 | effects: Map.delete(&1.effects, :ferocity)})
+    game = unpolymorph(game, s)
 
     Enum.reduce(Zones.in_play(game, s), game, fn id, game ->
       case game.cards[id].card do
         "gemscout-owl" -> Rules.gain_gold(game, s, 1)
         "dothram-horselord" -> horselord(game, s, id)
+        "galina-glimmer" -> galina(game, s)
         _ -> game
       end
     end)
+  end
+
+  # Polymorphs cast by side `s` end.
+  defp unpolymorph(game, s) do
+    Enum.reduce(Map.keys(game.cards), game, fn id, game ->
+      case game.cards[id].extra do
+        %{polymorph: %{by: ^s}} -> Effects.unpolymorph(game, id)
+        _ -> game
+      end
+    end)
+  end
+
+  # Galina Glimmer: gain 1 gold for every two of your green units.
+  defp galina(game, s) do
+    green =
+      Enum.count(
+        Zones.in_play(game, s),
+        &(Stats.unit?(game, &1) and Stats.color(game, &1) == "Green")
+      )
+
+    Rules.gain_gold(game, s, div(green, 2))
   end
 
   defp horselord(game, s, id) do
