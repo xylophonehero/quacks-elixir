@@ -349,6 +349,26 @@ defmodule TableWeb.CodexLiveTest do
       assert has_element?(view, "#cx-pending-0-tech_1")
     end
 
+    test "a choice pick: Marauder's boost is a button" do
+      game =
+        Codex.TestHelpers.red_green()
+        |> gold(0, 20)
+        |> put_in([Access.key(:sides), 0, :tech_buildings], [:tech_1, :tech_2])
+        |> put_in([Access.key(:sides), 0, :tech_spec], "Anarchy")
+
+      {game, m} = place(game, 0, "marauder", :hand)
+      %{view: view, code: code} = room_with(game)
+      workers = length(zone(code, 1, :workers))
+
+      view |> element("#cx-card-#{m}") |> render_click()
+      view |> element("#cx-rule-play-pick") |> render_click()
+      assert has_element?(view, "#cx-pick button", "No boost")
+      view |> element("#cx-pick button", "Boost") |> render_click()
+
+      assert m in zone(code, 0, :in_play)
+      assert length(zone(code, 1, :workers)) == workers - 1
+    end
+
     test "Cancel ends a pick" do
       {game, a} = place(new(), 0, "timely-messenger", :hand)
       game = ok!(game, {:play, a, []})

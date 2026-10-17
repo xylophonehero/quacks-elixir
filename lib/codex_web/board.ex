@@ -1932,7 +1932,11 @@ defmodule CodexWeb.Board do
     """
   end
 
-  defp log_text({:setup, _seed}, _v), do: "New game: P1 Bashing, P2 Finesse."
+  defp log_text({:setup, _seed}, v) do
+    specs = for s <- [0, 1], do: Enum.join(Map.get(v.sides[s], :specs, [v.sides[s].spec]), ", ")
+    "New game: P1 #{Enum.at(specs, 0)}, P2 #{Enum.at(specs, 1)}."
+  end
+
   defp log_text({:reshuffle, s}, _v), do: "P#{s + 1} shuffles the discard pile into the deck."
   defp log_text({:action, s, :end_turn}, _v), do: "P#{s + 1} ends the turn."
   defp log_text({:action, s, action}, v), do: action_text(s, action, v)
