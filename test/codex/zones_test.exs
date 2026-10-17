@@ -2,8 +2,8 @@ defmodule Codex.ZonesTest do
   @moduledoc "Zones.locate/2 gives the same answer as a scan of every placement."
   use ExUnit.Case, async: true
 
-  alias Codex.{Game, Zones}
   alias Codex.Bot.Plan
+  alias Codex.{Game, Zones}
 
   test "locate/2 agrees with placements/1 for every card, on games and views" do
     {:ok, g} = Game.new(%{bot: true}, {8, 1, 2})

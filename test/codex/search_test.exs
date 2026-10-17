@@ -99,6 +99,17 @@ defmodule Codex.Bot.SearchTest do
     assert Enum.any?(bot.queue, &match?({{:attack, ^brother, {:building, 1, :base}}, _}, &1))
   end
 
+  test "the table bot (level :search) answers with a legal action within the tick" do
+    game = bot_game({1, 2, 3})
+    {:ok, game} = Game.apply(game, 0, :end_turn)
+    {:ok, game} = Game.apply(game, 0, elem(Plan.choose(Game.bot_view(game, 0), nil), 0))
+    view = Codex.Table.view(game, 1)
+    bot = Codex.Table.bot_new(:search, {1, 2, 3})
+    {us, {action, _}} = :timer.tc(fn -> Codex.Table.bot_choose(:search, view, bot) end)
+    assert action in Rules.legal(game)
+    assert us < 650_000
+  end
+
   describe "Determinize.sample/3" do
     setup do
       {game, _} =

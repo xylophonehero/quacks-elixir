@@ -20,7 +20,7 @@ defmodule Codex.AI.Bench do
   """
 
   alias Codex.AI.Weights
-  alias Codex.Bot.Plan
+  alias Codex.Bot.{Plan, Search}
   alias Codex.Game
 
   @max_actions 6000
@@ -40,8 +40,9 @@ defmodule Codex.AI.Bench do
   (`Codex.AI.Weights.load/1`); `:key=value,key=value` changes weights, e.g.
   `"plan:threat_base=1,lethal=10"`. `"search"`: the stage-2 bot
   (`Codex.Bot.Search`) with no clock; a number after it is the candidates per
-  turn (default 40), then `e` and the random-step chance (default 0.15), then
-  `x` for no early stop (`prefix: false`), then
+  turn (default 40), then `e` and the random-step chance (default 0), then
+  `x` for no early stop or `p` for the early stop (default: no early stop),
+  then
   rules and weights as for `plan`, e.g. `"search24e0.3:threat_base=0.5"`.
 
       iex> Codex.AI.Bench.bot("basic").mod
@@ -51,7 +52,7 @@ defmodule Codex.AI.Bench do
   def bot("basic"), do: %{name: "basic", mod: Codex.Bot, state: nil}
 
   def bot("plan" <> rest = name) do
-    {mods, weights} = split_weights(rest)
+    {mods, weights} = split_weights(rest, Weights.defaults())
     %{name: name, mod: Plan, state: Plan.new(parse_mods(mods), weights)}
   end
 
@@ -60,15 +61,15 @@ defmodule Codex.AI.Bench do
       Integer.parse(rest <> "|")
       |> then(fn
         {n, r} -> {n, String.trim_trailing(r, "|")}
-        :error -> {40, rest}
+        :error -> {Search.defaults().n, rest}
       end)
 
     {eps, rest} = parse_eps(rest)
     {prefix, rest} = parse_prefix(rest)
-    {mods, weights} = split_weights(rest)
+    {mods, weights} = split_weights(rest, Weights.search())
 
     state =
-      Codex.Bot.Search.new(
+      Search.new(
         n: n,
         eps: eps,
         prefix: prefix,
@@ -77,7 +78,7 @@ defmodule Codex.AI.Bench do
         weights: weights
       )
 
-    %{name: name, mod: Codex.Bot.Search, state: state}
+    %{name: name, mod: Search, state: state}
   end
 
   def bot(other), do: raise(ArgumentError, "unknown bot #{inspect(other)}")
@@ -88,21 +89,25 @@ defmodule Codex.AI.Bench do
     {eps, rest}
   end
 
-  defp parse_eps(text), do: {0.15, text}
+  defp parse_eps(text), do: {Search.defaults().eps, text}
 
-  # "x": no early stop.
+  # "x": no early stop; "p": early stop.
   defp parse_prefix("x" <> rest), do: {false, rest}
-  defp parse_prefix(text), do: {true, text}
+  defp parse_prefix("p" <> rest), do: {true, rest}
+  defp parse_prefix(text), do: {Search.defaults().prefix, text}
 
   # "…:key=value,key=value" changes weights; "…@path" reads a weights file.
-  defp split_weights(text) do
+  defp split_weights(text, default) do
     case String.split(text, ":", parts: 2) do
-      [mods, changes] -> {strip_file(mods), Map.merge(base_weights(mods), parse_weights(changes))}
-      [mods] -> {strip_file(mods), base_weights(mods)}
+      [mods, changes] ->
+        {strip_file(mods), Map.merge(base_weights(mods, default), parse_weights(changes))}
+
+      [mods] ->
+        {strip_file(mods), base_weights(mods, default)}
     end
   end
 
-  defp base_weights(mods) do
+  defp base_weights(mods, default) do
     case String.split(mods, "@", parts: 2) do
       [_, path] ->
         case Weights.load(path) do
@@ -111,7 +116,7 @@ defmodule Codex.AI.Bench do
         end
 
       [_] ->
-        Weights.defaults()
+        default
     end
   end
 

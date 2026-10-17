@@ -2,7 +2,8 @@ defmodule Codex.AI.BenchTest do
   @moduledoc "The Codex bot benchmark: duplicate seating, determinism, the stats."
   use ExUnit.Case, async: true
 
-  alias Codex.AI.Bench
+  alias Codex.AI.{Bench, Weights}
+  alias Codex.Bot.Search
 
   doctest Codex.AI.Bench
 
@@ -57,16 +58,19 @@ defmodule Codex.AI.BenchTest do
     assert bot.state.rules.tower == false
     assert bot.state.weights.threat_base == 1.0
     assert bot.state.weights.lethal == 10.0
-    assert bot.state.weights.gold == Codex.AI.Weights.defaults().gold
+    assert bot.state.weights.gold == Weights.defaults().gold
     assert_raise ArgumentError, fn -> Bench.bot("plan:exhaust=1") end
   end
 
   test "a search spec: candidates, random-step chance, no early stop, weights" do
     bot = Bench.bot("search12e0.1x-tower:threat_base=1")
-    assert bot.mod == Codex.Bot.Search
+    assert bot.mod == Search
     assert %{n: 12, eps: 0.1, prefix: false, budget_ms: nil} = bot.state
     assert bot.state.plan.rules.tower == false
     assert bot.state.weights.threat_base == 1.0
-    assert %{n: 40, eps: 0.15, prefix: true} = Bench.bot("search").state
+    assert %{n: 40, prefix: false} = Bench.bot("search").state
+    assert Bench.bot("search").state.eps == 0.0
+    assert %{n: 8, eps: 0.2, prefix: true} = Bench.bot("search8e0.2p").state
+    assert Bench.bot("search").state.weights == Weights.search()
   end
 end

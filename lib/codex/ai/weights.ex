@@ -49,6 +49,35 @@ defmodule Codex.AI.Weights do
 
   @defaults @stage1
 
+  # The weights of `Codex.Bot.Search`: `mix codex.tune` run 2 (11 generations,
+  # 10 296 games, search12 against plan, basic and the mean;
+  # docs/research/codex-bot.md, "Stage 2 results"). Reviewed: no sign is odd;
+  # hand, heroes and the threat terms went up, base_hp and hero_levels down.
+  @search %{
+    base_hp: 1.262,
+    low_hp: 0.517,
+    force_atk: 1.2,
+    force_hp: 1.056,
+    keywords: 1.291,
+    heroes: 2.772,
+    hero_levels: 0.782,
+    tech_buildings: 4.572,
+    add_ons: 2.126,
+    building_damage: -0.618,
+    gold: 0.259,
+    ongoing: 1.469,
+    workers: 0.898,
+    hand: 0.84,
+    tech_cards: -0.068,
+    patrol_hp: 0.16,
+    threat_base: 0.609,
+    threat_patrol: 0.504,
+    lethal: 0.937,
+    ready: 0.204,
+    exhaust_cost: 0.485,
+    margin: 1.249
+  }
+
   # {key, low, high}
   @spec_list [
     {:base_hp, 0.5, 3.0},
@@ -75,9 +104,13 @@ defmodule Codex.AI.Weights do
     {:margin, 0.0, 5.0}
   ]
 
-  @doc "The weights of the default bots."
+  @doc "The weights of `Codex.Bot.Plan` (the stage-1 numbers; the new features at 0)."
   @spec defaults() :: %{atom => float}
   def defaults, do: @defaults
+
+  @doc "The weights of the search bot (`Codex.Bot.Search`), tuned by self-play."
+  @spec search() :: %{atom => float}
+  def search, do: @search
 
   @doc "The stage-1 weights (the stage-1 bot as it was measured)."
   @spec stage1() :: %{atom => float}

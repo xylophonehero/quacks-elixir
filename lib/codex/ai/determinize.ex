@@ -17,6 +17,7 @@ defmodule Codex.AI.Determinize do
   and rng give the same game.
   """
 
+  alias Codex.Bot.Plan
   alias Codex.{Cards, Game}
   alias Table.Kit.Rng
 
@@ -27,7 +28,7 @@ defmodule Codex.AI.Determinize do
   @doc "A sampled game for the bot in `me` from `view`, and the next rng."
   @spec sample(map, 0 | 1, Rng.t()) :: {Game.t(), Rng.t()}
   def sample(view, me, rng) do
-    g = Codex.Bot.Plan.game_of(view)
+    g = Plan.game_of(view)
     g = %{g | rng: Rng.fork(rng, 3)}
     {g, rng} = own_deck(g, view, me, rng)
     {g, rng} = other_side(g, view, 1 - me, rng)

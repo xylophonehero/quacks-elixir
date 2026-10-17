@@ -35,28 +35,39 @@ defmodule Codex.Bot.Search do
   alias Table.Kit.Rng
 
   @max_steps 60
+  # The defaults that won in the bench (docs/research/codex-bot.md, "Stage 2
+  # results"): the policy and the enablers only (random turns lost about 4
+  # points), and the whole turn (no early stop).
+  @n 40
+  @eps 0.0
+  @prefix false
+
+  @doc "The default options: `%{n:, eps:, prefix:}`."
+  @spec defaults() :: map
+  def defaults, do: %{n: @n, eps: @eps, prefix: @prefix}
   # The score of a candidate that ran out of time: never chosen.
   @lost 1.0e9
   @enabler_spells ~w(intimidate discord appel-stomp)
 
   @doc """
-  A bot state. Options: `n:` candidates per turn (default 40), `budget_ms:`
-  (default 400; nil for no clock), `eps:` (default 0.15), `seed:` (default 1),
-  `prefix:` (default true: a turn may stop early when the score after an
-  earlier action is the best), `weights:` the evaluator weights for the end
-  of a turn (default `Codex.AI.Weights.defaults/0`; the policy inside keeps
+  A bot state. Options: `n:` candidates per turn (default #{@n}), `budget_ms:`
+  (default 400; nil for no clock), `eps:` (default #{@eps}: no random turns),
+  `seed:` (default 1), `prefix:` (default #{@prefix}; true: a turn may stop
+  early when the score after an earlier action is the best), `weights:` the
+  evaluator weights for the end of a turn (default
+  `Codex.AI.Weights.search/0`; the policy inside keeps
   `Codex.AI.Weights.stage1/0`), `rules:` the stage-1
   rule changes for the policy (default `[]`).
   """
   @spec new(keyword) :: map
   def new(opts \\ []) do
-    weights = Keyword.get(opts, :weights, Weights.defaults())
+    weights = Keyword.get(opts, :weights, Weights.search())
 
     %{
-      n: Keyword.get(opts, :n, 40),
+      n: Keyword.get(opts, :n, @n),
       budget_ms: Keyword.get(opts, :budget_ms, 400),
-      eps: Keyword.get(opts, :eps, 0.15),
-      prefix: Keyword.get(opts, :prefix, true),
+      eps: Keyword.get(opts, :eps, @eps),
+      prefix: Keyword.get(opts, :prefix, @prefix),
       seed: Keyword.get(opts, :seed, 1),
       # The policy keeps the stage-1 weights; `weights` score the end of a turn.
       plan: Plan.new(Keyword.get(opts, :rules, []), Weights.stage1()),
@@ -118,44 +129,64 @@ defmodule Codex.Bot.Search do
   # the memo of policy actions (`%{state key => action}`).
   defp rollout(g, forced, eps, rng, ctx, memo) do
     start = Eval.score(g, ctx.me, ctx.w)
-    best = {start, [{:end_turn, fingerprint(g, ctx.me)}]}
-    walk(g, forced, eps, rng, ctx, memo, {[], start}, [{g, []}], best, 0)
+
+    walk(g, ctx, %{
+      forced: forced,
+      eps: eps,
+      rng: rng,
+      memo: memo,
+      line: [],
+      cur: start,
+      states: [{g, []}],
+      best: {start, [{:end_turn, fingerprint(g, ctx.me)}]},
+      k: 0
+    })
   end
 
-  defp walk(g, forced, eps, rng, ctx, memo, {line, cur}, states, best, k) do
+  # `r`: the walk so far (the line, newest action first; the score now; the
+  # states; the best prefix; the step count) and what drives it.
+  defp walk(g, ctx, r) do
     cond do
       late?(ctx[:deadline]) ->
-        {-@lost, [], Enum.reverse(states), memo}
+        {-@lost, [], Enum.reverse(r.states), r.memo}
 
-      k >= @max_steps or g.phase != :main or g.active != ctx.me ->
-        finish(g, ctx, {line, cur}, states, best, memo)
+      r.k >= @max_steps or g.phase != :main or g.active != ctx.me ->
+        finish(g, ctx, r)
 
       true ->
-        step(g, forced, eps, rng, ctx, memo, {line, cur}, states, best, k)
+        step(g, ctx, r)
     end
   end
 
-  defp step(g, forced, eps, rng, ctx, memo, {line, cur}, states, best, k) do
-    {action, forced, rng, memo} = next(g, forced, eps, rng, ctx, memo)
+  defp step(g, ctx, r) do
+    {action, forced, rng, memo} = next(g, r.forced, r.eps, r.rng, ctx, r.memo)
+    r = %{r | forced: forced, rng: rng, memo: memo}
 
     if action == :end_turn do
-      finish(g, ctx, {line, cur}, states, best, memo)
+      finish(g, ctx, r)
     else
       g1 = Plan.sim(g, action)
-      line = [{action, fingerprint(g, ctx.me)} | line]
+      line = [{action, fingerprint(g, ctx.me)} | r.line]
       s = Eval.score(g1, ctx.me, ctx.w)
-      best = if s >= elem(best, 0), do: {s, close(g1, line, ctx)}, else: best
-      walk(g1, forced, eps, rng, ctx, memo, {line, s}, [{g1, line} | states], best, k + 1)
+      best = if s >= elem(r.best, 0), do: {s, close(g1, line, ctx)}, else: r.best
+
+      walk(g1, ctx, %{
+        r
+        | line: line,
+          cur: s,
+          states: [{g1, line} | r.states],
+          best: best,
+          k: r.k + 1
+      })
     end
   end
 
   # With `prefix` the best state along the line counts (the turn may stop
   # early); without it, the state at the end of the line.
-  defp finish(_g, %{prefix: true}, _now, states, {score, line}, memo),
-    do: {score, line, Enum.reverse(states), memo}
+  defp finish(_g, %{prefix: true}, %{best: {score, line}} = r),
+    do: {score, line, Enum.reverse(r.states), r.memo}
 
-  defp finish(g, ctx, {line, cur}, states, _best, memo),
-    do: {cur, close(g, line, ctx), Enum.reverse(states), memo}
+  defp finish(g, ctx, r), do: {r.cur, close(g, r.line, ctx), Enum.reverse(r.states), r.memo}
 
   # A line (newest action first) in play order, with the end of the turn after
   # it: the plan ends the turn when the table is as expected.
