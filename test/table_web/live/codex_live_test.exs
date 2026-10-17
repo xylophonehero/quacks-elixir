@@ -454,6 +454,10 @@ defmodule TableWeb.CodexLiveTest do
       assert has_element?(view, "#cx-end-turn")
       # The table stays on P1's side.
       assert has_element?(view, "#cx-pov-0[aria-pressed=true]")
+      # What the bot did, until OK.
+      assert has_element?(view, "#cx-summary #cx-summary-0")
+      view |> element("#cx-summary-ok") |> render_click()
+      refute has_element?(view, "#cx-summary")
     end
 
     test "hot-seat is still there", %{conn: conn} do

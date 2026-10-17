@@ -101,7 +101,8 @@ defmodule CodexWeb.Board do
       tech_pick: [],
       zoom: nil,
       opp_open: false,
-      expanded: false
+      expanded: false,
+      summary: nil
     )
   end
 
@@ -111,12 +112,16 @@ defmodule CodexWeb.Board do
     a = socket.assigns
     # Hot-seat: the table turns to the side that plays. Against the bot: P1 stays at the bottom.
     turned? = v.bot == nil and old != nil and old.view.active != v.active
+    pov = if(turned?, do: v.active, else: a.pov)
+    # The turn comes back to the side at the bottom: what the other side did.
+    back? = old != nil and old.view.active != v.active and v.active == pov and v.phase != :over
 
     Phoenix.Component.assign(socket,
       view: v,
       actions: env.actions,
       spectator?: env.seat == :spectator,
-      pov: if(turned?, do: v.active, else: a.pov),
+      pov: pov,
+      summary: if(back?, do: turn_summary(v, v.active), else: a.summary),
       reveal: if(turned?, do: false, else: a.reveal),
       selected: if(Map.has_key?(v.cards, a.selected), do: a.selected),
       expanded: a.expanded and Map.has_key?(v.cards, a.selected),
@@ -130,6 +135,23 @@ defmodule CodexWeb.Board do
   defp drawer_after(_drawer, %{phase: :tech, active: s}, [_ | _]), do: {s, :tech}
   defp drawer_after({_s, :tech}, _v, _actions), do: nil
   defp drawer_after(drawer, _v, _actions), do: drawer
+
+  # The log lines of the other side's last turn (the log is newest first): all
+  # after `seat`'s last "end turn", without `seat`'s own actions. Nil: no lines.
+  defp turn_summary(v, seat) do
+    lines =
+      v.log
+      |> Enum.take_while(&(&1 != {:action, seat, :end_turn}))
+      |> Enum.reverse()
+      |> Enum.reject(&match?({:action, ^seat, _}, &1))
+      |> Enum.reject(&match?({:action, _, :end_turn}, &1))
+      |> Enum.map(&log_text(&1, v))
+
+    case lines do
+      [] -> nil
+      _ -> %{seat: 1 - seat, lines: lines}
+    end
+  end
 
   @impl true
   def handle_event("select", %{"id" => id}, %{assigns: %{targeting: %{}}} = socket),
@@ -151,13 +173,17 @@ defmodule CodexWeb.Board do
        selected: selected,
        drawer: nil,
        opp_open: false,
-       expanded: false
+       expanded: false,
+       summary: nil
      )}
   end
 
   # The selected card's sheet on a phone: its peek or the full card and all actions.
   def handle_event("expand", _params, socket),
     do: {:noreply, Phoenix.Component.assign(socket, expanded: !socket.assigns.expanded)}
+
+  def handle_event("summary_ok", _params, socket),
+    do: {:noreply, Phoenix.Component.assign(socket, summary: nil)}
 
   # The opponent's whole side on a phone (a sheet from the top).
   def handle_event("opp", _params, socket),
@@ -302,7 +328,9 @@ defmodule CodexWeb.Board do
   end
 
   def handle_event("end_turn", _params, socket),
-    do: {:act, :end_turn, Phoenix.Component.assign(socket, selected: nil, drawer: nil)}
+    do:
+      {:act, :end_turn,
+       Phoenix.Component.assign(socket, selected: nil, drawer: nil, summary: nil)}
 
   def handle_event("undo", _params, socket), do: {:act, :undo, socket}
 
@@ -397,7 +425,8 @@ defmodule CodexWeb.Board do
          drawer: nil,
          opp_open: false,
          zoom: nil,
-         expanded: false
+         expanded: false,
+         summary: nil
        )}
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
@@ -570,7 +599,8 @@ defmodule CodexWeb.Board do
         free: v.free,
         expanded: assigns[:expanded] || false,
         opp_open: assigns[:opp_open] || false,
-        zoom: assigns[:zoom] && v.cards[assigns.zoom]
+        zoom: assigns[:zoom] && v.cards[assigns.zoom],
+        summary: assigns[:summary]
       )
 
     ~H"""
@@ -584,7 +614,7 @@ defmodule CodexWeb.Board do
       data-active={@view.active}
       data-targeting={to_string(@targeting != nil)}
     >
-      <div class="cx-layout">
+      <div class={["cx-layout", @summary && "cx-noted"]}>
         <.top_bar
           code={@code}
           pov={@pov}
@@ -608,6 +638,7 @@ defmodule CodexWeb.Board do
           actions={@actions}
         />
         <.pick_banner :if={@targeting} targeting={@targeting} pick={@pick} view={@view} />
+        <.turn_summary_card :if={@summary} summary={@summary} />
         <.side {assigns} seat={@pov} far={false} />
         <.hand
           seat={@pov}
@@ -797,6 +828,43 @@ defmodule CodexWeb.Board do
           }
         }
       </script>
+    </div>
+    """
+  end
+
+  # What the other side did in its turn: a card over the board until "OK".
+  attr :summary, :map, required: true
+
+  defp turn_summary_card(assigns) do
+    {lines, more} = Enum.split(assigns.summary.lines, 6)
+    assigns = assign(assigns, lines: lines, more: length(more))
+
+    ~H"""
+    <div id="cx-summary" class="cx-a-note cx-summary" role="status">
+      <div class="flex items-center gap-2">
+        <span class={[
+          "rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white",
+          seat_bg(@summary.seat)
+        ]}>
+          P{@summary.seat + 1}
+        </span>
+        <p class="flex-1 text-sm font-bold">P{@summary.seat + 1}'s turn</p>
+        <button
+          id="cx-summary-ok"
+          type="button"
+          phx-click="summary_ok"
+          class="min-h-11 rounded-full bg-amber-300 px-5 text-sm font-bold text-stone-900 shadow transition hover:bg-amber-200 active:scale-95"
+        >
+          OK
+        </button>
+      </div>
+      <ol class="flex flex-col gap-1 text-sm text-white/85">
+        <li :for={{line, i} <- Enum.with_index(@lines)} id={"cx-summary-#{i}"} class="flex gap-2">
+          <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-white/40"></span>
+          <span>{line}</span>
+        </li>
+      </ol>
+      <p :if={@more > 0} class="text-xs text-white/50">… and {@more} more in the log.</p>
     </div>
     """
   end

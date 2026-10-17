@@ -740,3 +740,28 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
   transition: opacity 200ms ease, filter 200ms ease;
 }
 @media (prefers-reduced-motion: reduce) { .cx-banner { animation: none; } }
+
+/* What the other side did in its turn: a card under the status bar until "OK"
+   (its own grid row, only while it shows). */
+.cx-a-note { grid-area: note; }
+.cx-layout.cx-noted {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "top" "opp" "status" "note" "board" "sheet" "hand";
+}
+@media (min-width: 1024px) {
+  .cx-layout.cx-noted {
+    grid-template-rows: auto auto auto auto auto auto 1fr;
+    grid-template-areas: "top sheet" "opp sheet" "status sheet" "note sheet" "board sheet" "hand sheet" ". sheet";
+  }
+}
+.cx-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 10px 12px;
+  border-radius: 1rem;
+  background: oklch(20% 0.02 200 / 0.97);
+  box-shadow: 0 0 0 1px oklch(100% 0 0 / 0.14), 0 12px 30px -12px oklch(0% 0 0 / 0.85);
+  animation: cx-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) { .cx-summary { animation: none; } }

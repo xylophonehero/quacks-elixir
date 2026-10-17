@@ -17,7 +17,7 @@ defmodule CodexWeb.Gallery do
   @spec states() :: [String.t()]
   def states,
     do:
-      ~w(mid-game start red-green selected expanded zoom opp-open attack attack-base tech codex discard buildings log free bot)
+      ~w(mid-game start red-green selected expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -118,6 +118,19 @@ defmodule CodexWeb.Gallery do
     |> extra("attack", game)
   end
 
+  # Against the bot: P1 ends the turn, the bot plays its turn, the turn comes
+  # back: the card with what the bot did.
+  defp extra(socket, "opp-turn", _game) do
+    {:ok, start} = Game.new(%{bot: true, preset: "first"}, @seed)
+    {:ok, game} = Game.apply(start, 0, :end_turn)
+    {:ok, game} = Game.apply(game, 0, tech(game, :tech))
+    bot = Stream.iterate(game, &bot_step/1) |> Enum.find(&(&1.active == 0))
+
+    socket
+    |> Board.put_view(envelope(game), nil)
+    |> Board.put_view(envelope(bot), envelope(game))
+  end
+
   # The tech step: the codex sheet with one card picked.
   defp extra(socket, "tech", game) do
     {:ok, game} = Game.apply(game, 0, :end_turn)
@@ -146,6 +159,12 @@ defmodule CodexWeb.Gallery do
   end
 
   defp extra(socket, _state, _game), do: socket
+
+  defp bot_step(game) do
+    {action, _} = Codex.Bot.choose(Game.view(game, 1), nil)
+    {:ok, game} = Game.apply(game, 1, action)
+    game
+  end
 
   # `:tech`: the first legal pick of the tech step.
   defp tech(game, :tech), do: Enum.find(Game.legal_actions(game, 0), &match?({:tech, _}, &1))
