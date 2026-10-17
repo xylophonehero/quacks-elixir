@@ -22,7 +22,7 @@ defmodule CodenamesDuet.AI.Vectors.Data do
           clue: tuple,
           vectors: tuple,
           norms: tuple,
-          neighbours: %{String.t() => [{String.t(), float}]}
+          neighbours: %{String.t() => binary}
         }
 
   @doc "The data (read once, then from `:persistent_term`)."
@@ -70,7 +70,14 @@ defmodule CodenamesDuet.AI.Vectors.Data do
 
   @doc "The nearest clue words of board word `word`, nearest first: `[{word, cosine}]`."
   @spec neighbours(String.t()) :: [{String.t(), float}]
-  def neighbours(word), do: Map.get(data().neighbours, word, [])
+  def neighbours(word) do
+    d = data()
+
+    case Map.fetch(d.neighbours, word) do
+      {:ok, list} -> for <<i::little-16, s::signed-8 <- list>>, do: {elem(d.words, i), s / @scale}
+      :error -> []
+    end
+  end
 
   @doc """
   The index of `word` in the data, or of a simple form of it (`ships` → `ship`),
@@ -136,7 +143,7 @@ defmodule CodenamesDuet.AI.Vectors.Data do
     norms =
       Enum.map(vectors, fn v -> :math.sqrt(dot(v, v, 0)) end)
 
-    neighbours = read_neighbours(rest, board_order(boards), k, words)
+    neighbours = read_neighbours(rest, board_order(boards), k)
 
     %{
       index: words |> Tuple.to_list() |> Enum.with_index() |> Map.new(),
@@ -159,14 +166,15 @@ defmodule CodenamesDuet.AI.Vectors.Data do
   defp read_words(<<flags, len, word::binary-size(len), rest::binary>>, n, acc),
     do: read_words(rest, n - 1, [{flags, word} | acc])
 
-  defp read_neighbours(bin, boards, k, words) do
+  defp read_neighbours(bin, boards, k) do
     size = k * 3
 
     {map, _} =
       Enum.reduce(boards, {%{}, bin}, fn board,
                                          {map, <<list::binary-size(size), rest::binary>>} ->
-        near = for <<i::little-16, s::signed-8 <- list>>, do: {elem(words, i), s / @scale}
-        {Map.put(map, board, near), rest}
+        # ponytail: kept packed (3 bytes each) and decoded per call; as tuples the
+        # 599 × 300 lists took ~16 MB and the 256 MB staging VM was OOM-killed.
+        {Map.put(map, board, :binary.copy(list)), rest}
       end)
 
     map
