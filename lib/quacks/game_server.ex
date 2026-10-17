@@ -83,7 +83,7 @@ defmodule Quacks.GameServer do
   restores every file at boot (`start_from_bundle/2` with `restore: true`), bots and
   all. The file goes when the game idles out, or 1 hour after every human seat
   closed the final scoring. Debug tables are not stored. When a game ends, it also
-  goes to the archive of finished games (`Quacks.GameStore.archive/3`), which stays.
+  goes to the archive of finished games (`Quacks.GameStore.archive/4`), which stays.
   """
 
   use GenServer, restart: :temporary
@@ -1691,11 +1691,12 @@ defmodule Quacks.GameServer do
 
   defp finished_now?(_state, _old), do: false
 
-  # The archive file of a finished game (`GameStore.archive/3`): what a review of the
+  # The archive file of a finished game (`GameStore.archive/4`): what a review of the
   # game needs. Debug tables have no store, so they are not archived.
   defp archive(%{store: nil}), do: :ok
 
-  defp archive(state), do: GameStore.archive(state.store, state.id, archive_body(state))
+  defp archive(state),
+    do: GameStore.archive(state.store, "quacks", state.id, archive_body(state))
 
   defp archive_body(%{session: %Session{game: game} = session} = state) do
     scores = Game.score(game)
@@ -1705,6 +1706,7 @@ defmodule Quacks.GameServer do
 
     %{
       format: 1,
+      game: "quacks",
       id: state.id,
       finished_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
       app_version: Quacks.BugReports.app_version(),

@@ -1,7 +1,7 @@
 defmodule Quacks.GameArchiveTest do
   @moduledoc """
-  The archive of finished games (`Quacks.GameStore.archive/3`): the server writes
-  `<dir>/finished/<id>.json` once, when its game ends, and the archive keeps the
+  The archive of finished games (`Quacks.GameStore.archive/4`): the server writes
+  `<dir>/finished/quacks/<id>.json` once, when its game ends, and the archive keeps the
   newest files only.
   """
   # Not async: the games directory is app config, read when a game starts.
@@ -58,7 +58,7 @@ defmodule Quacks.GameArchiveTest do
     id
   end
 
-  defp archive_file(dir, id), do: Path.join(GameStore.finished_dir(dir), id <> ".json")
+  defp archive_file(dir, id), do: Path.join(GameStore.finished_dir(dir, "quacks"), id <> ".json")
 
   test "the last action writes the archive file, with seats, scores and winners", %{dir: dir} do
     all = sessions()
@@ -75,7 +75,14 @@ defmodule Quacks.GameArchiveTest do
     scores = Game.score(last.game)
     standings = Game.standings(last.game)
 
-    assert %{"format" => 1, "id" => ^id, "players" => 2, "app_version" => version} = body
+    assert %{
+             "format" => 1,
+             "game" => "quacks",
+             "id" => ^id,
+             "players" => 2,
+             "app_version" => version
+           } = body
+
     assert version =~ ~r/^\S+ \(\S+\)$/
     assert {:ok, _at, 0} = DateTime.from_iso8601(body["finished_at"])
     assert body["standings"] == standings
@@ -103,7 +110,7 @@ defmodule Quacks.GameArchiveTest do
   end
 
   test "prune keeps the newest files within the count and the size", %{dir: dir} do
-    fdir = GameStore.finished_dir(dir)
+    fdir = GameStore.finished_dir(dir, "quacks")
     File.mkdir_p!(fdir)
 
     for i <- 1..5 do
@@ -122,6 +129,6 @@ defmodule Quacks.GameArchiveTest do
   end
 
   test "a nil directory archives nothing" do
-    assert GameStore.archive(nil, "x", %{}) == :ok
+    assert GameStore.archive(nil, "quacks", "x", %{}) == :ok
   end
 end

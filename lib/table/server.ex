@@ -41,6 +41,17 @@ defmodule Table.Server do
   hand is dealt, so the hand's score table is open), the bots wait until every
   seated human sends `ready/3` (the page closes its dialog). A seat that joins
   again (a reload) is ready: its page shows no dialog.
+
+  ## Archive
+
+  The room keeps its seed and every applied action (`log`, newest first; a new
+  game of `play_again/3` starts a new log). When the adapter's status turns to
+  `{:over, _}`, the room writes the archive file
+  `<games_dir>/finished/<key>/<code>.json` (`Table.Archive`,
+  `Quacks.GameStore.archive/4`); the next games of the room (`play_again/3`) are
+  `<code>-2.json`, `<code>-3.json`, ...
+  Optional adapter callbacks: `winners/1` (the winning seats of a finished game),
+  `encode_action/1` and `decode_action/1` (an own JSON form of an action).
   """
   use GenServer
 
@@ -75,7 +86,13 @@ defmodule Table.Server do
   the room code.
   """
   @callback log_lines(old :: term, new :: term) :: [String.t()]
-  @optional_callbacks hold?: 1, log_lines: 2
+  @doc "The winning seats of a finished game (archive files)."
+  @callback winners(state :: term) :: [seat]
+  @doc "An action as JSON-ready data (archive files; default `Table.Archive.encode/1`)."
+  @callback encode_action(action :: term) :: term
+  @doc "The action that `encode_action/1` wrote, from decoded JSON."
+  @callback decode_action(json :: term) :: term
+  @optional_callbacks hold?: 1, log_lines: 2, winners: 1, encode_action: 1, decode_action: 1
 
   @idle_ms :timer.minutes(30)
   @alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -102,6 +119,10 @@ defmodule Table.Server do
         adapter: adapter,
         opts: config.opts,
         game: game,
+        seed: seed,
+        log: [],
+        games: 1,
+        store: Quacks.GameStore.dir(),
         seats: seats,
         bots: new_bots(adapter, seats, seed)
       }
@@ -233,7 +254,7 @@ defmodule Table.Server do
   def handle_call({:act, token, action}, _from, state) do
     with {:ok, seat} <- seat_of(state, token),
          {:ok, game} <- state.adapter.apply(state.game, seat, action) do
-      state = state |> changed(game) |> schedule()
+      state = %{state | log: [{seat, action} | state.log]} |> changed(game) |> schedule()
       {:reply, {:ok, envelope(state, seat)}, state}
     else
       {:error, reason} -> {:reply, {:error, reason}, state}
@@ -245,7 +266,14 @@ defmodule Table.Server do
          {:over, _} <- state.adapter.status(state.game),
          seed = random_seed(),
          {:ok, game} <- state.adapter.new(state.opts, seed) do
-      state = %{state | bots: new_bots(state.adapter, state.seats, seed)}
+      state = %{
+        state
+        | bots: new_bots(state.adapter, state.seats, seed),
+          seed: seed,
+          log: [],
+          games: state.games + 1
+      }
+
       {:reply, :ok, state |> changed(game) |> schedule()}
     else
       {:playing, _} -> {:reply, {:error, :not_over}, state}
@@ -270,12 +298,14 @@ defmodule Table.Server do
     state = %{state | timer: nil}
     {:playing, active} = state.adapter.status(state.game)
 
-    {game, bots} =
+    {game, bots, log} =
       active
       |> Enum.filter(&state.seats[&1].bot)
-      |> Enum.reduce({state.game, state.bots}, &bot_act(state, &1, &2))
+      |> Enum.reduce({state.game, state.bots, state.log}, &bot_act(state, &1, &2))
 
-    state = if game == state.game, do: state, else: changed(%{state | bots: bots}, game)
+    state =
+      if game == state.game, do: state, else: changed(%{state | bots: bots, log: log}, game)
+
     {:noreply, schedule(state)}
   end
 
@@ -286,20 +316,20 @@ defmodule Table.Server do
   def handle_info({:idle, ref}, %{idle: ref} = state), do: {:stop, :normal, state}
   def handle_info({:idle, _ref}, state), do: {:noreply, state}
 
-  defp bot_act(state, seat, {game, bots}) do
+  defp bot_act(state, seat, {game, bots, log}) do
     level = state.seats[seat].bot
     {action, bot} = state.adapter.bot_choose(level, state.adapter.view(game, seat), bots[seat])
 
     case state.adapter.apply(game, seat, action) do
       {:ok, game} ->
-        {game, Map.put(bots, seat, bot)}
+        {game, Map.put(bots, seat, bot), [{seat, action} | log]}
 
       {:error, reason} ->
         Logger.warning(
           "table bot #{seat} in #{state.code}: #{inspect(action)} #{inspect(reason)}"
         )
 
-        {game, bots}
+        {game, bots, log}
     end
   end
 
@@ -338,6 +368,7 @@ defmodule Table.Server do
   # every seat's view.
   defp changed(state, game) do
     log_lines(state, game)
+    archive(state, game)
     state = %{state | game: game, version: state.version + 1, held: held(state, game)}
 
     for seat <- state.adapter.seats(game),
@@ -356,6 +387,22 @@ defmodule Table.Server do
 
     state
   end
+
+  # The game just ended: write its archive file. A failure is logged, never raised.
+  defp archive(%{store: dir, adapter: adapter} = state, game) when dir != nil do
+    with {:over, _} = status <- adapter.status(game),
+         {:playing, _} <- adapter.status(state.game) do
+      body = Table.Archive.body(%{state | game: game}, status)
+      id = if state.games == 1, do: state.code, else: "#{state.code}-#{state.games}"
+      Quacks.GameStore.archive(dir, state.key, id, %{body | id: id})
+    end
+
+    :ok
+  rescue
+    error -> Logger.warning("#{state.key} #{state.code}: no archive: #{inspect(error)}")
+  end
+
+  defp archive(_state, _game), do: :ok
 
   defp log_lines(%{adapter: adapter} = state, game) do
     if function_exported?(adapter, :log_lines, 2) do

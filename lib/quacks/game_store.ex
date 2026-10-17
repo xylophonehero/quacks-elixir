@@ -8,12 +8,14 @@ defmodule Quacks.GameStore do
   The `Quacks.GameServer` writes it (debounced) after each change and deletes it when
   the game ends for good. At boot `restore/1` starts a server for every file.
 
-  **Finished games** (the archive): when a game ends, the server writes
-  `<dir>/finished/<id>.json` (`archive/3`): the bundle, the seats (name, human or
-  bot and its profile, VP), the standings, the winners, the app version and
-  `finished_at`. The game file goes later as before; the archive stays. Only the
-  newest 1000 archive files and at most 50 MB stay (`prune/3`). `restore/1`
-  does not read them. `mix quacks.games.pull` copies them to a laptop.
+  **Finished games** (the archive): when a game ends, its server writes
+  `<dir>/finished/<game key>/<id>.json` (`archive/4`). Quacks (`finished/quacks/`):
+  the bundle, the seats (name, human or bot and its profile, VP), the standings,
+  the winners, the app version and `finished_at`. The other games
+  (`Table.Server` rooms): see `Table.Archive`. The game file goes later as before;
+  the archive stays. Per game key, only the newest 1000 archive files and at most
+  50 MB stay (`prune/3`). `restore/1` does not read them. `mix quacks.games.pull`
+  copies them to a laptop.
 
   The directory is `config :quacks, :games_dir` (`GAMES_DIR` at runtime); `nil` (the
   test default) turns the store off. A write goes to a temp file first and is then
@@ -57,20 +59,20 @@ defmodule Quacks.GameStore do
   @max_finished 1000
   @max_finished_bytes 50_000_000
 
-  @doc "The directory of the finished games (the archive) in `dir`."
-  @spec finished_dir(Path.t()) :: Path.t()
-  def finished_dir(dir), do: Path.join(dir, "finished")
+  @doc "The directory of the finished games (the archive) of `game` in `dir`."
+  @spec finished_dir(Path.t(), String.t()) :: Path.t()
+  def finished_dir(dir, game), do: Path.join([dir, "finished", game])
 
   @doc """
-  Write `body` (JSON-ready) as the archive file of the finished game `id`, then
-  `prune/3` the archive. A `nil` dir does nothing. A failure is logged and
-  returned, never raised.
+  Write `body` (JSON-ready) as the archive file of the finished game `id` of game
+  key `game` (`"quacks"`, `"hearts"`, ...), then `prune/3` that game's archive. A
+  `nil` dir does nothing. A failure is logged and returned, never raised.
   """
-  @spec archive(Path.t() | nil, GameServer.id(), map) :: :ok | {:error, term}
-  def archive(nil, _id, _body), do: :ok
+  @spec archive(Path.t() | nil, String.t(), String.t(), map) :: :ok | {:error, term}
+  def archive(nil, _game, _id, _body), do: :ok
 
-  def archive(dir, id, body) do
-    fdir = finished_dir(dir)
+  def archive(dir, game, id, body) do
+    fdir = finished_dir(dir, game)
 
     case write(fdir, id, body) do
       :ok ->

@@ -8,8 +8,10 @@ defmodule Mix.Tasks.Quacks.Games.Pull do
       mix quacks.games.pull --app quacks --app quacks-staging --github
 
   - `--app NAME` (more than one is fine): the archive files of that Fly app
-    (`<GAMES_DIR>/finished/*.json`, `Quacks.GameStore.archive/3`) go to
-    `<dest>/<app>/`. Read-only on the server (`fly ssh console` with `ls` and
+    (`<GAMES_DIR>/finished/<game>/*.json`, `Quacks.GameStore.archive/4`: Quacks
+    and the other table games) go to `<dest>/<app>/<game>/`. `--game hearts`
+    pulls only one game (`quacks`, `hearts`, `codenames_duet`, `codex`,
+    `generic`). Read-only on the server (`fly ssh console` with `find` and
     `tar`); files that are there already are not copied again. Needs `fly auth
     login`.
   - `--github`: the replay bundles of the bug report issues go to
@@ -21,7 +23,7 @@ defmodule Mix.Tasks.Quacks.Games.Pull do
 
   alias Quacks.Archive
 
-  @switches [app: :keep, github: :boolean, dest: :string]
+  @switches [app: :keep, github: :boolean, dest: :string, game: :string]
 
   @impl true
   def run(argv) do
@@ -33,14 +35,15 @@ defmodule Mix.Tasks.Quacks.Games.Pull do
       do: Mix.raise("Usage: mix quacks.games.pull --app APP [--app APP2] [--github] [--dest DIR]")
 
     Mix.Task.run("app.config")
-    Enum.each(apps, &pull_app(&1, dest))
+    Enum.each(apps, &pull_app(&1, dest, opts[:game]))
     if opts[:github], do: pull_github(dest)
   end
 
-  defp pull_app(app, dest) do
+  defp pull_app(app, dest, game) do
     dir = Path.join(dest, app)
+    opts = [game: game] ++ Application.get_env(:quacks, :archive_pull, [])
 
-    case Archive.pull_fly(app, dir, Application.get_env(:quacks, :archive_pull, [])) do
+    case Archive.pull_fly(app, dir, opts) do
       {:ok, %{remote: n, new: new}} ->
         Mix.shell().info(
           "#{app}: #{n} finished games on the server, #{length(new)} new in #{dir}"

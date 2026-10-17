@@ -53,7 +53,11 @@ defmodule Mix.Tasks.Quacks.Review do
       |> Enum.reject(&is_nil(elem(&1, 1)))
 
     {games, bad} = Archive.load_dir(dir, load_opts)
-    for {path, reason} <- bad, do: Mix.shell().info("skipped #{path}: #{inspect(reason)}")
+
+    for {path, reason} <- bad,
+        not match?({:not_quacks, _}, reason),
+        do: Mix.shell().info("skipped #{path}: #{inspect(reason)}")
+
     Mix.shell().info("#{length(games)} games in #{dir}")
 
     review_opts =

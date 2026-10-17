@@ -3,11 +3,11 @@ defmodule Quacks.Archive do
   Finished games on a laptop, for `mix quacks.review` and `mix quacks.tune --starts`
   (`docs/research/learn-from-nick.md`).
 
-  - `pull_fly/3` copies the archive files of a Fly app (`Quacks.GameStore.archive/3`,
-    `<GAMES_DIR>/finished/*.json`) to a local directory. It only reads on the
-    server: one `fly ssh console` that lists the files, then one per 100 new files
-    that sends them as a base64 tar on stdout. Files that are there already are
-    not copied again.
+  - `pull_fly/3` copies the archive files of a Fly app (`Quacks.GameStore.archive/4`,
+    `<GAMES_DIR>/finished/<game>/*.json`: Quacks and every `Table.Server` game) to
+    `<dest>/<game>/`. It only reads on the server: one `fly ssh console` that
+    lists the files, then one per 100 new files that sends them as a base64 tar on
+    stdout. Files that are there already are not copied again.
   - `pull_github/2` writes the replay bundle of every bug report issue
     (`Quacks.BugReports.list_bundles/1`) as `github-<issue>.json`.
   - `load/2` and `load_dir/2` read either kind of file into a `t:game/0`.
@@ -17,7 +17,7 @@ defmodule Quacks.Archive do
 
   @remote_dir "/data/games/finished"
   @chunk 100
-  @name ~r/\A[A-Za-z0-9_-]+\.json\z/
+  @name ~r/\A[a-z0-9_]+\/[A-Za-z0-9_-]+\.json\z/
 
   @typedoc """
   A game to review. `humans`: the seats people played; `bots`: the profile name of
@@ -43,9 +43,11 @@ defmodule Quacks.Archive do
   # -- pull -----------------------------------------------------------------------------
 
   @doc """
-  Copy the archive files of Fly app `app` into `dest`. Options: `remote_dir:`
-  (default `#{@remote_dir}`), `runner:` (a `t:runner/0`, default the `fly` CLI).
-  Returns `{:ok, %{remote: n, new: [paths]}}` or `{:error, reason}`.
+  Copy the archive files of Fly app `app` into `dest/<game>/`. Options:
+  `game:` only this game key (`"quacks"`, `"hearts"`, ...; default all),
+  `remote_dir:` (default `#{@remote_dir}`), `runner:` (a `t:runner/0`, default
+  the `fly` CLI). Returns `{:ok, %{remote: n, new: [paths]}}` (`remote`: the
+  files of the chosen games on the server) or `{:error, reason}`.
   """
   @spec pull_fly(String.t(), Path.t(), keyword) ::
           {:ok, %{remote: non_neg_integer, new: [Path.t()]}} | {:error, term}
@@ -54,7 +56,7 @@ defmodule Quacks.Archive do
     remote = Keyword.get(opts, :remote_dir, @remote_dir)
     File.mkdir_p!(dest)
 
-    with {:ok, names} <- remote_names(runner, app, remote),
+    with {:ok, names} <- remote_names(runner, app, remote, opts[:game]),
          missing = Enum.reject(names, &File.exists?(Path.join(dest, &1))),
          {:ok, paths} <- fetch_all(runner, app, remote, missing, dest) do
       {:ok, %{remote: length(names), new: paths}}
@@ -72,10 +74,17 @@ defmodule Quacks.Archive do
     end)
   end
 
-  defp remote_names(runner, app, remote) do
-    case ssh(runner, app, "ls -1 #{remote} 2>/dev/null || true") do
+  defp remote_names(runner, app, remote, game) do
+    case ssh(runner, app, "cd #{remote} 2>/dev/null && find . -name \"*.json\" -type f || true") do
       {out, 0} ->
-        {:ok, out |> String.split("\n", trim: true) |> Enum.map(&String.trim/1) |> valid()}
+        names =
+          out
+          |> String.split("\n", trim: true)
+          |> Enum.map(&(&1 |> String.trim() |> String.trim_leading("./")))
+          |> valid()
+
+        {:ok,
+         if(game, do: Enum.filter(names, &String.starts_with?(&1, game <> "/")), else: names)}
 
       {out, status} ->
         {:error, {:fly, status, String.slice(out, 0, 500)}}
@@ -90,8 +99,11 @@ defmodule Quacks.Archive do
          {:ok, tar} <- out |> String.replace(~r/\s/, "") |> Base.decode64(),
          {:ok, files} <- :erl_tar.extract({:binary, tar}, [:memory]) do
       {:ok,
-       for {name, body} <- files, name = Path.basename(to_string(name)), name in names do
+       for {name, body} <- files,
+           name = name |> to_string() |> String.trim_leading("./"),
+           name in names do
          path = Path.join(dest, name)
+         File.mkdir_p!(Path.dirname(path))
          File.write!(path, body)
          path
        end}
@@ -157,6 +169,9 @@ defmodule Quacks.Archive do
       from_body(body, path, opts)
     end
   end
+
+  defp from_body(%{"format" => 1, "game" => game}, _path, _opts) when game != "quacks",
+    do: {:error, {:not_quacks, game}}
 
   defp from_body(%{"format" => 1, "bundle" => bundle, "seats" => seats} = body, path, opts) do
     bots = for %{"seat" => s, "human" => false, "bot" => b} <- seats, into: %{}, do: {s, b}

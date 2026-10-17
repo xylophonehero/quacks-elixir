@@ -17,8 +17,8 @@ defmodule Quacks.ArchiveTest do
       send(test_pid, {:fly, app, command})
 
       cond do
-        String.starts_with?(command, "ls -1 ") ->
-          {Enum.map_join(files, "\n", &elem(&1, 0)) <> "\nnot a game.txt\n", 0}
+        String.starts_with?(command, "cd /data/games/finished 2>/dev/null && find ") ->
+          {Enum.map_join(files, "\n", &("./" <> elem(&1, 0))) <> "\n./quacks/not a game.txt\n", 0}
 
         String.contains?(command, "tar cf - ") ->
           [_, names] = Regex.run(~r/tar cf - (.*) \| base64/, command)
@@ -41,21 +41,41 @@ defmodule Quacks.ArchiveTest do
 
   @tag :tmp_dir
   test "pull_fly copies the new archive files only, read-only commands", %{tmp_dir: tmp} do
-    files = [{"aaa.json", ~s({"format":1})}, {"bbb.json", ~s({"format":1,"b":2})}]
-    dest = Path.join(tmp, "quacks-staging")
-    File.mkdir_p!(dest)
-    File.write!(Path.join(dest, "aaa.json"), "old")
+    files = [
+      {"quacks/aaa.json", ~s({"format":1})},
+      {"quacks/bbb.json", ~s({"format":1,"b":2})},
+      {"hearts/ABCDE.json", ~s({"format":1,"game":"hearts"})}
+    ]
 
-    assert {:ok, %{remote: 2, new: [new]}} =
+    dest = Path.join(tmp, "quacks-staging")
+    File.mkdir_p!(Path.join(dest, "quacks"))
+    File.write!(Path.join(dest, "quacks/aaa.json"), "old")
+
+    assert {:ok, %{remote: 3, new: new}} =
              Archive.pull_fly("quacks-staging", dest, runner: runner(files, self(), tmp))
 
-    assert Path.basename(new) == "bbb.json"
-    assert File.read!(new) == ~s({"format":1,"b":2})
-    assert File.read!(Path.join(dest, "aaa.json")) == "old"
+    assert new |> Enum.map(&Path.relative_to(&1, dest)) |> Enum.sort() == [
+             "hearts/ABCDE.json",
+             "quacks/bbb.json"
+           ]
 
-    assert_received {:fly, "quacks-staging", "ls -1 /data/games/finished 2>/dev/null || true'"}
+    assert File.read!(Path.join(dest, "quacks/bbb.json")) == ~s({"format":1,"b":2})
+    assert File.read!(Path.join(dest, "quacks/aaa.json")) == "old"
+
+    assert_received {:fly, "quacks-staging", "cd /data/games/finished" <> _}
     assert_received {:fly, "quacks-staging", tar}
-    assert tar =~ "cd /data/games/finished && tar cf - bbb.json | base64"
+    assert tar =~ "cd /data/games/finished && tar cf - hearts/ABCDE.json quacks/bbb.json | base64"
+
+    # --game: one game only
+    File.rm_rf!(dest)
+
+    assert {:ok, %{remote: 1, new: [only]}} =
+             Archive.pull_fly("quacks-staging", dest,
+               game: "hearts",
+               runner: runner(files, self(), tmp)
+             )
+
+    assert Path.relative_to(only, dest) == "hearts/ABCDE.json"
   end
 
   @tag :tmp_dir
@@ -123,8 +143,13 @@ defmodule Quacks.ArchiveTest do
     File.cp!(@bundle, Path.join(tmp, "g.json"))
     File.write!(Path.join(tmp, "bad.json"), ~s({"x": 1}))
 
-    assert {[game], [{bad, :not_a_game}]} = Archive.load_dir(tmp, humans: [1])
+    File.write!(Path.join(tmp, "h.json"), ~s({"format": 1, "game": "hearts", "log": []}))
+
+    assert {[game], [{bad, :not_a_game}, {hearts, {:not_quacks, "hearts"}}]} =
+             Archive.load_dir(tmp, humans: [1])
+
     assert Path.basename(bad) == "bad.json"
+    assert Path.basename(hearts) == "h.json"
     assert game.humans == [1]
     assert game.bots == %{0 => "expert", 2 => "expert", 3 => "expert"}
   end
@@ -132,7 +157,7 @@ defmodule Quacks.ArchiveTest do
   @tag :tmp_dir
   test "mix quacks.games.pull copies an app's archive to <dest>/<app>/", %{tmp_dir: tmp} do
     Mix.shell(Mix.Shell.Process)
-    files = [{"ccc.json", ~s({"format":1})}]
+    files = [{"quacks/ccc.json", ~s({"format":1})}, {"hearts/X.json", "{}"}]
     Application.put_env(:quacks, :archive_pull, runner: runner(files, self(), tmp))
 
     on_exit(fn ->
@@ -140,8 +165,9 @@ defmodule Quacks.ArchiveTest do
       Application.delete_env(:quacks, :archive_pull)
     end)
 
-    Pull.run(["--app", "quacks-staging", "--dest", tmp])
-    assert File.exists?(Path.join([tmp, "quacks-staging", "ccc.json"]))
+    Pull.run(["--app", "quacks-staging", "--dest", tmp, "--game", "quacks"])
+    assert File.exists?(Path.join([tmp, "quacks-staging", "quacks", "ccc.json"]))
+    refute File.exists?(Path.join([tmp, "quacks-staging", "hearts", "X.json"]))
     assert_received {:mix_shell, :info, [line]}
     assert line =~ "quacks-staging: 1 finished games on the server, 1 new"
   end
