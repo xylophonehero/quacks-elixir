@@ -112,6 +112,11 @@ defmodule Codex.CardRules do
     "spectral-roc" => [flying: true],
     "eyes-of-the-chancellor" => [detector: true, haste: true],
     "liberty-gryphon" => [flying: true, haste: true],
+    # Demonology
+    "twilight-baron" => [overpower: true],
+    "blackhand-dozer" => [overpower: true],
+    "terras-q-the-shackled" => [resist: 3, obliterate: 2],
+    "zarramonde-the-obliterator" => [untargetable: true, obliterate: 4],
     # Tokens
     "soldier" => [sparkshot: true],
     "horror" => [deathtouch: true]
@@ -205,7 +210,12 @@ defmodule Codex.CardRules do
     "free-speech" => [],
     "hallucination" => [:unit_t012, {:may, :unit_t012}],
     "dreamscape" => [],
-    "mind-control" => [:unit_t012]
+    "mind-control" => [:unit_t012],
+    # Demonology
+    "soul-stone" => [:unit],
+    "dark-pact" => [:base],
+    "shadow-blade" => [:patroller],
+    "metamorphosis" => []
   }
 
   # Extra gold for a `:boost` target (Boost X).
@@ -252,6 +262,8 @@ defmodule Codex.CardRules do
     "drill-sergeant" => [{:rune_move, [:other_unit], [rune: true]}],
     # Truth
     "eyes-of-the-chancellor" => [{:eyes, [:my_unit], [exhaust: true]}],
+    # Demonology
+    "gargoyle" => [{:gargoyle, [], [gold: 1, once: true]}],
     # Graveyard: the gold is the cost of the buried unit (`Codex.Rules`).
     "graveyard" => [{:exhume, [:buried_unit], [exhaust: true, unit_cost: true]}]
   }
@@ -307,6 +319,7 @@ defmodule Codex.CardRules do
     "artisan-mantis" => [:my_building],
     # Blue starting deck
     "insurance-agent" => [:unit],
+    "zarramonde-the-obliterator" => [:zarramonde],
     "reputable-newsman" => [
       {:choice, [:cost_0, :cost_1, :cost_2, :cost_3, :cost_4, :cost_5, :cost_6]}
     ]

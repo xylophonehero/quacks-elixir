@@ -354,7 +354,12 @@ defmodule Codex.Rules do
       Stats.controls?(game, 1 - s, "censorship-council") and
         Map.get(game.sides[s].effects, :played, 0) >= 1
 
-    not censored? and
+    # Twilight Baron: "You can't play tech II or III units."
+    baron? =
+      d.type in ["Unit", "Legendary Unit"] and (d.tech || 0) >= 2 and
+        Stats.controls?(game, s, "twilight-baron")
+
+    not censored? and not baron? and
       not ((spell?(d) or String.contains?(d.type, "Upgrade")) and (d.cost || 0) in banned)
   end
 

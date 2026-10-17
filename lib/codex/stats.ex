@@ -58,8 +58,11 @@ defmodule Codex.Stats do
   def spec(game, id), do: def_of(game, id).spec
 
   @doc ~s{True when the card's subtype has the word `word` ("Demon", "Skeleton", ...).}
-  def subtype?(game, id, word),
-    do: word in String.split(def_of(game, id).subtype || "", ~r/[\s—-]+/, trim: true)
+  def subtype?(game, id, word) do
+    # Metamorphosis: the heroes become Demons.
+    (word == "Demon" and Map.get(game.cards[id].extra, :demon) == true) or
+      word in String.split(def_of(game, id).subtype || "", ~r/[\s—-]+/, trim: true)
+  end
 
   @doc """
   True for an Illusion now: a unit with the Illusion subtype, a copy that is
@@ -275,6 +278,7 @@ defmodule Codex.Stats do
   defp attached(game, id) do
     Enum.reduce(attachments(game, id), {0, 0}, fn a, {x, y} ->
       case game.cards[a].card do
+        "soul-stone" -> {x + 1, y + 1}
         "spirit-of-the-panda" -> {x + 2, y + 2}
         "final-showdown" -> {x + 3, y + 3}
         _ -> {x, y}
@@ -308,10 +312,13 @@ defmodule Codex.Stats do
       else: {0, 0}
   end
 
-  # Elite Training (+1 ATK each) and The Art of War (+2 ATK), until the caster's next upkeep.
+  # Elite Training (+1 ATK each) and The Art of War (+2 ATK), until the
+  # caster's next upkeep; an unlocked Gargoyle (+3 ATK).
   defp trained(game, id) do
     c = game.cards[id]
-    {Map.get(c.extra, :elite, 0) + if(Map.has_key?(c.extra, :art_of_war), do: 2, else: 0), 0}
+
+    {Map.get(c.extra, :elite, 0) + if(Map.has_key?(c.extra, :art_of_war), do: 2, else: 0) +
+       if(Map.has_key?(c.extra, :gargoyle), do: 3, else: 0), 0}
   end
 
   # Vandy Anadrose's max level: +2/+2 until her side's next upkeep.
@@ -353,6 +360,8 @@ defmodule Codex.Stats do
     cond do
       Map.get(c.extra, :polymorph) -> false
       silenced?(game, id) -> false
+      # Crypt Crawler: "A flier loses flying this turn."
+      Map.get(c.this_turn, {:lost, key}) == true -> false
       printed_kw?(game, id, key) -> true
       Map.get(c.this_turn, key) == true -> true
       Map.get(c.extra, key) == true -> true
@@ -410,7 +419,7 @@ defmodule Codex.Stats do
     c = game.cards[id]
 
     (c.card == "master-midori" and c.level >= 8 and controller(game, id) == game.active) or
-      feather?(game, c)
+      feather?(game, c) or gargoyle?(game, id, true)
   end
 
   defp granted?(game, id, :stealth) do
@@ -476,7 +485,26 @@ defmodule Codex.Stats do
 
   defp granted?(game, id, key) when key in [:unattackable, :untargetable], do: liberty?(game, id)
 
+  # Gargoyle: indestructible, can't attack or patrol, until ① unlocks it.
+  defp granted?(game, id, :indestructible), do: gargoyle?(game, id, false)
+
+  defp granted?(game, id, key) when key in [:cant_attack, :cant_patrol],
+    do: gargoyle?(game, id, false) or shackled?(game, id)
+
   defp granted?(_game, _id, _key), do: false
+
+  defp gargoyle?(game, id, unlocked?) do
+    c = game.cards[id]
+    c.card == "gargoyle" and Map.has_key?(c.extra, :gargoyle) == unlocked?
+  end
+
+  # Terras Q: can't attack or patrol while any of its Warlock tokens are in play.
+  defp shackled?(game, id) do
+    game.cards[id].card == "terras-q-the-shackled" and
+      Enum.any?(for(s <- [0, 1], w <- Zones.in_play(game, s), do: w), fn w ->
+        Map.get(game.cards[w].extra, :shackles) == id
+      end)
+  end
 
   # Liberty Gryphon: unstoppable, unattackable and untargetable while its side
   # controls an Illusion with another name.

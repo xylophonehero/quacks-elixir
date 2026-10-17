@@ -35,6 +35,10 @@ defmodule Codex.Effects.Red do
   # -- Anarchy --
 
   # Chaos Mirror: swap the printed ATK of two units and/or heroes until end of turn.
+  # A target that died when targeted (an Illusion) is nil: the effect skips it.
+  def spell(game, _s, "chaos-mirror", _id, [a, b]) when is_nil(a) or is_nil(b), do: game
+  def spell(game, _s, "kidnapping", _id, [nil]), do: game
+
   def spell(game, _s, "chaos-mirror", _id, [a, b]) do
     {atk_a, _} = Stats.printed(game.cards[a])
     {atk_b, _} = Stats.printed(game.cards[b])

@@ -25,6 +25,49 @@ defmodule Codex.Effects.Black do
     end)
   end
 
+  # -- Demonology --
+
+  # Soul Stone: attach to a unit (+1/+1 and the "would die" save: `Codex.Stats`, `Codex.Effects`).
+  def spell(game, _s, "soul-stone", id, [t]) when is_integer(t),
+    do: Zones.update_card(game, id, &%{&1 | extra: Map.put(&1.extra, :attached, t)})
+
+  # Dark Pact: 2 damage to a base, then that player draws 2 cards.
+  def spell(game, s, "dark-pact", _id, [{:building, seat, :base} = base]) do
+    game |> Effects.burn(s, "dark-pact", base, 2) |> Rules.draw(seat, 2, :free)
+  end
+
+  # Shadow Blade: 3 damage to a patroller; if it dies from it, its controller discards at random.
+  def spell(game, s, "shadow-blade", _id, [t]) when is_integer(t) do
+    owner = Stats.controller(game, t)
+    game = game |> Effects.burn(s, "shadow-blade", t, 3) |> Rules.deaths()
+    if in_play?(game, t), do: game, else: Effects.discard_random(game, owner)
+  end
+
+  # Metamorphosis: sacrifice all your units; your non-Demon heroes go to max
+  # level and become Demons with two +1/+1 runes, readiness and invisibility.
+  def spell(game, s, "metamorphosis", _id, []) do
+    units = for id <- Zones.in_play(game, s), Stats.unit?(game, id), do: id
+    game = Enum.reduce(units, game, &Effects.sacrifice(&2, &1)) |> Rules.deaths()
+
+    heroes =
+      for id <- Zones.in_play(game, s),
+          Stats.hero?(game, id),
+          not Stats.subtype?(game, id, "Demon"),
+          do: id
+
+    Enum.reduce(heroes, game, fn h, game ->
+      c = game.cards[h]
+
+      game
+      |> Effects.level_up(h, Cards.max_level(c.card) - c.level)
+      |> Effects.plus_rune(h)
+      |> Effects.plus_rune(h)
+      |> Zones.update_card(h, fn c ->
+        %{c | extra: Map.merge(c.extra, %{demon: true, readiness: true, invisible: true})}
+      end)
+    end)
+  end
+
   def spell(game, _s, _slug, _id, _targets), do: game
 
   # -- arrivals -------------------------------------------------------------------------------
@@ -34,6 +77,19 @@ defmodule Codex.Effects.Black do
     do: Effects.add_counter(game, id, :javelin, 1)
 
   def arrive(game, s, _id, "thieving-imp", []), do: Effects.discard_random(game, 1 - s)
+
+  # Terras Q: four 0/1 Warlocks for an opponent; Terras can't attack or patrol while they live.
+  def arrive(game, s, id, "terras-q-the-shackled", []) do
+    {game, before} = {game, Zones.in_play(game, 1 - s)}
+    game = Effects.summon(game, 1 - s, "warlock", 4)
+
+    Enum.reduce(Zones.in_play(game, 1 - s) -- before, game, fn w, game ->
+      Zones.update_card(game, w, &%{&1 | extra: Map.put(&1.extra, :shackles, id)})
+    end)
+  end
+
+  # Zarramonde, played from hand: destroy a unit, hero, worker, upgrade or ongoing spell.
+  def arrive(game, _s, _id, "zarramonde-the-obliterator", [t]), do: Effects.destroy(game, t)
 
   def arrive(game, _s, _id, _slug, _targets), do: game
 
@@ -71,6 +127,10 @@ defmodule Codex.Effects.Black do
 
   def ability(game, s, _id, :bone_draw, [sk]),
     do: game |> Effects.sacrifice(sk) |> Rules.draw(s, 1, :main)
+
+  # Gargoyle: until your next upkeep not indestructible, flying, +3 ATK, it can attack and patrol.
+  def ability(game, s, id, :gargoyle, []),
+    do: Zones.update_card(game, id, &%{&1 | extra: Map.put(&1.extra, :gargoyle, s)})
 
   def ability(game, _s, _id, _name, _targets), do: game
 
@@ -142,7 +202,27 @@ defmodule Codex.Effects.Black do
     end)
   end
 
-  def attacks(game, _s, _a, _slug, _target), do: game
+  def attacks(game, s, a, _slug, target) do
+    voidblocker(game, s, a, target)
+  end
+
+  # Voidblocker: an opponent that attacks it exhausts another of its ready units or heroes.
+  # REVIEW: the engine exhausts the one with the least ATK (the attacker picks).
+  defp voidblocker(game, s, a, target) when is_integer(target) do
+    if game.cards[target].card == "voidblocker" do
+      other =
+        game
+        |> Zones.in_play(s)
+        |> Enum.filter(&(&1 != a and Stats.force?(game, &1) and not game.cards[&1].exhausted))
+        |> Enum.min_by(&{Stats.atk(game, &1), &1}, fn -> nil end)
+
+      Effects.exhaust(game, other)
+    else
+      game
+    end
+  end
+
+  defp voidblocker(game, _s, _a, _target), do: game
 
   @doc "Black abilities after a combat."
   def after_combat(game, _s, _a, _target, _ctx), do: game
@@ -154,6 +234,7 @@ defmodule Codex.Effects.Black do
   """
   def died(game, ctx) do
     game
+    |> dozer(ctx)
     |> jandra(ctx)
     |> orpal(ctx)
     |> bury(ctx)
@@ -172,6 +253,29 @@ defmodule Codex.Effects.Black do
   end
 
   defp jandra(game, _ctx), do: game
+
+  # Blackhand Dozer dies: the active player destroys one of its side's lowest tech units.
+  # REVIEW: the engine picks for the active player: its own weakest, or the opponent's strongest.
+  defp dozer(game, %{slug: "blackhand-dozer", s: s}) do
+    units = for id <- Zones.in_play(game, s), Stats.unit?(game, id), do: id
+
+    case units do
+      [] ->
+        game
+
+      _ ->
+        low = units |> Enum.map(&Stats.tech(game, &1)) |> Enum.min()
+        lowest = Enum.filter(units, &(Stats.tech(game, &1) == low))
+        value = &{Stats.atk(game, &1) + Stats.hp(game, &1), -&1}
+
+        pick =
+          if game.active == s, do: Enum.min_by(lowest, value), else: Enum.max_by(lowest, value)
+
+        Effects.destroy(game, pick)
+    end
+  end
+
+  defp dozer(game, _ctx), do: game
 
   # Orpal Gloor, max band: the first time each turn a unit with a -1/-1 rune
   # dies, the active player puts a -1/-1 rune on two units friendly to it.
@@ -232,6 +336,8 @@ defmodule Codex.Effects.Black do
   and die.
   """
   def upkeep(game, s) do
+    game = game |> gargoyles(s) |> shrine(s) |> banefire(s)
+
     marked =
       for seat <- [0, 1],
           id <- Zones.in_play(game, seat),
@@ -243,6 +349,57 @@ defmodule Codex.Effects.Black do
       |> Zones.update_card(id, &%{&1 | extra: Map.delete(&1.extra, :vandy)})
       |> Effects.destroy(id)
     end)
+  end
+
+  # Gargoyles unlocked by side `s` lock again.
+  defp gargoyles(game, s) do
+    Enum.reduce(game.cards, game, fn {id, c}, game ->
+      if Map.get(c.extra, :gargoyle) == s,
+        do: Zones.update_card(game, id, &%{&1 | extra: Map.delete(&1.extra, :gargoyle)}),
+        else: game
+    end)
+  end
+
+  # Shrine of Forbidden Knowledge: "Upkeep: Your base takes 1 damage."
+  defp shrine(game, s) do
+    n =
+      Enum.count(
+        Zones.in_play(game, s),
+        &(game.cards[&1].card == "shrine-of-forbidden-knowledge")
+      )
+
+    Effects.deal(game, {:building, s, :base}, n)
+  end
+
+  # Banefire Golem: "Upkeep: Sacrifice a unit. If you do, deal 1 damage to each
+  # opposing unit, hero, and building."
+  # REVIEW: the engine sacrifices your weakest other unit, else the Golem itself.
+  defp banefire(game, s) do
+    golems = for id <- Zones.in_play(game, s), game.cards[id].card == "banefire-golem", do: id
+
+    Enum.reduce(golems, game, fn g, game ->
+      if in_play?(game, g) do
+        victim =
+          Effects.weakest(game, s, &(&1 != g and Stats.sacrificable?(game, &1))) ||
+            if(Stats.sacrificable?(game, g), do: g)
+
+        if victim, do: game |> Effects.sacrifice(victim) |> Rules.deaths() |> bane(s), else: game
+      else
+        game
+      end
+    end)
+  end
+
+  defp bane(game, s) do
+    opp = 1 - s
+
+    cards =
+      for id <- Zones.in_play(game, opp),
+          Stats.force?(game, id) or Stats.building_card?(game, id),
+          do: id
+
+    buildings = for b <- [:base | game.sides[opp].tech_buildings], do: {:building, opp, b}
+    Enum.reduce(cards ++ buildings, game, &Effects.burn(&2, s, "banefire-golem", &1, 1))
   end
 
   @doc "The end of side `s`'s turn."

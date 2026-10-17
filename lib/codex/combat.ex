@@ -173,12 +173,18 @@ defmodule Codex.Combat do
       past_tech0?(game, a, d) or flies_past?(game, a, d) or unstoppable_by?(game, a, d)
   end
 
-  # "Unstoppable by" some patrollers: Patriot Gryphon (units with 2 ATK or less).
+  # "Unstoppable by" some patrollers: Patriot Gryphon (units with 2 ATK or
+  # less), Shrine of Forbidden Knowledge (your Demons: by units).
   defp unstoppable_by?(game, a, d) do
-    case game.cards[a].card do
-      "patriot-gryphon" -> Stats.unit?(game, d) and Stats.atk(game, d) <= 2
-      _ -> false
-    end
+    shrine? =
+      Stats.subtype?(game, a, "Demon") and
+        Stats.controls?(game, Stats.controller(game, a), "shrine-of-forbidden-knowledge")
+
+    (shrine? and Stats.unit?(game, d)) or
+      case game.cards[a].card do
+        "patriot-gryphon" -> Stats.unit?(game, d) and Stats.atk(game, d) <= 2
+        _ -> false
+      end
   end
 
   # "Unstoppable by tech 0 units": it may ignore tech 0 patrollers.

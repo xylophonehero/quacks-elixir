@@ -243,6 +243,16 @@ defmodule Codex.Targets do
   def candidates(game, _s, :buried_unit, src),
     do: for(id <- game.trash, Map.get(game.cards[id].extra, :buried_in) == src, do: id)
 
+  def candidates(_game, s, :base, _src), do: [{:building, 1 - s, :base}, {:building, s, :base}]
+
+  # Zarramonde: a unit, hero, worker, upgrade or ongoing spell.
+  def candidates(game, s, :zarramonde, src) do
+    cards(game, s, fn id ->
+      id != src and
+        (Stats.force?(game, id) or Stats.upgrade?(game, id) or Stats.ongoing?(game, id))
+    end) ++ for seat <- [1 - s, s], game.sides[seat].zones.workers != [], do: {:worker, seat}
+  end
+
   def candidates(game, s, :my_force, _src),
     do: for(id <- Zones.in_play(game, s), Stats.force?(game, id), do: id)
 
