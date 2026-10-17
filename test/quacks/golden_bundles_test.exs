@@ -38,10 +38,6 @@ defmodule Quacks.GoldenBundlesTest do
        ]}
   ]
 
-  setup_all do
-    Golden.load_atoms()
-  end
-
   test "every committed bundle replays to its recorded digest" do
     if Golden.record?(), do: record()
 

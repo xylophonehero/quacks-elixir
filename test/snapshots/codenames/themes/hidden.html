@@ -1,0 +1,1593 @@
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual" name="viewport"/>
+<meta content="" name="csrf-token"/>
+<meta content="#3e2a16" name="theme-color"/>
+<meta content="yes" name="mobile-web-app-capable"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
+<meta content="Quacks" name="apple-mobile-web-app-title"/>
+<link href="/manifest.webmanifest" rel="manifest"/>
+<link href="/images/pwa/apple-touch-icon.png" rel="apple-touch-icon"/>
+<title data-default="Quacks">codenames/themes</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="/assets/css/app.css" phx-track-static="" rel="stylesheet"/>
+<script defer="" phx-track-static="" src="/assets/js/app.js" type="text/javascript">
+</script>
+</head>
+<body class="bg-wood-dark text-parchment antialiased" data-sounds="">
+<svg aria-hidden="true" class="absolute" height="0" id="icon-sprite" width="0">
+<symbol id="icon-bag" viewBox="0 0 512 512">
+<path d="#hash:8dc7e4217f99" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-black" viewBox="0 0 512 512">
+<path d="#hash:27354e45f042" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-blue" viewBox="0 0 512 512">
+<path d="#hash:1e4ec277c55a" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-book" viewBox="0 0 512 512">
+<path d="#hash:3a34a8690632" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-carrot_nose" viewBox="0 0 512 512">
+<path d="#hash:b58f6fd5cce7" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-cauldron" viewBox="0 0 512 512">
+<path d="#hash:d653e1756699" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-chicken_eyes" viewBox="0 0 512 512">
+<path d="#hash:59af8f93a1e3" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-coin" viewBox="0 0 512 512">
+<path d="#hash:8973672ea52b" fill-rule="evenodd" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-die" viewBox="0 0 512 512">
+<path d="#hash:9a04ae45da3c" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-droplet" viewBox="0 0 512 512">
+<path d="#hash:ec0634d1e082" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-ear_worm" viewBox="0 0 512 512">
+<path d="#hash:fd7a21917388" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-explosion" viewBox="0 0 512 512">
+<path d="#hash:fa558936987c" fill="#d6322c" stroke-linejoin="round" stroke-width="12" stroke="#7a1410">
+</path>
+<path d="#hash:ee5463dfb6a6" fill="#f28a1e">
+</path>
+<path d="#hash:cb1676bbc9b3" fill="#ffd94a">
+</path>
+</symbol>
+<symbol id="icon-flask" viewBox="0 0 512 512">
+<path d="#hash:a334df7bc76c" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-forgetfulness" viewBox="0 0 512 512">
+<path d="#hash:d72a28adefa6" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-green" viewBox="0 0 512 512">
+<path d="#hash:22af1efdd719" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-locoweed" viewBox="0 0 512 512">
+<path d="#hash:220cbe959864" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-nervousness" viewBox="0 0 512 512">
+<path d="#hash:88ff549229ae" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-orange" viewBox="0 0 512 512">
+<path d="#hash:5b722b1c3841" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-penny" viewBox="0 0 512 512">
+<path d="#hash:b88cc55eb167" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-pot" viewBox="0 0 512 512">
+<path d="#hash:cbb19e49b69e" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-purple" viewBox="0 0 512 512">
+<path d="#hash:105545848940" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-rat" viewBox="0 0 512 512">
+<path d="#hash:9a99ed142512" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-red" viewBox="0 0 512 512">
+<path d="#hash:029f52480657" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-ruby" viewBox="0 0 512 512">
+<path d="#hash:3284009d91af" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-tube" viewBox="0 0 512 512">
+<path d="#hash:66d78db8cea1" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-vampirism" viewBox="0 0 512 512">
+<path d="#hash:1fdd051e7a6f" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-vp" viewBox="0 0 512 512">
+<path d="#hash:326df0056854" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-white" viewBox="0 0 512 512">
+<path d="#hash:2fca32a95de9" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-wing_ears" viewBox="0 0 512 512">
+<path d="#hash:591cde6eba7d" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-witch" viewBox="0 0 512 512">
+<path d="#hash:fe555ebf06e4" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-witch_hump" viewBox="0 0 512 512">
+<path d="#hash:52ca94e5764a" fill="currentColor">
+</path>
+</symbol>
+<symbol id="icon-yellow" viewBox="0 0 512 512">
+<path d="#hash:067283cb6d6e" fill="currentColor">
+</path>
+</symbol>
+</svg>
+<div data-phx-main="" data-phx-session="" data-phx-static="" id="phx-ID">
+<main data-layout="full" style="">
+<div class="min-h-dvh" data-component="codenames" data-variant="themes" id="gallery-frame">
+<div class="min-h-dvh bg-neutral-900 p-2 sm:p-4" data-role="duet-themes">
+<div class="mx-auto grid max-w-[90rem] grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
+<div class="tb-root flex flex-col gap-2 overflow-hidden rounded-tb bg-tb-base-200 p-2 ring-1 ring-white/10" data-deck="2" data-theme="emerald" id="th-emerald">
+<h2 class="flex items-center justify-between text-sm font-bold">
+Emerald
+<span class="text-xs font-normal text-tb-base-content/60">
+light
+</span>
+</h2>
+<div class="tb-felt rounded-tb p-1.5 sm:p-3">
+<div class="cd-grid" id="th-emerald-grid" lang="en">
+<button aria-label="act, bystander mark" class="cd-card" data-marks="0" data-state="idle" disabled="" id="th-emerald-card-0" phx-value-index="0" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">act</span>
+<span aria-hidden="true" class="cd-mark" data-side="partner">
+</span>
+</span>
+</button>
+<button aria-label="ray" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-1" phx-value-index="1" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">ray</span>
+</span>
+</button>
+<button aria-label="company" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-2" phx-value-index="2" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">company</span>
+</span>
+</button>
+<button aria-label="hook" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-3" phx-value-index="3" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">hook</span>
+</span>
+</button>
+<button aria-label="name, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-emerald-card-4" phx-value-index="4" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">name</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="silk" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-5" phx-value-index="5" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">silk</span>
+</span>
+</button>
+<button aria-label="plant, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-emerald-card-6" phx-value-index="6" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">plant</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="library" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-7" phx-value-index="7" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">library</span>
+</span>
+</button>
+<button aria-label="taste" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-8" phx-value-index="8" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">taste</span>
+</span>
+</button>
+<button aria-label="number" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-9" phx-value-index="9" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">number</span>
+</span>
+</button>
+<button aria-label="prison" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-10" phx-value-index="10" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">prison</span>
+</span>
+</button>
+<button aria-label="page" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-11" phx-value-index="11" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">page</span>
+</span>
+</button>
+<button aria-label="stamp" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-12" phx-value-index="12" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">stamp</span>
+</span>
+</button>
+<button aria-label="man" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-13" phx-value-index="13" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">man</span>
+</span>
+</button>
+<button aria-label="shirt" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-14" phx-value-index="14" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">shirt</span>
+</span>
+</button>
+<button aria-label="wool" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-15" phx-value-index="15" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">wool</span>
+</span>
+</button>
+<button aria-label="move" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-16" phx-value-index="16" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">move</span>
+</span>
+</button>
+<button aria-label="arch" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-17" phx-value-index="17" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">arch</span>
+</span>
+</button>
+<button aria-label="pipe" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-18" phx-value-index="18" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pipe</span>
+</span>
+</button>
+<button aria-label="industry" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-19" phx-value-index="19" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 8">industry</span>
+</span>
+</button>
+<button aria-label="bucket" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-20" phx-value-index="20" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">bucket</span>
+</span>
+</button>
+<button aria-label="cork" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-21" phx-value-index="21" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">cork</span>
+</span>
+</button>
+<button aria-label="damage" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-22" phx-value-index="22" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">damage</span>
+</span>
+</button>
+<button aria-label="pull" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-23" phx-value-index="23" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pull</span>
+</span>
+</button>
+<button aria-label="cotton" class="cd-card" data-state="idle" disabled="" id="th-emerald-card-24" phx-value-index="24" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">cotton</span>
+</span>
+</button>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tb bg-tb-base-100 px-3 py-2 text-xs ring-1 ring-tb-base-content/10" id="th-emerald-key-legend">
+<span class="font-semibold">Your key</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="green">
+<span class="hero-user-solid size-full">
+</span>
+</span>agent
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="assassin">
+<svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+<path clip-rule="evenodd" d="#hash:622b7255de28" fill-rule="evenodd">
+</path>
+</svg>
+</span>assassin
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="neutral">
+</span>bystander
+</span>
+<button aria-pressed="true" class="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ring-1 ring-tb-base-content/20 transition hover:bg-tb-base-200 active:scale-95 aria-pressed:bg-tb-neutral aria-pressed:text-tb-neutral-content" id="th-emerald-hide-key" phx-click="toggle_key" type="button">
+<span class="hero-eye-mini size-3.5">
+</span>
+Show my key
+</button>
+</div>
+</div>
+<div class="tb-root flex flex-col gap-2 overflow-hidden rounded-tb bg-tb-base-200 p-2 ring-1 ring-white/10" data-deck="2" data-theme="light" id="th-light">
+<h2 class="flex items-center justify-between text-sm font-bold">
+Light
+<span class="text-xs font-normal text-tb-base-content/60">
+light
+</span>
+</h2>
+<div class="tb-felt rounded-tb p-1.5 sm:p-3">
+<div class="cd-grid" id="th-light-grid" lang="en">
+<button aria-label="act, bystander mark" class="cd-card" data-marks="0" data-state="idle" disabled="" id="th-light-card-0" phx-value-index="0" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">act</span>
+<span aria-hidden="true" class="cd-mark" data-side="partner">
+</span>
+</span>
+</button>
+<button aria-label="ray" class="cd-card" data-state="idle" disabled="" id="th-light-card-1" phx-value-index="1" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">ray</span>
+</span>
+</button>
+<button aria-label="company" class="cd-card" data-state="idle" disabled="" id="th-light-card-2" phx-value-index="2" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">company</span>
+</span>
+</button>
+<button aria-label="hook" class="cd-card" data-state="idle" disabled="" id="th-light-card-3" phx-value-index="3" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">hook</span>
+</span>
+</button>
+<button aria-label="name, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-light-card-4" phx-value-index="4" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">name</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="silk" class="cd-card" data-state="idle" disabled="" id="th-light-card-5" phx-value-index="5" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">silk</span>
+</span>
+</button>
+<button aria-label="plant, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-light-card-6" phx-value-index="6" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">plant</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="library" class="cd-card" data-state="idle" disabled="" id="th-light-card-7" phx-value-index="7" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">library</span>
+</span>
+</button>
+<button aria-label="taste" class="cd-card" data-state="idle" disabled="" id="th-light-card-8" phx-value-index="8" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">taste</span>
+</span>
+</button>
+<button aria-label="number" class="cd-card" data-state="idle" disabled="" id="th-light-card-9" phx-value-index="9" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">number</span>
+</span>
+</button>
+<button aria-label="prison" class="cd-card" data-state="idle" disabled="" id="th-light-card-10" phx-value-index="10" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">prison</span>
+</span>
+</button>
+<button aria-label="page" class="cd-card" data-state="idle" disabled="" id="th-light-card-11" phx-value-index="11" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">page</span>
+</span>
+</button>
+<button aria-label="stamp" class="cd-card" data-state="idle" disabled="" id="th-light-card-12" phx-value-index="12" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">stamp</span>
+</span>
+</button>
+<button aria-label="man" class="cd-card" data-state="idle" disabled="" id="th-light-card-13" phx-value-index="13" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">man</span>
+</span>
+</button>
+<button aria-label="shirt" class="cd-card" data-state="idle" disabled="" id="th-light-card-14" phx-value-index="14" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">shirt</span>
+</span>
+</button>
+<button aria-label="wool" class="cd-card" data-state="idle" disabled="" id="th-light-card-15" phx-value-index="15" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">wool</span>
+</span>
+</button>
+<button aria-label="move" class="cd-card" data-state="idle" disabled="" id="th-light-card-16" phx-value-index="16" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">move</span>
+</span>
+</button>
+<button aria-label="arch" class="cd-card" data-state="idle" disabled="" id="th-light-card-17" phx-value-index="17" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">arch</span>
+</span>
+</button>
+<button aria-label="pipe" class="cd-card" data-state="idle" disabled="" id="th-light-card-18" phx-value-index="18" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pipe</span>
+</span>
+</button>
+<button aria-label="industry" class="cd-card" data-state="idle" disabled="" id="th-light-card-19" phx-value-index="19" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 8">industry</span>
+</span>
+</button>
+<button aria-label="bucket" class="cd-card" data-state="idle" disabled="" id="th-light-card-20" phx-value-index="20" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">bucket</span>
+</span>
+</button>
+<button aria-label="cork" class="cd-card" data-state="idle" disabled="" id="th-light-card-21" phx-value-index="21" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">cork</span>
+</span>
+</button>
+<button aria-label="damage" class="cd-card" data-state="idle" disabled="" id="th-light-card-22" phx-value-index="22" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">damage</span>
+</span>
+</button>
+<button aria-label="pull" class="cd-card" data-state="idle" disabled="" id="th-light-card-23" phx-value-index="23" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pull</span>
+</span>
+</button>
+<button aria-label="cotton" class="cd-card" data-state="idle" disabled="" id="th-light-card-24" phx-value-index="24" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">cotton</span>
+</span>
+</button>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tb bg-tb-base-100 px-3 py-2 text-xs ring-1 ring-tb-base-content/10" id="th-light-key-legend">
+<span class="font-semibold">Your key</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="green">
+<span class="hero-user-solid size-full">
+</span>
+</span>agent
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="assassin">
+<svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+<path clip-rule="evenodd" d="#hash:622b7255de28" fill-rule="evenodd">
+</path>
+</svg>
+</span>assassin
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="neutral">
+</span>bystander
+</span>
+<button aria-pressed="true" class="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ring-1 ring-tb-base-content/20 transition hover:bg-tb-base-200 active:scale-95 aria-pressed:bg-tb-neutral aria-pressed:text-tb-neutral-content" id="th-light-hide-key" phx-click="toggle_key" type="button">
+<span class="hero-eye-mini size-3.5">
+</span>
+Show my key
+</button>
+</div>
+</div>
+<div class="tb-root flex flex-col gap-2 overflow-hidden rounded-tb bg-tb-base-200 p-2 ring-1 ring-white/10" data-deck="2" data-theme="cupcake" id="th-cupcake">
+<h2 class="flex items-center justify-between text-sm font-bold">
+Cupcake
+<span class="text-xs font-normal text-tb-base-content/60">
+light
+</span>
+</h2>
+<div class="tb-felt rounded-tb p-1.5 sm:p-3">
+<div class="cd-grid" id="th-cupcake-grid" lang="en">
+<button aria-label="act, bystander mark" class="cd-card" data-marks="0" data-state="idle" disabled="" id="th-cupcake-card-0" phx-value-index="0" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">act</span>
+<span aria-hidden="true" class="cd-mark" data-side="partner">
+</span>
+</span>
+</button>
+<button aria-label="ray" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-1" phx-value-index="1" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">ray</span>
+</span>
+</button>
+<button aria-label="company" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-2" phx-value-index="2" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">company</span>
+</span>
+</button>
+<button aria-label="hook" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-3" phx-value-index="3" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">hook</span>
+</span>
+</button>
+<button aria-label="name, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-cupcake-card-4" phx-value-index="4" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">name</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="silk" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-5" phx-value-index="5" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">silk</span>
+</span>
+</button>
+<button aria-label="plant, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-cupcake-card-6" phx-value-index="6" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">plant</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="library" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-7" phx-value-index="7" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">library</span>
+</span>
+</button>
+<button aria-label="taste" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-8" phx-value-index="8" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">taste</span>
+</span>
+</button>
+<button aria-label="number" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-9" phx-value-index="9" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">number</span>
+</span>
+</button>
+<button aria-label="prison" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-10" phx-value-index="10" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">prison</span>
+</span>
+</button>
+<button aria-label="page" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-11" phx-value-index="11" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">page</span>
+</span>
+</button>
+<button aria-label="stamp" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-12" phx-value-index="12" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">stamp</span>
+</span>
+</button>
+<button aria-label="man" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-13" phx-value-index="13" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">man</span>
+</span>
+</button>
+<button aria-label="shirt" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-14" phx-value-index="14" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">shirt</span>
+</span>
+</button>
+<button aria-label="wool" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-15" phx-value-index="15" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">wool</span>
+</span>
+</button>
+<button aria-label="move" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-16" phx-value-index="16" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">move</span>
+</span>
+</button>
+<button aria-label="arch" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-17" phx-value-index="17" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">arch</span>
+</span>
+</button>
+<button aria-label="pipe" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-18" phx-value-index="18" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pipe</span>
+</span>
+</button>
+<button aria-label="industry" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-19" phx-value-index="19" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 8">industry</span>
+</span>
+</button>
+<button aria-label="bucket" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-20" phx-value-index="20" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">bucket</span>
+</span>
+</button>
+<button aria-label="cork" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-21" phx-value-index="21" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">cork</span>
+</span>
+</button>
+<button aria-label="damage" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-22" phx-value-index="22" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">damage</span>
+</span>
+</button>
+<button aria-label="pull" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-23" phx-value-index="23" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pull</span>
+</span>
+</button>
+<button aria-label="cotton" class="cd-card" data-state="idle" disabled="" id="th-cupcake-card-24" phx-value-index="24" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">cotton</span>
+</span>
+</button>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tb bg-tb-base-100 px-3 py-2 text-xs ring-1 ring-tb-base-content/10" id="th-cupcake-key-legend">
+<span class="font-semibold">Your key</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="green">
+<span class="hero-user-solid size-full">
+</span>
+</span>agent
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="assassin">
+<svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+<path clip-rule="evenodd" d="#hash:622b7255de28" fill-rule="evenodd">
+</path>
+</svg>
+</span>assassin
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="neutral">
+</span>bystander
+</span>
+<button aria-pressed="true" class="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ring-1 ring-tb-base-content/20 transition hover:bg-tb-base-200 active:scale-95 aria-pressed:bg-tb-neutral aria-pressed:text-tb-neutral-content" id="th-cupcake-hide-key" phx-click="toggle_key" type="button">
+<span class="hero-eye-mini size-3.5">
+</span>
+Show my key
+</button>
+</div>
+</div>
+<div class="tb-root flex flex-col gap-2 overflow-hidden rounded-tb bg-tb-base-200 p-2 ring-1 ring-white/10" data-deck="2" data-theme="retro" id="th-retro">
+<h2 class="flex items-center justify-between text-sm font-bold">
+Retro
+<span class="text-xs font-normal text-tb-base-content/60">
+light
+</span>
+</h2>
+<div class="tb-felt rounded-tb p-1.5 sm:p-3">
+<div class="cd-grid" id="th-retro-grid" lang="en">
+<button aria-label="act, bystander mark" class="cd-card" data-marks="0" data-state="idle" disabled="" id="th-retro-card-0" phx-value-index="0" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">act</span>
+<span aria-hidden="true" class="cd-mark" data-side="partner">
+</span>
+</span>
+</button>
+<button aria-label="ray" class="cd-card" data-state="idle" disabled="" id="th-retro-card-1" phx-value-index="1" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">ray</span>
+</span>
+</button>
+<button aria-label="company" class="cd-card" data-state="idle" disabled="" id="th-retro-card-2" phx-value-index="2" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">company</span>
+</span>
+</button>
+<button aria-label="hook" class="cd-card" data-state="idle" disabled="" id="th-retro-card-3" phx-value-index="3" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">hook</span>
+</span>
+</button>
+<button aria-label="name, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-retro-card-4" phx-value-index="4" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">name</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="silk" class="cd-card" data-state="idle" disabled="" id="th-retro-card-5" phx-value-index="5" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">silk</span>
+</span>
+</button>
+<button aria-label="plant, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-retro-card-6" phx-value-index="6" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">plant</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="library" class="cd-card" data-state="idle" disabled="" id="th-retro-card-7" phx-value-index="7" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">library</span>
+</span>
+</button>
+<button aria-label="taste" class="cd-card" data-state="idle" disabled="" id="th-retro-card-8" phx-value-index="8" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">taste</span>
+</span>
+</button>
+<button aria-label="number" class="cd-card" data-state="idle" disabled="" id="th-retro-card-9" phx-value-index="9" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">number</span>
+</span>
+</button>
+<button aria-label="prison" class="cd-card" data-state="idle" disabled="" id="th-retro-card-10" phx-value-index="10" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">prison</span>
+</span>
+</button>
+<button aria-label="page" class="cd-card" data-state="idle" disabled="" id="th-retro-card-11" phx-value-index="11" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">page</span>
+</span>
+</button>
+<button aria-label="stamp" class="cd-card" data-state="idle" disabled="" id="th-retro-card-12" phx-value-index="12" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">stamp</span>
+</span>
+</button>
+<button aria-label="man" class="cd-card" data-state="idle" disabled="" id="th-retro-card-13" phx-value-index="13" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">man</span>
+</span>
+</button>
+<button aria-label="shirt" class="cd-card" data-state="idle" disabled="" id="th-retro-card-14" phx-value-index="14" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">shirt</span>
+</span>
+</button>
+<button aria-label="wool" class="cd-card" data-state="idle" disabled="" id="th-retro-card-15" phx-value-index="15" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">wool</span>
+</span>
+</button>
+<button aria-label="move" class="cd-card" data-state="idle" disabled="" id="th-retro-card-16" phx-value-index="16" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">move</span>
+</span>
+</button>
+<button aria-label="arch" class="cd-card" data-state="idle" disabled="" id="th-retro-card-17" phx-value-index="17" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">arch</span>
+</span>
+</button>
+<button aria-label="pipe" class="cd-card" data-state="idle" disabled="" id="th-retro-card-18" phx-value-index="18" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pipe</span>
+</span>
+</button>
+<button aria-label="industry" class="cd-card" data-state="idle" disabled="" id="th-retro-card-19" phx-value-index="19" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 8">industry</span>
+</span>
+</button>
+<button aria-label="bucket" class="cd-card" data-state="idle" disabled="" id="th-retro-card-20" phx-value-index="20" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">bucket</span>
+</span>
+</button>
+<button aria-label="cork" class="cd-card" data-state="idle" disabled="" id="th-retro-card-21" phx-value-index="21" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">cork</span>
+</span>
+</button>
+<button aria-label="damage" class="cd-card" data-state="idle" disabled="" id="th-retro-card-22" phx-value-index="22" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">damage</span>
+</span>
+</button>
+<button aria-label="pull" class="cd-card" data-state="idle" disabled="" id="th-retro-card-23" phx-value-index="23" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pull</span>
+</span>
+</button>
+<button aria-label="cotton" class="cd-card" data-state="idle" disabled="" id="th-retro-card-24" phx-value-index="24" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">cotton</span>
+</span>
+</button>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tb bg-tb-base-100 px-3 py-2 text-xs ring-1 ring-tb-base-content/10" id="th-retro-key-legend">
+<span class="font-semibold">Your key</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="green">
+<span class="hero-user-solid size-full">
+</span>
+</span>agent
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="assassin">
+<svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+<path clip-rule="evenodd" d="#hash:622b7255de28" fill-rule="evenodd">
+</path>
+</svg>
+</span>assassin
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="neutral">
+</span>bystander
+</span>
+<button aria-pressed="true" class="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ring-1 ring-tb-base-content/20 transition hover:bg-tb-base-200 active:scale-95 aria-pressed:bg-tb-neutral aria-pressed:text-tb-neutral-content" id="th-retro-hide-key" phx-click="toggle_key" type="button">
+<span class="hero-eye-mini size-3.5">
+</span>
+Show my key
+</button>
+</div>
+</div>
+<div class="tb-root flex flex-col gap-2 overflow-hidden rounded-tb bg-tb-base-200 p-2 ring-1 ring-white/10" data-deck="2" data-theme="nord" id="th-nord">
+<h2 class="flex items-center justify-between text-sm font-bold">
+Nord
+<span class="text-xs font-normal text-tb-base-content/60">
+light
+</span>
+</h2>
+<div class="tb-felt rounded-tb p-1.5 sm:p-3">
+<div class="cd-grid" id="th-nord-grid" lang="en">
+<button aria-label="act, bystander mark" class="cd-card" data-marks="0" data-state="idle" disabled="" id="th-nord-card-0" phx-value-index="0" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">act</span>
+<span aria-hidden="true" class="cd-mark" data-side="partner">
+</span>
+</span>
+</button>
+<button aria-label="ray" class="cd-card" data-state="idle" disabled="" id="th-nord-card-1" phx-value-index="1" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">ray</span>
+</span>
+</button>
+<button aria-label="company" class="cd-card" data-state="idle" disabled="" id="th-nord-card-2" phx-value-index="2" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">company</span>
+</span>
+</button>
+<button aria-label="hook" class="cd-card" data-state="idle" disabled="" id="th-nord-card-3" phx-value-index="3" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">hook</span>
+</span>
+</button>
+<button aria-label="name, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-nord-card-4" phx-value-index="4" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">name</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="silk" class="cd-card" data-state="idle" disabled="" id="th-nord-card-5" phx-value-index="5" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">silk</span>
+</span>
+</button>
+<button aria-label="plant, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-nord-card-6" phx-value-index="6" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">plant</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="library" class="cd-card" data-state="idle" disabled="" id="th-nord-card-7" phx-value-index="7" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">library</span>
+</span>
+</button>
+<button aria-label="taste" class="cd-card" data-state="idle" disabled="" id="th-nord-card-8" phx-value-index="8" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">taste</span>
+</span>
+</button>
+<button aria-label="number" class="cd-card" data-state="idle" disabled="" id="th-nord-card-9" phx-value-index="9" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">number</span>
+</span>
+</button>
+<button aria-label="prison" class="cd-card" data-state="idle" disabled="" id="th-nord-card-10" phx-value-index="10" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">prison</span>
+</span>
+</button>
+<button aria-label="page" class="cd-card" data-state="idle" disabled="" id="th-nord-card-11" phx-value-index="11" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">page</span>
+</span>
+</button>
+<button aria-label="stamp" class="cd-card" data-state="idle" disabled="" id="th-nord-card-12" phx-value-index="12" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">stamp</span>
+</span>
+</button>
+<button aria-label="man" class="cd-card" data-state="idle" disabled="" id="th-nord-card-13" phx-value-index="13" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">man</span>
+</span>
+</button>
+<button aria-label="shirt" class="cd-card" data-state="idle" disabled="" id="th-nord-card-14" phx-value-index="14" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">shirt</span>
+</span>
+</button>
+<button aria-label="wool" class="cd-card" data-state="idle" disabled="" id="th-nord-card-15" phx-value-index="15" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">wool</span>
+</span>
+</button>
+<button aria-label="move" class="cd-card" data-state="idle" disabled="" id="th-nord-card-16" phx-value-index="16" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">move</span>
+</span>
+</button>
+<button aria-label="arch" class="cd-card" data-state="idle" disabled="" id="th-nord-card-17" phx-value-index="17" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">arch</span>
+</span>
+</button>
+<button aria-label="pipe" class="cd-card" data-state="idle" disabled="" id="th-nord-card-18" phx-value-index="18" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pipe</span>
+</span>
+</button>
+<button aria-label="industry" class="cd-card" data-state="idle" disabled="" id="th-nord-card-19" phx-value-index="19" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 8">industry</span>
+</span>
+</button>
+<button aria-label="bucket" class="cd-card" data-state="idle" disabled="" id="th-nord-card-20" phx-value-index="20" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">bucket</span>
+</span>
+</button>
+<button aria-label="cork" class="cd-card" data-state="idle" disabled="" id="th-nord-card-21" phx-value-index="21" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">cork</span>
+</span>
+</button>
+<button aria-label="damage" class="cd-card" data-state="idle" disabled="" id="th-nord-card-22" phx-value-index="22" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">damage</span>
+</span>
+</button>
+<button aria-label="pull" class="cd-card" data-state="idle" disabled="" id="th-nord-card-23" phx-value-index="23" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pull</span>
+</span>
+</button>
+<button aria-label="cotton" class="cd-card" data-state="idle" disabled="" id="th-nord-card-24" phx-value-index="24" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">cotton</span>
+</span>
+</button>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tb bg-tb-base-100 px-3 py-2 text-xs ring-1 ring-tb-base-content/10" id="th-nord-key-legend">
+<span class="font-semibold">Your key</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="green">
+<span class="hero-user-solid size-full">
+</span>
+</span>agent
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="assassin">
+<svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+<path clip-rule="evenodd" d="#hash:622b7255de28" fill-rule="evenodd">
+</path>
+</svg>
+</span>assassin
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="neutral">
+</span>bystander
+</span>
+<button aria-pressed="true" class="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ring-1 ring-tb-base-content/20 transition hover:bg-tb-base-200 active:scale-95 aria-pressed:bg-tb-neutral aria-pressed:text-tb-neutral-content" id="th-nord-hide-key" phx-click="toggle_key" type="button">
+<span class="hero-eye-mini size-3.5">
+</span>
+Show my key
+</button>
+</div>
+</div>
+<div class="tb-root flex flex-col gap-2 overflow-hidden rounded-tb bg-tb-base-200 p-2 ring-1 ring-white/10" data-deck="2" data-theme="forest" id="th-forest">
+<h2 class="flex items-center justify-between text-sm font-bold">
+Forest
+<span class="text-xs font-normal text-tb-base-content/60">
+dark
+</span>
+</h2>
+<div class="tb-felt rounded-tb p-1.5 sm:p-3">
+<div class="cd-grid" id="th-forest-grid" lang="en">
+<button aria-label="act, bystander mark" class="cd-card" data-marks="0" data-state="idle" disabled="" id="th-forest-card-0" phx-value-index="0" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">act</span>
+<span aria-hidden="true" class="cd-mark" data-side="partner">
+</span>
+</span>
+</button>
+<button aria-label="ray" class="cd-card" data-state="idle" disabled="" id="th-forest-card-1" phx-value-index="1" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">ray</span>
+</span>
+</button>
+<button aria-label="company" class="cd-card" data-state="idle" disabled="" id="th-forest-card-2" phx-value-index="2" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">company</span>
+</span>
+</button>
+<button aria-label="hook" class="cd-card" data-state="idle" disabled="" id="th-forest-card-3" phx-value-index="3" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">hook</span>
+</span>
+</button>
+<button aria-label="name, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-forest-card-4" phx-value-index="4" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">name</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="silk" class="cd-card" data-state="idle" disabled="" id="th-forest-card-5" phx-value-index="5" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">silk</span>
+</span>
+</button>
+<button aria-label="plant, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-forest-card-6" phx-value-index="6" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">plant</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="library" class="cd-card" data-state="idle" disabled="" id="th-forest-card-7" phx-value-index="7" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">library</span>
+</span>
+</button>
+<button aria-label="taste" class="cd-card" data-state="idle" disabled="" id="th-forest-card-8" phx-value-index="8" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">taste</span>
+</span>
+</button>
+<button aria-label="number" class="cd-card" data-state="idle" disabled="" id="th-forest-card-9" phx-value-index="9" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">number</span>
+</span>
+</button>
+<button aria-label="prison" class="cd-card" data-state="idle" disabled="" id="th-forest-card-10" phx-value-index="10" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">prison</span>
+</span>
+</button>
+<button aria-label="page" class="cd-card" data-state="idle" disabled="" id="th-forest-card-11" phx-value-index="11" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">page</span>
+</span>
+</button>
+<button aria-label="stamp" class="cd-card" data-state="idle" disabled="" id="th-forest-card-12" phx-value-index="12" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">stamp</span>
+</span>
+</button>
+<button aria-label="man" class="cd-card" data-state="idle" disabled="" id="th-forest-card-13" phx-value-index="13" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">man</span>
+</span>
+</button>
+<button aria-label="shirt" class="cd-card" data-state="idle" disabled="" id="th-forest-card-14" phx-value-index="14" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">shirt</span>
+</span>
+</button>
+<button aria-label="wool" class="cd-card" data-state="idle" disabled="" id="th-forest-card-15" phx-value-index="15" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">wool</span>
+</span>
+</button>
+<button aria-label="move" class="cd-card" data-state="idle" disabled="" id="th-forest-card-16" phx-value-index="16" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">move</span>
+</span>
+</button>
+<button aria-label="arch" class="cd-card" data-state="idle" disabled="" id="th-forest-card-17" phx-value-index="17" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">arch</span>
+</span>
+</button>
+<button aria-label="pipe" class="cd-card" data-state="idle" disabled="" id="th-forest-card-18" phx-value-index="18" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pipe</span>
+</span>
+</button>
+<button aria-label="industry" class="cd-card" data-state="idle" disabled="" id="th-forest-card-19" phx-value-index="19" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 8">industry</span>
+</span>
+</button>
+<button aria-label="bucket" class="cd-card" data-state="idle" disabled="" id="th-forest-card-20" phx-value-index="20" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">bucket</span>
+</span>
+</button>
+<button aria-label="cork" class="cd-card" data-state="idle" disabled="" id="th-forest-card-21" phx-value-index="21" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">cork</span>
+</span>
+</button>
+<button aria-label="damage" class="cd-card" data-state="idle" disabled="" id="th-forest-card-22" phx-value-index="22" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">damage</span>
+</span>
+</button>
+<button aria-label="pull" class="cd-card" data-state="idle" disabled="" id="th-forest-card-23" phx-value-index="23" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pull</span>
+</span>
+</button>
+<button aria-label="cotton" class="cd-card" data-state="idle" disabled="" id="th-forest-card-24" phx-value-index="24" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">cotton</span>
+</span>
+</button>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tb bg-tb-base-100 px-3 py-2 text-xs ring-1 ring-tb-base-content/10" id="th-forest-key-legend">
+<span class="font-semibold">Your key</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="green">
+<span class="hero-user-solid size-full">
+</span>
+</span>agent
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="assassin">
+<svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+<path clip-rule="evenodd" d="#hash:622b7255de28" fill-rule="evenodd">
+</path>
+</svg>
+</span>assassin
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="neutral">
+</span>bystander
+</span>
+<button aria-pressed="true" class="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ring-1 ring-tb-base-content/20 transition hover:bg-tb-base-200 active:scale-95 aria-pressed:bg-tb-neutral aria-pressed:text-tb-neutral-content" id="th-forest-hide-key" phx-click="toggle_key" type="button">
+<span class="hero-eye-mini size-3.5">
+</span>
+Show my key
+</button>
+</div>
+</div>
+<div class="tb-root flex flex-col gap-2 overflow-hidden rounded-tb bg-tb-base-200 p-2 ring-1 ring-white/10" data-deck="2" data-theme="dracula" id="th-dracula">
+<h2 class="flex items-center justify-between text-sm font-bold">
+Dracula
+<span class="text-xs font-normal text-tb-base-content/60">
+dark
+</span>
+</h2>
+<div class="tb-felt rounded-tb p-1.5 sm:p-3">
+<div class="cd-grid" id="th-dracula-grid" lang="en">
+<button aria-label="act, bystander mark" class="cd-card" data-marks="0" data-state="idle" disabled="" id="th-dracula-card-0" phx-value-index="0" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">act</span>
+<span aria-hidden="true" class="cd-mark" data-side="partner">
+</span>
+</span>
+</button>
+<button aria-label="ray" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-1" phx-value-index="1" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">ray</span>
+</span>
+</button>
+<button aria-label="company" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-2" phx-value-index="2" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">company</span>
+</span>
+</button>
+<button aria-label="hook" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-3" phx-value-index="3" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">hook</span>
+</span>
+</button>
+<button aria-label="name, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-dracula-card-4" phx-value-index="4" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">name</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="silk" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-5" phx-value-index="5" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">silk</span>
+</span>
+</button>
+<button aria-label="plant, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-dracula-card-6" phx-value-index="6" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">plant</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="library" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-7" phx-value-index="7" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">library</span>
+</span>
+</button>
+<button aria-label="taste" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-8" phx-value-index="8" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">taste</span>
+</span>
+</button>
+<button aria-label="number" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-9" phx-value-index="9" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">number</span>
+</span>
+</button>
+<button aria-label="prison" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-10" phx-value-index="10" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">prison</span>
+</span>
+</button>
+<button aria-label="page" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-11" phx-value-index="11" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">page</span>
+</span>
+</button>
+<button aria-label="stamp" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-12" phx-value-index="12" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">stamp</span>
+</span>
+</button>
+<button aria-label="man" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-13" phx-value-index="13" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">man</span>
+</span>
+</button>
+<button aria-label="shirt" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-14" phx-value-index="14" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">shirt</span>
+</span>
+</button>
+<button aria-label="wool" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-15" phx-value-index="15" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">wool</span>
+</span>
+</button>
+<button aria-label="move" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-16" phx-value-index="16" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">move</span>
+</span>
+</button>
+<button aria-label="arch" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-17" phx-value-index="17" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">arch</span>
+</span>
+</button>
+<button aria-label="pipe" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-18" phx-value-index="18" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pipe</span>
+</span>
+</button>
+<button aria-label="industry" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-19" phx-value-index="19" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 8">industry</span>
+</span>
+</button>
+<button aria-label="bucket" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-20" phx-value-index="20" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">bucket</span>
+</span>
+</button>
+<button aria-label="cork" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-21" phx-value-index="21" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">cork</span>
+</span>
+</button>
+<button aria-label="damage" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-22" phx-value-index="22" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">damage</span>
+</span>
+</button>
+<button aria-label="pull" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-23" phx-value-index="23" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pull</span>
+</span>
+</button>
+<button aria-label="cotton" class="cd-card" data-state="idle" disabled="" id="th-dracula-card-24" phx-value-index="24" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">cotton</span>
+</span>
+</button>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tb bg-tb-base-100 px-3 py-2 text-xs ring-1 ring-tb-base-content/10" id="th-dracula-key-legend">
+<span class="font-semibold">Your key</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="green">
+<span class="hero-user-solid size-full">
+</span>
+</span>agent
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="assassin">
+<svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+<path clip-rule="evenodd" d="#hash:622b7255de28" fill-rule="evenodd">
+</path>
+</svg>
+</span>assassin
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="neutral">
+</span>bystander
+</span>
+<button aria-pressed="true" class="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ring-1 ring-tb-base-content/20 transition hover:bg-tb-base-200 active:scale-95 aria-pressed:bg-tb-neutral aria-pressed:text-tb-neutral-content" id="th-dracula-hide-key" phx-click="toggle_key" type="button">
+<span class="hero-eye-mini size-3.5">
+</span>
+Show my key
+</button>
+</div>
+</div>
+<div class="tb-root flex flex-col gap-2 overflow-hidden rounded-tb bg-tb-base-200 p-2 ring-1 ring-white/10" data-deck="2" data-theme="night" id="th-night">
+<h2 class="flex items-center justify-between text-sm font-bold">
+Night
+<span class="text-xs font-normal text-tb-base-content/60">
+dark
+</span>
+</h2>
+<div class="tb-felt rounded-tb p-1.5 sm:p-3">
+<div class="cd-grid" id="th-night-grid" lang="en">
+<button aria-label="act, bystander mark" class="cd-card" data-marks="0" data-state="idle" disabled="" id="th-night-card-0" phx-value-index="0" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">act</span>
+<span aria-hidden="true" class="cd-mark" data-side="partner">
+</span>
+</span>
+</button>
+<button aria-label="ray" class="cd-card" data-state="idle" disabled="" id="th-night-card-1" phx-value-index="1" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">ray</span>
+</span>
+</button>
+<button aria-label="company" class="cd-card" data-state="idle" disabled="" id="th-night-card-2" phx-value-index="2" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">company</span>
+</span>
+</button>
+<button aria-label="hook" class="cd-card" data-state="idle" disabled="" id="th-night-card-3" phx-value-index="3" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">hook</span>
+</span>
+</button>
+<button aria-label="name, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-night-card-4" phx-value-index="4" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">name</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="silk" class="cd-card" data-state="idle" disabled="" id="th-night-card-5" phx-value-index="5" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">silk</span>
+</span>
+</button>
+<button aria-label="plant, agent found" class="cd-card" data-agent="" data-state="covered" disabled="" id="th-night-card-6" phx-value-index="6" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">plant</span>
+<span aria-hidden="true" class="cd-agent">
+<span class="hero-user-solid size-full">
+</span>
+</span>
+</span>
+</button>
+<button aria-label="library" class="cd-card" data-state="idle" disabled="" id="th-night-card-7" phx-value-index="7" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 7">library</span>
+</span>
+</button>
+<button aria-label="taste" class="cd-card" data-state="idle" disabled="" id="th-night-card-8" phx-value-index="8" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">taste</span>
+</span>
+</button>
+<button aria-label="number" class="cd-card" data-state="idle" disabled="" id="th-night-card-9" phx-value-index="9" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">number</span>
+</span>
+</button>
+<button aria-label="prison" class="cd-card" data-state="idle" disabled="" id="th-night-card-10" phx-value-index="10" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">prison</span>
+</span>
+</button>
+<button aria-label="page" class="cd-card" data-state="idle" disabled="" id="th-night-card-11" phx-value-index="11" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">page</span>
+</span>
+</button>
+<button aria-label="stamp" class="cd-card" data-state="idle" disabled="" id="th-night-card-12" phx-value-index="12" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">stamp</span>
+</span>
+</button>
+<button aria-label="man" class="cd-card" data-state="idle" disabled="" id="th-night-card-13" phx-value-index="13" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 3">man</span>
+</span>
+</button>
+<button aria-label="shirt" class="cd-card" data-state="idle" disabled="" id="th-night-card-14" phx-value-index="14" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 5">shirt</span>
+</span>
+</button>
+<button aria-label="wool" class="cd-card" data-state="idle" disabled="" id="th-night-card-15" phx-value-index="15" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">wool</span>
+</span>
+</button>
+<button aria-label="move" class="cd-card" data-state="idle" disabled="" id="th-night-card-16" phx-value-index="16" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">move</span>
+</span>
+</button>
+<button aria-label="arch" class="cd-card" data-state="idle" disabled="" id="th-night-card-17" phx-value-index="17" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">arch</span>
+</span>
+</button>
+<button aria-label="pipe" class="cd-card" data-state="idle" disabled="" id="th-night-card-18" phx-value-index="18" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pipe</span>
+</span>
+</button>
+<button aria-label="industry" class="cd-card" data-state="idle" disabled="" id="th-night-card-19" phx-value-index="19" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 8">industry</span>
+</span>
+</button>
+<button aria-label="bucket" class="cd-card" data-state="idle" disabled="" id="th-night-card-20" phx-value-index="20" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">bucket</span>
+</span>
+</button>
+<button aria-label="cork" class="cd-card" data-state="idle" disabled="" id="th-night-card-21" phx-value-index="21" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">cork</span>
+</span>
+</button>
+<button aria-label="damage" class="cd-card" data-state="idle" disabled="" id="th-night-card-22" phx-value-index="22" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">damage</span>
+</span>
+</button>
+<button aria-label="pull" class="cd-card" data-state="idle" disabled="" id="th-night-card-23" phx-value-index="23" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 4">pull</span>
+</span>
+</button>
+<button aria-label="cotton" class="cd-card" data-state="idle" disabled="" id="th-night-card-24" phx-value-index="24" type="button">
+<span class="cd-face">
+<span class="cd-word" style="--fit: 6">cotton</span>
+</span>
+</button>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tb bg-tb-base-100 px-3 py-2 text-xs ring-1 ring-tb-base-content/10" id="th-night-key-legend">
+<span class="font-semibold">Your key</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="green">
+<span class="hero-user-solid size-full">
+</span>
+</span>agent
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="assassin">
+<svg class="size-full" fill="currentColor" viewBox="0 0 24 24">
+<path clip-rule="evenodd" d="#hash:622b7255de28" fill-rule="evenodd">
+</path>
+</svg>
+</span>assassin
+</span>
+<span class="flex items-center gap-1">
+<span class="cd-swatch" data-swatch="neutral">
+</span>bystander
+</span>
+<button aria-pressed="true" class="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ring-1 ring-tb-base-content/20 transition hover:bg-tb-base-200 active:scale-95 aria-pressed:bg-tb-neutral aria-pressed:text-tb-neutral-content" id="th-night-hide-key" phx-click="toggle_key" type="button">
+<span class="hero-eye-mini size-3.5">
+</span>
+Show my key
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<div aria-live="polite" id="flash-group">
+<div class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-20 sm:left-4 sm:bottom-auto" hidden="" id="client-error" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;key&quot;:&quot;error&quot;},&quot;event&quot;:&quot;lv:clear-flash&quot;}],[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" phx-connected="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}],[&quot;set_attr&quot;,{&quot;attr&quot;:[&quot;hidden&quot;,&quot;&quot;]}]]" phx-disconnected="[[&quot;show&quot;,{&quot;time&quot;:300,&quot;to&quot;:&quot;.phx-client-error #client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-out&quot;,&quot;duration-300&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;]]}],[&quot;remove_attr&quot;,{&quot;to&quot;:&quot;.phx-client-error #client-error&quot;,&quot;attr&quot;:&quot;hidden&quot;}]]" phx-remove="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#client-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" role="alert">
+<div class="flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap border-red-300 bg-red-50 text-red-900">
+<span class="hero-exclamation-circle size-5 shrink-0">
+</span>
+<div>
+<p class="font-semibold">We can&#39;t find the internet</p>
+<p>
+Attempting to reconnect
+<span class="hero-arrow-path ml-1 size-3 motion-safe:animate-spin">
+</span>
+</p>
+</div>
+<div class="flex-1">
+</div>
+<button aria-label="close" class="group self-start cursor-pointer" type="button">
+<span class="hero-x-mark size-5 opacity-40 group-hover:opacity-70">
+</span>
+</button>
+</div>
+</div>
+<div class="fixed inset-x-4 bottom-28 z-50 sm:inset-x-auto sm:top-20 sm:left-4 sm:bottom-auto" hidden="" id="server-error" phx-click="[[&quot;push&quot;,{&quot;value&quot;:{&quot;key&quot;:&quot;error&quot;},&quot;event&quot;:&quot;lv:clear-flash&quot;}],[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" phx-connected="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}],[&quot;set_attr&quot;,{&quot;attr&quot;:[&quot;hidden&quot;,&quot;&quot;]}]]" phx-disconnected="[[&quot;show&quot;,{&quot;time&quot;:300,&quot;to&quot;:&quot;.phx-server-error #server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-out&quot;,&quot;duration-300&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;]]}],[&quot;remove_attr&quot;,{&quot;to&quot;:&quot;.phx-server-error #server-error&quot;,&quot;attr&quot;:&quot;hidden&quot;}]]" phx-remove="[[&quot;hide&quot;,{&quot;time&quot;:200,&quot;to&quot;:&quot;#server-error&quot;,&quot;transition&quot;:[[&quot;transition-all&quot;,&quot;ease-in&quot;,&quot;duration-200&quot;],[&quot;opacity-100&quot;,&quot;translate-y-0&quot;,&quot;sm:scale-100&quot;],[&quot;opacity-0&quot;,&quot;translate-y-4&quot;,&quot;sm:translate-y-0&quot;,&quot;sm:scale-95&quot;]]}]]" role="alert">
+<div class="flex items-start gap-3 rounded-lg border p-4 shadow-md sm:w-96 text-wrap border-red-300 bg-red-50 text-red-900">
+<span class="hero-exclamation-circle size-5 shrink-0">
+</span>
+<div>
+<p class="font-semibold">Something went wrong!</p>
+<p>
+Attempting to reconnect
+<span class="hero-arrow-path ml-1 size-3 motion-safe:animate-spin">
+</span>
+</p>
+</div>
+<div class="flex-1">
+</div>
+<button aria-label="close" class="group self-start cursor-pointer" type="button">
+<span class="hero-x-mark size-5 opacity-40 group-hover:opacity-70">
+</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

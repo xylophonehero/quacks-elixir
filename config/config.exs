@@ -33,12 +33,20 @@ config :quacks, Table,
       icon: "🕵️"
     },
     "codex" => %{
-      name: "Codex (sandbox)",
-      blurb: "Card-time strategy for 2, hot-seat. A free table: move the cards by hand.",
+      name: "Codex",
+      blurb: "Card-time strategy for 2. Bashing against Finesse, against a bot or hot-seat.",
       game: Codex.Table,
       board: CodexWeb.Board,
       setup: "/games/codex/new",
       icon: "⚔️"
+    },
+    "generic" => %{
+      name: "Crazy Eights",
+      blurb: "Match the suit or the rank; an 8 is wild. 2 to 5. A generic table: zones and ops.",
+      game: Table.Generic.Table,
+      board: TableWeb.GenericBoard,
+      setup: "/games/generic/new?spec=crazy_eights",
+      icon: "8"
     }
   }
 

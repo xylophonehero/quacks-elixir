@@ -26,6 +26,7 @@ defmodule QuacksWeb.Gallery.Stories do
   alias QuacksWeb.Gallery.Fixtures
   alias QuacksWeb.LobbyLive
   alias TableWeb.Components.Theme
+  alias TableWeb.Gallery.Generic, as: GenericGallery
   alias TableWeb.Gallery.Hearts
 
   @typedoc """
@@ -116,8 +117,33 @@ defmodule QuacksWeb.Gallery.Stories do
     components ++
       [
         %{id: "setup", title: "Setup", stories: [setup]},
+        %{id: "generic", title: "Generic table", stories: [generic_board()]},
         %{id: "screens", title: "Screens", stories: screens()}
       ] ++ scenario_groups()
+  end
+
+  # The generic table (`TableWeb.GenericBoard`): Crazy Eights with the scripted referee.
+  defp generic_board do
+    story(
+      "generic",
+      "board",
+      "Generic table · Crazy Eights",
+      "TableWeb.GenericBoard: a real game from a seed",
+      :screen,
+      [enum("state", GenericGallery.states(), "play"), int("players", 2, 5, 4)],
+      &GenericGallery.board_story/1,
+      %{
+        presets: [
+          {"start", "The first turn", %{"state" => "start"}},
+          {"suit", "An 8: choose the suit", %{"state" => "suit"}},
+          {"waiting", "Another seat's turn", %{"state" => "waiting"}},
+          {"spectator", "Watching", %{"state" => "spectator"}},
+          {"over", "Game over", %{"state" => "over"}},
+          {"two", "2 players", %{"players" => 2}},
+          {"five", "5 players", %{"players" => 5}}
+        ]
+      }
+    )
   end
 
   @doc "The story `id` of group `group`, or nil."
@@ -548,6 +574,23 @@ defmodule QuacksWeb.Gallery.Stories do
   defp arg_stories("codenames") do
     [
       arg_story(
+        "themes",
+        "Codenames Duet · the key in every theme",
+        [
+          enum("state", CodenamesDuetWeb.Gallery.states(), "bystander"),
+          bool("hide_key")
+        ],
+        &CodenamesDuetWeb.Gallery.themes_story/1,
+        %{
+          presets: [
+            {"clue", "The first clue: the key only", %{"state" => "clue"}},
+            {"sudden-death", "Sudden death: marks and agents", %{"state" => "sudden-death"}},
+            {"lost", "Lost: both sides of the key", %{"state" => "lost"}},
+            {"hidden", "Hide my key", %{"hide_key" => true}}
+          ]
+        }
+      ),
+      arg_story(
         "board",
         "Codenames Duet · the game page",
         [
@@ -570,7 +613,9 @@ defmodule QuacksWeb.Gallery.Stories do
             {"watching", "A spectator", %{"state" => "watching"}},
             {"longest", "The 25 longest words", %{"words" => "longest", "state" => "bystander"}},
             {"hidden", "Hide my key", %{"hide_key" => true, "state" => "bystander"}},
-            {"dark", "Dracula (dark), guessing", %{"theme" => "dracula", "state" => "guessing"}}
+            {"dark", "Dracula (dark), guessing", %{"theme" => "dracula", "state" => "guessing"}},
+            {"bot-thinking", "Bot partner: thinking of a clue", %{"state" => "bot-thinking"}},
+            {"bot-guessing", "Bot partner: guessing your clue", %{"state" => "bot-guessing"}}
           ]
         }
       )
@@ -703,6 +748,13 @@ defmodule QuacksWeb.Gallery.Stories do
           {"5p", "5 players: the smallest pot", %{"players" => 5}}
         ]
       ),
+      screen(
+        "patient",
+        "Choose your patient (Alchemists)",
+        [int("players", 2, 4, 2)],
+        &patient_screen/1,
+        presets: [{"4p", "4 players: the tallest players row", %{"players" => 4}}]
+      ),
       screen("shop", "Shop", [int("players", 1, 8, 4), names], &Fixtures.shop_screen/1),
       screen(
         "visit",
@@ -758,6 +810,13 @@ defmodule QuacksWeb.Gallery.Stories do
 
   defp card_screen(%{"card" => id, "players" => players}) do
     entry = Enum.find(Scenarios.all(), &(&1.kind == "card" and &1.id == id))
+    scenario_screen(entry, %{"step" => 1, "players" => players})
+  end
+
+  # The patient choice of round 1: step 1 of a patient's scenario. On a portrait
+  # phone the sheet goes down to the screen's foot (app.css `.sheet-tall`).
+  defp patient_screen(%{"players" => players}) do
+    entry = Enum.find(Scenarios.all(), &(&1.kind == "patient" and &1.id == "witch_hump"))
     scenario_screen(entry, %{"step" => 1, "players" => players})
   end
 

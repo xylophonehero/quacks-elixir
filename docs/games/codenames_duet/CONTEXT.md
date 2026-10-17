@@ -22,7 +22,7 @@ Terms used in the code, tests and docs of Codenames Duet. Rules: `rulebook.md`. 
 | **score** | `Game.score/1`: the debriefing score of a win (§6.4), else nil. |
 | **view** | `Game.view(game, seat \| :spectator)`: the words, the viewer's own side (`key`), its `greens_left`, the marks, timer, clue, `done`, `acting`, `legal_actions` and the `log`. The partner's side is never in the view while the game is on; `revealed_key` shows both sides when it is over. |
 | **event log** | `game.log`, newest first; the UI animates from it. Events: `{:setup, words, timer}`, `{:clue, giver, word, number}`, `{:guess, guesser, index, colour}` (the colour of the deciding side, which the table marks), `{:side_done, seat}`, `{:turn_end, guesser, how, timer_left}`, `{:sudden_death, guessers}`, `{:game_over, :won \| :lost, :all_found \| :assassin \| :sudden_death}`. No event holds a hidden colour. |
-| **bot** | None. The game needs two people (`CodenamesDuet.Table.bot_levels/0` is `[]`). |
+| **bot** | A bot partner at seat 1, level `:vectors` (`CodenamesDuet.AI.Vectors`): GloVe word vectors (`CodenamesDuet.AI.Vectors.Data`, `priv/games/codenames_duet/vectors.bin`, PDDL), no network. It reads only its own view. Clue: the nearest clue words of its greens, scored by how many greens beat the best other word (an assassin counts 0.1 more) by a margin. Guess: the words nearest the clue, up to the number, one more only when sure. Bench: `CodenamesDuet.AI.Bench` (bot + bot). Set-up: "Partner: a friend / a bot". |
 
 ## The board
 
@@ -30,9 +30,9 @@ Terms used in the code, tests and docs of Codenames Duet. Rules: `rulebook.md`. 
 
 - **Clue entry**: one text field and a number picker 0..9. The engine error (`{:invalid_clue, reason}`) shows under the field (`TableWeb.Board.act_error/3`).
 - **Guess**: the guesser taps a card to pick it, then taps it again (or "Guess") to guess. "End guessing" shows after the first guess (`:end_turn` in `legal_actions`).
-- **Key edge**: each seat sees its own side as a colour edge at the bottom of each card, and a corner for an agent or an assassin. "Hide my key" takes the key out of the page (for screen sharing).
-- **Marks**: a found agent turns its card green (a flip). A bystander mark is a token on the clue giver's edge: your side at the bottom, your partner's at the top. Two marks cover the card.
+- **Key tint**: each seat sees its own side as the colour of the whole card (a spymaster view): agent green, assassin near-black with a red edge, bystander sand. An agent has a person icon and an assassin a skull, so the key reads without colour. The fills and their inks are `--cd-*` tokens in `codenames.css`; `test/codenames_duet_web/key_contrast_test.exs` checks 4.5:1 or more for the word in each theme. "Hide my key" takes the key out of the page (for screen sharing). Gallery: `/dev/gallery/codenames/themes`.
+- **Marks**: a found agent turns its card dark green, with the word struck through (a flip). A bystander mark is a token on the clue giver's edge: your side at the bottom, your partner's at the top. Two marks cover the card (dark tan, struck through).
 - **Status row**: whose turn, the clue, the agents found (x/15), the timer tokens (a used token is a ring). A banner shows in sudden death.
-- **Game over**: the result, the score of a win, both sides of the key on every card (your side at the bottom edge, your partner's at the top), Play again.
+- **Game over**: the result, the score of a win, both sides of the key on every card (your side as the tint, your partner's as a band on the top edge), Play again.
 - **Long words**: a word of 9 or more letters gets a soft hyphen before a common ending (or in the middle, from 10 letters), and the font size fits the longest line (`Board.fit/1`).
 - Colours: the card table themes (`TableWeb.Components.Theme`, `--tb-*` tokens in `assets/css/table.css`), as on the Hearts board (Nick: "use the Daisy themes again").

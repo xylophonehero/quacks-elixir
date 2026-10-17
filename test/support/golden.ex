@@ -12,17 +12,6 @@ defmodule Quacks.Golden do
   @doc "True when the golden fixtures are written again (`GOLDEN_RECORD=1`)."
   def record?, do: System.get_env("GOLDEN_RECORD") not in [nil, "", "0"]
 
-  @doc """
-  Load every module of the app. `Quacks.Session.from_bundle/1` reads a bundle's
-  atoms with `String.to_existing_atom/1`; in a fresh test VM (modules load lazily)
-  an action atom such as `:chip_done` may not exist yet, and a valid bundle gives
-  `{:error, :invalid}`. A release loads every module at boot, so it has them.
-  """
-  def load_atoms do
-    {:ok, modules} = :application.get_key(:quacks, :modules)
-    Enum.each(modules, &Code.ensure_loaded!/1)
-  end
-
   @doc "Write `term` as a formatted Elixir term to `path` (for `Code.eval_file/1`)."
   def write_term!(path, term) do
     File.mkdir_p!(Path.dirname(path))

@@ -135,6 +135,8 @@ defmodule Quacks.Session do
   """
   @spec from_bundle(map, non_neg_integer | nil) :: {:ok, t} | {:error, :invalid}
   def from_bundle(bundle, at \\ nil) do
+    ensure_atoms()
+
     %{"version" => 1, "seed" => [_, _, _] = seed, "players" => players, "opts" => opts} =
       b = bundle |> Jason.encode!() |> Jason.decode!()
 
@@ -178,6 +180,8 @@ defmodule Quacks.Session do
   @doc "The options `encode_opts/1` wrote (string keys). Raises on an unknown atom."
   @spec decode_opts(map) :: keyword
   def decode_opts(opts) do
+    ensure_atoms()
+
     [
       sets: decode_map(opts["sets"] || %{}),
       rules: decode_map(opts["rules"] || %{}),
@@ -186,6 +190,23 @@ defmodule Quacks.Session do
       witches: decode_map(opts["witches"] || %{}),
       patients: decode(opts["patients"] || %{"m" => []})
     ]
+  end
+
+  @doc """
+  Loads every module of the app once, so each atom that a bundle can name exists.
+  The decode uses `String.to_existing_atom/1` (no new atoms from a file). Modules
+  load lazily outside a release (dev, test, a mix task): before, an action atom
+  such as `:chip_done` was not there yet and a valid bundle gave `{:error, :invalid}`.
+  """
+  @spec ensure_atoms() :: :ok
+  def ensure_atoms do
+    if :persistent_term.get({__MODULE__, :atoms}, false) do
+      :ok
+    else
+      {:ok, modules} = :application.get_key(:quacks, :modules)
+      Enum.each(modules, &Code.ensure_loaded/1)
+      :persistent_term.put({__MODULE__, :atoms}, true)
+    end
   end
 
   defp encode(atom) when is_atom(atom) and atom not in [nil, true, false],

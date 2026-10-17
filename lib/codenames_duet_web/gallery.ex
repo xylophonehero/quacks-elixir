@@ -15,7 +15,9 @@ defmodule CodenamesDuetWeb.Gallery do
 
   @doc "The board states."
   @spec states() :: [String.t()]
-  def states, do: ~w(clue clue-error guessing bystander sudden-death won lost waiting watching)
+  def states,
+    do:
+      ~w(clue clue-error guessing bystander sudden-death won lost waiting watching bot-thinking bot-guessing)
 
   @seed {11, 22, 33}
   @clues ~w(quokka zephyr nimbus wobble jigsaw)
@@ -55,6 +57,13 @@ defmodule CodenamesDuetWeb.Gallery do
     %{view: :duet_board, board: socket.assigns}
   end
 
+  @doc "Every theme: the grid and the key legend of the board story's state."
+  @spec themes_story(map) :: map
+  def themes_story(args) do
+    %{board: board} = board_story(Map.put(args, "theme", nil))
+    %{view: :duet_themes, board: board}
+  end
+
   defp words(game, "longest") do
     longest =
       Words.all()
@@ -70,6 +79,12 @@ defmodule CodenamesDuetWeb.Gallery do
     do: %{
       0 => %{name: "Ann", bot: false, open: false},
       1 => %{name: "Player 2", bot: false, open: true}
+    }
+
+  defp seats("bot-" <> _),
+    do: %{
+      0 => %{name: "Ann", bot: false, open: false},
+      1 => %{name: "Ada", bot: true, open: false}
     }
 
   defp seats(_state),
@@ -119,6 +134,16 @@ defmodule CodenamesDuetWeb.Gallery do
     before = game |> clue(0, 3)
     now = before |> guess(1, :green)
     {before, now, 1}
+  end
+
+  defp reach("bot-thinking", game) do
+    before = game |> clue(0, 2) |> guess(1, :green)
+    {before, guess(before, 1, :neutral), 0}
+  end
+
+  defp reach("bot-guessing", game) do
+    before = game |> clue(0, 3)
+    {before, guess(before, 1, :green), 0}
   end
 
   defp reach("bystander", game) do

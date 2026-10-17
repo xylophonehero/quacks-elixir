@@ -1,0 +1,21 @@
+{
+  "name": "crazy_eights",
+  "title": "Crazy Eights",
+  "players": {"min": 2, "max": 5},
+  "deck": "standard52",
+  "referee": "crazy_eights",
+  "zones": [
+    {"id": "deck", "label": "Deck", "visibility": "hidden", "layout": "pile", "deck": true},
+    {"id": "discard", "label": "Discard", "visibility": "public", "layout": "pile"},
+    {"id": "hand", "label": "Hand", "per_seat": true, "visibility": "owner", "layout": "hand"}
+  ],
+  "counters": [
+    {"id": "suit", "label": "Suit", "value": ""},
+    {"id": "passes", "label": "Passes in a row", "value": 0, "show": false}
+  ],
+  "setup": [
+    {"op": "shuffle", "zone": "deck"},
+    {"op": "deal", "n": {"2": 7, "*": 5}, "from": "deck", "to": ["hand:*"]},
+    {"op": "move", "top": 1, "from": "deck", "to": "discard"}
+  ]
+}
