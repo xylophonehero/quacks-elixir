@@ -1090,11 +1090,19 @@ defmodule Codex.Rules do
   """
   @spec deaths(map) :: map
   def deaths(game) do
+    in_play = for(s <- [0, 1], id <- Zones.in_play(game, s), do: id)
+    # Only Abomination lowers HP from another card: without one, a card with no
+    # damage, no -1/-1 rune and no HP cut this turn has its printed HP (1 or more).
+    abomination? = Enum.any?(in_play, &(game.cards[&1].card == "abomination"))
+
     dead =
-      Enum.find(for(s <- [0, 1], id <- Zones.in_play(game, s), do: id), fn id ->
-        (Stats.force?(game, id) or Stats.building_card?(game, id)) and
-          (Stats.hp(game, id) <= 0 or game.cards[id].damage >= Stats.hp(game, id)) and
-          not (game.cards[id].damage == 0 and Stats.kw?(game, id, :indestructible))
+      Enum.find(in_play, fn id ->
+        c = game.cards[id]
+
+        (abomination? or c.damage > 0 or c.minus > 0 or c.tmp_hp < 0) and
+          (Stats.force?(game, id) or Stats.building_card?(game, id)) and
+          (Stats.hp(game, id) <= 0 or c.damage >= Stats.hp(game, id)) and
+          not (c.damage == 0 and Stats.kw?(game, id, :indestructible))
       end)
 
     case dead do

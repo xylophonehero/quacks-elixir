@@ -61,7 +61,7 @@ defmodule Codex.Stats do
   def subtype?(game, id, word) do
     # Metamorphosis: the heroes become Demons.
     (word == "Demon" and Map.get(game.cards[id].extra, :demon) == true) or
-      word in String.split(def_of(game, id).subtype || "", ~r/[\s—-]+/, trim: true)
+      word in def_of(game, id).subtypes
   end
 
   @doc """
@@ -215,24 +215,51 @@ defmodule Codex.Stats do
   # The bonuses that other cards give, `{atk, hp}` summed, picked by `stat`.
   defp static(_game, _id, nil, _stat), do: 0
 
+  # One look at the cards in play first: a bonus is computed only when the card
+  # that gives it is there (most are not; this is the hot path of the bots).
+  @static [
+    {"grounded-guide", :guide},
+    {"two-step", :partner},
+    {"war-drums", :war_drums},
+    {"master-midori", :midori},
+    {"soul-stone", :attached},
+    {"spirit-of-the-panda", :attached},
+    {"final-showdown", :attached},
+    {"might-of-leaf-and-claw", :leaf_and_claw},
+    {"macciatus-the-whisperer", :whisper},
+    {"abomination", :abomination},
+    {"skeletal-lord", :skeletal_lord}
+  ]
+
+  @static_map Map.new(@static)
+
   defp static(game, id, s, stat) do
-    bonuses = [
-      guide(game, id, s),
-      partner(game, id),
-      war_drums(game, id, s),
-      midori(game, id, s),
-      attached(game, id),
-      leaf_and_claw(game, id, s),
-      stampede(game, id, s),
-      marked(game, id),
-      trained(game, id),
-      whisper(game, id, s),
-      abomination(game, id),
-      skeletal_lord(game, id, s)
-    ]
+    cards = game.cards
+
+    kinds =
+      for seat <- [0, 1],
+          c <- Zones.in_play(game, seat),
+          kind = Map.get(@static_map, Map.fetch!(cards, c).card),
+          kind != nil,
+          uniq: true,
+          do: kind
+
+    bonuses =
+      [stampede(game, id, s), marked(game, id), trained(game, id)] ++
+        Enum.map(kinds, &bonus(&1, game, id, s))
 
     Enum.sum(for {a, h} <- bonuses, do: if(stat == :atk, do: a, else: h))
   end
+
+  defp bonus(:guide, game, id, s), do: guide(game, id, s)
+  defp bonus(:partner, game, id, _s), do: partner(game, id)
+  defp bonus(:war_drums, game, id, s), do: war_drums(game, id, s)
+  defp bonus(:midori, game, id, s), do: midori(game, id, s)
+  defp bonus(:attached, game, id, _s), do: attached(game, id)
+  defp bonus(:leaf_and_claw, game, id, s), do: leaf_and_claw(game, id, s)
+  defp bonus(:whisper, game, id, s), do: whisper(game, id, s)
+  defp bonus(:abomination, game, id, _s), do: abomination(game, id)
+  defp bonus(:skeletal_lord, game, id, s), do: skeletal_lord(game, id, s)
 
   # Grounded Guide: your OTHER units get +1 ATK; your Virtuosos +2/+1 instead.
   defp guide(game, id, s) do
