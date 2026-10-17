@@ -22,7 +22,25 @@ defmodule Codex.Zones do
   The zone of card `id`: `{seat, name}`, `{seat, :patrol, slot}` or `:trash`
   (nil when it is in no zone). Works on a game and on a view.
   """
-  def locate(game, id), do: Enum.find_value(placements(game), fn {i, at} -> i == id && at end)
+  def locate(%{sides: sides, trash: trash}, id) do
+    Enum.find_value(sides, &find_in_play(&1, id)) ||
+      if(id in trash, do: :trash) ||
+      Enum.find_value(sides, &find_in_side(&1, id))
+  end
+
+  # Most look-ups are for cards in play: those zones first. (A card is in one
+  # zone only, so the order does not change the answer.)
+  defp find_in_play({seat, %{zones: zones}}, id) do
+    Enum.find_value(zones.patrol, fn {slot, i} -> i == id && {seat, :patrol, slot} end) ||
+      if(id in zones.in_play, do: {seat, :in_play})
+  end
+
+  defp find_in_side({seat, %{zones: zones}}, id) do
+    Enum.find_value(zones, fn
+      {zone, ids} when is_list(ids) and zone != :in_play -> if id in ids, do: {seat, zone}
+      _ -> nil
+    end)
+  end
 
   @doc "Every card in a zone, as `{id, location}`. A view's decks are counts: left out."
   def placements(%{sides: sides, trash: trash}),
