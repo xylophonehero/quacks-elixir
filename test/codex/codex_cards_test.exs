@@ -28,8 +28,6 @@ defmodule Codex.CodexCardsTest do
     put_in(extra.sides[seat].zones.workers, game.sides[seat].zones.workers ++ ids)
   end
 
-  defp plays(game, id), do: for({:play, ^id, t} <- legal(game), do: t)
-
   describe "the tech step" do
     test "after the draw: 2 codex cards go face down... into the discard pile" do
       game = ok!(new(), :end_turn)

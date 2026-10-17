@@ -190,7 +190,7 @@ defmodule Codex.Bot do
 
   defp armored?(v, id) do
     opp = 1 - v.active
-    v.sides[opp].zones.patrol.squad_leader == id and not v.cards[id].armor_used
+    v.sides[opp].zones.patrol.squad_leader == id and v.cards[id].armor_dmg == 0
   end
 
   defp controller(v, id) do

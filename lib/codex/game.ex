@@ -120,7 +120,9 @@ defmodule Codex.Game do
   - `fatigued`: it came under its controller's control this turn (arrival
     fatigue); cleared in the controller's ready step.
   - `attacked`: it attacked this turn (readiness).
-  - `armor_used`: the squad leader's armor took a hit this turn.
+  - `armor_dmg`: the damage its armor absorbed this turn (armor refreshes each turn).
+  - `tmp_armor`: armor until the end of the turn (Rampant Growth, Dinosize).
+  - `this_turn`: card state until the end of the turn (haste given, a swapped ATK, ...).
   - `tmp_atk`, `tmp_hp`: changes until the end of the turn (Intimidate, Discord).
   - `stealth`: stealth this turn (Sneaky Pig).
   - `extra`: card state (Harmony's Dancer count, Two Step's partners).
@@ -137,7 +139,9 @@ defmodule Codex.Game do
           face_down: boolean,
           fatigued: boolean,
           attacked: boolean,
-          armor_used: boolean,
+          armor_dmg: non_neg_integer,
+          tmp_armor: non_neg_integer,
+          this_turn: map,
           tmp_atk: integer,
           tmp_hp: integer,
           stealth: boolean,
@@ -170,6 +174,7 @@ defmodule Codex.Game do
           summon_after: %{card_id => non_neg_integer},
           tower_used: boolean,
           max_at_start: [card_id],
+          effects: map,
           zones: %{
             required(:patrol) => %{slot => card_id | nil},
             optional(zone_name) => [card_id]
@@ -327,6 +332,7 @@ defmodule Codex.Game do
       summon_after: %{},
       tower_used: false,
       max_at_start: [],
+      effects: %{},
       zones: %{
         deck: deck,
         hand: hand,
@@ -367,7 +373,9 @@ defmodule Codex.Game do
       face_down: false,
       fatigued: false,
       attacked: false,
-      armor_used: false,
+      armor_dmg: 0,
+      tmp_armor: 0,
+      this_turn: %{},
       tmp_atk: 0,
       tmp_hp: 0,
       stealth: false,

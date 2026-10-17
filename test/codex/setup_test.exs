@@ -6,8 +6,6 @@ defmodule Codex.SetupTest do
 
   alias Codex.{Cards, Game}
 
-  defp red_green, do: elem(Game.new(%{preset: "red_green"}, {1, 2, 3}), 1)
-
   defp slugs(game, seat, zone), do: Enum.map(zone(game, seat, zone), &game.cards[&1].card)
 
   test "Red vs Green: colour starting decks, 3 heroes, 72 codex cards each" do

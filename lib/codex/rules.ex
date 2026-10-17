@@ -58,6 +58,8 @@ defmodule Codex.Rules do
   alias Table.Kit.Rng
 
   @gold_cap 20
+  # Side effects that end with the turn.
+  @turn_effects [:stampede, :spells, :drakk_used, :instant_build, :desperation]
   @hand_cap 5
   @spells ["Spell", "Minor Spell", "Ongoing Spell", "Ultimate Spell"]
 
@@ -82,8 +84,14 @@ defmodule Codex.Rules do
 
   defp hires(game, s) do
     side = game.sides[s]
-    if side.hired or side.gold < 1, do: [], else: for(id <- side.zones.hand, do: {:hire, id})
+
+    if side.hired or side.gold < hire_cost(game, s),
+      do: [],
+      else: for(id <- side.zones.hand, do: {:hire, id})
   end
+
+  # Rich Earth: "You may hire workers for free."
+  defp hire_cost(game, s), do: if(Stats.controls?(game, s, "rich-earth"), do: 0, else: 1)
 
   # Summon: a hero from the command zone for its cost (2), at level 1, with
   # arrival fatigue. 1-hero mode: at most 1 hero in play (S1 p. 11). A dead hero
@@ -119,40 +127,45 @@ defmodule Codex.Rules do
     end
   end
 
-  # Activated abilities with an exhaust cost (⤵): the card must be ready and
-  # without arrival fatigue (or have haste) (S1 p. 17).
+  # Activated abilities (S1 p. 17). An exhaust cost (⤵) needs the card ready and
+  # without arrival fatigue (or with haste).
   defp abilities(game, s) do
     gold = game.sides[s].gold
 
     for id <- Zones.in_play(game, s),
-        {name, slots, exhaust?} <- ability_slots(game, s, id),
-        not exhaust? or exhaust_ok?(game, id),
+        {name, slots, costs} <- ability_list(game, s, id),
+        costs_ok?(game, s, id, costs),
         targets <- Targets.combos(game, s, slots, id),
-        Targets.resist_cost(game, s, targets) <= gold,
+        Keyword.get(costs, :gold, 0) + Targets.resist_cost(game, s, targets) <= gold,
         do: {:ability, id, name, targets}
   end
 
-  # `{name, target slots, exhaust cost?}` of the abilities of card `id`:
-  # River Montoya, level 3+: ⤵ → Sideline a tech 0 or tech I patroller.
-  # Harmony: Sacrifice Harmony → "Stop the music."
-  # A Virtuoso while you have Maestro: ⤵ → Deal 2 damage to a building.
-  defp ability_slots(game, s, id) do
+  # The abilities of card `id`: its own (`Codex.CardRules.abilities/1`), a
+  # hero's by level, Harmony's, and Maestro's on your Virtuosos.
+  defp ability_list(game, s, id) do
     c = game.cards[id]
+    hero = if c.level, do: CardRules.hero_abilities(c.card, c.level), else: []
+    harmony = if c.card == "harmony", do: [{:stop_music, [], []}], else: []
 
-    own =
-      case c.card do
-        "river-montoya" when c.level >= 3 -> [{:sideline, [:opp_patroller_t01], true}]
-        "harmony" -> [{:stop_music, [], false}]
-        _ -> []
-      end
-
-    granted =
+    maestro =
       if Stats.unit?(game, id) and Stats.virtuoso?(game, id) and
            Stats.controls?(game, s, "maestro"),
-         do: [{:wreck, [:building], true}],
+         do: [{:wreck, [:building], [exhaust: true]}],
          else: []
 
-    own ++ granted
+    CardRules.abilities(c.card) ++ hero ++ harmony ++ maestro
+  end
+
+  defp costs_ok?(game, s, id, costs) do
+    c = game.cards[id]
+
+    Enum.all?(costs, fn
+      {:exhaust, true} -> exhaust_ok?(game, id)
+      {:blood, n} -> Map.get(c.extra, :blood, 0) >= n
+      {:rune, true} -> c.plus > 0
+      {:spell_played, true} -> Map.get(game.sides[s].effects, :spells, 0) > 0
+      _ -> true
+    end)
   end
 
   defp exhaust_ok?(game, id) do
@@ -240,8 +253,14 @@ defmodule Codex.Rules do
 
     for id <- game.sides[s].zones.hand,
         targets <- play_targets(game, s, id),
-        cost(game, s, id) + Targets.resist_cost(game, s, targets) <= gold,
+        play_cost(game, s, id, targets) <= gold,
         do: {:play, id, targets}
+  end
+
+  # Cost + the resist of the targets + boost.
+  defp play_cost(game, s, id, targets) do
+    boost = if :boost in targets, do: CardRules.boost(game.cards[id].card), else: 0
+    cost(game, s, id) + Targets.resist_cost(game, s, targets) + boost
   end
 
   # The target lists a card can be played with ([] when it cannot be played).
@@ -249,23 +268,29 @@ defmodule Codex.Rules do
     d = Cards.fetch!(game.cards[id].card)
 
     cond do
-      d.type == "Unit" ->
+      d.type in ["Unit", "Legendary Unit"] ->
         if tech_ok?(game, s, d), do: arrive_combos(game, s, d.slug), else: []
 
-      d.type in @spells ->
+      spell?(d) ->
         spell_combos(game, s, id, d)
 
       true ->
-        []
+        # Buildings and upgrades.
+        if tech_ok?(game, s, d), do: [[]], else: []
     end
   end
 
+  defp spell?(d), do: String.contains?(d.type, "Spell")
+
   defp arrive_combos(game, s, slug) do
-    case CardRules.arrive_targets(slug) do
-      [] ->
+    case {CardRules.manual?(slug), CardRules.arrive_targets(slug)} do
+      {true, _} ->
         [[]]
 
-      slots ->
+      {_, []} ->
+        [[]]
+
+      {_, slots} ->
         case Targets.combos(game, s, slots) do
           [] -> [[]]
           combos -> combos
@@ -274,18 +299,35 @@ defmodule Codex.Rules do
   end
 
   defp spell_combos(game, s, id, d) do
-    slots = CardRules.spell_targets(d.slug)
+    slots = if CardRules.manual?(d.slug), do: [], else: CardRules.spell_targets(d.slug)
 
     cond do
       slots == nil -> []
       not hero_for?(game, s, d) -> []
+      d.slug == "desperation" and game.sides[s].zones.hand -- [id] != [] -> []
+      slots == [:circle] -> circle_combos(game, s)
       slots == [] -> [[]]
       true -> Targets.combos(game, s, slots, id)
     end
   end
 
+  # Circle of Life: sacrifice a green unit, put a green unit one tech higher
+  # with a printed cost of 5 or less from your codex into play.
+  defp circle_combos(game, s) do
+    for u <- Targets.candidates(game, s, :my_green_unit),
+        t = Stats.tech(game, u) + 1,
+        c <- Enum.uniq_by(game.sides[s].zones.codex, &game.cards[&1].card),
+        d = Cards.fetch!(game.cards[c].card),
+        d.type in ["Unit", "Legendary Unit"],
+        d.color == "Green",
+        d.tech == t,
+        (d.cost || 0) <= 5,
+        do: [u, c]
+  end
+
   # A spell needs a hero of yours in play: a spec spell, the hero of that spec;
   # an ultimate spell, a hero that was at max level at the start of the turn (S1 p. 3).
+  # Guargum: Growth spells need no Growth hero.
   defp hero_for?(game, s, d) do
     heroes = for h <- Zones.in_play(game, s), Stats.hero?(game, h), do: h
 
@@ -295,11 +337,12 @@ defmodule Codex.Rules do
         else: heroes
 
     heroes =
-      if d.type == "Ultimate Spell",
+      if String.contains?(d.type, "Ultimate"),
         do: Enum.filter(heroes, &(&1 in game.sides[s].max_at_start)),
         else: heroes
 
-    heroes != []
+    heroes != [] or
+      (d.spec == "Growth" and Stats.controls?(game, s, "guargum-eternal-sentinel"))
   end
 
   # Tech 0 needs the base; tech I, II, III need that finished tech building (S1 p. 4).
@@ -390,10 +433,15 @@ defmodule Codex.Rules do
     zones = game.sides[s].zones
     empty = for slot <- Zones.patrol_slots(), zones.patrol[slot] == nil, do: slot
 
+    # Moment's Peace: "your units can't patrol".
+    peace? = Stats.side_effect(game, s, :peace) != nil
+
     moves =
       for id <- Zones.in_play(game, s),
           Stats.force?(game, id),
           not game.cards[id].exhausted,
+          not Stats.kw?(game, id, :cant_patrol),
+          not (peace? and Stats.unit?(game, id)),
           slot <- empty,
           do: {:patrol, id, slot}
 
@@ -416,26 +464,24 @@ defmodule Codex.Rules do
 
   defp do_act(game, {:hire, id}) do
     s = game.active
+    pay = hire_cost(game, s)
 
     game
     |> Zones.move(id, {s, :workers})
     |> Zones.update_card(id, &%{&1 | face_down: true})
-    |> update_side(s, &%{&1 | gold: &1.gold - 1, hired: true})
+    |> update_side(s, &%{&1 | gold: &1.gold - pay, hired: true})
   end
 
   defp do_act(game, {:play, id, targets}) do
     s = game.active
     d = Cards.fetch!(game.cards[id].card)
-    pay = cost(game, s, id) + Targets.resist_cost(game, s, targets)
+    pay = play_cost(game, s, id, targets)
     game = update_side(game, s, &%{&1 | gold: &1.gold - pay})
 
-    if d.type == "Unit" do
-      game
-      |> Zones.move(id, {s, :in_play})
-      |> Zones.update_card(id, &%{&1 | fatigued: true})
-      |> Effects.arrive(s, id, targets)
-    else
-      Effects.cast(game, s, id, targets)
+    cond do
+      d.type in ["Unit", "Legendary Unit"] -> Effects.arrive_from_hand(game, s, id, targets)
+      spell?(d) -> Effects.cast(game, s, id, targets)
+      true -> Effects.permanent(game, s, id)
     end
   end
 
@@ -447,6 +493,7 @@ defmodule Codex.Rules do
     |> update_side(s, &%{&1 | gold: &1.gold - cost})
     |> Zones.move(id, {s, :in_play})
     |> Zones.update_card(id, &%{&1 | fatigued: true, level: 1})
+    |> Effects.hero_arrives(s, id)
   end
 
   defp do_act(game, {:level_up, id}) do
@@ -455,21 +502,32 @@ defmodule Codex.Rules do
     |> Effects.level_up(id, 1)
   end
 
-  defp do_act(game, {:ability, id, :sideline, [t]}) do
+  defp do_act(game, {:ability, id, name, targets}) do
     s = game.active
+    {_name, _slots, costs} = Enum.find(ability_list(game, s, id), &(elem(&1, 0) == name))
+    gold = Keyword.get(costs, :gold, 0) + Targets.resist_cost(game, s, targets)
+    game = update_side(game, s, &%{&1 | gold: &1.gold - gold})
+    game = if costs[:exhaust], do: Effects.exhaust(game, id), else: game
 
-    game
-    |> update_side(s, &%{&1 | gold: &1.gold - Targets.resist_cost(game, s, [t])})
-    |> exhaust(id)
-    |> Effects.sideline(t)
+    game =
+      case costs[:blood] do
+        nil ->
+          game
+
+        n ->
+          Zones.update_card(
+            game,
+            id,
+            &%{&1 | extra: Map.update(&1.extra, :blood, 0, fn b -> b - n end)}
+          )
+      end
+
+    game =
+      if costs[:rune], do: Zones.update_card(game, id, &%{&1 | plus: &1.plus - 1}), else: game
+
+    game = if costs[:sacrifice], do: Effects.sacrifice(game, id), else: game
+    Effects.ability(game, s, id, name, targets)
   end
-
-  defp do_act(game, {:ability, id, :wreck, [t]}) do
-    game |> exhaust(id) |> Effects.deal(t, 2)
-  end
-
-  defp do_act(game, {:ability, id, :stop_music, []}),
-    do: Effects.stop_music(game, game.active, id)
 
   defp do_act(game, {:build, :tech_2, spec}) do
     s = game.active
@@ -482,7 +540,12 @@ defmodule Codex.Rules do
   defp do_act(game, {:build, b}) do
     s = game.active
     cost = build_cost(game, s, b)
-    update_side(game, s, &%{&1 | gold: &1.gold - cost, pending: &1.pending ++ [b]})
+    game = update_side(game, s, &%{&1 | gold: &1.gold - cost, pending: &1.pending ++ [b]})
+
+    # Verdant Tree: "Your tech buildings build instantly this turn."
+    if Stats.side_effect(game, s, :instant_build) == true and b in [:tech_1, :tech_2, :tech_3],
+      do: finish_buildings(game, s, [b]),
+      else: game
   end
 
   defp do_act(game, {:tech, ids}) do
@@ -545,6 +608,8 @@ defmodule Codex.Rules do
     game = %{game | active: seat, phase: :main}
 
     game
+    # Moment's Peace lasts "until your next turn".
+    |> update_side(seat, &%{&1 | effects: Map.delete(&1.effects, :peace)})
     |> update_side(seat, &%{&1 | turn: &1.turn + 1, hired: false, reshuffled: false})
     |> update_side(0, &%{&1 | tower_used: false})
     |> update_side(1, &%{&1 | tower_used: false})
@@ -562,7 +627,7 @@ defmodule Codex.Rules do
 
     # Squad leader armor refreshes each turn.
     Enum.reduce(Map.keys(game.cards), game, fn id, game ->
-      Zones.update_card(game, id, &%{&1 | armor_used: false})
+      Zones.update_card(game, id, &%{&1 | armor_dmg: 0})
     end)
   end
 
@@ -595,41 +660,48 @@ defmodule Codex.Rules do
   # discard and draw, then the other side's turn.
   defp end_turn(game) do
     s = game.active
+    # Desperation: "Discard your hand at the end of the main phase."
+    game = if Stats.side_effect(game, s, :desperation), do: discard_hand(game, s), else: game
+    game = game |> lock_patrol(s) |> finish_buildings(s)
+    # Chameleon Lizzo and Bloodrage Ogre go back to the hand after the draw (rulings).
+    returns = Effects.returns(game, s)
 
     game =
       game
-      |> lock_patrol(s)
-      |> finish_buildings(s)
+      |> Effects.end_of_turn(s)
       |> end_of_turn()
+      |> update_side(s, &%{&1 | effects: Map.drop(&1.effects, @turn_effects)})
       |> deaths()
 
     hand = game.sides[s].zones.hand
-    game = Enum.reduce(hand, game, fn id, game -> Zones.move(game, id, {s, :discard}, 0) end)
-
+    game = discard_hand(game, s)
     game = draw(game, s, min(length(hand) + 2, @hand_cap), :draw_phase)
+    game = game |> Effects.return_to_hand(returns) |> deaths()
 
     if techs(%{game | phase: :tech}, s) == [{:tech, []}],
       do: start_turn(game, 1 - s),
       else: %{game | phase: :tech}
   end
 
-  # Buildings started this turn finish at the end of the turn (S1 p. 4).
-  defp finish_buildings(game, s) do
-    update_side(game, s, fn side ->
-      %{
-        side
-        | tech_buildings: side.tech_buildings ++ side.pending,
-          pending: [],
-          destroyed: side.destroyed -- side.pending
-      }
+  defp discard_hand(game, s) do
+    Enum.reduce(game.sides[s].zones.hand, game, fn id, game ->
+      Zones.move(game, id, {s, :discard}, 0)
     end)
   end
 
-  # Exhaust a card; an exhausted card cannot patrol (S1 p. 5).
-  defp exhaust(game, id) do
-    game
-    |> Zones.update_card(id, &%{&1 | exhausted: true})
-    |> Effects.sideline(id)
+  # Buildings started this turn finish at the end of the turn (S1 p. 4).
+  @doc "Finish buildings under construction (all, or only those in `only`)."
+  def finish_buildings(game, s, only \\ nil) do
+    update_side(game, s, fn side ->
+      done = if only, do: Enum.filter(side.pending, &(&1 in only)), else: side.pending
+
+      %{
+        side
+        | tech_buildings: side.tech_buildings ++ done,
+          pending: side.pending -- done,
+          destroyed: side.destroyed -- done
+      }
+    end)
   end
 
   # Only ready cards patrol (S1 p. 5).
@@ -641,7 +713,11 @@ defmodule Codex.Rules do
 
   defp end_of_turn(game) do
     Enum.reduce(Map.keys(game.cards), game, fn id, game ->
-      Zones.update_card(game, id, &%{&1 | tmp_atk: 0, tmp_hp: 0, stealth: false})
+      Zones.update_card(
+        game,
+        id,
+        &%{&1 | tmp_atk: 0, tmp_hp: 0, tmp_armor: 0, stealth: false, this_turn: %{}}
+      )
     end)
   end
 
@@ -706,7 +782,7 @@ defmodule Codex.Rules do
   def deaths(game) do
     dead =
       Enum.find(for(s <- [0, 1], id <- Zones.in_play(game, s), do: id), fn id ->
-        Stats.force?(game, id) and
+        (Stats.force?(game, id) or Stats.building_card?(game, id)) and
           (Stats.hp(game, id) <= 0 or game.cards[id].damage >= Stats.hp(game, id))
       end)
 
@@ -728,24 +804,19 @@ defmodule Codex.Rules do
     end
   end
 
-  # Channeling (Harmony, Two Step): sacrificed when its side has no Finesse hero in play.
-  # Two Step: also when its side lost one of the partners.
+  # Channeling (Harmony, Two Step, War Drums, Behind the Ferns): sacrificed when
+  # its side has no hero of its spec in play. Two Step: also when its side lost
+  # one of the partners. An attached spell (Spirit of the Panda, Final
+  # Showdown): when the card it is attached to left play.
   defp lost?(game, s, id) do
-    case game.cards[id].card do
-      slug when slug in ["harmony", "two-step"] ->
-        no_hero? =
-          not Enum.any?(Zones.in_play(game, s), fn h ->
-            Stats.hero?(game, h) and Cards.fetch!(game.cards[h].card).spec == "Finesse"
-          end)
+    c = game.cards[id]
+    spec = CardRules.channeling(c.card)
+    partners = Map.get(c.extra, :partners, [])
+    host = Map.get(c.extra, :attached)
 
-        partners = Map.get(game.cards[id].extra, :partners, [])
-
-        no_hero? or
-          Enum.any?(partners, &(Zones.controller(game, &1) != s or not in_play?(game, &1)))
-
-      _ ->
-        false
-    end
+    (spec != nil and not Stats.spec_hero?(game, s, spec)) or
+      Enum.any?(partners, &(Zones.controller(game, &1) != s or not in_play?(game, &1))) or
+      (host != nil and not in_play?(game, host))
   end
 
   defp in_play?(game, id), do: Zones.zone_name(Zones.locate(game, id)) in [:in_play, :patrol]
@@ -761,7 +832,9 @@ defmodule Codex.Rules do
         exhausted: false,
         fatigued: false,
         attacked: false,
-        armor_used: false,
+        armor_dmg: 0,
+        tmp_armor: 0,
+        this_turn: %{},
         tmp_atk: 0,
         tmp_hp: 0,
         stealth: false,

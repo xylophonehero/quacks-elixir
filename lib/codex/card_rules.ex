@@ -40,8 +40,66 @@ defmodule Codex.CardRules do
     "revolver-ocelot" => [sparkshot: true],
     "harvest-reaper" => [overpower: true],
     "trojan-duck" => [obliterate: 2],
-    "backstabber" => [invisible: true]
+    "backstabber" => [invisible: true],
+    # Red starting deck
+    "nautical-dog" => [frenzy: 1],
+    "mad-man" => [haste: true],
+    "bombaster" => [],
+    "makeshift-rambaster" => [haste: true, cant_patrol: true, vs_buildings: 2],
+    # Anarchy
+    "gunpoint-taxman" => [anti_air: true],
+    "disguised-monkey" => [haste: true],
+    "chameleon-lizzo" => [haste: true, stealth: true],
+    "marauder" => [haste: true],
+    "steam-tank" => [vs_buildings: 4],
+    "pirate-gunship" => [flying: true, haste: true, long_range: true, resist: 2, obliterate: 2],
+    # Blood
+    "shoddy-glider" => [haste: true, ephemeral: true, flying: true],
+    "crashbarrow" => [haste: true, ephemeral: true, overpower: true],
+    "land-octopus" => [overpower: true, cant_patrol: true],
+    # Fire
+    "lobber" => [haste: true],
+    "doubleshot-archer" => [long_range: true],
+    "molting-firebird" => [flying: true],
+    "cinderblast-dragon" => [flying: true, resist: 2],
+    # Tokens
+    "shark" => [haste: true, ephemeral: true],
+    "hunter" => [anti_air: true],
+    "water-elemental" => [anti_air: true],
+    # Green starting deck
+    "young-treant" => [cant_attack: true],
+    "verdant-tree" => [healing: 1],
+    # Balance
+    "gemscout-owl" => [flying: true, cant_attack: true, resist: 1],
+    "tiny-basilisk" => [deathtouch: true, t0_proof: true],
+    "chameleon" => [stealth: true],
+    "fairie-dragon" => [flying: true],
+    "dothram-horselord" => [overpower: true],
+    "potent-basilisk" => [untargetable: true, deathtouch: true],
+    "tyrannosaurus-rex" => [overpower: true, resist: 2],
+    # Feral
+    "huntress" => [sparkshot: true, anti_air: true],
+    "centaur" => [overpower: true],
+    "predator-tiger" => [t0_unstoppable: true],
+    "barkcoat-bear" => [resist: 2, overpower: true],
+    "gigadon" => [overpower: true],
+    "moss-ancient" => [untargetable: true],
+    # Growth
+    "guargum-eternal-sentinel" => [resist: 2, obliterate: 4]
   }
+
+  # Hero keywords by level band: `{from level, keywords}`.
+  @hero_keywords %{
+    "troq-bashar" => [{8, [readiness: true]}],
+    "captain-zane" => [{1, [haste: true]}],
+    "jaina-stormborne" => [{1, [sparkshot: true]}]
+  }
+
+  @doc "The keywords of a hero at `level`."
+  @spec hero_keywords(String.t(), pos_integer) :: keyword
+  def hero_keywords(slug, level) do
+    for {from, kws} <- Map.get(@hero_keywords, slug, []), level >= from, kw <- kws, do: kw
+  end
 
   # Spells: the target slots. A slot kind in a tuple `{:optional, kind}` may be
   # skipped (nil).
@@ -56,15 +114,114 @@ defmodule Codex.CardRules do
     "harmony" => [],
     "discord" => [],
     "two-step" => [:my_unit_unpartnered, :my_unit_unpartnered],
-    "appel-stomp" => [:patroller]
+    "appel-stomp" => [:patroller],
+    # Red starting deck
+    "scorch" => [:patroller_or_building],
+    "charge" => [:my_unit],
+    # REVIEW: Pillage hits the opposing base (it says "a base"); no target pick.
+    "pillage" => [],
+    # Anarchy
+    "chaos-mirror" => [:force, :force],
+    "detonate" => [:worker_or_building_card],
+    "surprise-attack" => [],
+    "maximum-anarchy" => [],
+    # Blood
+    "desperation" => [],
+    "kidnapping" => [:opp_unit_t012],
+    "bloodlust" => [:force, {:may, :force}],
+    "war-drums" => [],
+    # Fire
+    "fire-dart" => [:unit_or_building],
+    "ember-sparks" => [{:divide, :patroller_or_building, 3}],
+    "flame-arrow" => [:force_or_building],
+    # Green starting deck
+    "rampant-growth" => [:force],
+    "forest-s-favor" => [:my_force_no_plus],
+    # Balance
+    "moment-s-peace" => [],
+    "nature-reclaims" => [:upgrade_ongoing_building_card],
+    "circle-of-life" => [:circle],
+    "final-showdown" => [:my_balance_hero],
+    # Feral
+    "ferocity" => [],
+    "behind-the-ferns" => [],
+    "murkwood-allies" => [{:choice, [:beast, :frogs, :boost]}],
+    # Growth
+    "polymorph-squirrel" => [:unit],
+    "dinosize" => [:force],
+    "spirit-of-the-panda" => [:unit],
+    "stampede" => []
   }
+
+  # Extra gold for a `:boost` target (Boost X).
+  @boost %{"marauder" => 3, "murkwood-allies" => 4}
+
+  # Channeling: the ongoing spell is sacrificed when its side has no hero of this spec.
+  @channeling %{
+    "harmony" => "Finesse",
+    "two-step" => "Finesse",
+    "war-drums" => "Blood",
+    "behind-the-ferns" => "Feral"
+  }
+
+  # Activated abilities of cards: `{name, target slots, costs}`. Costs:
+  # `exhaust: true` (⤵), `gold: n`, `sacrifice: true`, `blood: n` (remove blood
+  # runes), `rune: true` (remove a +1/+1 rune from it), `spell_played: true`.
+  @abilities %{
+    "bombaster" => [{:blast, [:patrolling_unit], [gold: 1, sacrifice: true]}],
+    "careless-musketeer" => [{:shoot, [:unit_or_building], [exhaust: true]}],
+    "bloodburn" => [{:burn, [:unit_or_building], [exhaust: true, blood: 2]}],
+    "merfolk-prospector" => [{:prospect, [], [exhaust: true]}],
+    "spore-shambler" => [
+      {:spore, [:other_unit], [gold: 1, rune: true]},
+      {:spore_tap, [:other_unit], [exhaust: true, rune: true]}
+    ],
+    "verdant-tree" => [{:instant_build, [], [exhaust: true]}],
+    "lobber" => [{:lob, [:building], [exhaust: true]}],
+    "firebat" => [{:firebat, [:patroller_or_building], [gold: 1, exhaust: true]}],
+    "calypso-vystari" => [{:sideline, [:patroller], [exhaust: true, spell_played: true]}],
+    "sanatorium" => [
+      {:sanatorium, [{:may, :hand_unit_t012}, {:may, :hand_unit_t012}], [gold: 1, exhaust: true]}
+    ],
+    "rickety-mine" => [{:mine, [], [exhaust: true]}],
+    "firehouse" => [{:firehouse, [:force_or_building], [exhaust: true]}],
+    "blooming-ancient" => [{:rune_move, [:other_unit], [rune: true]}],
+    "blooming-elm" => [{:elm, [:force], [exhaust: true]}]
+  }
+
+  # Hero abilities by level: `{from level, name, target slots, costs}`.
+  @hero_abilities %{
+    "river-montoya" => [{3, :sideline, [:opp_patroller_t01], [exhaust: true]}],
+    "jaina-stormborne" => [
+      {4, :jaina_1, [:patrolling_unit_or_building], [exhaust: true]},
+      {7, :jaina_3, [:unit_or_building], [exhaust: true]}
+    ],
+    "argagarg-garg" => [{3, :argagarg, [:unit], [exhaust: true]}],
+    "calamandra-moss" => [
+      {1, :hide, [:hand_card, :hand_card], []},
+      {5, :tiger, [:codex_tiger], [gold: 4, exhaust: true]}
+    ]
+  }
+
+  # Cards played as "manual": paid for and put into play; their text is not run.
+  # A player resolves it in free mode. (A unit's printed keywords still work.)
+  @manual ~w(burning-volley feral-strike)
+  # Not done yet in this round of work (moved out as each spec is done).
+  @manual @manual ++
+            ~w(artisan-mantis bamstamper-lizzo barkcoat-bear behind-the-ferns bloodlust blooming-ancient blooming-elm calypso-vystari captured-bugblatter centaur chameleon chameleon-lizzo chaos-mirror cinderblast-dragon circle-of-life crash-bomber crashbarrow desperation detonate dinosize disguised-monkey dothram-horselord doubleshot-archer ember-sparks fairie-dragon ferocity final-showdown fire-dart firebat firehouse flame-arrow galina-glimmer gemscout-owl giant-panda gigadon guargum-eternal-sentinel gunpoint-taxman hotter-fire huntress kidnapping land-octopus lobber marauder maximum-anarchy might-of-leaf-and-claw molting-firebird moment-s-peace moss-ancient murkwood-allies nature-reclaims ogre-recruiter oversized-rhinoceros pirate-gang-commander pirate-gunship polymorph-squirrel potent-basilisk predator-tiger rampaging-elephant rickety-mine sanatorium shoddy-glider spirit-of-the-panda stalking-tiger stampede steam-tank surprise-attack tiny-basilisk tyrannosaurus-rex wandering-mimic war-drums)
 
   # "Arrives:" abilities with a target. The slot may be empty only when there is
   # no legal target ("do as much as you can", S1 p. 17).
   @arrive_targets %{
     "hired-stomper" => [:unit],
     "brick-thief" => [:building],
-    "trojan-duck" => [:building]
+    "trojan-duck" => [:building],
+    "marauder" => [{:choice, [:plain, :boost]}],
+    "bamstamper-lizzo" => [:unit],
+    "fairie-dragon" => [{:may, :unit_t12}],
+    "potent-basilisk" => [{:may, :upgrade_or_ongoing}],
+    "tyrannosaurus-rex" => [{:may, :unit_upgrade_worker}, {:may, :unit_upgrade_worker}],
+    "artisan-mantis" => [:my_building]
   }
 
   @doc "The printed keywords of a card (a keyword list)."
@@ -83,10 +240,33 @@ defmodule Codex.CardRules do
   @spec arrive_targets(String.t()) :: [term]
   def arrive_targets(slug), do: Map.get(@arrive_targets, slug, [])
 
-  @doc "The slugs whose text the engine runs (the rest are played as \"manual\")."
-  @spec implemented() :: [String.t()]
-  def implemented,
-    do: Map.keys(@spell_targets) ++ Map.keys(@keywords) ++ Map.keys(@arrive_targets)
+  @doc "The extra gold for boosting a card (0: no boost)."
+  @spec boost(String.t()) :: non_neg_integer
+  def boost(slug), do: Map.get(@boost, slug, 0)
+
+  @doc "The spec whose hero a channeling spell needs, or nil."
+  @spec channeling(String.t()) :: String.t() | nil
+  def channeling(slug), do: Map.get(@channeling, slug)
+
+  @doc "The activated abilities of a card: `{name, slots, costs}`."
+  @spec abilities(String.t()) :: [{atom, list, keyword}]
+  def abilities(slug), do: Map.get(@abilities, slug, [])
+
+  @doc "The activated abilities of a hero at `level`."
+  @spec hero_abilities(String.t(), pos_integer) :: [{atom, list, keyword}]
+  def hero_abilities(slug, level) do
+    for {from, name, slots, costs} <- Map.get(@hero_abilities, slug, []),
+        level >= from,
+        do: {name, slots, costs}
+  end
+
+  @doc "True for a card played as \"manual\" (its text is not run)."
+  @spec manual?(String.t()) :: boolean
+  def manual?(slug), do: slug in @manual
+
+  @doc "The manual cards."
+  @spec manual() :: [String.t()]
+  def manual, do: @manual
 
   @doc "A token: a unit that is never in a deck (Dancer, Angry Dancer, Mercenary)."
   @spec token?(String.t()) :: boolean

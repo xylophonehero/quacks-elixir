@@ -205,6 +205,31 @@ defmodule CodexWeb.Board do
 
   def handle_event("skip_target", _params, socket), do: pick(socket, nil)
 
+  # A pick by its button (a card out of sight, a worker, a choice).
+  def handle_event(
+        "pick_index",
+        %{"i" => i},
+        %{assigns: %{targeting: %{key: key, picked: picked}}} = socket
+      ) do
+    values = Moves.options(socket.assigns.actions, key, picked).values
+
+    case Enum.at(values, int(i)) do
+      nil -> {:noreply, socket}
+      value -> pick(socket, value)
+    end
+  end
+
+  def handle_event(
+        "pick_done",
+        _params,
+        %{assigns: %{targeting: %{key: key, picked: picked}}} = socket
+      ) do
+    case Moves.options(socket.assigns.actions, key, picked).complete do
+      nil -> {:noreply, socket}
+      action -> {:act, action, Phoenix.Component.assign(socket, targeting: nil, selected: nil)}
+    end
+  end
+
   def handle_event("cancel_target", _params, socket),
     do: {:noreply, Phoenix.Component.assign(socket, targeting: nil)}
 
@@ -555,6 +580,7 @@ defmodule CodexWeb.Board do
             pick={@pick}
             targeting={@targeting}
             stats={@view.stats[@sel.id]}
+            view={@view}
           />
           <.inspector_help :if={!@sel} free={@free} />
           <.log_list view={@view} id="cx-log" class="hidden lg:flex" />
@@ -1584,9 +1610,20 @@ defmodule CodexWeb.Board do
   attr :pick, :map, default: nil
   attr :targeting, :map, default: nil
   attr :stats, :any, default: nil
+  attr :view, :map, default: nil
 
   defp inspector(assigns) do
     c = assigns.card
+
+    assigns =
+      assign(assigns,
+        choices:
+          if(assigns.pick,
+            do: for({v, i} <- Enum.with_index(assigns.pick.values), v != nil, do: {v, i}),
+            else: []
+          )
+      )
+
     d = Cards.fetch!(c.card)
     max = Cards.max_level(c.card)
     assigns = assign(assigns, d: d, max: max, zoom?: MapSet.member?(assigns.art, c.card))
@@ -1637,7 +1674,28 @@ defmodule CodexWeb.Board do
         <p class="text-xs font-semibold text-amber-100">
           {pick_text(@targeting, @pick)}
         </p>
+        <div :if={@choices != []} class="flex flex-wrap gap-1.5">
+          <button
+            :for={{v, i} <- @choices}
+            id={"cx-pick-#{i}"}
+            type="button"
+            phx-click="pick_index"
+            phx-value-i={i}
+            class="cx-act cx-act-rule"
+          >
+            {value_label(@view, v)}
+          </button>
+        </div>
         <div class="flex flex-wrap gap-1.5">
+          <button
+            :if={@pick.complete && @pick.values != []}
+            id="cx-pick-done"
+            type="button"
+            phx-click="pick_done"
+            class="cx-act cx-act-rule"
+          >
+            Done
+          </button>
           <button
             :if={nil in @pick.values}
             id="cx-pick-skip"
@@ -1806,6 +1864,18 @@ defmodule CodexWeb.Board do
     """
   end
 
+  # The text of a pick value on its button.
+  defp value_label(v, id) when is_integer(id), do: name(v, id)
+  defp value_label(_v, {:building, s, b}), do: "P#{s + 1}'s #{target_text(b)}"
+  defp value_label(_v, {:worker, s}), do: "A worker of P#{s + 1}"
+  defp value_label(_v, :boost), do: "Boost"
+  defp value_label(_v, :plain), do: "No boost"
+  defp value_label(_v, :beast), do: "A 4/4 Beast"
+  defp value_label(_v, :frogs), do: "Four 1/1 Frogs"
+
+  defp value_label(_v, atom) when is_atom(atom),
+    do: atom |> to_string() |> String.replace("_", " ")
+
   defp pick_text(%{key: {:attack, _, _}}, _pick), do: "Tap what to attack."
   defp pick_text(%{key: {_, _, _}, picked: []}, _pick), do: "Tap a target."
   defp pick_text(%{picked: picked}, _pick), do: "Tap target #{length(picked) + 1}."
@@ -1871,6 +1941,18 @@ defmodule CodexWeb.Board do
   defp log_text({:dancer, s}, _v), do: "P#{s + 1} gets a Dancer token."
   defp log_text({:destroyed, s, b}, _v), do: "P#{s + 1}'s #{target_text(b)} is destroyed."
   defp log_text({:sacrificed, id}, v), do: "#{name(v, id)} is sacrificed."
+  defp log_text({:summon, s, slug, n}, _v), do: "P#{s + 1} gets #{n} #{Cards.fetch!(slug).name}."
+  defp log_text({:manual, id}, v), do: "#{name(v, id)}: manual. Resolve its text in free mode."
+  defp log_text({:returns, id}, v), do: "#{name(v, id)} goes back to the hand."
+  defp log_text({:trashed, id}, v), do: "#{name(v, id)} is trashed."
+  defp log_text({:worker_trashed, s}, _v), do: "A worker of P#{s + 1} is trashed."
+
+  defp log_text({:legendary, id}, v),
+    do: "#{name(v, id)} is legendary: the second copy is discarded."
+
+  defp log_text({:destroyed_card, id}, v), do: "#{name(v, id)} is destroyed."
+  defp log_text({:coin, :heads}, _v), do: "The coin: heads. Phew!"
+  defp log_text({:coin, :tails}, _v), do: "The coin: tails."
   defp log_text(other, _v), do: inspect(other)
 
   defp action_text(s, {:hire, _id}, _v), do: "P#{s + 1} hires a worker."
@@ -1895,6 +1977,7 @@ defmodule CodexWeb.Board do
         )
 
   defp action_text(s, {:build, b}, _v), do: "P#{s + 1} builds #{target_text(b)}."
+  defp action_text(s, {:build, :tech_2, spec}, _v), do: "P#{s + 1} builds Tech II (#{spec})."
   defp action_text(s, {:tech, ids}, _v), do: "P#{s + 1} techs #{length(ids)} codex cards."
   defp action_text(_s, {:attack, a, t}, v), do: "#{name(v, a)} attacks #{target_name(v, t)}."
   defp action_text(_s, {:free_mode, on}, _v), do: "Free mode #{if on, do: "on", else: "off"}."
@@ -1902,10 +1985,12 @@ defmodule CodexWeb.Board do
 
   defp target_name(_v, nil), do: "nothing"
   defp target_name(_v, {:building, s, b}), do: "P#{s + 1}'s #{target_text(b)}"
+  defp target_name(_v, {:worker, s}), do: "a worker of P#{s + 1}"
+  defp target_name(_v, atom) when is_atom(atom), do: to_string(atom)
   defp target_name(v, id), do: name(v, id)
 
   defp target_text(:base), do: "base"
-  defp target_text(b), do: building_label(b)
+  defp target_text(b), do: Map.get(@building_labels, b, to_string(b))
 
   defp action_text({:move, id, zone, at}, v), do: "#{name(v, id)} → #{zone_text(zone, at)}"
   defp action_text({:draw, s, n}, _v), do: "P#{s + 1} draws #{n}"

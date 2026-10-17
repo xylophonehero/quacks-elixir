@@ -80,4 +80,13 @@ defmodule Codex.TestHelpers do
     {game, [id]} = Game.add_cards(game, seat, [slug])
     {Codex.Zones.insert(game, id, {seat, zone}, at), id}
   end
+
+  @doc "A Red (P1) vs Green (P2) game."
+  def red_green(seed \\ {1, 2, 3}), do: elem(Game.new(%{preset: "red_green"}, seed), 1)
+
+  @doc "Every Codex rules action of a card: `{:ability, id, name, targets}`."
+  def abilities(game, id), do: for({:ability, ^id, name, t} <- legal(game), do: {name, t})
+
+  @doc "The target lists card `id` can be played with."
+  def plays(game, id), do: for({:play, ^id, t} <- legal(game), do: t)
 end
