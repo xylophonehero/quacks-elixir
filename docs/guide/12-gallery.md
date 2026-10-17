@@ -89,7 +89,7 @@ An old variant URL that a story with args took over (for example
 | | Hearts · the 52 cards, Hearts · hand | `theme`, `four_colour`; hand: `cards 1..13`, `mode play\|pass\|view` |
 | | Hearts · the game page (`HeartsWeb.Board`, a real game from a seed) | `state pass\|waiting\|play\|collect\|scores\|over`, `players 3..5` |
 | Codenames Duet | Codenames Duet · the game page (`CodenamesDuetWeb.Board`, a real game from a seed) | `state clue\|clue-error\|guessing\|bystander\|sudden-death\|won\|lost\|waiting\|watching`, `words list\|longest` (the 25 longest words of the list), `hide_key`, `theme` |
-| Codex | Codex sandbox · the table (`CodexWeb.Board`, a real game from a seed) | `state mid-game\|start\|selected\|codex\|discard\|buildings\|log`, `pov P1\|P2`, `reveal` |
+| Codex | Codex · the table (`CodexWeb.Board`, a real game from a seed) | `state mid-game\|start\|selected\|attack\|tech\|codex\|discard\|buildings\|log\|free\|bot` (`attack`: a pick with the targets lit; `tech`: the tech step sheet; `free`: free mode; `bot`: the bot's turn), `pov P1\|P2`, `reveal` |
 | Scenarios | every item | `step 1..n`, `players 2..5` |
 
 The setup story at `/dev/gallery/setup/presets` renders the lobby's Ingredient

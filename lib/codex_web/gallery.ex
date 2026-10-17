@@ -15,7 +15,7 @@ defmodule CodexWeb.Gallery do
 
   @doc "The board states."
   @spec states() :: [String.t()]
-  def states, do: ~w(mid-game start selected codex discard buildings log free bot)
+  def states, do: ~w(mid-game start selected attack tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -60,6 +60,32 @@ defmodule CodexWeb.Gallery do
     Phoenix.Component.assign(socket, selected: id)
   end
 
+  # A pick in progress: P1's first ready force attacks; its targets glow.
+  defp extra(socket, "attack", game) do
+    case Enum.find(Game.legal_actions(game, 0), &match?({:attack, _, _}, &1)) do
+      {:attack, a, _} ->
+        Phoenix.Component.assign(socket,
+          selected: a,
+          targeting: %{key: {:attack, a, nil}, picked: []}
+        )
+
+      nil ->
+        socket
+    end
+  end
+
+  # The tech step: the codex sheet with one card picked.
+  defp extra(socket, "tech", game) do
+    {:ok, game} = Game.apply(game, 0, :end_turn)
+    socket = Board.put_view(socket, envelope(game), nil)
+    [id | _] = game.sides[game.active].zones.codex
+
+    Phoenix.Component.assign(socket,
+      tech_pick: [game.cards[id].card],
+      drawer: {game.active, :tech}
+    )
+  end
+
   defp extra(socket, "codex", _game), do: Phoenix.Component.assign(socket, drawer: {0, :codex})
 
   defp extra(socket, "discard", _game),
@@ -76,6 +102,10 @@ defmodule CodexWeb.Gallery do
   end
 
   defp extra(socket, _state, _game), do: socket
+
+  # `:tech`: the first legal pick of the tech step.
+  defp tech(game, :tech), do: Enum.find(Game.legal_actions(game, 0), &match?({:tech, _}, &1))
+  defp tech(_game, action), do: action
 
   # Turn 3 of P1: heroes out with levels, units in play and on patrol, tokens,
   # gold, a tech building, cards in the discard piles and the trash.
@@ -100,6 +130,7 @@ defmodule CodexWeb.Gallery do
       {:move, x, {0, :discard}, 0},
       {:building, 0, :tech_1},
       :end_turn,
+      :tech,
       {:adjust, 1, :gold, 5},
       {:move, e, {1, :patrol}, :elite},
       {:move, p2_hero, {1, :patrol}, :lookout},
@@ -110,13 +141,14 @@ defmodule CodexWeb.Gallery do
       {:adjust, 0, :base_hp, -3},
       {:draw, 1, 2},
       :end_turn,
+      :tech,
       {:move, d, {0, :workers}, nil},
       {:adjust, 0, :gold, -1},
       {:draw, 0, 2},
       {:free_mode, false}
     ]
     |> Enum.reduce(game, fn action, game ->
-      {:ok, game} = Game.apply(game, 0, action)
+      {:ok, game} = Game.apply(game, 0, tech(game, action))
       game
     end)
   end

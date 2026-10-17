@@ -156,7 +156,7 @@
 <div data-phx-main="" data-phx-session="" data-phx-static="" id="phx-ID">
 <main data-layout="full" style="">
 <div class="min-h-dvh" data-component="codex" data-variant="board" id="gallery-frame">
-<div class="cx-table min-h-dvh text-stone-100 " data-active="1" data-pov="0" id="cx-root" phx-hook="CodexWeb.Board.CodexTable" phx-key="Escape" phx-window-keydown="key">
+<div class="cx-table min-h-dvh text-stone-100 " data-active="0" data-pov="0" id="cx-root" phx-hook="CodexWeb.Board.CodexTable" phx-key="Escape" phx-window-keydown="key">
 <div class="mx-auto max-w-[90rem] px-2 pt-2 pb-40 sm:px-3 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-4 lg:px-4 lg:pb-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
 <div class="flex min-w-0 flex-col gap-1.5 sm:gap-2">
 <header class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -193,7 +193,7 @@ View P2
 </button>
 </div>
 </header>
-<section class="flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 sm:gap-2 sm:p-2 bg-sky-950/20 ring-sky-300/15 cx-active-side" data-far="true" id="cx-side-1">
+<section class="flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 sm:gap-2 sm:p-2 bg-sky-950/20 ring-sky-300/15" data-far="true" id="cx-side-1">
 <div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
 <span class="rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white bg-sky-700">
 P2
@@ -202,7 +202,7 @@ P2
 <span class="font-semibold text-white">River Montoya</span>
 <span class="hidden sm:inline">· Finesse</span>
 </span>
-<span class="text-[11px] text-white/50 tabular-nums">turn 1</span>
+<span class="text-[11px] text-white/50 tabular-nums">turn 0</span>
 <div class="ml-auto flex items-center gap-1.5">
 <div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="1" title="Base HP">
 <span class="flex min-w-9 items-center justify-center gap-0.5 px-1 text-sm font-bold tabular-nums">
@@ -215,7 +215,7 @@ P2
 <span class="flex min-w-9 items-center justify-center gap-0.5 px-1 text-sm font-bold tabular-nums">
 <span class="hero-circle-stack-solid size-3.5 text-amber-300">
 </span>
-<span id="cx-gold-1">5</span>
+<span id="cx-gold-1">0</span>
 </span>
 </div>
 </div>
@@ -362,11 +362,11 @@ P2
 </section>
 <div class="flex flex-col gap-1 py-0.5">
 <div class="flex items-center gap-2">
-<div class="flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow-sm sm:text-sm bg-sky-700" id="cx-active">
+<div class="flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow-sm sm:text-sm bg-rose-700" id="cx-active">
 <span class="size-1.5 animate-pulse rounded-full bg-white">
 </span>
 <span class="truncate">
-P2 · turn 1 · main phase
+P1 · turn 1 · tech
 </span>
 </div>
 <div class="h-px flex-1 bg-gradient-to-r from-white/5 via-white/20 to-white/5">
@@ -384,9 +384,14 @@ P2 · turn 1 · main phase
 <span class="hidden sm:inline">Undo</span>
 </button>
 </div>
-<p class="px-1 text-xs text-white/70" id="cx-hint">The bot is playing its turn…</p>
+<p class="flex items-center gap-2 px-1 text-xs text-white/70" id="cx-hint">
+<span>Pick codex cards for your discard pile.</span>
+<button class="cx-mini" id="cx-tech-open" phx-click="drawer" phx-value-zone="tech" type="button">
+Pick codex cards
+</button>
+</p>
 </div>
-<section class="flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 sm:gap-2 sm:p-2 bg-rose-950/20 ring-rose-300/15" data-far="false" id="cx-side-0">
+<section class="flex flex-col gap-1.5 rounded-2xl p-1.5 ring-1 sm:gap-2 sm:p-2 bg-rose-950/20 ring-rose-300/15 cx-active-side" data-far="false" id="cx-side-0">
 <div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
 <span class="rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white bg-rose-700">
 P1
@@ -598,6 +603,172 @@ New game: P1 Bashing, P2 Finesse.
 </ol>
 </div>
 </aside>
+</div>
+<div class="cx-drawer fixed inset-0 z-40 flex items-end justify-center lg:items-center" id="cx-drawer">
+<button aria-label="Close" class="absolute inset-0 bg-black/55 backdrop-blur-[2px]" phx-click="close_drawer" type="button">
+</button>
+<div class="cx-drawer-panel relative flex max-h-[85dvh] w-full flex-col gap-3 rounded-t-3xl bg-stone-900 p-4 text-stone-100 shadow-2xl ring-1 ring-white/10 lg:max-w-4xl lg:rounded-3xl">
+<div class="flex items-center gap-2">
+<h2 class="text-base font-bold" id="cx-drawer-title">P1: tech</h2>
+<button aria-label="Close" class="ml-auto grid size-8 place-items-center rounded-full bg-white/10 transition hover:bg-white/20" id="cx-drawer-close" phx-click="close_drawer" type="button">
+<span class="hero-x-mark-mini size-5">
+</span>
+</button>
+</div>
+<p class="text-xs text-white/70">
+Pick 2 cards from your codex (2 copies of one card, or 1 each of two cards). They
+go face down into your discard pile.
+
+</p>
+<div class="cx-sheet-grid -mx-1 overflow-y-auto px-1 pt-1 pb-2">
+<button aria-pressed="false" class="relative" id="cx-tech-wrecking-ball" phx-click="tech_pick" phx-value-slug="wrecking-ball" type="button">
+<div class="cx-card " data-card-id="11" draggable="true" id="cx-tech-card-11" phx-value-id="11" style="" title="Wrecking Ball">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">0</span>
+<span class="cx-name">Wrecking Ball</span>
+<span class="cx-type">Spell</span>
+<span class="cx-text">Deal 2 damage to a building.</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-the-boot" phx-click="tech_pick" phx-value-slug="the-boot" type="button">
+<div class="cx-card " data-card-id="13" draggable="true" id="cx-tech-card-13" phx-value-id="13" style="" title="The Boot">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">3</span>
+<span class="cx-name">The Boot</span>
+<span class="cx-type">Spell — Debuff</span>
+<span class="cx-text">Destroy a tech 0 or tech I unit. (Heroes aren&#39;t units.)</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-intimidate" phx-click="tech_pick" phx-value-slug="intimidate" type="button">
+<div class="cx-card " data-card-id="15" draggable="true" id="cx-tech-card-15" phx-value-id="15" style="" title="Intimidate">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">1</span>
+<span class="cx-name">Intimidate</span>
+<span class="cx-type">Spell — Debuff</span>
+<span class="cx-text">Give a unit or hero -4 ATK this turn.</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-final-smash" phx-click="tech_pick" phx-value-slug="final-smash" type="button">
+<div class="cx-card " data-card-id="17" draggable="true" id="cx-tech-card-17" phx-value-id="17" style="" title="Final Smash">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">6</span>
+<span class="cx-name">Final Smash</span>
+<span class="cx-type">Ultimate Spell — Debuff</span>
+<span class="cx-text">Destroy a tech 0 unit, return a tech I unit to its owner&#39;s hand, and gain control of a tech II unit.</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-iron-man" phx-click="tech_pick" phx-value-slug="iron-man" type="button">
+<div class="cx-card " data-card-id="19" draggable="true" id="cx-tech-card-19" phx-value-id="19" style="" title="Iron Man">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">3</span>
+<span class="cx-name">Iron Man</span>
+<span class="cx-type">Unit — Mercenary · tech 1</span>
+<span class="cx-stats">3/4</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-revolver-ocelot" phx-click="tech_pick" phx-value-slug="revolver-ocelot" type="button">
+<div class="cx-card " data-card-id="21" draggable="true" id="cx-tech-card-21" phx-value-id="21" style="" title="Revolver Ocelot">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">2</span>
+<span class="cx-name">Revolver Ocelot</span>
+<span class="cx-type">Unit — Leopard · tech 1</span>
+<span class="cx-text">Sparkshot (When attacking a patroller, deals 1 damage to an adjacent patroller.)</span>
+<span class="cx-stats">3/3</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-hired-stomper" phx-click="tech_pick" phx-value-slug="hired-stomper" type="button">
+<div class="cx-card " data-card-id="23" draggable="true" id="cx-tech-card-23" phx-value-id="23" style="" title="Hired Stomper">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">4</span>
+<span class="cx-name">Hired Stomper</span>
+<span class="cx-type">Unit — Lizardman · tech 2</span>
+<span class="cx-text">Arrives: Deal 3 damage to a unit. (Heroes aren&#39;t units.)</span>
+<span class="cx-stats">4/3</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-regular-sized-rhinoceros" phx-click="tech_pick" phx-value-slug="regular-sized-rhinoceros" type="button">
+<div class="cx-card " data-card-id="25" draggable="true" id="cx-tech-card-25" phx-value-id="25" style="" title="Regular-sized Rhinoceros">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">4</span>
+<span class="cx-name">Regular-sized Rhinoceros</span>
+<span class="cx-type">Unit — Rhino · tech 2</span>
+<span class="cx-stats">5/6</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-sneaky-pig" phx-click="tech_pick" phx-value-slug="sneaky-pig" type="button">
+<div class="cx-card " data-card-id="27" draggable="true" id="cx-tech-card-27" phx-value-id="27" style="" title="Sneaky Pig">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">3</span>
+<span class="cx-name">Sneaky Pig</span>
+<span class="cx-type">Unit — Pig · tech 2</span>
+<span class="cx-text">Haste</span>
+<span class="cx-text">Arrives: Gets stealth this turn. (Can sneak past patrollers if that opponent has no detector.)</span>
+<span class="cx-stats">3/3</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-eggship" phx-click="tech_pick" phx-value-slug="eggship" type="button">
+<div class="cx-card " data-card-id="29" draggable="true" id="cx-tech-card-29" phx-value-id="29" style="" title="Eggship">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">4</span>
+<span class="cx-name">Eggship</span>
+<span class="cx-type">Unit — Contraption · tech 2</span>
+<span class="cx-text">Flying (Can fly over ground patrollers. Ground forces without anti-air can&#39;t attack this or deal combat damage to it when attacked.)</span>
+<span class="cx-stats">4/3</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-harvest-reaper" phx-click="tech_pick" phx-value-slug="harvest-reaper" type="button">
+<div class="cx-card " data-card-id="31" draggable="true" id="cx-tech-card-31" phx-value-id="31" style="" title="Harvest Reaper">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">5</span>
+<span class="cx-name">Harvest Reaper</span>
+<span class="cx-type">Unit — Contraption · tech 2</span>
+<span class="cx-text">Overpower (Excess combat damage this would deal to a patroller hits something else this could attack.)</span>
+<span class="cx-stats">6/5</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+<button aria-pressed="false" class="relative" id="cx-tech-trojan-duck" phx-click="tech_pick" phx-value-slug="trojan-duck" type="button">
+<div class="cx-card " data-card-id="33" draggable="true" id="cx-tech-card-33" phx-value-id="33" style="" title="Trojan Duck">
+<div class="cx-face cx-css cx-tone-bashing">
+<span class="cx-cost">7</span>
+<span class="cx-name">Trojan Duck</span>
+<span class="cx-type">Unit — Contraption · tech 3</span>
+<span class="cx-text">Obliterate 2 (Whenever this attacks, destroy the defender&#39;s two lowest tech units first.)</span>
+<span class="cx-text">Arrives or attacks: Deal 4 damage to a building.</span>
+<span class="cx-stats">8/9</span>
+</div>
+</div>
+<span class="cx-count">×2</span>
+</button>
+</div>
+<div class="flex items-center gap-2">
+<p class="text-sm text-white/70">Picked 0 of 2.</p>
+<button class="ml-auto rounded-full bg-amber-300 px-4 py-2 text-sm font-bold text-stone-900 shadow transition hover:bg-amber-200 active:scale-95 disabled:opacity-40" disabled="" id="cx-tech-done" phx-click="tech_done" type="button">
+Pick none
+</button>
+</div>
+</div>
 </div>
 </div>
 </div>

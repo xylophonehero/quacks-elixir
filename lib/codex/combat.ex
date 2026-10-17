@@ -49,7 +49,10 @@ defmodule Codex.Combat do
     s = Stats.controller(game, a)
     opp = 1 - s
     patrollers = Zones.patrollers(game, opp)
-    attackable = for {slot, d} <- patrollers, attackable?(game, a, d), do: {slot, d}
+
+    attackable =
+      for {slot, d} <- patrollers, Stats.force?(game, d), attackable?(game, a, d), do: {slot, d}
+
     blockers = for {slot, d} <- attackable, not ignores?(game, a, d), do: {slot, d}
 
     cond do

@@ -10,7 +10,16 @@ defmodule Codex.Effects do
 
   alias Codex.{CardRules, Cards, Rules, Stats, Zones}
 
-  @building_hp %{base: 20, tech_1: 5, tech_2: 5, tech_3: 5, tower: 4, surplus: 4}
+  @building_hp %{
+    base: 20,
+    tech_1: 5,
+    tech_2: 5,
+    tech_3: 5,
+    tower: 4,
+    surplus: 4,
+    tech_lab: 4,
+    heroes_hall: 4
+  }
   @dancer_limit 3
 
   @doc "The HP of a building."

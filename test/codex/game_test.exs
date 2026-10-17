@@ -1,6 +1,8 @@
 defmodule Codex.GameTest do
   use ExUnit.Case, async: true
 
+  import Codex.TestHelpers, only: [end_turn: 1]
+
   alias Codex.{Cards, Game}
 
   doctest Codex.Game
@@ -267,10 +269,10 @@ defmodule Codex.GameTest do
 
   describe "end turn and undo" do
     test "end turn: the other side is active and its turn count goes up" do
-      game = ok!(new(), :end_turn)
+      game = end_turn(new())
       assert game.active == 1
       assert game.sides[1].turn == 1
-      game = ok!(game, {:end_turn})
+      game = end_turn(game)
       assert game.active == 0
       assert game.sides[0].turn == 2
     end
@@ -292,10 +294,12 @@ defmodule Codex.GameTest do
     end
 
     test "the history keeps the last 50 states" do
-      game = Enum.reduce(1..60, new(), fn _, g -> ok!(g, :end_turn) end)
+      [a | _] = zone(new(), 0, :hand)
+      game = Enum.reduce(1..61, new(), fn _, g -> ok!(g, {:toggle, a, :exhausted}) end)
       assert length(game.history) == Game.history_limit()
       game = Enum.reduce(1..50, game, fn _, g -> ok!(g, :undo) end)
-      assert game.sides[0].turn + game.sides[1].turn == 11
+      # 61 toggles, 50 undone: 11 toggles, so exhausted.
+      assert game.cards[a].exhausted
       assert Game.apply(game, 0, :undo) == {:error, :nothing_to_undo}
     end
 

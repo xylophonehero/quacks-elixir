@@ -77,7 +77,7 @@ defmodule Codex.HeroesTest do
 
   describe "River Montoya" do
     defp river(level) do
-      game = new() |> ok!(:end_turn) |> gold(1, 10)
+      game = new() |> end_turn() |> gold(1, 10)
       {game, h} = place(game, 1, "river-montoya", :in_play)
       {game, p} = place(game, 0, "older-brother", :patrol, :squad_leader)
       {put_card(game, h, level: level), h, p}
@@ -112,7 +112,7 @@ defmodule Codex.HeroesTest do
     defp duel do
       game = table(20)
       p1 = hero(game, 0)
-      game = game |> ok!({:summon, p1}) |> ok!(:end_turn) |> gold(1, 20)
+      game = game |> ok!({:summon, p1}) |> end_turn() |> gold(1, 20)
       p2 = hero(game, 1)
       game = ok!(game, {:summon, p2})
       {game, p1, p2}
@@ -134,9 +134,9 @@ defmodule Codex.HeroesTest do
     test "it cannot be summoned until after its owner's next turn" do
       {game, p1, _p2} = duel()
       game = game |> free() |> ok!({:adjust_card, p1, :damage, 3}) |> ok!({:free_mode, false})
-      game = game |> ok!(:end_turn) |> gold(0, 10)
+      game = game |> end_turn() |> gold(0, 10)
       refute {:summon, p1} in legal(game)
-      game = game |> ok!(:end_turn) |> ok!(:end_turn) |> gold(0, 10)
+      game = game |> end_turn() |> end_turn() |> gold(0, 10)
       assert {:summon, p1} in legal(game)
     end
   end
@@ -144,7 +144,7 @@ defmodule Codex.HeroesTest do
   test "a hero in combat: it dies and the attacker's hero levels" do
     {game, p1} = place(table(), 0, "troq-bashar", :in_play)
     game = put_card(game, p1, level: 1)
-    game = game |> ok!(:end_turn) |> gold(1, 10)
+    game = game |> end_turn() |> gold(1, 10)
     {game, p2} = place(game, 1, "river-montoya", :in_play)
     {game, unit} = place(game, 1, "older-brother", :in_play)
     game = put_card(game, p1, damage: 2)

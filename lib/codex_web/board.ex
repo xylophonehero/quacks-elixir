@@ -87,7 +87,8 @@ defmodule CodexWeb.Board do
       drawer: nil,
       reveal: false,
       targeting: nil,
-      actions: []
+      actions: [],
+      tech_pick: []
     )
   end
 
@@ -106,14 +107,15 @@ defmodule CodexWeb.Board do
       reveal: if(turned?, do: false, else: a.reveal),
       selected: if(Map.has_key?(v.cards, a.selected), do: a.selected),
       targeting: nil,
-      drawer: drawer_after(a.drawer, v)
+      tech_pick: if(v.phase == :tech, do: a.tech_pick, else: []),
+      drawer: drawer_after(a.drawer, v, env.actions)
     )
   end
 
-  # The tech sheet opens by itself in the tech step and closes after it.
-  defp drawer_after(_drawer, %{phase: :tech, active: s}), do: {s, :tech}
-  defp drawer_after({_s, :tech}, _v), do: nil
-  defp drawer_after(drawer, _v), do: drawer
+  # The tech sheet opens by itself in your tech step and closes after it.
+  defp drawer_after(_drawer, %{phase: :tech, active: s}, [_ | _]), do: {s, :tech}
+  defp drawer_after({_s, :tech}, _v, _actions), do: nil
+  defp drawer_after(drawer, _v, _actions), do: drawer
 
   @impl true
   def handle_event("select", %{"id" => id}, %{assigns: %{targeting: %{}}} = socket),
@@ -270,6 +272,13 @@ defmodule CodexWeb.Board do
         &{:noreply, Phoenix.Component.assign(socket, drawer: {&1, :buildings})}
       )
 
+  def handle_event(
+        "drawer",
+        %{"zone" => "tech"},
+        %{assigns: %{view: %{phase: :tech} = v}} = socket
+      ),
+      do: {:noreply, Phoenix.Component.assign(socket, drawer: {v.active, :tech})}
+
   def handle_event("drawer", %{"zone" => "log"}, socket),
     do: {:noreply, Phoenix.Component.assign(socket, drawer: :log)}
 
@@ -283,6 +292,39 @@ defmodule CodexWeb.Board do
 
       _ ->
         {:noreply, socket}
+    end
+  end
+
+  # The tech step: pick up to 2 codex cards (by name), then confirm.
+  def handle_event("tech_pick", %{"slug" => slug}, socket) do
+    a = socket.assigns
+    {s, :tech} = a.drawer
+    copies = Enum.count(a.view.sides[s].zones.codex, &(a.view.cards[&1].card == slug))
+    picked = Enum.count(a.tech_pick, &(&1 == slug))
+
+    pick =
+      cond do
+        picked < copies and length(a.tech_pick) < 2 -> a.tech_pick ++ [slug]
+        picked > 0 -> List.delete(a.tech_pick, slug)
+        true -> a.tech_pick
+      end
+
+    {:noreply, Phoenix.Component.assign(socket, tech_pick: pick)}
+  end
+
+  def handle_event("tech_done", _params, socket) do
+    a = socket.assigns
+
+    case tech_action(a.actions, a.view, a.tech_pick) do
+      nil -> {:noreply, socket}
+      action -> {:act, action, Phoenix.Component.assign(socket, tech_pick: [])}
+    end
+  end
+
+  def handle_event("build", %{"building" => b}, socket) do
+    case Map.fetch(@building_names, b) do
+      {:ok, building} -> {:act, {:build, building}, socket}
+      :error -> {:noreply, socket}
     end
   end
 
@@ -300,6 +342,16 @@ defmodule CodexWeb.Board do
 
   @impl true
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  # The legal tech action with the picked card names.
+  defp tech_action(actions, v, pick) do
+    want = Enum.sort(pick)
+
+    Enum.find(actions, fn
+      {:tech, ids} -> Enum.sort(Enum.map(ids, &v.cards[&1].card)) == want
+      _ -> false
+    end)
+  end
 
   # -- rules mode: drops and target picks -------------------------------------------------
 
@@ -503,7 +555,14 @@ defmodule CodexWeb.Board do
         </aside>
       </div>
 
-      <.drawer :if={@drawer} drawer={@drawer} view={@view} art={@art} />
+      <.drawer
+        :if={@drawer}
+        drawer={@drawer}
+        view={@view}
+        art={@art}
+        actions={@actions}
+        tech_pick={@tech_pick}
+      />
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CodexTable">
         export default {
@@ -801,7 +860,19 @@ defmodule CodexWeb.Board do
       >
         P{@view.winner + 1} wins: the base of P{1 - @view.winner + 1} is destroyed.
       </p>
-      <p :if={@hint} id="cx-hint" class="px-1 text-xs text-white/70">{@hint}</p>
+      <p :if={@hint} id="cx-hint" class="flex items-center gap-2 px-1 text-xs text-white/70">
+        <span>{@hint}</span>
+        <button
+          :if={@view.phase == :tech and @actions != []}
+          id="cx-tech-open"
+          type="button"
+          phx-click="drawer"
+          phx-value-zone="tech"
+          class="cx-mini"
+        >
+          Pick codex cards
+        </button>
+      </p>
     </div>
     """
   end
@@ -1204,12 +1275,31 @@ defmodule CodexWeb.Board do
           target={@tg && id in @tg}
         />
         <div class="flex flex-col flex-wrap content-start gap-1 self-start pt-3">
-          <span
+          <button
             :for={b <- @buildings}
             id={"cx-building-#{@seat}-#{b}"}
-            class="rounded-md bg-amber-200/90 px-1.5 py-0.5 text-[10px] font-bold text-stone-900 shadow-sm"
+            type="button"
+            phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
+            phx-value-seat={@seat}
+            phx-value-name={b}
+            class={[
+              "rounded-md bg-amber-200/90 px-1.5 py-0.5 text-left text-[10px] font-bold text-stone-900 shadow-sm",
+              @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
+            ]}
+            title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
           >
             {building_label(b)}
+            <span :if={Map.get(@side.building_damage, b, 0) > 0} class="text-red-700">
+              −{Map.get(@side.building_damage, b)}
+            </span>
+          </button>
+          <span
+            :for={b <- @side.pending}
+            id={"cx-pending-#{@seat}-#{b}"}
+            class="rounded-md border border-dashed border-amber-200/70 px-1.5 py-0.5 text-[10px] font-bold text-amber-100"
+            title="Building: ready at the end of the turn"
+          >
+            {building_label(b)} …
           </span>
           <button
             :if={
@@ -1847,6 +1937,9 @@ defmodule CodexWeb.Board do
   attr :view, :map, required: true
   attr :art, :any, required: true
 
+  attr :actions, :list, default: []
+  attr :tech_pick, :list, default: []
+
   defp drawer(assigns) do
     assigns =
       assign(assigns,
@@ -1893,7 +1986,14 @@ defmodule CodexWeb.Board do
           <% :log -> %>
             <.log_list view={@view} id="cx-drawer-log" class="flex" />
           <% {seat, :buildings} -> %>
-            <.buildings seat={seat} built={@view.sides[seat].tech_buildings} />
+            <.buildings
+              :if={@view.free}
+              seat={seat}
+              built={@view.sides[seat].tech_buildings}
+            />
+            <.build_list :if={!@view.free} seat={seat} view={@view} actions={@actions} />
+          <% {seat, :tech} -> %>
+            <.tech_sheet seat={seat} view={@view} art={@art} actions={@actions} pick={@tech_pick} />
           <% _ -> %>
             <p class="text-xs text-white/60">
               Tap a card to select it, then tap a zone. With a mouse, drag it out.
@@ -1937,6 +2037,133 @@ defmodule CodexWeb.Board do
     </div>
     """
   end
+
+  attr :seat, :integer, required: true
+  attr :view, :map, required: true
+  attr :actions, :list, required: true
+
+  defp build_list(assigns) do
+    side = assigns.view.sides[assigns.seat]
+
+    rows =
+      for b <- [:tech_1, :tech_2, :tech_3, :tower, :surplus] do
+        state =
+          cond do
+            b in side.tech_buildings -> :built
+            b in side.pending -> :pending
+            {:build, b} in assigns.actions -> :can
+            true -> :no
+          end
+
+        {b, state}
+      end
+
+    assigns = assign(assigns, rows: rows)
+
+    ~H"""
+    <p class="text-xs text-white/60">
+      Tech I: 6 workers, 1 gold. Tech II: 8 workers, tech I, 4 gold. Tech III: 10
+      workers, tech II, 5 gold. One add-on: Tower (3 gold) or Surplus (5 gold). A
+      building finishes at the end of your turn.
+    </p>
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <button
+        :for={{b, state} <- @rows}
+        id={"cx-build-#{b}"}
+        type="button"
+        phx-click={state == :can && "build"}
+        phx-value-building={b}
+        disabled={state != :can}
+        class={[
+          "flex flex-col items-start rounded-xl px-3 py-2.5 text-left text-sm font-semibold ring-1 transition active:scale-[0.98]",
+          state == :can && "bg-amber-300 text-stone-900 ring-amber-200 hover:bg-amber-200",
+          state in [:built, :pending] && "bg-emerald-800/60 text-white ring-emerald-500/40",
+          state == :no && "bg-white/5 text-white/40 ring-white/10"
+        ]}
+      >
+        {building_label(b)}
+        <span class="text-[11px] font-normal opacity-80">{build_state_text(state)}</span>
+      </button>
+    </div>
+    """
+  end
+
+  defp building_hp_left(side, b),
+    do: Codex.Effects.building_hp(b) - Map.get(side.building_damage, b, 0)
+
+  defp build_state_text(:built), do: "built"
+  defp build_state_text(:pending), do: "building: ready next turn"
+  defp build_state_text(:can), do: "build"
+  defp build_state_text(:no), do: "not yet"
+
+  attr :seat, :integer, required: true
+  attr :view, :map, required: true
+  attr :art, :any, required: true
+  attr :actions, :list, required: true
+  attr :pick, :list, required: true
+
+  defp tech_sheet(assigns) do
+    v = assigns.view
+    codex = v.sides[assigns.seat].zones.codex
+
+    groups =
+      codex |> Enum.group_by(&v.cards[&1].card) |> Enum.sort_by(fn {_slug, [id | _]} -> id end)
+
+    assigns =
+      assign(assigns,
+        groups: groups,
+        done: tech_action(assigns.actions, v, assigns.pick),
+        none?: {:tech, []} in assigns.actions
+      )
+
+    ~H"""
+    <p class="text-xs text-white/70">
+      Pick 2 cards from your codex (2 copies of one card, or 1 each of two cards). They
+      go face down into your discard pile.
+      <span :if={@none?}>With 10 workers you may pick fewer.</span>
+    </p>
+    <div class="cx-sheet-grid -mx-1 overflow-y-auto px-1 pt-1 pb-2">
+      <button
+        :for={{slug, [id | _] = ids} <- @groups}
+        id={"cx-tech-#{slug}"}
+        type="button"
+        phx-click="tech_pick"
+        phx-value-slug={slug}
+        class="relative"
+        aria-pressed={to_string(slug in @pick)}
+      >
+        <.card
+          c={@view.cards[id]}
+          art={@art}
+          prefix="cx-tech-card"
+          click={false}
+          selected={slug in @pick}
+        />
+        <span class="cx-count">×{length(ids)}</span>
+        <span
+          :if={slug in @pick}
+          class="absolute -top-1 -left-1 z-10 rounded-full bg-amber-300 px-1.5 text-xs font-black text-stone-900 shadow"
+        >
+          {Enum.count(@pick, &(&1 == slug))}
+        </span>
+      </button>
+    </div>
+    <div class="flex items-center gap-2">
+      <p class="text-sm text-white/70">Picked {length(@pick)} of 2.</p>
+      <button
+        id="cx-tech-done"
+        type="button"
+        phx-click="tech_done"
+        disabled={@done == nil}
+        class="ml-auto rounded-full bg-amber-300 px-4 py-2 text-sm font-bold text-stone-900 shadow transition hover:bg-amber-200 active:scale-95 disabled:opacity-40"
+      >
+        {if @pick == [], do: "Pick none", else: "Add to my discard pile"}
+      </button>
+    </div>
+    """
+  end
+
+  defp drawer_title({s, :tech}), do: "P#{s + 1}: tech"
 
   defp drawer_title({s, :buildings}), do: "P#{s + 1}: tech buildings and add-ons"
   defp drawer_title(:log), do: "Log"

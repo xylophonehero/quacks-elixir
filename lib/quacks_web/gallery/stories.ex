@@ -593,6 +593,8 @@ defmodule QuacksWeb.Gallery.Stories do
           presets: [
             {"start", "The first-game set-up", %{"state" => "start"}},
             {"selected", "A card selected: its actions", %{"state" => "selected"}},
+            {"attack", "Attack…: the targets glow", %{"state" => "attack"}},
+            {"tech", "The tech step: pick 2 codex cards", %{"state" => "tech"}},
             {"codex", "The codex sheet", %{"state" => "codex"}},
             {"discard", "The discard sheet", %{"state" => "discard"}},
             {"buildings", "Tech buildings", %{"state" => "buildings"}},

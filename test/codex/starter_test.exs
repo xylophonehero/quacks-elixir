@@ -13,7 +13,7 @@ defmodule Codex.StarterTest do
   defp table(gold \\ 10), do: new() |> gold(0, gold)
 
   # P2's turn (P1's cards are now "patrolling"), with gold.
-  defp p2_turn(game, gold \\ 10), do: game |> ok!(:end_turn) |> gold(1, gold)
+  defp p2_turn(game, gold \\ 10), do: game |> end_turn() |> gold(1, gold)
 
   describe "playing units" do
     test "pay the cost; the unit arrives with arrival fatigue and cannot attack" do
@@ -146,7 +146,7 @@ defmodule Codex.StarterTest do
       {game, a} = place(table(), 0, "older-brother", :in_play)
       game = ok!(game, {:patrol, a, :elite})
       refute Stats.patrolling?(game, a)
-      game = ok!(game, :end_turn)
+      game = end_turn(game)
       assert Stats.patrolling?(game, a)
       # Elite: +1 ATK while patrolling.
       assert Stats.atk(game, a) == 3
@@ -226,7 +226,7 @@ defmodule Codex.StarterTest do
 
     test "an attacker from the patrol zone exhausts and leaves the patrol zone" do
       {game, a} = place(table(), 0, "older-brother", :in_play)
-      game = game |> ok!(:end_turn) |> ok!(:end_turn)
+      game = game |> end_turn() |> end_turn()
       game = ok!(game, {:patrol, a, :elite})
       game = ok!(game, {:attack, a, {:building, 1, :base}})
       assert a in zone(game, 0, :in_play)
@@ -237,7 +237,7 @@ defmodule Codex.StarterTest do
     test "frenzy 1: Fruit Ninja +1 ATK on its own turn only" do
       {game, n} = place(table(), 0, "fruit-ninja", :in_play)
       assert Stats.atk(game, n) == 3
-      game = ok!(game, :end_turn)
+      game = end_turn(game)
       assert Stats.atk(game, n) == 2
     end
 
@@ -245,7 +245,7 @@ defmodule Codex.StarterTest do
       {game, _turtle} = place(table(), 0, "helpful-turtle", :in_play)
       {game, u} = place(game, 0, "older-brother", :in_play)
       game = put_card(game, u, damage: 1)
-      game = game |> ok!(:end_turn) |> ok!(:end_turn)
+      game = game |> end_turn() |> end_turn()
       assert game.cards[u].damage == 0
     end
   end

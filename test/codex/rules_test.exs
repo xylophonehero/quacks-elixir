@@ -27,7 +27,7 @@ defmodule Codex.RulesTest do
       [a, b, c | _] = hand(game, 0)
       # Hire one, so 4 cards are in the hand: the draw is 5 (capped).
       game = ok!(game, {:hire, a})
-      game = ok!(game, :end_turn)
+      game = end_turn(game)
 
       assert game.active == 1
       assert game.phase == :main
@@ -37,7 +37,8 @@ defmodule Codex.RulesTest do
       # P1 kept 3 gold, drew 5 (its deck had 5).
       assert game.sides[0].gold == 3
       assert length(hand(game, 0)) == 5
-      assert length(zone(game, 0, :discard)) == 4
+      # 4 discarded + 2 codex cards from the tech step.
+      assert length(zone(game, 0, :discard)) == 6
       assert b in zone(game, 0, :discard) and c in zone(game, 0, :discard)
     end
 
@@ -49,7 +50,7 @@ defmodule Codex.RulesTest do
       game =
         Enum.reduce(Enum.take(hand(game, 0), 4), game, &ok!(&2, {:move, &1, {0, :in_play}, nil}))
 
-      game = ok!(game, :end_turn)
+      game = end_turn(game)
       # 1 discarded → 3 drawn.
       assert length(hand(game, 0)) == 3
     end
@@ -57,16 +58,17 @@ defmodule Codex.RulesTest do
     test "an empty deck in the draw phase: the discard pile is shuffled into a new deck" do
       game = new()
       # Turn 1: 5 discarded, 5 drawn (deck empty). Turn 2 of P1: 5 discarded, the deck is empty.
-      game = game |> ok!(:end_turn) |> ok!(:end_turn)
+      game = game |> end_turn() |> end_turn()
       assert zone(game, 0, :deck) == []
-      game = ok!(game, :end_turn)
+      game = end_turn(game)
       assert length(hand(game, 0)) == 5
-      assert length(zone(game, 0, :deck)) == 5
+      # The discard pile had 12 (10 starters + 2 codex cards); 5 drawn.
+      assert length(zone(game, 0, :deck)) == 7
       assert {:reshuffle, 0} in game.log
     end
 
     test "gold is capped at 20" do
-      game = Enum.reduce(1..12, new(), fn _, g -> ok!(g, :end_turn) end)
+      game = Enum.reduce(1..12, new(), fn _, g -> end_turn(g) end)
       assert game.sides[0].gold == 20
       assert game.sides[1].gold == 20
     end
@@ -79,11 +81,11 @@ defmodule Codex.RulesTest do
         game
         |> ok!({:move, a, {0, :in_play}, nil})
         |> put_card(a, exhausted: true, fatigued: true)
-        |> ok!(:end_turn)
+        |> end_turn()
 
       # Not readied on the other side's turn.
       assert %{exhausted: true, fatigued: true} = game.cards[a]
-      game = ok!(game, :end_turn)
+      game = end_turn(game)
       assert %{exhausted: false, fatigued: false} = game.cards[a]
     end
   end
@@ -106,7 +108,7 @@ defmodule Codex.RulesTest do
       assert Game.apply(game, 0, {:hire, b}) == {:error, :worker_hired}
       refute Enum.any?(Game.legal_actions(game, 0), &match?({:hire, _}, &1))
 
-      game = game |> ok!(:end_turn) |> ok!(:end_turn)
+      game = game |> end_turn() |> end_turn()
       [c | _] = hand(game, 0)
       game = ok!(game, {:hire, c})
       # 4 + 1 + 1 workers.
@@ -116,7 +118,7 @@ defmodule Codex.RulesTest do
     test "the new worker gives gold from the next upkeep" do
       game = new()
       [a | _] = hand(game, 0)
-      game = game |> ok!({:hire, a}) |> ok!(:end_turn) |> ok!(:end_turn)
+      game = game |> ok!({:hire, a}) |> end_turn() |> end_turn()
       # 3 left + 5 workers.
       assert game.sides[0].gold == 8
     end

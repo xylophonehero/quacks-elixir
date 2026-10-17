@@ -61,4 +61,23 @@ defmodule Codex.TestHelpers do
 
   @doc "The legal attack targets of `a`."
   def attack_targets(game, a), do: for({:attack, ^a, t} <- legal(game), do: t)
+
+  @doc "End the turn; in the tech step, pick the first legal codex cards. The next side's turn."
+  def end_turn(game) do
+    game = ok!(game, :end_turn)
+
+    case game.phase do
+      :tech -> ok!(game, game |> legal() |> Enum.find(&match?({:tech, _}, &1)))
+      _ -> game
+    end
+  end
+
+  @doc """
+  A new copy of card `slug` for `seat`, put into `zone` (a test set-up for cards
+  that side does not own, or a second copy). Returns `{game, id}`.
+  """
+  def spawn(game, seat, slug, zone, at \\ nil) do
+    {game, [id]} = Game.add_cards(game, seat, [slug])
+    {Codex.Zones.insert(game, id, {seat, zone}, at), id}
+  end
 end

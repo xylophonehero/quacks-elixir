@@ -13,10 +13,12 @@ defmodule Codex.Rules do
   2. Upkeep: 1 gold per worker, at most 20 gold (S1 p. 3); then the "Upkeep:"
      abilities (`Codex.Effects.upkeep/2`).
   3. Main phase: the actions below, in any order.
-  4. `:end_turn` ends the main phase: the patrol zone is locked in, the
-     changes "this turn" end, the hand is discarded and the side draws that many
-     cards + 2, at most 5 (S1 p. 2).
-  5. Then the other side's turn starts.
+  4. `:end_turn` ends the main phase: the patrol zone is locked in, buildings
+     started this turn finish, the changes "this turn" end, the hand is
+     discarded and the side draws that many cards + 2, at most 5 (S1 p. 2).
+  5. Tech (`phase: :tech`): `{:tech, card_ids}` puts codex cards into the
+     discard pile (2 until the side has 10 workers; then 0, 1 or 2).
+  6. Then the other side's turn starts.
 
   # REVIEW: patrollers stay in the patrol zone from turn to turn; the owner
   # rearranges them in its main phase (S1 p. 5 does not say that the zone
@@ -41,7 +43,11 @@ defmodule Codex.Rules do
     the max level).
   - `{:ability, card_id, name, targets}`: an activated ability. River Montoya
     at level 3+: `:sideline`, exhaust it to sideline a tech 0 or tech I
-    patroller.
+    patroller. Harmony: `:stop_music`. A Virtuoso with Maestro: `:wreck`,
+    exhaust it to deal 2 damage to a building.
+  - `{:build, name}`: start a tech building (`:tech_1` 1 gold and 6 workers,
+    `:tech_2` 4 gold, 8 workers and tech I, `:tech_3` 5 gold, 10 workers and
+    tech II) or an add-on (`:tower` 3, `:surplus` 5; one add-on at most).
   - `:end_turn`.
 
   `legal/1` lists every legal action of the active side; `act/2` refuses any
@@ -68,8 +74,11 @@ defmodule Codex.Rules do
       plays(game, s) ++
       abilities(game, s) ++
       patrols(game, s) ++
-      attacks(game, s) ++ [:end_turn]
+      attacks(game, s) ++
+      builds(game, s) ++ [:end_turn]
   end
+
+  def legal(%{phase: :tech, active: s} = game), do: techs(game, s)
 
   defp hires(game, s) do
     side = game.sides[s]
@@ -110,27 +119,106 @@ defmodule Codex.Rules do
     gold = game.sides[s].gold
 
     for id <- Zones.in_play(game, s),
-        {name, slots} <- ability_slots(game, id),
-        exhaust_ok?(game, id),
+        {name, slots, exhaust?} <- ability_slots(game, s, id),
+        not exhaust? or exhaust_ok?(game, id),
         targets <- Targets.combos(game, s, slots, id),
         Targets.resist_cost(game, s, targets) <= gold,
         do: {:ability, id, name, targets}
   end
 
+  # `{name, target slots, exhaust cost?}` of the abilities of card `id`:
   # River Montoya, level 3+: ⤵ → Sideline a tech 0 or tech I patroller.
-  defp ability_slots(game, id) do
+  # Harmony: Sacrifice Harmony → "Stop the music."
+  # A Virtuoso while you have Maestro: ⤵ → Deal 2 damage to a building.
+  defp ability_slots(game, s, id) do
     c = game.cards[id]
 
-    case c.card do
-      "river-montoya" when c.level >= 3 -> [{:sideline, [:opp_patroller_t01]}]
-      _ -> []
-    end
+    own =
+      case c.card do
+        "river-montoya" when c.level >= 3 -> [{:sideline, [:opp_patroller_t01], true}]
+        "harmony" -> [{:stop_music, [], false}]
+        _ -> []
+      end
+
+    granted =
+      if Stats.unit?(game, id) and Stats.virtuoso?(game, id) and
+           Stats.controls?(game, s, "maestro"),
+         do: [{:wreck, [:building], true}],
+         else: []
+
+    own ++ granted
   end
 
   defp exhaust_ok?(game, id) do
     c = game.cards[id]
     not c.exhausted and (not c.fatigued or Stats.haste?(game, id))
   end
+
+  @tech_needs %{tech_1: {6, nil}, tech_2: {8, :tech_1}, tech_3: {10, :tech_2}}
+  @build_gold %{tech_1: 1, tech_2: 4, tech_3: 5, tower: 3, surplus: 5}
+  @add_ons [:tower, :surplus]
+
+  # Build a tech building or an add-on (S1 p. 4; research §7): at most one tech
+  # building and one add-on started per turn, one add-on in all. A destroyed
+  # tech building is rebuilt for 0 gold. It finishes at the end of the turn.
+  # REVIEW: no sacrifice of an add-on to make room for another one yet.
+  defp builds(game, s) do
+    side = game.sides[s]
+    have = side.tech_buildings ++ side.pending
+
+    for b <- Map.keys(@build_gold),
+        b not in have,
+        build_ok?(game, s, b, have),
+        side.gold >= build_cost(game, s, b),
+        do: {:build, b}
+  end
+
+  defp build_ok?(_game, _s, b, have) when b in @add_ons,
+    do: not Enum.any?(have, &(&1 in @add_ons))
+
+  defp build_ok?(game, s, b, _have) do
+    side = game.sides[s]
+    {workers, needs} = @tech_needs[b]
+
+    length(side.zones.workers) >= workers and
+      (needs == nil or needs in side.tech_buildings) and
+      not Enum.any?(side.pending, &(&1 not in @add_ons))
+  end
+
+  @doc "The gold to build `b` (0 to rebuild a destroyed tech building)."
+  def build_cost(game, s, b) do
+    if b in game.sides[s].destroyed, do: 0, else: @build_gold[b]
+  end
+
+  # The tech step: 2 codex cards into the discard pile, 2 copies of one card or
+  # 1 each of two cards; 0, 1 or 2 once you have 10 workers (S1 p. 6).
+  # REVIEW: P1 techs on its first turn too (S1 p. 9 sample turn); the cards go to
+  # the discard pile at once, not "just before your next turn".
+  defp techs(game, s) do
+    side = game.sides[s]
+    by_slug = Enum.group_by(side.zones.codex, &game.cards[&1].card)
+    slugs = by_slug |> Map.keys() |> Enum.sort()
+
+    pairs =
+      for a <- slugs, b <- slugs, a <= b, ids = pair(by_slug, a, b), ids != nil, do: {:tech, ids}
+
+    singles = for a <- slugs, do: {:tech, [hd(by_slug[a])]}
+
+    cond do
+      length(side.zones.workers) >= 10 -> [{:tech, []} | singles] ++ pairs
+      pairs != [] -> pairs
+      true -> if singles == [], do: [{:tech, []}], else: singles
+    end
+  end
+
+  defp pair(by_slug, a, a) do
+    case by_slug[a] do
+      [x, y | _] -> [x, y]
+      _ -> nil
+    end
+  end
+
+  defp pair(by_slug, a, b), do: [hd(by_slug[a]), hd(by_slug[b])]
 
   defp plays(game, s) do
     gold = game.sides[s].gold
@@ -310,6 +398,28 @@ defmodule Codex.Rules do
     |> Effects.sideline(t)
   end
 
+  defp do_act(game, {:ability, id, :wreck, [t]}) do
+    game |> exhaust(id) |> Effects.deal(t, 2)
+  end
+
+  defp do_act(game, {:ability, id, :stop_music, []}),
+    do: Effects.stop_music(game, game.active, id)
+
+  defp do_act(game, {:build, b}) do
+    s = game.active
+    cost = build_cost(game, s, b)
+    update_side(game, s, &%{&1 | gold: &1.gold - cost, pending: &1.pending ++ [b]})
+  end
+
+  defp do_act(game, {:tech, ids}) do
+    s = game.active
+
+    game =
+      Enum.reduce(ids, game, fn id, game -> Zones.move(game, id, {s, :discard}, 0) end)
+
+    start_turn(game, 1 - s)
+  end
+
   defp do_act(game, {:patrol, id, slot}), do: Zones.move(game, id, {game.active, :patrol}, slot)
   defp do_act(game, {:sideline, id}), do: Effects.sideline(game, id)
   defp do_act(game, {:attack, a, target}), do: Combat.attack(game, a, target)
@@ -385,9 +495,10 @@ defmodule Codex.Rules do
   defp upkeep(game, seat) do
     workers = length(game.sides[seat].zones.workers)
 
-    game
-    |> gain_gold(seat, workers)
-    |> Effects.upkeep(seat)
+    game = game |> gain_gold(seat, workers) |> Effects.upkeep(seat)
+
+    # Surplus: "Upkeep: Draw a card."
+    if :surplus in game.sides[seat].tech_buildings, do: draw(game, seat, 1, :free), else: game
   end
 
   # The heroes at max level now may cast ultimate spells this turn.
@@ -414,15 +525,30 @@ defmodule Codex.Rules do
     game =
       game
       |> lock_patrol(s)
+      |> finish_buildings(s)
       |> end_of_turn()
       |> deaths()
 
     hand = game.sides[s].zones.hand
     game = Enum.reduce(hand, game, fn id, game -> Zones.move(game, id, {s, :discard}, 0) end)
 
-    game
-    |> draw(s, min(length(hand) + 2, @hand_cap), :draw_phase)
-    |> start_turn(1 - s)
+    game = draw(game, s, min(length(hand) + 2, @hand_cap), :draw_phase)
+
+    if techs(%{game | phase: :tech}, s) == [{:tech, []}],
+      do: start_turn(game, 1 - s),
+      else: %{game | phase: :tech}
+  end
+
+  # Buildings started this turn finish at the end of the turn (S1 p. 4).
+  defp finish_buildings(game, s) do
+    update_side(game, s, fn side ->
+      %{
+        side
+        | tech_buildings: side.tech_buildings ++ side.pending,
+          pending: [],
+          destroyed: side.destroyed -- side.pending
+      }
+    end)
   end
 
   # Exhaust a card; an exhausted card cannot patrol (S1 p. 5).

@@ -38,6 +38,12 @@ defmodule Codex.BotTest do
     assert Game.legal_actions(game, 1) == []
     assert Game.apply(game, 1, :end_turn) == {:error, :not_your_seat}
     {:ok, game} = Game.apply(game, 0, :end_turn)
+    # P1's tech step, then the bot's turn.
+    assert game.phase == :tech
+
+    {:ok, game} =
+      Game.apply(game, 0, Enum.find(Game.legal_actions(game, 0), &match?({:tech, _}, &1)))
+
     assert Game.status(game) == {:playing, [1]}
     assert Game.legal_actions(game, 0) == []
     assert Game.view(game, 1).legal == Rules.legal(game)
@@ -49,7 +55,9 @@ defmodule Codex.BotTest do
     token = "bot-#{System.unique_integer()}"
     {:ok, code} = Table.Server.create("codex", %{opts: %{bot: true}, bots: 1, name: "Ann"}, token)
     [{pid, _}] = Registry.lookup(Table.Registry, {"codex", code})
-    {:ok, _} = Table.Server.act("codex", code, token, :end_turn)
+    {:ok, env} = Table.Server.act("codex", code, token, :end_turn)
+    tech = Enum.find(env.actions, &match?({:tech, _}, &1))
+    {:ok, _} = Table.Server.act("codex", code, token, tech)
 
     game =
       Enum.reduce_while(1..500, nil, fn _, _ ->

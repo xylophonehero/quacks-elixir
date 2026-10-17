@@ -36,6 +36,21 @@ defmodule TableWeb.CodexLiveTest do
     %{view: view, code: code}
   end
 
+  # The tech step on the page: the sheet is open; pick one card twice, then confirm.
+  defp tech(view) do
+    assert has_element?(view, "#cx-drawer #cx-tech-done")
+
+    [first | _] =
+      view
+      |> render()
+      |> query("#cx-drawer button[phx-click=tech_pick]")
+      |> LazyHTML.attribute("id")
+
+    view |> element("##{first}") |> render_click()
+    view |> element("##{first}") |> render_click()
+    view |> element("#cx-tech-done") |> render_click()
+  end
+
   defp game(code), do: Server.state(@key, code).game
   defp zone(code, seat, z), do: game(code).sides[seat].zones[z]
 
@@ -152,10 +167,14 @@ defmodule TableWeb.CodexLiveTest do
     assert has_element?(view, "#cx-building-0-tech_1")
 
     view |> element("#cx-end-turn") |> render_click()
+    tech(view)
     assert game(code).active == 1
     # The table turns to the side that plays.
     assert has_element?(view, "#cx-pov-1[aria-pressed=true]")
 
+    # Undo the tech step, the end of the turn, the building.
+    view |> element("#cx-undo") |> render_click()
+    assert game(code).phase == :tech
     view |> element("#cx-undo") |> render_click()
     assert game(code).active == 0
     view |> element("#cx-undo") |> render_click()
@@ -242,7 +261,10 @@ defmodule TableWeb.CodexLiveTest do
     test "end turn: P2's turn, the table turns to P2" do
       %{view: view, code: code} = room()
       view |> element("#cx-end-turn") |> render_click()
+      assert game(code).phase == :tech
+      tech(view)
       assert game(code).active == 1
+      assert length(zone(code, 0, :discard)) == 7
       assert has_element?(view, "#cx-pov-1[aria-pressed=true]")
       assert has_element?(view, "#cx-gold-1", "5")
     end
@@ -314,6 +336,19 @@ defmodule TableWeb.CodexLiveTest do
       assert game(code).cards[a].exhausted
     end
 
+    test "build a tech building from the build sheet" do
+      game = gold(new(), 0, 5)
+      {extra, _} = Codex.Game.add_cards(game, 0, ["worker", "worker"])
+      ids = Map.keys(extra.cards) -- Map.keys(game.cards)
+      game = put_in(extra.sides[0].zones.workers, extra.sides[0].zones.workers ++ ids)
+      %{view: view, code: code} = room_with(game)
+
+      view |> element("#cx-build-0") |> render_click()
+      view |> element("#cx-build-tech_1") |> render_click()
+      assert game(code).sides[0].pending == [:tech_1]
+      assert has_element?(view, "#cx-pending-0-tech_1")
+    end
+
     test "Cancel ends a pick" do
       {game, a} = place(new(), 0, "timely-messenger", :hand)
       game = ok!(game, {:play, a, []})
@@ -340,6 +375,7 @@ defmodule TableWeb.CodexLiveTest do
       "/games/codex/" <> code = to
       {:ok, view, _} = live(conn, to)
       view |> element("#cx-end-turn") |> render_click()
+      tech(view)
 
       [{pid, _}] = Registry.lookup(Table.Registry, {@key, code})
 
