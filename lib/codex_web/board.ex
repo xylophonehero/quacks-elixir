@@ -114,20 +114,20 @@ defmodule CodexWeb.Board do
     v = env.view
     a = socket.assigns
     # Hot-seat: the table turns to the side that plays. Against the bot: P1 stays at the bottom.
-    turned? = v.bot == nil and old != nil and old.view.active != v.active
+    new_turn? = old != nil and old.view.active != v.active
+    turned? = new_turn? and v.bot == nil
     pov = if(turned?, do: v.active, else: a.pov)
-    # The turn comes back to the side at the bottom: what the other side did.
-    back? = old != nil and old.view.active != v.active and v.active == pov and v.phase != :over
+    kept? = Map.has_key?(v.cards, a.selected)
 
     Phoenix.Component.assign(socket,
       view: v,
       actions: env.actions,
       spectator?: env.seat == :spectator,
       pov: pov,
-      summary: if(back?, do: turn_summary(v, v.active), else: a.summary),
-      reveal: if(turned?, do: false, else: a.reveal),
-      selected: if(Map.has_key?(v.cards, a.selected), do: a.selected),
-      expanded: a.expanded and Map.has_key?(v.cards, a.selected),
+      summary: summary_after(a.summary, v, new_turn? and v.active == pov),
+      reveal: a.reveal and not turned?,
+      selected: if(kept?, do: a.selected),
+      expanded: a.expanded and kept?,
       targeting: nil,
       tech_pick: if(v.phase == :tech, do: a.tech_pick, else: []),
       drawer: drawer_after(a.drawer, v, env.actions)
@@ -139,6 +139,11 @@ defmodule CodexWeb.Board do
   defp drawer_after({_s, :tech}, _v, _actions), do: nil
   defp drawer_after(drawer, _v, _actions), do: drawer
 
+  # The turn comes back to the side at the bottom: what the other side did.
+  defp summary_after(_summary, %{phase: :over}, _back?), do: nil
+  defp summary_after(_summary, v, true), do: turn_summary(v, v.active)
+  defp summary_after(summary, _v, false), do: summary
+
   # The log lines of the other side's last turn (the log is newest first): all
   # after `seat`'s last "end turn", without `seat`'s own actions. Nil: no lines.
   defp turn_summary(v, seat) do
@@ -146,8 +151,7 @@ defmodule CodexWeb.Board do
       v.log
       |> Enum.take_while(&(&1 != {:action, seat, :end_turn}))
       |> Enum.reverse()
-      |> Enum.reject(&match?({:action, ^seat, _}, &1))
-      |> Enum.reject(&match?({:action, _, :end_turn}, &1))
+      |> Enum.reject(&(match?({:action, ^seat, _}, &1) or match?({:action, _, :end_turn}, &1)))
       |> Enum.map(&log_text(&1, v))
 
     case lines do
@@ -578,33 +582,7 @@ defmodule CodexWeb.Board do
 
   @doc "The page without the layout (also the gallery's board story)."
   def page(assigns) do
-    v = assigns.view
-    pov = assigns.pov
-    selected = assigns.selected && v.cards[assigns.selected]
-
-    pick =
-      assigns[:targeting] &&
-        Moves.options(assigns.actions, assigns.targeting.key, assigns.targeting.picked)
-
-    values = if pick, do: pick.values, else: []
-
-    assigns =
-      assign(assigns,
-        opp: 1 - pov,
-        art: art(),
-        sel: selected,
-        where: selected && where(v, selected.id),
-        players: assigns[:seats] || %{},
-        pick: pick,
-        tg: MapSet.new(values),
-        buttons:
-          if(selected && !v.free, do: Moves.buttons(assigns.actions, selected.id), else: []),
-        free: v.free,
-        expanded: assigns[:expanded] || false,
-        opp_open: assigns[:opp_open] || false,
-        zoom: assigns[:zoom] && v.cards[assigns.zoom],
-        summary: assigns[:summary]
-      )
+    assigns = assign(assigns, page_assigns(assigns))
 
     ~H"""
     <div
@@ -910,6 +888,37 @@ defmodule CodexWeb.Board do
       </script>
     </div>
     """
+  end
+
+  # The page's derived assigns (the gallery passes only the board's own assigns).
+  defp page_assigns(assigns) do
+    v = assigns.view
+
+    [
+      opp: 1 - assigns.pov,
+      art: art(),
+      players: assigns[:seats] || %{},
+      free: v.free,
+      expanded: assigns[:expanded] || false,
+      opp_open: assigns[:opp_open] || false,
+      zoom: assigns[:zoom] && v.cards[assigns.zoom],
+      summary: assigns[:summary]
+    ] ++ selection_assigns(assigns, v)
+  end
+
+  # The selected card, its place and buttons, and the target pick in progress.
+  defp selection_assigns(assigns, v) do
+    selected = assigns.selected && v.cards[assigns.selected]
+    targeting = assigns[:targeting]
+    pick = targeting && Moves.options(assigns.actions, targeting.key, targeting.picked)
+
+    [
+      sel: selected,
+      where: selected && where(v, selected.id),
+      pick: pick,
+      tg: MapSet.new((pick && pick.values) || []),
+      buttons: if(selected && !v.free, do: Moves.buttons(assigns.actions, selected.id), else: [])
+    ]
   end
 
   # What the other side did in its turn: a card over the board until "OK".
@@ -1828,11 +1837,7 @@ defmodule CodexWeb.Board do
 
   # ATK and HP left now, and how they differ from the printed values (a hero: its band).
   defp mini_stats(c, d) do
-    {base_atk, base_hp} =
-      case d.type == "Hero" && Cards.band(c.card, c.level || 1) do
-        %{atk: a, hp: h} -> {a, h}
-        _ -> {d.atk, d.hp}
-      end
+    {base_atk, base_hp} = printed_stats(c, d)
 
     case Map.get(c, :now) || (base_hp && {base_atk || 0, base_hp}) do
       {atk, hp} ->
@@ -1840,13 +1845,25 @@ defmodule CodexWeb.Board do
           atk: atk,
           hp: hp - c.damage,
           atk_tone: tone_of(atk, base_atk || 0),
-          hp_tone: if(c.damage > 0, do: "hurt", else: tone_of(hp, base_hp || 0))
+          hp_tone: hp_tone(c.damage, hp, base_hp || 0)
         }
 
       nil ->
         nil
     end
   end
+
+  defp printed_stats(c, %{type: "Hero"} = d) do
+    case Cards.band(c.card, c.level || 1) do
+      %{atk: a, hp: h} -> {a, h}
+      _ -> {d.atk, d.hp}
+    end
+  end
+
+  defp printed_stats(_c, d), do: {d.atk, d.hp}
+
+  defp hp_tone(damage, _hp, _base) when damage > 0, do: "hurt"
+  defp hp_tone(_damage, hp, base), do: tone_of(hp, base)
 
   defp tone_of(now, base) when now > base, do: "up"
   defp tone_of(now, base) when now < base, do: "down"
