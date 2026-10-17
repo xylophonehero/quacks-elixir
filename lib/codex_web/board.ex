@@ -26,6 +26,18 @@ defmodule CodexWeb.Board do
   - A card on the board (patrol, in play, command) is a mini card (`mini/1`): an
     art crop, the cost or the hero level, the name and the ATK/HP now (green: above
     the printed value, violet: below, red HP: damaged). Exhausted: grey.
+  - A desktop (1024 px and up) is one screen too (MTG Arena): the two
+    battlefields face each other across the status bar, the hand is half off
+    the bottom edge (hover, focus or selection lifts a card), cards grow with
+    the screen height, and the base is a portrait with the gold, the workers and
+    the tech buildings (`keep/1`). A pick banner and the other side's turn
+    summary float: nothing pushes the board.
+  - Act on the card (a desktop): a card with legal actions shows action chips
+    on hover, focus or selection (`chip_bar/1`, `CodexWeb.Moves.chips/2`); a
+    chip with one legal target acts at once. Or drag a ready unit onto a target
+    or a patrol slot: an arrow with a damage preview, the legal targets lit
+    (`data-targets`, the "aim" event). Keys: Tab to a card, Enter or Space
+    selects, A / L / P attack, level up, patrol, Esc cancels.
   - Hover (mouse) or a long press (touch) shows a large face of a card.
   - Motion (240 ms or less, off with reduced motion): a card that arrives in a
     zone flies from where it was; a number that changes bumps, and the base HP

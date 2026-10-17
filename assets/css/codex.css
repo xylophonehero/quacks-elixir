@@ -750,8 +750,8 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
   grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
   grid-template-areas: "top" "opp" "status" "note" "board" "sheet" "hand";
 }
-/* A desktop: nothing pushes the board. The summary is a toast at the bottom
-   left that fades after 8 s (it stays with reduced motion; OK closes it); the
+/* A desktop: nothing pushes the board. The summary is a toast (at the top of
+   the right column, see the one-screen block) that fades after 8 s (it stays with reduced motion; OK closes it); the
    pick banner floats over the status bar, which keeps its row. */
 @media (min-width: 1024px) {
   .cx-layout { position: relative; }
@@ -1021,3 +1021,73 @@ body.cx-aiming .cx-building:not(.cx-lit) {
 .cx-keep-b:disabled { cursor: default; }
 .cx-keep-b-pending { background: transparent; color: oklch(90% 0.08 88); box-shadow: inset 0 0 0 1.5px oklch(88% 0.11 88 / 0.6); }
 @media (prefers-reduced-motion: reduce) { .cx-keep-base { transition: none; } .cx-keep-base.cx-targetable-pill:hover, .cx-keep-base.cx-aim-over { transform: none; } }
+
+/* -- a desktop: one screen (R4, after MTG Arena) ---------------------------------
+   100dvh, no page scroll, no width cap. The two battlefields share the height
+   and face each other across the status bar (the centre rail): the other side's
+   cards sit at the bottom of its half. Cards grow with the screen height. The
+   hand is half off the bottom edge; hover, focus or selection lifts a card. The
+   right column (the selected card, help, the log) scrolls inside. */
+@media (min-width: 1024px) {
+  .cx-layout, .cx-layout.cx-noted {
+    height: 100dvh;
+    min-height: 0;
+    max-width: none;
+    overflow: hidden;
+    grid-template-columns: minmax(0, 1fr) 18rem;
+    grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    grid-template-areas: "top sheet" "opp sheet" "status sheet" "board sheet" "hand sheet";
+    gap: 6px 16px;
+    padding: 10px 16px 0;
+  }
+  .cx-a-sheet {
+    position: static;
+    align-self: stretch;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 12px;
+    scrollbar-width: thin;
+  }
+  .cx-a-opp, .cx-a-board { min-height: 0; max-height: 100%; overflow-y: auto; scrollbar-width: thin; }
+  .cx-a-opp { align-self: end; }
+  .cx-a-board { align-self: start; }
+
+  .cx-table { --cx-mw: clamp(3.5rem, min(10.5vh, 6.2vw), 8rem); }
+  .cx-side[data-far="true"] { --cx-mw: clamp(3.25rem, min(8.5vh, 5vw), 6.5rem); }
+  /* The command row keeps one line: its heroes do not stack; the other side's
+     hidden hand overlaps more instead. */
+  .cx-command .cx-row-cards { flex-wrap: nowrap; }
+  .cx-pair-mat > .cx-command { flex: 1 0 auto; }
+  .cx-side[data-far="true"] .cx-hand-far { --cx-w: clamp(2rem, 4.5vh, 3rem); min-height: 0; padding: 14px 6px 6px; }
+  .cx-hand { --cx-w: clamp(5rem, 13vh, 8.5rem); }
+
+  /* The hand: no box, half off the bottom edge. */
+  .cx-dock {
+    height: calc(var(--cx-w) * 1.4 * 0.5);
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .cx-dock > .cx-row-label { display: none; }
+  .cx-dock > .cx-fan { padding-top: 6px; }
+  .cx-dock .cx-fan > .cx-card:not([data-hidden]):hover,
+  .cx-dock .cx-fan > .cx-card.cx-selected,
+  .cx-dock .cx-fan > .cx-card:focus-visible,
+  .cx-dock .cx-fan > .cx-card.cx-hover,
+  .cx-dock .cx-fan > .cx-card.cx-focus {
+    transform: translateY(calc(var(--cx-w) * -0.78)) scale(1.06);
+    z-index: 6;
+  }
+  .cx-dock.cx-over { background: oklch(85% 0.15 85 / 0.1); box-shadow: inset 0 0 0 2px var(--cx-gold); }
+  /* The turn summary: over the top of the right column (no card under it). */
+  .cx-summary.cx-toast-lg { left: auto; right: 16px; top: 10px; bottom: auto; width: 18rem; }
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .cx-pair-mat > .cx-chips > .cx-chip { min-width: 3rem; padding-inline: 4px; }
+  .cx-pair-mat .cx-chip-label { font-size: 8px; letter-spacing: 0.04em; }
+}
+@media (min-width: 1280px) {
+  .cx-layout, .cx-layout.cx-noted { grid-template-columns: minmax(0, 1fr) 20rem; }
+  .cx-summary.cx-toast-lg { width: 20rem; }
+}
