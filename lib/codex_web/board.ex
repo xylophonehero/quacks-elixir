@@ -848,7 +848,7 @@ defmodule CodexWeb.Board do
           id="cx-end-turn"
           type="button"
           phx-click="end_turn"
-          class="rounded-full bg-amber-300 px-3 py-1.5 text-xs font-bold text-stone-900 shadow-md ring-1 ring-amber-100 transition hover:bg-amber-200 active:scale-95 sm:text-sm"
+          class="shrink-0 rounded-full bg-amber-300 px-3 py-1.5 text-xs font-bold whitespace-nowrap text-stone-900 shadow-md ring-1 ring-amber-100 transition hover:bg-amber-200 active:scale-95 sm:text-sm"
         >
           End turn
         </button>
