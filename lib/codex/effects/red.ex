@@ -6,7 +6,7 @@ defmodule Codex.Effects.Red do
   goes through `Codex.Effects.burn/5` (Hotter Fire).
   """
 
-  alias Codex.{Effects, Zones}
+  alias Codex.{Effects, Rules, Stats, Zones}
 
   # -- spells -----------------------------------------------------------------------------------
 
@@ -31,13 +31,47 @@ defmodule Codex.Effects.Red do
     |> Effects.steal(s, 1 - s, n)
   end
 
+  # -- Anarchy --
+
+  # Chaos Mirror: swap the printed ATK of two units and/or heroes until end of turn.
+  def spell(game, _s, "chaos-mirror", _id, [a, b]) do
+    {atk_a, _} = Stats.printed(game.cards[a])
+    {atk_b, _} = Stats.printed(game.cards[b])
+
+    game
+    |> Zones.update_card(a, &%{&1 | this_turn: Map.put(&1.this_turn, :printed_atk, atk_b)})
+    |> Zones.update_card(b, &%{&1 | this_turn: Map.put(&1.this_turn, :printed_atk, atk_a)})
+  end
+
+  # Detonate: trash a worker or building card (then it trashes itself, `Codex.Effects.cast/4`).
+  def spell(game, _s, "detonate", _id, [t]), do: Effects.trash(game, t)
+
+  def spell(game, s, "surprise-attack", _id, []), do: Effects.summon(game, s, "shark", 2)
+
+  # Maximum Anarchy: destroy all units and heroes.
+  def spell(game, _s, "maximum-anarchy", _id, []) do
+    all = for seat <- [0, 1], id <- Zones.in_play(game, seat), Stats.force?(game, id), do: id
+
+    Enum.reduce(all, game, fn id, game ->
+      if in_play?(game, id), do: Effects.die(game, id), else: game
+    end)
+  end
+
   def spell(game, _s, _slug, _id, _targets), do: game
+
+  defp in_play?(game, id), do: Zones.zone_name(Zones.locate(game, id)) in [:in_play, :patrol]
 
   defp pirate?(game, id), do: Codex.Cards.fetch!(game.cards[id].card).subtype in ["Pirate"]
 
   # -- arrivals -------------------------------------------------------------------------------
 
   @doc "A Red unit's \"Arrives:\" ability."
+  def arrive(game, _s, id, "disguised-monkey", []),
+    do: Zones.update_card(game, id, &%{&1 | stealth: true})
+
+  # Marauder, boosted: trash a worker. # REVIEW: an opposing worker (the point of the boost; rulings).
+  def arrive(game, s, _id, "marauder", [:boost]), do: Effects.trash_worker(game, 1 - s)
+
   def arrive(game, _s, _id, _slug, _targets), do: game
 
   # -- abilities ------------------------------------------------------------------------------
@@ -56,6 +90,25 @@ defmodule Codex.Effects.Red do
   def ability(game, s, id, :burn, [t]), do: Effects.burn(game, s, slug(game, id), t, 1)
   def ability(game, s, id, :jaina_1, [t]), do: Effects.burn(game, s, slug(game, id), t, 1)
   def ability(game, s, id, :jaina_3, [t]), do: Effects.burn(game, s, slug(game, id), t, 3)
+  # Sanatorium: draw a card, then put up to two tech 0-II units from your hand
+  # into play (free, no tech building) with haste and ephemeral for good.
+  # REVIEW: the units are picked before the draw (the drawn card cannot be one).
+  def ability(game, s, _id, :sanatorium, targets) do
+    game = Rules.draw(game, s, 1, :main)
+
+    targets
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reduce(game, fn u, game ->
+      game
+      |> Effects.take_control(s, u)
+      |> Zones.update_card(
+        u,
+        &%{&1 | extra: Map.merge(&1.extra, %{haste: true, ephemeral: true})}
+      )
+      |> Effects.arrive(s, u, [])
+    end)
+  end
+
   def ability(game, _s, _id, _name, _targets), do: game
 
   # Bombaster is sacrificed before its effect: its slug is still on the card.
@@ -103,8 +156,10 @@ defmodule Codex.Effects.Red do
     c = game.cards[a]
 
     case {c.card, slot} do
-      {"captain-zane", :scavenger} when c.level >= 4 -> Codex.Rules.gain_gold(game, s, 1)
-      {"captain-zane", :technician} when c.level >= 4 -> Codex.Rules.draw(game, s, 1, :main)
+      # Gunpoint Taxman kills a patroller: steal 1 gold.
+      {"gunpoint-taxman", slot} when slot != nil -> Effects.steal(game, s, 1 - s, 1)
+      {"captain-zane", :scavenger} when c.level >= 4 -> Rules.gain_gold(game, s, 1)
+      {"captain-zane", :technician} when c.level >= 4 -> Rules.draw(game, s, 1, :main)
       _ -> game
     end
   end
