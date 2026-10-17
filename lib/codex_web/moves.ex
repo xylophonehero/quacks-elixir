@@ -135,6 +135,17 @@ defmodule CodexWeb.Moves do
   def ability_label(:argagarg), do: "+1 ATK / +1 armor to a unit"
   def ability_label(:hide), do: "Discard 2 cards: stealth"
   def ability_label(:tiger), do: "Fetch a Tiger from the codex (4 gold)"
+  def ability_label(:magistrate), do: "Disable a unit or hero (1 gold)"
+  def ability_label(:javelin), do: "Remove a javelin rune: long-range"
+  def ability_label(:exhume), do: "Play a buried unit"
+  def ability_label(:stash), do: "Stash a card (keep it at the draw)"
+  def ability_label(:bigby_draw), do: "Draw a card"
+  def ability_label(:mirror), do: "Another Mirror Illusion (2 gold)"
+  def ability_label(:mirror_copy), do: "A Mirror copies a unit (2 gold)"
+  def ability_label(:fetch), do: "Discard a card: fetch a Demonology spell (1 gold)"
+  def ability_label(:plague), do: "Sacrifice a unit: a -1/-1 rune"
+  def ability_label(:skeleton), do: "A Skeleton (1 gold)"
+  def ability_label(:bone_draw), do: "Sacrifice a Skeleton: draw"
   def ability_label(name), do: name |> to_string() |> String.replace("_", " ")
 
   @doc """

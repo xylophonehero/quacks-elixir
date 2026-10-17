@@ -57,6 +57,33 @@ defmodule Codex.Stats do
   @doc "The spec of a card (nil for starting-deck cards and tokens)."
   def spec(game, id), do: def_of(game, id).spec
 
+  @doc ~s{True when the card's subtype has the word `word` ("Demon", "Skeleton", ...).}
+  def subtype?(game, id, word),
+    do: word in String.split(def_of(game, id).subtype || "", ~r/[\s—-]+/, trim: true)
+
+  @doc """
+  True for an Illusion now: a unit with the Illusion subtype, a copy that is
+  still an Illusion (Sirus Quince), a unit made an Illusion this turn
+  (Hallucination), or a tech 0-II unit while a Dreamscape is in play.
+  """
+  def illusion?(game, id) do
+    c = game.cards[id]
+
+    unit?(game, id) and
+      (subtype?(game, id, "Illusion") or Map.get(c.extra, :illusion) == true or
+         Map.get(c.this_turn, :illusion) == true or
+         (tech(game, id) in [0, 1, 2] and
+            Enum.any?([0, 1], &controls?(game, &1, "dreamscape"))))
+  end
+
+  @doc "True when card `id` can be sacrificed (not indestructible, not \"can't be sacrificed\")."
+  def sacrificable?(game, id),
+    do: not kw?(game, id, :cant_sacrifice) and not kw?(game, id, :indestructible)
+
+  @doc "True when side `s` has a detector (Eyes of the Chancellor): it sees stealth and invisible."
+  def detector?(_game, nil), do: false
+  def detector?(game, s), do: Enum.any?(Zones.in_play(game, s), &kw?(game, &1, :detector))
+
   @doc "True for a Virtuoso."
   def virtuoso?(game, id), do: def_of(game, id).subtype == "Virtuoso"
 
@@ -111,8 +138,15 @@ defmodule Codex.Stats do
     atk = Map.get(c.this_turn, :printed_atk, atk)
     s = controller(game, id)
 
-    atk + c.plus - c.minus + c.tmp_atk + frenzy(game, id, s) + elite(game, id) +
-      static(game, id, s, :atk) + starlet(c) + ironbark(game, id)
+    atk =
+      atk + c.plus - c.minus + c.tmp_atk + frenzy(game, id, s) + elite(game, id) +
+        static(game, id, s, :atk) + starlet(c) + ironbark(game, id)
+
+    # Pestering Haunt: "Can't have more than 1 ATK."
+    case CardRules.keyword(c.card, :max_atk) do
+      nil -> atk
+      max -> min(atk, max)
+    end
   end
 
   @doc "HP now (before damage)."
@@ -147,7 +181,11 @@ defmodule Codex.Stats do
   end
 
   defp frenzy(game, id, s) do
-    n = (CardRules.keyword(game.cards[id].card, :frenzy) || 0) + drakk_frenzy(game, id, s)
+    c = game.cards[id]
+
+    n =
+      (CardRules.keyword(c.card, :frenzy, hero_level(game, id)) || 0) + drakk_frenzy(game, id, s)
+
     if s == game.active, do: n, else: 0
   end
 
@@ -182,7 +220,8 @@ defmodule Codex.Stats do
       midori(game, id, s),
       attached(game, id),
       leaf_and_claw(game, id, s),
-      stampede(game, id, s)
+      stampede(game, id, s),
+      marked(game, id)
     ]
 
     Enum.sum(for {a, h} <- bonuses, do: if(stat == :atk, do: a, else: h))
@@ -260,6 +299,10 @@ defmodule Codex.Stats do
     if strong > 0 and force?(game, id), do: {5 * strong, 5 * strong}, else: {0, 0}
   end
 
+  # Vandy Anadrose's max level: +2/+2 until her side's next upkeep.
+  defp marked(game, id),
+    do: if(Map.has_key?(game.cards[id].extra, :vandy), do: {2, 2}, else: {0, 0})
+
   # Stampede: your units get +3 ATK / +3 armor this turn.
   defp stampede(game, id, s) do
     if side_effect(game, s, :stampede) && unit?(game, id), do: {3, 0}, else: {0, 0}
@@ -293,6 +336,7 @@ defmodule Codex.Stats do
 
     cond do
       Map.get(c.extra, :polymorph) -> false
+      silenced?(game, id) -> false
       printed_kw?(game, id, key) -> true
       Map.get(c.this_turn, key) == true -> true
       Map.get(c.extra, key) == true -> true
@@ -304,12 +348,31 @@ defmodule Codex.Stats do
 
   defp printed_kw?(game, id, key) do
     c = game.cards[id]
+    level = hero_level(game, id)
 
     kws =
       CardRules.keywords(c.card) ++
-        if(c.level, do: CardRules.hero_keywords(c.card, c.level), else: [])
+        if(level, do: CardRules.hero_keywords(c.card, level), else: [])
 
     Keyword.get(kws, key) not in [nil, false]
+  end
+
+  # The level of a hero whose abilities count (nil for other cards and for a
+  # silenced hero: Free Speech).
+  defp hero_level(game, id) do
+    if silenced?(game, id), do: nil, else: game.cards[id].level
+  end
+
+  @doc """
+  True for a hero whose side is silenced (Free Speech): it can't cast spells
+  and has no abilities until after that side's next turn.
+  """
+  def silenced?(game, id) do
+    game.cards[id].level != nil and
+      case controller(game, id) do
+        nil -> false
+        s -> side_effect(game, s, :silenced) != nil
+      end
   end
 
   defp mimic?(game, id, key) do
@@ -375,7 +438,21 @@ defmodule Codex.Stats do
     c.plus > 0 and force?(game, id) and controls?(game, controller(game, id), "blooming-elm")
   end
 
+  defp granted?(game, id, :long_range) do
+    c = game.cards[id]
+
+    # Bluecoat Musketeer: "While this has exactly 1 ATK, it has long-range."
+    (c.card == "bluecoat-musketeer" and atk(game, id) == 1) or skeletal_archery?(game, id)
+  end
+
+  defp granted?(game, id, :anti_air), do: skeletal_archery?(game, id)
+
   defp granted?(_game, _id, _key), do: false
+
+  # Skeletal Archery: "Your Skeletons have long-range and anti-air."
+  defp skeletal_archery?(game, id) do
+    subtype?(game, id, "Skeleton") and controls?(game, controller(game, id), "skeletal-archery")
+  end
 
   @doc "Haste (S1 p. 17)."
   def haste?(game, id), do: kw?(game, id, :haste)
@@ -397,7 +474,7 @@ defmodule Codex.Stats do
   def resist(game, id) do
     c = game.cards[id]
     s = controller(game, id)
-    printed = CardRules.keyword(c.card, :resist) || 0
+    printed = CardRules.keyword(c.card, :resist, hero_level(game, id)) || 0
     lookout = if patrol_slot(game, id) == :lookout, do: 1, else: 0
 
     calamandra =

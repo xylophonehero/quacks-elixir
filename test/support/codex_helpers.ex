@@ -84,6 +84,29 @@ defmodule Codex.TestHelpers do
   @doc "A Red (P1) vs Green (P2) game."
   def red_green(seed \\ {1, 2, 3}), do: elem(Game.new(%{preset: "red_green"}, seed), 1)
 
+  @doc "A Blue (P1) vs Black (P2) game."
+  def blue_black(seed \\ {1, 2, 3}), do: elem(Game.new(%{preset: "blue_black"}, seed), 1)
+
+  @doc "A Black (P1) vs Blue (P2) game."
+  def black_blue(seed \\ {1, 2, 3}), do: elem(Game.new(%{preset: "black_blue"}, seed), 1)
+
+  @doc "Set the finished tech buildings and the tech II spec of `seat` by hand."
+  def set_tech(game, seat, buildings, spec \\ nil) do
+    game
+    |> put_in([Access.key(:sides), seat, :tech_buildings], buildings)
+    |> put_in([Access.key(:sides), seat, :tech_spec], spec)
+  end
+
+  @doc "Give `seat` workers up to `n` (new face-down worker cards; a test set-up)."
+  def add_workers(game, seat, n) do
+    have = length(game.sides[seat].zones.workers)
+
+    Enum.reduce(1..max(n - have, 0)//1, game, fn _, game ->
+      {game, id} = spawn(game, seat, "worker", :workers)
+      put_card(game, id, face_down: true)
+    end)
+  end
+
   @doc "Every Codex rules action of a card: `{:ability, id, name, targets}`."
   def abilities(game, id), do: for({:ability, ^id, name, t} <- legal(game), do: {name, t})
 

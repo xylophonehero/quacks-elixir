@@ -96,7 +96,8 @@ defmodule Codex.Zones do
   @doc "Move card `id` to `zone` (see `insert/4`)."
   def move(game, id, zone, at \\ nil), do: game |> remove(id) |> insert(id, zone, at)
 
-  @doc "Change card `id` with `fun`."
+  @doc "Change card `id` with `fun` (nil: no card, no change)."
+  def update_card(game, nil, _fun), do: game
   def update_card(game, id, fun), do: %{game | cards: Map.update!(game.cards, id, fun)}
 
   @doc "The cards in play of `seat` (in play and in the patrol zone), in order."

@@ -5,15 +5,19 @@ defmodule Codex.Effects do
   abilities (research §5, §10, §16; rulebook S1). Each function takes the game
   and returns the game. Targets are checked before (`Codex.Targets`).
 
-  The neutral cards are here; the Red and Green card texts are in
-  `Codex.Effects.Red` and `Codex.Effects.Green`.
+  The neutral cards are here; the colour card texts are in
+  `Codex.Effects.Red`, `Codex.Effects.Green`, `Codex.Effects.Blue` and
+  `Codex.Effects.Black`.
 
   A target is a card id, a building `{:building, seat, name}` (`:base`, a tech
   building or an add-on), or a worker `{:worker, seat}`.
   """
 
   alias Codex.{CardRules, Cards, Rules, Stats, Zones}
-  alias Codex.Effects.{Green, Red}
+  alias Codex.Effects.{Black, Blue, Green, Red}
+  alias Table.Kit.Rng
+
+  @colors %{"Red" => Red, "Green" => Green, "Blue" => Blue, "Black" => Black}
 
   @building_hp %{
     base: 20,
@@ -31,6 +35,9 @@ defmodule Codex.Effects do
   @doc "The HP of a building."
   def building_hp(name), do: Map.fetch!(@building_hp, name)
 
+  # The module of a colour's card texts (nil for Neutral).
+  defp color_mod(slug), do: Map.get(@colors, Cards.fetch!(slug).color)
+
   # -- damage ---------------------------------------------------------------------------------
 
   @doc """
@@ -43,8 +50,14 @@ defmodule Codex.Effects do
   def deal(game, _target, n, _opts) when n <= 0, do: game
   def deal(game, nil, _n, _opts), do: game
 
-  def deal(game, {:building, s, :base}, n, _opts),
-    do: Rules.update_side(game, s, &%{&1 | base_hp: &1.base_hp - n})
+  def deal(game, {:building, s, :base}, n, _opts) do
+    hp = game.sides[s].base_hp
+    # Blackhand Dozer: damage its side deals cannot take an opposing base below 6.
+    # REVIEW: all damage to a base counts as dealt by the other side.
+    floor = if Stats.controls?(game, 1 - s, "blackhand-dozer"), do: min(hp, 6), else: nil
+    new = if floor, do: max(hp - n, floor), else: hp - n
+    Rules.update_side(game, s, &%{&1 | base_hp: new})
+  end
 
   def deal(game, {:building, s, b}, n, _opts) do
     side = game.sides[s]
@@ -64,7 +77,22 @@ defmodule Codex.Effects do
 
   def deal(game, id, n, opts) when is_integer(id) do
     {n, game} = if opts[:piercing], do: {n, game}, else: armor(game, id, n)
-    Zones.update_card(game, id, &%{&1 | damage: &1.damage + n})
+
+    # Combat damage marks the card until the attack ends (Brave Knight, Jandra: "dies from combat damage").
+    game =
+      if opts[:combat],
+        do:
+          Zones.update_card(
+            game,
+            id,
+            &%{&1 | this_turn: Map.put(&1.this_turn, :combat_hit, true)}
+          ),
+        else: game
+
+    # Damage "in the form of -1/-1 runes" (Plague Spitter, Orpal Gloor, Poisonblade Rogue).
+    if opts[:runes] && Stats.force?(game, id),
+      do: Enum.reduce(1..n//1, game, fn _, g -> minus_rune(g, id) end),
+      else: Zones.update_card(game, id, &%{&1 | damage: &1.damage + n})
   end
 
   def deal(game, _target, _n, _opts), do: game
@@ -164,6 +192,8 @@ defmodule Codex.Effects do
   end
 
   @doc "Side `s` gains control of card `id` (it arrives with arrival fatigue)."
+  def take_control(game, _s, nil), do: game
+
   def take_control(game, s, id) do
     game
     |> Zones.move(id, {s, :in_play})
@@ -175,6 +205,75 @@ defmodule Codex.Effects do
     case game.sides[seat].zones.workers do
       [w | _] -> game |> leave(w, :trash, nil) |> log({:worker_trashed, seat})
       [] -> game
+    end
+  end
+
+  @doc "Side `seat` discards a card from its hand at random (the game's RNG)."
+  def discard_random(game, seat) do
+    case game.sides[seat].zones.hand do
+      [] ->
+        game
+
+      hand ->
+        {id, rng} = Rng.pick(hand, game.rng)
+        %{game | rng: rng} |> Zones.move(id, {seat, :discard}, 0) |> log({:discards, id})
+    end
+  end
+
+  @doc """
+  Disable a unit or hero: exhaust it (and sideline it); it does not ready in
+  its controller's next ready step (`Codex.Rules`).
+  """
+  def disable(game, nil), do: game
+
+  def disable(game, id) do
+    game
+    |> exhaust(id)
+    |> Zones.update_card(id, &%{&1 | exhausted: true, extra: Map.put(&1.extra, :disabled, true)})
+    |> sideline(id)
+    |> log({:disabled, id})
+  end
+
+  @doc """
+  The weakest unit of side `seat`: the lowest tech, then the least ATK
+  (research: Sacrifice the Weak). `keep` filters the units.
+  # REVIEW: a tie goes to the unit that came first (lowest id); the player may pick.
+  """
+  def weakest(game, seat, keep \\ fn _ -> true end) do
+    game
+    |> Zones.in_play(seat)
+    |> Enum.filter(&(Stats.unit?(game, &1) and keep.(&1)))
+    |> Enum.min_by(&{Stats.tech(game, &1), Stats.atk(game, &1), &1}, fn -> nil end)
+  end
+
+  @doc """
+  Card `id` becomes a copy of `slug` (the printed card, no modifiers; rulings).
+  `info` is kept in `extra.copy` (`:until`, `:illusion`, `:bound`); the copy
+  ends with `uncopy/2`.
+  """
+  def copy(game, id, slug, info \\ %{}) do
+    Zones.update_card(game, id, fn c ->
+      from = get_in(c.extra, [:copy, :from]) || c.card
+      illusion = if Map.get(info, :illusion), do: %{illusion: true}, else: %{}
+
+      %{
+        c
+        | card: slug,
+          extra: c.extra |> Map.put(:copy, Map.put(info, :from, from)) |> Map.merge(illusion)
+      }
+    end)
+  end
+
+  @doc "A copy becomes its own card again."
+  def uncopy(game, id) do
+    case game.cards[id].extra do
+      %{copy: %{from: from}} ->
+        Zones.update_card(game, id, fn c ->
+          %{c | card: from, extra: Map.drop(c.extra, [:copy, :illusion])}
+        end)
+
+      _ ->
+        game
     end
   end
 
@@ -197,13 +296,78 @@ defmodule Codex.Effects do
   A patroller that dies in the scavenger slot gives its side 1 gold, in the
   technician slot a card (S1 p. 5). Then the death triggers.
   """
+  def die(game, nil), do: game
+
   def die(game, id) do
-    game = unpolymorph(game, id)
+    if in_play?(game, id) do
+      case save(game, id) do
+        {:saved, game} -> game
+        :dies -> really_die(game, id)
+      end
+    else
+      game
+    end
+  end
+
+  # "If this would die" (rulings: a saved card does not die, nothing triggers):
+  # Brave Knight from combat damage goes back to the hand; indestructible
+  # (Gargoyle) exhausts and loses its damage and attachments; a Soul Stone
+  # on it is sacrificed and the damage goes; Two Lives (Justice Juggernaut)
+  # heals and gets a crumbling rune.
+  defp save(game, id) do
+    c = game.cards[id]
+    stones = for a <- Stats.attachments(game, id), game.cards[a].card == "soul-stone", do: a
+
+    cond do
+      c.card == "brave-knight" and Map.get(c.this_turn, :combat_hit) == true ->
+        {:saved, game |> leave(id, {c.seat, :hand}, nil) |> log({:returns, id})}
+
+      Stats.kw?(game, id, :indestructible) ->
+        game =
+          game
+          |> exhaust(id)
+          |> Zones.update_card(id, &%{&1 | exhausted: true, damage: 0})
+
+        {:saved, Enum.reduce(Stats.attachments(game, id), game, &sacrifice(&2, &1))}
+
+      stones != [] ->
+        game = Zones.update_card(game, id, &%{&1 | damage: 0})
+        {:saved, Enum.reduce(stones, game, &sacrifice(&2, &1))}
+
+      CardRules.keyword(c.card, :two_lives) && not Map.get(c.extra, :crumbling, false) ->
+        {:saved,
+         Zones.update_card(
+           game,
+           id,
+           &%{&1 | damage: 0, extra: Map.put(&1.extra, :crumbling, true)}
+         )}
+
+      true ->
+        :dies
+    end
+  end
+
+  defp in_play?(game, id), do: Zones.zone_name(Zones.locate(game, id)) in [:in_play, :patrol]
+
+  defp really_die(game, id) do
+    pre = game.cards[id]
+
+    ctx = %{
+      id: id,
+      illusion?: Stats.illusion?(game, id),
+      minus?: pre.minus > 0,
+      combat?: Map.get(pre.this_turn, :combat_hit) == true,
+      insured: Map.get(pre.extra, :insured_by, []),
+      buried?: false
+    }
+
+    game = game |> unpolymorph(id) |> uncopy(id)
     c = game.cards[id]
     loc = Zones.locate(game, id)
     s = Zones.zone_seat(loc)
     slot = if Stats.patrolling?(game, id), do: elem(loc, 2)
     unit? = Stats.unit?(game, id)
+    token? = Stats.token?(game, id)
 
     commanders =
       if unit?,
@@ -233,10 +397,14 @@ defmodule Codex.Effects do
           leave(game, id, {c.seat, :discard}, 0)
       end
 
+    ctx = Map.merge(ctx, %{s: s, owner: c.seat, slug: c.card, unit?: unit?, token?: token?})
+
     game
     |> patrol_bonus(s, slot)
     |> Red.dies(s, c.card, commanders)
     |> unit_died(unit?)
+    |> Blue.died(ctx)
+    |> Black.died(ctx)
   end
 
   defp patrol_bonus(game, s, :scavenger), do: Rules.gain_gold(game, s, 1)
@@ -300,7 +468,7 @@ defmodule Codex.Effects do
     case game.cards[id].card do
       "captain-zane" -> Red.zane_max(game, s, id)
       "argagarg-garg" -> summon(game, s, "water-elemental")
-      _ -> game
+      slug -> if mod = color_mod(slug), do: mod.max_level(game, s, id, slug), else: game
     end
   end
 
@@ -316,14 +484,37 @@ defmodule Codex.Effects do
   end
 
   @doc "Move a card out of play to `zone`, with its state reset (`Codex.Rules.reset/1`)."
+  def leave(game, nil, _zone, _at), do: game
+
   def leave(game, id, zone, at) do
-    game |> unpolymorph(id) |> Zones.move(id, zone, at) |> Zones.update_card(id, &Rules.reset/1)
+    held = Map.get(game.cards[id].extra, :holds, [])
+
+    game
+    |> unpolymorph(id)
+    |> uncopy(id)
+    |> Zones.move(id, zone, at)
+    |> Zones.update_card(id, &Rules.reset/1)
+    |> release_held(held)
+  end
+
+  # A Jail or a Graveyard leaves play: the units in it go to their owner's discard pile.
+  defp release_held(game, held) do
+    Enum.reduce(held, game, fn h, game ->
+      if h in game.trash,
+        do:
+          game
+          |> Zones.move(h, {game.cards[h].seat, :discard}, 0)
+          |> Zones.update_card(h, &Rules.reset/1),
+        else: game
+    end)
   end
 
   @doc """
   Sacrifice a card you control: a unit or hero dies; a worker is trashed; an
   ongoing spell, upgrade or building card goes to its owner's discard pile.
   """
+  def sacrifice(game, nil), do: game
+
   def sacrifice(game, id) do
     c = game.cards[id]
 
@@ -337,6 +528,8 @@ defmodule Codex.Effects do
   @doc "Destroy a card in play (a building card or an upgrade too)."
   def destroy(game, {:worker, seat}), do: trash_worker(game, seat)
 
+  def destroy(game, nil), do: game
+
   def destroy(game, id) do
     if Stats.force?(game, id),
       do: die(game, id),
@@ -345,9 +538,12 @@ defmodule Codex.Effects do
 
   @doc "Trash a card in play or a worker (removed from the game)."
   def trash(game, {:worker, seat}), do: trash_worker(game, seat)
+  def trash(game, nil), do: game
   def trash(game, id), do: game |> log({:trashed, id}) |> leave(id, :trash, nil)
 
   @doc "Exhaust a card. Rampaging Elephant readies the first time each turn. An exhausted card cannot patrol."
+  def exhaust(game, nil), do: game
+
   def exhaust(game, id) do
     c = game.cards[id]
 
@@ -433,12 +629,7 @@ defmodule Codex.Effects do
 
   defp spell(game, s, "appel-stomp", _id, [t]), do: game |> sideline(t) |> Rules.draw(s, 1, :main)
 
-  defp spell(game, s, slug, id, targets) do
-    case Cards.fetch!(slug).color do
-      "Red" -> Red.spell(game, s, slug, id, targets)
-      "Green" -> Green.spell(game, s, slug, id, targets)
-    end
-  end
+  defp spell(game, s, slug, id, targets), do: color_mod(slug).spell(game, s, slug, id, targets)
 
   # Whenever you play a spell, each Harmony makes a 0/1 Dancer token (limit 3 per Harmony).
   defp harmony(game, s, spell_id) do
@@ -481,33 +672,46 @@ defmodule Codex.Effects do
 
   @doc "A building or upgrade card comes into play (with arrival fatigue for its ⤵ abilities)."
   def permanent(game, s, id) do
-    game
-    |> Zones.move(id, {s, :in_play})
-    |> Zones.update_card(id, &%{&1 | fatigued: true})
+    game = game |> Zones.move(id, {s, :in_play}) |> Zones.update_card(id, &%{&1 | fatigued: true})
+    slug = game.cards[id].card
+    if mod = color_mod(slug), do: mod.permanent(game, s, id, slug), else: game
   end
 
   @doc """
-  A unit arrives from the hand: into play with arrival fatigue. A legendary
-  unit that its side already has goes to the discard pile instead (S1 p. 17).
-  Drakk Ramhorn at max level gives the first one each turn haste. Then its
-  "Arrives:" ability.
+  A unit is played from the hand: the "you play a unit from your hand"
+  triggers (Drill Sergeant, Flagstone Garrison); an opposing Jail takes it
+  instead of arriving; a legendary unit that its side already has goes to the
+  discard pile (S1 p. 17). Else it enters play (`enter/4`): arrival fatigue,
+  Drakk Ramhorn's haste, its "Arrives:" ability.
   """
   def arrive_from_hand(game, s, id, targets) do
     slug = game.cards[id].card
     legendary? = String.starts_with?(Cards.fetch!(slug).type, "Legendary")
+    game = Blue.played_unit(game, s, id)
+    jail = Enum.find(Zones.in_play(game, 1 - s), &(game.cards[&1].card == "jail"))
 
-    if legendary? and Stats.controls?(game, s, slug) do
-      game |> Zones.move(id, {game.cards[id].seat, :discard}, 0) |> log({:legendary, id})
-    else
-      game
-      |> Zones.move(id, {s, :in_play})
-      |> Zones.update_card(
-        id,
-        &%{&1 | fatigued: true, this_turn: Map.put(&1.this_turn, :arrived, true)}
-      )
-      |> drakk_haste(s, id)
-      |> arrive(s, id, targets)
+    cond do
+      jail != nil ->
+        Blue.jail(game, jail, id)
+
+      legendary? and Stats.controls?(game, s, slug) ->
+        game |> Zones.move(id, {game.cards[id].seat, :discard}, 0) |> log({:legendary, id})
+
+      true ->
+        enter(game, s, id, targets)
     end
+  end
+
+  @doc "A unit comes into play for side `s` with arrival fatigue, then its \"Arrives:\"."
+  def enter(game, s, id, targets) do
+    game
+    |> Zones.move(id, {s, :in_play})
+    |> Zones.update_card(
+      id,
+      &%{&1 | fatigued: true, this_turn: Map.put(&1.this_turn, :arrived, true)}
+    )
+    |> drakk_haste(s, id)
+    |> arrive(s, id, targets)
   end
 
   defp drakk_haste(game, s, id) do
@@ -542,24 +746,35 @@ defmodule Codex.Effects do
   end
 
   defp color_arrive(game, s, id, slug, targets) do
-    cond do
-      CardRules.manual?(slug) -> game
-      Cards.fetch!(slug).color == "Red" -> Red.arrive(game, s, id, slug, targets)
-      Cards.fetch!(slug).color == "Green" -> Green.arrive(game, s, id, slug, targets)
-      true -> game
-    end
+    mod = color_mod(slug)
+
+    if CardRules.manual?(slug) or mod == nil,
+      do: game,
+      else: mod.arrive(game, s, id, slug, targets)
   end
 
-  # "Whenever another unit or hero of yours arrives": Blooming Ancient gets a +1/+1 rune.
+  # "Whenever another unit or hero of yours arrives": Blooming Ancient gets a
+  # +1/+1 rune; Sirus Quince at max level copies a non-token unit.
   defp arrived(game, s, id) do
-    Enum.reduce(Zones.in_play(game, s), game, fn b, game ->
-      if b != id and game.cards[b].card == "blooming-ancient", do: plus_rune(game, b), else: game
-    end)
+    game =
+      Enum.reduce(Zones.in_play(game, s), game, fn b, game ->
+        if b != id and game.cards[b].card == "blooming-ancient",
+          do: plus_rune(game, b),
+          else: game
+      end)
+
+    Blue.arrived(game, s, id)
   end
 
-  @doc "A hero is summoned: Argagarg Garg's \"Arrives:\", then the triggers of others."
+  @doc "A hero is summoned: its \"Arrives:\" (Argagarg Garg, Sirus Quince), then the triggers of others."
   def hero_arrives(game, s, id) do
-    game = if game.cards[id].card == "argagarg-garg", do: summon(game, s, "wisp"), else: game
+    game =
+      case game.cards[id].card do
+        "argagarg-garg" -> summon(game, s, "wisp")
+        "sirus-quince" -> summon(game, s, "mirror-illusion")
+        _ -> game
+      end
+
     arrived(game, s, id)
   end
 
@@ -586,12 +801,8 @@ defmodule Codex.Effects do
   def ability(game, _s, _id, :wreck, [t]), do: deal(game, t, 2)
   def ability(game, s, id, :stop_music, []), do: stop_music(game, s, id)
 
-  def ability(game, s, id, name, targets) do
-    case Cards.fetch!(game.cards[id].card).color do
-      "Red" -> Red.ability(game, s, id, name, targets)
-      "Green" -> Green.ability(game, s, id, name, targets)
-    end
-  end
+  def ability(game, s, id, name, targets),
+    do: color_mod(game.cards[id].card).ability(game, s, id, name, targets)
 
   # -- upkeep and the end of the turn ----------------------------------------------------------------
 
@@ -616,7 +827,7 @@ defmodule Codex.Effects do
         if game.cards[id].card == "star-crossed-starlet", do: deal(game, id, 1), else: game
       end)
 
-    game |> Red.upkeep(s) |> Green.upkeep(s)
+    game |> Red.upkeep(s) |> Green.upkeep(s) |> Blue.upkeep(s) |> Black.upkeep(s)
   end
 
   @doc """
@@ -624,7 +835,7 @@ defmodule Codex.Effects do
   units die (S1 p. 19; every turn).
   """
   def end_of_turn(game, s) do
-    game = Red.end_of_turn(game, s)
+    game = game |> Red.end_of_turn(s) |> Blue.end_of_turn(s) |> Black.end_of_turn(s)
 
     ephemeral =
       for seat <- [0, 1],

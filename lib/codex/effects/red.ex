@@ -377,4 +377,10 @@ defmodule Codex.Effects.Red do
       end
     end)
   end
+
+  @doc "A \"Max level:\" trigger of a hero of this colour (none here)."
+  def max_level(game, _s, _id, _slug), do: game
+
+  @doc "A building or upgrade card of this colour comes into play (nothing here)."
+  def permanent(game, _s, _id, _slug), do: game
 end

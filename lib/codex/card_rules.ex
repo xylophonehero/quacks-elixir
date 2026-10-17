@@ -24,6 +24,12 @@ defmodule Codex.CardRules do
   - `:my_unit_unpartnered`: your unit with no dance partner (Two Step takes two).
   - `:building`: any building (a base, a tech building, an add-on).
   - `:opp_patroller_t01`: an opposing tech 0 or tech I patroller (River Montoya).
+  - `:other_force`, `:my_unit_t01`, `:unit_t012`, `:my_mirror` (your Mirror
+    Illusions), `:my_non_demon_unit`, `:my_skeleton`, `:codex_demonology_spell`,
+    `:buried_unit` (a unit in this Graveyard): Blue and Black cards.
+
+  Kinds in `@untargeted` are a choice, not a ◎ target: an Illusion does not
+  die of them (`untargeted?/1`). A card without the ◎ icon targets nothing.
   """
 
   @keywords %{
@@ -85,14 +91,26 @@ defmodule Codex.CardRules do
     "gigadon" => [overpower: true],
     "moss-ancient" => [untargetable: true],
     # Growth
-    "guargum-eternal-sentinel" => [resist: 2, obliterate: 4]
+    "guargum-eternal-sentinel" => [resist: 2, obliterate: 4],
+    # Blue starting deck
+    "spectral-aven" => [flying: true],
+    "traffic-director" => [untargetable: true, vs_building_unstoppable: true],
+    # Black starting deck
+    "pestering-haunt" => [unstoppable: true, cant_patrol: true, cant_sacrifice: true, max_atk: 1],
+    "jandra-the-negator" => [overpower: true],
+    # Tokens
+    "soldier" => [sparkshot: true],
+    "horror" => [deathtouch: true]
   }
 
   # Hero keywords by level band: `{from level, keywords}`.
   @hero_keywords %{
     "troq-bashar" => [{8, [readiness: true]}],
     "captain-zane" => [{1, [haste: true]}],
-    "jaina-stormborne" => [{1, [sparkshot: true]}]
+    "jaina-stormborne" => [{1, [sparkshot: true]}],
+    "general-onimaru" => [{1, [frenzy: 1]}, {5, [readiness: true]}],
+    "vandy-anadrose" => [{1, [sparkshot: true]}, {3, [resist: 1]}],
+    "orpal-gloor" => [{1, [rune_damage: true]}]
   }
 
   @doc "The keywords of a hero at `level`."
@@ -150,7 +168,15 @@ defmodule Codex.CardRules do
     "polymorph-squirrel" => [:unit],
     "dinosize" => [:force],
     "spirit-of-the-panda" => [:unit],
-    "stampede" => []
+    "stampede" => [],
+    # Blue starting deck
+    "lawful-search" => [],
+    "arrest" => [:patrolling_unit],
+    "manufactured-truth" => [:my_unit_t01, :unit_t01],
+    # Black starting deck
+    "deteriorate" => [:unit],
+    "summon-skeletons" => [],
+    "sacrifice-the-weak" => []
   }
 
   # Extra gold for a `:boost` target (Boost X).
@@ -186,7 +212,12 @@ defmodule Codex.CardRules do
     "rickety-mine" => [{:mine, [], [exhaust: true]}],
     "firehouse" => [{:firehouse, [:force_or_building], [exhaust: true]}],
     "blooming-ancient" => [{:rune_move, [:other_unit], [rune: true]}],
-    "blooming-elm" => [{:elm, [:force], [exhaust: true]}]
+    "blooming-elm" => [{:elm, [:force], [exhaust: true]}],
+    # Blue and Black starting decks
+    "porkhand-magistrate" => [{:magistrate, [:other_force], [gold: 1, exhaust: true]}],
+    "skeleton-javelineer" => [{:javelin, [], [javelin: 1]}],
+    # Graveyard: the gold is the cost of the buried unit (`Codex.Rules`).
+    "graveyard" => [{:exhume, [:buried_unit], [exhaust: true, unit_cost: true]}]
   }
 
   # Hero abilities by level: `{from level, name, target slots, costs}`.
@@ -200,6 +231,24 @@ defmodule Codex.CardRules do
     "calamandra-moss" => [
       {1, :hide, [:hand_card, :hand_card], []},
       {5, :tiger, [:codex_tiger], [gold: 4, exhaust: true]}
+    ],
+    # Stash: keep a hand card in the draw/discard step (`Codex.Rules`).
+    "bigby-hayes" => [
+      {1, :stash, [:hand_card], [stash: true]},
+      {3, :sideline, [:opp_patroller_t01], [exhaust: true]},
+      {5, :bigby_draw, [], [exhaust: true]}
+    ],
+    "sirus-quince" => [
+      {1, :mirror, [], [gold: 2, mirrors: 2]},
+      {3, :mirror_copy, [:my_mirror, :unit_t012], [gold: 2]}
+    ],
+    "vandy-anadrose" => [
+      {3, :fetch, [:hand_card, :codex_demonology_spell], [gold: 1, exhaust: true]}
+    ],
+    "orpal-gloor" => [{4, :plague, [:my_non_demon_unit, :unit], [once: true]}],
+    "garth-torken" => [
+      {1, :skeleton, [], [gold: 1, once: true]},
+      {4, :bone_draw, [:my_skeleton], []}
     ]
   }
 
@@ -219,8 +268,21 @@ defmodule Codex.CardRules do
     "fairie-dragon" => [{:may, :unit_t12}],
     "potent-basilisk" => [{:may, :upgrade_or_ongoing}],
     "tyrannosaurus-rex" => [{:may, :unit_upgrade_worker}, {:may, :unit_upgrade_worker}],
-    "artisan-mantis" => [:my_building]
+    "artisan-mantis" => [:my_building],
+    # Blue starting deck
+    "reputable-newsman" => [
+      {:choice, [:cost_0, :cost_1, :cost_2, :cost_3, :cost_4, :cost_5, :cost_6]}
+    ]
   }
+
+  # Target kinds that are a choice, not a ◎ target (no Illusion dies of them).
+  @untargeted ~w(my_green_unit my_non_demon_unit my_skeleton my_mirror hand_card
+                 hand_unit_t012 codex_tiger codex_demonology_spell buried_unit)a
+
+  @doc "True for a target kind that is a choice, not a ◎ target (an Illusion does not die)."
+  @spec untargeted?(term) :: boolean
+  def untargeted?({_mode, kind}), do: kind in @untargeted
+  def untargeted?(kind), do: kind in @untargeted
 
   @doc "The printed keywords of a card (a keyword list)."
   @spec keywords(String.t()) :: keyword
@@ -258,6 +320,11 @@ defmodule Codex.CardRules do
         do: {name, slots, costs}
   end
 
+  @doc "The level from which a hero has each ability: `[{name, level}]`."
+  @spec hero_ability_levels(String.t()) :: [{atom, pos_integer}]
+  def hero_ability_levels(slug),
+    do: for({from, name, _slots, _costs} <- Map.get(@hero_abilities, slug, []), do: {name, from})
+
   @doc "True for a card played as \"manual\" (its text is not run)."
   @spec manual?(String.t()) :: boolean
   def manual?(slug), do: slug in @manual
@@ -269,4 +336,11 @@ defmodule Codex.CardRules do
   @doc "A token: a unit that is never in a deck (Dancer, Angry Dancer, Mercenary)."
   @spec token?(String.t()) :: boolean
   def token?(slug), do: slug in ~w(dancer angry-dancer mercenary)
+
+  @doc "The printed keyword `key` of a card or a hero at `level` (nil: none)."
+  @spec keyword(String.t(), atom, pos_integer | nil) :: term
+  def keyword(slug, key, nil), do: keyword(slug, key)
+
+  def keyword(slug, key, level),
+    do: Keyword.get(keywords(slug) ++ hero_keywords(slug, level), key)
 end

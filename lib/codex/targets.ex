@@ -196,6 +196,53 @@ defmodule Codex.Targets do
         do: id
   end
 
+  def candidates(game, s, :other_force, src),
+    do: cards(game, s, &(Stats.force?(game, &1) and &1 != src))
+
+  def candidates(game, s, :my_unit_t01, _src) do
+    for id <- Zones.in_play(game, s),
+        Stats.unit?(game, id),
+        Stats.tech(game, id) in [0, 1],
+        do: id
+  end
+
+  def candidates(game, s, :unit_t012, src),
+    do:
+      cards(game, s, &(Stats.unit?(game, &1) and Stats.tech(game, &1) in [0, 1, 2] and &1 != src))
+
+  # Sirus Quince: your Mirror Illusions that are not a copy now.
+  def candidates(game, s, :my_mirror, _src),
+    do: for(id <- Zones.in_play(game, s), game.cards[id].card == "mirror-illusion", do: id)
+
+  def candidates(game, s, :my_non_demon_unit, _src) do
+    for id <- Zones.in_play(game, s),
+        Stats.unit?(game, id),
+        not Stats.subtype?(game, id, "Demon"),
+        Stats.sacrificable?(game, id),
+        do: id
+  end
+
+  def candidates(game, s, :my_skeleton, _src) do
+    for id <- Zones.in_play(game, s),
+        Stats.unit?(game, id),
+        Stats.subtype?(game, id, "Skeleton"),
+        Stats.sacrificable?(game, id),
+        do: id
+  end
+
+  def candidates(game, s, :codex_demonology_spell, _src) do
+    game.sides[s].zones.codex
+    |> Enum.filter(fn id ->
+      d = Codex.Cards.fetch!(game.cards[id].card)
+      d.spec == "Demonology" and String.contains?(d.type, "Spell")
+    end)
+    |> Enum.uniq_by(&game.cards[&1].card)
+  end
+
+  # Graveyard: the units buried in it (they wait in the trash, marked).
+  def candidates(game, _s, :buried_unit, src),
+    do: for(id <- game.trash, Map.get(game.cards[id].extra, :buried_in) == src, do: id)
+
   defp tech_units(game, s, techs),
     do: cards(game, s, &(Stats.unit?(game, &1) and Stats.tech(game, &1) in techs))
 
@@ -228,7 +275,8 @@ defmodule Codex.Targets do
   @doc "True when side `s` may target card `id` (invisible, untargetable)."
   def targetable?(game, s, id) do
     not Stats.kw?(game, id, :untargetable) and
-      (Stats.controller(game, id) == s or not Stats.kw?(game, id, :invisible))
+      (Stats.controller(game, id) == s or not Stats.kw?(game, id, :invisible) or
+         Stats.detector?(game, s))
   end
 
   defp partnered(game) do

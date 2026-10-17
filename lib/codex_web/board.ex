@@ -2489,6 +2489,13 @@ defmodule CodexWeb.Board do
             <.icon name="hero-arrow-path-mini" class="size-3" />
           </span>
           <span
+            :if={Map.get(@c.extra, :disabled)}
+            class="cx-mc-flag"
+            title="disabled: it does not ready next turn"
+          >
+            <.icon name="hero-lock-closed-mini" class="size-3" />
+          </span>
+          <span
             :if={Map.get(@c, :fatigued)}
             class="cx-mc-flag cx-mc-new"
             title="arrived this turn: cannot attack yet"
@@ -2625,6 +2632,13 @@ defmodule CodexWeb.Board do
           title="arrived this turn: cannot attack yet"
         >
           new
+        </span>
+        <span
+          :if={Map.get(@c.extra, :disabled)}
+          class="cx-tok"
+          title="disabled: it does not ready next turn"
+        >
+          <.icon name="hero-lock-closed-mini" class="size-3" />
         </span>
         <span :if={@c.damage > 0} class="cx-tok cx-dmg" title="damage">{@c.damage}</span>
         <span :if={@c.plus > 0} class="cx-tok cx-plus" title="+1/+1 runes">+{@c.plus}</span>
@@ -2972,6 +2986,13 @@ defmodule CodexWeb.Board do
   defp value_label(_v, :plain), do: "No boost"
   defp value_label(_v, :beast), do: "A 4/4 Beast"
   defp value_label(_v, :frogs), do: "Four 1/1 Frogs"
+  defp value_label(_v, :cost_0), do: "Cost 0"
+  defp value_label(_v, :cost_1), do: "Cost 1"
+  defp value_label(_v, :cost_2), do: "Cost 2"
+  defp value_label(_v, :cost_3), do: "Cost 3"
+  defp value_label(_v, :cost_4), do: "Cost 4"
+  defp value_label(_v, :cost_5), do: "Cost 5"
+  defp value_label(_v, :cost_6), do: "Cost 6"
 
   defp value_label(_v, atom) when is_atom(atom),
     do: atom |> to_string() |> String.replace("_", " ")
@@ -3135,6 +3156,11 @@ defmodule CodexWeb.Board do
   defp log_text({:destroyed_card, id}, v), do: "#{name(v, id)} is destroyed."
   defp log_text({:coin, :heads}, _v), do: "The coin: heads. Phew!"
   defp log_text({:coin, :tails}, _v), do: "The coin: tails."
+  defp log_text({:discards, id}, v), do: "#{name(v, id)} is discarded."
+  defp log_text({:disabled, id}, v), do: "#{name(v, id)} is disabled."
+  defp log_text({:jailed, id}, v), do: "#{name(v, id)} goes to jail."
+  defp log_text({:released, id}, v), do: "#{name(v, id)} is released from jail."
+  defp log_text({:buried, id}, v), do: "#{name(v, id)} is buried in the Graveyard."
   defp log_text(other, _v), do: inspect(other)
 
   defp action_text(s, {:hire, _id}, _v), do: "P#{s + 1} hires a worker."
