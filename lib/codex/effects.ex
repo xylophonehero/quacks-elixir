@@ -203,7 +203,12 @@ defmodule Codex.Effects do
     s = Zones.zone_seat(loc)
     slot = if Stats.patrolling?(game, id), do: elem(loc, 2)
     unit? = Stats.unit?(game, id)
-    commander? = unit? and Stats.controls?(game, s, "pirate-gang-commander")
+
+    commanders =
+      if unit?,
+        do: Enum.count(Zones.in_play(game, s), &(game.cards[&1].card == "pirate-gang-commander")),
+        else: 0
+
     game = log(game, {:dies, id})
 
     game =
@@ -229,7 +234,7 @@ defmodule Codex.Effects do
 
     game
     |> patrol_bonus(s, slot)
-    |> Red.dies(s, c.card, unit?, commander?)
+    |> Red.dies(s, c.card, commanders)
     |> unit_died(unit?)
   end
 

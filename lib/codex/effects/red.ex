@@ -7,6 +7,7 @@ defmodule Codex.Effects.Red do
   """
 
   alias Codex.{Effects, Rules, Stats, Zones}
+  alias Table.Kit.Rng
 
   # -- spells -----------------------------------------------------------------------------------
 
@@ -57,6 +58,48 @@ defmodule Codex.Effects.Red do
     end)
   end
 
+  # -- Blood --
+
+  # Desperation (the hand was empty): draw three, discard the hand at the end of the main phase.
+  def spell(game, s, "desperation", _id, []) do
+    game
+    |> Rules.draw(s, 3, :main)
+    |> Rules.update_side(s, &%{&1 | effects: Map.put(&1.effects, :desperation, true)})
+  end
+
+  # Kidnapping: control an opposing tech 0-II unit until end of turn; ready it, haste.
+  def spell(game, s, "kidnapping", _id, [t]) do
+    from = Zones.controller(game, t)
+
+    game
+    |> Zones.move(t, {s, :in_play})
+    |> Zones.update_card(t, fn c ->
+      %{
+        c
+        | exhausted: false,
+          extra: Map.put(c.extra, :kidnapped_from, from),
+          this_turn: Map.put(c.this_turn, :haste, true)
+      }
+    end)
+  end
+
+  # Bloodlust: up to two units and/or heroes +1 ATK and haste this turn; 1 damage each at end of turn.
+  def spell(game, _s, "bloodlust", _id, targets) do
+    targets
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reduce(game, fn t, game ->
+      Zones.update_card(game, t, fn c ->
+        %{
+          c
+          | tmp_atk: c.tmp_atk + 1,
+            this_turn: Map.merge(c.this_turn, %{haste: true, bloodlust: true})
+        }
+      end)
+    end)
+  end
+
+  def spell(game, _s, "war-drums", _id, []), do: game
+
   def spell(game, _s, _slug, _id, _targets), do: game
 
   defp in_play?(game, id), do: Zones.zone_name(Zones.locate(game, id)) in [:in_play, :patrol]
@@ -71,6 +114,8 @@ defmodule Codex.Effects.Red do
 
   # Marauder, boosted: trash a worker. # REVIEW: an opposing worker (the point of the boost; rulings).
   def arrive(game, s, _id, "marauder", [:boost]), do: Effects.trash_worker(game, 1 - s)
+
+  def arrive(game, s, _id, "pirate-gang-commander", []), do: Effects.summon(game, s, "pirate", 3)
 
   def arrive(game, _s, _id, _slug, _targets), do: game
 
@@ -109,6 +154,21 @@ defmodule Codex.Effects.Red do
     end)
   end
 
+  # Rickety Mine: gain 3, flip a coin; tails: sacrifice it and the base takes 2.
+  def ability(game, s, id, :mine, []) do
+    {flip, rng} = Rng.uniform(2, game.rng)
+    game = %{game | rng: rng} |> Rules.gain_gold(s, 3)
+
+    if flip == 1 do
+      Effects.log(game, {:coin, :heads})
+    else
+      game
+      |> Effects.log({:coin, :tails})
+      |> Effects.sacrifice(id)
+      |> Effects.deal({:building, s, :base}, 2)
+    end
+  end
+
   def ability(game, _s, _id, _name, _targets), do: game
 
   # Bombaster is sacrificed before its effect: its slug is still on the card.
@@ -118,12 +178,40 @@ defmodule Codex.Effects.Red do
 
   @doc """
   Death triggers of Red cards: Drakk Ramhorn ("Dies: 1 damage to each opposing
-  base").
+  base"), Crash Bomber, and the Pirate-Gang Commander's gift to your units
+  (`commanders`: how many its side had).
   """
-  def dies(game, s, "drakk-ramhorn", _unit?, _commander?),
+  def dies(game, s, slug, commanders) do
+    game
+    |> dies(s, slug)
+    |> then(
+      &Enum.reduce(1..commanders//1, &1, fn _, g ->
+        Effects.burn(g, s, "pirate-gang-commander", {:building, 1 - s, :base}, 1)
+      end)
+    )
+  end
+
+  defp dies(game, s, "drakk-ramhorn"),
     do: Effects.burn(game, s, "drakk-ramhorn", {:building, 1 - s, :base}, 1)
 
-  def dies(game, _s, _slug, _unit?, _commander?), do: game
+  # Crash Bomber dies on your turn: 1 damage to a patroller or building; on
+  # another player's turn: 1 damage to that player's base.
+  # REVIEW: on its turn the engine picks an opposing patroller it kills, else the opposing base.
+  defp dies(game, s, "crash-bomber") do
+    if s == game.active do
+      target =
+        Enum.find_value(Zones.patrollers(game, 1 - s), fn {_slot, p} ->
+          Stats.force?(game, p) and
+            Stats.hp(game, p) - game.cards[p].damage + Stats.armor(game, p) <= 1 and p
+        end)
+
+      Effects.burn(game, s, "crash-bomber", target || {:building, 1 - s, :base}, 1)
+    else
+      Effects.burn(game, s, "crash-bomber", {:building, game.active, :base}, 1)
+    end
+  end
+
+  defp dies(game, _s, _slug), do: game
 
   @doc """
   Captain Zane, "Max level: Shove a patroller to an empty slot in its patrol
@@ -152,7 +240,8 @@ defmodule Codex.Effects.Red do
   After a combat of attacker `a`: Captain Zane's middle band (he kills a
   scavenger: 1 gold; a technician: a card).
   """
-  def after_combat(game, s, a, _target, %{killed?: true, slot: slot}) do
+  def after_combat(game, s, a, target, %{killed?: true, slot: slot} = ctx) do
+    game = recruit(game, s, a, target, ctx)
     c = game.cards[a]
 
     case {c.card, slot} do
@@ -164,11 +253,71 @@ defmodule Codex.Effects.Red do
     end
   end
 
-  def after_combat(game, _s, _a, _target, _ctx), do: game
+  def after_combat(game, s, a, target, ctx), do: recruit(game, s, a, target, ctx)
 
-  @doc "Red upkeep abilities of side `s`."
-  def upkeep(game, _s), do: game
+  # Ogre Recruiter: "Attacks: If this survives the combat, gain control of a tech 0 or tech I unit."
+  # REVIEW: the engine takes the opposing tech 0/I unit with the most ATK + HP.
+  defp recruit(game, s, a, _target, _ctx) do
+    if game.cards[a].card == "ogre-recruiter" and in_play?(game, a) do
+      unit =
+        game
+        |> Zones.in_play(1 - s)
+        |> Enum.filter(&(Stats.unit?(game, &1) and Stats.tech(game, &1) in [0, 1]))
+        |> Enum.max_by(&(Stats.atk(game, &1) + Stats.hp(game, &1)), fn -> nil end)
 
-  @doc "Red end-of-turn abilities."
-  def end_of_turn(game, _s), do: game
+      if unit, do: Effects.take_control(game, s, unit), else: game
+    else
+      game
+    end
+  end
+
+  @doc """
+  Red upkeep abilities of side `s`: Land Octopus ("Sacrifice two workers or
+  Land Octopus"). # REVIEW: the engine sacrifices two workers when the side
+  keeps at least 6 after, else the Octopus.
+  """
+  def upkeep(game, s) do
+    octopi = for id <- Zones.in_play(game, s), game.cards[id].card == "land-octopus", do: id
+    Enum.reduce(octopi, game, &octopus(&2, s, &1))
+  end
+
+  defp octopus(game, s, id) do
+    cond do
+      not in_play?(game, id) ->
+        game
+
+      length(game.sides[s].zones.workers) >= 8 ->
+        game |> Effects.trash_worker(s) |> Effects.trash_worker(s)
+
+      true ->
+        Effects.sacrifice(game, id)
+    end
+  end
+
+  @doc """
+  The end of a turn: Bloodlust's 1 damage; Kidnapping ends (the unit goes back
+  to the side it was taken from).
+  """
+  def end_of_turn(game, _s) do
+    all = for seat <- [0, 1], id <- Zones.in_play(game, seat), do: id
+
+    Enum.reduce(all, game, fn id, game ->
+      c = game.cards[id]
+
+      game =
+        if Map.get(c.this_turn, :bloodlust) == true and in_play?(game, id),
+          do: Effects.deal(game, id, 1),
+          else: game
+
+      case Map.get(c.extra, :kidnapped_from) do
+        nil ->
+          game
+
+        from ->
+          game
+          |> Zones.move(id, {from, :in_play})
+          |> Zones.update_card(id, &%{&1 | extra: Map.delete(&1.extra, :kidnapped_from)})
+      end
+    end)
+  end
 end
