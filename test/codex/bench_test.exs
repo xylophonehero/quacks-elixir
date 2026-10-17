@@ -42,4 +42,13 @@ defmodule Codex.AI.BenchTest do
     assert %{name: "basic", mod: Codex.Bot} = Bench.bot("basic")
     assert_raise ArgumentError, fn -> Bench.bot("nope") end
   end
+
+  test "a plan spec with rule and weight changes" do
+    bot = Bench.bot("plan-tower:threat_base=1,lethal=10")
+    assert bot.state.rules.tower == false
+    assert bot.state.weights.threat_base == 1.0
+    assert bot.state.weights.lethal == 10.0
+    assert bot.state.weights.gold == Codex.AI.Weights.defaults().gold
+    assert_raise ArgumentError, fn -> Bench.bot("plan:exhaust=1") end
+  end
 end
