@@ -13,6 +13,7 @@ Related: `docs/research/codex.md` (rules), `docs/research/bot-training.md` and `
   2. A state evaluator and a search over the **whole turn** (sampled action sequences, then one evaluator call at the end of the turn), within 500 ms per turn. ISMCTS with determinization only if the turn search stops to give gains (§4.2).
   3. Tune the evaluator and the plan numbers by self-play with the cross-entropy method, in a mix task, on the laptop (§4.3).
   4. A benchmark harness with duplicate seating, fixed seeds and 95 % confidence intervals for every change (§4.4).
+- **Stage 2 is done** (see "Stage 2 results" and, in plain words, "How the Codex bot works"): a whole-turn search with an evaluator wins 53–54 % against the stage-1 bot on new seeds, plays the enabler cards, and is the table default.
 - **No neural network now.** A linear evaluator with about 30 features, tuned by self-play, is the best cost/benefit. Revisit only when the tuned search stops to gain.
 
 ## 1. Diagnosis of the current bot
@@ -287,7 +288,7 @@ Date: 2026-10-17. Branch `codex-bot`. Scope: Bashing vs Finesse (first-game deck
 
 - `mix codex.bench` (`Codex.AI.Bench`): win rate per bot and per seat with 95 % CIs, game length, buildings started, workers, gold at the end of a turn, the share of turns that end with an attack still legal, time per decision. Options: `--a`, `--b` (bot specs), `--games`, `--seed`, `--preset` (`first`, `finesse_first`, `red_green`), `--jobs`. Pure and deterministic: the same options give the same numbers for any `--jobs`.
 - Fair view (`Codex.Game.bot_view/2`): the other side's hand, discard pile, codex and workers, and both decks, are counts; their cards are not in the view; the log is empty. `view/2` gives it to the bot seat. The person's view and the hot-seat view do not change (the board still shows both hands). A test checks that the bot's choice does not change when the hidden cards change.
-- `Codex.Bot.Plan`: the stage-1 bot, the new table default (bot level `:plan`). The first bot stays as `Codex.Bot` (bot level `:basic`) for the bench.
+- `Codex.Bot.Plan`: the stage-1 bot, the new table default (bot level `:plan`; since stage 2 the default is `:search`). The first bot stays as `Codex.Bot` (bot level `:basic`) for the bench.
 - `Codex.Bot.TechPlan`: the tech plans and the worker order as data.
 - `Codex.Rules.act_legal/2`: does a legal action without the legality check. The look-ahead uses it. Decisions take 0.7–2.2 ms (mean) and at most about 100 ms in the final bench.
 
@@ -357,6 +358,162 @@ The new bot builds 4 buildings a game (tech I, II, III and a Tower), reaches 10 
 3. **Cards in hand** in `eval/2`: the draw rule (hand + 2, at most 5) makes a full hand worth cards next turn; Surplus (a card a turn) did as well as the Tower.
 4. **Tune the numbers by self-play** (§4.3): the base weight 1.5, the exhaust cost 0.5, gold 0.3, the building values, the worker order and the tech plan. Measure against a field (old bot, stage-1 bot), in both presets (`first` and `finesse_first`).
 5. **Balance target:** Bashing as P1 wins 83 % with equal bots. Track the `finesse_first` preset too, to split the seat effect from the spec effect.
+
+## Stage 2 results
+
+Date: 2026-10-17. Branch `codex-bot2`. Scope: Bashing vs Finesse (presets `first` and `finesse_first`). All numbers are from `mix codex.bench` [M]: each seed is played twice, with the bots in both seats. "±" is the half-width of the 95 % confidence interval (one seed = one sample). "Mean" is the mean of the two presets.
+
+### What is new
+
+- `Codex.AI.Eval` and `Codex.AI.Weights`: the evaluator as a linear function over named features, with a threat term (§4.2.1). The weights are data. `Weights.defaults/0` keeps the stage-1 numbers, so `Codex.Bot.Plan` plays as before (a test checks the old formula).
+- `Codex.Bot.Search`: the whole-turn search (§4.2.2) with determinization (`Codex.AI.Determinize`, §4.2.3). The new table default (bot level `:search`; `:plan` and `:basic` stay).
+- `mix codex.tune` (`Codex.AI.Tune`): the cross-entropy tuner of the weights (§4.3). It uses the steps of the Quacks tuner (`Quacks.AI.Tune.sample/4`, `update/3`).
+- `mix codex.bench` bot specs: `plan:key=value,...` and `plan@file` change the weights; `search24e0x:...` is the search with 24 candidates, no random turns, no early stop.
+- **Engine fix (a bug in the bot's copy of the state, not in the rules):** `Codex.Game.add_cards/3` took `map_size(cards) + 1` as the new card id. The bot's copy of the state has no hidden cards, so a token made in a look-ahead (a Harmony Dancer) could take the id of a card in play and overwrite it. The new id is the largest id + 1 (the same ids in a real game). A test covers it.
+- **Speed:** `Codex.Zones.locate/2` looked at every placement on each call; now it looks in the play zones first (a test checks it against the old scan). A look-ahead step is about 30 % faster.
+
+### The evaluator alone (step 1)
+
+Each new feature, measured with the one-action look-ahead of `Plan` (400 games, seed 1, mean vs `plan`): `threat_base` 0.5: 48.1 %; 0.2: 49.5 %; `lethal` 10: 50.0 %; `hand` 0.5: 50.2 %; `patrol_hp` 0.3: 48.9 %; `workers` 1: 50.1 %; `threat_patrol` 0.3: 45.9 %. No gain for `Plan`: it decides one action at a time, and a threat at the end of the turn does not help it. The defaults stay at the stage-1 numbers.
+
+### The search (step 2): kept and dropped
+
+200 games per preset, seed 1, mean win % vs `plan`. T = `workers` 1, `threat_base` 0.5, `threat_patrol` 0.3.
+
+| Change | Mean vs plan | Result |
+|---|---|---|
+| The policy only (`search1x`) | 50.0 (exact parity) | check: the search frame is correct |
+| 24 candidates, stage-1 weights (before the fixes) | 47.0 (100 games, `first`) | no gain: the search attacks more, the stage-1 evaluator has no cost for it |
+| 24 candidates, T | 43.5 | worse |
+| Bug fix: the plan ends with `:end_turn` (before, the bot searched again after its plan and added moves) | 43.5 → 45.5 | **kept** |
+| Bug fix: the policy inside the search keeps the stage-1 weights (before, T also changed the policy's own play) | 45.5 → 48.3 | **kept** |
+| Random turns off: the policy and the enablers only (`e0`) | 49.0 | **kept** |
+| A margin: another turn must beat the policy's turn by 1 point | 51.5 | **kept** (a tuned weight) |
+| The early stop (score the best state along the turn), policy only | 51.5 | dropped later: no gain with the enablers (50.4 vs 50.9, 400 games) |
+| `ready` 0.5 (forces that can still patrol) | +0.5 | left to the tuner |
+
+The search plays one turn and scores its end. A small gain in the score is often an error of the evaluator, and the best of many candidates picks those errors. The random turns lose about 4 points for this reason; the margin and the "enablers only" rule keep the search to clear gains.
+
+### Tuning (step 3)
+
+Two runs, `nice -n 10`, 4 jobs, population 12 + the mean, elite 4, 72 games per candidate per generation (both presets, both seats; field: `plan` 16, the current mean 16, `basic` 4 games per preset). Seeds per generation: `seed × 1000 + generation`.
+
+| Run | Bot | Generations | Games | Time | Fitness |
+|---|---|---|---|---|---|
+| 1 | `search10`, before the two bug fixes | 12 | 11 232 | 37 min | mean 0.50–0.58; stopped, the bot was wrong |
+| 2 | `search12`, after the fixes | 11 | 10 296 | 38 min | mean 0.49–0.51 in all generations; best candidate 0.51–0.63 |
+
+With 72 games per candidate, the noise (about ± 0.06) is larger than the effect of the weights, so the fitness did not climb. The run-2 weights (`Codex.AI.Weights.search/0`) and the hand-set start weights tie: 50.9 % and 50.8 % (search with enablers, 400 games per preset, seed 1). The run-2 weights are the default; their changes are small and have the expected signs (more for cards in hand, heroes and the threat; less for base HP and hero levels; margin 1.25). A useful tuning run needs about 10× more games per candidate (about 7 h at this speed); see "What stage 3 should do".
+
+### Final bench (seeds from 10 001, not used for any choice)
+
+The default search (40 candidates, enablers, no random turns, `Weights.search/0`, no clock).
+
+| Match | Search wins | P1 | P2 | Turns | ms per decision (mean / max) |
+|---|---|---|---|---|---|
+| `search` vs `plan`, `first` (400 games) | **53.0 % ± 2.9** | 86.0 % | 20.0 % | 18.1 | 15.4 / 6 223 (no clock) |
+| `search` vs `plan`, `finesse_first` (400) | **54.0 % ± 3.8** | 56.5 % | 51.5 % | 18.2 | 19.6 / 5 440 (no clock) |
+| `search` vs `basic`, `first` (200) | 100 % | 100 % | 100 % | 15.3 | 6.5 / 625 |
+| `search` vs `basic`, `finesse_first` (200) | 100 % | 100 % | 100 % | 15.7 | 7.5 / 873 |
+| `search` vs `search`, `first` (200) | 50 % (parity) | 84.0 % ± 7.2 | 16.0 % | 18.0 | |
+| `search` vs `search`, `finesse_first` (200) | 50 % (parity) | 58.0 % ± 9.7 | 42.0 % | 17.7 | |
+
+So the search wins about 53.5 % against the stage-1 bot over 800 games (± about 2.4), in both presets and both seats. The seat balance does not change much: Bashing as P1 still wins 84 % with equal bots (stage 1: 83.4 %). Finesse as P1 wins 58 %.
+
+**At the table** (level `:search`, 400 ms budget, 20 games one at a time, seeds 20 001): 11.7 ms mean, 418 ms max per decision; none of 1 502 decisions is over the 650 ms tick. The search runs once per turn; the other actions of the turn come from its plan.
+
+**Enablers.** In those 20 games the search played River's sideline 5 times, Intimidate 9, Discord 6 and Appel Stomp 4. The stage-1 bot played none. "Stop the music" did not come up: Harmony is only a filler in the Finesse tech plan. A test (`test/codex/search_test.exs`) shows the sideline-then-attack win that `Plan` does not see.
+
+### What stage 3 should do
+
+1. **Tune with many more games per candidate** (about 500–800, not 72), overnight (`mix codex.tune --plan-games 120 --best-games 120 --minutes 480`), or tune the evaluator by TD learning from self-play positions (§4.3.1), which uses every position and not only the result.
+2. **A better threat term**: the threat now ignores the defender's damage back, the Tower, and the spells and units that the other side can add. A 2-ply check of the top candidates (§4.2.2, stage 2b) is the next step if the tuning stalls.
+3. **Speed:** the policy's own look-ahead is most of the time in a rollout (3–5 ms per step). A cheaper rollout policy or a cache of `Stats` per state would give more candidates in the 400 ms.
+4. **Balance:** with equal bots Bashing as P1 still wins 84 %. Check the Finesse tech plan (Harmony, Blademaster earlier) with the search.
+
+## How the Codex bot works
+
+This section is for a reader who learns Elixir. It tells what the bot does, step by step, and where each step is in the code.
+
+### 1. The fair view
+
+The bot must not see the cards that a person cannot see. `Codex.Game.bot_view/2` gives it a map of the table: its own hand, discard pile and codex, both boards, the patrols, the gold, the buildings. The other side's hand, deck, discard pile, workers and codex are only numbers (how many cards). The view also has `legal`: every action that the rules allow now (`Codex.Rules.legal/1`). The bot always picks one action from this list, so it can never break a rule.
+
+### 2. The turn loop
+
+The table (`Codex.Table`, a `Table.Server` adapter) asks the bot for one action at a time, one each 650 ms, so the page can show each move. The call is `Codex.Table.bot_choose(level, view, state)`. It returns `{action, new_state}`. The state is how the bot remembers things between calls. The levels are `:search` (the default), `:plan` and `:basic`.
+
+- `Codex.Bot` (`:basic`): the first bot. A fixed order of simple rules.
+- `Codex.Bot.Plan` (`:plan`, stage 1): a fixed order of steps (hire, build, summon, play, attack, level up, patrol). For plays and attacks it tries each legal action on a copy of the state and keeps the one that makes the score go up the most (a "one-action look-ahead"). In the tech step it follows a tech plan (`Codex.Bot.TechPlan`).
+- `Codex.Bot.Search` (`:search`, stage 2): plans the whole turn at its first action, then plays that plan one action per call (section 4).
+
+### 3. The evaluator: a score for a state
+
+`Codex.AI.Eval.score(game, me, weights)` gives one number: bigger is better for side `me`. A win is +1000 and a loss −1000. Else it is a weighted sum of features:
+
+```
+score = Σ weight[k] × (feature[k] of me − feature[k] of the other side)
+        − threat_base × threat.base − threat_patrol × threat.patrol − lethal × (1 if lethal)
+        + ready × (my forces that are not exhausted)
+```
+
+`Codex.AI.Eval.features/2` computes the features of one side: base HP, how far the base is below 10, the ATK and the HP left of its units and heroes, keywords (flying, unstoppable, swift strike), heroes and their levels, tech buildings and add-ons, damage on buildings, gold, workers, cards in hand, codex cards teched, ongoing spells, the HP of the patrol.
+
+`Codex.AI.Eval.threat/2` asks: "when my turn ends, how much damage can the other side do to me on its next turn?" Its forces attack my patrol (squad leader first, weakest attackers first). What the patrol does not stop hits my base. Flying, unstoppable and stealth attackers go past the patrol. `threat.base` is the damage to the base, `threat.patrol` the value of the patrollers that die. This makes the bot keep defenders home when the other side has a strong board.
+
+The weights are data: `Codex.AI.Weights.defaults/0`.
+
+**Example** (with the stage-1 weights, `Codex.AI.Weights.stage1/0`): my base has 18 HP, I have an Older Brother (2/2) and 3 gold; the other side has 20 HP and nothing in play.
+
+| Feature | Me | Other | Weight | Points |
+|---|---|---|---|---|
+| base_hp | 18 | 20 | 1.5 | −3.0 |
+| force_atk | 2 | 0 | 1.0 | +2.0 |
+| force_hp | 2 | 0 | 1.0 | +2.0 |
+| gold | 3 | 0 | 0.3 | +0.9 |
+| **score** | | | | **+1.9** |
+
+If the other side then plays an Iron Man (3/4), its force_atk and force_hp go up by 3 and 4, and my score falls to −5.1.
+
+### 4. The search
+
+`Codex.Bot.Search.choose/2`, at the first action of a turn:
+
+1. **Fill in the hidden cards.** `Codex.AI.Determinize.sample/3` makes a full game from the view: the other side's hidden zones get random cards from the cards that it can have (its starting deck and its codex, less the cards that are seen), and the bot's own deck gets the cards that are left of its own. The randomness comes from `Table.Kit.Rng` with a seed, so the same view gives the same game.
+2. **Play candidate turns** on that game with the engine (`Codex.Rules.act_legal/2`), to the end of the main phase:
+   - the stage-1 bot's whole turn (`Codex.Bot.Plan.policy/2`);
+   - the same turn with one "enabler" put in at one point: River's sideline, "stop the music", Discord, Appel Stomp, Intimidate or another activated ability. Then the stage-1 bot goes on. This is how the bot finds "sideline the squad leader, then attack the base";
+   - random turns (a random legal action now and then) are an option (`eps:`), off by default: they lost.
+3. **Score the end of each turn** with the evaluator and keep the best. Another turn must beat the stage-1 turn by the weight `margin` (1.25 points), so the bot leaves its usual plan only for a clear gain.
+4. **Play the plan** one action per call. Before each action, `Codex.Bot.Search.fingerprint/2` checks that the table is as the plan expected. If not (a card was drawn, a guess was wrong), the bot searches again from the real state.
+
+Limits: at most `n` candidate turns and at most 400 ms (`budget_ms`) per search at the table. In the bench there is no clock (`budget_ms: nil`), so the results do not change from run to run.
+
+### 5. Tuning
+
+The weights are not guessed. `mix codex.tune` (`Codex.AI.Tune`) finds them by self-play with the cross-entropy method (the same steps as the Quacks tuner, `Quacks.AI.Tune.sample/4` and `update/3`):
+
+1. Keep a mean and a spread for each weight.
+2. Make 12 candidate weight sets around the mean.
+3. Each candidate plays games against a field (the stage-1 bot, the first bot, and the current mean), in both set-ups and both seats.
+4. Move the mean towards the 4 best candidates, and make the spread smaller.
+5. Save a checkpoint (`priv/bots/codex-tune/`, not in git) and do it again.
+
+A person then copies the result into `Codex.AI.Weights` and checks it with `mix codex.bench` on seeds that the tuner did not use.
+
+### 6. Where to look
+
+| What | Module and function |
+|---|---|
+| What the bot sees | `Codex.Game.bot_view/2` |
+| The bot levels at the table | `Codex.Table.bot_levels/0`, `bot_new/2`, `bot_choose/3` |
+| Stage-1 policy | `Codex.Bot.Plan.choose/2`, `policy/2` |
+| Score of a state | `Codex.AI.Eval.score/3`, `features/2`, `threat/2` |
+| The weights | `Codex.AI.Weights.defaults/0` |
+| The search | `Codex.Bot.Search.choose/2` |
+| Hidden cards | `Codex.AI.Determinize.sample/3` |
+| Benchmark | `mix codex.bench`, `Codex.AI.Bench.run/1` |
+| Tuning | `mix codex.tune`, `Codex.AI.Tune.run/1` |
 
 ## Sources
 

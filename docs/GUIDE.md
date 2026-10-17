@@ -98,5 +98,6 @@ Read 1, 2 and 4 first. They hold the architecture. The rest you can read in any 
   dialogs and sheets. `agentic-elixir.md` explains the tooling (usage_rules, Tidewave,
   Credo, StreamData).
 - `docs/research/animations.md` (the motion plan), `ai-opponents.md` and `jev-plan.md`
-  (the bots).
+  (the bots). `codex-bot.md`: the Codex bots (`:search`, `:plan`, `:basic`), with
+  "How the Codex bot works" (the fair view, the evaluator, the turn search, tuning).
 - `AGENTS.md`: the rules for agents and humans that change this code.
