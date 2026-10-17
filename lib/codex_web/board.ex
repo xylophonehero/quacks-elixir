@@ -1067,6 +1067,12 @@ defmodule CodexWeb.Board do
             if (ny > 0) { nx = -nx; ny = -ny }
             const bend = Math.min(70, len * 0.2)
             const cx = (x1 + x2) / 2 + nx * bend, cy = (y1 + y2) / 2 + ny * bend
+            if (t) {
+              // On a target the head stops short of its centre (its numbers stay readable).
+              const q = t.getBoundingClientRect(), back = Math.min(q.width, q.height) * 0.3
+              const ex = x2 - cx, ey = y2 - cy, el = Math.hypot(ex, ey) || 1
+              x2 -= ex / el * back; y2 -= ey / el * back
+            }
             const d = `M${x1.toFixed(1)},${y1.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`
             svg.querySelectorAll(".cx-arrow-under, .cx-arrow-line").forEach(p => p.setAttribute("d", d))
             svg.classList.add("cx-on")
@@ -1327,7 +1333,7 @@ defmodule CodexWeb.Board do
 
   defp target_selector(id) when is_integer(id), do: "#cx-card-#{id}"
   defp target_selector({:building, s, :base}), do: "[data-base='#{s}']"
-  defp target_selector({:building, s, b}), do: "#cx-building-#{s}-#{b}"
+  defp target_selector({:building, s, b}), do: "[data-building='#{s}-#{b}']"
   defp target_selector(_value), do: nil
 
   defp value_token(id) when is_integer(id), do: Integer.to_string(id)
@@ -1790,6 +1796,7 @@ defmodule CodexWeb.Board do
       </button>
       <p :if={@far and !@board?} class="cx-strip-empty">No units or heroes in play.</p>
       <div class="cx-side-body">
+        <.keep seat={@seat} side={@side} tg={@tg} />
         <%= if @far do %>
           <div class="cx-pair cx-pair-mat">
             <.mat {assigns} />
@@ -1837,6 +1844,83 @@ defmodule CodexWeb.Board do
 
   attr :seat, :integer, required: true
   attr :side, :map, required: true
+  attr :tg, :any, default: nil
+
+  # A desktop: the base as a big portrait at the left of the side (the win
+  # condition is the largest number), with the gold, the workers and the tech
+  # buildings under it. In a pick it is the target (as are its buildings); a
+  # drag aims at `[data-base]` / `[data-building]`. A phone keeps the header.
+  defp keep(assigns) do
+    side = assigns.side
+    base? = assigns.tg != nil and {:building, assigns.seat, :base} in assigns.tg
+
+    assigns =
+      assign(assigns,
+        base?: base?,
+        buildings:
+          for(b <- side.tech_buildings, do: {b, building_hp_left(side, b)}) ++
+            for(b <- side.pending, do: {b, nil})
+      )
+
+    ~H"""
+    <div id={"cx-keep-col-#{@seat}"} class="cx-keep hidden lg:flex">
+      <div
+        id={"cx-keep-#{@seat}"}
+        data-base={@seat}
+        class={["cx-keep-base", seat_bg(@seat), @base? && "cx-targetable-pill cursor-crosshair"]}
+        phx-click={@base? && "pick_building"}
+        phx-value-seat={@seat}
+        phx-value-name="base"
+        tabindex={@base? && "0"}
+        role={@base? && "button"}
+        aria-label={"Base of P#{@seat + 1}: #{@side.base_hp} HP"}
+        title={"Base of P#{@seat + 1}"}
+      >
+        <.icon name="hero-home-modern-solid" class="cx-keep-icon" />
+        <span class="cx-keep-hp">
+          <.icon name="hero-heart-solid" class="size-4 text-rose-300" />
+          <span id={"cx-keep-hp-#{@seat}"} data-bump="float">{@side.base_hp}</span>
+        </span>
+        <span class="cx-keep-label">Base</span>
+      </div>
+      <div class="cx-keep-stats">
+        <span title="Gold">
+          <.icon name="hero-circle-stack-solid" class="size-3.5 text-amber-300" />
+          <span id={"cx-keep-gold-#{@seat}"} data-bump>{@side.gold}</span>
+        </span>
+        <span title="Workers">
+          <.icon name="hero-wrench-solid" class="size-3.5 text-white/60" />
+          <span id={"cx-keep-workers-#{@seat}"} data-bump>{length(@side.zones.workers)}</span>
+        </span>
+      </div>
+      <button
+        :for={{b, hp} <- @buildings}
+        id={"cx-keep-b-#{@seat}-#{b}"}
+        type="button"
+        data-building={"#{@seat}-#{b}"}
+        phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
+        phx-value-seat={@seat}
+        phx-value-name={b}
+        disabled={!(@tg && {:building, @seat, b} in @tg)}
+        class={[
+          "cx-keep-b",
+          hp == nil && "cx-keep-b-pending",
+          @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-crosshair"
+        ]}
+        title={
+          if(hp, do: "#{building_label(b)}: #{hp} HP", else: "Building: ready at the end of the turn")
+        }
+      >
+        <span class="truncate">{building_label(b)}</span>
+        <span :if={hp} class="tabular-nums opacity-70">{hp}</span>
+        <span :if={!hp}>…</span>
+      </button>
+    </div>
+    """
+  end
+
+  attr :seat, :integer, required: true
+  attr :side, :map, required: true
   attr :view, :map, required: true
   attr :free, :boolean, default: false
   attr :tg, :any, default: nil
@@ -1868,7 +1952,7 @@ defmodule CodexWeb.Board do
         <span class="hidden sm:inline">· {@spec_text}</span>
         <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn {@side.turn}</span>
       </span>
-      <div class="flex shrink-0 items-center gap-1">
+      <div class={["flex shrink-0 items-center gap-1", !@free && "cx-keep-dup"]}>
         <.stepper
           id={"cx-hp-#{@seat}"}
           seat={@seat}
@@ -2175,8 +2259,9 @@ defmodule CodexWeb.Board do
           phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
           phx-value-seat={@seat}
           phx-value-name={b}
+          data-building={"#{@seat}-#{b}"}
           class={[
-            "cx-building",
+            "cx-building lg:hidden",
             @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
           ]}
           title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
@@ -2190,7 +2275,7 @@ defmodule CodexWeb.Board do
         <span
           :for={b <- @side.pending}
           id={"cx-pending-#{@seat}-#{b}"}
-          class="cx-building cx-building-pending"
+          class="cx-building cx-building-pending lg:hidden"
           title="Building: ready at the end of the turn"
         >
           {building_label(b)} …

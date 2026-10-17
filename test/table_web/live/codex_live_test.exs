@@ -541,6 +541,31 @@ defmodule TableWeb.CodexLiveTest do
       assert zone(code, 0, :patrol).scavenger == a
     end
 
+    test "a desktop: the base is a portrait with gold, workers and buildings" do
+      game = put_in(new().sides[1].tech_buildings, [:tech_1])
+      %{view: view} = room_with(game)
+
+      assert has_element?(view, "#cx-keep-1[data-base='1'] #cx-keep-hp-1", "20")
+      assert has_element?(view, "#cx-keep-gold-0", "#{game.sides[0].gold}")
+      assert has_element?(view, "#cx-keep-workers-1", "5")
+      assert has_element?(view, "#cx-keep-b-1-tech_1[data-building='1-tech_1']")
+      # Not a target outside a pick.
+      refute has_element?(view, "#cx-keep-1.cx-targetable-pill")
+    end
+
+    test "a desktop: in a pick on the base, the base portrait is the target" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      game = ok!(game, {:play, a, []})
+      game = put_in(game.sides[1].tech_buildings, [:tech_1])
+      %{view: view, code: code} = room_with(game)
+
+      view |> element("#cx-card-#{a}") |> render_click()
+      view |> element("#cx-rule-attack") |> render_click()
+      assert has_element?(view, "#cx-keep-1.cx-targetable-pill[role=button]")
+      view |> element("#cx-keep-1") |> render_click()
+      assert game(code).sides[1].base_hp == 19
+    end
+
     test "Cancel ends a pick" do
       {game, a} = place(new(), 0, "timely-messenger", :hand)
       game = ok!(game, {:play, a, []})

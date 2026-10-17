@@ -202,7 +202,7 @@ P2
 <span class="hidden sm:inline">· Finesse</span>
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 1</span>
 </span>
-<div class="flex shrink-0 items-center gap-1">
+<div class="flex shrink-0 items-center gap-1 cx-keep-dup">
 <div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="1" phx-value-name="base" phx-value-seat="1" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
@@ -232,6 +232,30 @@ P2
 </div>
 </div>
 <div class="cx-side-body">
+<div class="cx-keep hidden lg:flex" id="cx-keep-col-1">
+<div aria-label="Base of P2: 20 HP" class="cx-keep-base bg-sky-700" data-base="1" id="cx-keep-1" phx-value-name="base" phx-value-seat="1" title="Base of P2">
+<span class="hero-home-modern-solid cx-keep-icon">
+</span>
+<span class="cx-keep-hp">
+<span class="hero-heart-solid size-4 text-rose-300">
+</span>
+<span data-bump="float" id="cx-keep-hp-1">20</span>
+</span>
+<span class="cx-keep-label">Base</span>
+</div>
+<div class="cx-keep-stats">
+<span title="Gold">
+<span class="hero-circle-stack-solid size-3.5 text-amber-300">
+</span>
+<span data-bump="" id="cx-keep-gold-1">10</span>
+</span>
+<span title="Workers">
+<span class="hero-wrench-solid size-3.5 text-white/60">
+</span>
+<span data-bump="" id="cx-keep-workers-1">5</span>
+</span>
+</div>
+</div>
 <div class="cx-pair cx-pair-mat">
 <div class="cx-zone cx-row cx-command cx-target" data-drop="" data-empty="true" data-list="true" data-seat="1" data-zone="command" id="cx-zone-1-command" phx-click="zone" phx-value-seat="1" phx-value-zone="command">
 <span class="cx-label cx-row-label">Command</span>
@@ -445,7 +469,7 @@ P1
 <span class="hidden sm:inline">· Bashing</span>
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 2</span>
 </span>
-<div class="flex shrink-0 items-center gap-1">
+<div class="flex shrink-0 items-center gap-1 cx-keep-dup">
 <div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="0" phx-value-name="base" phx-value-seat="0" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
@@ -463,6 +487,34 @@ P1
 </div>
 </div>
 <div class="cx-side-body">
+<div class="cx-keep hidden lg:flex" id="cx-keep-col-0">
+<div aria-label="Base of P1: 17 HP" class="cx-keep-base bg-rose-700" data-base="0" id="cx-keep-0" phx-value-name="base" phx-value-seat="0" title="Base of P1">
+<span class="hero-home-modern-solid cx-keep-icon">
+</span>
+<span class="cx-keep-hp">
+<span class="hero-heart-solid size-4 text-rose-300">
+</span>
+<span data-bump="float" id="cx-keep-hp-0">17</span>
+</span>
+<span class="cx-keep-label">Base</span>
+</div>
+<div class="cx-keep-stats">
+<span title="Gold">
+<span class="hero-circle-stack-solid size-3.5 text-amber-300">
+</span>
+<span data-bump="" id="cx-keep-gold-0">11</span>
+</span>
+<span title="Workers">
+<span class="hero-wrench-solid size-3.5 text-white/60">
+</span>
+<span data-bump="" id="cx-keep-workers-0">5</span>
+</span>
+</div>
+<button class="cx-keep-b " data-building="0-tech_1" disabled="" id="cx-keep-b-0-tech_1" phx-value-name="tech_1" phx-value-seat="0" title="Tech I: 5 HP" type="button">
+<span class="truncate">Tech I</span>
+<span class="tabular-nums opacity-70">5</span>
+</button>
+</div>
 <div class="cx-pair cx-pair-board">
 <div class="cx-patrol" id="cx-patrol-0">
 <div class="cx-zone cx-slot cx-target" data-drop="" data-empty="false" data-seat="0" data-slot="squad_leader" data-zone="patrol" id="cx-slot-0-squad_leader" phx-click="zone" phx-value-seat="0" phx-value-slot="squad_leader" phx-value-zone="patrol">
@@ -638,7 +690,7 @@ P1
 <div class="cx-zone cx-row cx-command cx-target" data-drop="" data-empty="false" data-list="true" data-seat="0" data-zone="command" id="cx-zone-0-command" phx-click="zone" phx-value-seat="0" phx-value-zone="command">
 <span class="cx-label cx-row-label">Command</span>
 <div class="cx-row-cards">
-<button class="cx-building " id="cx-building-0-tech_1" phx-value-name="tech_1" phx-value-seat="0" title="Tech I: 5 HP" type="button">
+<button class="cx-building lg:hidden " data-building="0-tech_1" id="cx-building-0-tech_1" phx-value-name="tech_1" phx-value-seat="0" title="Tech I: 5 HP" type="button">
 <span class="hero-building-library-mini size-4 opacity-70">
 </span>
 <span>Tech I</span>

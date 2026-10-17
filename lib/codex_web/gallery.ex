@@ -124,7 +124,8 @@ defmodule CodexWeb.Gallery do
     end
   end
 
-  # An attack with no patroller in the way: the base of P2 is a big target tile.
+  # An attack with no patroller in the way: the base of P2 is the target (a
+  # phone: a big tile; a desktop: the base portrait lit).
   defp extra(socket, "attack-base", game) do
     %{elite: bloom, lookout: river} = game.sides[1].zones.patrol
 
