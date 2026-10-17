@@ -38,6 +38,7 @@ defmodule QuacksWeb.Router do
     live "/hearts/new", HeartsWeb.SetupLive
     live "/generic/new", TableWeb.GenericSetupLive
     live "/codenames_duet/new", CodenamesDuetWeb.SetupLive
+    live "/codex/new", CodexWeb.SetupLive
     live "/:game/:code", TableWeb.TableLive
   end
 

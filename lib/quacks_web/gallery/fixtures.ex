@@ -113,6 +113,14 @@ defmodule QuacksWeb.Gallery.Fixtures do
         780,
         "CodenamesDuetWeb.Board + assets/css/codenames.css (the table themes of table.css)",
         []
+      ),
+      # Codex sandbox: the board page at a game state (`Stories.arg_stories/1`).
+      component(
+        "codex",
+        "Codex sandbox",
+        800,
+        "CodexWeb.Board + assets/css/codex.css (art from mix codex.cards, else CSS cards)",
+        []
       )
     ]
   end

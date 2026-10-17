@@ -32,6 +32,14 @@ config :quacks, Table,
       setup: "/games/codenames_duet/new",
       icon: "🕵️"
     },
+    "codex" => %{
+      name: "Codex",
+      blurb: "Card-time strategy for 2. Bashing against Finesse, against a bot or hot-seat.",
+      game: Codex.Table,
+      board: CodexWeb.Board,
+      setup: "/games/codex/new",
+      icon: "⚔️"
+    },
     "generic" => %{
       name: "Crazy Eights",
       blurb: "Match the suit or the rank; an 8 is wild. 2 to 5. A generic table: zones and ops.",

@@ -41,3 +41,6 @@ npm-debug.log
 
 # Visual diff reports (mix quacks.visual).
 /docs/assets/visual/
+
+# Codex card art (mix codex.cards): Sirlin Games art, local only.
+/priv/static/images/codex/
