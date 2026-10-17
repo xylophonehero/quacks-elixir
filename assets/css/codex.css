@@ -765,3 +765,21 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
   animation: cx-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 @media (prefers-reduced-motion: reduce) { .cx-summary { animation: none; } }
+
+/* A number that changed: its delta floats up (`.CodexTable`, on <body>). */
+.cx-float {
+  position: fixed;
+  z-index: 70;
+  translate: -50% 0;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: oklch(52% 0.15 150);
+  color: white;
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  box-shadow: 0 2px 8px oklch(0% 0 0 / 0.5);
+}
+.cx-float-down { background: oklch(55% 0.22 27); }
+.cx-chip-count, .cx-mc-atk, .cx-mc-hp, [data-bump="float"] { display: inline-block; }

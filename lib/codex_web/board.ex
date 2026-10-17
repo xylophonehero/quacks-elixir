@@ -27,6 +27,9 @@ defmodule CodexWeb.Board do
     art crop, the cost or the hero level, the name and the ATK/HP now (green: above
     the printed value, violet: below, red HP: damaged). Exhausted: grey.
   - Hover (mouse) or a long press (touch) shows a large face of a card.
+  - Motion (240 ms or less, off with reduced motion): a card that arrives in a
+    zone flies from where it was; a number that changes bumps, and the base HP
+    and gold show their change ("−2") for a moment.
   - The face is the art from `mix codex.cards` (`/images/codex/<slug>.webp`).
     Without the art the card is drawn in CSS from the data (`Codex.Cards`).
 
@@ -765,6 +768,22 @@ defmodule CodexWeb.Board do
             this.on(el, "touchend", release)
             this.on(el, "touchcancel", release)
             this.on(el, "contextmenu", e => { if (e.target.closest && e.target.closest("[data-card-id]")) e.preventDefault() })
+
+            // Motion (off with reduced motion): a card that arrives in a zone flies
+            // from where it was (FLIP); a number that changes bumps.
+            this.reduce = window.matchMedia("(prefers-reduced-motion: reduce)")
+            this.snap()
+            // The old values live here: a patch removes attributes that the server does not send.
+            this.vals = new WeakMap()
+            el.querySelectorAll("[data-bump]").forEach(b => this.vals.set(b, b.textContent.trim()))
+            const resnap = () => {
+              if (this.snapping) return
+              this.snapping = requestAnimationFrame(() => { this.snapping = null; this.snap() })
+            }
+            this.on(window, "resize", resnap)
+            this.on(el, "scroll", resnap, {capture: true, passive: true})
+            this.observer = new MutationObserver(muts => this.changed(muts))
+            this.observer.observe(el, {subtree: true, childList: true, characterData: true})
           },
           on(target, name, fun, opts) {
             this.listeners = this.listeners || []
@@ -821,7 +840,68 @@ defmodule CodexWeb.Board do
             if (this.preview) this.preview.remove()
             this.preview = null
           },
+          snap() {
+            this.rects = new Map()
+            this.el.querySelectorAll('[id^="cx-card-"]').forEach(c => {
+              const r = c.getBoundingClientRect()
+              if (r.width) this.rects.set(c.id, r)
+            })
+          },
+          changed(muts) {
+            const added = new Set(), bumps = new Set()
+            for (const m of muts) {
+              for (const n of m.addedNodes) {
+                if (n.nodeType !== 1) continue
+                if (n.id && n.id.startsWith("cx-card-")) added.add(n)
+                n.querySelectorAll('[id^="cx-card-"]').forEach(c => added.add(c))
+                if (n.matches("[data-bump]")) bumps.add(n)
+                n.querySelectorAll("[data-bump]").forEach(b => bumps.add(b))
+              }
+              const t = m.target.nodeType === 1 ? m.target : m.target.parentElement
+              const b = t && t.closest("[data-bump]")
+              if (b) bumps.add(b)
+            }
+            const still = this.reduce.matches
+            // Many cards at once (the table turns): no flight.
+            if (!still && added.size <= 6) added.forEach(c => this.fly(c))
+            bumps.forEach(b => this.bump(b, still))
+            this.snap()
+          },
+          fly(card) {
+            const from = this.rects.get(card.id)
+            const to = card.getBoundingClientRect()
+            if (!to.width) return
+            const ease = "cubic-bezier(0.2, 0.8, 0.2, 1)"
+            if (!from) {
+              card.animate([{opacity: 0, scale: 0.85}, {opacity: 1, scale: 1}], {duration: 180, easing: ease})
+              return
+            }
+            const dx = from.left - to.left, dy = from.top - to.top
+            if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return
+            card.animate(
+              [{translate: `${dx}px ${dy}px`, scale: from.width / to.width}, {translate: "0 0", scale: 1}],
+              {duration: 240, easing: ease}
+            )
+          },
+          bump(el, still) {
+            const v = el.textContent.trim(), old = this.vals.get(el)
+            this.vals.set(el, v)
+            if (still || old === undefined || old === v) return
+            el.animate([{scale: 1.35}, {scale: 1}], {duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)"})
+            const d = parseInt(v, 10) - parseInt(old, 10)
+            if (el.dataset.bump !== "float" || !d) return
+            const r = el.getBoundingClientRect()
+            const f = document.createElement("span")
+            f.className = d < 0 ? "cx-float cx-float-down" : "cx-float"
+            f.textContent = (d > 0 ? "+" : "−") + Math.abs(d)
+            f.style.left = `${r.left + r.width / 2}px`
+            f.style.top = `${r.top}px`
+            document.body.appendChild(f)
+            f.animate([{opacity: 1, translate: "-50% 0"}, {opacity: 0, translate: "-50% -20px"}], {duration: 700, easing: "ease-out"})
+              .onfinish = () => f.remove()
+          },
           destroyed() {
+            if (this.observer) this.observer.disconnect()
             this.hidePreview()
             document.body.classList.remove("cx-dragging")
             ;(this.listeners || []).forEach(([t, n, f, o]) => t.removeEventListener(n, f, o))
@@ -1311,7 +1391,7 @@ defmodule CodexWeb.Board do
       </button>
       <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
         <.icon name={@icon} class={["size-3.5", @tone]} />
-        <span id={@id}>{@value}</span>
+        <span id={@id} data-bump="float">{@value}</span>
       </span>
       <button
         :if={@free}
@@ -1646,7 +1726,7 @@ defmodule CodexWeb.Board do
     >
       <span class="flex items-center gap-1">
         <.icon name={@icon} class="size-4 text-white/55" />
-        <span class="cx-chip-count" id={"#{@id}-count"}>{@count}</span>
+        <span class="cx-chip-count" id={"#{@id}-count"} data-bump>{@count}</span>
       </span>
       <span class="cx-chip-label">{@label}</span>
     </div>
@@ -1732,8 +1812,10 @@ defmodule CodexWeb.Board do
         <div class="cx-mc-foot">
           <span class="cx-mc-name">{@d.name}</span>
           <div :if={@st} class="cx-mc-stats">
-            <span class="cx-mc-atk" data-tone={@st.atk_tone} title="ATK">{@st.atk}</span>
-            <span class="cx-mc-hp" data-tone={@st.hp_tone} title="HP left">{@st.hp}</span>
+            <span class="cx-mc-atk" data-tone={@st.atk_tone} title="ATK" data-bump>{@st.atk}</span>
+            <span class="cx-mc-hp" data-tone={@st.hp_tone} title="HP left" data-bump>
+              {@st.hp}
+            </span>
           </div>
         </div>
       <% end %>
