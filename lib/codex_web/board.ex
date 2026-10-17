@@ -41,6 +41,7 @@ defmodule CodexWeb.Board do
 
   alias Codex.{Cards, Game}
   alias CodexWeb.Moves
+  alias QuacksWeb.Plugs.CodexArt
 
   @zone_names Map.new([:patrol | Game.list_zones()], &{Atom.to_string(&1), &1})
   @slot_names Map.new(Game.patrol_slots(), &{Atom.to_string(&1), &1})
@@ -2799,7 +2800,9 @@ defmodule CodexWeb.Board do
   end
 
   defp art_files do
-    case File.ls(Application.app_dir(:quacks, @art_dir)) do
+    dir = CodexArt.dir() || Application.app_dir(:quacks, @art_dir)
+
+    case File.ls(dir) do
       {:ok, files} ->
         for f <- files, String.ends_with?(f, ".webp"), into: MapSet.new(), do: Path.rootname(f)
 

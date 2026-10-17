@@ -10,6 +10,7 @@ kill_signal = "SIGTERM"
   APP_ENV = "staging"
   PORT = "8080"
   GAMES_DIR = "/data/games"
+  CODEX_ART_DIR = "/data/codex-art"
 
 # Game files (`Quacks.GameStore`), so games survive a deploy. Create the volume once:
 # fly volumes create quacks_data -a <app> -r ams -s 1 -y
