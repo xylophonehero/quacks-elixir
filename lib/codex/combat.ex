@@ -144,23 +144,15 @@ defmodule Codex.Combat do
 
   @doc "True when `a` can attack card `d` at all (flying, invisible, tech 0 vs Tiny Basilisk)."
   def attackable?(game, a, d) do
-    cond do
-      Stats.kw?(game, d, :flying) and
-          not (Stats.kw?(game, a, :flying) or Stats.kw?(game, a, :anti_air)) ->
-        false
+    not (flier_out_of_reach?(game, a, d) or
+           (Stats.kw?(game, d, :invisible) and Zones.slot_of(game, d) == nil) or
+           (Stats.kw?(game, d, :t0_proof) and Stats.tech(game, a) == 0) or
+           Stats.kw?(game, d, :unattackable))
+  end
 
-      Stats.kw?(game, d, :invisible) and Zones.slot_of(game, d) == nil ->
-        false
-
-      Stats.kw?(game, d, :t0_proof) and Stats.tech(game, a) == 0 ->
-        false
-
-      Stats.kw?(game, d, :unattackable) ->
-        false
-
-      true ->
-        true
-    end
+  defp flier_out_of_reach?(game, a, d) do
+    Stats.kw?(game, d, :flying) and
+      not (Stats.kw?(game, a, :flying) or Stats.kw?(game, a, :anti_air))
   end
 
   # True when attacker `a` may ignore patroller `d`.

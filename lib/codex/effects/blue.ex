@@ -316,16 +316,11 @@ defmodule Codex.Effects.Blue do
   defp insurance(game, %{insured: [_ | _] = agents, slug: slug}) do
     cost = Codex.Cards.fetch!(slug).cost || 0
 
-    Enum.reduce(agents, game, fn agent, game ->
-      case Stats.controller(game, agent) do
-        nil ->
-          game
-
-        s ->
-          if in_play?(game, agent),
-            do: game |> Rules.gain_gold(s, cost) |> Rules.draw(s, 1, :free),
-            else: game
-      end
+    agents
+    |> Enum.filter(&in_play?(game, &1))
+    |> Enum.reduce(game, fn agent, game ->
+      s = Stats.controller(game, agent)
+      game |> Rules.gain_gold(s, cost) |> Rules.draw(s, 1, :free)
     end)
   end
 

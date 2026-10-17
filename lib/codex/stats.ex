@@ -411,17 +411,20 @@ defmodule Codex.Stats do
     c = game.cards[id]
 
     cond do
-      Map.get(c.extra, :polymorph) -> false
-      silenced?(game, id) -> false
-      # Crypt Crawler: "A flier loses flying this turn."
-      Map.get(c.this_turn, {:lost, key}) == true -> false
+      lost_kw?(game, id, c, key) -> false
       printed_kw?(game, id, key) -> true
-      Map.get(c.this_turn, key) == true -> true
-      Map.get(c.extra, key) == true -> true
+      Map.get(c.this_turn, key) == true or Map.get(c.extra, key) == true -> true
       granted?(game, id, key) -> true
       key in @mimic_keys and c.card == "wandering-mimic" -> mimic?(game, id, key)
       true -> false
     end
+  end
+
+  # No keywords: a polymorph, a silenced hero; Crypt Crawler: "A flier loses
+  # flying this turn."
+  defp lost_kw?(game, id, c, key) do
+    Map.get(c.extra, :polymorph) != nil or silenced?(game, id) or
+      Map.get(c.this_turn, {:lost, key}) == true
   end
 
   defp printed_kw?(game, id, key) do

@@ -24,26 +24,8 @@ defmodule CodexWeb.Gallery do
   def board_story(args) do
     state = args["state"]
 
-    preset =
-      case state do
-        "red-green" -> "red_green"
-        "blue-black" -> "blue_black"
-        "bb-" <> _ -> "blue_black"
-        _ -> "first"
-      end
-
-    {:ok, start} = Game.new(%{bot: state == "bot", preset: preset}, @seed)
-
-    game =
-      case state do
-        "start" -> start
-        "red-green" -> start
-        "blue-black" -> start
-        "bb-" <> _ -> blue_pick(start)
-        # Against the bot, on the bot's turn: the page waits.
-        "bot" -> elem(Game.apply(start, 0, :end_turn), 1)
-        _ -> mid_game(start)
-      end
+    {:ok, start} = Game.new(%{bot: state == "bot", preset: preset(state)}, @seed)
+    game = game(state, start)
 
     pov = if args["pov"] == "P2", do: 1, else: 0
 
@@ -58,6 +40,17 @@ defmodule CodexWeb.Gallery do
 
     %{view: :codex_board, board: socket.assigns}
   end
+
+  defp preset("red-green"), do: "red_green"
+  defp preset("blue-black"), do: "blue_black"
+  defp preset("bb-" <> _), do: "blue_black"
+  defp preset(_state), do: "first"
+
+  defp game(state, start) when state in ["start", "red-green", "blue-black"], do: start
+  defp game("bb-" <> _, start), do: blue_pick(start)
+  # Against the bot, on the bot's turn: the page waits.
+  defp game("bot", start), do: elem(Game.apply(start, 0, :end_turn), 1)
+  defp game(_state, start), do: mid_game(start)
 
   defp envelope(game) do
     %Table.View{

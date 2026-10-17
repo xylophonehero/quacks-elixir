@@ -344,25 +344,29 @@ defmodule Codex.Rules do
   # cost. # REVIEW: the printed cost counts.
   defp playable?(game, s, id) do
     d = Cards.fetch!(game.cards[id].card)
+    not censored?(game, s) and not baron?(game, s, d) and not banned?(game, s, d)
+  end
 
+  defp banned?(game, s, d) do
     banned =
       for n <- Zones.in_play(game, 1 - s),
           game.cards[n].card == "reputable-newsman",
           cost = Map.get(game.cards[n].extra, :number),
           do: cost
 
-    # Censorship Council: opponents can't play more than one card from hand during their turns.
-    censored? =
-      Stats.controls?(game, 1 - s, "censorship-council") and
-        Map.get(game.sides[s].effects, :played, 0) >= 1
+    (spell?(d) or String.contains?(d.type, "Upgrade")) and (d.cost || 0) in banned
+  end
 
-    # Twilight Baron: "You can't play tech II or III units."
-    baron? =
-      d.type in ["Unit", "Legendary Unit"] and (d.tech || 0) >= 2 and
-        Stats.controls?(game, s, "twilight-baron")
+  # Censorship Council: opponents can't play more than one card from hand during their turns.
+  defp censored?(game, s) do
+    Stats.controls?(game, 1 - s, "censorship-council") and
+      Map.get(game.sides[s].effects, :played, 0) >= 1
+  end
 
-    not censored? and not baron? and
-      not ((spell?(d) or String.contains?(d.type, "Upgrade")) and (d.cost || 0) in banned)
+  # Twilight Baron: "You can't play tech II or III units."
+  defp baron?(game, s, d) do
+    d.type in ["Unit", "Legendary Unit"] and (d.tech || 0) >= 2 and
+      Stats.controls?(game, s, "twilight-baron")
   end
 
   # Cost + the resist of the targets + boost.
@@ -423,12 +427,14 @@ defmodule Codex.Rules do
       slots == nil -> []
       not hero_for?(game, s, d) -> []
       d.slug == "desperation" and game.sides[s].zones.hand -- [id] != [] -> []
-      slots == [:circle] -> circle_combos(game, s)
-      slots == [:jurisdiction] -> jurisdiction_combos(game, s)
-      slots == [] -> [[]]
-      true -> Targets.combos(game, s, slots, id)
+      true -> slot_combos(game, s, id, slots)
     end
   end
+
+  defp slot_combos(game, s, _id, [:circle]), do: circle_combos(game, s)
+  defp slot_combos(game, s, _id, [:jurisdiction]), do: jurisdiction_combos(game, s)
+  defp slot_combos(_game, _s, _id, []), do: [[]]
+  defp slot_combos(game, s, id, slots), do: Targets.combos(game, s, slots, id)
 
   # Jurisdiction: a non-ultimate spell from your codex with its targets
   # (`[codex_id | targets]`); its cost is paid too (`play_cost/4`).
@@ -669,67 +675,9 @@ defmodule Codex.Rules do
     {_name, slots, costs} = Enum.find(ability_list(game, s, id), &(elem(&1, 0) == name))
     gold = ability_gold(game, s, costs, targets) + Targets.resist_cost(game, s, targets)
     game = update_side(game, s, &%{&1 | gold: &1.gold - gold})
-    game = if costs[:exhaust], do: Effects.exhaust(game, id), else: game
-
-    game =
-      if costs[:once],
-        do: Zones.update_card(game, id, &%{&1 | this_turn: Map.put(&1.this_turn, :once, true)}),
-        else: game
-
-    game =
-      case costs[:javelin] do
-        nil ->
-          game
-
-        n ->
-          Zones.update_card(
-            game,
-            id,
-            &%{&1 | extra: Map.update(&1.extra, :javelin, 0, fn j -> j - n end)}
-          )
-      end
-
-    game =
-      case costs[:corpse] do
-        nil ->
-          game
-
-        n ->
-          Zones.update_card(
-            game,
-            id,
-            &%{&1 | extra: Map.update(&1.extra, :corpse, 0, fn j -> j - n end)}
-          )
-      end
-
-    game =
-      case costs[:skeletons] do
-        nil ->
-          game
-
-        n ->
-          ready_skeletons(game, s) |> Enum.take(n) |> Enum.reduce(game, &Effects.exhaust(&2, &1))
-      end
-
-    {game, targets} = illusions(game, slots, targets, ability_targeted?(game, id, name))
-
-    game =
-      case costs[:blood] do
-        nil ->
-          game
-
-        n ->
-          Zones.update_card(
-            game,
-            id,
-            &%{&1 | extra: Map.update(&1.extra, :blood, 0, fn b -> b - n end)}
-          )
-      end
-
-    game =
-      if costs[:rune], do: Zones.update_card(game, id, &%{&1 | plus: &1.plus - 1}), else: game
-
-    game = if costs[:sacrifice], do: Effects.sacrifice(game, id), else: game
+    targeted? = ability_targeted?(game, id, name)
+    game = Enum.reduce(costs, game, &pay(&2, s, id, &1))
+    {game, targets} = illusions(game, slots, targets, targeted?)
     Effects.ability(game, s, id, name, targets)
   end
 
@@ -776,6 +724,31 @@ defmodule Codex.Rules do
   defp do_act(game, {:sideline, id}), do: Effects.sideline(game, id)
   defp do_act(game, {:attack, a, target}), do: Combat.attack(game, a, target)
   defp do_act(game, :end_turn), do: end_turn(game)
+
+  # Pay one cost of an ability (gold is paid before). The sacrifice comes last.
+  defp pay(game, _s, id, {:exhaust, true}), do: Effects.exhaust(game, id)
+
+  defp pay(game, _s, id, {:once, true}),
+    do: Zones.update_card(game, id, &%{&1 | this_turn: Map.put(&1.this_turn, :once, true)})
+
+  defp pay(game, _s, id, {:rune, true}),
+    do: Zones.update_card(game, id, &%{&1 | plus: &1.plus - 1})
+
+  defp pay(game, _s, id, {:sacrifice, true}), do: Effects.sacrifice(game, id)
+
+  defp pay(game, s, _id, {:skeletons, n}),
+    do: ready_skeletons(game, s) |> Enum.take(n) |> Enum.reduce(game, &Effects.exhaust(&2, &1))
+
+  # Remove n runes of a named kind (blood, javelin, corpse).
+  defp pay(game, _s, id, {kind, n}) when kind in [:blood, :javelin, :corpse],
+    do:
+      Zones.update_card(
+        game,
+        id,
+        &%{&1 | extra: Map.update(&1.extra, kind, 0, fn r -> r - n end)}
+      )
+
+  defp pay(game, _s, _id, _cost), do: game
 
   # Illusions die when a spell or ability ◎ targets them (Macciatus: not yours).
   # The effect then skips them (rulings: an insured Illusion never gets its rune).
@@ -910,19 +883,22 @@ defmodule Codex.Rules do
   defp ready(game, seat) do
     # A disabled card does not ready in this ready step (its disable ends).
     game =
-      Enum.reduce(Zones.in_play(game, seat), game, fn id, game ->
-        Zones.update_card(game, id, fn c ->
-          if Map.get(c.extra, :disabled),
-            do: %{c | fatigued: false, attacked: false, extra: Map.delete(c.extra, :disabled)},
-            else: %{c | exhausted: false, fatigued: false, attacked: false}
-        end)
-      end)
+      Enum.reduce(
+        Zones.in_play(game, seat),
+        game,
+        &Zones.update_card(&2, &1, fn c -> ready_card(c) end)
+      )
 
     # Squad leader armor refreshes each turn.
     Enum.reduce(Map.keys(game.cards), game, fn id, game ->
       Zones.update_card(game, id, &%{&1 | armor_dmg: 0})
     end)
   end
+
+  defp ready_card(%{extra: %{disabled: true}} = c),
+    do: %{c | fatigued: false, attacked: false, extra: Map.delete(c.extra, :disabled)}
+
+  defp ready_card(c), do: %{c | exhausted: false, fatigued: false, attacked: false}
 
   defp upkeep(game, seat) do
     workers = length(game.sides[seat].zones.workers)
@@ -1095,20 +1071,25 @@ defmodule Codex.Rules do
     # damage, no -1/-1 rune and no HP cut this turn has its printed HP (1 or more).
     abomination? = Enum.any?(in_play, &(game.cards[&1].card == "abomination"))
 
-    dead =
-      Enum.find(in_play, fn id ->
-        c = game.cards[id]
-
-        (abomination? or c.damage > 0 or c.minus > 0 or c.tmp_hp < 0) and
-          (Stats.force?(game, id) or Stats.building_card?(game, id)) and
-          (Stats.hp(game, id) <= 0 or c.damage >= Stats.hp(game, id)) and
-          not (c.damage == 0 and Stats.kw?(game, id, :indestructible))
-      end)
+    dead = Enum.find(in_play, &dying?(game, &1, abomination?))
 
     case dead do
       nil -> sacrifices(game)
       id -> game |> Effects.die(id) |> deaths()
     end
+  end
+
+  defp dying?(game, id, abomination?) do
+    c = game.cards[id]
+
+    (abomination? or c.damage > 0 or c.minus > 0 or c.tmp_hp < 0) and
+      (Stats.force?(game, id) or Stats.building_card?(game, id)) and
+      no_hp?(game, id, c) and not (c.damage == 0 and Stats.kw?(game, id, :indestructible))
+  end
+
+  defp no_hp?(game, id, c) do
+    hp = Stats.hp(game, id)
+    hp <= 0 or c.damage >= hp
   end
 
   defp sacrifices(game) do
@@ -1141,12 +1122,10 @@ defmodule Codex.Rules do
   # Mind Control left play: the unit goes back to the side that had it.
   defp mind_control(game) do
     back =
-      Enum.find_value(for(s <- [0, 1], id <- Zones.in_play(game, s), do: id), fn id ->
-        case Map.get(game.cards[id].extra, :mind_control) do
-          {mc, from} -> if not in_play?(game, mc), do: {id, from}
-          _ -> nil
-        end
-      end)
+      Enum.find_value(
+        for(s <- [0, 1], id <- Zones.in_play(game, s), do: id),
+        &controlled(game, &1)
+      )
 
     case back do
       nil ->
@@ -1157,6 +1136,14 @@ defmodule Codex.Rules do
         |> Zones.move(id, {from, :in_play})
         |> Zones.update_card(id, &%{&1 | extra: Map.delete(&1.extra, :mind_control)})
         |> deaths()
+    end
+  end
+
+  # `{id, side it goes back to}` when the Mind Control on it has left play.
+  defp controlled(game, id) do
+    case Map.get(game.cards[id].extra, :mind_control) do
+      {mc, from} -> if not in_play?(game, mc), do: {id, from}
+      _ -> nil
     end
   end
 

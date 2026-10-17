@@ -314,19 +314,20 @@ defmodule Codex.Effects.Black do
 
     unit =
       side.zones.discard
-      |> Enum.filter(fn id ->
-        d = Cards.fetch!(game.cards[id].card)
-
-        d.type in ["Unit", "Legendary Unit"] and d.tech in [1, 2] and (d.cost || 0) <= 5 and
-          :"tech_#{d.tech}" in side.tech_buildings and
-          (d.tech < 2 or d.spec == nil or d.spec == side.tech_spec)
-      end)
+      |> Enum.filter(&garth_unit?(side, Cards.fetch!(game.cards[&1].card)))
       |> Enum.max_by(&(Cards.fetch!(game.cards[&1].card).cost || 0), fn -> nil end)
 
     if unit, do: Effects.enter(game, s, unit, []), else: game
   end
 
   def max_level(game, _s, _id, _slug), do: game
+
+  # A tech I or II unit that costs 5 or less, with its tech building (tech II: of its spec).
+  defp garth_unit?(side, d) do
+    d.type in ["Unit", "Legendary Unit"] and d.tech in [1, 2] and (d.cost || 0) <= 5 and
+      :"tech_#{d.tech}" in side.tech_buildings and
+      (d.tech < 2 or d.spec == nil or d.spec == side.tech_spec)
+  end
 
   @doc "A Black building or upgrade comes into play: Plague Lab (-1/-1 on each opposing unit)."
   def permanent(game, s, _id, "plague-lab") do
@@ -616,16 +617,16 @@ defmodule Codex.Effects.Black do
     golems = for id <- Zones.in_play(game, s), game.cards[id].card == "banefire-golem", do: id
 
     Enum.reduce(golems, game, fn g, game ->
-      if in_play?(game, g) do
-        victim =
-          Effects.weakest(game, s, &(&1 != g and Stats.sacrificable?(game, &1))) ||
-            if(Stats.sacrificable?(game, g), do: g)
-
-        if victim, do: game |> Effects.sacrifice(victim) |> Rules.deaths() |> bane(s), else: game
-      else
-        game
-      end
+      if in_play?(game, g), do: golem(game, s, g), else: game
     end)
+  end
+
+  defp golem(game, s, g) do
+    victim =
+      Effects.weakest(game, s, &(&1 != g and Stats.sacrificable?(game, &1))) ||
+        if(Stats.sacrificable?(game, g), do: g)
+
+    if victim, do: game |> Effects.sacrifice(victim) |> Rules.deaths() |> bane(s), else: game
   end
 
   defp bane(game, s) do
