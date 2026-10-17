@@ -221,7 +221,8 @@ defmodule Codex.Stats do
       attached(game, id),
       leaf_and_claw(game, id, s),
       stampede(game, id, s),
-      marked(game, id)
+      marked(game, id),
+      trained(game, id)
     ]
 
     Enum.sum(for {a, h} <- bonuses, do: if(stat == :atk, do: a, else: h))
@@ -299,6 +300,12 @@ defmodule Codex.Stats do
     if strong > 0 and force?(game, id), do: {5 * strong, 5 * strong}, else: {0, 0}
   end
 
+  # Elite Training (+1 ATK each) and The Art of War (+2 ATK), until the caster's next upkeep.
+  defp trained(game, id) do
+    c = game.cards[id]
+    {Map.get(c.extra, :elite, 0) + if(Map.has_key?(c.extra, :art_of_war), do: 2, else: 0), 0}
+  end
+
   # Vandy Anadrose's max level: +2/+2 until her side's next upkeep.
   defp marked(game, id),
     do: if(Map.has_key?(game.cards[id].extra, :vandy), do: {2, 2}, else: {0, 0})
@@ -323,7 +330,8 @@ defmodule Codex.Stats do
     total =
       if(slot == :squad_leader, do: 1, else: 0) +
         if(c.card == "ironbark-treant" and slot != nil, do: 2, else: 0) +
-        c.tmp_armor + if(side_effect(game, s, :stampede) && unit?(game, id), do: 3, else: 0)
+        c.tmp_armor + if(side_effect(game, s, :stampede) && unit?(game, id), do: 3, else: 0) +
+        Map.get(c.extra, :elite, 0) + if(Map.has_key?(c.extra, :art_of_war), do: 2, else: 0)
 
     max(total - c.armor_dmg, 0)
   end
@@ -424,7 +432,8 @@ defmodule Codex.Stats do
     s = controller(game, id)
 
     controls?(game, s, "blademaster") or
-      (unit?(game, id) and side_effect(game, s, :ferocity) != nil)
+      (unit?(game, id) and side_effect(game, s, :ferocity) != nil) or
+      Map.has_key?(game.cards[id].extra, :art_of_war)
   end
 
   defp granted?(game, id, :armor_piercing),
@@ -445,7 +454,12 @@ defmodule Codex.Stats do
     (c.card == "bluecoat-musketeer" and atk(game, id) == 1) or skeletal_archery?(game, id)
   end
 
-  defp granted?(game, id, :anti_air), do: skeletal_archery?(game, id)
+  defp granted?(game, id, :anti_air),
+    do: skeletal_archery?(game, id) or Map.get(game.cards[id].extra, :elite, 0) > 0
+
+  defp granted?(game, id, :sparkshot), do: Map.get(game.cards[id].extra, :elite, 0) > 0
+
+  defp granted?(game, id, :unstoppable), do: Map.has_key?(game.cards[id].extra, :art_of_war)
 
   defp granted?(_game, _id, _key), do: false
 

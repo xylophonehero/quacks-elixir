@@ -102,6 +102,11 @@ defmodule Codex.CardRules do
     "guardian-of-the-gates" => [cant_attack: true],
     "justice-juggernaut" => [unstoppable: true, cant_patrol: true, two_lives: true],
     "lawbringer-gryphon" => [flying: true, resist: 2, obliterate: 4],
+    # Peace
+    "brave-knight" => [readiness: true],
+    "flagstone-spy" => [invisible: true],
+    "air-hammer" => [flying: true],
+    "patriot-gryphon" => [flying: true, resist: 2],
     # Tokens
     "soldier" => [sparkshot: true],
     "horror" => [deathtouch: true]
@@ -185,7 +190,12 @@ defmodule Codex.CardRules do
     "injunction" => [:tech12_building],
     "community-service" => [],
     "jurisdiction" => [:jurisdiction],
-    "judgment-day" => []
+    "judgment-day" => [],
+    # Peace
+    "boot-camp" => [:force_not_peace_hero],
+    "elite-training" => [:my_force, {:may, :my_force}],
+    "general-s-hammer" => [:building],
+    "the-art-of-war" => [:my_peace_hero]
   }
 
   # Extra gold for a `:boost` target (Boost X).
@@ -227,6 +237,8 @@ defmodule Codex.CardRules do
     "skeleton-javelineer" => [{:javelin, [], [javelin: 1]}],
     # Law
     "arresting-constable" => [{:arrest, [:unit_t012], [exhaust: true]}],
+    # Peace
+    "drill-sergeant" => [{:rune_move, [:other_unit], [rune: true]}],
     # Graveyard: the gold is the cost of the buried unit (`Codex.Rules`).
     "graveyard" => [{:exhume, [:buried_unit], [exhaust: true, unit_cost: true]}]
   }

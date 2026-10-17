@@ -243,6 +243,23 @@ defmodule Codex.Targets do
   def candidates(game, _s, :buried_unit, src),
     do: for(id <- game.trash, Map.get(game.cards[id].extra, :buried_in) == src, do: id)
 
+  def candidates(game, s, :my_force, _src),
+    do: for(id <- Zones.in_play(game, s), Stats.force?(game, id), do: id)
+
+  # Boot Camp: a unit or a hero that is not a Peace hero.
+  def candidates(game, s, :force_not_peace_hero, _src) do
+    cards(game, s, fn id ->
+      Stats.unit?(game, id) or (Stats.hero?(game, id) and Stats.spec(game, id) != "Peace")
+    end)
+  end
+
+  def candidates(game, s, :my_peace_hero, _src) do
+    for id <- Zones.in_play(game, s),
+        Stats.hero?(game, id),
+        Stats.spec(game, id) == "Peace",
+        do: id
+  end
+
   # Injunction: a finished tech I or II building of either side.
   def candidates(game, _s, :tech12_building, _src) do
     for seat <- [1, 0],

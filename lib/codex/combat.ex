@@ -165,11 +165,20 @@ defmodule Codex.Combat do
 
   # True when attacker `a` may ignore patroller `d`.
   defp ignores?(game, a, d, stealth?) do
-    detected? = tower_ready?(game, 1 - Stats.controller(game, a))
+    defender = 1 - Stats.controller(game, a)
+    detected? = tower_ready?(game, defender) or Stats.detector?(game, defender)
     sneaky? = stealth? or Stats.kw?(game, a, :invisible)
 
     Stats.kw?(game, a, :unstoppable) or (sneaky? and not detected?) or
-      past_tech0?(game, a, d) or flies_past?(game, a, d)
+      past_tech0?(game, a, d) or flies_past?(game, a, d) or unstoppable_by?(game, a, d)
+  end
+
+  # "Unstoppable by" some patrollers: Patriot Gryphon (units with 2 ATK or less).
+  defp unstoppable_by?(game, a, d) do
+    case game.cards[a].card do
+      "patriot-gryphon" -> Stats.unit?(game, d) and Stats.atk(game, d) <= 2
+      _ -> false
+    end
   end
 
   # "Unstoppable by tech 0 units": it may ignore tech 0 patrollers.
