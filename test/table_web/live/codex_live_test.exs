@@ -612,6 +612,29 @@ defmodule TableWeb.CodexLiveTest do
       refute has_element?(view, "#cx-summary")
     end
 
+    test "single hero: a spec picks its starting deck; one hero per side", %{conn: conn} do
+      conn = init_test_session(conn, player_token: token("host"))
+      {:ok, setup, _} = live(conn, "/games/codex/new")
+
+      setup |> form("#codex-setup", setup: %{preset: "custom"}) |> render_change()
+      assert has_element?(setup, "#codex-custom")
+
+      setup
+      |> form("#codex-setup", setup: %{p1_spec: "Law"})
+      |> render_change(%{"_target" => ["setup", "p1_spec"]})
+
+      assert has_element?(
+               setup,
+               ~s(#codex-custom select[name="setup[p1_starter]"] option[value="Blue"][selected])
+             )
+
+      {:error, {:live_redirect, %{to: "/games/codex/" <> code}}} =
+        setup |> form("#codex-setup", setup: %{p2_spec: "Necromancy"}) |> render_submit()
+
+      g = game(code)
+      assert Enum.map(0..1, &length(g.sides[&1].zones.command)) == [1, 1]
+    end
+
     test "hot-seat is still there", %{conn: conn} do
       conn = init_test_session(conn, player_token: token("host"))
       {:ok, setup, _} = live(conn, "/games/codex/new")
