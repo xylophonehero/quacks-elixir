@@ -333,6 +333,57 @@ defmodule Codex.CodexCardsTest do
       assert sprite in attack_targets(game, lizard)
     end
 
+    # Bot check (docs/research/codex-bot.md, "Stage 1 results"): the Finesse cards in play.
+    test "Angry Dancers are unstoppable: they can pass a squad leader to the base" do
+      {game, _} = with_hero(p2(table()), 1, 1)
+      {game, harmony} = place(game, 1, "harmony", :hand)
+      game = ok!(game, {:play, harmony, []})
+      {game, discord} = place(game, 1, "discord", :hand)
+      game = ok!(game, {:play, discord, []})
+      {game, _sl} = place(game, 0, "older-brother", :patrol, :squad_leader)
+      game = game |> end_turn() |> end_turn() |> gold(1, 20)
+      game = ok!(game, {:ability, harmony, :stop_music, []})
+      [dancer] = for id <- zone(game, 1, :in_play), game.cards[id].card == "angry-dancer", do: id
+      assert {:building, 0, :base} in attack_targets(game, dancer)
+    end
+
+    test "Maestro and Nimble Fencer: a Virtuoso that just arrived can wreck at once" do
+      game = p2(table()) |> built(1, [:tech_1, :tech_2])
+      {game, _} = place(game, 1, "maestro", :in_play)
+      {game, _} = place(game, 1, "nimble-fencer", :in_play)
+      {game, t} = spawn(game, 1, "tenderfoot", :hand)
+      game = ok!(game, {:play, t, []})
+      game = ok!(game, {:ability, t, :wreck, [{:building, 0, :base}]})
+      assert game.sides[0].base_hp == 18
+    end
+
+    test "Maestro: Blademaster (a Virtuoso) costs 0" do
+      game = p2(table()) |> built(1, [:tech_1, :tech_2, :tech_3]) |> gold(1, 0)
+      {game, _} = place(game, 1, "maestro", :in_play)
+      {game, b} = place(game, 1, "blademaster", :hand)
+      assert plays(game, b) == [[]]
+    end
+
+    test "Blademaster: its side has swift strike when it defends too" do
+      game = table()
+      {game, rhino} = place(game, 0, "regular-sized-rhinoceros", :in_play)
+      game = put_card(game, rhino, fatigued: false)
+      {game, _} = spawn(game, 1, "blademaster", :in_play)
+      {game, brother} = spawn(game, 1, "older-brother", :patrol, :squad_leader)
+      game = ok!(game, {:attack, rhino, brother})
+      # The Brother strikes first (2), then dies to the Rhino (5 vs 1 armor + 2 HP).
+      assert game.cards[rhino].damage == 2
+      assert brother in zone(game, 1, :discard)
+    end
+
+    test "Discord kills an opposing 1-HP tech 0 unit" do
+      {game, _} = with_hero(p2(table()), 1, 1)
+      {game, m} = place(game, 0, "timely-messenger", :in_play)
+      {game, d} = place(game, 1, "discord", :hand)
+      game = ok!(game, {:play, d, []})
+      assert m in zone(game, 0, :discard)
+    end
+
     test "Blademaster: swift strike, the defender that dies deals no damage" do
       game = p2(table())
       {game, _} = place(game, 1, "blademaster", :in_play)
