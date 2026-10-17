@@ -10,6 +10,7 @@ defmodule Codex.AI.Weights do
 
   - `threat_base`, `threat_patrol`, `lethal`: the threat term
     (`Codex.AI.Eval.threat/2`), a cost for the bot's side only.
+  - `ready`: the bot's forces that are not exhausted (`Codex.AI.Eval.ready/2`).
   - `exhaust_cost`: what `Codex.Bot.Plan` takes off an attack or an exhaust
     ability (the force cannot patrol after it).
 
@@ -39,6 +40,7 @@ defmodule Codex.AI.Weights do
     threat_base: 0.0,
     threat_patrol: 0.0,
     lethal: 0.0,
+    ready: 0.0,
     exhaust_cost: 0.5
   }
 
@@ -65,6 +67,7 @@ defmodule Codex.AI.Weights do
     {:threat_base, 0.0, 2.0},
     {:threat_patrol, 0.0, 1.5},
     {:lethal, 0.0, 30.0},
+    {:ready, 0.0, 2.0},
     {:exhaust_cost, 0.0, 2.0}
   ]
 

@@ -25,6 +25,15 @@ defmodule Codex.AI.BenchTest do
     assert strip.(one) == strip.(three)
   end
 
+  test "the search bot with no clock: the same numbers for any number of jobs" do
+    run = fn jobs ->
+      Bench.run(bots: ["search4:threat_base=0.5", "plan"], games: 4, seed: 2, jobs: jobs)
+    end
+
+    strip = fn r -> r |> Map.drop([:seconds, :jobs]) |> Map.update!(:bots, &drop_times/1) end
+    assert strip.(run.(1)) == strip.(run.(2))
+  end
+
   defp drop_times(bots), do: Enum.map(bots, &Map.drop(&1, [:ms, :ms_max]))
 
   test "the stats per bot" do
@@ -50,5 +59,14 @@ defmodule Codex.AI.BenchTest do
     assert bot.state.weights.lethal == 10.0
     assert bot.state.weights.gold == Codex.AI.Weights.defaults().gold
     assert_raise ArgumentError, fn -> Bench.bot("plan:exhaust=1") end
+  end
+
+  test "a search spec: candidates, random-step chance, no early stop, weights" do
+    bot = Bench.bot("search12e0.1x-tower:threat_base=1")
+    assert bot.mod == Codex.Bot.Search
+    assert %{n: 12, eps: 0.1, prefix: false, budget_ms: nil} = bot.state
+    assert bot.state.plan.rules.tower == false
+    assert bot.state.plan.weights.threat_base == 1.0
+    assert %{n: 40, eps: 0.15, prefix: true} = Bench.bot("search").state
   end
 end

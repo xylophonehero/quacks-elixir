@@ -38,7 +38,11 @@ defmodule Codex.AI.Bench do
   the stage-1 bot (`Codex.Bot.Plan`); `+rule` turns a rule on, `-rule` turns it
   off (`Codex.Bot.Plan.rules/0`). `@path` reads the weights from a file
   (`Codex.AI.Weights.load/1`); `:key=value,key=value` changes weights, e.g.
-  `"plan:threat_base=1,lethal=10"`.
+  `"plan:threat_base=1,lethal=10"`. `"search"`: the stage-2 bot
+  (`Codex.Bot.Search`) with no clock; a number after it is the candidates per
+  turn (default 40), then `e` and the random-step chance (default 0.15), then
+  `x` for no early stop (`prefix: false`), then
+  rules and weights as for `plan`, e.g. `"search24e0.3:threat_base=0.5"`.
 
       iex> Codex.AI.Bench.bot("basic").mod
       Codex.Bot
@@ -51,7 +55,44 @@ defmodule Codex.AI.Bench do
     %{name: name, mod: Plan, state: Plan.new(parse_mods(mods), weights)}
   end
 
+  def bot("search" <> rest = name) do
+    {n, rest} =
+      Integer.parse(rest <> "|")
+      |> then(fn
+        {n, r} -> {n, String.trim_trailing(r, "|")}
+        :error -> {40, rest}
+      end)
+
+    {eps, rest} = parse_eps(rest)
+    {prefix, rest} = parse_prefix(rest)
+    {mods, weights} = split_weights(rest)
+
+    state =
+      Codex.Bot.Search.new(
+        n: n,
+        eps: eps,
+        prefix: prefix,
+        budget_ms: nil,
+        rules: parse_mods(mods),
+        weights: weights
+      )
+
+    %{name: name, mod: Codex.Bot.Search, state: state}
+  end
+
   def bot(other), do: raise(ArgumentError, "unknown bot #{inspect(other)}")
+
+  # "e0.3": the chance of a random step in a candidate turn.
+  defp parse_eps("e" <> text) do
+    {eps, rest} = Float.parse(text)
+    {eps, rest}
+  end
+
+  defp parse_eps(text), do: {0.15, text}
+
+  # "x": no early stop.
+  defp parse_prefix("x" <> rest), do: {false, rest}
+  defp parse_prefix(text), do: {true, text}
 
   # "…:key=value,key=value" changes weights; "…@path" reads a weights file.
   defp split_weights(text) do

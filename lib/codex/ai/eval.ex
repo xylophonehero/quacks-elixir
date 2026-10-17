@@ -9,6 +9,7 @@ defmodule Codex.AI.Eval do
       score = Σ weight[k] × (feature[k](me) − feature[k](opponent))
               − threat_base × threat.base − threat_patrol × threat.patrol
               − lethal × (1 when threat.base ≥ my base HP)
+              + ready × (my forces not exhausted)
 
   The weights are in `Codex.AI.Weights`. The features (`features/2`) use only
   what the bot's fair view shows (`Codex.Game.bot_view/2`): a hidden zone of
@@ -43,8 +44,13 @@ defmodule Codex.AI.Eval do
     board =
       Enum.reduce(mine, 0.0, fn {k, v}, acc -> acc + Map.fetch!(w, k) * (v - theirs[k]) end)
 
-    board - threat_cost(g, me, w)
+    board - threat_cost(g, me, w) + if(w.ready == 0, do: 0.0, else: w.ready * ready(g, me))
   end
+
+  @doc "The forces of side `s` that are not exhausted (they can still patrol)."
+  @spec ready(map, 0 | 1) :: non_neg_integer
+  def ready(g, s),
+    do: Enum.count(Zones.in_play(g, s), &(Stats.force?(g, &1) and not g.cards[&1].exhausted))
 
   defp threat_cost(g, me, w) do
     if w.threat_base == 0 and w.threat_patrol == 0 and w.lethal == 0 do
