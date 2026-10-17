@@ -107,7 +107,7 @@ defmodule Codex.Stats do
   @doc "ATK now."
   def atk(game, id) do
     c = game.cards[id]
-    {atk, _hp} = printed(c)
+    {atk, _hp} = base(game, c)
     atk = Map.get(c.this_turn, :printed_atk, atk)
     s = controller(game, id)
 
@@ -119,20 +119,24 @@ defmodule Codex.Stats do
   def hp(game, id) do
     c = game.cards[id]
 
-    case printed(c) do
+    case base(game, c) do
       {_atk, hp} when is_integer(hp) ->
         s = controller(game, id)
         hp + c.plus - c.minus + c.tmp_hp + static(game, id, s, :hp)
     end
   end
 
-  @doc "The printed ATK/HP of an instance (a hero: its level band; a feather rune: 3/1)."
+  @doc "The printed ATK/HP of an instance (a hero: its level band)."
   def printed(c) do
-    cond do
-      Map.get(c.extra, :feather) -> {3, 1}
-      c.level -> band(c)
-      true -> {Cards.fetch!(c.card).atk || 0, Cards.fetch!(c.card).hp || 0}
-    end
+    if c.level, do: band(c), else: {Cards.fetch!(c.card).atk || 0, Cards.fetch!(c.card).hp || 0}
+  end
+
+  # A feather rune makes a unit 3/1 while a Fairie Dragon is in play (rulings).
+  defp base(game, c), do: if(feather?(game, c), do: {3, 1}, else: printed(c))
+
+  defp feather?(game, c) do
+    Map.get(c.extra, :feather) == true and
+      Enum.any?([0, 1], &controls?(game, &1, "fairie-dragon"))
   end
 
   defp band(c) do
@@ -325,7 +329,9 @@ defmodule Codex.Stats do
 
   defp granted?(game, id, :flying) do
     c = game.cards[id]
-    c.card == "master-midori" and c.level >= 8 and controller(game, id) == game.active
+
+    (c.card == "master-midori" and c.level >= 8 and controller(game, id) == game.active) or
+      feather?(game, c)
   end
 
   defp granted?(game, id, :stealth) do
