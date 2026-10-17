@@ -57,44 +57,62 @@ defmodule CodenamesDuet.AI.Vectors do
   # The candidates that get an exact score (the nearest by the neighbour lists).
   @shortlist 150
 
-  @type t :: Rng.t()
+  @typedoc "The bot: its random state and its vector sets (`Data.set()`) to give and to guess."
+  @type t :: %{rng: Rng.t(), giver: Data.set(), guesser: Data.set()}
 
-  @doc "A new bot: its random state from `seed`."
-  @spec new({integer, integer, integer}) :: t
-  def new(seed), do: Rng.seed(seed)
+  @doc """
+  A new bot: its random state from `seed`. Options: `giver` and `guesser`, the
+  vector sets for its clues and its guesses (default `:main`). The bench gives
+  the guesser another set: a partner that does not share the giver's vectors.
+  """
+  @spec new({integer, integer, integer}, keyword) :: t
+  def new(seed, opts \\ []) do
+    %{
+      rng: Rng.seed(seed),
+      giver: Keyword.get(opts, :giver, :main),
+      guesser: Keyword.get(opts, :guesser, :main)
+    }
+  end
 
   @doc "The action for `view`, and the next bot state."
   @spec choose(map, t) :: {CodenamesDuet.Game.action(), t}
-  def choose(%{legal_actions: [{:clue, :word, _} | _]} = view, rng), do: give_clue(view, rng)
-  def choose(%{phase: :sudden_death} = view, rng), do: sudden_death(view, rng)
-  def choose(%{phase: :guess} = view, rng), do: guess(view, rng)
+  def choose(view, %{rng: rng} = bot) do
+    {action, rng} = act(view, rng, bot)
+    {action, %{bot | rng: rng}}
+  end
+
+  defp act(%{legal_actions: [{:clue, :word, _} | _]} = view, rng, bot),
+    do: give_clue(view, rng, bot.giver)
+
+  defp act(%{phase: :sudden_death} = view, rng, bot), do: sudden_death(view, rng, bot.guesser)
+  defp act(%{phase: :guess} = view, rng, bot), do: guess(view, rng, bot.guesser)
 
   # -- the clue giver ------------------------------------------------------------------
 
-  defp give_clue(view, rng) do
+  defp give_clue(view, rng, set) do
     me = view.viewer
     open = guessable(view, me)
     greens = for i <- open, Enum.at(view.key, i) == :green, do: i
     others = for i <- open, Enum.at(view.key, i) != :green, do: {i, Enum.at(view.key, i)}
     visible = visible_words(view)
-    index = Map.new(open, &{&1, Data.lookup(Enum.at(view.words, &1))})
+    index = Map.new(open, &{&1, Data.lookup(Enum.at(view.words, &1), set)})
 
     scored =
       greens
-      |> shortlist(view.words)
+      |> shortlist(view.words, set)
       |> Enum.filter(&(Clue.check(&1, 1, visible) == :ok))
-      |> Enum.map(&score(&1, greens, others, index, hurry?(view)))
+      |> Enum.map(&score(&1, greens, others, index, hurry?(view), set))
 
     case Enum.filter(scored, &(&1.n > 0)) do
-      [] -> fallback(scored, visible, rng)
+      [] -> fallback(scored, visible, rng, set)
       good -> pick_best(good, & &1.value, rng, &{:clue, &1.word, &1.n})
     end
   end
 
   # The candidates near the most greens, by the neighbour lists.
-  defp shortlist(greens, words) do
+  defp shortlist(greens, words, set) do
     greens
-    |> Enum.flat_map(&Data.neighbours(Enum.at(words, &1)))
+    |> Enum.flat_map(&Data.neighbours(Enum.at(words, &1), set))
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
     |> Enum.map(fn {word, sims} ->
       {word, Enum.count(sims, &(&1 >= @floor)), Enum.sum(sims)}
@@ -107,10 +125,10 @@ defmodule CodenamesDuet.AI.Vectors do
   # Few tokens for the greens left (more than 2 a turn): bigger clues, less margin.
   defp hurry?(view), do: 15 - view.found > 2 * view.timer
 
-  defp score(word, greens, others, index, hurry?) do
+  defp score(word, greens, others, index, hurry?, set) do
     margin = if hurry?, do: @hurry_margin, else: @margin
-    c = Data.lookup(word)
-    sim = fn i -> if index[i], do: Data.cosine(c, index[i]), else: 0.0 end
+    c = Data.lookup(word, set)
+    sim = fn i -> if index[i], do: Data.cosine(c, index[i], set), else: 0.0 end
 
     danger =
       others
@@ -131,23 +149,23 @@ defmodule CodenamesDuet.AI.Vectors do
   end
 
   # No clue for 1 or more: the safest single green, number 1; else any legal word.
-  defp fallback([_ | _] = scored, _visible, rng),
+  defp fallback([_ | _] = scored, _visible, rng, _set),
     do: pick_best(scored, & &1.safety, rng, &{:clue, &1.word, 1})
 
-  defp fallback([], visible, rng) do
-    word = Enum.find(Data.clue_words(), &(Clue.check(&1, 1, visible) == :ok))
+  defp fallback([], visible, rng, set) do
+    word = Enum.find(Data.clue_words(set), &(Clue.check(&1, 1, visible) == :ok))
     {{:clue, word, 1}, rng}
   end
 
   # -- the guesser ----------------------------------------------------------------------
 
-  defp guess(view, rng) do
+  defp guess(view, rng, set) do
     {clue, number} = view.clue
     options = for {:guess, i} <- view.legal_actions, do: i
 
-    case Data.lookup(clue) do
+    case Data.lookup(clue, set) do
       nil -> blind(view, options, rng)
-      c -> guess_near(view, options, [c], number, rng)
+      c -> guess_near(view, options, [c], number, rng, set)
     end
   end
 
@@ -160,18 +178,18 @@ defmodule CodenamesDuet.AI.Vectors do
 
   defp blind(_view, _options, rng), do: {:end_turn, rng}
 
-  defp guess_near(%{guesses: g} = view, options, clues, number, rng)
+  defp guess_near(%{guesses: g} = view, options, clues, number, rng, set)
        when g < number or g == 0 do
-    {[{top, best} | _], rng} = rank(view, options, clues, rng)
+    {[{top, best} | _], rng} = rank(view, options, clues, rng, set)
     go? = g == 0 or best >= @guess_floor
     {if(go?, do: {:guess, top}, else: :end_turn), rng}
   end
 
   # The one guess more than the number (§4.6): a word clearly near this clue or an
   # older clue of the same giver (a word that clue left behind).
-  defp guess_near(%{guesses: g} = view, options, clues, number, rng)
+  defp guess_near(%{guesses: g} = view, options, clues, number, rng, set)
        when g == number and number > 0 do
-    {ranked, rng} = rank(view, options, clues ++ older_clues(view), rng)
+    {ranked, rng} = rank(view, options, clues ++ older_clues(view, set), rng, set)
 
     case ranked do
       [{top, best}, {_, next} | _] when best >= @bonus_sim and best - next >= @bonus_gap ->
@@ -185,23 +203,23 @@ defmodule CodenamesDuet.AI.Vectors do
     end
   end
 
-  defp guess_near(_view, _options, _clues, _number, rng), do: {:end_turn, rng}
+  defp guess_near(_view, _options, _clues, _number, rng, _set), do: {:end_turn, rng}
 
   # The giver's clues before this one.
-  defp older_clues(%{giver: giver, log: log}) do
+  defp older_clues(%{giver: giver, log: log}, set) do
     [_current | older] = Enum.drop_while(log, &(not match?({:clue, _, _, _}, &1)))
-    for {:clue, ^giver, word, _} <- older, c <- List.wrap(Data.lookup(word)), do: c
+    for {:clue, ^giver, word, _} <- older, c <- List.wrap(Data.lookup(word, set)), do: c
   end
 
   # -- sudden death ------------------------------------------------------------------------
 
-  defp sudden_death(view, rng) do
+  defp sudden_death(view, rng, set) do
     partner = 1 - view.viewer
     options = for {:guess, i} <- view.legal_actions, do: i
 
     clues =
       for {:clue, ^partner, word, _} <- view.log,
-          c <- List.wrap(Data.lookup(word)),
+          c <- List.wrap(Data.lookup(word, set)),
           do: c
 
     case clues do
@@ -209,7 +227,7 @@ defmodule CodenamesDuet.AI.Vectors do
         blind(%{view | guesses: 0}, options, rng)
 
       _ ->
-        {[{i, _} | _], rng} = rank(view, options, clues, rng)
+        {[{i, _} | _], rng} = rank(view, options, clues, rng, set)
         {{:guess, i}, rng}
     end
   end
@@ -218,14 +236,14 @@ defmodule CodenamesDuet.AI.Vectors do
 
   # The options by their best similarity to any of `clues`, highest first; the
   # bot's own assassins lower. Ties in a random order.
-  defp rank(view, options, clues, rng) do
+  defp rank(view, options, clues, rng, set) do
     {order, rng} = Rng.shuffle(options, rng)
 
     ranked =
       order
       |> Enum.map(fn i ->
-        w = Data.lookup(Enum.at(view.words, i))
-        sim = if w, do: clues |> Enum.map(&Data.cosine(&1, w)) |> Enum.max(), else: 0.0
+        w = Data.lookup(Enum.at(view.words, i), set)
+        sim = if w, do: clues |> Enum.map(&Data.cosine(&1, w, set)) |> Enum.max(), else: 0.0
         penalty = if Enum.at(view.key || [], i) == :assassin, do: @own_assassin_penalty, else: 0
         {i, sim - penalty}
       end)
