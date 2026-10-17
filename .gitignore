@@ -44,3 +44,4 @@ npm-debug.log
 
 # Codex card art (mix codex.cards): Sirlin Games art, local only.
 /priv/static/images/codex/
+/priv/bots/codex-tune/

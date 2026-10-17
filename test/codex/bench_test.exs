@@ -2,7 +2,8 @@ defmodule Codex.AI.BenchTest do
   @moduledoc "The Codex bot benchmark: duplicate seating, determinism, the stats."
   use ExUnit.Case, async: true
 
-  alias Codex.AI.Bench
+  alias Codex.AI.{Bench, Weights}
+  alias Codex.Bot.Search
 
   doctest Codex.AI.Bench
 
@@ -25,6 +26,15 @@ defmodule Codex.AI.BenchTest do
     assert strip.(one) == strip.(three)
   end
 
+  test "the search bot with no clock: the same numbers for any number of jobs" do
+    run = fn jobs ->
+      Bench.run(bots: ["search4:threat_base=0.5", "plan"], games: 4, seed: 2, jobs: jobs)
+    end
+
+    strip = fn r -> r |> Map.drop([:seconds, :jobs]) |> Map.update!(:bots, &drop_times/1) end
+    assert strip.(run.(1)) == strip.(run.(2))
+  end
+
   defp drop_times(bots), do: Enum.map(bots, &Map.drop(&1, [:ms, :ms_max]))
 
   test "the stats per bot" do
@@ -41,5 +51,26 @@ defmodule Codex.AI.BenchTest do
   test "a bot of a spec; an unknown spec raises" do
     assert %{name: "basic", mod: Codex.Bot} = Bench.bot("basic")
     assert_raise ArgumentError, fn -> Bench.bot("nope") end
+  end
+
+  test "a plan spec with rule and weight changes" do
+    bot = Bench.bot("plan-tower:threat_base=1,lethal=10")
+    assert bot.state.rules.tower == false
+    assert bot.state.weights.threat_base == 1.0
+    assert bot.state.weights.lethal == 10.0
+    assert bot.state.weights.gold == Weights.defaults().gold
+    assert_raise ArgumentError, fn -> Bench.bot("plan:exhaust=1") end
+  end
+
+  test "a search spec: candidates, random-step chance, no early stop, weights" do
+    bot = Bench.bot("search12e0.1x-tower:threat_base=1")
+    assert bot.mod == Search
+    assert %{n: 12, eps: 0.1, prefix: false, budget_ms: nil} = bot.state
+    assert bot.state.plan.rules.tower == false
+    assert bot.state.weights.threat_base == 1.0
+    assert %{n: 40, prefix: false} = Bench.bot("search").state
+    assert Bench.bot("search").state.eps == 0.0
+    assert %{n: 8, eps: 0.2, prefix: true} = Bench.bot("search8e0.2p").state
+    assert Bench.bot("search").state.weights == Weights.search()
   end
 end

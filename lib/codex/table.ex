@@ -5,12 +5,14 @@ defmodule Codex.Table do
 
   Hot-seat (the default): one browser plays both sides, so the room has one
   seat and no bots; a second browser watches. Against the bot (`opts.bot`):
-  two seats, P2 is the bot, one action per tick. Bot levels: `:plan` (the
-  default, `Codex.Bot.Plan`) and `:basic` (the first bot, `Codex.Bot`).
+  two seats, P2 is the bot, one action per tick. Bot levels: `:search` (the
+  default, `Codex.Bot.Search`, at most #{400} ms of search per turn), `:plan`
+  (the stage-1 bot, `Codex.Bot.Plan`) and `:basic` (the first bot,
+  `Codex.Bot`).
   """
   @behaviour Table.Server
 
-  alias Codex.Bot.Plan
+  alias Codex.Bot.{Plan, Search}
   alias Codex.Game
 
   @impl true
@@ -32,13 +34,15 @@ defmodule Codex.Table do
   def view(game, seat), do: Game.view(game, seat)
 
   @impl true
-  def bot_levels, do: [:plan, :basic]
+  def bot_levels, do: [:search, :plan, :basic]
 
   @impl true
+  def bot_new(:search, seed), do: Search.new(seed: :erlang.phash2(seed), budget_ms: 400)
   def bot_new(:plan, _seed), do: Plan.new()
   def bot_new(_level, _seed), do: nil
 
   @impl true
+  def bot_choose(:search, view, bot), do: Search.choose(view, bot)
   def bot_choose(:plan, view, bot), do: Plan.choose(view, bot)
   def bot_choose(:basic, view, bot), do: Codex.Bot.choose(view, bot)
 

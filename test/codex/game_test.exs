@@ -218,6 +218,19 @@ defmodule Codex.GameTest do
   end
 
   describe "tokens and counters" do
+    test "add_cards/3 never reuses an id, also when the card map has gaps" do
+      game = new()
+      {game, [a]} = Codex.Game.add_cards(game, 0, ["dancer"])
+      assert a == map_size(game.cards)
+      # A bot's copy of the state has no hidden cards: the ids have gaps.
+      [low | _] = game.cards |> Map.keys() |> Enum.sort()
+      gappy = %{game | cards: Map.delete(game.cards, low)}
+      {gappy, [b, c]} = Codex.Game.add_cards(gappy, 0, ["dancer", "dancer"])
+      assert b > a and c > b
+      refute Map.has_key?(game.cards, b)
+      assert map_size(gappy.cards) == map_size(game.cards) + 1
+    end
+
     test "damage, runes and levels" do
       game = new()
       [a | _] = zone(game, 0, :hand)

@@ -29,6 +29,7 @@ defmodule Codex.Bot.Plan do
   randomness: the same view gives the same action.
   """
 
+  alias Codex.AI.{Eval, Weights}
   alias Codex.Bot.TechPlan
   alias Codex.{Cards, Rules, Stats, Zones}
   alias Table.Kit.Rng
@@ -59,11 +60,6 @@ defmodule Codex.Bot.Plan do
     patrol_smart: false
   }
 
-  # The score lost when a force exhausts (it cannot patrol on the opponent's turn).
-  @exhaust_cost 0.5
-  # The worth of 1 gold in `eval/2` (gold carries over to the next turn).
-  @gold_value 0.3
-
   @slot_order [:squad_leader, :elite, :lookout, :technician, :scavenger]
   @enabler_spells ~w(intimidate discord appel-stomp)
 
@@ -71,29 +67,45 @@ defmodule Codex.Bot.Plan do
   @spec rules() :: map
   def rules, do: @rules
 
-  @doc "A bot state: the default rules with `changes` (`[{rule, boolean}]`)."
-  @spec new([{atom, boolean}]) :: map
-  def new(changes \\ []) do
+  @doc """
+  A bot state: the default rules with `changes` (`[{rule, boolean}]`) and the
+  evaluator weights (`Codex.AI.Weights`; default `Codex.AI.Weights.defaults/0`).
+  The rule `aggro` off sets the weight `base_hp` to 1.
+  """
+  @spec new([{atom, boolean}], map) :: map
+  def new(changes \\ [], weights \\ Weights.defaults()) do
     for {rule, _} <- changes, not Map.has_key?(@rules, rule) do
       raise ArgumentError, "unknown rule #{inspect(rule)}"
     end
 
-    %{rules: Map.merge(@rules, Map.new(changes))}
+    rules = Map.merge(@rules, Map.new(changes))
+    weights = if rules.aggro, do: weights, else: %{weights | base_hp: 1.0}
+    %{rules: rules, weights: weights}
   end
 
   @doc "The bot's next action for `view`, and its state (unchanged)."
   @spec choose(map, map | nil) :: {term, map}
   def choose(view, nil), do: choose(view, new())
-  def choose(view, state), do: {pick(view, state.rules), state}
+  def choose(view, state), do: {pick(view, state), state}
 
-  defp pick(%{legal: []}, _r), do: :end_turn
+  @doc """
+  The bot's main-phase action on a full game `g` (not a view), for a search
+  that plays the policy forward (`Codex.Bot.Search`). `g` may be a sampled
+  game: the policy reads only the public parts and its own side.
+  """
+  @spec policy(map, map) :: term
+  def policy(%{phase: :main} = g, state), do: main(g, g, Rules.legal(g), state)
 
-  defp pick(%{phase: :tech} = v, r) do
+  defp pick(%{legal: []}, _state), do: :end_turn
+
+  defp pick(%{phase: :tech} = v, %{rules: r}) do
     if r.tech_plan, do: tech(v, r), else: elem(Codex.Bot.choose(v, nil), 0)
   end
 
-  defp pick(v, r) do
-    ctx = %{v: v, g: game_of(v), legal: v.legal, me: v.active, r: r}
+  defp pick(v, state), do: main(v, game_of(v), v.legal, state)
+
+  defp main(v, g, legal, %{rules: r, weights: w}) do
+    ctx = %{v: v, g: g, legal: legal, me: v.active, r: r, w: w}
 
     Enum.find_value(
       [
@@ -174,7 +186,7 @@ defmodule Codex.Bot.Plan do
 
   # -- plays: units and spells with a lasting effect ---------------------------------------------
 
-  defp plays(%{v: v, g: g, me: me, legal: legal, r: r}) do
+  defp plays(%{v: v, g: g, me: me, legal: legal, w: r}) do
     now = eval(g, me, r)
 
     candidates =
@@ -215,15 +227,15 @@ defmodule Codex.Bot.Plan do
 
   # -- attacks, exhaust abilities and enablers ---------------------------------------------------
 
-  defp fight(%{g: g, me: me, legal: legal, r: r} = ctx) do
-    now = eval(g, me, r)
-    {best, score} = best_exhaust(g, legal, me, now, r)
+  defp fight(%{g: g, me: me, legal: legal, w: w, r: rules} = ctx) do
+    now = eval(g, me, w)
+    {best, score} = best_exhaust(g, legal, me, now, w)
 
     enabler =
-      if r.enablers do
+      if rules.enablers do
         ctx
         |> enablers()
-        |> Enum.map(fn e -> {e, enabler_score(g, e, me, now, r)} end)
+        |> Enum.map(fn e -> {e, enabler_score(g, e, me, now, w)} end)
         |> Enum.max_by(&elem(&1, 1), fn -> {nil, 0} end)
       else
         {nil, 0}
@@ -236,10 +248,10 @@ defmodule Codex.Bot.Plan do
   end
 
   # The best attack or exhaust ability, and its score (`{nil, 0}` when none).
-  defp best_exhaust(g, legal, me, now, r) do
+  defp best_exhaust(g, legal, me, now, w) do
     legal
     |> Enum.filter(&exhaust_action?/1)
-    |> Enum.map(fn a -> {a, delta(g, a, me, now, r) - @exhaust_cost} end)
+    |> Enum.map(fn a -> {a, delta(g, a, me, now, w) - w.exhaust_cost} end)
     |> Enum.max_by(&elem(&1, 1), fn -> {nil, 0} end)
   end
 
@@ -378,51 +390,11 @@ defmodule Codex.Bot.Plan do
   def sim(g, action), do: g |> Rules.act_legal(action) |> Rules.cleanup()
 
   @doc """
-  A score of a game state for side `me`: its board minus the other side's.
-  Per side: base HP (more per HP when it is low), each unit and hero (ATK + HP
-  left, a hero also its level), tech buildings, gold. Changes "this turn" do
-  not count (they end with the turn); a win is +1000.
+  A score of a game state for side `me`: `Codex.AI.Eval.score/3` with the
+  weights `weights` (default `Codex.AI.Weights.defaults/0`).
   """
   @spec eval(map, 0 | 1, map) :: float
-  def eval(g, me, rules \\ @rules)
-  def eval(%{phase: :over, winner: w}, me, _r), do: if(w == me, do: 1000.0, else: -1000.0)
-
-  def eval(g, me, r) do
-    g = lasting(g)
-    side(g, me, r) - side(g, 1 - me, r)
-  end
-
-  defp side(g, s, r) do
-    sd = g.sides[s]
-    hp = sd.base_hp * if(r.aggro, do: 1.5, else: 1)
-    forces = for id <- Zones.in_play(g, s), Stats.force?(g, id), do: force_value(g, id)
-
-    buildings =
-      for b <- sd.tech_buildings ++ sd.pending,
-          do: if(b in [:tech_1, :tech_2, :tech_3], do: 4, else: 2)
-
-    damage = sd.building_damage |> Map.values() |> Enum.sum()
-    ongoing = Enum.count(sd.zones.in_play, &(g.cards[&1].card in ["two-step", "harmony"]))
-
-    hp + 0.5 * max(10 - sd.base_hp, 0) + Enum.sum(forces) + Enum.sum(buildings) -
-      0.5 * damage + @gold_value * sd.gold + ongoing
-  end
-
-  defp force_value(g, id) do
-    c = g.cards[id]
-    base = max(Stats.atk(g, id), 0) + max(Stats.hp(g, id) - c.damage, 0)
-    kws = Enum.count([:flying, :unstoppable, :swift], &Stats.kw?(g, id, &1))
-    hero = if c.level, do: 2 + c.level, else: 0
-    base + kws + hero
-  end
-
-  # The state with the changes "this turn" gone.
-  defp lasting(g) do
-    cards =
-      Map.new(g.cards, fn {id, c} -> {id, %{c | tmp_atk: 0, tmp_hp: 0, tmp_armor: 0}} end)
-
-    %{g | cards: cards}
-  end
+  def eval(g, me, weights \\ Weights.defaults()), do: Eval.score(g, me, weights)
 
   # -- the public state as a game ----------------------------------------------------------------
 

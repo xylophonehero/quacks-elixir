@@ -1,6 +1,6 @@
 defmodule Codex.Bot do
   @moduledoc """
-  The first Codex bot (bot level `:basic`; the default is `Codex.Bot.Plan`). It picks one action per call from the legal actions in its
+  The first Codex bot (bot level `:basic`; the default is `Codex.Bot.Search`). It picks one action per call from the legal actions in its
   view (`Codex.Game.view/2` gives the bot's seat a `legal` list), so it never
   breaks a rule. Its plan for a main phase, in this order:
 

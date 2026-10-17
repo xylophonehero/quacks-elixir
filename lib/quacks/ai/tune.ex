@@ -24,6 +24,10 @@ defmodule Quacks.AI.Tune do
   @sd_floor 0.02
   @sd_start 0.12
 
+  @doc "The spread of a fresh run (each number in `[0, 1]` units)."
+  @spec sd_start() :: float
+  def sd_start, do: @sd_start
+
   @doc """
   Run generations until `generations:` (total, default 1000) or `minutes:` (no new
   generation after it). Options: `base:` profile text (default `"balanced+strong"`),
@@ -108,8 +112,7 @@ defmodule Quacks.AI.Tune do
     elite = scored |> Enum.sort_by(&(-elem(&1, 1))) |> Enum.take(config.elite)
     units = Enum.map(elite, &elem(&1, 0))
 
-    mean = blend(state["mean"], column_mean(units))
-    sd = state["sd"] |> blend(column_sd(units)) |> Enum.map(&max(&1, @sd_floor))
+    {mean, sd} = update(state["mean"], state["sd"], units)
     seconds = (System.monotonic_time(:millisecond) - t0) / 1000
     best = elite |> hd() |> elem(1)
 
@@ -147,7 +150,20 @@ defmodule Quacks.AI.Tune do
     Enum.sum(rates) / length(rates)
   end
 
-  defp sample(mean, sd, n, rng) do
+  @doc """
+  The cross-entropy step: the new mean and spread, moved towards the `elite`
+  vectors (`alpha` #{@alpha}; the spread stays at least #{@sd_floor}).
+  `Codex.AI.Tune` uses it too.
+  """
+  @spec update([float], [float], [[float]]) :: {[float], [float]}
+  def update(mean, sd, elite) do
+    {blend(mean, column_mean(elite)),
+     sd |> blend(column_sd(elite)) |> Enum.map(&max(&1, @sd_floor))}
+  end
+
+  @doc "`n` vectors around `mean` (normal, spread `sd`, clamped to `[0, 1]`), and the next rng."
+  @spec sample([float], [float], pos_integer, :rand.state()) :: {[[float]], :rand.state()}
+  def sample(mean, sd, n, rng) do
     Enum.map_reduce(1..n, rng, fn _, rng ->
       Enum.zip(mean, sd)
       |> Enum.map_reduce(rng, fn {m, s}, rng ->

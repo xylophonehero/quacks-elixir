@@ -113,8 +113,8 @@ defmodule Codex.Bot.PlanTest do
     assert Plan.eval(hurt, 0) > Plan.eval(game, 0)
   end
 
-  test "the table's default bot level is :plan; :basic is still there" do
-    assert Table.bot_levels() == [:plan, :basic]
+  test "the table's bot levels: :search (the default), :plan, :basic" do
+    assert Table.bot_levels() == [:search, :plan, :basic]
     game = bot_game({1, 2, 3})
     {:ok, game} = Game.apply(game, 0, :end_turn)
     {:ok, game} = Game.apply(game, 0, choose(game))
