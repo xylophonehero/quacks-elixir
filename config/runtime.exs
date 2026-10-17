@@ -42,6 +42,9 @@ if config_env() != :test do
 
   config :quacks, :flavour, flavour
 
+  # Codex card art (Sirlin Games, not in git): a folder on the Fly volume on staging.
+  config :quacks, :codex_art_dir, System.get_env("CODEX_ART_DIR")
+
   # Game files (`Quacks.GameStore`): `tmp/games` in dev, the Fly volume in prod.
   config :quacks,
          :games_dir,
