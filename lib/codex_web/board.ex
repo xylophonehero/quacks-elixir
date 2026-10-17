@@ -26,6 +26,18 @@ defmodule CodexWeb.Board do
   - A card on the board (patrol, in play, command) is a mini card (`mini/1`): an
     art crop, the cost or the hero level, the name and the ATK/HP now (green: above
     the printed value, violet: below, red HP: damaged). Exhausted: grey.
+  - A desktop (1024 px and up) is one screen too (MTG Arena): the two
+    battlefields face each other across the status bar, the hand is half off
+    the bottom edge (hover, focus or selection lifts a card), cards grow with
+    the screen height, and the base is a portrait with the gold, the workers and
+    the tech buildings (`keep/1`). A pick banner and the other side's turn
+    summary float: nothing pushes the board.
+  - Act on the card (a desktop): a card with legal actions shows action chips
+    on hover, focus or selection (`chip_bar/1`, `CodexWeb.Moves.chips/2`); a
+    chip with one legal target acts at once. Or drag a ready unit onto a target
+    or a patrol slot: an arrow with a damage preview, the legal targets lit
+    (`data-targets`, the "aim" event). Keys: Tab to a card, Enter or Space
+    selects, A / L / P attack, level up, patrol, Esc cancels.
   - Hover (mouse) or a long press (touch) shows a large face of a card.
   - Motion (240 ms or less, off with reduced motion): a card that arrives in a
     zone flies from where it was; a number that changes bumps, and the base HP
@@ -106,7 +118,9 @@ defmodule CodexWeb.Board do
       zoom: nil,
       opp_open: false,
       expanded: false,
-      summary: nil
+      summary: nil,
+      patrolling: false,
+      focus: nil
     )
   end
 
@@ -130,6 +144,7 @@ defmodule CodexWeb.Board do
       selected: if(kept?, do: a.selected),
       expanded: a.expanded and kept?,
       targeting: nil,
+      patrolling: false,
       tech_pick: if(v.phase == :tech, do: a.tech_pick, else: []),
       drawer: drawer_after(a.drawer, v, env.actions)
     )
@@ -182,8 +197,45 @@ defmodule CodexWeb.Board do
        drawer: nil,
        opp_open: false,
        expanded: false,
-       summary: nil
+       summary: nil,
+       patrolling: false
      )}
+  end
+
+  # An action chip on a card (a desktop), or its key (A, L, P) from the hook:
+  # one legal target acts at once; else a target pick starts, or Patrol lights
+  # the free slots of the selected card.
+  def handle_event("chip", %{"id" => id} = params, socket) do
+    id = int(id)
+    chips = Moves.chips(socket.assigns.actions, id)
+
+    chip =
+      Enum.find(chips, fn c ->
+        c.key == params["key"] or (c.hotkey != nil and c.hotkey == params["hotkey"])
+      end)
+
+    case chip do
+      %{do: action} ->
+        {:act, action,
+         Phoenix.Component.assign(socket, selected: nil, targeting: nil, patrolling: false)}
+
+      %{target: key} ->
+        {:noreply, socket |> start_pick(key) |> Phoenix.Component.assign(patrolling: false)}
+
+      %{patrol: _slots} ->
+        {:noreply,
+         Phoenix.Component.assign(socket,
+           selected: id,
+           targeting: nil,
+           patrolling: true,
+           expanded: false,
+           drawer: nil,
+           summary: nil
+         )}
+
+      nil ->
+        {:noreply, socket}
+    end
   end
 
   # The selected card's sheet on a phone: its peek or the full card and all actions.
@@ -252,6 +304,27 @@ defmodule CodexWeb.Board do
       %{do: action} -> {:act, action, socket}
       %{target: tkey} -> {:noreply, start_pick(socket, tkey)}
       nil -> {:noreply, socket}
+    end
+  end
+
+  # A card dragged onto a target (the hook, `data-targets`): `t` is the target's
+  # token. The server checks it as a pick: only a legal target acts.
+  def handle_event("aim", %{"id" => id, "t" => token}, socket) when is_binary(token) do
+    id = int(id)
+    a = socket.assigns
+
+    case aim_parse(token, a.actions, id) do
+      {:pick, key, value} ->
+        if value in Moves.options(a.actions, key, []).values,
+          do: pick(start_pick(socket, key), value),
+          else: {:noreply, not_legal(socket)}
+
+      # Moves.drop/4 checks the patrol or sideline action itself.
+      {:drop, zone, at} ->
+        rules_drop(socket, id, {a.view.active, zone}, at)
+
+      :error ->
+        {:noreply, not_legal(socket)}
     end
   end
 
@@ -434,7 +507,9 @@ defmodule CodexWeb.Board do
          opp_open: false,
          zoom: nil,
          expanded: false,
-         summary: nil
+         summary: nil,
+         targeting: nil,
+         patrolling: false
        )}
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
@@ -474,6 +549,58 @@ defmodule CodexWeb.Board do
 
   defp drop_text(_zone),
     do: "That move is not a legal action now. Turn on Free mode to move cards by hand."
+
+  defp not_legal(socket) do
+    socket
+    |> Phoenix.Component.assign(targeting: nil, patrolling: false)
+    |> Phoenix.LiveView.put_flash(:error, "That is not a legal target now.")
+  end
+
+  # A `data-targets` token: "atk:<value>", "abl:<ability>:<value>", "pat:<slot>"
+  # or "sid" (sideline). A value is a card id or "b.<seat>.<building>".
+  defp aim_parse("atk:" <> value, _actions, id),
+    do: with({:ok, v} <- aim_value(value), do: {:pick, {:attack, id, nil}, v})
+
+  defp aim_parse("abl:" <> rest, actions, id) do
+    with [name, value] <- String.split(rest, ":", parts: 2),
+         {:ok, v} <- aim_value(value),
+         key when key != nil <- ability_key(actions, id, name) do
+      {:pick, key, v}
+    else
+      _ -> :error
+    end
+  end
+
+  defp aim_parse("pat:" <> slot, _actions, _id) do
+    case Map.fetch(@slot_names, slot) do
+      {:ok, slot} -> {:drop, :patrol, slot}
+      :error -> :error
+    end
+  end
+
+  defp aim_parse("sid", _actions, _id), do: {:drop, :in_play, nil}
+  defp aim_parse(_token, _actions, _id), do: :error
+
+  defp ability_key(actions, id, name) do
+    Enum.find_value(actions, fn
+      {:ability, ^id, n, [_ | _]} -> if Atom.to_string(n) == name, do: {:ability, id, n}
+      _ -> nil
+    end)
+  end
+
+  defp aim_value("b." <> rest) do
+    with [s, name] <- String.split(rest, ".", parts: 2),
+         {:ok, seat} <- seat(s),
+         {:ok, b} <- Map.fetch(@target_buildings, name),
+         do: {:ok, {:building, seat, b}}
+  end
+
+  defp aim_value(value) do
+    case Integer.parse(value) do
+      {n, ""} -> {:ok, n}
+      _ -> :error
+    end
+  end
 
   defp start_pick(socket, {_kind, id, _name} = key) do
     targeting = %{key: key, picked: []}
@@ -595,6 +722,8 @@ defmodule CodexWeb.Board do
       data-pov={@pov}
       data-active={@view.active}
       data-targeting={to_string(@targeting != nil)}
+      data-pick={@targeting && elem(@targeting.key, 0)}
+      data-demo-aim={@demo_aim}
     >
       <div class={["cx-layout", @summary && "cx-noted"]}>
         <.top_bar
@@ -614,11 +743,7 @@ defmodule CodexWeb.Board do
           class="cx-backdrop lg:hidden"
           aria-label={"Close the side of P#{@opp + 1}"}
         ></button>
-        <.center
-          :if={!@targeting}
-          view={@view}
-          actions={@actions}
-        />
+        <.center view={@view} actions={@actions} targeting={@targeting != nil} />
         <.pick_banner :if={@targeting} targeting={@targeting} pick={@pick} view={@view} />
         <.turn_summary_card :if={@summary} summary={@summary} />
         <.side {assigns} seat={@pov} far={false} />
@@ -629,6 +754,7 @@ defmodule CodexWeb.Board do
           art={@art}
           sel={@sel}
           tg={@tg}
+          ui={@ui}
           dock
         />
 
@@ -687,6 +813,26 @@ defmodule CodexWeb.Board do
         <% end %>
       </div>
 
+      <%!-- The aim arrow and its preview (the hook draws them; a desktop mouse). --%>
+      <svg id="cx-arrow" class="cx-arrow" phx-update="ignore" aria-hidden="true">
+        <defs>
+          <marker
+            id="cx-arrow-head"
+            viewBox="0 0 10 10"
+            refX="6"
+            refY="5"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto-start-reverse"
+          >
+            <path d="M0,0 L10,5 L0,10 z" />
+          </marker>
+        </defs>
+        <path class="cx-arrow-under" d="" />
+        <path class="cx-arrow-line" d="" marker-end="url(#cx-arrow-head)" />
+      </svg>
+      <div id="cx-aim-tip" class="cx-aim-tip" phx-update="ignore" aria-hidden="true"></div>
+
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CodexTable">
         export default {
           mounted() {
@@ -732,7 +878,10 @@ defmodule CodexWeb.Board do
               this.hidePreview()
               if (card) this.hoverTimer = setTimeout(() => this.showPreview(card, e.clientX), 500)
             })
-            this.on(el, "pointerleave", () => { this.hoverCard = null; clearTimeout(this.hoverTimer); this.hidePreview() })
+            this.on(el, "pointerleave", () => {
+              this.hoverCard = null; clearTimeout(this.hoverTimer); this.hidePreview()
+              if (!this.aim) this.clearArrow()
+            })
             this.on(el, "pointerdown", () => { clearTimeout(this.hoverTimer); this.hidePreview() })
             this.on(el, "touchstart", e => {
               const card = e.target.closest && e.target.closest("[data-card-id]:not([data-hidden])")
@@ -747,6 +896,46 @@ defmodule CodexWeb.Board do
             this.on(el, "touchend", release)
             this.on(el, "touchcancel", release)
             this.on(el, "contextmenu", e => { if (e.target.closest && e.target.closest("[data-card-id]")) e.preventDefault() })
+
+            // Keyboard: Enter or Space on a focused card (or another role=button)
+            // clicks it. A / L / P: attack, level up, patrol with the focused card,
+            // else the selected one (the server checks each action).
+            this.on(window, "pointerdown", () => { this.kbd = false }, {capture: true})
+            this.on(window, "keydown", e => {
+              this.kbd = true
+              if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return
+              const t = e.target
+              if (t.closest && t.closest("input, textarea, select, [contenteditable]")) return
+              if ((e.key === "Enter" || e.key === " ") && t.matches && t.matches('[role="button"][tabindex]') && el.contains(t)) {
+                e.preventDefault()
+                t.click()
+                return
+              }
+              const k = e.key.toLowerCase()
+              if (!["a", "l", "p"].includes(k) || document.getElementById("cx-drawer")) return
+              const card = (el.contains(t) && t.closest && t.closest("[data-card-id]:not([data-hidden])")) ||
+                el.querySelector("[data-card-id].cx-selected")
+              if (!card) return
+              e.preventDefault()
+              this.pushEvent("chip", {id: card.dataset.cardId, hotkey: k})
+            })
+
+            // Aim (a mouse): press a card with data-targets and move 6 px: an arrow
+            // follows the pointer, the legal targets light and the rest dims.
+            // Release on a target: one "aim" event (the server checks it). In a
+            // pick (the click path) the arrow runs from the selected card.
+            this.on(el, "pointerdown", e => this.aimDown(e))
+            this.on(window, "pointermove", e => this.aimMove(e), {passive: true})
+            this.on(window, "pointerup", e => this.aimUp(e))
+            this.on(window, "pointercancel", () => this.aimEnd())
+            this.on(window, "blur", () => this.aimEnd())
+            this.on(window, "keydown", e => { if (e.key === "Escape" && this.aim) this.aimEnd() })
+            this.on(window, "click", e => {
+              if (!this.eatClick) return
+              this.eatClick = false
+              e.stopPropagation()
+              e.preventDefault()
+            }, {capture: true})
 
             // Motion (off with reduced motion): a card that arrives in a zone flies
             // from where it was (FLIP); a number that changes bumps.
@@ -763,11 +952,156 @@ defmodule CodexWeb.Board do
             this.on(el, "scroll", resnap, {capture: true, passive: true})
             this.observer = new MutationObserver(muts => this.changed(muts))
             this.observer.observe(el, {subtree: true, childList: true, characterData: true})
+
+            // The gallery: "<card id> <target selector>" draws a drag in progress.
+            if (el.dataset.demoAim) requestAnimationFrame(() => this.demoAim(el.dataset.demoAim))
+          },
+          demoAim(spec) {
+            const [id, sel] = [spec.slice(0, spec.indexOf(" ")), spec.slice(spec.indexOf(" ") + 1)]
+            const card = document.getElementById("cx-card-" + id), t = this.el.querySelector(sel)
+            if (!card || !t || !card.dataset.targets) return
+            this.aim = {card, x: 0, y: 0, on: false}
+            this.aimStart()
+            const r = t.getBoundingClientRect()
+            this.aimDraw(r.left + r.width / 2, r.top + r.height / 2)
+          },
+          updated() {
+            // A pick started from the keyboard: the focus goes to the first lit target.
+            const on = this.el.dataset.targeting === "true"
+            if (!on && !this.aim) this.clearArrow()
+            if (on && !this.wasTargeting && this.kbd) {
+              const t = this.el.querySelector(".cx-targetable[tabindex], .cx-targetable-pill[tabindex], #cx-pick button")
+              if (t) t.focus()
+            }
+            this.wasTargeting = on
           },
           on(target, name, fun, opts) {
             this.listeners = this.listeners || []
             target.addEventListener(name, fun, opts)
             this.listeners.push([target, name, fun, opts])
+          },
+          aimDown(e) {
+            if (e.pointerType !== "mouse" || e.button !== 0 || this.el.dataset.targeting === "true") return
+            const card = e.target.closest && e.target.closest("[data-targets]")
+            if (!card || e.target.closest(".cx-chipbar")) return
+            this.aim = {card, x: e.clientX, y: e.clientY, on: false}
+          },
+          aimMove(e) {
+            const a = this.aim
+            if (a) {
+              if (!a.on) {
+                if (Math.hypot(e.clientX - a.x, e.clientY - a.y) < 6) return
+                this.aimStart()
+              }
+              this.aimDraw(e.clientX, e.clientY)
+            } else if (this.el.dataset.targeting === "true" && e.pointerType === "mouse") {
+              this.pickDraw(e.clientX, e.clientY)
+            }
+          },
+          aimStart() {
+            const a = this.aim
+            let map = {}
+            try { map = JSON.parse(a.card.dataset.targets) } catch (_) {}
+            a.on = true
+            a.lit = new Map()
+            for (const [sel, info] of Object.entries(map)) {
+              this.el.querySelectorAll(sel).forEach(t => { t.classList.add("cx-lit"); a.lit.set(t, info) })
+            }
+            a.card.classList.add("cx-aim-src")
+            document.body.classList.add("cx-aiming")
+            const sel = window.getSelection && window.getSelection()
+            if (sel) sel.removeAllRanges()
+            clearTimeout(this.hoverTimer)
+            this.hidePreview()
+          },
+          hit(x, y, test) {
+            let n = document.elementFromPoint(x, y)
+            while (n && n !== this.el) { if (test(n)) return n; n = n.parentElement }
+            return null
+          },
+          aimDraw(x, y) {
+            const a = this.aim
+            const t = this.hit(x, y, n => a.lit.has(n))
+            if (a.over !== t) {
+              if (a.over) a.over.classList.remove("cx-aim-over")
+              if (t) t.classList.add("cx-aim-over")
+              a.over = t
+            }
+            this.drawArrow(a.card, t, x, y, t && a.lit.get(t).p)
+          },
+          aimUp(e) {
+            const a = this.aim
+            if (!a) return
+            if (a.on) {
+              const t = this.hit(e.clientX, e.clientY, n => a.lit.has(n))
+              // The click that follows this drag must not select or move anything.
+              this.eatClick = true
+              setTimeout(() => { this.eatClick = false }, 0)
+              if (t) this.pushEvent("aim", {id: a.card.dataset.cardId, t: a.lit.get(t).t})
+            }
+            this.aimEnd()
+          },
+          aimEnd() {
+            const a = this.aim
+            this.aim = null
+            if (a && a.lit) {
+              a.lit.forEach((_info, t) => t.classList.remove("cx-lit", "cx-aim-over"))
+              a.card.classList.remove("cx-aim-src")
+            }
+            document.body.classList.remove("cx-aiming")
+            this.clearArrow()
+          },
+          pickDraw(x, y) {
+            const src = this.el.querySelector("[data-card-id].cx-selected")
+            if (!src) { this.clearArrow(); return }
+            const t = this.hit(x, y, n => n.matches(".cx-targetable, .cx-targetable-pill"))
+            let p = null
+            if (t && src.dataset.targets && this.el.dataset.pick === "attack") {
+              try {
+                for (const [sel, info] of Object.entries(JSON.parse(src.dataset.targets))) if (t.matches(sel)) p = info.p
+              } catch (_) {}
+            }
+            this.drawArrow(src, t, x, y, p)
+          },
+          drawArrow(src, t, x, y, label) {
+            const svg = document.getElementById("cx-arrow"), tip = document.getElementById("cx-aim-tip")
+            if (!svg || !tip) return
+            const r = src.getBoundingClientRect()
+            const x1 = r.left + r.width / 2, y1 = r.top + r.height / 2
+            let x2 = x, y2 = y, top = y
+            if (t) {
+              const q = t.getBoundingClientRect()
+              x2 = q.left + q.width / 2; y2 = q.top + q.height / 2; top = q.top
+            }
+            // A gentle curve that bends upwards.
+            const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1
+            let nx = -dy / len, ny = dx / len
+            if (ny > 0) { nx = -nx; ny = -ny }
+            const bend = Math.min(70, len * 0.2)
+            const cx = (x1 + x2) / 2 + nx * bend, cy = (y1 + y2) / 2 + ny * bend
+            if (t) {
+              // On a target the head stops short of its centre (its numbers stay readable).
+              const q = t.getBoundingClientRect(), back = Math.min(q.width, q.height) * 0.3
+              const ex = x2 - cx, ey = y2 - cy, el = Math.hypot(ex, ey) || 1
+              x2 -= ex / el * back; y2 -= ey / el * back
+            }
+            const d = `M${x1.toFixed(1)},${y1.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`
+            svg.querySelectorAll(".cx-arrow-under, .cx-arrow-line").forEach(p => p.setAttribute("d", d))
+            svg.classList.add("cx-on")
+            svg.classList.toggle("cx-hit", !!t)
+            if (label) {
+              tip.textContent = label
+              tip.style.left = `${x2}px`
+              tip.style.top = `${top}px`
+              tip.classList.add("cx-on")
+            } else {
+              tip.classList.remove("cx-on")
+            }
+          },
+          clearArrow() {
+            const svg = document.getElementById("cx-arrow"), tip = document.getElementById("cx-aim-tip")
+            if (svg) svg.classList.remove("cx-on", "cx-hit")
+            if (tip) tip.classList.remove("cx-on")
           },
           dropIndex(zone, target) {
             if (zone.dataset.list !== "true") return null
@@ -880,6 +1214,7 @@ defmodule CodexWeb.Board do
               .onfinish = () => f.remove()
           },
           destroyed() {
+            this.aimEnd()
             if (this.observer) this.observer.disconnect()
             this.hidePreview()
             document.body.classList.remove("cx-dragging")
@@ -903,7 +1238,8 @@ defmodule CodexWeb.Board do
       expanded: assigns[:expanded] || false,
       opp_open: assigns[:opp_open] || false,
       zoom: assigns[:zoom] && v.cards[assigns.zoom],
-      summary: assigns[:summary]
+      summary: assigns[:summary],
+      demo_aim: assigns[:demo_aim]
     ] ++ selection_assigns(assigns, v)
   end
 
@@ -918,8 +1254,236 @@ defmodule CodexWeb.Board do
       where: selected && where(v, selected.id),
       pick: pick,
       tg: MapSet.new((pick && pick.values) || []),
-      buttons: if(selected && !v.free, do: Moves.buttons(assigns.actions, selected.id), else: [])
+      buttons: if(selected && !v.free, do: Moves.buttons(assigns.actions, selected.id), else: []),
+      ui: ui(assigns, v, selected)
     ]
+  end
+
+  # Per-card marks for the cards on the table: `chips` (card id => its action
+  # chips, `Moves.chips/2` with a label; none in free mode or in a pick),
+  # `focus` and `hover` (the gallery draws a focus ring or the hover look on
+  # that card) and `lit`: the free patrol slots ({seat, slot}) of the selected
+  # card after Patrol.
+  defp ui(assigns, v, selected) do
+    lit =
+      if assigns[:patrolling] && selected,
+        do:
+          for(
+            {:patrol, id, slot} <- assigns.actions,
+            id == selected.id,
+            into: MapSet.new(),
+            do: {v.active, slot}
+          ),
+        else: MapSet.new()
+
+    chips = card_chips(assigns, v)
+
+    %{
+      chips: chips,
+      aim: aim_map(assigns, v),
+      focus: assigns[:focus],
+      hover: assigns[:hover],
+      lit: lit
+    }
+  end
+
+  defp aim_map(_assigns, %{free: true}), do: %{}
+
+  defp aim_map(assigns, v) do
+    ids =
+      for a <- assigns.actions, is_tuple(a), is_integer(elem(a, 1)), uniq: true, do: elem(a, 1)
+
+    Map.new(ids, &{&1, aim_targets(assigns.actions, v, &1)})
+  end
+
+  # The drag targets of card `id` (the hook draws the arrow; the server checks
+  # the drop): JSON of CSS selector => %{"t" => token for "aim", "p" => preview}.
+  # Attack targets (else the targets of its first targeted ability), its free
+  # patrol slots and Sideline. Nil: no drag target (the card keeps HTML drag).
+  defp aim_targets(actions, v, id) do
+    attack =
+      for value <- Moves.options(actions, {:attack, id, nil}, []).values,
+          sel = target_selector(value),
+          sel != nil,
+          into: %{},
+          do: {sel, %{"t" => "atk:" <> value_token(value), "p" => preview(v, id, value)}}
+
+    targets =
+      attack
+      |> Map.merge(if attack == %{}, do: ability_targets(actions, id), else: %{})
+      |> Map.merge(
+        for {:patrol, ^id, slot} <- actions,
+            into: %{},
+            do:
+              {"#cx-slot-#{v.active}-#{slot}",
+               %{"t" => "pat:#{slot}", "p" => elem(@slot_labels[slot], 0)}}
+      )
+      |> Map.merge(
+        if {:sideline, id} in actions,
+          do: %{"#cx-zone-#{v.active}-in_play" => %{"t" => "sid", "p" => "Sideline"}},
+          else: %{}
+      )
+
+    if targets != %{}, do: Jason.encode!(targets)
+  end
+
+  defp ability_targets(actions, id) do
+    case Enum.find(actions, &match?({:ability, ^id, _, [_ | _]}, &1)) do
+      {:ability, _, name, _} ->
+        for value <- Moves.options(actions, {:ability, id, name}, []).values,
+            sel = target_selector(value),
+            sel != nil,
+            into: %{},
+            do:
+              {sel,
+               %{"t" => "abl:#{name}:" <> value_token(value), "p" => Moves.ability_label(name)}}
+
+      nil ->
+        %{}
+    end
+  end
+
+  defp target_selector(id) when is_integer(id), do: "#cx-card-#{id}"
+  defp target_selector({:building, s, :base}), do: "[data-base='#{s}']"
+  defp target_selector({:building, s, b}), do: "[data-building='#{s}-#{b}']"
+  defp target_selector(_value), do: nil
+
+  defp value_token(id) when is_integer(id), do: Integer.to_string(id)
+  defp value_token({:building, s, b}), do: "b.#{s}.#{b}"
+
+  # What an attack does to the target, as a short line: HP now → HP after
+  # ("3 → 1 HP", "3 → dies", "Base 20 → 18"). The target's armor counts (`Codex.Stats.armor/2`); other
+  # combat rules (long-range, deathtouch) do not: the engine decides.
+  defp preview(v, a, value) do
+    atk =
+      case v.cards[a] do
+        %{now: {atk, _}} -> atk
+        _ -> 0
+      end
+
+    damage_line(v, atk, value)
+  end
+
+  defp damage_line(v, atk, {:building, s, :base}) do
+    hp = v.sides[s].base_hp
+    "Base #{hp} → #{max(hp - atk, 0)}"
+  end
+
+  defp damage_line(v, atk, {:building, s, b}) do
+    left = building_hp_left(v.sides[s], b)
+    "#{building_label(b)} #{left} → #{max(left - atk, 0)}"
+  end
+
+  defp damage_line(v, atk, t) do
+    c = v.cards[t]
+    {_atk, hp} = Map.get(c, :now) || {0, Cards.fetch!(c.card).hp || 0}
+    dmg = max(atk - Codex.Stats.armor(v, t), 0)
+    now = hp - c.damage
+    left = now - dmg
+    if left <= 0, do: "#{now} → dies", else: "#{now} → #{left} HP"
+  end
+
+  defp card_chips(%{targeting: t}, _v) when t != nil, do: %{}
+  defp card_chips(_assigns, %{free: true}), do: %{}
+
+  defp card_chips(assigns, v) do
+    ids =
+      for a <- assigns.actions, is_tuple(a), is_integer(elem(a, 1)), uniq: true, do: elem(a, 1)
+
+    Map.new(ids, fn id ->
+      chips =
+        for chip <- Enum.sort_by(Moves.chips(assigns.actions, id), &chip_rank(&1.kind)),
+            do: Map.put(chip, :label, chip_label(chip, v))
+
+      {id, chips}
+    end)
+  end
+
+  defp chip_label(%{kind: :attack, one: value}, v), do: "Attack #{value_label(v, value)}"
+  defp chip_label(%{kind: :attack}, _v), do: "Attack…"
+
+  defp chip_label(%{kind: :patrol, do: {:patrol, _, slot}}, _v),
+    do: "Patrol as #{elem(@slot_labels[slot], 0)}"
+
+  defp chip_label(%{kind: :patrol}, _v), do: "Patrol…"
+
+  defp chip_label(%{one: value} = chip, v),
+    do: "#{String.trim_trailing(chip_base_label(chip), "…")}: #{value_label(v, value)}"
+
+  defp chip_label(chip, _v), do: chip_base_label(chip)
+
+  defp chip_base_label(%{key: "level"}), do: "Level up (1 gold)"
+  defp chip_base_label(%{key: "hire"}), do: "Hire as a worker (1 gold)"
+  defp chip_base_label(%{key: "summon"}), do: "Summon"
+  defp chip_base_label(%{key: "sideline"}), do: "Sideline"
+  defp chip_base_label(%{key: "play"}), do: "Play"
+  defp chip_base_label(%{key: "play-pick"}), do: "Play…"
+
+  defp chip_base_label(%{key: "ability-" <> _, target: {:ability, _, name}}),
+    do: Moves.ability_label(name) <> "…"
+
+  defp chip_base_label(%{key: "ability-" <> _, do: {:ability, _, name, _}}),
+    do: Moves.ability_label(name)
+
+  defp chip_base_label(%{key: key}), do: key
+
+  @chip_order ~w(attack play hire summon level ability patrol sideline)a
+  defp chip_rank(kind), do: Enum.find_index(@chip_order, &(&1 == kind))
+
+  defp chip_icon(:attack), do: "hero-bolt-solid"
+  defp chip_icon(:level), do: "hero-chevron-double-up-solid"
+  defp chip_icon(:patrol), do: "hero-shield-check-solid"
+  defp chip_icon(:sideline), do: "hero-shield-exclamation-solid"
+  defp chip_icon(:hire), do: "hero-wrench-solid"
+  defp chip_icon(:summon), do: "hero-arrow-down-circle-solid"
+  defp chip_icon(:play), do: "hero-play-solid"
+  defp chip_icon(:ability), do: "hero-sparkles-solid"
+
+  # The action chips on a card (a desktop): round buttons on its top edge. CSS
+  # shows them on hover, focus and selection; a phone keeps the bottom sheet.
+  # Not in the tab order: the card's keys (A, L, P) and the inspector reach them.
+  attr :c, :map, required: true
+  attr :chips, :list, required: true
+
+  defp chip_bar(assigns) do
+    # At most 3 buttons: with 4 or more chips, 2 and "…" (all, in the inspector).
+    {shown, more} = Enum.split(assigns.chips, if(length(assigns.chips) > 3, do: 2, else: 3))
+    assigns = assign(assigns, shown: shown, more: more != [])
+
+    ~H"""
+    <div class="cx-chipbar" role="group" aria-label="Actions">
+      <button
+        :for={chip <- @shown}
+        id={"cx-chip-#{@c.id}-#{chip.key}"}
+        type="button"
+        tabindex="-1"
+        draggable="false"
+        phx-click="chip"
+        phx-value-id={@c.id}
+        phx-value-key={chip.key}
+        class={["cx-chipbtn", "cx-chipbtn-#{chip.kind}"]}
+        aria-label={chip.label}
+        title={if(chip.hotkey, do: "#{chip.label} (#{String.upcase(chip.hotkey)})", else: chip.label)}
+        data-kind={chip.kind}
+      >
+        <.icon name={chip_icon(chip.kind)} class="size-4" />
+      </button>
+      <button
+        :if={@more}
+        id={"cx-chip-#{@c.id}-more"}
+        type="button"
+        tabindex="-1"
+        draggable="false"
+        phx-click="select"
+        phx-value-id={@c.id}
+        class="cx-chipbtn"
+        aria-label="All actions"
+        title="All actions"
+      >
+        <.icon name="hero-ellipsis-horizontal-mini" class="size-4" />
+      </button>
+    </div>
+    """
   end
 
   # What the other side did in its turn: a card over the board until "OK".
@@ -930,7 +1494,7 @@ defmodule CodexWeb.Board do
     assigns = assign(assigns, lines: lines, more: length(more))
 
     ~H"""
-    <div id="cx-summary" class="cx-a-note cx-summary" role="status">
+    <div id="cx-summary" class="cx-a-note cx-summary cx-toast-lg" role="status">
       <div class="flex items-center gap-2">
         <span class={[
           "rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white",
@@ -1063,7 +1627,10 @@ defmodule CodexWeb.Board do
 
   attr :view, :map, required: true
   attr :actions, :list, default: []
+  attr :targeting, :boolean, default: false
 
+  # The status bar. In a target pick it stays in its row on a desktop (the
+  # banner floats over it: nothing moves); a phone shows the banner in its place.
   defp center(assigns) do
     v = assigns.view
 
@@ -1071,7 +1638,7 @@ defmodule CodexWeb.Board do
       assign(assigns, hint: hint(v, assigns.actions), can_end?: :end_turn in assigns.actions)
 
     ~H"""
-    <div id="cx-status" class="cx-a-status cx-status">
+    <div id="cx-status" class={["cx-a-status cx-status", @targeting && "max-lg:hidden"]}>
       <div
         id="cx-active"
         class={[
@@ -1190,6 +1757,7 @@ defmodule CodexWeb.Board do
   attr :reveal, :boolean, default: false
   attr :players, :map, default: %{}
   attr :actions, :list, default: []
+  attr :ui, :map, default: %{chips: %{}, aim: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp side(assigns) do
     side = assigns.view.sides[assigns.seat]
@@ -1231,7 +1799,7 @@ defmodule CodexWeb.Board do
         phx-click="pick_building"
         phx-value-seat={@seat}
         phx-value-name="base"
-        class="cx-base-tile cx-targetable-pill"
+        class="cx-base-tile cx-targetable-pill lg:hidden"
       >
         <.icon name="hero-home-solid" class="size-5" />
         <span class="font-bold">Attack the base of P{@seat + 1}</span>
@@ -1241,6 +1809,7 @@ defmodule CodexWeb.Board do
       </button>
       <p :if={@far and !@board?} class="cx-strip-empty">No units or heroes in play.</p>
       <div class="cx-side-body">
+        <.keep seat={@seat} side={@side} tg={@tg} />
         <%= if @far do %>
           <div class="cx-pair cx-pair-mat">
             <.mat {assigns} />
@@ -1252,12 +1821,21 @@ defmodule CodexWeb.Board do
               sel={@sel}
               tg={@tg}
               hidden?={!@reveal}
+              ui={@ui}
               far
             />
           </div>
         <% end %>
         <div class="cx-pair cx-pair-board">
-          <.patrol seat={@seat} slots={@zones.patrol} view={@view} art={@art} sel={@sel} tg={@tg} />
+          <.patrol
+            seat={@seat}
+            slots={@zones.patrol}
+            view={@view}
+            art={@art}
+            sel={@sel}
+            tg={@tg}
+            ui={@ui}
+          />
           <.row
             seat={@seat}
             zone={:in_play}
@@ -1266,6 +1844,7 @@ defmodule CodexWeb.Board do
             art={@art}
             sel={@sel}
             tg={@tg}
+            ui={@ui}
           />
         </div>
         <div :if={!@far} class="cx-pair cx-pair-mat">
@@ -1273,6 +1852,83 @@ defmodule CodexWeb.Board do
         </div>
       </div>
     </section>
+    """
+  end
+
+  attr :seat, :integer, required: true
+  attr :side, :map, required: true
+  attr :tg, :any, default: nil
+
+  # A desktop: the base as a big portrait at the left of the side (the win
+  # condition is the largest number), with the gold, the workers and the tech
+  # buildings under it. In a pick it is the target (as are its buildings); a
+  # drag aims at `[data-base]` / `[data-building]`. A phone keeps the header.
+  defp keep(assigns) do
+    side = assigns.side
+    base? = assigns.tg != nil and {:building, assigns.seat, :base} in assigns.tg
+
+    assigns =
+      assign(assigns,
+        base?: base?,
+        buildings:
+          for(b <- side.tech_buildings, do: {b, building_hp_left(side, b)}) ++
+            for(b <- side.pending, do: {b, nil})
+      )
+
+    ~H"""
+    <div id={"cx-keep-col-#{@seat}"} class="cx-keep hidden lg:flex">
+      <div
+        id={"cx-keep-#{@seat}"}
+        data-base={@seat}
+        class={["cx-keep-base", seat_bg(@seat), @base? && "cx-targetable-pill cursor-crosshair"]}
+        phx-click={@base? && "pick_building"}
+        phx-value-seat={@seat}
+        phx-value-name="base"
+        tabindex={@base? && "0"}
+        role={@base? && "button"}
+        aria-label={"Base of P#{@seat + 1}: #{@side.base_hp} HP"}
+        title={"Base of P#{@seat + 1}"}
+      >
+        <.icon name="hero-home-modern-solid" class="cx-keep-icon" />
+        <span class="cx-keep-hp">
+          <.icon name="hero-heart-solid" class="size-4 text-rose-300" />
+          <span id={"cx-keep-hp-#{@seat}"} data-bump="float">{@side.base_hp}</span>
+        </span>
+        <span class="cx-keep-label">Base</span>
+      </div>
+      <div class="cx-keep-stats">
+        <span title="Gold">
+          <.icon name="hero-circle-stack-solid" class="size-3.5 text-amber-300" />
+          <span id={"cx-keep-gold-#{@seat}"} data-bump>{@side.gold}</span>
+        </span>
+        <span title="Workers">
+          <.icon name="hero-wrench-solid" class="size-3.5 text-white/60" />
+          <span id={"cx-keep-workers-#{@seat}"} data-bump>{length(@side.zones.workers)}</span>
+        </span>
+      </div>
+      <button
+        :for={{b, hp} <- @buildings}
+        id={"cx-keep-b-#{@seat}-#{b}"}
+        type="button"
+        data-building={"#{@seat}-#{b}"}
+        phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
+        phx-value-seat={@seat}
+        phx-value-name={b}
+        disabled={!(@tg && {:building, @seat, b} in @tg)}
+        class={[
+          "cx-keep-b",
+          hp == nil && "cx-keep-b-pending",
+          @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-crosshair"
+        ]}
+        title={
+          if(hp, do: "#{building_label(b)}: #{hp} HP", else: "Building: ready at the end of the turn")
+        }
+      >
+        <span class="truncate">{building_label(b)}</span>
+        <span :if={hp} class="tabular-nums opacity-70">{hp}</span>
+        <span :if={!hp}>…</span>
+      </button>
+    </div>
     """
   end
 
@@ -1309,7 +1965,7 @@ defmodule CodexWeb.Board do
         <span class="hidden sm:inline">· {@spec_text}</span>
         <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn {@side.turn}</span>
       </span>
-      <div class="flex shrink-0 items-center gap-1">
+      <div class={["flex shrink-0 items-center gap-1", !@free && "cx-keep-dup"]}>
         <.stepper
           id={"cx-hp-#{@seat}"}
           seat={@seat}
@@ -1385,6 +2041,9 @@ defmodule CodexWeb.Board do
       phx-value-seat={@seat}
       phx-value-name={@building}
       id={@target && "#{@id}-target"}
+      tabindex={@target && "0"}
+      role={@target && "button"}
+      data-base={@building == "base" && @seat}
     >
       <button
         :if={@free}
@@ -1426,6 +2085,7 @@ defmodule CodexWeb.Board do
   attr :art, :any, required: true
   attr :sel, :map, default: nil
   attr :tg, :any, default: nil
+  attr :ui, :map, default: %{chips: %{}, aim: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp patrol(assigns) do
     assigns = assign(assigns, order: Game.patrol_slots(), labels: @slot_labels)
@@ -1444,7 +2104,11 @@ defmodule CodexWeb.Board do
         phx-value-seat={@seat}
         phx-value-zone="patrol"
         phx-value-slot={slot}
-        class={["cx-zone cx-slot", @sel && "cx-target"]}
+        class={[
+          "cx-zone cx-slot",
+          @sel && "cx-target",
+          {@seat, slot} in @ui.lit && "cx-slot-lit"
+        ]}
       >
         <span class="cx-label truncate" title={elem(@labels[slot], 0)}>
           <span class="hidden lg:inline">{elem(@labels[slot], 0)}</span>
@@ -1457,6 +2121,7 @@ defmodule CodexWeb.Board do
             art={@art}
             selected={@sel && @sel.id == @slots[slot]}
             target={@tg && @slots[slot] in @tg}
+            ui={@ui}
           />
         </div>
       </div>
@@ -1471,6 +2136,7 @@ defmodule CodexWeb.Board do
   attr :art, :any, required: true
   attr :sel, :map, default: nil
   attr :tg, :any, default: nil
+  attr :ui, :map, default: %{chips: %{}, aim: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp row(assigns) do
     ~H"""
@@ -1494,6 +2160,7 @@ defmodule CodexWeb.Board do
           art={@art}
           selected={@sel && @sel.id == id}
           target={@tg && id in @tg}
+          ui={@ui}
         />
       </div>
     </div>
@@ -1509,6 +2176,7 @@ defmodule CodexWeb.Board do
   attr :hidden?, :boolean, default: false
   attr :far, :boolean, default: false
   attr :dock, :boolean, default: false
+  attr :ui, :map, default: %{chips: %{}, aim: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp hand(assigns) do
     n = length(assigns.ids)
@@ -1543,6 +2211,7 @@ defmodule CodexWeb.Board do
           selected={@sel && @sel.id == id}
           target={@tg && id in @tg}
           style={fan_style(i, @mid, @far)}
+          ui={@ui}
         />
       </div>
     </div>
@@ -1594,6 +2263,7 @@ defmodule CodexWeb.Board do
           art={@art}
           selected={@sel && @sel.id == id}
           target={@tg && id in @tg}
+          ui={@ui}
         />
         <button
           :for={b <- @buildings}
@@ -1602,8 +2272,9 @@ defmodule CodexWeb.Board do
           phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
           phx-value-seat={@seat}
           phx-value-name={b}
+          data-building={"#{@seat}-#{b}"}
           class={[
-            "cx-building",
+            "cx-building lg:hidden",
             @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
           ]}
           title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
@@ -1617,7 +2288,7 @@ defmodule CodexWeb.Board do
         <span
           :for={b <- @side.pending}
           id={"cx-pending-#{@seat}-#{b}"}
-          class="cx-building cx-building-pending"
+          class="cx-building cx-building-pending lg:hidden"
           title="Building: ready at the end of the turn"
         >
           {building_label(b)} …
@@ -1733,6 +2404,7 @@ defmodule CodexWeb.Board do
       class={["cx-zone cx-chip", @target? && "cx-target"]}
       title={"#{@label}: #{@count}"}
       role="button"
+      tabindex="0"
     >
       <span class="flex items-center gap-1">
         <.icon name={@icon} class="size-4 text-white/55" />
@@ -1749,10 +2421,13 @@ defmodule CodexWeb.Board do
   attr :art, :any, required: true
   attr :selected, :any, default: false
   attr :target, :any, default: false, doc: "a legal target of the pick in progress"
+  attr :ui, :map, default: %{chips: %{}, aim: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   # A card on the board: an art crop, the cost (or the hero level), the name and
-  # the ATK/HP now. Colours: green above the printed value, violet below, red HP
-  # when damaged. Exhausted: grey. A long press (or a hover) shows the full card.
+  # the ATK/HP now; on a desktop its action chips (`chip_bar/1`). Colours: green
+  # above the printed value, violet below, red HP when damaged. Exhausted: grey.
+  # A long press (or a hover) shows the full card. A card with drag targets
+  # (`data-targets`) drags with the aim arrow, not with the HTML drag.
   defp mini(assigns) do
     c = assigns.c
     d = Cards.fetch!(c.card)
@@ -1774,18 +2449,26 @@ defmodule CodexWeb.Board do
       id={"cx-card-#{@c.id}"}
       data-card-id={@c.id}
       data-zoom={@zoom}
-      draggable="true"
+      data-targets={@ui.aim[@c.id]}
+      draggable={to_string(@ui.aim[@c.id] == nil)}
       phx-click="select"
       phx-value-id={@c.id}
       title={@d.name}
+      tabindex="0"
+      role="button"
+      aria-pressed={to_string(@selected == true)}
+      aria-label={if(@back?, do: "A face-down card", else: @d.name)}
       class={[
         "cx-mc cursor-pointer",
         tone(@d),
         @c.exhausted && "cx-exhausted",
         @selected && "cx-selected",
-        @target && "cx-targetable"
+        @target && "cx-targetable",
+        @ui.focus == @c.id && "cx-focus",
+        @ui.hover == @c.id && "cx-hover"
       ]}
     >
+      <.chip_bar :if={@ui.chips[@c.id] not in [nil, []]} c={@c} chips={@ui.chips[@c.id]} />
       <div class="cx-mc-art">
         <%= cond do %>
           <% @back? -> %>
@@ -1879,6 +2562,7 @@ defmodule CodexWeb.Board do
   attr :prefix, :string, default: "cx-card"
   attr :click, :boolean, default: true
   attr :style, :string, default: nil
+  attr :ui, :map, default: %{chips: %{}, aim: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp card(assigns) do
     c = assigns.c
@@ -1906,14 +2590,24 @@ defmodule CodexWeb.Board do
       phx-value-id={@c.id}
       title={if(@hidden, do: "a card", else: @d.name)}
       style={@style}
+      tabindex={@click && !@hidden && "0"}
+      role={@click && !@hidden && "button"}
+      aria-pressed={@click && !@hidden && to_string(@selected == true)}
       class={[
         "cx-card",
         @c.exhausted && "cx-exhausted",
         @selected && "cx-selected",
         @target && "cx-targetable",
-        @click && !@hidden && "cursor-pointer"
+        @click && !@hidden && "cursor-pointer",
+        @ui.focus == @c.id && "cx-focus",
+        @ui.hover == @c.id && "cx-hover"
       ]}
     >
+      <.chip_bar
+        :if={@click && !@hidden && @ui.chips[@c.id] not in [nil, []]}
+        c={@c}
+        chips={@ui.chips[@c.id]}
+      />
       <%= cond do %>
         <% @back? -> %>
           <.back art={@art} />
@@ -2282,8 +2976,9 @@ defmodule CodexWeb.Board do
   defp value_label(_v, atom) when is_atom(atom),
     do: atom |> to_string() |> String.replace("_", " ")
 
-  # A target pick in progress: a banner in place of the status bar. The legal
-  # targets glow, the rest of the table dims; each target also has a button here.
+  # A target pick in progress: a banner in place of the status bar (a desktop: a
+  # pill that floats over it). The legal targets glow, the rest of the table dims;
+  # each target also has a button here.
   attr :targeting, :map, required: true
   attr :pick, :map, required: true
   attr :view, :map, required: true
@@ -2298,7 +2993,7 @@ defmodule CodexWeb.Board do
       )
 
     ~H"""
-    <div id="cx-pick" class="cx-a-status cx-banner" role="status">
+    <div id="cx-pick" class="cx-a-status cx-banner cx-float-lg" role="status">
       <div class="flex items-center gap-2">
         <span class="grid size-9 shrink-0 place-items-center rounded-full bg-amber-300 text-stone-900">
           <.icon
@@ -2319,7 +3014,7 @@ defmodule CodexWeb.Board do
           id="cx-pick-skip"
           type="button"
           phx-click="skip_target"
-          class="cx-act"
+          class="cx-act cx-pick-ctl"
         >
           Skip
         </button>
@@ -2328,11 +3023,17 @@ defmodule CodexWeb.Board do
           id="cx-pick-done"
           type="button"
           phx-click="pick_done"
-          class="cx-act cx-act-rule"
+          class="cx-act cx-act-rule cx-pick-ctl"
         >
           Done
         </button>
-        <button id="cx-pick-cancel" type="button" phx-click="cancel_target" class="cx-act">
+        <button
+          id="cx-pick-cancel"
+          type="button"
+          phx-click="cancel_target"
+          class="cx-act cx-pick-ctl"
+          title="Cancel (Esc)"
+        >
           Cancel
         </button>
       </div>
@@ -2366,11 +3067,12 @@ defmodule CodexWeb.Board do
     >
       <p class="mb-1 font-semibold text-white">How to play</p>
       <p>
-        Click a card to see what it can do now: play it, hire it as a worker, attack,
-        summon, level up. Drag a card from your hand to In play to play it, to Workers
-        to hire it, and a unit to a patrol slot to patrol. To attack, pick "Attack…" and
-        click a glowing target. Hover a card to see it large. Free mode lets you fix
-        anything by hand.
+        Point at a card: its action buttons show on it (attack, level up, patrol, play,
+        hire). One click acts; with more than one target, click a glowing target next.
+        Or drag a ready unit onto a glowing target or a patrol slot: the arrow shows
+        what the attack does. Keys: Tab to a card, then A attack, L level up, P patrol,
+        Enter select, Esc cancel. Drag a card from your hand to In play to play it, to
+        Workers to hire it. Hover a card to see it large. Free mode fixes anything by hand.
       </p>
     </div>
     <div

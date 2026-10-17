@@ -705,6 +705,7 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
    These responsive utilities must still win on the board's own classes. */
 @media (min-width: 640px) { .cx-table .sm\:w-auto { width: auto; } }
 @media (min-width: 1024px) { .cx-table .lg\:hidden { display: none; } }
+@media (max-width: 1023px) { .cx-table .max-lg\:hidden { display: none; } }
 
 /* A target pick: the banner in place of the status bar, the base as a big
    target tile, the rest of the table dimmed. */
@@ -749,12 +750,45 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
   grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
   grid-template-areas: "top" "opp" "status" "note" "board" "sheet" "hand";
 }
+/* A desktop: nothing pushes the board. The summary is a toast (at the top of
+   the right column, see the one-screen block) that fades after 8 s (it stays with reduced motion; OK closes it); the
+   pick banner floats over the status bar, which keeps its row. */
 @media (min-width: 1024px) {
+  .cx-layout { position: relative; }
   .cx-layout.cx-noted {
-    grid-template-rows: auto auto auto auto auto auto 1fr;
-    grid-template-areas: "top sheet" "opp sheet" "status sheet" "note sheet" "board sheet" "hand sheet" ". sheet";
+    grid-template-rows: auto auto auto auto auto 1fr;
+    grid-template-areas: "top sheet" "opp sheet" "status sheet" "board sheet" "hand sheet" ". sheet";
   }
+  .cx-summary.cx-toast-lg {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 30;
+    width: min(22rem, calc(100vw - 32px));
+    animation: cx-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1), cx-toast-out 400ms ease-in 8s forwards;
+  }
+  .cx-summary.cx-toast-lg:hover { animation-play-state: paused; }
+  .cx-banner.cx-float-lg {
+    position: absolute;
+    z-index: 20;
+    align-self: start;
+    justify-self: center;
+    width: min(44rem, 100%);
+    margin-top: -4px;
+    flex-direction: row;
+    align-items: center;
+    border-radius: 999px;
+    padding: 5px 6px 5px 6px;
+    background: linear-gradient(100deg, oklch(42% 0.09 70), oklch(30% 0.05 60));
+  }
+  .cx-banner.cx-float-lg > :first-child { display: contents; }
+  .cx-banner.cx-float-lg > :first-child > p { flex: 1 1 auto; }
+  .cx-banner.cx-float-lg .cx-banner-choices { order: 1; flex: 0 1 auto; min-width: 0; }
+  .cx-banner.cx-float-lg .cx-pick-ctl { order: 2; border-radius: 999px; }
+  .cx-banner.cx-float-lg .cx-banner-choices > .cx-act { border-radius: 999px; }
 }
+@keyframes cx-toast-out { to { opacity: 0; visibility: hidden; } }
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) { .cx-summary.cx-toast-lg { animation: none; } }
 .cx-summary {
   display: flex;
   flex-direction: column;
@@ -784,3 +818,276 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
 }
 .cx-float-down { background: oklch(55% 0.22 27); }
 .cx-chip-count, .cx-mc-atk, .cx-mc-hp, [data-bump="float"] { display: inline-block; }
+
+/* Keyboard: a focus ring on cards, piles and targets (`.cx-focus`: the gallery's
+   static copy of it). Patrol: the free slots of the selected card light up. */
+.cx-mc:focus-visible, .cx-card:focus-visible, .cx-mc.cx-focus, .cx-card.cx-focus,
+.cx-table [role="button"][tabindex]:focus-visible {
+  outline: 2.5px solid oklch(88% 0.15 85);
+  outline-offset: 3px;
+}
+.cx-mc:focus { outline-style: none; }
+.cx-mc:focus-visible, .cx-mc.cx-focus { outline-style: solid; transform: translateY(-3px); z-index: 5; }
+.cx-slot.cx-slot-lit {
+  background: oklch(85% 0.15 85 / 0.14);
+  box-shadow: inset 0 0 0 2px var(--cx-gold), 0 0 16px -4px oklch(85% 0.15 85 / 0.7);
+}
+.cx-slot.cx-slot-lit .cx-slot-card { outline-color: oklch(85% 0.15 85 / 0.7); }
+
+/* Action chips on a card (a desktop): round buttons on its top edge, shown on
+   hover, focus and selection. None on a phone (the bottom sheet), in a pick or
+   while a card is dragged. */
+.cx-chipbar { display: none; }
+@media (min-width: 1024px) {
+  .cx-row-cards { overflow: visible; }
+  .cx-chipbar {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    z-index: 9;
+    display: flex;
+    gap: 4px;
+    translate: -50% -40%;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease, translate 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .cx-mc:hover > .cx-chipbar, .cx-mc:focus-visible > .cx-chipbar, .cx-mc:focus-within > .cx-chipbar,
+  .cx-mc.cx-selected > .cx-chipbar, .cx-mc.cx-focus > .cx-chipbar, .cx-mc.cx-hover > .cx-chipbar,
+  .cx-card:hover > .cx-chipbar, .cx-card:focus-visible > .cx-chipbar, .cx-card:focus-within > .cx-chipbar,
+  .cx-card.cx-selected > .cx-chipbar, .cx-card.cx-focus > .cx-chipbar, .cx-card.cx-hover > .cx-chipbar {
+    opacity: 1;
+    translate: -50% -60%;
+    pointer-events: auto;
+  }
+  body.cx-dragging .cx-chipbar, body.cx-aiming .cx-chipbar { display: none; }
+  .cx-chipbtn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: oklch(22% 0.02 70 / 0.96);
+    color: oklch(92% 0.1 85);
+    box-shadow: 0 0 0 1.5px oklch(85% 0.15 85 / 0.75), 0 4px 10px -2px oklch(0% 0 0 / 0.7);
+    transition: transform 100ms ease, background-color 120ms ease, color 120ms ease;
+  }
+  .cx-chipbtn:hover { background: oklch(85% 0.15 85); color: oklch(22% 0.03 60); transform: scale(1.12); }
+  .cx-chipbtn:active { transform: scale(0.94); }
+  .cx-chipbtn-attack { background: oklch(45% 0.17 30 / 0.97); color: white; box-shadow: 0 0 0 1.5px oklch(80% 0.15 35), 0 4px 10px -2px oklch(0% 0 0 / 0.7); }
+  .cx-chipbtn-attack:hover { background: oklch(62% 0.2 30); color: white; }
+  .cx-mc.cx-hover { transform: translateY(-3px); }
+  .cx-fan > .cx-card.cx-hover { transform: translateY(-10px) scale(1.04); z-index: 6; }
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .cx-chipbar, .cx-chipbtn { transition: none; }
+}
+
+/* Aim: a card dragged to a target (`.CodexTable`). An arrow from the card to
+   the pointer (it snaps to a lit target) and the attack preview at its head;
+   the legal targets light up, the rest dims. The arrow is information: it
+   also draws with reduced motion. */
+.cx-arrow {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  width: 100vw;
+  height: 100dvh;
+  overflow: visible;
+  pointer-events: none;
+  visibility: hidden;
+}
+.cx-arrow.cx-on { visibility: visible; }
+.cx-arrow-under { fill: none; stroke: oklch(14% 0.02 60 / 0.8); stroke-width: 10; stroke-linecap: round; }
+.cx-arrow-line { fill: none; stroke: oklch(86% 0.15 85); stroke-width: 5; stroke-linecap: round; }
+#cx-arrow-head path { fill: oklch(86% 0.15 85); stroke: oklch(14% 0.02 60 / 0.8); stroke-width: 1; }
+.cx-arrow.cx-hit .cx-arrow-line { stroke: oklch(72% 0.19 32); }
+.cx-arrow.cx-hit #cx-arrow-head path { fill: oklch(72% 0.19 32); }
+.cx-aim-tip {
+  position: fixed;
+  z-index: 56;
+  translate: -50% calc(-100% - 10px);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: oklch(16% 0.02 60 / 0.95);
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1.5px oklch(72% 0.19 32), 0 6px 16px -4px oklch(0% 0 0 / 0.8);
+  pointer-events: none;
+  visibility: hidden;
+}
+.cx-aim-tip.cx-on { visibility: visible; }
+body.cx-aiming { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+body.cx-aiming .cx-mc:not(.cx-lit):not(.cx-aim-src),
+body.cx-aiming .cx-fan > .cx-card,
+body.cx-aiming .cx-chips,
+body.cx-aiming .cx-building:not(.cx-lit) {
+  opacity: 0.35;
+  filter: saturate(0.4);
+  transition: opacity 150ms ease, filter 150ms ease;
+}
+.cx-mc.cx-lit { cursor: crosshair; }
+.cx-mc.cx-lit .cx-mc-art { box-shadow: 0 0 0 2.5px oklch(78% 0.17 30), 0 0 18px -2px oklch(70% 0.2 30 / 0.8); }
+.cx-mc.cx-aim-over { transform: translateY(-4px) scale(1.06); z-index: 6; }
+.cx-mc.cx-aim-src .cx-mc-art { box-shadow: 0 0 0 2.5px var(--cx-gold), 0 10px 22px -8px oklch(0% 0 0 / 0.8); }
+.cx-zone.cx-lit { background: oklch(85% 0.15 85 / 0.1); box-shadow: inset 0 0 0 2px oklch(85% 0.15 85 / 0.7); }
+.cx-zone.cx-aim-over { background: oklch(85% 0.15 85 / 0.22); box-shadow: inset 0 0 0 2.5px var(--cx-gold); }
+[data-base].cx-lit, .cx-building.cx-lit { box-shadow: 0 0 0 2px oklch(78% 0.17 30), 0 0 14px -2px oklch(70% 0.2 30 / 0.8); }
+[data-base].cx-aim-over, .cx-building.cx-aim-over { transform: scale(1.08); }
+@media (prefers-reduced-motion: reduce) {
+  .cx-mc.cx-aim-over, [data-base].cx-aim-over, .cx-building.cx-aim-over { transform: none; }
+}
+
+/* A desktop: the base as a portrait at the left of each side (`keep/1`), the
+   gold and the workers under it, then the tech buildings. The header's base HP
+   and gold hide in rules mode (free mode keeps their +/- buttons). */
+@media (min-width: 1024px) {
+  .cx-side-body { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); align-items: start; }
+  .cx-side-body > .cx-pair { grid-column: 2; }
+  .cx-keep { grid-column: 1; grid-row: 1 / span 2; flex-direction: column; gap: 6px; min-width: 0; }
+  .cx-keep-dup { display: none; }
+}
+@media (min-width: 1280px) { .cx-side-body { grid-template-columns: 7.25rem minmax(0, 1fr); } }
+.cx-keep-base {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 2px;
+  aspect-ratio: 1;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 1rem;
+  background-image:
+    radial-gradient(circle at 50% 25%, oklch(100% 0 0 / 0.22), transparent 60%),
+    linear-gradient(to bottom, transparent 40%, oklch(0% 0 0 / 0.45));
+  color: white;
+  box-shadow: inset 0 0 0 1.5px oklch(100% 0 0 / 0.25), 0 6px 16px -6px oklch(0% 0 0 / 0.8);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.cx-keep-icon { position: absolute; top: 10%; width: 46%; height: 46%; opacity: 0.28; }
+.cx-keep-hp {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 18%;
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 4px oklch(0% 0 0 / 0.6);
+}
+.cx-keep-label {
+  position: relative;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: oklch(100% 0 0 / 0.7);
+}
+.cx-keep-base.cx-targetable-pill { box-shadow: 0 0 0 3px oklch(78% 0.17 30), 0 0 22px -2px oklch(70% 0.2 30 / 0.9); }
+.cx-keep-base.cx-targetable-pill:hover, .cx-keep-base.cx-aim-over { transform: scale(1.05); }
+.cx-keep-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: oklch(0% 0 0 / 0.3);
+  box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.1);
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.cx-keep-stats > span { display: inline-flex; align-items: center; gap: 3px; }
+.cx-keep-b {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 0.6rem;
+  background: oklch(88% 0.11 88 / 0.92);
+  color: oklch(25% 0.03 60);
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 1px 2px oklch(0% 0 0 / 0.4);
+}
+.cx-keep-b:disabled { cursor: default; }
+.cx-keep-b-pending { background: transparent; color: oklch(90% 0.08 88); box-shadow: inset 0 0 0 1.5px oklch(88% 0.11 88 / 0.6); }
+@media (prefers-reduced-motion: reduce) { .cx-keep-base { transition: none; } .cx-keep-base.cx-targetable-pill:hover, .cx-keep-base.cx-aim-over { transform: none; } }
+
+/* -- a desktop: one screen (R4, after MTG Arena) ---------------------------------
+   100dvh, no page scroll, no width cap. The two battlefields share the height
+   and face each other across the status bar (the centre rail): the other side's
+   cards sit at the bottom of its half. Cards grow with the screen height. The
+   hand is half off the bottom edge; hover, focus or selection lifts a card. The
+   right column (the selected card, help, the log) scrolls inside. */
+@media (min-width: 1024px) {
+  .cx-layout, .cx-layout.cx-noted {
+    height: 100dvh;
+    min-height: 0;
+    max-width: none;
+    overflow: hidden;
+    grid-template-columns: minmax(0, 1fr) 18rem;
+    grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    grid-template-areas: "top sheet" "opp sheet" "status sheet" "board sheet" "hand sheet";
+    gap: 6px 16px;
+    padding: 10px 16px 0;
+  }
+  .cx-a-sheet {
+    position: static;
+    align-self: stretch;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 12px;
+    scrollbar-width: thin;
+  }
+  .cx-a-opp, .cx-a-board { min-height: 0; max-height: 100%; overflow-y: auto; scrollbar-width: thin; }
+  .cx-a-opp { align-self: end; }
+  .cx-a-board { align-self: start; }
+
+  .cx-table { --cx-mw: clamp(3.5rem, min(10.5vh, 6.2vw), 8rem); }
+  .cx-side[data-far="true"] { --cx-mw: clamp(3.25rem, min(8.5vh, 5vw), 6.5rem); }
+  /* The command row keeps one line: its heroes do not stack; the other side's
+     hidden hand overlaps more instead. */
+  .cx-command .cx-row-cards { flex-wrap: nowrap; }
+  .cx-pair-mat > .cx-command { flex: 1 0 auto; }
+  .cx-side[data-far="true"] .cx-hand-far { --cx-w: clamp(2rem, 4.5vh, 3rem); min-height: 0; padding: 14px 6px 6px; }
+  .cx-hand { --cx-w: clamp(5rem, 13vh, 8.5rem); }
+
+  /* The hand: no box, half off the bottom edge. */
+  .cx-dock {
+    height: calc(var(--cx-w) * 1.4 * 0.5);
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .cx-dock > .cx-row-label { display: none; }
+  .cx-dock > .cx-fan { padding-top: 6px; }
+  .cx-dock .cx-fan > .cx-card:not([data-hidden]):hover,
+  .cx-dock .cx-fan > .cx-card.cx-selected,
+  .cx-dock .cx-fan > .cx-card:focus-visible,
+  .cx-dock .cx-fan > .cx-card.cx-hover,
+  .cx-dock .cx-fan > .cx-card.cx-focus {
+    transform: translateY(calc(var(--cx-w) * -0.78)) scale(1.06);
+    z-index: 6;
+  }
+  .cx-dock.cx-over { background: oklch(85% 0.15 85 / 0.1); box-shadow: inset 0 0 0 2px var(--cx-gold); }
+  /* The turn summary: over the top of the right column (no card under it). */
+  .cx-summary.cx-toast-lg { left: auto; right: 16px; top: 10px; bottom: auto; width: 18rem; }
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .cx-pair-mat > .cx-chips > .cx-chip { min-width: 3rem; padding-inline: 4px; }
+  .cx-pair-mat .cx-chip-label { font-size: 8px; letter-spacing: 0.04em; }
+}
+@media (min-width: 1280px) {
+  .cx-layout, .cx-layout.cx-noted { grid-template-columns: minmax(0, 1fr) 20rem; }
+  .cx-summary.cx-toast-lg { width: 20rem; }
+}

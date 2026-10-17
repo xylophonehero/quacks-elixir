@@ -202,8 +202,8 @@ P2
 <span class="hidden sm:inline">· Balance, Feral, Growth</span>
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 0</span>
 </span>
-<div class="flex shrink-0 items-center gap-1">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="1" title="Base HP">
+<div class="flex shrink-0 items-center gap-1 cx-keep-dup">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="1" phx-value-name="base" phx-value-seat="1" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
 </span>
@@ -233,11 +233,35 @@ P2
 </div>
 <p class="cx-strip-empty">No units or heroes in play.</p>
 <div class="cx-side-body">
+<div class="cx-keep hidden lg:flex" id="cx-keep-col-1">
+<div aria-label="Base of P2: 20 HP" class="cx-keep-base bg-sky-700" data-base="1" id="cx-keep-1" phx-value-name="base" phx-value-seat="1" title="Base of P2">
+<span class="hero-home-modern-solid cx-keep-icon">
+</span>
+<span class="cx-keep-hp">
+<span class="hero-heart-solid size-4 text-rose-300">
+</span>
+<span data-bump="float" id="cx-keep-hp-1">20</span>
+</span>
+<span class="cx-keep-label">Base</span>
+</div>
+<div class="cx-keep-stats">
+<span title="Gold">
+<span class="hero-circle-stack-solid size-3.5 text-amber-300">
+</span>
+<span data-bump="" id="cx-keep-gold-1">0</span>
+</span>
+<span title="Workers">
+<span class="hero-wrench-solid size-3.5 text-white/60">
+</span>
+<span data-bump="" id="cx-keep-workers-1">5</span>
+</span>
+</div>
+</div>
 <div class="cx-pair cx-pair-mat">
 <div class="cx-zone cx-row cx-command " data-drop="" data-empty="false" data-list="true" data-seat="1" data-zone="command" id="cx-zone-1-command" phx-click="zone" phx-value-seat="1" phx-value-zone="command">
 <span class="cx-label cx-row-label">Command</span>
 <div class="cx-row-cards">
-<div class="cx-mc cursor-pointer cx-tone-hero" data-card-id="172" draggable="true" id="cx-card-172" phx-click="select" phx-value-id="172" title="Master Midori">
+<div aria-label="Master Midori" aria-pressed="false" class="cx-mc cursor-pointer cx-tone-hero" data-card-id="172" draggable="true" id="cx-card-172" phx-click="select" phx-value-id="172" role="button" tabindex="0" title="Master Midori">
 <div class="cx-mc-art">
 <div class="cx-mc-css">
 </div>
@@ -269,7 +293,7 @@ P2
 </div>
 </template>
 </div>
-<div class="cx-mc cursor-pointer cx-tone-hero" data-card-id="173" draggable="true" id="cx-card-173" phx-click="select" phx-value-id="173" title="Calamandra Moss">
+<div aria-label="Calamandra Moss" aria-pressed="false" class="cx-mc cursor-pointer cx-tone-hero" data-card-id="173" draggable="true" id="cx-card-173" phx-click="select" phx-value-id="173" role="button" tabindex="0" title="Calamandra Moss">
 <div class="cx-mc-art">
 <div class="cx-mc-css">
 </div>
@@ -302,7 +326,7 @@ P2
 </div>
 </template>
 </div>
-<div class="cx-mc cursor-pointer cx-tone-hero" data-card-id="174" draggable="true" id="cx-card-174" phx-click="select" phx-value-id="174" title="Argagarg Garg">
+<div aria-label="Argagarg Garg" aria-pressed="false" class="cx-mc cursor-pointer cx-tone-hero" data-card-id="174" draggable="true" id="cx-card-174" phx-click="select" phx-value-id="174" role="button" tabindex="0" title="Argagarg Garg">
 <div class="cx-mc-art">
 <div class="cx-mc-css">
 </div>
@@ -338,7 +362,7 @@ P2
 </div>
 </div>
 <div class="cx-chips">
-<div class="cx-zone cx-chip " data-drop="" data-seat="1" data-zone="codex" id="cx-codex-1" phx-click="zone" phx-value-seat="1" phx-value-zone="codex" role="button" title="Codex: 72">
+<div class="cx-zone cx-chip " data-drop="" data-seat="1" data-zone="codex" id="cx-codex-1" phx-click="zone" phx-value-seat="1" phx-value-zone="codex" role="button" tabindex="0" title="Codex: 72">
 <span class="flex items-center gap-1">
 <span class="hero-book-open-mini size-4 text-white/55">
 </span>
@@ -346,7 +370,7 @@ P2
 </span>
 <span class="cx-chip-label">Codex</span>
 </div>
-<div class="cx-zone cx-chip " data-drop="" data-seat="1" data-zone="deck" id="cx-deck-1" phx-click="zone" phx-value-seat="1" phx-value-zone="deck" role="button" title="Deck: 5">
+<div class="cx-zone cx-chip " data-drop="" data-seat="1" data-zone="deck" id="cx-deck-1" phx-click="zone" phx-value-seat="1" phx-value-zone="deck" role="button" tabindex="0" title="Deck: 5">
 <span class="flex items-center gap-1">
 <span class="hero-rectangle-stack-mini size-4 text-white/55">
 </span>
@@ -354,7 +378,7 @@ P2
 </span>
 <span class="cx-chip-label">Deck</span>
 </div>
-<div class="cx-zone cx-chip " data-drop="" data-seat="1" data-zone="discard" id="cx-discard-1" phx-click="zone" phx-value-seat="1" phx-value-zone="discard" role="button" title="Discard: 0">
+<div class="cx-zone cx-chip " data-drop="" data-seat="1" data-zone="discard" id="cx-discard-1" phx-click="zone" phx-value-seat="1" phx-value-zone="discard" role="button" tabindex="0" title="Discard: 0">
 <span class="flex items-center gap-1">
 <span class="hero-arrow-down-tray-mini size-4 text-white/55">
 </span>
@@ -362,7 +386,7 @@ P2
 </span>
 <span class="cx-chip-label">Discard</span>
 </div>
-<div class="cx-zone cx-chip " data-drop="" data-seat="1" data-zone="workers" id="cx-workers-1" phx-click="zone" phx-value-seat="1" phx-value-zone="workers" role="button" title="Workers: 5">
+<div class="cx-zone cx-chip " data-drop="" data-seat="1" data-zone="workers" id="cx-workers-1" phx-click="zone" phx-value-seat="1" phx-value-zone="workers" role="button" tabindex="0" title="Workers: 5">
 <span class="flex items-center gap-1">
 <span class="hero-wrench-mini size-4 text-white/55">
 </span>
@@ -453,7 +477,7 @@ P2
 </div>
 </div>
 </section>
-<div class="cx-a-status cx-status" id="cx-status">
+<div class="cx-a-status cx-status " id="cx-status">
 <div class="cx-st-pill flex min-w-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white shadow-sm sm:text-sm bg-rose-700" id="cx-active">
 <span class="size-1.5 shrink-0 animate-pulse rounded-full bg-white">
 </span>
@@ -490,8 +514,8 @@ P1
 <span class="hidden sm:inline">· Anarchy, Blood, Fire</span>
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 1</span>
 </span>
-<div class="flex shrink-0 items-center gap-1">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="0" title="Base HP">
+<div class="flex shrink-0 items-center gap-1 cx-keep-dup">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="0" phx-value-name="base" phx-value-seat="0" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
 </span>
@@ -508,6 +532,30 @@ P1
 </div>
 </div>
 <div class="cx-side-body">
+<div class="cx-keep hidden lg:flex" id="cx-keep-col-0">
+<div aria-label="Base of P1: 20 HP" class="cx-keep-base bg-rose-700" data-base="0" id="cx-keep-0" phx-value-name="base" phx-value-seat="0" title="Base of P1">
+<span class="hero-home-modern-solid cx-keep-icon">
+</span>
+<span class="cx-keep-hp">
+<span class="hero-heart-solid size-4 text-rose-300">
+</span>
+<span data-bump="float" id="cx-keep-hp-0">20</span>
+</span>
+<span class="cx-keep-label">Base</span>
+</div>
+<div class="cx-keep-stats">
+<span title="Gold">
+<span class="hero-circle-stack-solid size-3.5 text-amber-300">
+</span>
+<span data-bump="" id="cx-keep-gold-0">4</span>
+</span>
+<span title="Workers">
+<span class="hero-wrench-solid size-3.5 text-white/60">
+</span>
+<span data-bump="" id="cx-keep-workers-0">4</span>
+</span>
+</div>
+</div>
 <div class="cx-pair cx-pair-board">
 <div class="cx-patrol" id="cx-patrol-0">
 <div class="cx-zone cx-slot " data-drop="" data-empty="true" data-seat="0" data-slot="squad_leader" data-zone="patrol" id="cx-slot-0-squad_leader" phx-click="zone" phx-value-seat="0" phx-value-slot="squad_leader" phx-value-zone="patrol">
@@ -561,7 +609,13 @@ P1
 <div class="cx-zone cx-row cx-command " data-drop="" data-empty="false" data-list="true" data-seat="0" data-zone="command" id="cx-zone-0-command" phx-click="zone" phx-value-seat="0" phx-value-zone="command">
 <span class="cx-label cx-row-label">Command</span>
 <div class="cx-row-cards">
-<div class="cx-mc cursor-pointer cx-tone-hero" data-card-id="83" draggable="true" id="cx-card-83" phx-click="select" phx-value-id="83" title="Captain Zane">
+<div aria-label="Captain Zane" aria-pressed="false" class="cx-mc cursor-pointer cx-tone-hero" data-card-id="83" draggable="true" id="cx-card-83" phx-click="select" phx-value-id="83" role="button" tabindex="0" title="Captain Zane">
+<div aria-label="Actions" class="cx-chipbar" role="group">
+<button aria-label="Summon" class="cx-chipbtn cx-chipbtn-summon" data-kind="summon" draggable="false" id="cx-chip-83-summon" phx-click="chip" phx-value-id="83" phx-value-key="summon" tabindex="-1" title="Summon" type="button">
+<span class="hero-arrow-down-circle-solid size-4">
+</span>
+</button>
+</div>
 <div class="cx-mc-art">
 <div class="cx-mc-css">
 </div>
@@ -595,7 +649,13 @@ P1
 </div>
 </template>
 </div>
-<div class="cx-mc cursor-pointer cx-tone-hero" data-card-id="84" draggable="true" id="cx-card-84" phx-click="select" phx-value-id="84" title="Drakk Ramhorn">
+<div aria-label="Drakk Ramhorn" aria-pressed="false" class="cx-mc cursor-pointer cx-tone-hero" data-card-id="84" draggable="true" id="cx-card-84" phx-click="select" phx-value-id="84" role="button" tabindex="0" title="Drakk Ramhorn">
+<div aria-label="Actions" class="cx-chipbar" role="group">
+<button aria-label="Summon" class="cx-chipbtn cx-chipbtn-summon" data-kind="summon" draggable="false" id="cx-chip-84-summon" phx-click="chip" phx-value-id="84" phx-value-key="summon" tabindex="-1" title="Summon" type="button">
+<span class="hero-arrow-down-circle-solid size-4">
+</span>
+</button>
+</div>
 <div class="cx-mc-art">
 <div class="cx-mc-css">
 </div>
@@ -628,7 +688,13 @@ P1
 </div>
 </template>
 </div>
-<div class="cx-mc cursor-pointer cx-tone-hero" data-card-id="85" draggable="true" id="cx-card-85" phx-click="select" phx-value-id="85" title="Jaina Stormborne">
+<div aria-label="Jaina Stormborne" aria-pressed="false" class="cx-mc cursor-pointer cx-tone-hero" data-card-id="85" draggable="true" id="cx-card-85" phx-click="select" phx-value-id="85" role="button" tabindex="0" title="Jaina Stormborne">
+<div aria-label="Actions" class="cx-chipbar" role="group">
+<button aria-label="Summon" class="cx-chipbtn cx-chipbtn-summon" data-kind="summon" draggable="false" id="cx-chip-85-summon" phx-click="chip" phx-value-id="85" phx-value-key="summon" tabindex="-1" title="Summon" type="button">
+<span class="hero-arrow-down-circle-solid size-4">
+</span>
+</button>
+</div>
 <div class="cx-mc-art">
 <div class="cx-mc-css">
 </div>
@@ -668,7 +734,7 @@ P1
 </div>
 </div>
 <div class="cx-chips">
-<div class="cx-zone cx-chip " data-drop="" data-seat="0" data-zone="codex" id="cx-codex-0" phx-click="zone" phx-value-seat="0" phx-value-zone="codex" role="button" title="Codex: 72">
+<div class="cx-zone cx-chip " data-drop="" data-seat="0" data-zone="codex" id="cx-codex-0" phx-click="zone" phx-value-seat="0" phx-value-zone="codex" role="button" tabindex="0" title="Codex: 72">
 <span class="flex items-center gap-1">
 <span class="hero-book-open-mini size-4 text-white/55">
 </span>
@@ -676,7 +742,7 @@ P1
 </span>
 <span class="cx-chip-label">Codex</span>
 </div>
-<div class="cx-zone cx-chip " data-drop="" data-seat="0" data-zone="deck" id="cx-deck-0" phx-click="zone" phx-value-seat="0" phx-value-zone="deck" role="button" title="Deck: 5">
+<div class="cx-zone cx-chip " data-drop="" data-seat="0" data-zone="deck" id="cx-deck-0" phx-click="zone" phx-value-seat="0" phx-value-zone="deck" role="button" tabindex="0" title="Deck: 5">
 <span class="flex items-center gap-1">
 <span class="hero-rectangle-stack-mini size-4 text-white/55">
 </span>
@@ -684,7 +750,7 @@ P1
 </span>
 <span class="cx-chip-label">Deck</span>
 </div>
-<div class="cx-zone cx-chip " data-drop="" data-seat="0" data-zone="discard" id="cx-discard-0" phx-click="zone" phx-value-seat="0" phx-value-zone="discard" role="button" title="Discard: 0">
+<div class="cx-zone cx-chip " data-drop="" data-seat="0" data-zone="discard" id="cx-discard-0" phx-click="zone" phx-value-seat="0" phx-value-zone="discard" role="button" tabindex="0" title="Discard: 0">
 <span class="flex items-center gap-1">
 <span class="hero-arrow-down-tray-mini size-4 text-white/55">
 </span>
@@ -692,7 +758,7 @@ P1
 </span>
 <span class="cx-chip-label">Discard</span>
 </div>
-<div class="cx-zone cx-chip " data-drop="" data-seat="0" data-zone="workers" id="cx-workers-0" phx-click="zone" phx-value-seat="0" phx-value-zone="workers" role="button" title="Workers: 4">
+<div class="cx-zone cx-chip " data-drop="" data-seat="0" data-zone="workers" id="cx-workers-0" phx-click="zone" phx-value-seat="0" phx-value-zone="workers" role="button" tabindex="0" title="Workers: 4">
 <span class="flex items-center gap-1">
 <span class="hero-wrench-mini size-4 text-white/55">
 </span>
@@ -700,7 +766,7 @@ P1
 </span>
 <span class="cx-chip-label">Workers</span>
 </div>
-<div class="cx-zone cx-chip " data-drop="" data-zone="trash" id="cx-trash" phx-click="zone" phx-value-zone="trash" role="button" title="Trash: 0">
+<div class="cx-zone cx-chip " data-drop="" data-zone="trash" id="cx-trash" phx-click="zone" phx-value-zone="trash" role="button" tabindex="0" title="Trash: 0">
 <span class="flex items-center gap-1">
 <span class="hero-trash-mini size-4 text-white/55">
 </span>
@@ -715,7 +781,17 @@ P1
 <div class="cx-zone cx-hand cx-a-hand cx-dock" data-drop="" data-list="true" data-seat="0" data-zone="hand" id="cx-zone-0-hand" phx-click="zone" phx-value-seat="0" phx-value-zone="hand">
 <span class="cx-label cx-row-label">Hand · 5</span>
 <div class="cx-fan">
-<div class="cx-card cursor-pointer" data-card-id="6" draggable="true" id="cx-card-6" phx-click="select" phx-value-id="6" style="--r: -5.0deg; --y: 4.8px" title="Makeshift Rambaster">
+<div aria-pressed="false" class="cx-card cursor-pointer" data-card-id="6" draggable="true" id="cx-card-6" phx-click="select" phx-value-id="6" role="button" style="--r: -5.0deg; --y: 4.8px" tabindex="0" title="Makeshift Rambaster">
+<div aria-label="Actions" class="cx-chipbar" role="group">
+<button aria-label="Play" class="cx-chipbtn cx-chipbtn-play" data-kind="play" draggable="false" id="cx-chip-6-play" phx-click="chip" phx-value-id="6" phx-value-key="play" tabindex="-1" title="Play" type="button">
+<span class="hero-play-solid size-4">
+</span>
+</button>
+<button aria-label="Hire as a worker (1 gold)" class="cx-chipbtn cx-chipbtn-hire" data-kind="hire" draggable="false" id="cx-chip-6-hire" phx-click="chip" phx-value-id="6" phx-value-key="hire" tabindex="-1" title="Hire as a worker (1 gold)" type="button">
+<span class="hero-wrench-solid size-4">
+</span>
+</button>
+</div>
 <div class="cx-face cx-css cx-tone-neutral">
 <span class="cx-cost">2</span>
 <span class="cx-name">Makeshift Rambaster</span>
@@ -726,7 +802,17 @@ P1
 <span class="cx-stats">1/2</span>
 </div>
 </div>
-<div class="cx-card cursor-pointer" data-card-id="4" draggable="true" id="cx-card-4" phx-click="select" phx-value-id="4" style="--r: -2.5deg; --y: 1.2px" title="Careless Musketeer">
+<div aria-pressed="false" class="cx-card cursor-pointer" data-card-id="4" draggable="true" id="cx-card-4" phx-click="select" phx-value-id="4" role="button" style="--r: -2.5deg; --y: 1.2px" tabindex="0" title="Careless Musketeer">
+<div aria-label="Actions" class="cx-chipbar" role="group">
+<button aria-label="Play" class="cx-chipbtn cx-chipbtn-play" data-kind="play" draggable="false" id="cx-chip-4-play" phx-click="chip" phx-value-id="4" phx-value-key="play" tabindex="-1" title="Play" type="button">
+<span class="hero-play-solid size-4">
+</span>
+</button>
+<button aria-label="Hire as a worker (1 gold)" class="cx-chipbtn cx-chipbtn-hire" data-kind="hire" draggable="false" id="cx-chip-4-hire" phx-click="chip" phx-value-id="4" phx-value-key="hire" tabindex="-1" title="Hire as a worker (1 gold)" type="button">
+<span class="hero-wrench-solid size-4">
+</span>
+</button>
+</div>
 <div class="cx-face cx-css cx-tone-neutral">
 <span class="cx-cost">2</span>
 <span class="cx-name">Careless Musketeer</span>
@@ -735,7 +821,17 @@ P1
 <span class="cx-stats">2/1</span>
 </div>
 </div>
-<div class="cx-card cursor-pointer" data-card-id="3" draggable="true" id="cx-card-3" phx-click="select" phx-value-id="3" style="--r: 0.0deg; --y: 0.0px" title="Bombaster">
+<div aria-pressed="false" class="cx-card cursor-pointer" data-card-id="3" draggable="true" id="cx-card-3" phx-click="select" phx-value-id="3" role="button" style="--r: 0.0deg; --y: 0.0px" tabindex="0" title="Bombaster">
+<div aria-label="Actions" class="cx-chipbar" role="group">
+<button aria-label="Play" class="cx-chipbtn cx-chipbtn-play" data-kind="play" draggable="false" id="cx-chip-3-play" phx-click="chip" phx-value-id="3" phx-value-key="play" tabindex="-1" title="Play" type="button">
+<span class="hero-play-solid size-4">
+</span>
+</button>
+<button aria-label="Hire as a worker (1 gold)" class="cx-chipbtn cx-chipbtn-hire" data-kind="hire" draggable="false" id="cx-chip-3-hire" phx-click="chip" phx-value-id="3" phx-value-key="hire" tabindex="-1" title="Hire as a worker (1 gold)" type="button">
+<span class="hero-wrench-solid size-4">
+</span>
+</button>
+</div>
 <div class="cx-face cx-css cx-tone-neutral">
 <span class="cx-cost">2</span>
 <span class="cx-name">Bombaster</span>
@@ -744,7 +840,13 @@ P1
 <span class="cx-stats">2/2</span>
 </div>
 </div>
-<div class="cx-card cursor-pointer" data-card-id="9" draggable="true" id="cx-card-9" phx-click="select" phx-value-id="9" style="--r: 2.5deg; --y: 1.2px" title="Charge">
+<div aria-pressed="false" class="cx-card cursor-pointer" data-card-id="9" draggable="true" id="cx-card-9" phx-click="select" phx-value-id="9" role="button" style="--r: 2.5deg; --y: 1.2px" tabindex="0" title="Charge">
+<div aria-label="Actions" class="cx-chipbar" role="group">
+<button aria-label="Hire as a worker (1 gold)" class="cx-chipbtn cx-chipbtn-hire" data-kind="hire" draggable="false" id="cx-chip-9-hire" phx-click="chip" phx-value-id="9" phx-value-key="hire" tabindex="-1" title="Hire as a worker (1 gold)" type="button">
+<span class="hero-wrench-solid size-4">
+</span>
+</button>
+</div>
 <div class="cx-face cx-css cx-tone-neutral">
 <span class="cx-cost">2</span>
 <span class="cx-name">Charge</span>
@@ -752,7 +854,17 @@ P1
 <span class="cx-text">Give one of your units haste and +1 ATK this turn.</span>
 </div>
 </div>
-<div class="cx-card cursor-pointer" data-card-id="5" draggable="true" id="cx-card-5" phx-click="select" phx-value-id="5" style="--r: 5.0deg; --y: 4.8px" title="Bloodrage Ogre">
+<div aria-pressed="false" class="cx-card cursor-pointer" data-card-id="5" draggable="true" id="cx-card-5" phx-click="select" phx-value-id="5" role="button" style="--r: 5.0deg; --y: 4.8px" tabindex="0" title="Bloodrage Ogre">
+<div aria-label="Actions" class="cx-chipbar" role="group">
+<button aria-label="Play" class="cx-chipbtn cx-chipbtn-play" data-kind="play" draggable="false" id="cx-chip-5-play" phx-click="chip" phx-value-id="5" phx-value-key="play" tabindex="-1" title="Play" type="button">
+<span class="hero-play-solid size-4">
+</span>
+</button>
+<button aria-label="Hire as a worker (1 gold)" class="cx-chipbtn cx-chipbtn-hire" data-kind="hire" draggable="false" id="cx-chip-5-hire" phx-click="chip" phx-value-id="5" phx-value-key="hire" tabindex="-1" title="Hire as a worker (1 gold)" type="button">
+<span class="hero-wrench-solid size-4">
+</span>
+</button>
+</div>
 <div class="cx-face cx-css cx-tone-neutral">
 <span class="cx-cost">2</span>
 <span class="cx-name">Bloodrage Ogre</span>
@@ -767,11 +879,12 @@ P1
 <div class="hidden rounded-2xl bg-black/25 p-3 text-xs leading-relaxed text-white/70 ring-1 ring-white/10 lg:block">
 <p class="mb-1 font-semibold text-white">How to play</p>
 <p>
-Click a card to see what it can do now: play it, hire it as a worker, attack,
-summon, level up. Drag a card from your hand to In play to play it, to Workers
-to hire it, and a unit to a patrol slot to patrol. To attack, pick &quot;Attack…&quot; and
-click a glowing target. Hover a card to see it large. Free mode lets you fix
-anything by hand.
+Point at a card: its action buttons show on it (attack, level up, patrol, play,
+hire). One click acts; with more than one target, click a glowing target next.
+Or drag a ready unit onto a glowing target or a patrol slot: the arrow shows
+what the attack does. Keys: Tab to a card, then A attack, L level up, P patrol,
+Enter select, Esc cancel. Drag a card from your hand to In play to play it, to
+Workers to hire it. Hover a card to see it large. Free mode fixes anything by hand.
 </p>
 </div>
 <div class="flex-col gap-1 rounded-2xl bg-black/25 p-3 ring-1 ring-white/10 hidden lg:flex" id="cx-log">
@@ -783,6 +896,20 @@ New game: P1 Anarchy, Blood, Fire, P2 Balance, Feral, Growth.
 </ol>
 </div>
 </aside>
+</div>
+<svg aria-hidden="true" class="cx-arrow" id="cx-arrow" phx-update="ignore">
+<defs>
+<marker id="cx-arrow-head" markerHeight="4" markerWidth="4" orient="auto-start-reverse" refX="6" refY="5" viewBox="0 0 10 10">
+<path d="M0,0 L10,5 L0,10 z">
+</path>
+</marker>
+</defs>
+<path class="cx-arrow-under" d="">
+</path>
+<path class="cx-arrow-line" d="" marker-end="url(#cx-arrow-head)">
+</path>
+</svg>
+<div aria-hidden="true" class="cx-aim-tip" id="cx-aim-tip" phx-update="ignore">
 </div>
 </div>
 </div>

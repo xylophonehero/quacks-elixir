@@ -408,12 +408,162 @@ defmodule TableWeb.CodexLiveTest do
       view |> element("#cx-rule-attack") |> render_click()
       assert has_element?(view, "#cx-root[data-targeting=true]")
       assert has_element?(view, "#cx-pick.cx-a-status")
-      refute has_element?(view, "#cx-status")
+      # A phone: the banner takes the place of the status bar.
+      assert has_element?(view, "#cx-status.max-lg\\:hidden")
       assert has_element?(view, "#cx-aside.max-lg\\:hidden")
       view |> element("#cx-base-1") |> render_click()
 
       assert game(code).sides[1].base_hp == 19
       assert has_element?(view, "#cx-root[data-targeting=false]")
+    end
+
+    test "attack on a desktop: nothing pushes the board; the banner and the base tile float" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      game = ok!(game, {:play, a, []})
+      %{view: view} = room_with(game)
+
+      view |> element("#cx-card-#{a}") |> render_click()
+      view |> element("#cx-rule-attack") |> render_click()
+      # The status bar stays in its row (hidden on a phone only); the banner floats over it.
+      assert has_element?(view, "#cx-status")
+      refute has_element?(view, "#cx-status.lg\\:hidden")
+      assert has_element?(view, "#cx-pick.cx-float-lg")
+      # The base tile is a phone row only: on a desktop the base itself is the target.
+      assert has_element?(view, "#cx-base-1.lg\\:hidden")
+      assert has_element?(view, "#cx-hp-1-target")
+    end
+
+    test "keyboard: a card is a focusable button; A attacks (one target: at once)" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      assert has_element?(view, "#cx-card-#{a}[tabindex='0'][role=button][aria-pressed=false]")
+      view |> element("#cx-card-#{a}") |> render_click()
+      assert has_element?(view, "#cx-card-#{a}[aria-pressed=true]")
+
+      # The hook sends a card's key (A / L / P) for the focused or selected card.
+      render_hook(view, "chip", %{"id" => to_string(a), "hotkey" => "a"})
+      assert game(code).sides[1].base_hp == 19
+      assert game(code).cards[a].exhausted
+    end
+
+    test "keyboard: Esc ends a pick; P lights the free patrol slots" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, _} = place(game, 1, "tenderfoot", :patrol, :elite)
+      {game, _} = place(game, 1, "older-brother", :patrol, :lookout)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      render_hook(view, "chip", %{"id" => to_string(a), "hotkey" => "a"})
+      assert has_element?(view, "#cx-pick")
+      view |> element("#cx-root") |> render_keydown(%{"key" => "Escape"})
+      refute has_element?(view, "#cx-pick")
+
+      render_hook(view, "chip", %{"id" => to_string(a), "hotkey" => "p"})
+      assert has_element?(view, "#cx-card-#{a}.cx-selected")
+      assert has_element?(view, "#cx-slot-0-elite.cx-slot-lit")
+      refute has_element?(view, "#cx-slot-1-elite.cx-slot-lit")
+      view |> element("#cx-slot-0-elite") |> render_click()
+      assert zone(code, 0, :patrol).elite == a
+    end
+
+    test "chips on the card: one target acts at once; two targets start a pick" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, h} = place(game, 0, "fruit-ninja", :hand)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      # Every card with actions has its chips (CSS shows them on hover, focus or selection).
+      assert has_element?(
+               view,
+               ~s(#cx-card-#{a} #cx-chip-#{a}-attack[aria-label="Attack P2's base"])
+             )
+
+      assert has_element?(view, "#cx-card-#{h} #cx-chip-#{h}-hire")
+      refute has_element?(view, "#cx-side-1 [id^=cx-chip-]")
+
+      view |> element("#cx-chip-#{a}-attack") |> render_click()
+      assert game(code).sides[1].base_hp == 19
+      refute has_element?(view, "#cx-chip-#{a}-attack")
+    end
+
+    test "chips: Attack… with two targets starts the pick; no chips in a pick" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, _} = place(game, 1, "tenderfoot", :patrol, :elite)
+      {game, _} = place(game, 1, "older-brother", :patrol, :lookout)
+      game = ok!(game, {:play, a, []})
+      %{view: view} = room_with(game)
+
+      view |> element("#cx-chip-#{a}-attack[aria-label='Attack…']") |> render_click()
+      assert has_element?(view, "#cx-pick")
+      assert has_element?(view, "#cx-card-#{a}.cx-selected")
+      refute has_element?(view, "[id^=cx-chip-]")
+    end
+
+    test "drag to a target: data-targets has the legal targets; one aim event acts" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, t} = place(game, 1, "tenderfoot", :patrol, :elite)
+      {game, o} = place(game, 1, "older-brother", :patrol, :lookout)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      [targets] =
+        view
+        |> render()
+        |> query("#cx-card-#{a}")
+        |> LazyHTML.attribute("data-targets")
+
+      targets = Jason.decode!(targets)
+      assert targets["#cx-card-#{t}"] == %{"t" => "atk:#{t}", "p" => "2 → 1 HP"}
+      assert targets["#cx-card-#{o}"]["t"] == "atk:#{o}"
+      assert targets["#cx-slot-0-squad_leader"]["t"] == "pat:squad_leader"
+      refute Map.has_key?(targets, "[data-base='1']")
+      # The pointer drag replaces the HTML drag for this card.
+      assert has_element?(view, "#cx-card-#{a}[draggable=false]")
+
+      render_hook(view, "aim", %{"id" => to_string(a), "t" => "atk:#{t}"})
+      assert game(code).cards[t].damage == 1
+    end
+
+    test "aim: a target that is not legal changes nothing; a slot patrols" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, _t} = place(game, 1, "tenderfoot", :patrol, :elite)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      html = render_hook(view, "aim", %{"id" => to_string(a), "t" => "atk:b.1.base"})
+      assert html =~ "not a legal target"
+      assert game(code).sides[1].base_hp == 20
+      refute has_element?(view, "#cx-pick")
+
+      render_hook(view, "aim", %{"id" => to_string(a), "t" => "pat:scavenger"})
+      assert zone(code, 0, :patrol).scavenger == a
+    end
+
+    test "a desktop: the base is a portrait with gold, workers and buildings" do
+      game = put_in(new().sides[1].tech_buildings, [:tech_1])
+      %{view: view} = room_with(game)
+
+      assert has_element?(view, "#cx-keep-1[data-base='1'] #cx-keep-hp-1", "20")
+      assert has_element?(view, "#cx-keep-gold-0", "#{game.sides[0].gold}")
+      assert has_element?(view, "#cx-keep-workers-1", "5")
+      assert has_element?(view, "#cx-keep-b-1-tech_1[data-building='1-tech_1']")
+      # Not a target outside a pick.
+      refute has_element?(view, "#cx-keep-1.cx-targetable-pill")
+    end
+
+    test "a desktop: in a pick on the base, the base portrait is the target" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      game = ok!(game, {:play, a, []})
+      game = put_in(game.sides[1].tech_buildings, [:tech_1])
+      %{view: view, code: code} = room_with(game)
+
+      view |> element("#cx-card-#{a}") |> render_click()
+      view |> element("#cx-rule-attack") |> render_click()
+      assert has_element?(view, "#cx-keep-1.cx-targetable-pill[role=button]")
+      view |> element("#cx-keep-1") |> render_click()
+      assert game(code).sides[1].base_hp == 19
     end
 
     test "Cancel ends a pick" do
@@ -456,6 +606,8 @@ defmodule TableWeb.CodexLiveTest do
       assert has_element?(view, "#cx-pov-0[aria-pressed=true]")
       # What the bot did, until OK.
       assert has_element?(view, "#cx-summary #cx-summary-0")
+      # A desktop: a toast over the board, not a row that pushes it down.
+      assert has_element?(view, "#cx-summary.cx-toast-lg")
       view |> element("#cx-summary-ok") |> render_click()
       refute has_element?(view, "#cx-summary")
     end
