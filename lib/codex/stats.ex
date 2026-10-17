@@ -222,7 +222,8 @@ defmodule Codex.Stats do
       leaf_and_claw(game, id, s),
       stampede(game, id, s),
       marked(game, id),
-      trained(game, id)
+      trained(game, id),
+      whisper(game, id, s)
     ]
 
     Enum.sum(for {a, h} <- bonuses, do: if(stat == :atk, do: a, else: h))
@@ -298,6 +299,13 @@ defmodule Codex.Stats do
       end)
 
     if strong > 0 and force?(game, id), do: {5 * strong, 5 * strong}, else: {0, 0}
+  end
+
+  # Macciatus, The Whisperer: your Illusion units get +1/+1.
+  defp whisper(game, id, s) do
+    if controls?(game, s, "macciatus-the-whisperer") and illusion?(game, id),
+      do: {1, 1},
+      else: {0, 0}
   end
 
   # Elite Training (+1 ATK each) and The Art of War (+2 ATK), until the caster's next upkeep.
@@ -415,8 +423,12 @@ defmodule Codex.Stats do
 
   defp granted?(game, id, :invisible) do
     s = controller(game, id)
+    c = game.cards[id]
 
-    case game.cards[id].card do
+    case c.card do
+      _ when is_map_key(c.extra, :eyes) ->
+        true
+
       "stalking-tiger" ->
         Enum.any?(Zones.in_play(game, s), &(hero?(game, &1) and spec(game, &1) == "Feral"))
 
@@ -459,9 +471,24 @@ defmodule Codex.Stats do
 
   defp granted?(game, id, :sparkshot), do: Map.get(game.cards[id].extra, :elite, 0) > 0
 
-  defp granted?(game, id, :unstoppable), do: Map.has_key?(game.cards[id].extra, :art_of_war)
+  defp granted?(game, id, :unstoppable),
+    do: Map.has_key?(game.cards[id].extra, :art_of_war) or liberty?(game, id)
+
+  defp granted?(game, id, key) when key in [:unattackable, :untargetable], do: liberty?(game, id)
 
   defp granted?(_game, _id, _key), do: false
+
+  # Liberty Gryphon: unstoppable, unattackable and untargetable while its side
+  # controls an Illusion with another name.
+  defp liberty?(game, id) do
+    c = game.cards[id]
+    s = controller(game, id)
+
+    c.card == "liberty-gryphon" and s != nil and
+      Enum.any?(Zones.in_play(game, s), fn o ->
+        game.cards[o].card != "liberty-gryphon" and illusion?(game, o)
+      end)
+  end
 
   # Skeletal Archery: "Your Skeletons have long-range and anti-air."
   defp skeletal_archery?(game, id) do

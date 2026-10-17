@@ -95,6 +95,36 @@ defmodule Codex.Effects.Blue do
   def spell(game, s, "the-art-of-war", _id, [hero]),
     do: Zones.update_card(game, hero, &%{&1 | extra: Map.put(&1.extra, :art_of_war, s)})
 
+  # -- Truth --
+
+  # Free Speech: silence an opponent until after its next turn (`Codex.Stats.silenced?/2`).
+  def spell(game, s, "free-speech", _id, []) do
+    until = game.sides[1 - s].turn + 1
+    Rules.update_side(game, 1 - s, &%{&1 | effects: Map.put(&1.effects, :silenced, until)})
+  end
+
+  # Hallucination: up to two tech 0-II units are Illusions this turn.
+  def spell(game, _s, "hallucination", _id, targets) do
+    targets
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reduce(game, fn t, game ->
+      Zones.update_card(game, t, &%{&1 | this_turn: Map.put(&1.this_turn, :illusion, true)})
+    end)
+  end
+
+  def spell(game, _s, "dreamscape", _id, []), do: game
+
+  # Mind Control: attach to a tech 0-II unit; you control it. When Mind Control
+  # leaves play, the unit goes back to the side that had it (`Codex.Rules`).
+  def spell(game, s, "mind-control", id, [t]) when is_integer(t) do
+    from = Stats.controller(game, t)
+
+    game
+    |> Zones.update_card(id, &%{&1 | extra: Map.put(&1.extra, :attached, t)})
+    |> Effects.take_control(s, t)
+    |> Zones.update_card(t, &%{&1 | extra: Map.put(&1.extra, :mind_control, {id, from})})
+  end
+
   def spell(game, _s, _slug, _id, _targets), do: game
 
   defp in_play?(game, id), do: Zones.zone_name(Zones.locate(game, id)) in [:in_play, :patrol]
@@ -216,6 +246,10 @@ defmodule Codex.Effects.Blue do
   # Drill Sergeant: remove a +1/+1 rune (paid) → a +1/+1 rune on another unit.
   def ability(game, _s, _id, :rune_move, [t]), do: Effects.plus_rune(game, t)
 
+  # Eyes of the Chancellor: a friendly unit is invisible until your next upkeep.
+  def ability(game, s, _id, :eyes, [t]),
+    do: Zones.update_card(game, t, &%{&1 | extra: Map.put(&1.extra, :eyes, s)})
+
   # Arresting Constable: disable a tech 0, I or II unit.
   def ability(game, _s, _id, :arrest, [t]), do: Effects.disable(game, t)
 
@@ -275,9 +309,11 @@ defmodule Codex.Effects.Blue do
   @doc """
   Blue triggers when a card dies (`ctx` from `Codex.Effects.die/2`): an
   insured unit pays its cost in gold and a card to each Insurance Agent still
-  in play that insured it.
+  in play that insured it; Reteller of Truths returns an Illusion.
   """
-  def died(game, %{insured: [_ | _] = agents, slug: slug}) do
+  def died(game, ctx), do: game |> insurance(ctx) |> reteller(ctx)
+
+  defp insurance(game, %{insured: [_ | _] = agents, slug: slug}) do
     cost = Codex.Cards.fetch!(slug).cost || 0
 
     Enum.reduce(agents, game, fn agent, game ->
@@ -293,7 +329,29 @@ defmodule Codex.Effects.Blue do
     end)
   end
 
-  def died(game, _ctx), do: game
+  defp insurance(game, _ctx), do: game
+
+  # Reteller of Truths: the first two times each turn one of your non-token
+  # Illusion units dies (Reteller too), it returns to its owner's hand.
+  defp reteller(
+         game,
+         %{illusion?: true, token?: false, unit?: true, s: s, id: id, owner: owner} = ctx
+       ) do
+    key = {:retold, game.active, game.sides[game.active].turn}
+    used = Map.get(game.sides[s].effects, key, 0)
+    reteller? = ctx.slug == "reteller-of-truths" or Stats.controls?(game, s, "reteller-of-truths")
+
+    if reteller? and used < 2 and id in game.sides[owner].zones.discard do
+      game
+      |> Zones.move(id, {owner, :hand})
+      |> Rules.update_side(s, &%{&1 | effects: Map.put(&1.effects, key, used + 1)})
+      |> Effects.log({:returns, id})
+    else
+      game
+    end
+  end
+
+  defp reteller(game, _ctx), do: game
 
   @doc "Blue upkeep abilities of side `s`: Elite Training and The Art of War end."
   def upkeep(game, s) do
@@ -304,6 +362,9 @@ defmodule Codex.Effects.Blue do
 
         Map.has_key?(c.extra, :elite) and Stats.controller(game, id) == s ->
           Zones.update_card(game, id, &%{&1 | extra: Map.delete(&1.extra, :elite)})
+
+        Map.get(c.extra, :eyes) == s ->
+          Zones.update_card(game, id, &%{&1 | extra: Map.delete(&1.extra, :eyes)})
 
         true ->
           game

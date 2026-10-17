@@ -459,7 +459,10 @@ defmodule Codex.Effects do
         %{c | level: new, damage: if(healed?, do: 0, else: c.damage)}
       end)
 
-    if c.level < max and new >= max, do: max_level(game, id), else: game
+    # A silenced hero (Free Speech) has no "Max level:" ability.
+    if c.level < max and new >= max and not Stats.silenced?(game, id),
+      do: max_level(game, id),
+      else: game
   end
 
   defp max_level(game, id) do

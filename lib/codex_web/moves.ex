@@ -147,6 +147,7 @@ defmodule CodexWeb.Moves do
   def ability_label(:skeleton), do: "A Skeleton (1 gold)"
   def ability_label(:bone_draw), do: "Sacrifice a Skeleton: draw"
   def ability_label(:arrest), do: "Disable a tech 0-II unit"
+  def ability_label(:eyes), do: "Make a friendly unit invisible"
   def ability_label(name), do: name |> to_string() |> String.replace("_", " ")
 
   @doc """

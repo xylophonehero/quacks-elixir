@@ -107,6 +107,11 @@ defmodule Codex.CardRules do
     "flagstone-spy" => [invisible: true],
     "air-hammer" => [flying: true],
     "patriot-gryphon" => [flying: true, resist: 2],
+    # Truth
+    "spectral-flagbearer" => [flagbearer: true],
+    "spectral-roc" => [flying: true],
+    "eyes-of-the-chancellor" => [detector: true, haste: true],
+    "liberty-gryphon" => [flying: true, haste: true],
     # Tokens
     "soldier" => [sparkshot: true],
     "horror" => [deathtouch: true]
@@ -195,7 +200,12 @@ defmodule Codex.CardRules do
     "boot-camp" => [:force_not_peace_hero],
     "elite-training" => [:my_force, {:may, :my_force}],
     "general-s-hammer" => [:building],
-    "the-art-of-war" => [:my_peace_hero]
+    "the-art-of-war" => [:my_peace_hero],
+    # Truth
+    "free-speech" => [],
+    "hallucination" => [:unit_t012, {:may, :unit_t012}],
+    "dreamscape" => [],
+    "mind-control" => [:unit_t012]
   }
 
   # Extra gold for a `:boost` target (Boost X).
@@ -206,7 +216,8 @@ defmodule Codex.CardRules do
     "harmony" => "Finesse",
     "two-step" => "Finesse",
     "war-drums" => "Blood",
-    "behind-the-ferns" => "Feral"
+    "behind-the-ferns" => "Feral",
+    "dreamscape" => "Truth"
   }
 
   # Activated abilities of cards: `{name, target slots, costs}`. Costs:
@@ -239,6 +250,8 @@ defmodule Codex.CardRules do
     "arresting-constable" => [{:arrest, [:unit_t012], [exhaust: true]}],
     # Peace
     "drill-sergeant" => [{:rune_move, [:other_unit], [rune: true]}],
+    # Truth
+    "eyes-of-the-chancellor" => [{:eyes, [:my_unit], [exhaust: true]}],
     # Graveyard: the gold is the cost of the buried unit (`Codex.Rules`).
     "graveyard" => [{:exhume, [:buried_unit], [exhaust: true, unit_cost: true]}]
   }
@@ -302,6 +315,13 @@ defmodule Codex.CardRules do
   # Target kinds that are a choice, not a ◎ target (no Illusion dies of them).
   @untargeted ~w(codex_spell my_green_unit my_non_demon_unit my_skeleton my_mirror hand_card
                  hand_unit_t012 codex_tiger codex_demonology_spell buried_unit)a
+
+  # Cards with a ◎ that the data file misses (checked on the card images).
+  @targets_too ~w(arrest zarramonde-the-obliterator)
+
+  @doc "True when card `slug` has the ◎ icon: its spell or ability targets."
+  @spec targets?(String.t()) :: boolean
+  def targets?(slug), do: slug in @targets_too or Codex.Cards.fetch!(slug).target
 
   @doc "True for a target kind that is a choice, not a ◎ target (an Illusion does not die)."
   @spec untargeted?(term) :: boolean

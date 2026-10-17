@@ -630,12 +630,8 @@ defmodule Codex.Rules do
         }
       )
 
-    slots =
-      if spell?(d),
-        do: CardRules.spell_targets(d.slug) || [],
-        else: CardRules.arrive_targets(d.slug)
-
-    {game, targets} = illusions(game, slots, targets, d.target)
+    {slots, targeted?} = play_slots(game, d, targets)
+    {game, targets} = illusions(game, slots, targets, targeted?)
 
     cond do
       d.type in ["Unit", "Legendary Unit"] -> Effects.arrive_from_hand(game, s, id, targets)
@@ -801,7 +797,7 @@ defmodule Codex.Rules do
   # of the codex spell it plays).
   defp play_slots(game, %{slug: "jurisdiction"}, [c | _]) do
     inner = Cards.fetch!(game.cards[c].card)
-    {[:codex_spell | CardRules.spell_targets(inner.slug) || []], inner.target}
+    {[:codex_spell | CardRules.spell_targets(inner.slug) || []], CardRules.targets?(inner.slug)}
   end
 
   defp play_slots(_game, d, _targets) do
@@ -810,7 +806,7 @@ defmodule Codex.Rules do
         do: CardRules.spell_targets(d.slug) || [],
         else: CardRules.arrive_targets(d.slug)
 
-    {slots, d.target}
+    {slots, CardRules.targets?(d.slug)}
   end
 
   # Each target with its slot (a divided slot spreads over its n values).
@@ -843,7 +839,7 @@ defmodule Codex.Rules do
       band = from && Cards.band(c.card, from)
       band != nil and Enum.any?(band.text, &String.contains?(&1, "◎"))
     else
-      Cards.fetch!(c.card).target
+      CardRules.targets?(c.card)
     end
   end
 
@@ -1122,8 +1118,30 @@ defmodule Codex.Rules do
       end)
 
     case gone do
-      nil -> game
+      nil -> mind_control(game)
       id -> game |> Effects.trash(id) |> deaths()
+    end
+  end
+
+  # Mind Control left play: the unit goes back to the side that had it.
+  defp mind_control(game) do
+    back =
+      Enum.find_value(for(s <- [0, 1], id <- Zones.in_play(game, s), do: id), fn id ->
+        case Map.get(game.cards[id].extra, :mind_control) do
+          {mc, from} -> if not in_play?(game, mc), do: {id, from}
+          _ -> nil
+        end
+      end)
+
+    case back do
+      nil ->
+        game
+
+      {id, from} ->
+        game
+        |> Zones.move(id, {from, :in_play})
+        |> Zones.update_card(id, &%{&1 | extra: Map.delete(&1.extra, :mind_control)})
+        |> deaths()
     end
   end
 
