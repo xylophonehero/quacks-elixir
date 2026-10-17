@@ -98,6 +98,10 @@ defmodule Codex.CardRules do
     # Black starting deck
     "pestering-haunt" => [unstoppable: true, cant_patrol: true, cant_sacrifice: true, max_atk: 1],
     "jandra-the-negator" => [overpower: true],
+    # Law
+    "guardian-of-the-gates" => [cant_attack: true],
+    "justice-juggernaut" => [unstoppable: true, cant_patrol: true, two_lives: true],
+    "lawbringer-gryphon" => [flying: true, resist: 2, obliterate: 4],
     # Tokens
     "soldier" => [sparkshot: true],
     "horror" => [deathtouch: true]
@@ -176,7 +180,12 @@ defmodule Codex.CardRules do
     # Black starting deck
     "deteriorate" => [:unit],
     "summon-skeletons" => [],
-    "sacrifice-the-weak" => []
+    "sacrifice-the-weak" => [],
+    # Law
+    "injunction" => [:tech12_building],
+    "community-service" => [],
+    "jurisdiction" => [:jurisdiction],
+    "judgment-day" => []
   }
 
   # Extra gold for a `:boost` target (Boost X).
@@ -216,6 +225,8 @@ defmodule Codex.CardRules do
     # Blue and Black starting decks
     "porkhand-magistrate" => [{:magistrate, [:other_force], [gold: 1, exhaust: true]}],
     "skeleton-javelineer" => [{:javelin, [], [javelin: 1]}],
+    # Law
+    "arresting-constable" => [{:arrest, [:unit_t012], [exhaust: true]}],
     # Graveyard: the gold is the cost of the buried unit (`Codex.Rules`).
     "graveyard" => [{:exhume, [:buried_unit], [exhaust: true, unit_cost: true]}]
   }
@@ -270,13 +281,14 @@ defmodule Codex.CardRules do
     "tyrannosaurus-rex" => [{:may, :unit_upgrade_worker}, {:may, :unit_upgrade_worker}],
     "artisan-mantis" => [:my_building],
     # Blue starting deck
+    "insurance-agent" => [:unit],
     "reputable-newsman" => [
       {:choice, [:cost_0, :cost_1, :cost_2, :cost_3, :cost_4, :cost_5, :cost_6]}
     ]
   }
 
   # Target kinds that are a choice, not a ◎ target (no Illusion dies of them).
-  @untargeted ~w(my_green_unit my_non_demon_unit my_skeleton my_mirror hand_card
+  @untargeted ~w(codex_spell my_green_unit my_non_demon_unit my_skeleton my_mirror hand_card
                  hand_unit_t012 codex_tiger codex_demonology_spell buried_unit)a
 
   @doc "True for a target kind that is a choice, not a ◎ target (an Illusion does not die)."

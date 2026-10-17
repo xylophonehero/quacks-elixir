@@ -273,8 +273,14 @@ defmodule Codex.Rules do
     {workers, needs} = @tech_needs[b]
 
     length(side.zones.workers) >= workers and
-      (needs == nil or needs in side.tech_buildings) and
+      (needs == nil or operational?(side, needs)) and
       not Enum.any?(side.pending, &(&1 not in @add_ons))
+  end
+
+  # A finished tech building that works now (Injunction: not on its side's
+  # next turn; rulings: no next higher tech building then either).
+  defp operational?(side, b) do
+    b in side.tech_buildings and not match?({^b, _}, Map.get(side.effects, :injunction))
   end
 
   @doc "The gold to build `b` (0 to rebuild a destroyed tech building)."
@@ -343,15 +349,30 @@ defmodule Codex.Rules do
           cost = Map.get(game.cards[n].extra, :number),
           do: cost
 
-    not ((spell?(d) or String.contains?(d.type, "Upgrade")) and (d.cost || 0) in banned)
+    # Censorship Council: opponents can't play more than one card from hand during their turns.
+    censored? =
+      Stats.controls?(game, 1 - s, "censorship-council") and
+        Map.get(game.sides[s].effects, :played, 0) >= 1
+
+    not censored? and
+      not ((spell?(d) or String.contains?(d.type, "Upgrade")) and (d.cost || 0) in banned)
   end
 
   # Cost + the resist of the targets + boost.
   defp play_cost(game, s, id, targets) do
     boost = if :boost in targets, do: CardRules.boost(game.cards[id].card), else: 0
     building = if Stats.building_card?(game, id), do: inspector_tax(game, s), else: 0
-    cost(game, s, id) + Targets.resist_cost(game, s, targets) + boost + building
+
+    cost(game, s, id) + Targets.resist_cost(game, s, targets) + boost + building +
+      inner(game, s, id, targets)
   end
+
+  # Jurisdiction: the cost of the codex spell it plays.
+  defp inner(game, s, id, [c | _]) when is_integer(c) do
+    if game.cards[id].card == "jurisdiction", do: cost(game, s, c), else: 0
+  end
+
+  defp inner(_game, _s, _id, _targets), do: 0
 
   # The target lists a card can be played with ([] when it cannot be played).
   defp play_targets(game, s, id) do
@@ -396,9 +417,22 @@ defmodule Codex.Rules do
       not hero_for?(game, s, d) -> []
       d.slug == "desperation" and game.sides[s].zones.hand -- [id] != [] -> []
       slots == [:circle] -> circle_combos(game, s)
+      slots == [:jurisdiction] -> jurisdiction_combos(game, s)
       slots == [] -> [[]]
       true -> Targets.combos(game, s, slots, id)
     end
+  end
+
+  # Jurisdiction: a non-ultimate spell from your codex with its targets
+  # (`[codex_id | targets]`); its cost is paid too (`play_cost/4`).
+  defp jurisdiction_combos(game, s) do
+    for c <- Enum.uniq_by(game.sides[s].zones.codex, &game.cards[&1].card),
+        d = Cards.fetch!(game.cards[c].card),
+        spell?(d),
+        not String.contains?(d.type, "Ultimate"),
+        d.slug != "jurisdiction",
+        targets <- spell_combos(game, s, c, d),
+        do: [c | targets]
   end
 
   # Circle of Life: sacrifice a green unit, put a green unit one tech higher
@@ -429,9 +463,17 @@ defmodule Codex.Rules do
         else: heroes
 
     heroes =
-      if String.contains?(d.type, "Ultimate"),
-        do: Enum.filter(heroes, &(&1 in game.sides[s].max_at_start)),
-        else: heroes
+      cond do
+        # Judgment Day: "Your max level Law hero can cast this no matter when he arrived or maxed."
+        d.slug == "judgment-day" ->
+          Enum.filter(heroes, &(game.cards[&1].level >= Cards.max_level(game.cards[&1].card)))
+
+        String.contains?(d.type, "Ultimate") ->
+          Enum.filter(heroes, &(&1 in game.sides[s].max_at_start))
+
+        true ->
+          heroes
+      end
 
     heroes != [] or
       (d.spec == "Growth" and Stats.controls?(game, s, "guargum-eternal-sentinel"))
@@ -442,7 +484,7 @@ defmodule Codex.Rules do
 
   defp tech_ok?(game, s, %{tech: t} = d) do
     side = game.sides[s]
-    built? = String.to_existing_atom("tech_#{t}") in side.tech_buildings
+    built? = operational?(side, String.to_existing_atom("tech_#{t}"))
     # Tech II and III make only the cards of the tech II spec (S1 p. 12).
     spec? = t < 2 or d.spec == nil or d.spec == side.tech_spec
     (built? and spec?) or commander_free?(game, s, d)
@@ -753,6 +795,22 @@ defmodule Codex.Rules do
       game = Enum.reduce(dying, game, &Effects.die(&2, &1))
       {game, Enum.map(targets, &if(&1 in dying, do: nil, else: &1))}
     end
+  end
+
+  # The target slots of a play and whether it ◎ targets (Jurisdiction: those
+  # of the codex spell it plays).
+  defp play_slots(game, %{slug: "jurisdiction"}, [c | _]) do
+    inner = Cards.fetch!(game.cards[c].card)
+    {[:codex_spell | CardRules.spell_targets(inner.slug) || []], inner.target}
+  end
+
+  defp play_slots(_game, d, _targets) do
+    slots =
+      if spell?(d),
+        do: CardRules.spell_targets(d.slug) || [],
+        else: CardRules.arrive_targets(d.slug)
+
+    {slots, d.target}
   end
 
   # Each target with its slot (a divided slot spreads over its n values).

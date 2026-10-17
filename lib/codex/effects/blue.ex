@@ -18,7 +18,60 @@ defmodule Codex.Effects.Blue do
       when is_integer(mine) and is_integer(other),
       do: Effects.copy(game, mine, game.cards[other].card, %{until: :end_of_turn})
 
+  # -- Law --
+
+  # Injunction: disable a tech I/II building (not operational on its side's
+  # next turn, `Codex.Rules`) and all of that player's units of its tech level.
+  def spell(game, _s, "injunction", _id, [{:building, seat, b}]) do
+    level = if b == :tech_1, do: 1, else: 2
+
+    units =
+      for id <- Zones.in_play(game, seat),
+          Stats.unit?(game, id),
+          Stats.tech(game, id) == level,
+          do: id
+
+    until = game.sides[seat].turn + 1
+
+    units
+    |> Enum.reduce(game, &Effects.disable(&2, &1))
+    |> Rules.update_side(seat, &%{&1 | effects: Map.put(&1.effects, :injunction, {b, until})})
+  end
+
+  # Community Service: a tech I or II unit from an opponent's discard pile or
+  # hand into play under your control (free, no tech building).
+  # REVIEW: the engine picks the unit with the highest cost (the hand first on a tie).
+  def spell(game, s, "community-service", _id, []) do
+    opp = game.sides[1 - s].zones
+
+    unit =
+      (opp.hand ++ opp.discard)
+      |> Enum.filter(&(Stats.unit?(game, &1) and Stats.tech(game, &1) in [1, 2]))
+      |> Enum.max_by(&(Codex.Cards.fetch!(game.cards[&1].card).cost || 0), fn -> nil end)
+
+    if unit, do: Effects.enter(game, s, unit, []), else: game
+  end
+
+  # Jurisdiction: play the codex spell (its cost is paid, `Codex.Rules`), then it is discarded.
+  def spell(game, s, "jurisdiction", _id, [c | targets]), do: Effects.cast(game, s, c, targets)
+
+  # Judgment Day: destroy all tech 0, I and II units.
+  def spell(game, _s, "judgment-day", _id, []) do
+    units =
+      for seat <- [0, 1],
+          id <- Zones.in_play(game, seat),
+          Stats.unit?(game, id),
+          Stats.tech(game, id) in [0, 1, 2],
+          do: id
+
+    Enum.reduce(units, game, fn id, game ->
+      if in_play?(game, id), do: Effects.destroy(game, id), else: game
+    end)
+  end
+
   def spell(game, _s, _slug, _id, _targets), do: game
+
+  defp in_play?(game, id), do: Zones.zone_name(Zones.locate(game, id)) in [:in_play, :patrol]
 
   # -- arrivals -------------------------------------------------------------------------------
 
@@ -28,6 +81,17 @@ defmodule Codex.Effects.Blue do
       when is_atom(choice) and choice != nil do
     "cost_" <> n = Atom.to_string(choice)
     Zones.update_card(game, id, &%{&1 | extra: Map.put(&1.extra, :number, String.to_integer(n))})
+  end
+
+  def arrive(game, s, _id, "tax-collector", []), do: Effects.steal(game, s, 1 - s, 1)
+  def arrive(game, s, _id, "scribe", []), do: Rules.draw(game, s, 1, :main)
+
+  # Insurance Agent: an insurance rune on a unit; when it dies, this agent's
+  # controller gains its cost in gold and draws (`died/2`).
+  def arrive(game, _s, id, "insurance-agent", [t]) when is_integer(t) do
+    Zones.update_card(game, t, fn c ->
+      %{c | extra: Map.update(c.extra, :insured_by, [id], &[id | &1])}
+    end)
   end
 
   def arrive(game, _s, _id, _slug, _targets), do: game
@@ -111,6 +175,9 @@ defmodule Codex.Effects.Blue do
     Effects.copy(game, mirror, game.cards[unit].card, %{illusion: true, until: :trash})
   end
 
+  # Arresting Constable: disable a tech 0, I or II unit.
+  def ability(game, _s, _id, :arrest, [t]), do: Effects.disable(game, t)
+
   def ability(game, _s, _id, _name, _targets), do: game
 
   # -- triggers -------------------------------------------------------------------------------
@@ -125,10 +192,40 @@ defmodule Codex.Effects.Blue do
   @doc "Blue \"Attacks:\" abilities (after the exhaust, before damage)."
   def attacks(game, _s, _a, _slug, _target), do: game
 
-  @doc "Blue abilities after a combat."
-  def after_combat(game, _s, _a, _target, _ctx), do: game
+  @doc """
+  Blue abilities after a combat: Guardian of the Gates disables a unit it
+  dealt combat damage to (rulings: also when armor took it all).
+  """
+  def after_combat(game, _s, a, target, ctx) do
+    guardian? = is_integer(target) and game.cards[target].card == "guardian-of-the-gates"
+    struck? = ctx.back > 0 and not (ctx.first == :attacker and not in_play?(game, target))
 
-  @doc "Blue triggers when a card dies (`ctx` from `Codex.Effects.die/2`)."
+    if guardian? and struck? and in_play?(game, a) and Stats.unit?(game, a),
+      do: Effects.disable(game, a),
+      else: game
+  end
+
+  @doc """
+  Blue triggers when a card dies (`ctx` from `Codex.Effects.die/2`): an
+  insured unit pays its cost in gold and a card to each Insurance Agent still
+  in play that insured it.
+  """
+  def died(game, %{insured: [_ | _] = agents, slug: slug}) do
+    cost = Codex.Cards.fetch!(slug).cost || 0
+
+    Enum.reduce(agents, game, fn agent, game ->
+      case Stats.controller(game, agent) do
+        nil ->
+          game
+
+        s ->
+          if in_play?(game, agent),
+            do: game |> Rules.gain_gold(s, cost) |> Rules.draw(s, 1, :free),
+            else: game
+      end
+    end)
+  end
+
   def died(game, _ctx), do: game
 
   @doc "Blue upkeep abilities of side `s`."
@@ -152,8 +249,20 @@ defmodule Codex.Effects.Blue do
         {id, :trash}, game -> Effects.trash(game, id)
       end)
 
-    if Stats.side_effect(game, s, :silenced) == game.sides[s].turn,
-      do: Rules.update_side(game, s, &%{&1 | effects: Map.delete(&1.effects, :silenced)}),
-      else: game
+    turn = game.sides[s].turn
+
+    game =
+      if Stats.side_effect(game, s, :silenced) == turn,
+        do: Rules.update_side(game, s, &%{&1 | effects: Map.delete(&1.effects, :silenced)}),
+        else: game
+
+    # Injunction: its building works again after that side's turn.
+    case Stats.side_effect(game, s, :injunction) do
+      {_b, ^turn} ->
+        Rules.update_side(game, s, &%{&1 | effects: Map.delete(&1.effects, :injunction)})
+
+      _ ->
+        game
+    end
   end
 end

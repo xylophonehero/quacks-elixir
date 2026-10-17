@@ -243,6 +243,14 @@ defmodule Codex.Targets do
   def candidates(game, _s, :buried_unit, src),
     do: for(id <- game.trash, Map.get(game.cards[id].extra, :buried_in) == src, do: id)
 
+  # Injunction: a finished tech I or II building of either side.
+  def candidates(game, _s, :tech12_building, _src) do
+    for seat <- [1, 0],
+        b <- [:tech_1, :tech_2],
+        b in game.sides[seat].tech_buildings,
+        do: {:building, seat, b}
+  end
+
   defp tech_units(game, s, techs),
     do: cards(game, s, &(Stats.unit?(game, &1) and Stats.tech(game, &1) in techs))
 
