@@ -473,7 +473,7 @@ defmodule Codex.Combat do
   # Deathtouch: its combat damage (even to armor) kills a unit or hero.
   defp deathtouch(game, source, target, n) do
     if n > 0 and is_integer(source) and is_integer(target) and Map.has_key?(game.cards, source) and
-         Stats.kw?(game, source, :deathtouch) and in_play?(game, target) and
+         deathtouch?(game, source, target) and in_play?(game, target) and
          Stats.force?(game, target),
        do:
          Zones.update_card(game, target, fn c ->
@@ -484,6 +484,13 @@ defmodule Codex.Combat do
            }
          end),
        else: game
+  end
+
+  # Deathtouch, and Wight's "deathtouch when attacking heroes".
+  defp deathtouch?(game, source, target) do
+    Stats.kw?(game, source, :deathtouch) or
+      (game.cards[source].card == "wight" and Stats.hero?(game, target) and
+         Stats.controller(game, source) == game.active)
   end
 
   # Damage above what the target can take (its HP left and armor).

@@ -137,6 +137,8 @@ defmodule Codex.Rules do
       for id <- Zones.in_play(game, s),
           Stats.hero?(game, id),
           game.cards[id].level < Cards.max_level(game.cards[id].card),
+          # Nether Drain: "can't level up this turn".
+          not Map.get(game.cards[id].this_turn, :no_level, false),
           do: {:level_up, id}
     else
       []

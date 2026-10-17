@@ -227,7 +227,8 @@ defmodule Codex.Stats do
       marked(game, id),
       trained(game, id),
       whisper(game, id, s),
-      abomination(game, id)
+      abomination(game, id),
+      skeletal_lord(game, id, s)
     ]
 
     Enum.sum(for {a, h} <- bonuses, do: if(stat == :atk, do: a, else: h))
@@ -304,6 +305,16 @@ defmodule Codex.Stats do
       end)
 
     if strong > 0 and force?(game, id), do: {5 * strong, 5 * strong}, else: {0, 0}
+  end
+
+  # Skeletal Lord: your Skeletons get +1/+1.
+  defp skeletal_lord(game, id, s) do
+    if subtype?(game, id, "Skeleton") do
+      n = count_in_play(game, s, "skeletal-lord")
+      {n, n}
+    else
+      {0, 0}
+    end
   end
 
   # Abomination: all other units get -1/-1.
@@ -449,18 +460,20 @@ defmodule Codex.Stats do
     s = controller(game, id)
     c = game.cards[id]
 
-    case c.card do
-      _ when is_map_key(c.extra, :eyes) ->
+    cond do
+      # Eyes of the Chancellor made it invisible.
+      Map.has_key?(c.extra, :eyes) ->
         true
 
-      "stalking-tiger" ->
-        Enum.any?(Zones.in_play(game, s), &(hero?(game, &1) and spec(game, &1) == "Feral"))
-
-      "squirrel" ->
-        controls?(game, s, "moss-ancient")
-
-      _ ->
+      s == nil ->
         false
+
+      # Lord of Shadows: your black units are invisible.
+      unit?(game, id) and color(game, id) == "Black" and controls?(game, s, "lord-of-shadows") ->
+        true
+
+      true ->
+        other_invisible?(game, id, s)
     end
   end
 
@@ -519,6 +532,19 @@ defmodule Codex.Stats do
       Enum.any?(for(s <- [0, 1], w <- Zones.in_play(game, s), do: w), fn w ->
         Map.get(game.cards[w].extra, :shackles) == id
       end)
+  end
+
+  defp other_invisible?(game, id, s) do
+    case game.cards[id].card do
+      "stalking-tiger" ->
+        Enum.any?(Zones.in_play(game, s), &(hero?(game, &1) and spec(game, &1) == "Feral"))
+
+      "squirrel" ->
+        controls?(game, s, "moss-ancient")
+
+      _ ->
+        false
+    end
   end
 
   # Liberty Gryphon: unstoppable, unattackable and untargetable while its side

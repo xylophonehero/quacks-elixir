@@ -123,6 +123,9 @@ defmodule Codex.CardRules do
     "gorgon" => [deathtouch: true],
     "cursed-crow" => [flying: true],
     "plague-lord" => [resist: 2],
+    # Necromancy
+    "wight" => [vs_hero_unstoppable: true],
+    "necromancer" => [long_range: true],
     # Tokens
     "soldier" => [sparkshot: true],
     "horror" => [deathtouch: true]
@@ -226,11 +229,16 @@ defmodule Codex.CardRules do
     "sickness" => [:force, {:may, :force}],
     "spreading-plague" => [],
     "carrion-curse" => [],
-    "death-and-decay" => []
+    "death-and-decay" => [],
+    # Necromancy
+    "nether-drain" => [:hero, :hero],
+    "lich-s-bargain" => [],
+    "doom-grasp" => [:my_sac_unit, :unit_t012_or_hero],
+    "death-rites" => []
   }
 
   # Extra gold for a `:boost` target (Boost X).
-  @boost %{"marauder" => 3, "murkwood-allies" => 4}
+  @boost %{"marauder" => 3, "murkwood-allies" => 4, "hooded-executioner" => 3}
 
   # Channeling: the ongoing spell is sacrificed when its side has no hero of this spec.
   @channeling %{
@@ -278,6 +286,10 @@ defmodule Codex.CardRules do
     # Disease
     "crypt-crawler" => [{:ground, [:flier], [gold: 1]}],
     "plague-lab" => [{:plague_lab, [], [gold: 2, exhaust: true]}],
+    # Necromancy
+    "blackhand-resurrector" => [{:resurrect, [:dead_hero], [exhaust: true, sacrifice: true]}],
+    "skeletal-lord" => [{:rally, [:hand_unit], [skeletons: 5]}],
+    "corpse-catapult" => [{:catapult, [:building], [exhaust: true, corpse: 2]}],
     # Graveyard: the gold is the cost of the buried unit (`Codex.Rules`).
     "graveyard" => [{:exhume, [:buried_unit], [exhaust: true, unit_cost: true]}]
   }
@@ -335,13 +347,14 @@ defmodule Codex.CardRules do
     "insurance-agent" => [:unit],
     "zarramonde-the-obliterator" => [:zarramonde],
     "cursed-ghoul" => [:unit],
+    "hooded-executioner" => [{:choice, [:plain, :boost]}],
     "reputable-newsman" => [
       {:choice, [:cost_0, :cost_1, :cost_2, :cost_3, :cost_4, :cost_5, :cost_6]}
     ]
   }
 
   # Target kinds that are a choice, not a ◎ target (no Illusion dies of them).
-  @untargeted ~w(codex_spell my_green_unit my_non_demon_unit my_skeleton my_mirror hand_card
+  @untargeted ~w(codex_spell my_sac_unit hand_unit dead_hero my_green_unit my_non_demon_unit my_skeleton my_mirror hand_card
                  hand_unit_t012 codex_tiger codex_demonology_spell buried_unit)a
 
   # Cards with a ◎ that the data file misses (checked on the card images).

@@ -137,7 +137,7 @@ defmodule Codex.LawTest do
     {game, _} = table()
     {game, c} = place(game, 0, "arresting-constable", :in_play)
     {game, u} = spawn(game, 1, "wight", :patrol, :elite)
-    {game, l} = spawn(game, 1, "lord-of-shadows", :in_play)
+    {game, l} = spawn(game, 1, "patriot-gryphon", :in_play)
     targets = for {:arrest, [t]} <- abilities(game, c), do: t
     assert u in targets and l not in targets
     game = ok!(game, {:ability, c, :arrest, [u]})

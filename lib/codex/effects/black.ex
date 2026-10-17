@@ -115,7 +115,44 @@ defmodule Codex.Effects.Black do
     Enum.reduce(cards ++ buildings, game, &Effects.burn(&2, s, "death-and-decay", &1, 3))
   end
 
+  # -- Necromancy --
+
+  # Nether Drain: one hero loses two levels and can't level up this turn; another gains two.
+  def spell(game, _s, "nether-drain", _id, [down, up]) do
+    game =
+      Zones.update_card(game, down, fn c ->
+        %{c | level: max(c.level - 2, 1), this_turn: Map.put(c.this_turn, :no_level, true)}
+      end)
+
+    if up, do: Effects.level_up(game, up, 2), else: game
+  end
+
+  # Lich's Bargain: sacrifice a worker, your base takes 4, a Skeleton, a Zombie and a Horror.
+  def spell(game, s, "lich-s-bargain", _id, []) do
+    game
+    |> Effects.trash_worker(s)
+    |> Effects.deal({:building, s, :base}, 4)
+    |> Effects.summon(s, "skeleton")
+    |> Effects.summon(s, "zombie")
+    |> Effects.summon(s, "horror")
+  end
+
+  # Doom Grasp: sacrifice a unit; if you do, destroy a tech 0-II unit or hero.
+  def spell(game, _s, "doom-grasp", _id, [sac, t]) do
+    game |> Effects.sacrifice(sac) |> Rules.deaths() |> destroy_in_play(t)
+  end
+
+  # Death Rites: this turn, each of your units that dies destroys an opposing lowest tech unit (`died/2`).
+  def spell(game, s, "death-rites", _id, []),
+    do: Rules.update_side(game, s, &%{&1 | effects: Map.put(&1.effects, :death_rites, true)})
+
   def spell(game, _s, _slug, _id, _targets), do: game
+
+  defp destroy_in_play(game, t) when is_integer(t) do
+    if in_play?(game, t), do: Effects.destroy(game, t), else: game
+  end
+
+  defp destroy_in_play(game, _t), do: game
 
   # -- arrivals -------------------------------------------------------------------------------
 
@@ -136,6 +173,14 @@ defmodule Codex.Effects.Black do
   end
 
   def arrive(game, _s, _id, "cursed-ghoul", [t]), do: minus_in_play(game, t)
+
+  # Hooded Executioner, boosted: destroy each opponent's weakest unit
+  # (rulings: not an indestructible one).
+  def arrive(game, s, _id, "hooded-executioner", [:boost]) do
+    weak = Effects.weakest(game, 1 - s, &(not Stats.kw?(game, &1, :indestructible)))
+    if weak, do: Effects.destroy(game, weak), else: game
+  end
+
   def arrive(game, s, _id, "plague-lord", []), do: plague_lord(game, s)
 
   # Zarramonde, played from hand: destroy a unit, hero, worker, upgrade or ongoing spell.
@@ -177,6 +222,25 @@ defmodule Codex.Effects.Black do
 
   def ability(game, s, _id, :bone_draw, [sk]),
     do: game |> Effects.sacrifice(sk) |> Rules.draw(s, 1, :main)
+
+  # Blackhand Resurrector (sacrificed): a hero that died this game arrives at max
+  # level (rulings: also on cooldown; its "Max level:" triggers).
+  # REVIEW: the hero limit still applies (a summon).
+  def ability(game, s, _id, :resurrect, [h]) do
+    max = Cards.max_level(game.cards[h].card)
+
+    game
+    |> Zones.move(h, {s, :in_play})
+    |> Zones.update_card(h, &%{&1 | fatigued: true, level: 1})
+    |> Effects.hero_arrives(s, h)
+    |> Effects.level_up(h, max - 1)
+  end
+
+  # Skeletal Lord (five Skeletons exhausted): a unit from your hand into play
+  # (rulings: free, no tech building needed).
+  def ability(game, s, _id, :rally, [u]), do: Effects.enter(game, s, u, [])
+
+  def ability(game, s, id, :catapult, [t]), do: Effects.burn(game, s, game.cards[id].card, t, 6)
 
   # Crypt Crawler: a flier loses flying this turn.
   def ability(game, _s, _id, :ground, [t]),
@@ -290,7 +354,13 @@ defmodule Codex.Effects.Black do
 
   def attacks(game, s, a, slug, target) do
     game = voidblocker(game, s, a, target)
-    if slug == "plague-lord", do: plague_lord(game, s), else: game
+
+    case slug do
+      "plague-lord" -> plague_lord(game, s)
+      # Bone Collector: "Attacks: Summon a 1/1 black Skeleton token."
+      "bone-collector" -> Effects.summon(game, s, "skeleton")
+      _ -> game
+    end
   end
 
   # Voidblocker: an opponent that attacks it exhausts another of its ready units or heroes.
@@ -325,6 +395,9 @@ defmodule Codex.Effects.Black do
   """
   def died(game, ctx) do
     game
+    |> corpses(ctx)
+    |> necromancer(ctx)
+    |> death_rites(ctx)
     |> gorgon(ctx)
     |> dozer(ctx)
     |> jandra(ctx)
@@ -345,6 +418,57 @@ defmodule Codex.Effects.Black do
   end
 
   defp jandra(game, _ctx), do: game
+
+  # Corpse Catapult: "Whenever one of your units dies, put a corpse rune on this."
+  defp corpses(game, %{unit?: true, s: s}) do
+    Enum.reduce(Zones.in_play(game, s), game, fn c, game ->
+      if game.cards[c].card == "corpse-catapult",
+        do: Effects.add_counter(game, c, :corpse, 1),
+        else: game
+    end)
+  end
+
+  defp corpses(game, _ctx), do: game
+
+  # Necromancer: "Whenever another non-token unit of yours dies, summon a 1/1 black Skeleton token."
+  defp necromancer(game, %{unit?: true, token?: false, s: s}) do
+    n = Enum.count(Zones.in_play(game, s), &(game.cards[&1].card == "necromancer"))
+    if n > 0, do: Effects.summon(game, s, "skeleton", n), else: game
+  end
+
+  defp necromancer(game, _ctx), do: game
+
+  # Death Rites: one of your units dies this turn → destroy one of an
+  # opponent's lowest tech units (rulings: not an indestructible one).
+  # REVIEW: among those, the engine destroys the one with the most ATK + HP.
+  defp death_rites(game, %{unit?: true, s: s}) do
+    if Stats.side_effect(game, s, :death_rites) do
+      units =
+        for id <- Zones.in_play(game, 1 - s),
+            Stats.unit?(game, id),
+            not Stats.kw?(game, id, :indestructible),
+            do: id
+
+      case units do
+        [] ->
+          game
+
+        _ ->
+          low = units |> Enum.map(&Stats.tech(game, &1)) |> Enum.min()
+
+          pick =
+            units
+            |> Enum.filter(&(Stats.tech(game, &1) == low))
+            |> Enum.max_by(&{Stats.atk(game, &1) + Stats.hp(game, &1), -&1})
+
+          Effects.destroy(game, pick)
+      end
+    else
+      game
+    end
+  end
+
+  defp death_rites(game, _ctx), do: game
 
   defp gorgon(game, %{slug: "gorgon", s: s}), do: Rules.draw(game, s, 1, :free)
   defp gorgon(game, _ctx), do: game

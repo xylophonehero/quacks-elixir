@@ -253,6 +253,28 @@ defmodule Codex.Targets do
     end) ++ for seat <- [1 - s, s], game.sides[seat].zones.workers != [], do: {:worker, seat}
   end
 
+  def candidates(game, s, :hero, _src), do: cards(game, s, &Stats.hero?(game, &1))
+
+  def candidates(game, s, :unit_t012_or_hero, _src) do
+    cards(game, s, fn id ->
+      Stats.hero?(game, id) or (Stats.unit?(game, id) and Stats.tech(game, id) in [0, 1, 2])
+    end)
+  end
+
+  # Doom Grasp: a unit of yours that can be sacrificed (no ◎).
+  def candidates(game, s, :my_sac_unit, _src) do
+    for id <- Zones.in_play(game, s), Stats.unit?(game, id), Stats.sacrificable?(game, id), do: id
+  end
+
+  def candidates(game, s, :hand_unit, _src),
+    do: for(id <- game.sides[s].zones.hand, Stats.unit?(game, id), do: id)
+
+  # Blackhand Resurrector: a hero in your command zone that died this game.
+  def candidates(game, s, :dead_hero, _src) do
+    side = game.sides[s]
+    for id <- side.zones.command, Map.has_key?(side.summon_after, id), do: id
+  end
+
   def candidates(game, s, :flier, _src), do: cards(game, s, &Stats.kw?(game, &1, :flying))
 
   def candidates(game, s, :my_force, _src),

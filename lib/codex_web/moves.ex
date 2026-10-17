@@ -151,6 +151,9 @@ defmodule CodexWeb.Moves do
   def ability_label(:gargoyle), do: "Wake up: +3 ATK, flying (1 gold)"
   def ability_label(:ground), do: "A flier loses flying (1 gold)"
   def ability_label(:plague_lab), do: "More runes (2 gold)"
+  def ability_label(:resurrect), do: "Sacrifice: a dead hero returns at max level"
+  def ability_label(:rally), do: "Exhaust 5 Skeletons: a unit from hand into play"
+  def ability_label(:catapult), do: "Remove 2 corpse runes: 6 damage to a building"
   def ability_label(name), do: name |> to_string() |> String.replace("_", " ")
 
   @doc """
