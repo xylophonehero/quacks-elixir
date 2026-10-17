@@ -173,9 +173,19 @@ defmodule CodenamesDuetWeb.SetupLive do
               Create game
             </button>
             <p id="create-note" class="-mt-2 text-sm text-stone-600">
-              {if @bot?,
-                do: "The game starts at once. The bot reads word links from GloVe word vectors.",
-                else: "You get a code and a link to send to your partner."}
+              <%= if @bot? do %>
+                The game starts at once. The bot reads word links from
+                <a
+                  href="https://github.com/commonsense/conceptnet-numberbatch"
+                  class="underline hover:text-stone-900"
+                >ConceptNet Numberbatch</a>
+                (<a
+                  href="https://creativecommons.org/licenses/by-sa/4.0/"
+                  class="underline hover:text-stone-900"
+                >CC BY-SA 4.0</a>).
+              <% else %>
+                You get a code and a link to send to your partner.
+              <% end %>
             </p>
           </.form>
         </div>

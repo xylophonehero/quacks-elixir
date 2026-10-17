@@ -121,6 +121,19 @@ defmodule CodenamesDuet.AI.VectorsTest do
     end
   end
 
+  test "the bench with a human proxy: the guessers read with other vectors" do
+    result = Bench.run(games: 5, seed: 1, guesser: :glove)
+    assert result.games == 5
+    assert result.errors == []
+  end
+
+  test "the data has a z scale: a near pair is far above 0, a random pair near 0" do
+    {mean, sd} = Data.data().stats
+    assert sd > 0
+    assert Data.to_z(Data.similarity("sea", "ocean")) > 3
+    assert abs(Data.to_z(mean)) < 1.0e-9
+  end
+
   test "the bench: bot + bot games find agents" do
     result = Bench.run(games: 20, seed: 1)
     assert result.games == 20

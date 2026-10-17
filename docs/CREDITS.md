@@ -74,17 +74,32 @@ in our own words.
 
 ## Codenames Duet bot: word vectors
 
-`priv/games/codenames_duet/vectors.bin` (2.5 MB) is a subset of the **GloVe**
+`priv/games/codenames_duet/vectors.bin` (5.9 MB) holds vectors from
+**ConceptNet Numberbatch** 19.08 (English), by Luminoso Technologies, Inc.:
+Robyn Speer, Joshua Chin and Catherine Havasi. 2017. *ConceptNet 5.5: An Open
+Multilingual Graph of General Knowledge.* AAAI 2017.
+<https://github.com/commonsense/conceptnet-numberbatch>. The licence is
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (read
+2026-10-17). We changed the data (a subset, 8-bit vectors, nearest-word lists),
+so `vectors.bin` has the same licence, CC BY-SA 4.0. This licence is for the
+data file only, not for the code. The bot plays with these vectors.
+
+`priv/games/codenames_duet/glove.bin` (2.5 MB) is a subset of the **GloVe**
 word vectors, `glove.6B.100d` (trained on Wikipedia 2014 and Gigaword 5):
 Jeffrey Pennington, Richard Socher and Christopher D. Manning. 2014. *GloVe:
 Global Vectors for Word Representation.* <https://nlp.stanford.edu/projects/glove/>.
 The GloVe page says: "This data is made available under the Public Domain
 Dedication and License v1.0" ([PDDL](https://opendatacommons.org/licenses/pddl/1-0/),
-read 2026-10-17).
+read 2026-10-17). Only the bench (`CodenamesDuet.AI.Bench`) uses it, as a
+partner with other word links than the bot.
 
-We keep 17,539 of the 400,000 words: the 599 board words and 17,528 frequent
-clue words (a word list filter, a stop list and a block list), each vector scaled
-to 8-bit integers, and the 300 nearest clue words of each board word.
-`docs/games/codenames_duet/build_vectors.py` makes the file; it also uses
+Each file keeps the 599 board words and about 17,500 frequent clue words (the
+GloVe frequency order, a word list filter, a stop list and a block list), each
+vector scaled to 8-bit integers, and the 300 nearest clue words of each board
+word. `docs/games/codenames_duet/build_vectors.py` makes the files; it also uses
 `/usr/share/dict/words` (the macOS copy of Webster's Second International, 1934,
-public domain) only to pick the words, and none of its text is in the file.
+public domain) only to pick the words, and none of its text is in the files.
+It uses **WordNet 3.0** (Princeton University, [WordNet
+licence](https://wordnet.princeton.edu/license-and-commercial-use)) through NLTK
+only to mark the concrete nouns: the files keep one flag per word and no WordNet
+data. WordNet 3.0 Copyright 2006 by Princeton University. All rights reserved.

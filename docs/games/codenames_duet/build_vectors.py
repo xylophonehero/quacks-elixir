@@ -1,31 +1,53 @@
 #!/usr/bin/env python3
-"""Build priv/games/codenames_duet/vectors.bin from GloVe (the Duet bot's word vectors).
+"""Build the Duet bot's word vectors (priv/games/codenames_duet/*.bin).
 
-Source: GloVe 6B (Pennington, Socher, Manning 2014), https://nlp.stanford.edu/projects/glove/
-Licence: Public Domain Dedication and License v1.0 (PDDL). See docs/CREDITS.md.
+Two sources:
 
-Usage (needs numpy; glove.6B.zip is 822 MB, download it once outside the repo):
+- ConceptNet Numberbatch 19.08, English (Speer, Chin, Havasi 2017),
+  https://github.com/commonsense/conceptnet-numberbatch. Licence: CC BY-SA 4.0;
+  the file made from it (vectors.bin) has the same licence. See docs/CREDITS.md.
+  The bot plays with these vectors.
+- GloVe 6B (Pennington, Socher, Manning 2014), https://nlp.stanford.edu/projects/glove/.
+  Licence: PDDL. The bench (CodenamesDuet.AI.Bench) uses glove.bin as a
+  "human proxy" guesser: a partner that does not share the bot's vectors.
+
+A third source marks the concrete clue words: WordNet 3.0 (Princeton
+University, WordNet licence), through NLTK. The file keeps only a flag per word,
+no WordNet data.
+
+Usage (needs numpy and nltk with the wordnet corpus: `NLTK_DATA=<dir> python3 -c
+"import nltk; nltk.download('wordnet', download_dir='<dir>')"`; download the
+sources once, outside the repo: glove.6B.zip is 822 MB,
+numberbatch-en-19.08.txt.gz is 325 MB):
 
     unzip glove.6B.zip glove.6B.100d.txt
-    python3 docs/games/codenames_duet/build_vectors.py glove.6B.100d.txt
+    python3 docs/games/codenames_duet/build_vectors.py numberbatch \\
+        numberbatch-en-19.08.txt.gz glove.6B.100d.txt priv/games/codenames_duet/vectors.bin
+    python3 docs/games/codenames_duet/build_vectors.py glove \\
+        glove.6B.100d.txt glove.6B.100d.txt priv/games/codenames_duet/glove.bin
+
+The third argument is always a GloVe file: GloVe lists its words by frequency,
+and that order selects the clue vocabulary for both sources.
 
 The file keeps:
 
 - the board words (priv/games/codenames_duet/words.txt), all of them;
-- a clue vocabulary: the most frequent GloVe words (GloVe lists them by
-  frequency) that are 3..12 lower-case letters, a word in lower case in
-  /usr/share/dict/words (a base form: no plurals or past tenses, and most names
-  drop out, as the dictionary has them with a capital letter only), not a stop
-  word and not in BLOCK. (The bot reads a clue such as "ships" as "ship".)
+- a clue vocabulary: the most frequent GloVe words that are 3..12 lower-case
+  letters, a word in lower case in /usr/share/dict/words (a base form: no
+  plurals or past tenses, and most names drop out, as the dictionary has them
+  with a capital letter only), not a stop word, not in BLOCK, and in the source.
+  (The bot reads a clue such as "ships" as "ship".)
 
 Format (little endian), read by CodenamesDuet.AI.Vectors.Data:
 
     "CDV1"  u32 count  u16 dim  u16 k
-    count x (u8 flags, u8 length, bytes)      flags: 1 = clue word, 2 = board word
+    count x (u8 flags, u8 length, bytes)      flags: 1 = clue word, 2 = board word,
+                                              4 = concrete (see concrete/1)
     count x dim x i8                          each vector scaled to max |x| = 127
     for each board word, in words.txt order:  k x (u16 index, i8 cosine x 127)
                                               its k nearest clue words, nearest first
 """
+import gzip
 import re
 import struct
 import sys
@@ -35,7 +57,6 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
 WORDS = ROOT / "priv/games/codenames_duet/words.txt"
-OUT = ROOT / "priv/games/codenames_duet/vectors.bin"
 SCAN = 45_000  # the most frequent GloVe words to read
 CLUES = 20_000  # the clue vocabulary, at most (45,000 words give about 17,500)
 K = 300  # nearest clue words per board word
@@ -57,6 +78,8 @@ wherever whichever whoever already almost always often never sometimes usually y
 mr mrs ms dr inc ltd etc via vs ago yesterday today tomorrow tonight percent
 amid amidst near nearest nearby toward towards across along alongside onto beside besides
 despite unlike regarding whereby thereby hence inside outside beyond behind
+due thing things something nothing everything someone everyone somebody nobody lot lots
+kind sort way ways able unable likely unlikely possible certain sure etc else instead
 """.split())
 
 # Not family-friendly, or a slur, or too grim for a party game.
@@ -83,54 +106,85 @@ def dictionary():
     return {w for w in words if w.islower()}
 
 
-def main(glove):
-    board = [w.strip() for w in WORDS.read_text().split("\n") if w.strip()]
-    board_set = set(board)
-    lower = dictionary()
+def concrete_test():
+    """A test for concrete nouns: the word's first noun sense is a physical entity."""
+    from nltk.corpus import wordnet as wn
 
-    vectors, clue_words, board_vecs = {}, [], {}
+    physical = wn.synset("physical_entity.n.01")
+
+    def concrete(word):
+        senses = wn.synsets(word, "n")
+        return bool(senses) and any(physical in path for path in senses[0].hypernym_paths())
+
+    return concrete
+
+
+def candidates(glove, board_set):
+    """The clue words in GloVe frequency order (before the source filter)."""
+    lower = dictionary()
+    out = []
     with open(glove, encoding="utf8") as f:
         for i, line in enumerate(f):
-            word, rest = line.split(" ", 1)
-            if word in board_set and word not in board_vecs:
-                board_vecs[word] = np.array(rest.split(), dtype=np.float32)
+            if i >= SCAN:
+                break
+            word = line.split(" ", 1)[0]
             if (
-                i < SCAN
-                and len(clue_words) < CLUES
-                and re.fullmatch("[a-z]{3,12}", word)
+                re.fullmatch("[a-z]{3,12}", word)
                 and word not in STOP
                 and word not in BLOCK
                 and word in lower
             ):
-                clue_words.append(word)
-                vectors[word] = np.array(rest.split(), dtype=np.float32)
-            if i >= SCAN and len(board_vecs) == len(board_set):
-                break
+                out.append(word)
+    return out
 
-    missing = [w for w in board if w not in board_vecs]
+
+def read_source(kind, path, wanted):
+    """The vectors of the `wanted` words in the source file."""
+    vecs = {}
+    opener = gzip.open if str(path).endswith(".gz") else open
+    with opener(path, "rt", encoding="utf8") as f:
+        for n, line in enumerate(f):
+            if kind != "glove" and n == 0:
+                continue
+            word, rest = line.split(" ", 1)
+            if word in wanted and word not in vecs:
+                vecs[word] = np.array(rest.split(), dtype=np.float32)
+    return vecs
+
+
+def main(kind, source, glove, out_path):
+    board = [w.strip() for w in WORDS.read_text().split("\n") if w.strip()]
+    board_set = set(board)
+    cands = candidates(glove, board_set)
+    vecs = read_source(kind, source, set(cands) | board_set)
+
+    missing = [w for w in board if w not in vecs]
     if missing:
-        sys.exit(f"board words not in GloVe: {missing}")
+        sys.exit(f"board words not in {source}: {missing}")
+
+    clue_words = [w for w in cands if w in vecs][:CLUES]
 
     # The order: the clue words (by frequency), then the board words not among them.
     clue_set = set(clue_words)
     order = clue_words + [w for w in board if w not in clue_set]
     index = {w: i for i, w in enumerate(order)}
-    mat = np.stack([vectors[w] if w in vectors else board_vecs[w] for w in order])
+    mat = np.stack([vecs[w] for w in order])
     dim = mat.shape[1]
 
     unit = mat / np.linalg.norm(mat, axis=1, keepdims=True)
     q = np.round(unit / np.abs(unit).max(axis=1, keepdims=True) * 127).astype(np.int8)
 
-    clue_idx = np.arange(len(clue_words))
+    concrete = concrete_test()
     out = bytearray(b"CDV1")
     out += struct.pack("<IHH", len(order), dim, K)
     for w in order:
         flags = (1 if w in clue_set else 0) | (2 if w in board_set else 0)
+        flags |= 4 if concrete(w) else 0
         b = w.encode()
         out += struct.pack("<BB", flags, len(b)) + b
     out += q.tobytes()
 
-    clue_unit = unit[clue_idx]
+    clue_unit = unit[: len(clue_words)]
     for w in board:
         sims = clue_unit @ unit[index[w]]
         if index[w] < len(clue_words):
@@ -139,9 +193,11 @@ def main(glove):
         for j in top:
             out += struct.pack("<Hb", int(j), int(round(float(sims[j]) * 127)))
 
-    OUT.write_bytes(out)
-    print(f"{OUT}: {len(order)} words ({len(clue_words)} clues), {dim}d, k={K}, {len(out)} bytes")
+    Path(out_path).write_bytes(out)
+    print(f"{out_path}: {len(order)} words ({len(clue_words)} clues), {dim}d, k={K}, {len(out)} bytes")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    if len(sys.argv) != 5 or sys.argv[1] not in ("glove", "numberbatch", "fasttext"):
+        sys.exit(__doc__)
+    main(*sys.argv[1:])

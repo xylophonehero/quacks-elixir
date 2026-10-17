@@ -1,37 +1,46 @@
 defmodule CodenamesDuet.AI.Vectors.Data do
   @moduledoc """
   The word vectors of the Duet bot: `priv/games/codenames_duet/vectors.bin`, a
-  subset of GloVe 6B 100d (PDDL, see `docs/CREDITS.md`). The file holds the 599
-  board words and 17,528 clue words as 8-bit vectors, and the 300 nearest clue
-  words of each board word. `docs/games/codenames_duet/build_vectors.py` makes
-  it and documents the format.
+  subset of ConceptNet Numberbatch 19.08 (CC BY-SA 4.0, see `docs/CREDITS.md`).
+  The file holds the 599 board words and 17,472 clue words as 8-bit vectors
+  (300 dimensions), a flag for the concrete nouns, and the 300 nearest clue
+  words of each board word. `glove.bin` (GloVe 6B 100d, PDDL) has the same form;
+  only the bench uses it. `docs/games/codenames_duet/build_vectors.py` makes the
+  files and documents the format.
 
-  The first call reads the file into `:persistent_term` (about 3 MB); the later
-  calls read it from there.
+  The first call for a set reads its file into `:persistent_term` (about 6 MB
+  for `vectors.bin`); the later calls read it from there.
 
       iex> CodenamesDuet.AI.Vectors.Data.similarity("sea", "ocean") > 0.5
       true
   """
 
-  @key {__MODULE__, :data}
   @scale 127
+
+  @typedoc """
+  A vector set: `:main` (`vectors.bin`, the bot's), another atom (`<name>.bin` in
+  the same folder: `:glove` is the bench's proxy guesser), or a file path.
+  """
+  @type set :: atom | Path.t()
 
   @type t :: %{
           index: %{String.t() => non_neg_integer},
           words: tuple,
           clue: tuple,
+          concrete: tuple,
           vectors: tuple,
           norms: tuple,
-          neighbours: %{String.t() => binary}
+          neighbours: %{String.t() => binary},
+          stats: {float, float}
         }
 
-  @doc "The data (read once, then from `:persistent_term`)."
-  @spec data() :: t
-  def data do
-    case :persistent_term.get(@key, nil) do
+  @doc "The data of `set` (read once, then from `:persistent_term`)."
+  @spec data(set) :: t
+  def data(set \\ :main) do
+    case :persistent_term.get({__MODULE__, set}, nil) do
       nil ->
-        data = load()
-        :persistent_term.put(@key, data)
+        data = load(path(set))
+        :persistent_term.put({__MODULE__, set}, data)
         data
 
       data ->
@@ -40,9 +49,9 @@ defmodule CodenamesDuet.AI.Vectors.Data do
   end
 
   @doc "The 8-bit vector of `word` (a binary), or nil when the word is not in the data."
-  @spec vector(String.t()) :: binary | nil
-  def vector(word) do
-    d = data()
+  @spec vector(String.t(), set) :: binary | nil
+  def vector(word, set \\ :main) do
+    d = data(set)
 
     case Map.fetch(d.index, word) do
       {:ok, i} -> elem(d.vectors, i)
@@ -51,9 +60,9 @@ defmodule CodenamesDuet.AI.Vectors.Data do
   end
 
   @doc "True when `word` is in the clue vocabulary."
-  @spec clue?(String.t()) :: boolean
-  def clue?(word) do
-    d = data()
+  @spec clue?(String.t(), set) :: boolean
+  def clue?(word, set \\ :main) do
+    d = data(set)
 
     case Map.fetch(d.index, word) do
       {:ok, i} -> elem(d.clue, i)
@@ -61,17 +70,21 @@ defmodule CodenamesDuet.AI.Vectors.Data do
     end
   end
 
+  @doc "True when the word at index `i` is a concrete noun (WordNet, see the build script)."
+  @spec concrete?(non_neg_integer, set) :: boolean
+  def concrete?(i, set \\ :main), do: elem(data(set).concrete, i)
+
   @doc "The clue words, most frequent first."
-  @spec clue_words() :: [String.t()]
-  def clue_words do
-    d = data()
+  @spec clue_words(set) :: [String.t()]
+  def clue_words(set \\ :main) do
+    d = data(set)
     for i <- 0..(tuple_size(d.words) - 1), elem(d.clue, i), do: elem(d.words, i)
   end
 
   @doc "The nearest clue words of board word `word`, nearest first: `[{word, cosine}]`."
-  @spec neighbours(String.t()) :: [{String.t(), float}]
-  def neighbours(word) do
-    d = data()
+  @spec neighbours(String.t(), set) :: [{String.t(), float}]
+  def neighbours(word, set \\ :main) do
+    d = data(set)
 
     case Map.fetch(d.neighbours, word) do
       {:ok, list} -> for <<i::little-16, s::signed-8 <- list>>, do: {elem(d.words, i), s / @scale}
@@ -83,9 +96,9 @@ defmodule CodenamesDuet.AI.Vectors.Data do
   The index of `word` in the data, or of a simple form of it (`ships` → `ship`),
   or nil. The bot reads a clue that is not in the data through this.
   """
-  @spec lookup(String.t()) :: non_neg_integer | nil
-  def lookup(word) do
-    index = data().index
+  @spec lookup(String.t(), set) :: non_neg_integer | nil
+  def lookup(word, set \\ :main) do
+    index = data(set).index
     Enum.find_value([word | stems(word)], &Map.get(index, &1))
   end
 
@@ -99,21 +112,39 @@ defmodule CodenamesDuet.AI.Vectors.Data do
   end
 
   @doc "The cosine similarity of two words (or nil when one is not in the data)."
-  @spec similarity(String.t(), String.t()) :: float | nil
-  def similarity(a, b) do
-    with i when is_integer(i) <- lookup(a),
-         j when is_integer(j) <- lookup(b),
-         do: cosine(i, j)
+  @spec similarity(String.t(), String.t(), set) :: float | nil
+  def similarity(a, b, set \\ :main) do
+    with i when is_integer(i) <- lookup(a, set),
+         j when is_integer(j) <- lookup(b, set),
+         do: cosine(i, j, set)
+  end
+
+  @doc """
+  How near the words at indexes `i` and `j` are, in standard deviations above
+  the mean cosine of two board words. Each vector set has its own scale; this
+  one is the same for all sets (0: as near as two random board words).
+  """
+  @spec z(non_neg_integer, non_neg_integer, set) :: float
+  def z(i, j, set \\ :main) do
+    {mean, sd} = data(set).stats
+    (cosine(i, j, set) - mean) / sd
+  end
+
+  @doc "A cosine of `set` as a `z/3` value."
+  @spec to_z(float, set) :: float
+  def to_z(cosine, set \\ :main) do
+    {mean, sd} = data(set).stats
+    (cosine - mean) / sd
   end
 
   @doc "The cosine similarity of the words at indexes `i` and `j`."
-  @spec cosine(non_neg_integer, non_neg_integer) :: float
-  def cosine(i, j) do
-    d = data()
+  @spec cosine(non_neg_integer, non_neg_integer, set) :: float
+  def cosine(i, j, set \\ :main) do
+    d = data(set)
     dot(elem(d.vectors, i), elem(d.vectors, j), 0) / (elem(d.norms, i) * elem(d.norms, j))
   end
 
-  # Four components a step: the vectors have 100 (a multiple of 4).
+  # Four components a step: the vectors have 100 or 300 (a multiple of 4).
   defp dot(
          <<a1::signed-8, a2::signed-8, a3::signed-8, a4::signed-8, ra::binary>>,
          <<b1::signed-8, b2::signed-8, b3::signed-8, b4::signed-8, rb::binary>>,
@@ -125,15 +156,21 @@ defmodule CodenamesDuet.AI.Vectors.Data do
 
   # -- the file ------------------------------------------------------------------------
 
-  defp load do
-    bin =
-      File.read!(Path.join([:code.priv_dir(:quacks), "games", "codenames_duet", "vectors.bin"]))
+  defp path(:main), do: path(:vectors)
+  defp path(set) when is_atom(set), do: Path.join(dir(), "#{set}.bin")
+  defp path(file) when is_binary(file), do: file
+
+  defp dir, do: Path.join([:code.priv_dir(:quacks), "games", "codenames_duet"])
+
+  defp load(file) do
+    bin = File.read!(file)
 
     <<"CDV1", count::little-32, dim::little-16, k::little-16, rest::binary>> = bin
 
     {entries, rest} = read_words(rest, count, [])
     words = entries |> Enum.map(&elem(&1, 1)) |> List.to_tuple()
     clue = entries |> Enum.map(&(Bitwise.band(elem(&1, 0), 1) == 1)) |> List.to_tuple()
+    concrete = entries |> Enum.map(&(Bitwise.band(elem(&1, 0), 4) == 4)) |> List.to_tuple()
     boards = for {flags, w} <- entries, Bitwise.band(flags, 2) == 2, do: w
 
     size = count * dim
@@ -143,16 +180,40 @@ defmodule CodenamesDuet.AI.Vectors.Data do
     norms =
       Enum.map(vectors, fn v -> :math.sqrt(dot(v, v, 0)) end)
 
-    neighbours = read_neighbours(rest, board_order(boards), k)
+    boards = board_order(boards)
+    neighbours = read_neighbours(rest, boards, k)
+    index = words |> Tuple.to_list() |> Enum.with_index() |> Map.new()
+    vectors = List.to_tuple(vectors)
+    norms = List.to_tuple(norms)
 
     %{
-      index: words |> Tuple.to_list() |> Enum.with_index() |> Map.new(),
+      index: index,
       words: words,
       clue: clue,
-      vectors: List.to_tuple(vectors),
-      norms: List.to_tuple(norms),
-      neighbours: neighbours
+      concrete: concrete,
+      vectors: vectors,
+      norms: norms,
+      neighbours: neighbours,
+      stats: stats(Enum.map(boards, &index[&1]), vectors, norms)
     }
+  end
+
+  # The mean and the standard deviation of the cosine of two board words: each
+  # board word against the next 40 (in words.txt order).
+  defp stats(boards, vectors, norms) do
+    n = length(boards)
+    t = List.to_tuple(boards)
+
+    sims =
+      for a <- 0..(n - 1), b <- 1..40 do
+        i = elem(t, a)
+        j = elem(t, rem(a + b, n))
+        dot(elem(vectors, i), elem(vectors, j), 0) / (elem(norms, i) * elem(norms, j))
+      end
+
+    mean = Enum.sum(sims) / length(sims)
+    var = Enum.sum(Enum.map(sims, &((&1 - mean) * (&1 - mean)))) / length(sims)
+    {mean, :math.sqrt(var)}
   end
 
   # The neighbour lists follow the order of words.txt (`CodenamesDuet.Words.all/0`).

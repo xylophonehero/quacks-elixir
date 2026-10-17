@@ -69,7 +69,13 @@ defmodule Table.Server do
   @callback bot_delay(state :: term) :: non_neg_integer
   @doc "True: after this state the bots wait for every seated human's `ready/3`."
   @callback hold?(state :: term) :: boolean
-  @optional_callbacks hold?: 1
+  @doc """
+  The lines to log (info level) for the change from `old` (nil for a new room) to
+  `new`: short lines, no hidden information. The server adds the game key and
+  the room code.
+  """
+  @callback log_lines(old :: term, new :: term) :: [String.t()]
+  @optional_callbacks hold?: 1, log_lines: 2
 
   @idle_ms :timer.minutes(30)
   @alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -207,6 +213,7 @@ defmodule Table.Server do
   @impl true
   def init(fields) do
     state = Map.merge(fields, %{version: 1, timer: nil, pages: %{}, idle: nil, held: []})
+    log_lines(%{state | game: nil}, state.game)
     {:ok, state |> idle() |> schedule()}
   end
 
@@ -327,8 +334,10 @@ defmodule Table.Server do
     end)
   end
 
-  # A new game state: count up, hold the bots if the adapter says so, push every seat's view.
+  # A new game state: log it, count up, hold the bots if the adapter says so, push
+  # every seat's view.
   defp changed(state, game) do
+    log_lines(state, game)
     state = %{state | game: game, version: state.version + 1, held: held(state, game)}
 
     for seat <- state.adapter.seats(game),
@@ -346,6 +355,15 @@ defmodule Table.Server do
     )
 
     state
+  end
+
+  defp log_lines(%{adapter: adapter} = state, game) do
+    if function_exported?(adapter, :log_lines, 2) do
+      for line <- adapter.log_lines(state.game, game),
+          do: Logger.info("#{state.key} #{state.code}: #{line}")
+    end
+
+    :ok
   end
 
   # The seated humans the bots wait for (see Hold); a state without a hold keeps the old wait.

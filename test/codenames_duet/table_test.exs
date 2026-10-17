@@ -9,6 +9,8 @@ defmodule CodenamesDuet.TableTest do
   alias CodenamesDuet.{Game, Table}
   alias Elixir.Table.Server, as: Room
 
+  require Logger
+
   @key "codenames_duet_test"
 
   setup do
@@ -26,6 +28,55 @@ defmodule CodenamesDuet.TableTest do
     assert Table.view(game, 1) == Game.view(game, 1)
     assert {:ok, _} = Table.apply(game, 0, {:clue, "quokka", 1})
     assert Table.bot_levels() == [:vectors]
+  end
+
+  describe "log lines" do
+    test "one line for each new event; the key and the seed only at the game over" do
+      {:ok, game} = Table.new(%{}, {1, 2, 3})
+      [setup] = Table.log_lines(nil, game)
+      assert setup =~ ~r/^new game timer=9 words=\w+(,\w+){24}$/
+
+      assassin = Enum.find_index(game.key[0], &(&1 == :assassin))
+      {:ok, clued} = Table.apply(game, 0, {:clue, "Quokka", 2})
+      assert Table.log_lines(game, clued) == ["clue seat=0 word=quokka number=2"]
+
+      {:ok, over} = Table.apply(clued, 1, {:guess, assassin})
+      [guess, over_line] = Table.log_lines(clued, over)
+      assert guess == "guess seat=1 word=#{Enum.at(game.words, assassin)} result=assassin"
+
+      assert over_line =~
+               ~r/^game over result=lost reason=assassin found=0 seed=1,2,3 key0=[gna]{25} key1=[gna]{25}$/
+
+      for line <- Table.log_lines(nil, clued),
+          not String.starts_with?(line, "game over"),
+          do: refute(line =~ "key")
+    end
+
+    test "a new game in the same room logs its set-up again" do
+      {:ok, old} = Table.new(%{}, {1, 2, 3})
+      {:ok, new} = Table.new(%{}, {4, 5, 6})
+      assert [line] = Table.log_lines(old, new)
+      assert line =~ "new game"
+    end
+
+    test "the room logs the lines with its code" do
+      host = "host-#{System.unique_integer()}"
+      level = Logger.level()
+      Logger.configure(level: :info)
+      on_exit(fn -> Logger.configure(level: level) end)
+
+      log =
+        ExUnit.CaptureLog.capture_log([level: :info], fn ->
+          {:ok, code} = Room.create(@key, %{opts: %{}, bots: 0}, host)
+          {:ok, _} = Room.join(@key, code, host)
+          {:ok, _} = Room.act(@key, code, host, {:clue, "quokka", 1})
+          send(self(), {:code, code})
+        end)
+
+      assert_received {:code, code}
+      assert log =~ "#{@key} #{code}: new game timer=9"
+      assert log =~ "#{@key} #{code}: clue seat=0 word=quokka number=1"
+    end
   end
 
   @tag rule: "§1.1"
