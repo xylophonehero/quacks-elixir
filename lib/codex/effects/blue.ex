@@ -10,6 +10,8 @@ defmodule Codex.Effects.Blue do
   # -- spells -----------------------------------------------------------------------------------
 
   @doc "Resolve a Blue spell."
+  # Lawful Search: draw a card. # REVIEW: the look at a hand or discard pile has
+  # no effect in the engine (the hot-seat page shows both hands).
   def spell(game, s, "lawful-search", _id, []), do: Rules.draw(game, s, 1, :main)
   def spell(game, _s, "arrest", _id, [t]), do: Effects.disable(game, t)
 
@@ -192,6 +194,8 @@ defmodule Codex.Effects.Blue do
   instead of arriving. The unit already there is released and arrives in play
   for its owner (with its "Arrives:" ability, no targets). When the Jail leaves
   play, the jailed unit goes to its owner's discard pile (`Codex.Effects.leave/4`).
+  # REVIEW: the engine has no Jail zone: the jailed unit waits in the trash,
+  # marked; a released unit's "Arrives:" ability gets no targets.
   """
   def jail(game, jail, id) do
     held = Map.get(game.cards[jail].extra, :holds, [])

@@ -349,7 +349,8 @@ defmodule Codex.CardRules do
     "cursed-ghoul" => [:unit],
     "hooded-executioner" => [{:choice, [:plain, :boost]}],
     "reputable-newsman" => [
-      {:choice, [:cost_0, :cost_1, :cost_2, :cost_3, :cost_4, :cost_5, :cost_6]}
+      # REVIEW: the choice is 0 to 8 (the costs of the spells and upgrades in the game).
+      {:choice, [:cost_0, :cost_1, :cost_2, :cost_3, :cost_4, :cost_5, :cost_6, :cost_7, :cost_8]}
     ]
   }
 

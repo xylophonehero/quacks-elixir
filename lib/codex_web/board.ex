@@ -2993,6 +2993,8 @@ defmodule CodexWeb.Board do
   defp value_label(_v, :cost_4), do: "Cost 4"
   defp value_label(_v, :cost_5), do: "Cost 5"
   defp value_label(_v, :cost_6), do: "Cost 6"
+  defp value_label(_v, :cost_7), do: "Cost 7"
+  defp value_label(_v, :cost_8), do: "Cost 8"
 
   defp value_label(_v, atom) when is_atom(atom),
     do: atom |> to_string() |> String.replace("_", " ")

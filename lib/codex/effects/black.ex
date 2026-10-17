@@ -196,6 +196,8 @@ defmodule Codex.Effects.Black do
     do: Zones.update_card(game, id, &%{&1 | this_turn: Map.put(&1.this_turn, :long_range, true)})
 
   # Graveyard: play a buried unit (its cost is paid by `Codex.Rules`); it enters play.
+  # REVIEW: buried units wait in the trash, marked (no Graveyard zone); its
+  # "Arrives:" ability gets no targets.
   def ability(game, s, id, :exhume, [u]) when is_integer(u) do
     game
     |> Zones.update_card(

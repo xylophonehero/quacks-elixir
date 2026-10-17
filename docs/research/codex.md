@@ -495,6 +495,52 @@ Green: Merfolk Prospector 1 1/1 "⤵ → Gain ①."; Tiger Cub 2 2/2; Young Trea
 Red heroes (S3): Captain Zane (Anarchy, bands 1-3/4-5/6), Drakk Ramhorn (Blood, 1-3/4-5/6), Jaina Stormborne (Fire, 1-3/4-6/7).
 Green heroes (S3): Master Midori (Balance, 1-4/5-7/8; see Midori quirk §14.1), Calamandra Moss (Feral, 1-2/3-4/5), Argagarg Garg (Growth, 1-2/3-4/5).
 
+### 16.5 Blue and Black in the engine (built 2026-10-17)
+
+Preset `blue_black`: P1 Blue (Law, Peace, Truth; Blue starting deck), P2 Black
+(Demonology, Disease, Necromancy; Black starting deck), 3 heroes each, 72 codex
+cards each. Preset `black_blue` swaps the seats (for the bot bench).
+
+All 20 starting-deck cards, the 6 heroes and the 72 codex cards run. No card is
+"manual". Tests: one file per spec (`test/codex/law_test.exs` ...) and
+`test/codex/blue_black_starters_test.exs`.
+
+New shared mechanics (`Codex.Effects`, `Codex.Stats`, `Codex.Rules`, `Codex.Combat`):
+
+- Disable: exhaust, sideline, no ready in the next ready step.
+- Illusion: dies when a spell or ability with ◎ targets it, before the effect
+  (rulings: Insurance Agent). Only ◎ targets count: a card without the ◎ icon,
+  and the choice slots (sacrifice, hand, codex), do not kill it. Arrest and
+  Zarramonde have a ◎ that the data file misses.
+- Copies (Manufactured Truth, Sirus Quince): the printed card, no modifiers.
+- Damage as -1/-1 runes; "dies from combat damage"; "would die" replacements
+  (indestructible, Soul Stone, Two Lives, Brave Knight).
+- Stash, silence (Free Speech), detector, unattackable, "unstoppable when
+  attacking a building or a hero", "unstoppable by" some units, a flying base,
+  the Blackhand Dozer base floor, Injunction (a building not operational).
+
+Decisions where the card lets a player choose, or where the rules are not
+clear (each has a `# REVIEW:` in the code):
+
+| Card | Engine reading |
+|---|---|
+| Jail, Graveyard | No new zone: jailed or buried units wait in the trash, marked. A released or exhumed unit arrives with no "Arrives:" targets. |
+| Stash | The hand ends at the size it would have had without the stash (rulings example). |
+| Reputable Newsman | The choice is cost 0 to 8; the printed cost counts. |
+| Community Service | The engine takes the costliest tech I/II unit (hand first on a tie). |
+| Carrion Curse | The engine discards the two costliest non-unit cards. |
+| Lawful Search | The look at a hand or a discard pile has no effect (hot seat shows both hands). |
+| Sirus Quince, max level | The first plain Mirror always copies ("you may"). |
+| Vandy Anadrose, max level | Opposing unit: most ATK + HP; friendly unit: least. |
+| Orpal Gloor, max level | The two friendly units with the least HP left. |
+| Plague Lab | -1/-1 on each opposing card with one, +1/+1 on each own card with one. |
+| Voidblocker | The attacker's ready force with the least ATK is exhausted. |
+| Blackhand Dozer, dies | Active player: its own weakest, or the opponent's strongest of the lowest tech. All damage to a base counts as dealt by the other side for the floor. |
+| Banefire Golem | Sacrifices the weakest other unit, else itself. |
+| Death Rites | Destroys the strongest of the opponent's lowest tech units. |
+| Sacrifice the Weak, Hooded Executioner | A tie goes to the lowest id. |
+| Blackhand Resurrector | The hero limit still applies. |
+
 ---
 
 ## 17. Engine notes for the builder
