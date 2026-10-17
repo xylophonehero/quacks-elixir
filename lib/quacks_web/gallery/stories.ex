@@ -643,6 +643,8 @@ defmodule QuacksWeb.Gallery.Stories do
             {"focus", "Desktop: the keyboard focus ring and chips on a card",
              %{"state" => "focus"}},
             {"patrol", "Patrol (P): the free slots light up", %{"state" => "patrol"}},
+            {"aim", "Desktop: a unit dragged to a target: the arrow and preview",
+             %{"state" => "aim"}},
             {"expanded", "The selected card's sheet expanded (free mode)",
              %{"state" => "expanded"}},
             {"zoom", "A long press on a card: its full face", %{"state" => "zoom"}},

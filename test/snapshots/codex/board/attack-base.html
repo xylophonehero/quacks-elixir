@@ -156,7 +156,7 @@
 <div data-phx-main="" data-phx-session="" data-phx-static="" id="phx-ID">
 <main data-layout="full" style="">
 <div class="min-h-dvh" data-component="codex" data-variant="board" id="gallery-frame">
-<div class="cx-table text-stone-100 cx-selecting" data-active="0" data-pov="0" data-targeting="true" id="cx-root" phx-hook="CodexWeb.Board.CodexTable" phx-key="Escape" phx-window-keydown="key">
+<div class="cx-table text-stone-100 cx-selecting" data-active="0" data-pick="attack" data-pov="0" data-targeting="true" id="cx-root" phx-hook="CodexWeb.Board.CodexTable" phx-key="Escape" phx-window-keydown="key">
 <div class="cx-layout ">
 <header class="cx-a-top flex items-center gap-1.5">
 <a aria-label="Games" class="cx-icon-btn shrink-0" data-phx-link-state="push" data-phx-link="redirect" href="/games">
@@ -203,7 +203,7 @@ P2
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 1</span>
 </span>
 <div class="flex shrink-0 items-center gap-1">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 cx-targetable-pill cx-hit cursor-pointer" id="cx-hp-1-target" phx-click="pick_building" phx-value-name="base" phx-value-seat="1" role="button" tabindex="0" title="Base HP">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 cx-targetable-pill cx-hit cursor-pointer" data-base="1" id="cx-hp-1-target" phx-click="pick_building" phx-value-name="base" phx-value-seat="1" role="button" tabindex="0" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
 </span>
@@ -456,7 +456,7 @@ P1
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 2</span>
 </span>
 <div class="flex shrink-0 items-center gap-1">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="0" title="Base HP">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="0" phx-value-name="base" phx-value-seat="0" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
 </span>
@@ -481,7 +481,7 @@ P1
 <span class="lg:hidden">Leader</span>
 </span>
 <div class="cx-slot-card">
-<div aria-label="Troq Bashar" aria-pressed="false" class="cx-mc cursor-pointer cx-tone-hero" data-card-id="35" draggable="true" id="cx-card-35" phx-click="select" phx-value-id="35" role="button" tabindex="0" title="Troq Bashar">
+<div aria-label="Troq Bashar" aria-pressed="false" class="cx-mc cursor-pointer cx-tone-hero" data-card-id="35" data-targets="{&quot;#cx-card-74&quot;:{&quot;p&quot;:&quot;3 → 1 HP&quot;,&quot;t&quot;:&quot;atk:74&quot;},&quot;#cx-slot-0-elite&quot;:{&quot;p&quot;:&quot;Elite&quot;,&quot;t&quot;:&quot;pat:elite&quot;},&quot;#cx-slot-0-lookout&quot;:{&quot;p&quot;:&quot;Lookout&quot;,&quot;t&quot;:&quot;pat:lookout&quot;},&quot;#cx-slot-0-scavenger&quot;:{&quot;p&quot;:&quot;Scavenger&quot;,&quot;t&quot;:&quot;pat:scavenger&quot;},&quot;#cx-slot-0-technician&quot;:{&quot;p&quot;:&quot;Technician&quot;,&quot;t&quot;:&quot;pat:technician&quot;},&quot;#cx-zone-0-in_play&quot;:{&quot;p&quot;:&quot;Sideline&quot;,&quot;t&quot;:&quot;sid&quot;},&quot;[data-base=&#39;1&#39;]&quot;:{&quot;p&quot;:&quot;Base 20 → 17&quot;,&quot;t&quot;:&quot;atk:b.1.base&quot;}}" draggable="false" id="cx-card-35" phx-click="select" phx-value-id="35" role="button" tabindex="0" title="Troq Bashar">
 <div class="cx-mc-art">
 <div class="cx-mc-css">
 </div>
@@ -551,7 +551,7 @@ P1
 <div class="cx-zone cx-row cx-target" data-drop="" data-empty="false" data-list="true" data-seat="0" data-zone="in_play" id="cx-zone-0-in_play" phx-click="zone" phx-value-seat="0" phx-value-zone="in_play">
 <span class="cx-label cx-row-label">In play</span>
 <div class="cx-row-cards">
-<div aria-label="Granfalloon Flagbearer" aria-pressed="true" class="cx-mc cursor-pointer cx-tone-neutral cx-selected" data-card-id="6" draggable="true" id="cx-card-6" phx-click="select" phx-value-id="6" role="button" tabindex="0" title="Granfalloon Flagbearer">
+<div aria-label="Granfalloon Flagbearer" aria-pressed="true" class="cx-mc cursor-pointer cx-tone-neutral cx-selected" data-card-id="6" data-targets="{&quot;#cx-card-74&quot;:{&quot;p&quot;:&quot;2 → 2 HP&quot;,&quot;t&quot;:&quot;atk:74&quot;},&quot;#cx-slot-0-elite&quot;:{&quot;p&quot;:&quot;Elite&quot;,&quot;t&quot;:&quot;pat:elite&quot;},&quot;#cx-slot-0-lookout&quot;:{&quot;p&quot;:&quot;Lookout&quot;,&quot;t&quot;:&quot;pat:lookout&quot;},&quot;#cx-slot-0-scavenger&quot;:{&quot;p&quot;:&quot;Scavenger&quot;,&quot;t&quot;:&quot;pat:scavenger&quot;},&quot;#cx-slot-0-technician&quot;:{&quot;p&quot;:&quot;Technician&quot;,&quot;t&quot;:&quot;pat:technician&quot;},&quot;[data-base=&#39;1&#39;]&quot;:{&quot;p&quot;:&quot;Base 20 → 18&quot;,&quot;t&quot;:&quot;atk:b.1.base&quot;}}" draggable="false" id="cx-card-6" phx-click="select" phx-value-id="6" role="button" tabindex="0" title="Granfalloon Flagbearer">
 <div class="cx-mc-art">
 <div class="cx-mc-css">
 </div>
@@ -881,6 +881,20 @@ Brick Thief: exhaust / ready
 </ol>
 </div>
 </aside>
+</div>
+<svg aria-hidden="true" class="cx-arrow" id="cx-arrow" phx-update="ignore">
+<defs>
+<marker id="cx-arrow-head" markerHeight="4" markerWidth="4" orient="auto-start-reverse" refX="6" refY="5" viewBox="0 0 10 10">
+<path d="M0,0 L10,5 L0,10 z">
+</path>
+</marker>
+</defs>
+<path class="cx-arrow-under" d="">
+</path>
+<path class="cx-arrow-line" d="" marker-end="url(#cx-arrow-head)">
+</path>
+</svg>
+<div aria-hidden="true" class="cx-aim-tip" id="cx-aim-tip" phx-update="ignore">
 </div>
 </div>
 </div>

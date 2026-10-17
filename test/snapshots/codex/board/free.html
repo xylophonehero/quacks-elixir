@@ -203,7 +203,7 @@ P2
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 1</span>
 </span>
 <div class="flex shrink-0 items-center gap-1">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="1" title="Base HP">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="1" phx-value-name="base" phx-value-seat="1" title="Base HP">
 <button aria-label="Base HP -1" class="cx-hit grid size-7 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90" id="cx-hp-1-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="base_hp" phx-value-seat="1" type="button">
 <span class="hero-minus-mini size-3.5">
 </span>
@@ -473,7 +473,7 @@ P1
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 2</span>
 </span>
 <div class="flex shrink-0 items-center gap-1">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="0" title="Base HP">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="0" phx-value-name="base" phx-value-seat="0" title="Base HP">
 <button aria-label="Base HP -1" class="cx-hit grid size-7 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white active:scale-90" id="cx-hp-0-minus" phx-click="adjust" phx-value-delta="-1" phx-value-key="base_hp" phx-value-seat="0" type="button">
 <span class="hero-minus-mini size-3.5">
 </span>
@@ -880,6 +880,20 @@ Troq Bashar → P1 Squad leader
 </ol>
 </div>
 </aside>
+</div>
+<svg aria-hidden="true" class="cx-arrow" id="cx-arrow" phx-update="ignore">
+<defs>
+<marker id="cx-arrow-head" markerHeight="4" markerWidth="4" orient="auto-start-reverse" refX="6" refY="5" viewBox="0 0 10 10">
+<path d="M0,0 L10,5 L0,10 z">
+</path>
+</marker>
+</defs>
+<path class="cx-arrow-under" d="">
+</path>
+<path class="cx-arrow-line" d="" marker-end="url(#cx-arrow-head)">
+</path>
+</svg>
+<div aria-hidden="true" class="cx-aim-tip" id="cx-aim-tip" phx-update="ignore">
 </div>
 </div>
 </div>

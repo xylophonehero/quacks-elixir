@@ -17,7 +17,7 @@ defmodule CodexWeb.Gallery do
   @spec states() :: [String.t()]
   def states,
     do:
-      ~w(mid-game start red-green selected chips focus patrol expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
+      ~w(mid-game start red-green selected chips focus patrol aim expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -80,6 +80,15 @@ defmodule CodexWeb.Gallery do
   defp extra(socket, "patrol", game) do
     [id | _] = game.sides[0].zones.in_play
     Phoenix.Component.assign(socket, selected: id, patrolling: true)
+  end
+
+  # A desktop: P1's Granfalloon Flagbearer dragged onto River Montoya: the arrow,
+  # the preview at its head, the legal targets lit and the rest dimmed (the hook
+  # draws it from `demo_aim`).
+  defp extra(socket, "aim", game) do
+    [id | _] = game.sides[0].zones.in_play
+    river = game.sides[1].zones.patrol.lookout
+    Phoenix.Component.assign(socket, demo_aim: "#{id} #cx-card-#{river}")
   end
 
   # Free mode, the hero selected, its sheet expanded: the full card, all actions, tokens.

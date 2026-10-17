@@ -501,6 +501,46 @@ defmodule TableWeb.CodexLiveTest do
       refute has_element?(view, "[id^=cx-chip-]")
     end
 
+    test "drag to a target: data-targets has the legal targets; one aim event acts" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, t} = place(game, 1, "tenderfoot", :patrol, :elite)
+      {game, o} = place(game, 1, "older-brother", :patrol, :lookout)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      [targets] =
+        view
+        |> render()
+        |> query("#cx-card-#{a}")
+        |> LazyHTML.attribute("data-targets")
+
+      targets = Jason.decode!(targets)
+      assert targets["#cx-card-#{t}"] == %{"t" => "atk:#{t}", "p" => "1 → 1 HP"}
+      assert targets["#cx-card-#{o}"]["t"] == "atk:#{o}"
+      assert targets["#cx-slot-0-squad_leader"]["t"] == "pat:squad_leader"
+      refute Map.has_key?(targets, "[data-base='1']")
+      # The pointer drag replaces the HTML drag for this card.
+      assert has_element?(view, "#cx-card-#{a}[draggable=false]")
+
+      render_hook(view, "aim", %{"id" => to_string(a), "t" => "atk:#{t}"})
+      assert game(code).cards[t].damage == 1
+    end
+
+    test "aim: a target that is not legal changes nothing; a slot patrols" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, _t} = place(game, 1, "tenderfoot", :patrol, :elite)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      html = render_hook(view, "aim", %{"id" => to_string(a), "t" => "atk:b.1.base"})
+      assert html =~ "not a legal target"
+      assert game(code).sides[1].base_hp == 20
+      refute has_element?(view, "#cx-pick")
+
+      render_hook(view, "aim", %{"id" => to_string(a), "t" => "pat:scavenger"})
+      assert zone(code, 0, :patrol).scavenger == a
+    end
+
     test "Cancel ends a pick" do
       {game, a} = place(new(), 0, "timely-messenger", :hand)
       game = ok!(game, {:play, a, []})

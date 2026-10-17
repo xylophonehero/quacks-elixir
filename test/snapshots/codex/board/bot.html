@@ -203,7 +203,7 @@ P2
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 0</span>
 </span>
 <div class="flex shrink-0 items-center gap-1">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="1" title="Base HP">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="1" phx-value-name="base" phx-value-seat="1" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
 </span>
@@ -425,7 +425,7 @@ P1
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 1</span>
 </span>
 <div class="flex shrink-0 items-center gap-1">
-<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " phx-value-name="base" phx-value-seat="0" title="Base HP">
+<div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="0" phx-value-name="base" phx-value-seat="0" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
 <span class="hero-heart-solid size-3.5 text-rose-300">
 </span>
@@ -627,9 +627,10 @@ P1
 <p>
 Point at a card: its action buttons show on it (attack, level up, patrol, play,
 hire). One click acts; with more than one target, click a glowing target next.
-Keys: Tab to a card, then A attack, L level up, P patrol, Enter select, Esc
-cancel. Drag a card from your hand to In play to play it, to Workers to hire
-it. Hover a card to see it large. Free mode lets you fix anything by hand.
+Or drag a ready unit onto a glowing target or a patrol slot: the arrow shows
+what the attack does. Keys: Tab to a card, then A attack, L level up, P patrol,
+Enter select, Esc cancel. Drag a card from your hand to In play to play it, to
+Workers to hire it. Hover a card to see it large. Free mode fixes anything by hand.
 </p>
 </div>
 <div class="flex-col gap-1 rounded-2xl bg-black/25 p-3 ring-1 ring-white/10 hidden lg:flex" id="cx-log">
@@ -810,6 +811,20 @@ Pick none
 </button>
 </div>
 </div>
+</div>
+<svg aria-hidden="true" class="cx-arrow" id="cx-arrow" phx-update="ignore">
+<defs>
+<marker id="cx-arrow-head" markerHeight="4" markerWidth="4" orient="auto-start-reverse" refX="6" refY="5" viewBox="0 0 10 10">
+<path d="M0,0 L10,5 L0,10 z">
+</path>
+</marker>
+</defs>
+<path class="cx-arrow-under" d="">
+</path>
+<path class="cx-arrow-line" d="" marker-end="url(#cx-arrow-head)">
+</path>
+</svg>
+<div aria-hidden="true" class="cx-aim-tip" id="cx-aim-tip" phx-update="ignore">
 </div>
 </div>
 </div>
