@@ -598,6 +598,7 @@ defmodule QuacksWeb.Gallery.Stories do
             {"buildings", "Tech buildings", %{"state" => "buildings"}},
             {"log", "The log sheet (phone)", %{"state" => "log"}},
             {"free", "Free mode: the sandbox controls", %{"state" => "free"}},
+            {"bot", "Against the bot: the bot's turn", %{"state" => "bot"}},
             {"p2", "View as P2, P1's hand shown", %{"pov" => "P2", "reveal" => true}}
           ]
         }

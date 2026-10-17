@@ -325,4 +325,42 @@ defmodule TableWeb.CodexLiveTest do
       assert has_element?(view, "#cx-rule-attack")
     end
   end
+
+  describe "against the bot" do
+    test "set up against the bot; end the turn; the bot plays and gives the turn back", %{
+      conn: conn
+    } do
+      conn = init_test_session(conn, player_token: token("host"))
+      {:ok, setup, _} = live(conn, "/games/codex/new")
+      assert has_element?(setup, "#opponent-bot:checked")
+
+      {:error, {:live_redirect, %{to: to}}} =
+        setup |> form("#codex-setup", setup: %{name: "Ann", opponent: "bot"}) |> render_submit()
+
+      "/games/codex/" <> code = to
+      {:ok, view, _} = live(conn, to)
+      view |> element("#cx-end-turn") |> render_click()
+
+      [{pid, _}] = Registry.lookup(Table.Registry, {@key, code})
+
+      Enum.reduce_while(1..500, nil, fn _, _ ->
+        if :sys.get_state(pid).game.active == 0, do: {:halt, nil}, else: {:cont, nil}
+      end)
+
+      assert game(code).active == 0
+      assert has_element?(view, "#cx-end-turn")
+      # The table stays on P1's side.
+      assert has_element?(view, "#cx-pov-0[aria-pressed=true]")
+    end
+
+    test "hot-seat is still there", %{conn: conn} do
+      conn = init_test_session(conn, player_token: token("host"))
+      {:ok, setup, _} = live(conn, "/games/codex/new")
+
+      {:error, {:live_redirect, %{to: "/games/codex/" <> code}}} =
+        setup |> form("#codex-setup", setup: %{opponent: "hotseat"}) |> render_submit()
+
+      assert game(code).bot == nil
+    end
+  end
 end

@@ -3,8 +3,9 @@ defmodule Codex.Table do
   The Codex sandbox in a `Table.Server` room: the adapter from the server's
   callbacks to `Codex.Game`.
 
-  Hot-seat: one browser plays both sides, so the room has one seat
-  (`Codex.Game.table_seats/0`) and no bots. A second browser watches.
+  Hot-seat (the default): one browser plays both sides, so the room has one
+  seat and no bots; a second browser watches. Against the bot (`opts.bot`):
+  two seats, P2 is the bot (`Codex.Bot`), one action per tick.
   """
   @behaviour Table.Server
 
@@ -14,7 +15,7 @@ defmodule Codex.Table do
   def new(opts, seed), do: Game.new(opts, seed)
 
   @impl true
-  def seats(%Game{}), do: Game.table_seats()
+  def seats(%Game{} = game), do: Game.table_seats(game)
 
   @impl true
   def legal_actions(game, seat), do: Game.legal_actions(game, seat)
@@ -29,14 +30,15 @@ defmodule Codex.Table do
   def view(game, seat), do: Game.view(game, seat)
 
   @impl true
-  def bot_levels, do: []
+  def bot_levels, do: [:basic]
 
   @impl true
   def bot_new(_level, _seed), do: nil
 
   @impl true
-  def bot_choose(level, _view, _bot), do: raise(ArgumentError, "no #{inspect(level)} bot")
+  def bot_choose(:basic, view, bot), do: Codex.Bot.choose(view, bot)
 
+  # A short pause per bot action, so the page shows each one.
   @impl true
-  def bot_delay(_game), do: 0
+  def bot_delay(_game), do: 650
 end

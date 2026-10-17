@@ -15,14 +15,22 @@ defmodule CodexWeb.Gallery do
 
   @doc "The board states."
   @spec states() :: [String.t()]
-  def states, do: ~w(mid-game start selected codex discard buildings log free)
+  def states, do: ~w(mid-game start selected codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
   def board_story(args) do
     state = args["state"]
-    {:ok, start} = Game.new(%{}, @seed)
-    game = if state == "start", do: start, else: mid_game(start)
+    {:ok, start} = Game.new(%{bot: state == "bot"}, @seed)
+
+    game =
+      case state do
+        "start" -> start
+        # Against the bot, on the bot's turn: the page waits.
+        "bot" -> elem(Game.apply(start, 0, :end_turn), 1)
+        _ -> mid_game(start)
+      end
+
     pov = if args["pov"] == "P2", do: 1, else: 0
 
     socket =

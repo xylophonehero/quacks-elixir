@@ -169,6 +169,7 @@ defmodule Codex.Game do
           active: seat,
           phase: :main | :tech | :over,
           free: boolean,
+          bot: seat | nil,
           winner: seat | nil,
           cards: %{card_id => card},
           sides: %{seat => side},
@@ -184,6 +185,7 @@ defmodule Codex.Game do
     active: 0,
     phase: :main,
     free: false,
+    bot: nil,
     cards: %{},
     sides: %{},
     trash: [],
@@ -203,9 +205,14 @@ defmodule Codex.Game do
   @spec buildings() :: [atom]
   def buildings, do: @buildings
 
-  @doc "The seats of the room: one browser plays both sides (hot-seat)."
+  @doc "The seats of a hot-seat room: one browser plays both sides."
   @spec table_seats() :: [0]
   def table_seats, do: [0]
+
+  @doc "The seats of the room of `game`: `[0]` hot-seat, `[0, 1]` against the bot (seat 1)."
+  @spec table_seats(t) :: [seat]
+  def table_seats(%__MODULE__{bot: nil}), do: [0]
+  def table_seats(%__MODULE__{}), do: [0, 1]
 
   @doc "How many states `:undo` can go back."
   @spec history_limit() :: pos_integer
@@ -221,7 +228,8 @@ defmodule Codex.Game do
 
   def new(opts, {a, b, c} = seed)
       when is_map(opts) and is_integer(a) and is_integer(b) and is_integer(c) do
-    game = %__MODULE__{seed: seed, rng: Rng.seed(seed)}
+    bot = if Map.get(opts, :bot) in [true, "true"], do: 1
+    game = %__MODULE__{seed: seed, rng: Rng.seed(seed), bot: bot}
     game = Enum.reduce([0, 1], game, &setup_side/2)
     game = Rules.start_turn(%{game | log: [{:setup, seed}]}, 0)
     {:ok, game}
@@ -311,33 +319,61 @@ defmodule Codex.Game do
   # -- the table contract ------------------------------------------------------------------
 
   @doc """
-  The legal actions of table seat 0: the rules actions of the active side
+  The legal actions of a table seat: the rules actions of the active side
   (`Codex.Rules.legal/1`), `{:free_mode, _}` and `:undo` (when there is a state
   to go back to). In free mode also one atom per sandbox action kind.
+
+  Hot-seat: seat 0 acts for the active side. Against the bot (`bot: 1`): each
+  seat acts only on its own turn, and the bot has only the rules actions.
   """
   @spec legal_actions(t, non_neg_integer) :: [term]
-  def legal_actions(%__MODULE__{} = game, 0) do
-    extra = [{:free_mode, !game.free}] ++ if(game.history == [], do: [], else: [:undo])
-    sandbox = if game.free, do: @sandbox, else: []
-    Rules.legal(game) ++ sandbox ++ extra
+  def legal_actions(%__MODULE__{} = game, seat) do
+    cond do
+      not acting?(game, seat) ->
+        []
+
+      seat == game.bot ->
+        Rules.legal(game)
+
+      true ->
+        extra = [{:free_mode, !game.free}] ++ if(game.history == [], do: [], else: [:undo])
+        sandbox = if game.free, do: @sandbox, else: []
+        Rules.legal(game) ++ sandbox ++ extra
+    end
   end
 
-  def legal_actions(%__MODULE__{}, _seat), do: []
-
-  @doc "`{:over, %{winner: seat}}` when a base is destroyed, else `{:playing, [0]}`."
-  @spec status(t) :: {:playing, [0]} | {:over, map}
-  def status(%__MODULE__{phase: :over, winner: winner}), do: {:over, %{winner: winner}}
-  def status(%__MODULE__{}), do: {:playing, [0]}
+  # The seat that acts now: 0 in hot-seat, else the active side.
+  defp acting?(%__MODULE__{bot: nil}, seat), do: seat == 0
+  defp acting?(%__MODULE__{phase: :over}, seat), do: seat == 0
+  defp acting?(%__MODULE__{active: active}, seat), do: seat == active
 
   @doc """
-  Do `action` for table seat 0. Returns `{:ok, game}` or `{:error, reason}`.
+  `{:over, %{winner: seat}}` when a base is destroyed, else
+  `{:playing, [seat]}`: seat 0 in hot-seat, the active side against the bot.
+  """
+  @spec status(t) :: {:playing, [seat]} | {:over, map}
+  def status(%__MODULE__{phase: :over, winner: winner}), do: {:over, %{winner: winner}}
+  def status(%__MODULE__{bot: nil}), do: {:playing, [0]}
+  def status(%__MODULE__{active: active}), do: {:playing, [active]}
+
+  @doc """
+  Do `action` for a table seat (see `legal_actions/2` for who acts). Returns
+  `{:ok, game}` or `{:error, reason}`.
   """
   @spec apply(t, non_neg_integer, term) :: {:ok, t} | {:error, term}
-  def apply(%__MODULE__{} = game, 0, action) when action in [:undo, {:undo}], do: undo(game)
+  def apply(%__MODULE__{} = game, seat, action) do
+    cond do
+      not acting?(game, seat) -> {:error, :not_your_seat}
+      action in [:undo, {:undo}] and seat != game.bot -> undo(game)
+      seat == game.bot and not rules_action?(action) -> {:error, :not_your_seat}
+      true -> do_action(game, normalize(action))
+    end
+  end
 
-  def apply(%__MODULE__{} = game, 0, action) do
-    action = normalize(action)
+  defp rules_action?(action),
+    do: not match?({:free_mode, _}, action) and action not in [:undo, {:undo}]
 
+  defp do_action(game, action) do
     case do_apply(game, action) do
       {:ok, new} ->
         new = Rules.cleanup(new)
@@ -348,8 +384,6 @@ defmodule Codex.Game do
         error
     end
   end
-
-  def apply(%__MODULE__{}, _seat, _action), do: {:error, :not_your_seat}
 
   defp normalize({:end_turn}), do: :end_turn
   defp normalize(action), do: action
@@ -525,14 +559,15 @@ defmodule Codex.Game do
   `stats` has each card's ATK/HP now (`Codex.Rules.stats/2`).
   """
   @spec view(t, non_neg_integer | :spectator) :: map
-  def view(%__MODULE__{} = game, _seat) do
+  def view(%__MODULE__{} = game, seat) do
     stats = Rules.all_stats(game)
     deck_ids = Enum.flat_map(game.sides, fn {_s, side} -> side.zones.deck end)
 
-    %{
+    view = %{
       active: game.active,
       phase: game.phase,
       free: game.free,
+      bot: game.bot,
       winner: game.winner,
       sides:
         Map.new(game.sides, fn {seat, side} ->
@@ -540,11 +575,20 @@ defmodule Codex.Game do
           {seat, %{side | zones: Map.put(zones, :deck, length(zones.deck))}}
         end),
       trash: game.trash,
-      cards: game.cards |> Map.drop(deck_ids) |> with_stats(stats),
+      cards: game.cards |> Map.drop(deck_ids) |> with_stats(stats) |> fatigue(game),
       stats: stats,
       log: Enum.take(game.log, 30),
       undo: game.history != []
     }
+
+    # The bot's seat also gets its legal actions (`Codex.Bot`).
+    if seat == game.bot and seat != nil, do: Map.put(view, :legal, Rules.legal(game)), else: view
+  end
+
+  # Arrival fatigue matters on its controller's turn only: the view shows it for the active side.
+  defp fatigue(cards, game) do
+    idle = Zones.in_play(game, 1 - game.active)
+    Enum.reduce(idle, cards, fn id, cards -> Map.update!(cards, id, &%{&1 | fatigued: false}) end)
   end
 
   # Each unit and hero in play carries its ATK/HP now as `now`.

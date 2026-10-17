@@ -95,7 +95,8 @@ defmodule CodexWeb.Board do
   def put_view(socket, env, old) do
     v = env.view
     a = socket.assigns
-    turned? = old != nil and old.view.active != v.active
+    # Hot-seat: the table turns to the side that plays. Against the bot: P1 stays at the bottom.
+    turned? = v.bot == nil and old != nil and old.view.active != v.active
 
     Phoenix.Component.assign(socket,
       view: v,
@@ -811,6 +812,7 @@ defmodule CodexWeb.Board do
 
   # What the active side can do now, in a line (rules mode).
   defp hint(%{phase: :over}, _actions), do: nil
+  defp hint(%{bot: b, active: b}, []) when b != nil, do: "The bot is playing its turn…"
   defp hint(_v, []), do: nil
   defp hint(%{phase: :tech}, _actions), do: "Pick codex cards for your discard pile."
 
@@ -1777,6 +1779,19 @@ defmodule CodexWeb.Board do
     do: "#{name(v, id)} patrols as #{elem(@slot_labels[slot], 0)}."
 
   defp action_text(_s, {:sideline, id}, v), do: "#{name(v, id)} leaves the patrol zone."
+  defp action_text(s, {:summon, id}, v), do: "P#{s + 1} summons #{name(v, id)}."
+  defp action_text(_s, {:level_up, id}, v), do: "#{name(v, id)} levels up."
+
+  defp action_text(_s, {:ability, id, name, targets}, v),
+    do:
+      "#{name(v, id)}: #{Moves.ability_label(name)}" <>
+        if(targets == [],
+          do: ".",
+          else: " (#{Enum.map_join(targets, ", ", &target_name(v, &1))})."
+        )
+
+  defp action_text(s, {:build, b}, _v), do: "P#{s + 1} builds #{target_text(b)}."
+  defp action_text(s, {:tech, ids}, _v), do: "P#{s + 1} techs #{length(ids)} codex cards."
   defp action_text(_s, {:attack, a, t}, v), do: "#{name(v, a)} attacks #{target_name(v, t)}."
   defp action_text(_s, {:free_mode, on}, _v), do: "Free mode #{if on, do: "on", else: "off"}."
   defp action_text(_s, action, v), do: action_text(action, v)
