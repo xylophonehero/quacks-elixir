@@ -718,8 +718,12 @@ P1
 </div>
 </div>
 <aside class="cx-a-sheet flex-col gap-3 lg:flex flex" id="cx-aside">
-<div class="cx-inspector flex flex-col gap-2 rounded-t-2xl max-lg:gap-1.5 max-lg:p-2.5 bg-stone-950/95 p-3 shadow-2xl ring-1 ring-white/15 backdrop-blur lg:rounded-2xl lg:bg-black/35" id="cx-actions">
-<div class="hidden justify-center lg:flex">
+<div class="cx-inspector flex flex-col gap-2 bg-stone-950/95 p-3 shadow-2xl ring-1 ring-white/15 backdrop-blur max-lg:rounded-t-2xl max-lg:px-3 max-lg:pt-1 max-lg:pb-2.5 lg:rounded-2xl lg:bg-black/35" data-expanded="false" data-sel="6" id="cx-actions" phx-hook="CodexWeb.Board.KeepInView">
+<button aria-expanded="false" aria-label="Show the full card and all actions" class="cx-handle lg:hidden" id="cx-sheet-handle" phx-click="expand" type="button">
+<span>
+</span>
+</button>
+<div class="cx-insp-big justify-center">
 <div class="cx-zoom">
 <div class="cx-card">
 <div class="cx-face cx-css cx-tone-neutral">
@@ -732,25 +736,38 @@ P1
 </div>
 </div>
 </div>
+<div class="flex items-start gap-2.5">
+<button aria-label="Show the full card" class="cx-insp-thumb lg:hidden" id="cx-sheet-thumb" phx-click="expand" type="button">
+<div class="cx-card " data-card-id="6" draggable="true" id="cx-thumb-6" phx-value-id="6" style="" title="Granfalloon Flagbearer">
+<div class="cx-face cx-css cx-tone-neutral">
+<span class="cx-cost">3</span>
+<span class="cx-name">Granfalloon Flagbearer</span>
+<span class="cx-type">Unit — Flagbearer · tech 0</span>
+<span class="cx-text">Whenever an opponent plays a spell or ability that can ◎ a flagbearer, it must ◎ a flagbearer at least once.</span>
+<span class="cx-stats">2/2</span>
+</div>
+</div>
+</button>
+<div class="flex min-w-0 flex-1 flex-col gap-1.5">
 <div class="flex items-start gap-2">
 <div class="min-w-0 flex-1">
 <p class="truncate text-sm font-bold" id="cx-actions-name">Granfalloon Flagbearer</p>
 <p class="truncate text-xs text-white/60">
-P1&#39;s · P1 in play
+P1 in play<span id="cx-actions-stats"> · ATK 2 · HP 2/2</span>
 </p>
 </div>
-<button aria-label="Deselect" class="cx-icon-btn bg-white/10!" id="cx-act-close" phx-click="deselect" type="button">
+<button aria-label="Deselect" class="cx-icon-btn -mt-1 -mr-1 bg-white/10!" id="cx-act-close" phx-click="deselect" type="button">
 <span class="hero-x-mark-mini size-4">
 </span>
 </button>
 </div>
-<p class="text-xs text-white/70" id="cx-actions-stats">
-ATK 2 · HP 2 of 2
-</p>
 <div class="flex flex-wrap gap-1.5">
 <button class="cx-act cx-act-rule" id="cx-rule-attack" phx-click="rule" phx-value-key="attack" type="button">
+
 Attack…
 </button>
+</div>
+</div>
 </div>
 </div>
 <div class="flex-col gap-1 rounded-2xl bg-black/25 p-3 ring-1 ring-white/10 hidden lg:flex" id="cx-log">

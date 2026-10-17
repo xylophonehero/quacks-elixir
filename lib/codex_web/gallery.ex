@@ -17,7 +17,7 @@ defmodule CodexWeb.Gallery do
   @spec states() :: [String.t()]
   def states,
     do:
-      ~w(mid-game start red-green selected zoom opp-open attack tech codex discard buildings log free bot)
+      ~w(mid-game start red-green selected expanded zoom opp-open attack tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -62,6 +62,16 @@ defmodule CodexWeb.Gallery do
   defp extra(socket, "selected", game) do
     [id | _] = game.sides[0].zones.in_play
     Phoenix.Component.assign(socket, selected: id)
+  end
+
+  # Free mode, the hero selected, its sheet expanded: the full card, all actions, tokens.
+  defp extra(socket, "expanded", game) do
+    {:ok, game} = Game.apply(game, 0, {:free_mode, true})
+    hero = game.sides[0].zones.patrol.squad_leader
+
+    socket
+    |> Board.put_view(envelope(game), nil)
+    |> Phoenix.Component.assign(selected: hero, expanded: true)
   end
 
   # A long press on a card on the board: its full face over the table.

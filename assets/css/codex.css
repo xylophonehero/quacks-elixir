@@ -459,6 +459,30 @@
 .cx-act:active { transform: scale(0.96); }
 .cx-act-danger { color: oklch(80% 0.12 25); }
 
+/* The selected card's sheet. A phone: a peek (thumbnail, name, 3 actions);
+   expanded, a sheet over the board with the full card and all actions. */
+.cx-handle { display: grid; place-items: center; width: 100%; height: 14px; margin-bottom: -2px; }
+.cx-handle > span { width: 36px; height: 4px; border-radius: 999px; background: oklch(100% 0 0 / 0.3); }
+.cx-insp-thumb { --cx-w: 3.75rem; flex-shrink: 0; border-radius: 0.3rem; }
+.cx-insp-thumb .cx-card { cursor: zoom-in; }
+.cx-insp-big { display: none; }
+@media (min-width: 1024px) { .cx-insp-big { display: flex; } }
+@media (max-width: 1023px) {
+  .cx-inspector:not([data-expanded="true"]) .cx-extra { display: none; }
+  .cx-inspector[data-expanded="true"] {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 46;
+    max-height: 88dvh;
+    overflow-y: auto;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .cx-inspector[data-expanded="true"] .cx-insp-big { display: flex; }
+  .cx-inspector[data-expanded="true"] .cx-insp-thumb { display: none; }
+  .cx-inspector[data-expanded="true"] .cx-zoom { --cx-w: min(13rem, 56vw); }
+  .cx-inspector[data-expanded="true"] .cx-zoom-img { width: min(13rem, 56vw); }
+}
+
 /* The inspector on a desktop: the selected card, large. */
 .cx-zoom { --cx-w: 13rem; }
 .cx-zoom-img {
@@ -675,3 +699,8 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
 @media (prefers-reduced-motion: reduce) {
   .cx-mc, .cx-mc .cx-mc-art { transition: none; animation: none; }
 }
+
+/* codex.css is not in a cascade layer, so its classes beat Tailwind utilities.
+   These responsive utilities must still win on the board's own classes. */
+@media (min-width: 640px) { .cx-table .sm\:w-auto { width: auto; } }
+@media (min-width: 1024px) { .cx-table .lg\:hidden { display: none; } }

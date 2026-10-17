@@ -639,6 +639,8 @@ defmodule QuacksWeb.Gallery.Stories do
             {"start", "The first-game set-up", %{"state" => "start"}},
             {"red-green", "Red vs Green: 3 heroes each", %{"state" => "red-green"}},
             {"selected", "A card selected: its actions", %{"state" => "selected"}},
+            {"expanded", "The selected card's sheet expanded (free mode)",
+             %{"state" => "expanded"}},
             {"zoom", "A long press on a card: its full face", %{"state" => "zoom"}},
             {"opp-open", "Phone: the opponent's side open", %{"state" => "opp-open"}},
             {"attack", "Attack…: the targets glow", %{"state" => "attack"}},

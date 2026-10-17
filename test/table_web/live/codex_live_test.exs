@@ -214,6 +214,25 @@ defmodule TableWeb.CodexLiveTest do
     refute has_element?(view, "#cx-opp-backdrop")
   end
 
+  test "the selected card's sheet: More expands it; a new card closes it to its peek" do
+    %{view: view, code: code} = free_room()
+    [a, b | _] = zone(code, 0, :hand)
+
+    view |> element("#cx-card-#{a}") |> render_click()
+    assert has_element?(view, "#cx-actions[data-expanded=false]")
+    assert has_element?(view, "#cx-thumb-#{a}")
+    view |> element("#cx-sheet-more") |> render_click()
+    assert has_element?(view, "#cx-actions[data-expanded=true]")
+    refute has_element?(view, "#cx-sheet-more")
+    assert has_element?(view, "#cx-act-damage")
+
+    view |> element("#cx-sheet-backdrop") |> render_click()
+    assert has_element?(view, "#cx-actions[data-expanded=false]")
+    view |> element("#cx-sheet-handle") |> render_click()
+    view |> element("#cx-card-#{b}") |> render_click()
+    assert has_element?(view, "#cx-actions[data-expanded=false] #cx-thumb-#{b}")
+  end
+
   test "a second browser watches" do
     %{code: code} = room()
     {:ok, other, _} = live(browser(token("bob")), "/games/#{@key}/#{code}")

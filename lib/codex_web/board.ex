@@ -100,7 +100,8 @@ defmodule CodexWeb.Board do
       actions: [],
       tech_pick: [],
       zoom: nil,
-      opp_open: false
+      opp_open: false,
+      expanded: false
     )
   end
 
@@ -118,6 +119,7 @@ defmodule CodexWeb.Board do
       pov: if(turned?, do: v.active, else: a.pov),
       reveal: if(turned?, do: false, else: a.reveal),
       selected: if(Map.has_key?(v.cards, a.selected), do: a.selected),
+      expanded: a.expanded and Map.has_key?(v.cards, a.selected),
       targeting: nil,
       tech_pick: if(v.phase == :tech, do: a.tech_pick, else: []),
       drawer: drawer_after(a.drawer, v, env.actions)
@@ -144,15 +146,25 @@ defmodule CodexWeb.Board do
         true -> a.selected
       end
 
-    {:noreply, Phoenix.Component.assign(socket, selected: selected, drawer: nil, opp_open: false)}
+    {:noreply,
+     Phoenix.Component.assign(socket,
+       selected: selected,
+       drawer: nil,
+       opp_open: false,
+       expanded: false
+     )}
   end
+
+  # The selected card's sheet on a phone: its peek or the full card and all actions.
+  def handle_event("expand", _params, socket),
+    do: {:noreply, Phoenix.Component.assign(socket, expanded: !socket.assigns.expanded)}
 
   # The opponent's whole side on a phone (a sheet from the top).
   def handle_event("opp", _params, socket),
     do: {:noreply, Phoenix.Component.assign(socket, opp_open: !socket.assigns.opp_open)}
 
   def handle_event("deselect", _params, socket),
-    do: {:noreply, Phoenix.Component.assign(socket, selected: nil)}
+    do: {:noreply, Phoenix.Component.assign(socket, selected: nil, expanded: false)}
 
   # A tap on a zone: move the selected card there, or open the pile.
   def handle_event("zone", params, socket) do
@@ -380,7 +392,13 @@ defmodule CodexWeb.Board do
   def handle_event("key", %{"key" => "Escape"}, socket),
     do:
       {:noreply,
-       Phoenix.Component.assign(socket, selected: nil, drawer: nil, opp_open: false, zoom: nil)}
+       Phoenix.Component.assign(socket,
+         selected: nil,
+         drawer: nil,
+         opp_open: false,
+         zoom: nil,
+         expanded: false
+       )}
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
@@ -422,7 +440,7 @@ defmodule CodexWeb.Board do
 
   defp start_pick(socket, {_kind, id, _name} = key) do
     targeting = %{key: key, picked: []}
-    Phoenix.Component.assign(socket, selected: id, targeting: targeting)
+    Phoenix.Component.assign(socket, selected: id, targeting: targeting, expanded: false)
   end
 
   # A tapped target: the full action acts; else the pick goes on.
@@ -595,6 +613,14 @@ defmodule CodexWeb.Board do
           dock
         />
 
+        <button
+          :if={@sel && @expanded}
+          id="cx-sheet-backdrop"
+          type="button"
+          phx-click="expand"
+          class="cx-backdrop lg:hidden"
+          aria-label="Show less"
+        ></button>
         <aside
           id="cx-aside"
           class={["cx-a-sheet flex-col gap-3 lg:flex", if(@sel, do: "flex", else: "hidden")]}
@@ -610,6 +636,7 @@ defmodule CodexWeb.Board do
             targeting={@targeting}
             stats={@view.stats[@sel.id]}
             view={@view}
+            expanded={@expanded}
           />
           <.inspector_help :if={!@sel} free={@free} />
           <.log_list view={@view} id="cx-log" class="hidden lg:flex" />
@@ -828,7 +855,7 @@ defmodule CodexWeb.Board do
           aria-pressed={to_string(@reveal)}
           class={[
             "cx-icon-btn sm:w-auto sm:gap-1 sm:px-3",
-            @reveal && "cx-icon-on bg-amber-300! text-stone-900"
+            @reveal && "bg-amber-300! text-stone-900!"
           ]}
           title={"Show or hide the hand of P#{@opp + 1}"}
           aria-label={"Show or hide the hand of P#{@opp + 1}"}
@@ -843,7 +870,7 @@ defmodule CodexWeb.Board do
           aria-pressed={to_string(@free)}
           class={[
             "cx-icon-btn sm:w-auto sm:gap-1 sm:px-3",
-            @free && "bg-fuchsia-300! text-stone-900"
+            @free && "bg-fuchsia-300! text-stone-900!"
           ]}
           title="Free mode: move cards and change counters by hand, without the rules"
           aria-label="Free mode"
@@ -1775,6 +1802,12 @@ defmodule CodexWeb.Board do
   defp stats(_c, _d), do: nil
 
   # -- the inspector (the selected card) ------------------------------------------------------
+  #
+  # A phone: a bottom sheet over the hand. Its peek (about 120 px) has a thumbnail,
+  # the name, the ATK/HP and up to 3 actions; the handle, the thumbnail or "More"
+  # expand it to the full card and all actions. The board scrolls so the selected
+  # card stays in sight above the sheet (`.KeepInView`). A desktop: all of it in
+  # the right column.
 
   attr :card, :map, required: true
   attr :where, :string, required: true
@@ -1786,6 +1819,7 @@ defmodule CodexWeb.Board do
   attr :targeting, :map, default: nil
   attr :stats, :any, default: nil
   attr :view, :map, default: nil
+  attr :expanded, :boolean, default: false
 
   defp inspector(assigns) do
     c = assigns.card
@@ -1801,14 +1835,36 @@ defmodule CodexWeb.Board do
 
     d = Cards.fetch!(c.card)
     max = Cards.max_level(c.card)
-    assigns = assign(assigns, d: d, max: max, zoom?: MapSet.member?(assigns.art, c.card))
+    acts = if assigns.free, do: free_buttons(c), else: rule_buttons(assigns.buttons)
+
+    assigns =
+      assign(assigns,
+        d: d,
+        max: max,
+        zoom?: MapSet.member?(assigns.art, c.card),
+        acts: Enum.with_index(acts),
+        more?: assigns.free or length(acts) > 3
+      )
 
     ~H"""
     <div
       id="cx-actions"
-      class="cx-inspector flex flex-col gap-2 rounded-t-2xl max-lg:gap-1.5 max-lg:p-2.5 bg-stone-950/95 p-3 shadow-2xl ring-1 ring-white/15 backdrop-blur lg:rounded-2xl lg:bg-black/35"
+      phx-hook=".KeepInView"
+      data-sel={@card.id}
+      data-expanded={to_string(@expanded)}
+      class="cx-inspector flex flex-col gap-2 bg-stone-950/95 p-3 shadow-2xl ring-1 ring-white/15 backdrop-blur max-lg:rounded-t-2xl max-lg:px-3 max-lg:pt-1 max-lg:pb-2.5 lg:rounded-2xl lg:bg-black/35"
     >
-      <div class="hidden justify-center lg:flex">
+      <button
+        id="cx-sheet-handle"
+        type="button"
+        phx-click="expand"
+        aria-expanded={to_string(@expanded)}
+        aria-label={if @expanded, do: "Show less", else: "Show the full card and all actions"}
+        class="cx-handle lg:hidden"
+      >
+        <span></span>
+      </button>
+      <div class="cx-insp-big justify-center">
         <div class="cx-zoom">
           <%= if @zoom? do %>
             <img
@@ -1821,176 +1877,208 @@ defmodule CodexWeb.Board do
           <% end %>
         </div>
       </div>
-      <div class="flex items-start gap-2">
-        <div class="min-w-0 flex-1">
-          <p id="cx-actions-name" class="truncate text-sm font-bold">{@d.name}</p>
-          <p class="truncate text-xs text-white/60">
-            P{@card.seat + 1}'s · {@where}<span :if={@free} class="lg:hidden"> · tap a zone to move it</span>
-          </p>
-        </div>
+      <div class="flex items-start gap-2.5">
         <button
-          id="cx-act-close"
+          id="cx-sheet-thumb"
           type="button"
-          phx-click="deselect"
-          class="cx-icon-btn bg-white/10!"
-          aria-label="Deselect"
+          phx-click="expand"
+          class="cx-insp-thumb lg:hidden"
+          aria-label="Show the full card"
         >
-          <.icon name="hero-x-mark-mini" class="size-4" />
+          <.card c={@card} art={@art} prefix="cx-thumb" click={false} peek />
         </button>
+        <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div class="flex items-start gap-2">
+            <div class="min-w-0 flex-1">
+              <p id="cx-actions-name" class="truncate text-sm font-bold">{@d.name}</p>
+              <p class="truncate text-xs text-white/60">
+                {@where}<span :if={@stats} id="cx-actions-stats"> · ATK {elem(@stats, 0)} · HP {elem(
+                  @stats,
+                  1
+                ) - @card.damage}/{elem(
+                  @stats,
+                  1
+                )}</span><span :if={@card.level}> · level {@card.level}</span>
+              </p>
+            </div>
+            <button
+              id="cx-act-close"
+              type="button"
+              phx-click="deselect"
+              class="cx-icon-btn -mt-1 -mr-1 bg-white/10!"
+              aria-label="Deselect"
+            >
+              <.icon name="hero-x-mark-mini" class="size-4" />
+            </button>
+          </div>
+          <div
+            :if={@targeting}
+            id="cx-pick"
+            class="flex flex-col gap-1.5 rounded-xl bg-amber-300/15 p-2 ring-1 ring-amber-200/40"
+          >
+            <p class="text-xs font-semibold text-amber-100">
+              {pick_text(@targeting, @pick)}
+            </p>
+            <div :if={@choices != []} class="flex flex-wrap gap-1.5">
+              <button
+                :for={{v, i} <- @choices}
+                id={"cx-pick-#{i}"}
+                type="button"
+                phx-click="pick_index"
+                phx-value-i={i}
+                class="cx-act cx-act-rule"
+              >
+                {value_label(@view, v)}
+              </button>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                :if={@pick.complete && @pick.values != []}
+                id="cx-pick-done"
+                type="button"
+                phx-click="pick_done"
+                class="cx-act cx-act-rule"
+              >
+                Done
+              </button>
+              <button
+                :if={nil in @pick.values}
+                id="cx-pick-skip"
+                type="button"
+                phx-click="skip_target"
+                class="cx-act"
+              >
+                Skip this part
+              </button>
+              <button id="cx-pick-cancel" type="button" phx-click="cancel_target" class="cx-act">
+                Cancel
+              </button>
+            </div>
+          </div>
+          <div :if={!@targeting} class="flex flex-wrap gap-1.5">
+            <button
+              :for={{b, i} <- @acts}
+              id={b.id}
+              type="button"
+              class={["cx-act", b.class, i >= 3 && "cx-extra"]}
+              {b.attrs}
+            >
+              <.icon :if={b.icon} name={b.icon} class="size-4" />
+              {b.label}
+            </button>
+            <button
+              :if={@more? and !@expanded}
+              id="cx-sheet-more"
+              type="button"
+              phx-click="expand"
+              class="cx-act lg:hidden"
+            >
+              More <.icon name="hero-chevron-up-mini" class="size-4" />
+            </button>
+            <p :if={@acts == []} class="py-1 text-xs text-white/50">
+              No action for this card now.
+            </p>
+          </div>
+        </div>
       </div>
-      <p :if={@stats} id="cx-actions-stats" class="text-xs text-white/70">
-        ATK {elem(@stats, 0)} · HP {elem(@stats, 1) - @card.damage} of {elem(@stats, 1)}
-      </p>
       <div
-        :if={@targeting}
-        id="cx-pick"
-        class="flex flex-col gap-1.5 rounded-xl bg-amber-300/15 p-2 ring-1 ring-amber-200/40"
+        :if={@free and !@targeting}
+        class="cx-extra grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-1"
       >
-        <p class="text-xs font-semibold text-amber-100">
-          {pick_text(@targeting, @pick)}
-        </p>
-        <div :if={@choices != []} class="flex flex-wrap gap-1.5">
-          <button
-            :for={{v, i} <- @choices}
-            id={"cx-pick-#{i}"}
-            type="button"
-            phx-click="pick_index"
-            phx-value-i={i}
-            class="cx-act cx-act-rule"
-          >
-            {value_label(@view, v)}
-          </button>
-        </div>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            :if={@pick.complete && @pick.values != []}
-            id="cx-pick-done"
-            type="button"
-            phx-click="pick_done"
-            class="cx-act cx-act-rule"
-          >
-            Done
-          </button>
-          <button
-            :if={nil in @pick.values}
-            id="cx-pick-skip"
-            type="button"
-            phx-click="skip_target"
-            class="cx-act"
-          >
-            Skip this part
-          </button>
-          <button id="cx-pick-cancel" type="button" phx-click="cancel_target" class="cx-act">
-            Cancel
-          </button>
-        </div>
+        <.token_stepper
+          id="cx-act-damage"
+          label="Damage"
+          key="damage"
+          value={@card.damage}
+          tone="bg-red-600"
+        />
+        <.token_stepper
+          id="cx-act-plus"
+          label="+1/+1"
+          key="plus"
+          value={@card.plus}
+          tone="bg-emerald-600"
+        />
+        <.token_stepper
+          id="cx-act-minus"
+          label="−1/−1"
+          key="minus"
+          value={@card.minus}
+          tone="bg-violet-600"
+        />
+        <.token_stepper
+          :if={@card.level}
+          id="cx-act-level"
+          label={"Level ≤#{@max}"}
+          key="level"
+          value={@card.level}
+          tone="bg-amber-500"
+        />
       </div>
-      <div :if={!@free and !@targeting} class="flex flex-wrap gap-1.5">
-        <button
-          :for={b <- @buttons}
-          id={"cx-rule-#{b.key}"}
-          type="button"
-          phx-click="rule"
-          phx-value-key={b.key}
-          class="cx-act cx-act-rule"
-        >
-          {b.label}
-        </button>
-        <p :if={@buttons == []} class="text-xs text-white/50">
-          No action for this card now.
-        </p>
-      </div>
-      <%= if @free do %>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            id="cx-act-exhaust"
-            type="button"
-            phx-click="card"
-            phx-value-op="exhaust"
-            class="cx-act"
-          >
-            <.icon name="hero-arrow-path-rounded-square-mini" class="size-4" />
-            {if @card.exhausted, do: "Ready", else: "Exhaust"}
-          </button>
-          <button id="cx-act-flip" type="button" phx-click="card" phx-value-op="flip" class="cx-act">
-            <.icon name="hero-arrows-up-down-mini" class="size-4" />
-            {if @card.face_down, do: "Face up", else: "Face down"}
-          </button>
-          <button
-            id="cx-act-hand"
-            type="button"
-            phx-click="card"
-            phx-value-op="to"
-            phx-value-zone="hand"
-            class="cx-act"
-          >
-            To hand
-          </button>
-          <button
-            id="cx-act-play"
-            type="button"
-            phx-click="card"
-            phx-value-op="to"
-            phx-value-zone="in_play"
-            class="cx-act"
-          >
-            To play
-          </button>
-          <button
-            id="cx-act-discard"
-            type="button"
-            phx-click="card"
-            phx-value-op="to"
-            phx-value-zone="discard"
-            class="cx-act"
-          >
-            Discard
-          </button>
-          <button
-            id="cx-act-trash"
-            type="button"
-            phx-click="card"
-            phx-value-op="to"
-            phx-value-zone="trash"
-            class="cx-act cx-act-danger"
-          >
-            Trash
-          </button>
-        </div>
-        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-2">
-          <.token_stepper
-            id="cx-act-damage"
-            label="Damage"
-            key="damage"
-            value={@card.damage}
-            tone="bg-red-600"
-          />
-          <.token_stepper
-            id="cx-act-plus"
-            label="+1/+1"
-            key="plus"
-            value={@card.plus}
-            tone="bg-emerald-600"
-          />
-          <.token_stepper
-            id="cx-act-minus"
-            label="−1/−1"
-            key="minus"
-            value={@card.minus}
-            tone="bg-violet-600"
-          />
-          <.token_stepper
-            :if={@card.level}
-            id="cx-act-level"
-            label={"Level (max #{@max})"}
-            key="level"
-            value={@card.level}
-            tone="bg-amber-500"
-          />
-        </div>
-      <% end %>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".KeepInView">
+        export default {
+          mounted() { this.keep() },
+          updated() { if (this.el.dataset.sel !== this.last) this.keep() },
+          keep() {
+            this.last = this.el.dataset.sel
+            if (window.matchMedia("(min-width: 1024px)").matches) return
+            const card = document.getElementById("cx-card-" + this.last)
+            if (!card) return
+            const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            requestAnimationFrame(() =>
+              card.scrollIntoView({block: "nearest", inline: "nearest", behavior: smooth ? "smooth" : "auto"})
+            )
+          }
+        }
+      </script>
     </div>
     """
+  end
+
+  # The action buttons of the selected card: `%{id, label, icon, class, attrs}`.
+  defp rule_buttons(buttons) do
+    for b <- buttons do
+      %{
+        id: "cx-rule-#{b.key}",
+        label: b.label,
+        icon: nil,
+        class: "cx-act-rule",
+        attrs: [{"phx-click", "rule"}, {"phx-value-key", b.key}]
+      }
+    end
+  end
+
+  defp free_buttons(c) do
+    to = fn id, label, zone, class ->
+      %{
+        id: id,
+        label: label,
+        icon: nil,
+        class: class,
+        attrs: [{"phx-click", "card"}, {"phx-value-op", "to"}, {"phx-value-zone", zone}]
+      }
+    end
+
+    [
+      %{
+        id: "cx-act-exhaust",
+        label: if(c.exhausted, do: "Ready", else: "Exhaust"),
+        icon: "hero-arrow-path-rounded-square-mini",
+        class: nil,
+        attrs: [{"phx-click", "card"}, {"phx-value-op", "exhaust"}]
+      },
+      to.("cx-act-play", "To play", "in_play", nil),
+      to.("cx-act-hand", "To hand", "hand", nil),
+      to.("cx-act-discard", "Discard", "discard", nil),
+      %{
+        id: "cx-act-flip",
+        label: if(c.face_down, do: "Face up", else: "Face down"),
+        icon: "hero-arrows-up-down-mini",
+        class: nil,
+        attrs: [{"phx-click", "card"}, {"phx-value-op", "flip"}]
+      },
+      to.("cx-act-trash", "Trash", "trash", "cx-act-danger")
+    ]
   end
 
   attr :id, :string, required: true
