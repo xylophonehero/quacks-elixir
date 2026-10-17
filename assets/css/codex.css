@@ -833,3 +833,52 @@ body.cx-dragging .cx-drawer { pointer-events: none; opacity: 0.12; transition: o
   box-shadow: inset 0 0 0 2px var(--cx-gold), 0 0 16px -4px oklch(85% 0.15 85 / 0.7);
 }
 .cx-slot.cx-slot-lit .cx-slot-card { outline-color: oklch(85% 0.15 85 / 0.7); }
+
+/* Action chips on a card (a desktop): round buttons on its top edge, shown on
+   hover, focus and selection. None on a phone (the bottom sheet), in a pick or
+   while a card is dragged. */
+.cx-chipbar { display: none; }
+@media (min-width: 1024px) {
+  .cx-row-cards { overflow: visible; }
+  .cx-chipbar {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    z-index: 9;
+    display: flex;
+    gap: 4px;
+    translate: -50% -40%;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease, translate 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .cx-mc:hover > .cx-chipbar, .cx-mc:focus-visible > .cx-chipbar, .cx-mc:focus-within > .cx-chipbar,
+  .cx-mc.cx-selected > .cx-chipbar, .cx-mc.cx-focus > .cx-chipbar, .cx-mc.cx-hover > .cx-chipbar,
+  .cx-card:hover > .cx-chipbar, .cx-card:focus-visible > .cx-chipbar, .cx-card:focus-within > .cx-chipbar,
+  .cx-card.cx-selected > .cx-chipbar, .cx-card.cx-focus > .cx-chipbar, .cx-card.cx-hover > .cx-chipbar {
+    opacity: 1;
+    translate: -50% -60%;
+    pointer-events: auto;
+  }
+  body.cx-dragging .cx-chipbar, body.cx-aiming .cx-chipbar { display: none; }
+  .cx-chipbtn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: oklch(22% 0.02 70 / 0.96);
+    color: oklch(92% 0.1 85);
+    box-shadow: 0 0 0 1.5px oklch(85% 0.15 85 / 0.75), 0 4px 10px -2px oklch(0% 0 0 / 0.7);
+    transition: transform 100ms ease, background-color 120ms ease, color 120ms ease;
+  }
+  .cx-chipbtn:hover { background: oklch(85% 0.15 85); color: oklch(22% 0.03 60); transform: scale(1.12); }
+  .cx-chipbtn:active { transform: scale(0.94); }
+  .cx-chipbtn-attack { background: oklch(45% 0.17 30 / 0.97); color: white; box-shadow: 0 0 0 1.5px oklch(80% 0.15 35), 0 4px 10px -2px oklch(0% 0 0 / 0.7); }
+  .cx-chipbtn-attack:hover { background: oklch(62% 0.2 30); color: white; }
+  .cx-mc.cx-hover { transform: translateY(-3px); }
+  .cx-fan > .cx-card.cx-hover { transform: translateY(-10px) scale(1.04); z-index: 6; }
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .cx-chipbar, .cx-chipbtn { transition: none; }
+}

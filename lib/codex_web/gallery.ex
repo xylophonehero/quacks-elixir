@@ -17,7 +17,7 @@ defmodule CodexWeb.Gallery do
   @spec states() :: [String.t()]
   def states,
     do:
-      ~w(mid-game start red-green selected focus patrol expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
+      ~w(mid-game start red-green selected chips focus patrol expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -62,6 +62,11 @@ defmodule CodexWeb.Gallery do
   defp extra(socket, "selected", game) do
     [id | _] = game.sides[0].zones.in_play
     Phoenix.Component.assign(socket, selected: id)
+  end
+
+  # A desktop: the mouse on P1's hero (squad leader): its action chips show.
+  defp extra(socket, "chips", game) do
+    Phoenix.Component.assign(socket, hover: game.sides[0].zones.patrol.squad_leader)
   end
 
   # A desktop: the keyboard focus ring on P1's first unit in play (a static

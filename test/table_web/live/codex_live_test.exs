@@ -468,6 +468,39 @@ defmodule TableWeb.CodexLiveTest do
       assert zone(code, 0, :patrol).elite == a
     end
 
+    test "chips on the card: one target acts at once; two targets start a pick" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, h} = place(game, 0, "fruit-ninja", :hand)
+      game = ok!(game, {:play, a, []})
+      %{view: view, code: code} = room_with(game)
+
+      # Every card with actions has its chips (CSS shows them on hover, focus or selection).
+      assert has_element?(
+               view,
+               ~s(#cx-card-#{a} #cx-chip-#{a}-attack[aria-label="Attack P2's base"])
+             )
+
+      assert has_element?(view, "#cx-card-#{h} #cx-chip-#{h}-hire")
+      refute has_element?(view, "#cx-side-1 [id^=cx-chip-]")
+
+      view |> element("#cx-chip-#{a}-attack") |> render_click()
+      assert game(code).sides[1].base_hp == 19
+      refute has_element?(view, "#cx-chip-#{a}-attack")
+    end
+
+    test "chips: Attack… with two targets starts the pick; no chips in a pick" do
+      {game, a} = place(new(), 0, "timely-messenger", :hand)
+      {game, _} = place(game, 1, "tenderfoot", :patrol, :elite)
+      {game, _} = place(game, 1, "older-brother", :patrol, :lookout)
+      game = ok!(game, {:play, a, []})
+      %{view: view} = room_with(game)
+
+      view |> element("#cx-chip-#{a}-attack[aria-label='Attack…']") |> render_click()
+      assert has_element?(view, "#cx-pick")
+      assert has_element?(view, "#cx-card-#{a}.cx-selected")
+      refute has_element?(view, "[id^=cx-chip-]")
+    end
+
     test "Cancel ends a pick" do
       {game, a} = place(new(), 0, "timely-messenger", :hand)
       game = ok!(game, {:play, a, []})

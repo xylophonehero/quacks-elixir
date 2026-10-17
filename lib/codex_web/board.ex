@@ -994,9 +994,11 @@ defmodule CodexWeb.Board do
     ]
   end
 
-  # Per-card marks for the cards on the table: `focus` (the gallery draws a focus
-  # ring on that card) and `lit`: the free patrol slots ({seat, slot}) of the
-  # selected card after Patrol.
+  # Per-card marks for the cards on the table: `chips` (card id => its action
+  # chips, `Moves.chips/2` with a label; none in free mode or in a pick),
+  # `focus` and `hover` (the gallery draws a focus ring or the hover look on
+  # that card) and `lit`: the free patrol slots ({seat, slot}) of the selected
+  # card after Patrol.
   defp ui(assigns, v, selected) do
     lit =
       if assigns[:patrolling] && selected,
@@ -1009,7 +1011,115 @@ defmodule CodexWeb.Board do
           ),
         else: MapSet.new()
 
-    %{focus: assigns[:focus], lit: lit}
+    %{
+      chips: card_chips(assigns, v),
+      focus: assigns[:focus],
+      hover: assigns[:hover],
+      lit: lit
+    }
+  end
+
+  defp card_chips(%{targeting: t}, _v) when t != nil, do: %{}
+  defp card_chips(_assigns, %{free: true}), do: %{}
+
+  defp card_chips(assigns, v) do
+    ids =
+      for a <- assigns.actions, is_tuple(a), is_integer(elem(a, 1)), uniq: true, do: elem(a, 1)
+
+    Map.new(ids, fn id ->
+      chips =
+        for chip <- Enum.sort_by(Moves.chips(assigns.actions, id), &chip_rank(&1.kind)),
+            do: Map.put(chip, :label, chip_label(chip, v))
+
+      {id, chips}
+    end)
+  end
+
+  defp chip_label(%{kind: :attack, one: value}, v), do: "Attack #{value_label(v, value)}"
+  defp chip_label(%{kind: :attack}, _v), do: "Attack…"
+
+  defp chip_label(%{kind: :patrol, do: {:patrol, _, slot}}, _v),
+    do: "Patrol as #{elem(@slot_labels[slot], 0)}"
+
+  defp chip_label(%{kind: :patrol}, _v), do: "Patrol…"
+
+  defp chip_label(%{one: value} = chip, v),
+    do: "#{String.trim_trailing(chip_base_label(chip), "…")}: #{value_label(v, value)}"
+
+  defp chip_label(chip, _v), do: chip_base_label(chip)
+
+  defp chip_base_label(%{key: "level"}), do: "Level up (1 gold)"
+  defp chip_base_label(%{key: "hire"}), do: "Hire as a worker (1 gold)"
+  defp chip_base_label(%{key: "summon"}), do: "Summon"
+  defp chip_base_label(%{key: "sideline"}), do: "Sideline"
+  defp chip_base_label(%{key: "play"}), do: "Play"
+  defp chip_base_label(%{key: "play-pick"}), do: "Play…"
+
+  defp chip_base_label(%{key: "ability-" <> _, target: {:ability, _, name}}),
+    do: Moves.ability_label(name) <> "…"
+
+  defp chip_base_label(%{key: "ability-" <> _, do: {:ability, _, name, _}}),
+    do: Moves.ability_label(name)
+
+  defp chip_base_label(%{key: key}), do: key
+
+  @chip_order ~w(attack play hire summon level ability patrol sideline)a
+  defp chip_rank(kind), do: Enum.find_index(@chip_order, &(&1 == kind))
+
+  defp chip_icon(:attack), do: "hero-bolt-solid"
+  defp chip_icon(:level), do: "hero-chevron-double-up-solid"
+  defp chip_icon(:patrol), do: "hero-shield-check-solid"
+  defp chip_icon(:sideline), do: "hero-shield-exclamation-solid"
+  defp chip_icon(:hire), do: "hero-wrench-solid"
+  defp chip_icon(:summon), do: "hero-arrow-down-circle-solid"
+  defp chip_icon(:play), do: "hero-play-solid"
+  defp chip_icon(:ability), do: "hero-sparkles-solid"
+
+  # The action chips on a card (a desktop): round buttons on its top edge. CSS
+  # shows them on hover, focus and selection; a phone keeps the bottom sheet.
+  # Not in the tab order: the card's keys (A, L, P) and the inspector reach them.
+  attr :c, :map, required: true
+  attr :chips, :list, required: true
+
+  defp chip_bar(assigns) do
+    # At most 3 buttons: with 4 or more chips, 2 and "…" (all, in the inspector).
+    {shown, more} = Enum.split(assigns.chips, if(length(assigns.chips) > 3, do: 2, else: 3))
+    assigns = assign(assigns, shown: shown, more: more != [])
+
+    ~H"""
+    <div class="cx-chipbar" role="group" aria-label="Actions">
+      <button
+        :for={chip <- @shown}
+        id={"cx-chip-#{@c.id}-#{chip.key}"}
+        type="button"
+        tabindex="-1"
+        draggable="false"
+        phx-click="chip"
+        phx-value-id={@c.id}
+        phx-value-key={chip.key}
+        class={["cx-chipbtn", "cx-chipbtn-#{chip.kind}"]}
+        aria-label={chip.label}
+        title={if(chip.hotkey, do: "#{chip.label} (#{String.upcase(chip.hotkey)})", else: chip.label)}
+        data-kind={chip.kind}
+      >
+        <.icon name={chip_icon(chip.kind)} class="size-4" />
+      </button>
+      <button
+        :if={@more}
+        id={"cx-chip-#{@c.id}-more"}
+        type="button"
+        tabindex="-1"
+        draggable="false"
+        phx-click="select"
+        phx-value-id={@c.id}
+        class="cx-chipbtn"
+        aria-label="All actions"
+        title="All actions"
+      >
+        <.icon name="hero-ellipsis-horizontal-mini" class="size-4" />
+      </button>
+    </div>
+    """
   end
 
   # What the other side did in its turn: a card over the board until "OK".
@@ -1283,7 +1393,7 @@ defmodule CodexWeb.Board do
   attr :reveal, :boolean, default: false
   attr :players, :map, default: %{}
   attr :actions, :list, default: []
-  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
+  attr :ui, :map, default: %{chips: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp side(assigns) do
     side = assigns.view.sides[assigns.seat]
@@ -1532,7 +1642,7 @@ defmodule CodexWeb.Board do
   attr :art, :any, required: true
   attr :sel, :map, default: nil
   attr :tg, :any, default: nil
-  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
+  attr :ui, :map, default: %{chips: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp patrol(assigns) do
     assigns = assign(assigns, order: Game.patrol_slots(), labels: @slot_labels)
@@ -1583,7 +1693,7 @@ defmodule CodexWeb.Board do
   attr :art, :any, required: true
   attr :sel, :map, default: nil
   attr :tg, :any, default: nil
-  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
+  attr :ui, :map, default: %{chips: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp row(assigns) do
     ~H"""
@@ -1623,7 +1733,7 @@ defmodule CodexWeb.Board do
   attr :hidden?, :boolean, default: false
   attr :far, :boolean, default: false
   attr :dock, :boolean, default: false
-  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
+  attr :ui, :map, default: %{chips: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp hand(assigns) do
     n = length(assigns.ids)
@@ -1867,10 +1977,10 @@ defmodule CodexWeb.Board do
   attr :art, :any, required: true
   attr :selected, :any, default: false
   attr :target, :any, default: false, doc: "a legal target of the pick in progress"
-  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
+  attr :ui, :map, default: %{chips: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   # A card on the board: an art crop, the cost (or the hero level), the name and
-  # the ATK/HP now. Colours: green above the printed value, violet below, red HP
+  # the ATK/HP now; on a desktop its action chips (`chip_bar/1`). Colours: green above the printed value, violet below, red HP
   # when damaged. Exhausted: grey. A long press (or a hover) shows the full card.
   defp mini(assigns) do
     c = assigns.c
@@ -1907,9 +2017,11 @@ defmodule CodexWeb.Board do
         @c.exhausted && "cx-exhausted",
         @selected && "cx-selected",
         @target && "cx-targetable",
-        @ui.focus == @c.id && "cx-focus"
+        @ui.focus == @c.id && "cx-focus",
+        @ui.hover == @c.id && "cx-hover"
       ]}
     >
+      <.chip_bar :if={@ui.chips[@c.id] not in [nil, []]} c={@c} chips={@ui.chips[@c.id]} />
       <div class="cx-mc-art">
         <%= cond do %>
           <% @back? -> %>
@@ -2003,7 +2115,7 @@ defmodule CodexWeb.Board do
   attr :prefix, :string, default: "cx-card"
   attr :click, :boolean, default: true
   attr :style, :string, default: nil
-  attr :ui, :map, default: %{focus: nil, lit: MapSet.new()}
+  attr :ui, :map, default: %{chips: %{}, focus: nil, hover: nil, lit: MapSet.new()}
 
   defp card(assigns) do
     c = assigns.c
@@ -2040,9 +2152,15 @@ defmodule CodexWeb.Board do
         @selected && "cx-selected",
         @target && "cx-targetable",
         @click && !@hidden && "cursor-pointer",
-        @ui.focus == @c.id && "cx-focus"
+        @ui.focus == @c.id && "cx-focus",
+        @ui.hover == @c.id && "cx-hover"
       ]}
     >
+      <.chip_bar
+        :if={@click && !@hidden && @ui.chips[@c.id] not in [nil, []]}
+        c={@c}
+        chips={@ui.chips[@c.id]}
+      />
       <%= cond do %>
         <% @back? -> %>
           <.back art={@art} />
@@ -2502,11 +2620,11 @@ defmodule CodexWeb.Board do
     >
       <p class="mb-1 font-semibold text-white">How to play</p>
       <p>
-        Click a card to see what it can do now: play it, hire it as a worker, attack,
-        summon, level up. Drag a card from your hand to In play to play it, to Workers
-        to hire it, and a unit to a patrol slot to patrol. To attack, pick "Attack…" and
-        click a glowing target. Hover a card to see it large. Free mode lets you fix
-        anything by hand.
+        Point at a card: its action buttons show on it (attack, level up, patrol, play,
+        hire). One click acts; with more than one target, click a glowing target next.
+        Keys: Tab to a card, then A attack, L level up, P patrol, Enter select, Esc
+        cancel. Drag a card from your hand to In play to play it, to Workers to hire
+        it. Hover a card to see it large. Free mode lets you fix anything by hand.
       </p>
     </div>
     <div
