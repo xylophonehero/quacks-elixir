@@ -1220,3 +1220,76 @@ body.cx-aiming .cx-building:not(.cx-lit) {
   .cx-side[data-far="true"][data-open="false"] .cx-slot-hint { display: none; }
   .cx-slot > .cx-label { color: oklch(100% 0 0 / 0.6); }
 }
+
+/* A phone: more icons, less height. The row names (in play, command, hand) sit
+   in a narrow left gutter, turned; the piles are icon + count chips (36 px, the
+   hit area 44 px); keywords as icons down the left edge of a mini. */
+.cx-mc-kws {
+  position: absolute;
+  left: -3px;
+  top: 26%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  pointer-events: none;
+}
+.cx-mc-kw {
+  display: grid;
+  width: max(13px, 22cqw);
+  height: max(13px, 22cqw);
+  padding: 2px;
+  border-radius: 999px;
+  background: oklch(22% 0.03 260 / 0.92);
+  color: oklch(92% 0.06 220);
+  box-shadow: 0 0 0 1px oklch(100% 0 0 / 0.25);
+}
+@media (max-width: 1023px) {
+  .cx-side:not([data-far="true"]) .cx-row,
+  .cx-side[data-far="true"][data-open="true"] .cx-row,
+  .cx-dock { padding-top: 3px; padding-left: 17px; }
+  .cx-side:not([data-far="true"]) .cx-row-label,
+  .cx-side[data-far="true"][data-open="true"] .cx-row-label,
+  .cx-dock > .cx-row-label {
+    top: 0;
+    bottom: 0;
+    left: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    rotate: 180deg;
+    font-size: 8.5px;
+    white-space: nowrap;
+  }
+  .cx-row-cards { padding-block: 5px 3px; min-height: 0; }
+  .cx-row[data-empty="true"] .cx-row-cards { min-height: 46px; }
+  .cx-chips { overflow: visible; }
+  .cx-chip:not(.cx-chip-btn) { flex-direction: row; min-height: 34px; padding: 0 6px; position: relative; }
+  .cx-chip:not(.cx-chip-btn)::after { content: ""; position: absolute; inset: -5px 0; }
+  .cx-chip-label { display: none; }
+  .cx-chips > .cx-chip-btn { min-height: 34px; }
+}
+.cx-hchips { display: none; }
+@media (max-width: 1023px) {
+  /* My side: the buildings in the header; the heroes and the piles share a line. */
+  .cx-hchips { display: flex; flex-shrink: 1; min-width: 0; gap: 3px; overflow: hidden; }
+  .cx-hchips > .cx-building, .cx-hchips > .cx-chip-btn {
+    min-height: 28px; min-width: 0; padding: 0 5px; gap: 2px; border-radius: 0.5rem; font-size: 11px; line-height: 1; position: relative;
+  }
+  .cx-hchips > .cx-chip-btn { min-width: 28px; justify-content: center; }
+  .cx-hchips > .cx-chip-btn::after { content: ""; position: absolute; inset: -8px -4px; }
+  .cx-side:not([data-far="true"]) .cx-command .cx-bchips { display: none; }
+  .cx-side:not([data-far="true"]) .cx-command { --cx-res: 0px !important; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat { flex-direction: row; align-items: stretch; gap: 4px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-command { flex: 1 1 0; min-width: 0; --cx-mw: 2.9rem; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, auto); align-content: center; gap: 3px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip { min-height: 30px; padding: 0 5px; gap: 3px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip::after { inset: -2px 0; }
+}
+@media (max-width: 1023px) {
+  .cx-layout { gap: 4px; }
+  .cx-side { gap: 4px; }
+  .cx-side-body, .cx-pair { gap: 4px; }
+  .cx-slot { padding: 2px 3px 3px; gap: 2px; }
+}

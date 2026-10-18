@@ -524,7 +524,7 @@ P1 · turn 1 · main phase
 End turn
 </button>
 <div class="cx-st-hint flex min-w-0 items-center gap-2 px-1">
-<p class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-2" id="cx-hint">
+<p class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-1" id="cx-hint" title="You can hire a worker, summon your hero, play a card, build. Tap a card to see its actions.">
 You can hire a worker, summon your hero, play a card, build. Tap a card to see its actions.
 </p>
 </div>
@@ -539,6 +539,12 @@ P1
 <span class="hidden sm:inline">· Anarchy, Blood, Fire</span>
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 1</span>
 </span>
+<div class="cx-hchips lg:hidden">
+<button aria-label="Build" class="cx-chip cx-chip-btn" id="cx-hbuild-0" phx-click="drawer" phx-value-seat="0" phx-value-zone="buildings" title="Build" type="button">
+<span class="hero-plus-mini size-4">
+</span>
+</button>
+</div>
 <div class="flex shrink-0 items-center gap-1 cx-keep-dup">
 <div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="0" phx-value-name="base" phx-value-seat="0" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">
@@ -675,6 +681,12 @@ P1
 </span>
 <span class="cx-mc-flags">
 </span>
+<span class="cx-mc-kws lg:hidden">
+<span class="cx-mc-kw" title="Haste">
+<span class="hero-forward-mini size-full">
+</span>
+</span>
+</span>
 <div class="cx-mc-foot">
 <span class="cx-mc-name">Captain Zane</span>
 <div class="cx-mc-stats">
@@ -753,6 +765,12 @@ P1
 <span class="text-[0.7em]">L</span>1
 </span>
 <span class="cx-mc-flags">
+</span>
+<span class="cx-mc-kws lg:hidden">
+<span class="cx-mc-kw" title="Sparkshot">
+<span class="hero-sparkles-mini size-full">
+</span>
+</span>
 </span>
 <div class="cx-mc-foot">
 <span class="cx-mc-name">Jaina Stormborne</span>

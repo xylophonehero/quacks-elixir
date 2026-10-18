@@ -455,7 +455,7 @@ P1 · turn 1 · tech
 <span class="hidden text-xs font-semibold sm:inline">Undo</span>
 </button>
 <div class="cx-st-hint flex min-w-0 items-center gap-2 px-1">
-<p class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-2" id="cx-hint">
+<p class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-1" id="cx-hint" title="Pick codex cards for your discard pile.">
 Pick codex cards for your discard pile.
 </p>
 <button class="min-h-11 shrink-0 rounded-full bg-amber-300 px-4 text-sm font-bold text-stone-900 shadow" id="cx-tech-open" phx-click="drawer" phx-value-zone="tech" type="button">
@@ -473,6 +473,8 @@ P1
 <span class="hidden sm:inline">· Bashing</span>
 <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn 1</span>
 </span>
+<div class="cx-hchips lg:hidden">
+</div>
 <div class="flex shrink-0 items-center gap-1 cx-keep-dup">
 <div class="flex items-center rounded-full bg-black/30 ring-1 ring-white/10 " data-base="0" phx-value-name="base" phx-value-seat="0" title="Base HP">
 <span class="flex min-h-8 min-w-11 items-center justify-center gap-0.5 px-1.5 text-sm font-bold tabular-nums">

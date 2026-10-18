@@ -51,7 +51,7 @@ defmodule CodexWeb.Board do
 
   use QuacksWeb, :html
 
-  alias Codex.{Cards, Game}
+  alias Codex.{CardRules, Cards, Game}
   alias CodexWeb.Moves
   alias QuacksWeb.Plugs.CodexArt
 
@@ -1684,7 +1684,7 @@ defmodule CodexWeb.Board do
         P{@view.winner + 1} wins: the base of P{1 - @view.winner + 1} is destroyed.
       </p>
       <div :if={@hint && @view.phase != :over} class="cx-st-hint flex min-w-0 items-center gap-2 px-1">
-        <p id="cx-hint" class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-2">
+        <p id="cx-hint" class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-1" title={@hint}>
           {@hint}
         </p>
         <button
@@ -1791,6 +1791,7 @@ defmodule CodexWeb.Board do
         tg={@tg}
         far={@far}
         open={@open}
+        actions={@actions}
       />
       <button
         :if={@tg && {:building, @seat, :base} in @tg}
@@ -1939,6 +1940,7 @@ defmodule CodexWeb.Board do
   attr :tg, :any, default: nil
   attr :far, :boolean, default: false
   attr :open, :boolean, default: false
+  attr :actions, :list, default: []
 
   defp side_header(assigns) do
     side = assigns.side
@@ -1965,6 +1967,50 @@ defmodule CodexWeb.Board do
         <span class="hidden sm:inline">· {@spec_text}</span>
         <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn {@side.turn}</span>
       </span>
+      <div :if={!@far} class="cx-hchips lg:hidden">
+        <button
+          :for={b <- @side.tech_buildings}
+          id={"cx-hb-#{@seat}-#{b}"}
+          type="button"
+          phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
+          phx-value-seat={@seat}
+          phx-value-name={b}
+          class={[
+            "cx-building",
+            @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
+          ]}
+          title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
+        >
+          <.icon name={building_icon(b)} class="size-3.5 shrink-0 opacity-75" />
+          <span class="cx-b-name">{building_short(b)}</span>
+          <span class={["cx-b-hp", Map.get(@side.building_damage, b, 0) > 0 && "cx-b-hurt"]}>
+            {building_hp_left(@side, b)}
+          </span>
+        </button>
+        <span
+          :for={b <- @side.pending}
+          class="cx-building cx-building-pending"
+          title={"#{building_label(b)}: ready at the end of the turn"}
+        >
+          <.icon name="hero-clock-mini" class="size-3.5 shrink-0 opacity-75" />
+          <span class="cx-b-name">{building_short(b)}</span>
+        </span>
+        <button
+          :if={
+            @view.free or (@view.active == @seat and Enum.any?(@actions, &match?({:build, _}, &1)))
+          }
+          id={"cx-hbuild-#{@seat}"}
+          type="button"
+          phx-click="drawer"
+          phx-value-seat={@seat}
+          phx-value-zone="buildings"
+          class="cx-chip cx-chip-btn"
+          aria-label="Build"
+          title="Build"
+        >
+          <.icon name="hero-plus-mini" class="size-4" />
+        </button>
+      </div>
       <div class={["flex shrink-0 items-center gap-1", !@free && "cx-keep-dup"]}>
         <.stepper
           id={"cx-hp-#{@seat}"}
@@ -2464,7 +2510,8 @@ defmodule CodexWeb.Board do
         hero?: d.type == "Hero",
         img: art? && "/images/codex/#{c.card}.webp",
         zoom: !back? && art? && "/images/codex/zoom/#{c.card}.webp",
-        st: !back? && mini_stats(c, d)
+        st: !back? && mini_stats(c, d),
+        kws: if(back?, do: [], else: keyword_icons(c))
       )
 
     ~H"""
@@ -2523,13 +2570,19 @@ defmodule CodexWeb.Board do
             class="cx-mc-flag cx-mc-new"
             title="arrived this turn: cannot attack yet"
           >
-            new
+            <span class="max-lg:hidden">new</span>
+            <.icon name="hero-moon-mini" class="size-3 lg:hidden" />
           </span>
           <span :if={@c.plus > 0} class="cx-mc-flag cx-mc-plus" title="+1/+1 runes">
             +{@c.plus}
           </span>
           <span :if={@c.minus > 0} class="cx-mc-flag cx-mc-minus" title="-1/-1 runes">
             −{@c.minus}
+          </span>
+        </span>
+        <span :if={@kws != []} class="cx-mc-kws lg:hidden">
+          <span :for={{icon, text} <- @kws} class="cx-mc-kw" title={text}>
+            <.icon name={icon} class="size-full" />
           </span>
         </span>
         <div class="cx-mc-foot">
@@ -2547,6 +2600,37 @@ defmodule CodexWeb.Board do
       </template>
     </div>
     """
+  end
+
+  @keyword_icons [
+    flying: {"hero-paper-airplane-mini", "Flying"},
+    haste: {"hero-forward-mini", "Haste"},
+    stealth: {"hero-eye-slash-mini", "Stealth"},
+    invisible: {"hero-eye-slash-mini", "Invisible"},
+    unstoppable: {"hero-arrow-trending-up-mini", "Unstoppable"},
+    overpower: {"hero-arrow-right-circle-mini", "Overpower"},
+    sparkshot: {"hero-sparkles-mini", "Sparkshot"},
+    frenzy: {"hero-fire-mini", "Frenzy"},
+    armor: {"hero-shield-check-mini", "Armor"},
+    resist: {"hero-shield-exclamation-mini", "Resist"},
+    readiness: {"hero-arrow-path-rounded-square-mini", "Readiness"},
+    two_lives: {"hero-heart-mini", "Two lives"},
+    untargetable: {"hero-no-symbol-mini", "Untargetable"},
+    detector: {"hero-magnifying-glass-mini", "Detector"}
+  ]
+
+  # Up to 3 printed keywords of a mini as icons (a phone).
+  defp keyword_icons(c) do
+    kws = CardRules.keywords(c.card) ++ CardRules.hero_keywords(c.card, c.level || 1)
+    keys = Enum.map(kws, fn kw -> if is_tuple(kw), do: elem(kw, 0), else: kw end)
+
+    for {key, {icon, name}} <- @keyword_icons, key in keys do
+      value =
+        Enum.find_value(kws, fn kw -> is_tuple(kw) and elem(kw, 0) == key and elem(kw, 1) end)
+
+      {icon, if(is_integer(value), do: "#{name} #{value}", else: name)}
+    end
+    |> Enum.take(3)
   end
 
   # ATK and HP left now, and how they differ from the printed values (a hero: its band).
