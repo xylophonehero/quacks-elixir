@@ -2091,7 +2091,7 @@ defmodule CodexWeb.Board do
     assigns = assign(assigns, order: Game.patrol_slots(), labels: @slot_labels)
 
     ~H"""
-    <div id={"cx-patrol-#{@seat}"} class="cx-patrol">
+    <div id={"cx-patrol-#{@seat}"} class="cx-patrol" aria-label="Patrol zone (the front line)">
       <div
         :for={slot <- @order}
         id={"cx-slot-#{@seat}-#{slot}"}
@@ -2123,6 +2123,17 @@ defmodule CodexWeb.Board do
             target={@tg && @slots[slot] in @tg}
             ui={@ui}
           />
+          <span
+            :if={@slots[slot]}
+            class={["cx-slot-badge lg:hidden", "cx-slot-#{slot}"]}
+            title={"#{elem(@labels[slot], 0)}: #{slot_hint(slot)}"}
+          >
+            <.icon name={slot_icon(slot)} class="size-3" />
+          </span>
+          <span :if={!@slots[slot]} class={["cx-slot-empty lg:hidden", "cx-slot-#{slot}"]}>
+            <.icon name={slot_icon(slot)} class="cx-slot-icon" />
+            <span class="cx-slot-hint">{slot_hint(slot)}</span>
+          </span>
         </div>
       </div>
     </div>
@@ -3521,6 +3532,18 @@ defmodule CodexWeb.Board do
 
   defp label(zone), do: Map.fetch!(@zone_labels, zone)
   defp building_label(b), do: Map.fetch!(@building_labels, b)
+
+  defp slot_icon(:squad_leader), do: "hero-shield-check-mini"
+  defp slot_icon(:elite), do: "hero-bolt-mini"
+  defp slot_icon(:scavenger), do: "hero-circle-stack-mini"
+  defp slot_icon(:technician), do: "hero-rectangle-stack-mini"
+  defp slot_icon(:lookout), do: "hero-eye-mini"
+
+  defp slot_hint(:squad_leader), do: "+1 armor"
+  defp slot_hint(:elite), do: "+1 ATK"
+  defp slot_hint(:scavenger), do: "dies: +1 gold"
+  defp slot_hint(:technician), do: "dies: +1 card"
+  defp slot_hint(:lookout), do: "resist 1"
 
   defp building_short(:tech_1), do: "I"
   defp building_short(:tech_2), do: "II"

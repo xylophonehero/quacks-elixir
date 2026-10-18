@@ -328,13 +328,18 @@ P2
 </div>
 </div>
 <div class="cx-pair cx-pair-board">
-<div class="cx-patrol" id="cx-patrol-1">
+<div aria-label="Patrol zone (the front line)" class="cx-patrol" id="cx-patrol-1">
 <div class="cx-zone cx-slot cx-target" data-drop="" data-empty="true" data-seat="1" data-slot="squad_leader" data-zone="patrol" id="cx-slot-1-squad_leader" phx-click="zone" phx-value-seat="1" phx-value-slot="squad_leader" phx-value-zone="patrol">
 <span class="cx-label truncate" title="Squad leader">
 <span class="hidden lg:inline">Squad leader</span>
 <span class="lg:hidden">Leader</span>
 </span>
 <div class="cx-slot-card">
+<span class="cx-slot-empty lg:hidden cx-slot-squad_leader">
+<span class="hero-shield-check-mini cx-slot-icon">
+</span>
+<span class="cx-slot-hint">+1 armor</span>
+</span>
 </div>
 </div>
 <div class="cx-zone cx-slot cx-target" data-drop="" data-empty="false" data-seat="1" data-slot="elite" data-zone="patrol" id="cx-slot-1-elite" phx-click="zone" phx-value-seat="1" phx-value-slot="elite" phx-value-zone="patrol">
@@ -365,6 +370,10 @@ P2
 </div>
 </template>
 </div>
+<span class="cx-slot-badge lg:hidden cx-slot-elite" title="Elite: +1 ATK">
+<span class="hero-bolt-mini size-3">
+</span>
+</span>
 </div>
 </div>
 <div class="cx-zone cx-slot cx-target" data-drop="" data-empty="true" data-seat="1" data-slot="scavenger" data-zone="patrol" id="cx-slot-1-scavenger" phx-click="zone" phx-value-seat="1" phx-value-slot="scavenger" phx-value-zone="patrol">
@@ -373,6 +382,11 @@ P2
 <span class="lg:hidden">Scav.</span>
 </span>
 <div class="cx-slot-card">
+<span class="cx-slot-empty lg:hidden cx-slot-scavenger">
+<span class="hero-circle-stack-mini cx-slot-icon">
+</span>
+<span class="cx-slot-hint">dies: +1 gold</span>
+</span>
 </div>
 </div>
 <div class="cx-zone cx-slot cx-target" data-drop="" data-empty="true" data-seat="1" data-slot="technician" data-zone="patrol" id="cx-slot-1-technician" phx-click="zone" phx-value-seat="1" phx-value-slot="technician" phx-value-zone="patrol">
@@ -381,6 +395,11 @@ P2
 <span class="lg:hidden">Tech.</span>
 </span>
 <div class="cx-slot-card">
+<span class="cx-slot-empty lg:hidden cx-slot-technician">
+<span class="hero-rectangle-stack-mini cx-slot-icon">
+</span>
+<span class="cx-slot-hint">dies: +1 card</span>
+</span>
 </div>
 </div>
 <div class="cx-zone cx-slot cx-target" data-drop="" data-empty="false" data-seat="1" data-slot="lookout" data-zone="patrol" id="cx-slot-1-lookout" phx-click="zone" phx-value-seat="1" phx-value-slot="lookout" phx-value-zone="patrol">
@@ -421,6 +440,10 @@ P2
 </div>
 </template>
 </div>
+<span class="cx-slot-badge lg:hidden cx-slot-lookout" title="Lookout: resist 1">
+<span class="hero-eye-mini size-3">
+</span>
+</span>
 </div>
 </div>
 </div>
@@ -516,7 +539,7 @@ P1
 </button>
 </div>
 <div class="cx-pair cx-pair-board">
-<div class="cx-patrol" id="cx-patrol-0">
+<div aria-label="Patrol zone (the front line)" class="cx-patrol" id="cx-patrol-0">
 <div class="cx-zone cx-slot cx-target" data-drop="" data-empty="false" data-seat="0" data-slot="squad_leader" data-zone="patrol" id="cx-slot-0-squad_leader" phx-click="zone" phx-value-seat="0" phx-value-slot="squad_leader" phx-value-zone="patrol">
 <span class="cx-label truncate" title="Squad leader">
 <span class="hidden lg:inline">Squad leader</span>
@@ -569,6 +592,10 @@ P1
 </div>
 </template>
 </div>
+<span class="cx-slot-badge lg:hidden cx-slot-squad_leader" title="Squad leader: +1 armor">
+<span class="hero-shield-check-mini size-3">
+</span>
+</span>
 </div>
 </div>
 <div class="cx-zone cx-slot cx-target cx-slot-lit" data-drop="" data-empty="true" data-seat="0" data-slot="elite" data-zone="patrol" id="cx-slot-0-elite" phx-click="zone" phx-value-seat="0" phx-value-slot="elite" phx-value-zone="patrol">
@@ -577,6 +604,11 @@ P1
 <span class="lg:hidden">Elite</span>
 </span>
 <div class="cx-slot-card">
+<span class="cx-slot-empty lg:hidden cx-slot-elite">
+<span class="hero-bolt-mini cx-slot-icon">
+</span>
+<span class="cx-slot-hint">+1 ATK</span>
+</span>
 </div>
 </div>
 <div class="cx-zone cx-slot cx-target cx-slot-lit" data-drop="" data-empty="true" data-seat="0" data-slot="scavenger" data-zone="patrol" id="cx-slot-0-scavenger" phx-click="zone" phx-value-seat="0" phx-value-slot="scavenger" phx-value-zone="patrol">
@@ -585,6 +617,11 @@ P1
 <span class="lg:hidden">Scav.</span>
 </span>
 <div class="cx-slot-card">
+<span class="cx-slot-empty lg:hidden cx-slot-scavenger">
+<span class="hero-circle-stack-mini cx-slot-icon">
+</span>
+<span class="cx-slot-hint">dies: +1 gold</span>
+</span>
 </div>
 </div>
 <div class="cx-zone cx-slot cx-target cx-slot-lit" data-drop="" data-empty="true" data-seat="0" data-slot="technician" data-zone="patrol" id="cx-slot-0-technician" phx-click="zone" phx-value-seat="0" phx-value-slot="technician" phx-value-zone="patrol">
@@ -593,6 +630,11 @@ P1
 <span class="lg:hidden">Tech.</span>
 </span>
 <div class="cx-slot-card">
+<span class="cx-slot-empty lg:hidden cx-slot-technician">
+<span class="hero-rectangle-stack-mini cx-slot-icon">
+</span>
+<span class="cx-slot-hint">dies: +1 card</span>
+</span>
 </div>
 </div>
 <div class="cx-zone cx-slot cx-target cx-slot-lit" data-drop="" data-empty="true" data-seat="0" data-slot="lookout" data-zone="patrol" id="cx-slot-0-lookout" phx-click="zone" phx-value-seat="0" phx-value-slot="lookout" phx-value-zone="patrol">
@@ -601,6 +643,11 @@ P1
 <span class="lg:hidden">Look.</span>
 </span>
 <div class="cx-slot-card">
+<span class="cx-slot-empty lg:hidden cx-slot-lookout">
+<span class="hero-eye-mini cx-slot-icon">
+</span>
+<span class="cx-slot-hint">resist 1</span>
+</span>
 </div>
 </div>
 </div>
