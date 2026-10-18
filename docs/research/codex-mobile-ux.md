@@ -389,3 +389,51 @@ Per AGENTS.md, each new state needs a story arg or preset in
 `compact` (on/off), `inspector expanded`, `opp-turn summary`, `exhausted +
 damaged + buffed unit` (one preset with every token on one board), `codex
 grouped`. Check at 360, 392, 1280.
+
+---
+
+## Round 2 (2026-10-18): one screen, no sideways scroll
+
+Screenshots: `/Users/nick/dev/quacks-elixir/docs/assets/codex-mobile2/`
+(`before-*` = start of the round, `c1`–`c4-*` = after each commit; new gallery
+state `crowded`: 5 patrollers, 6 units, 3 heroes, 3 buildings per side).
+
+### What scrolled before (crowded, 360x780)
+
+- The opponent strip: one sideways row of everything (1086 px in 332 px).
+- My in-play row (440/324 px) and command row (374/324 px) scrolled sideways;
+  the tech buildings were wide pills at the end of the command row.
+- My side scrolled down (390/363 px); the pile chips were under the fold.
+
+### Ideas from other games
+
+| # | Idea | Game | What we took | Source |
+|---|---|---|---|---|
+| Q1 | A board that always fits: a cap on the units per side, cards scale to the row (unverified: common knowledge, Hearthstone caps 7 minions) | Hearthstone | Minis shrink with the count in the row, no scroll; overlap only past 2.25rem | - |
+| Q2 | Power as one big number on the card, ability text only on tap | Marvel Snap | Minis keep only cost, ATK/HP and icon badges; text stays in the sheet/zoom | https://punishedbacklog.com/marvel-snap-review/?amp=1 |
+| Q3 | Shrinking the board hurt interaction; vertical space is the scarce thing | Legends of Runeterra (Riot UX) | Save height, not tap size: row names in a turned gutter, piles and buildings as small chips | https://outof.games/devtracker/legends-of-runeterra/reddit/r-legendsofruneterra/4417 |
+| Q4 | Hand docked under the thumb; cost-only is enough to find a card | Legends of Runeterra mobile | Hand dock stays at full height at the bottom | https://thetechnovore.com/2020/03/11/our-hands-on-with-legends-of-runeterra-mobile/ |
+
+No usable source was found on how Gwent mobile or MTG Arena mobile lay out
+crowded rows.
+
+### What changed
+
+1. Rows fit: `--cx-n` (the cards in a row) sets each mini's width, clamped
+   2.25rem..`--cx-mw`. Patrol slots share the width.
+2. Patrol zone = a front-line band (mine faces up, the opponent's down, under
+   its units). Each slot: icon + bonus (shield +1 armor, bolt +1 ATK, coin
+   "dies: +1 gold", cards "dies: +1 card", eye "resist 1"). Filled: the icon
+   as a badge on the card.
+3. Buildings: icon + level + HP chips (mine in my header, the opponent's next
+   to its heroes).
+4. Icons: piles are icon + count; keywords are icons on minis; "arrived this
+   turn" = moon.
+5. Crowded fits 360x780 and 392x850 with no scroll; desktop is unchanged.
+
+### Open
+
+- With many heroes the pile chips (one line, 44 px tall, ~32 px wide) leave
+  the heroes small (about 2.4rem).
+- Keyword icons can cover the start of a short mini's name.
+- A selected card's sheet at 360 px still makes my side scroll (by ~16 px).

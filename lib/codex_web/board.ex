@@ -1955,7 +1955,7 @@ defmodule CodexWeb.Board do
     assigns = assign(assigns, hero: title, spec_text: Enum.join(specs, ", "))
 
     ~H"""
-    <div class="flex min-h-9 items-center gap-x-1.5 px-0.5">
+    <div class="flex min-h-9 items-center gap-x-1.5 gap-y-1 px-0.5 max-lg:flex-wrap">
       <span class={[
         "rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white",
         seat_bg(@seat)

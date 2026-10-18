@@ -1293,3 +1293,11 @@ body.cx-aiming .cx-building:not(.cx-lit) {
   .cx-side-body, .cx-pair { gap: 4px; }
   .cx-slot { padding: 2px 3px 3px; gap: 2px; }
 }
+@media (max-width: 1023px) {
+  /* My piles: one line of 44 px chips (icon over count) next to the heroes. */
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips { grid-template-columns: none; grid-auto-flow: column; gap: 2px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip:not(.cx-chip-btn) { flex-direction: column; min-height: 44px; min-width: 32px; padding: 0 3px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip > span:first-child { flex-direction: column; gap: 1px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip::after { inset: 0; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips .cx-chip-count { font-size: 13px; }
+}
