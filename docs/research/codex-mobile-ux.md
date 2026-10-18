@@ -431,9 +431,22 @@ crowded rows.
    turn" = moon.
 5. Crowded fits 360x780 and 392x850 with no scroll; desktop is unchanged.
 
+### Round 2b (after review)
+
+- Taller phones give the height to my patrol and in-play minis (wider up to
+  4.1rem, and taller by up to 36 px above 780 px of viewport height).
+- Keyword icons: a row next to the cost dot, at most 2, clear of the name.
+- Opponent building as an attack target: 44 px hit area, 26 px chip.
+- Selected card: the hint hides; the turn summary floats over my board.
+- 3+ heroes: the piles go to a 3x2 grid so the heroes keep their size.
+- Opponent strip: empty patrol slots are 32 px icon tiles. Choice picks are
+  a 5-column grid.
+
 ### Open
 
-- With many heroes the pile chips (one line, 44 px tall, ~32 px wide) leave
-  the heroes small (about 2.4rem).
-- Keyword icons can cover the start of a short mini's name.
-- A selected card's sheet at 360 px still makes my side scroll (by ~16 px).
+- A pick (attack, choice) banner still makes my side scroll inside (about
+  15-25 px at 360 px). The targets are in the opponent strip, which stays
+  in view.
+- The opponent's patrol empty slot hints (+1 armor...) are hidden in the
+  strip (only icons); the open sheet shows them.
+- Not checked on a real phone.
