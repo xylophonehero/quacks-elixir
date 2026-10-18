@@ -17,7 +17,7 @@ defmodule CodexWeb.Gallery do
   @spec states() :: [String.t()]
   def states,
     do:
-      ~w(mid-game start red-green blue-black bb-choice bb-codex-pick selected chips focus patrol aim expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot)
+      ~w(mid-game start red-green blue-black bb-choice bb-codex-pick selected chips focus patrol aim expanded zoom opp-open attack attack-base opp-turn tech codex discard buildings log free bot crowded)
 
   @doc "The board story. Args: `state`, `pov` (0 or 1), `reveal`."
   @spec board_story(map) :: map
@@ -42,6 +42,7 @@ defmodule CodexWeb.Gallery do
   end
 
   defp preset("red-green"), do: "red_green"
+  defp preset("crowded"), do: "red_green"
   defp preset("blue-black"), do: "blue_black"
   defp preset("bb-" <> _), do: "blue_black"
   defp preset(_state), do: "first"
@@ -50,6 +51,7 @@ defmodule CodexWeb.Gallery do
   defp game("bb-" <> _, start), do: blue_pick(start)
   # Against the bot, on the bot's turn: the page waits.
   defp game("bot", start), do: elem(Game.apply(start, 0, :end_turn), 1)
+  defp game("crowded", start), do: crowded(start)
   defp game(_state, start), do: mid_game(start)
 
   defp envelope(game) do
@@ -290,6 +292,43 @@ defmodule CodexWeb.Gallery do
     |> Enum.reduce(game, fn action, game ->
       {:ok, game} = Game.apply(game, 0, tech(game, action))
       game
+    end)
+  end
+
+  # A full board (Red vs Green, 3 heroes each): per side 5 patrollers and 6 units
+  # in play (codex units), Tech I, Tech II and a Tower; some units exhausted or
+  # damaged. The phone layout must fit all of it on one screen.
+  defp crowded(game) do
+    moves =
+      Enum.flat_map([0, 1], fn s ->
+        units =
+          game.sides[s].zones.codex
+          |> Enum.filter(&(Codex.Cards.fetch!(game.cards[&1].card).type == "Unit"))
+          |> Enum.uniq_by(&game.cards[&1].card)
+          |> Enum.take(11)
+
+        {patrol, in_play} = Enum.split(units, 5)
+
+        Enum.zip(patrol, Game.patrol_slots())
+        |> Enum.map(fn {id, slot} -> {:move, id, {s, :patrol}, slot} end)
+        |> Kernel.++(Enum.map(in_play, &{:move, &1, {s, :in_play}, nil}))
+        |> Kernel.++([
+          {:toggle, Enum.at(in_play, 1), :exhausted},
+          {:adjust_card, Enum.at(patrol, 0), :damage, 1},
+          {:building, s, :tech_1},
+          {:building, s, :tech_2},
+          {:building, s, :tower},
+          {:adjust, s, :gold, 6}
+        ])
+      end)
+
+    [{:free_mode, true} | moves]
+    |> Kernel.++([{:free_mode, false}])
+    |> Enum.reduce(game, fn action, game ->
+      case Game.apply(game, 0, action) do
+        {:ok, game} -> game
+        {:error, _} -> game
+      end
     end)
   end
 end

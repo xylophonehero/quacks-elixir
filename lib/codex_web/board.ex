@@ -2151,6 +2151,7 @@ defmodule CodexWeb.Board do
       phx-value-seat={@seat}
       phx-value-zone={@zone}
       class={["cx-zone cx-row", @sel && "cx-target"]}
+      style={"--cx-n: #{max(length(@ids), 1)}"}
     >
       <span class="cx-label cx-row-label">{label(@zone)}</span>
       <div class="cx-row-cards">
@@ -2239,7 +2240,11 @@ defmodule CodexWeb.Board do
         deck: z.deck,
         discard: z.discard,
         codex: z.codex,
-        seat: seat
+        seat: seat,
+        bchips?:
+          assigns.side.tech_buildings != [] or assigns.side.pending != [] or
+            assigns.view.free or
+            (assigns.view.active == seat and Enum.any?(assigns.actions, &match?({:build, _}, &1)))
       )
 
     ~H"""
@@ -2254,6 +2259,7 @@ defmodule CodexWeb.Board do
       phx-value-zone="command"
       data-empty={to_string(@command == [] and @buildings == [] and @side.pending == [])}
       class={["cx-zone cx-row cx-command", @sel && "cx-target"]}
+      style={"--cx-n: #{max(length(@command), 1)}; --cx-res: #{if @bchips?, do: "6.75rem", else: "0px"}"}
     >
       <span class="cx-label cx-row-label">Command</span>
       <div class="cx-row-cards">
@@ -2265,47 +2271,53 @@ defmodule CodexWeb.Board do
           target={@tg && id in @tg}
           ui={@ui}
         />
-        <button
-          :for={b <- @buildings}
-          id={"cx-building-#{@seat}-#{b}"}
-          type="button"
-          phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
-          phx-value-seat={@seat}
-          phx-value-name={b}
-          data-building={"#{@seat}-#{b}"}
-          class={[
-            "cx-building lg:hidden",
-            @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
-          ]}
-          title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
-        >
-          <.icon name="hero-building-library-mini" class="size-4 opacity-70" />
-          <span>{building_label(b)}</span>
-          <span :if={Map.get(@side.building_damage, b, 0) > 0} class="text-red-700">
-            −{Map.get(@side.building_damage, b)}
+        <div :if={@bchips?} class="cx-bchips">
+          <button
+            :for={b <- @buildings}
+            id={"cx-building-#{@seat}-#{b}"}
+            type="button"
+            phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
+            phx-value-seat={@seat}
+            phx-value-name={b}
+            data-building={"#{@seat}-#{b}"}
+            class={[
+              "cx-building lg:hidden",
+              @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
+            ]}
+            title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
+          >
+            <.icon name={building_icon(b)} class="size-3.5 shrink-0 opacity-75" />
+            <span class="cx-b-name">{building_short(b)}</span>
+            <span
+              class={["cx-b-hp", Map.get(@side.building_damage, b, 0) > 0 && "cx-b-hurt"]}
+              aria-label="HP"
+            >
+              {building_hp_left(@side, b)}
+            </span>
+          </button>
+          <span
+            :for={b <- @side.pending}
+            id={"cx-pending-#{@seat}-#{b}"}
+            class="cx-building cx-building-pending lg:hidden"
+            title={"#{building_label(b)}: ready at the end of the turn"}
+          >
+            <.icon name="hero-clock-mini" class="size-3.5 shrink-0 opacity-75" />
+            <span class="cx-b-name">{building_short(b)}</span>
           </span>
-        </button>
-        <span
-          :for={b <- @side.pending}
-          id={"cx-pending-#{@seat}-#{b}"}
-          class="cx-building cx-building-pending lg:hidden"
-          title="Building: ready at the end of the turn"
-        >
-          {building_label(b)} …
-        </span>
-        <button
-          :if={
-            @view.free or (@view.active == @seat and Enum.any?(@actions, &match?({:build, _}, &1)))
-          }
-          id={"cx-build-#{@seat}"}
-          type="button"
-          phx-click="drawer"
-          phx-value-seat={@seat}
-          phx-value-zone="buildings"
-          class="cx-chip cx-chip-btn"
-        >
-          <.icon name="hero-plus-mini" class="size-4" /> Build
-        </button>
+          <button
+            :if={
+              @view.free or (@view.active == @seat and Enum.any?(@actions, &match?({:build, _}, &1)))
+            }
+            id={"cx-build-#{@seat}"}
+            type="button"
+            phx-click="drawer"
+            phx-value-seat={@seat}
+            phx-value-zone="buildings"
+            class="cx-chip cx-chip-btn"
+          >
+            <.icon name="hero-plus-mini" class="size-4" /> <span class="cx-build-text">Build</span>
+          </button>
+        </div>
       </div>
     </div>
     <div class="cx-chips">
@@ -3509,6 +3521,22 @@ defmodule CodexWeb.Board do
 
   defp label(zone), do: Map.fetch!(@zone_labels, zone)
   defp building_label(b), do: Map.fetch!(@building_labels, b)
+
+  defp building_short(:tech_1), do: "I"
+  defp building_short(:tech_2), do: "II"
+  defp building_short(:tech_3), do: "III"
+  defp building_short(:tower), do: "Twr"
+  defp building_short(:surplus), do: "Spl"
+  defp building_short(:tech_lab), do: "Lab"
+  defp building_short(:heroes_hall), do: "Hall"
+  defp building_short(b), do: building_label(b)
+
+  defp building_icon(b) when b in [:tech_1, :tech_2, :tech_3], do: "hero-building-library-mini"
+  defp building_icon(:tower), do: "hero-eye-mini"
+  defp building_icon(:surplus), do: "hero-circle-stack-mini"
+  defp building_icon(:tech_lab), do: "hero-beaker-mini"
+  defp building_icon(:heroes_hall), do: "hero-star-mini"
+  defp building_icon(_b), do: "hero-building-office-mini"
 
   defp seat_bg(0), do: "bg-rose-700"
   defp seat_bg(1), do: "bg-sky-700"
