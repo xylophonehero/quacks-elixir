@@ -51,7 +51,7 @@ defmodule CodexWeb.Board do
 
   use QuacksWeb, :html
 
-  alias Codex.{Cards, Game}
+  alias Codex.{CardRules, Cards, Game}
   alias CodexWeb.Moves
   alias QuacksWeb.Plugs.CodexArt
 
@@ -1684,7 +1684,7 @@ defmodule CodexWeb.Board do
         P{@view.winner + 1} wins: the base of P{1 - @view.winner + 1} is destroyed.
       </p>
       <div :if={@hint && @view.phase != :over} class="cx-st-hint flex min-w-0 items-center gap-2 px-1">
-        <p id="cx-hint" class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-2">
+        <p id="cx-hint" class="min-w-0 flex-1 text-xs text-white/70 max-lg:line-clamp-1" title={@hint}>
           {@hint}
         </p>
         <button
@@ -1791,6 +1791,7 @@ defmodule CodexWeb.Board do
         tg={@tg}
         far={@far}
         open={@open}
+        actions={@actions}
       />
       <button
         :if={@tg && {:building, @seat, :base} in @tg}
@@ -1807,7 +1808,9 @@ defmodule CodexWeb.Board do
           <.icon name="hero-heart-solid" class="size-4 text-rose-600" />{@side.base_hp}
         </span>
       </button>
-      <p :if={@far and !@board?} class="cx-strip-empty">No units or heroes in play.</p>
+      <p :if={@far and !@board? and @zones.command == []} class="cx-strip-empty">
+        No units or heroes in play.
+      </p>
       <div class="cx-side-body">
         <.keep seat={@seat} side={@side} tg={@tg} />
         <%= if @far do %>
@@ -1939,6 +1942,7 @@ defmodule CodexWeb.Board do
   attr :tg, :any, default: nil
   attr :far, :boolean, default: false
   attr :open, :boolean, default: false
+  attr :actions, :list, default: []
 
   defp side_header(assigns) do
     side = assigns.side
@@ -1953,7 +1957,7 @@ defmodule CodexWeb.Board do
     assigns = assign(assigns, hero: title, spec_text: Enum.join(specs, ", "))
 
     ~H"""
-    <div class="flex min-h-9 items-center gap-x-1.5 px-0.5">
+    <div class="flex min-h-9 items-center gap-x-1.5 gap-y-1 px-0.5 max-lg:flex-wrap">
       <span class={[
         "rounded-md px-1.5 py-0.5 text-xs font-black tracking-wide text-white",
         seat_bg(@seat)
@@ -1965,6 +1969,50 @@ defmodule CodexWeb.Board do
         <span class="hidden sm:inline">· {@spec_text}</span>
         <span class="hidden text-[11px] text-white/50 tabular-nums sm:inline">· turn {@side.turn}</span>
       </span>
+      <div :if={!@far} class="cx-hchips lg:hidden">
+        <button
+          :for={b <- @side.tech_buildings}
+          id={"cx-hb-#{@seat}-#{b}"}
+          type="button"
+          phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
+          phx-value-seat={@seat}
+          phx-value-name={b}
+          class={[
+            "cx-building",
+            @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
+          ]}
+          title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
+        >
+          <.icon name={building_icon(b)} class="size-3.5 shrink-0 opacity-75" />
+          <span class="cx-b-name">{building_short(b)}</span>
+          <span class={["cx-b-hp", Map.get(@side.building_damage, b, 0) > 0 && "cx-b-hurt"]}>
+            {building_hp_left(@side, b)}
+          </span>
+        </button>
+        <span
+          :for={b <- @side.pending}
+          class="cx-building cx-building-pending"
+          title={"#{building_label(b)}: ready at the end of the turn"}
+        >
+          <.icon name="hero-clock-mini" class="size-3.5 shrink-0 opacity-75" />
+          <span class="cx-b-name">{building_short(b)}</span>
+        </span>
+        <button
+          :if={
+            @view.free or (@view.active == @seat and Enum.any?(@actions, &match?({:build, _}, &1)))
+          }
+          id={"cx-hbuild-#{@seat}"}
+          type="button"
+          phx-click="drawer"
+          phx-value-seat={@seat}
+          phx-value-zone="buildings"
+          class="cx-chip cx-chip-btn"
+          aria-label="Build"
+          title="Build"
+        >
+          <.icon name="hero-plus-mini" class="size-4" />
+        </button>
+      </div>
       <div class={["flex shrink-0 items-center gap-1", !@free && "cx-keep-dup"]}>
         <.stepper
           id={"cx-hp-#{@seat}"}
@@ -2091,7 +2139,7 @@ defmodule CodexWeb.Board do
     assigns = assign(assigns, order: Game.patrol_slots(), labels: @slot_labels)
 
     ~H"""
-    <div id={"cx-patrol-#{@seat}"} class="cx-patrol">
+    <div id={"cx-patrol-#{@seat}"} class="cx-patrol" aria-label="Patrol zone (the front line)">
       <div
         :for={slot <- @order}
         id={"cx-slot-#{@seat}-#{slot}"}
@@ -2123,6 +2171,17 @@ defmodule CodexWeb.Board do
             target={@tg && @slots[slot] in @tg}
             ui={@ui}
           />
+          <span
+            :if={@slots[slot]}
+            class={["cx-slot-badge lg:hidden", "cx-slot-#{slot}"]}
+            title={"#{elem(@labels[slot], 0)}: #{slot_hint(slot)}"}
+          >
+            <.icon name={slot_icon(slot)} class="size-3" />
+          </span>
+          <span :if={!@slots[slot]} class={["cx-slot-empty lg:hidden", "cx-slot-#{slot}"]}>
+            <.icon name={slot_icon(slot)} class="cx-slot-icon" />
+            <span class="cx-slot-hint">{slot_hint(slot)}</span>
+          </span>
         </div>
       </div>
     </div>
@@ -2151,6 +2210,7 @@ defmodule CodexWeb.Board do
       phx-value-seat={@seat}
       phx-value-zone={@zone}
       class={["cx-zone cx-row", @sel && "cx-target"]}
+      style={"--cx-n: #{max(length(@ids), 1)}"}
     >
       <span class="cx-label cx-row-label">{label(@zone)}</span>
       <div class="cx-row-cards">
@@ -2239,7 +2299,11 @@ defmodule CodexWeb.Board do
         deck: z.deck,
         discard: z.discard,
         codex: z.codex,
-        seat: seat
+        seat: seat,
+        bchips?:
+          assigns.side.tech_buildings != [] or assigns.side.pending != [] or
+            assigns.view.free or
+            (assigns.view.active == seat and Enum.any?(assigns.actions, &match?({:build, _}, &1)))
       )
 
     ~H"""
@@ -2254,6 +2318,7 @@ defmodule CodexWeb.Board do
       phx-value-zone="command"
       data-empty={to_string(@command == [] and @buildings == [] and @side.pending == [])}
       class={["cx-zone cx-row cx-command", @sel && "cx-target"]}
+      style={"--cx-n: #{max(length(@command), 1)}; --cx-res: #{if @bchips?, do: "6.75rem", else: "0px"}"}
     >
       <span class="cx-label cx-row-label">Command</span>
       <div class="cx-row-cards">
@@ -2265,47 +2330,53 @@ defmodule CodexWeb.Board do
           target={@tg && id in @tg}
           ui={@ui}
         />
-        <button
-          :for={b <- @buildings}
-          id={"cx-building-#{@seat}-#{b}"}
-          type="button"
-          phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
-          phx-value-seat={@seat}
-          phx-value-name={b}
-          data-building={"#{@seat}-#{b}"}
-          class={[
-            "cx-building lg:hidden",
-            @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
-          ]}
-          title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
-        >
-          <.icon name="hero-building-library-mini" class="size-4 opacity-70" />
-          <span>{building_label(b)}</span>
-          <span :if={Map.get(@side.building_damage, b, 0) > 0} class="text-red-700">
-            −{Map.get(@side.building_damage, b)}
+        <div :if={@bchips?} class="cx-bchips">
+          <button
+            :for={b <- @buildings}
+            id={"cx-building-#{@seat}-#{b}"}
+            type="button"
+            phx-click={@tg && {:building, @seat, b} in @tg && "pick_building"}
+            phx-value-seat={@seat}
+            phx-value-name={b}
+            data-building={"#{@seat}-#{b}"}
+            class={[
+              "cx-building lg:hidden",
+              @tg && {:building, @seat, b} in @tg && "cx-targetable-pill cursor-pointer"
+            ]}
+            title={"#{building_label(b)}: #{building_hp_left(@side, b)} HP"}
+          >
+            <.icon name={building_icon(b)} class="size-3.5 shrink-0 opacity-75" />
+            <span class="cx-b-name">{building_short(b)}</span>
+            <span
+              class={["cx-b-hp", Map.get(@side.building_damage, b, 0) > 0 && "cx-b-hurt"]}
+              aria-label="HP"
+            >
+              {building_hp_left(@side, b)}
+            </span>
+          </button>
+          <span
+            :for={b <- @side.pending}
+            id={"cx-pending-#{@seat}-#{b}"}
+            class="cx-building cx-building-pending lg:hidden"
+            title={"#{building_label(b)}: ready at the end of the turn"}
+          >
+            <.icon name="hero-clock-mini" class="size-3.5 shrink-0 opacity-75" />
+            <span class="cx-b-name">{building_short(b)}</span>
           </span>
-        </button>
-        <span
-          :for={b <- @side.pending}
-          id={"cx-pending-#{@seat}-#{b}"}
-          class="cx-building cx-building-pending lg:hidden"
-          title="Building: ready at the end of the turn"
-        >
-          {building_label(b)} …
-        </span>
-        <button
-          :if={
-            @view.free or (@view.active == @seat and Enum.any?(@actions, &match?({:build, _}, &1)))
-          }
-          id={"cx-build-#{@seat}"}
-          type="button"
-          phx-click="drawer"
-          phx-value-seat={@seat}
-          phx-value-zone="buildings"
-          class="cx-chip cx-chip-btn"
-        >
-          <.icon name="hero-plus-mini" class="size-4" /> Build
-        </button>
+          <button
+            :if={
+              @view.free or (@view.active == @seat and Enum.any?(@actions, &match?({:build, _}, &1)))
+            }
+            id={"cx-build-#{@seat}"}
+            type="button"
+            phx-click="drawer"
+            phx-value-seat={@seat}
+            phx-value-zone="buildings"
+            class="cx-chip cx-chip-btn"
+          >
+            <.icon name="hero-plus-mini" class="size-4" /> <span class="cx-build-text">Build</span>
+          </button>
+        </div>
       </div>
     </div>
     <div class="cx-chips">
@@ -2441,7 +2512,8 @@ defmodule CodexWeb.Board do
         hero?: d.type == "Hero",
         img: art? && "/images/codex/#{c.card}.webp",
         zoom: !back? && art? && "/images/codex/zoom/#{c.card}.webp",
-        st: !back? && mini_stats(c, d)
+        st: !back? && mini_stats(c, d),
+        kws: if(back?, do: [], else: keyword_icons(c))
       )
 
     ~H"""
@@ -2500,13 +2572,19 @@ defmodule CodexWeb.Board do
             class="cx-mc-flag cx-mc-new"
             title="arrived this turn: cannot attack yet"
           >
-            new
+            <span class="max-lg:hidden">new</span>
+            <.icon name="hero-moon-mini" class="size-3 lg:hidden" />
           </span>
           <span :if={@c.plus > 0} class="cx-mc-flag cx-mc-plus" title="+1/+1 runes">
             +{@c.plus}
           </span>
           <span :if={@c.minus > 0} class="cx-mc-flag cx-mc-minus" title="-1/-1 runes">
             −{@c.minus}
+          </span>
+        </span>
+        <span :if={@kws != []} class="cx-mc-kws lg:hidden">
+          <span :for={{icon, text} <- @kws} class="cx-mc-kw" title={text}>
+            <.icon name={icon} class="size-full" />
           </span>
         </span>
         <div class="cx-mc-foot">
@@ -2524,6 +2602,37 @@ defmodule CodexWeb.Board do
       </template>
     </div>
     """
+  end
+
+  @keyword_icons [
+    flying: {"hero-paper-airplane-mini", "Flying"},
+    haste: {"hero-forward-mini", "Haste"},
+    stealth: {"hero-eye-slash-mini", "Stealth"},
+    invisible: {"hero-eye-slash-mini", "Invisible"},
+    unstoppable: {"hero-arrow-trending-up-mini", "Unstoppable"},
+    overpower: {"hero-arrow-right-circle-mini", "Overpower"},
+    sparkshot: {"hero-sparkles-mini", "Sparkshot"},
+    frenzy: {"hero-fire-mini", "Frenzy"},
+    armor: {"hero-shield-check-mini", "Armor"},
+    resist: {"hero-shield-exclamation-mini", "Resist"},
+    readiness: {"hero-arrow-path-rounded-square-mini", "Readiness"},
+    two_lives: {"hero-heart-mini", "Two lives"},
+    untargetable: {"hero-no-symbol-mini", "Untargetable"},
+    detector: {"hero-magnifying-glass-mini", "Detector"}
+  ]
+
+  # Up to 3 printed keywords of a mini as icons (a phone).
+  defp keyword_icons(c) do
+    kws = CardRules.keywords(c.card) ++ CardRules.hero_keywords(c.card, c.level || 1)
+    keys = Enum.map(kws, fn kw -> if is_tuple(kw), do: elem(kw, 0), else: kw end)
+
+    for {key, {icon, name}} <- @keyword_icons, key in keys do
+      value =
+        Enum.find_value(kws, fn kw -> is_tuple(kw) and elem(kw, 0) == key and elem(kw, 1) end)
+
+      {icon, if(is_integer(value), do: "#{name} #{value}", else: name)}
+    end
+    |> Enum.take(3)
   end
 
   # ATK and HP left now, and how they differ from the printed values (a hero: its band).
@@ -3509,6 +3618,34 @@ defmodule CodexWeb.Board do
 
   defp label(zone), do: Map.fetch!(@zone_labels, zone)
   defp building_label(b), do: Map.fetch!(@building_labels, b)
+
+  defp slot_icon(:squad_leader), do: "hero-shield-check-mini"
+  defp slot_icon(:elite), do: "hero-bolt-mini"
+  defp slot_icon(:scavenger), do: "hero-circle-stack-mini"
+  defp slot_icon(:technician), do: "hero-rectangle-stack-mini"
+  defp slot_icon(:lookout), do: "hero-eye-mini"
+
+  defp slot_hint(:squad_leader), do: "+1 armor"
+  defp slot_hint(:elite), do: "+1 ATK"
+  defp slot_hint(:scavenger), do: "dies: +1 gold"
+  defp slot_hint(:technician), do: "dies: +1 card"
+  defp slot_hint(:lookout), do: "resist 1"
+
+  defp building_short(:tech_1), do: "I"
+  defp building_short(:tech_2), do: "II"
+  defp building_short(:tech_3), do: "III"
+  defp building_short(:tower), do: "Twr"
+  defp building_short(:surplus), do: "Spl"
+  defp building_short(:tech_lab), do: "Lab"
+  defp building_short(:heroes_hall), do: "Hall"
+  defp building_short(b), do: building_label(b)
+
+  defp building_icon(b) when b in [:tech_1, :tech_2, :tech_3], do: "hero-building-library-mini"
+  defp building_icon(:tower), do: "hero-eye-mini"
+  defp building_icon(:surplus), do: "hero-circle-stack-mini"
+  defp building_icon(:tech_lab), do: "hero-beaker-mini"
+  defp building_icon(:heroes_hall), do: "hero-star-mini"
+  defp building_icon(_b), do: "hero-building-office-mini"
 
   defp seat_bg(0), do: "bg-rose-700"
   defp seat_bg(1), do: "bg-sky-700"

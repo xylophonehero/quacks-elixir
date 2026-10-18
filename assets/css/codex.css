@@ -1093,3 +1093,277 @@ body.cx-aiming .cx-building:not(.cx-lit) {
   .cx-layout, .cx-layout.cx-noted { grid-template-columns: minmax(0, 1fr) 20rem; }
   .cx-summary.cx-toast-lg { width: 20rem; }
 }
+
+/* -- phone, round 2: one screen, no sideways scroll ------------------------------
+   Under 1024 px no row scrolls: the minis in a row shrink to fit (`--n` = the
+   cards in the row, set on the row; `--res` = room kept for the building chips),
+   down to 2.25rem; past that they overlap. The tech buildings are icon chips
+   (icon, level, HP) next to the heroes. The opponent strip: its patrol zone,
+   then its units and heroes, all on screen. A desktop does not change. */
+.cx-bchips { display: contents; }
+.cx-b-hp::before { content: "♥"; margin-right: 1px; font-size: 0.8em; color: oklch(55% 0.2 20); }
+.cx-b-hp.cx-b-hurt { color: oklch(50% 0.22 27); }
+@media (min-width: 1024px) { .cx-b-name, .cx-b-hp { display: none; } }
+@media (max-width: 1023px) {
+  .cx-row-cards { container-type: inline-size; overflow: visible; gap: 0; }
+  .cx-row-cards > .cx-mc {
+    --w: clamp(2.25rem, (100cqw - var(--cx-res, 0px) - (var(--cx-n) - 1) * 4px) / var(--cx-n), var(--cx-mw));
+    width: var(--w);
+    height: calc(var(--w) * 8 / 7);
+  }
+  .cx-row-cards > .cx-mc + .cx-mc {
+    margin-left: min(4px, (100cqw - var(--cx-res, 0px) - var(--cx-n) * var(--w)) / max(var(--cx-n) - 1, 1));
+  }
+  .cx-command .cx-row-cards { flex-wrap: nowrap; }
+  .cx-bchips {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: flex-end;
+    gap: 3px;
+    width: calc(var(--cx-res) - 4px);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .cx-bchips > .cx-building,
+  .cx-bchips > .cx-chip-btn {
+    flex: 1 0 40%;
+    min-height: 26px;
+    min-width: 0;
+    padding: 0 4px;
+    gap: 2px;
+    justify-content: center;
+    border-radius: 0.5rem;
+    font-size: 11px;
+    line-height: 1;
+  }
+  .cx-bchips > .cx-chip-btn { flex-direction: row; }
+  .cx-bchips .cx-build-text { display: none; }
+  .cx-b-hp { font-variant-numeric: tabular-nums; }
+
+  /* The patrol slots share the width; the mini fills its slot. */
+  .cx-patrol { gap: 3px; }
+  .cx-slot { flex: 1 1 0; width: auto; }
+  .cx-slot-card { width: min(var(--cx-mw), 100%); height: auto; aspect-ratio: 7 / 8; }
+  .cx-slot-card > .cx-mc { width: 100%; height: 100%; }
+
+  /* The opponent strip: patrol zone on one line, units + heroes on the next. */
+  .cx-side[data-far="true"][data-open="false"] .cx-side-body {
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 4px 6px;
+    overflow: visible;
+    --cx-mw: 2.9rem;
+  }
+  .cx-side[data-far="true"][data-open="false"] .cx-patrol { order: 4; flex: 1 0 100%; justify-content: center; }
+  .cx-side[data-far="true"][data-open="false"] .cx-patrol:not(:has(.cx-slot[data-empty="false"])) { display: flex; }
+  .cx-side[data-far="true"][data-open="false"] .cx-slot[data-empty="true"] { display: flex; opacity: 0.55; }
+  .cx-side[data-far="true"][data-open="false"] .cx-row { order: 2; flex: 1 0 100%; min-width: 0; }
+  .cx-side[data-far="true"][data-open="false"] .cx-command { order: 1; --cx-mw: 2.4rem; }
+  .cx-side[data-far="true"][data-open="false"] .cx-row-cards { justify-content: center; }
+  .cx-side[data-far="true"][data-open="false"] .cx-row-cards > .cx-mc + .cx-mc {
+    margin-left: min(4px, (100cqw - var(--cx-res, 0px) - var(--cx-n) * var(--w)) / max(var(--cx-n) - 1, 1)) !important;
+  }
+  .cx-side[data-far="true"][data-open="false"] .cx-command { --cx-res: 9.75rem !important; }
+  .cx-side[data-far="true"][data-open="false"] .cx-command .cx-bchips { margin-left: 6px; width: auto; max-width: 9.5rem; flex-wrap: nowrap; }
+  .cx-side[data-far="true"][data-open="false"] .cx-command .cx-bchips > * { flex: 0 1 auto; }
+}
+
+/* The patrol zone on a phone: a "front line" band in front of the units, each
+   slot with its icon and bonus (an empty slot: faint icon + bonus; a filled
+   slot: the icon as a badge on the card). Mine faces up, the opponent's down. */
+.cx-slot-squad_leader { --cx-slot: oklch(72% 0.12 235); }
+.cx-slot-elite { --cx-slot: oklch(68% 0.18 28); }
+.cx-slot-scavenger { --cx-slot: oklch(80% 0.14 85); }
+.cx-slot-technician { --cx-slot: oklch(70% 0.13 300); }
+.cx-slot-lookout { --cx-slot: oklch(74% 0.13 160); }
+@media (max-width: 1023px) {
+  .cx-patrol {
+    position: relative;
+    padding: 3px;
+    border-radius: 0.8rem;
+    background: linear-gradient(to bottom, oklch(70% 0.06 240 / 0.16), oklch(70% 0.06 240 / 0.05));
+    box-shadow: inset 0 2px 0 oklch(85% 0.12 85 / 0.55), inset 0 0 0 1px oklch(100% 0 0 / 0.08);
+  }
+  .cx-side[data-far="true"] .cx-patrol {
+    background: linear-gradient(to top, oklch(70% 0.06 240 / 0.16), oklch(70% 0.06 240 / 0.05));
+    box-shadow: inset 0 -2px 0 oklch(85% 0.12 85 / 0.55), inset 0 0 0 1px oklch(100% 0 0 / 0.08);
+  }
+  .cx-slot { background: oklch(0% 0 0 / 0.18); }
+  .cx-slot-card { position: relative; }
+  .cx-slot-badge {
+    position: absolute;
+    right: -5px;
+    top: 30%;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 17px;
+    height: 17px;
+    border-radius: 999px;
+    background: var(--cx-slot);
+    color: oklch(20% 0.03 260);
+    box-shadow: 0 0 0 1.5px oklch(15% 0.02 260), 0 1px 3px oklch(0% 0 0 / 0.6);
+    pointer-events: none;
+  }
+  .cx-slot-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: var(--cx-slot);
+    opacity: 0.6;
+    text-align: center;
+  }
+  .cx-slot-icon { width: 40cqw; height: 40cqw; max-width: 22px; max-height: 22px; min-width: 14px; min-height: 14px; }
+  .cx-slot-hint { font-size: 9px; font-weight: 700; line-height: 1.05; color: oklch(100% 0 0 / 0.75); }
+  .cx-side[data-far="true"][data-open="false"] .cx-slot-hint { display: none; }
+  .cx-slot > .cx-label { color: oklch(100% 0 0 / 0.6); }
+}
+
+/* A phone: more icons, less height. The row names (in play, command, hand) sit
+   in a narrow left gutter, turned; the piles are icon + count chips (36 px, the
+   hit area 44 px); keywords as icons down the left edge of a mini. */
+.cx-mc-kws {
+  position: absolute;
+  left: -3px;
+  top: 26%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  pointer-events: none;
+}
+.cx-mc-kw {
+  display: grid;
+  width: max(13px, 22cqw);
+  height: max(13px, 22cqw);
+  padding: 2px;
+  border-radius: 999px;
+  background: oklch(22% 0.03 260 / 0.92);
+  color: oklch(92% 0.06 220);
+  box-shadow: 0 0 0 1px oklch(100% 0 0 / 0.25);
+}
+@media (max-width: 1023px) {
+  .cx-side:not([data-far="true"]) .cx-row,
+  .cx-side[data-far="true"][data-open="true"] .cx-row,
+  .cx-dock { padding-top: 3px; padding-left: 17px; }
+  .cx-side:not([data-far="true"]) .cx-row-label,
+  .cx-side[data-far="true"][data-open="true"] .cx-row-label,
+  .cx-dock > .cx-row-label {
+    top: 0;
+    bottom: 0;
+    left: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    rotate: 180deg;
+    font-size: 8.5px;
+    white-space: nowrap;
+  }
+  .cx-row-cards { padding-block: 5px 3px; min-height: 0; }
+  .cx-row[data-empty="true"] .cx-row-cards { min-height: 46px; }
+  .cx-chips { overflow: visible; }
+  .cx-chip:not(.cx-chip-btn) { flex-direction: row; min-height: 34px; padding: 0 6px; position: relative; }
+  .cx-chip:not(.cx-chip-btn)::after { content: ""; position: absolute; inset: -5px 0; }
+  .cx-chip-label { display: none; }
+  .cx-chips > .cx-chip-btn { min-height: 34px; }
+}
+.cx-hchips { display: none; }
+@media (max-width: 1023px) {
+  /* My side: the buildings in the header; the heroes and the piles share a line. */
+  .cx-hchips { display: flex; flex-shrink: 1; min-width: 0; gap: 3px; overflow: hidden; }
+  .cx-hchips > .cx-building, .cx-hchips > .cx-chip-btn {
+    min-height: 28px; min-width: 0; padding: 0 5px; gap: 2px; border-radius: 0.5rem; font-size: 11px; line-height: 1; position: relative;
+  }
+  .cx-hchips > .cx-chip-btn { min-width: 28px; justify-content: center; }
+  .cx-hchips > .cx-chip-btn::after { content: ""; position: absolute; inset: -8px -4px; }
+  .cx-side:not([data-far="true"]) .cx-command .cx-bchips { display: none; }
+  .cx-side:not([data-far="true"]) .cx-command { --cx-res: 0px !important; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat { flex-direction: row; align-items: stretch; gap: 4px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-command { flex: 1 1 0; min-width: 0; --cx-mw: 2.9rem; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, auto); align-content: center; gap: 3px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip { min-height: 30px; padding: 0 5px; gap: 3px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip::after { inset: -2px 0; }
+}
+@media (max-width: 1023px) {
+  .cx-layout { gap: 4px; }
+  .cx-side { gap: 4px; }
+  .cx-side-body, .cx-pair { gap: 4px; }
+  .cx-slot { padding: 2px 3px 3px; gap: 2px; }
+}
+@media (max-width: 1023px) {
+  /* My piles: one line of 44 px chips (icon over count) next to the heroes. */
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips { grid-template-columns: none; grid-auto-flow: column; gap: 2px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip:not(.cx-chip-btn) { flex-direction: column; min-height: 44px; min-width: 32px; padding: 0 3px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip > span:first-child { flex-direction: column; gap: 1px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip::after { inset: 0; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips .cx-chip-count { font-size: 13px; }
+}
+
+/* -- phone, round 2b ------------------------------------------------------------
+   Taller phones: my patrol and in-play minis grow (wider up to 4rem where the
+   row has room, and taller: `--cx-hx`, from the height above 780 px). */
+@media (max-width: 1023px) {
+  .cx-side:not([data-far="true"]) {
+    --cx-hx: clamp(0px, (100dvh - 780px) * 0.3, 36px);
+    --cx-mw: clamp(3.5rem, 3.5rem + (100dvh - 780px) * 0.12, 4.1rem);
+  }
+  .cx-side:not([data-far="true"]) .cx-pair-board .cx-row-cards > .cx-mc { height: calc(var(--w) * 8 / 7 + var(--cx-hx)); }
+  .cx-side:not([data-far="true"]) .cx-slot { container-type: inline-size; }
+  .cx-side:not([data-far="true"]) .cx-slot-card {
+    width: min(var(--cx-mw), 100cqw);
+    height: calc(min(var(--cx-mw), 100cqw) * 8 / 7 + var(--cx-hx));
+    aspect-ratio: auto;
+  }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-command { --cx-mw: 2.9rem; }
+
+  /* Keywords: a row next to the cost dot, at most 2, clear of the name. */
+  .cx-mc-kws { top: -3px; left: 30cqw; flex-direction: row; }
+  .cx-mc-kw { width: max(11px, 17cqw); height: max(11px, 17cqw); padding: 1.5px; }
+  .cx-mc-kw:nth-child(n + 3) { display: none; }
+  .cx-mc-name { font-size: max(8px, 14cqw); }
+
+  /* An opponent building as a target: a 44 px hit area, the chip stays small. */
+  .cx-bchips > .cx-targetable-pill { position: relative; }
+  .cx-bchips > .cx-targetable-pill::after { content: ""; position: absolute; inset: -9px -2px; }
+
+  /* A selected card: the hint line gives its height to the sheet. */
+  .cx-selecting .cx-st-hint:not(#cx-winner) { display: none; }
+
+  /* The other side's turn: a card over the top of my board, not a row. */
+  .cx-layout.cx-noted {
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "top" "opp" "status" "board" "sheet" "hand";
+  }
+  .cx-summary {
+    grid-area: board;
+    align-self: start;
+    z-index: 25;
+    margin: 2px 4px 0;
+    max-height: 100%;
+    overflow-y: auto;
+    font-size: 12px;
+  }
+  .cx-summary ol { font-size: 12px; gap: 2px; }
+
+  /* Three heroes or more: the piles go to a 3x2 grid of icon + count chips. */
+  .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-chips {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, auto);
+  }
+  .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-chips > .cx-chip:not(.cx-chip-btn) {
+    flex-direction: row; min-height: 26px; min-width: 0;
+  }
+  .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-chips > .cx-chip > span:first-child { flex-direction: row; gap: 2px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-command { --cx-mw: clamp(2.95rem, 2.95rem + (100dvh - 780px) * 0.1, 3.6rem); }
+}
+@media (max-width: 1023px) {
+  /* The opponent strip: an empty patrol slot is a short icon tile. */
+  .cx-side[data-far="true"][data-open="false"] .cx-slot[data-empty="true"] .cx-slot-card { height: 32px; aspect-ratio: auto; }
+  .cx-side[data-far="true"][data-open="false"] .cx-slot-icon { max-width: 18px; max-height: 18px; }
+  /* Many choices (a cost 0-8): a tight grid, 5 to a line. */
+  .cx-banner-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr)); gap: 4px; }
+  .cx-banner-choices > .cx-act { min-width: 0; padding-inline: 6px; }
+}
