@@ -1808,7 +1808,9 @@ defmodule CodexWeb.Board do
           <.icon name="hero-heart-solid" class="size-4 text-rose-600" />{@side.base_hp}
         </span>
       </button>
-      <p :if={@far and !@board?} class="cx-strip-empty">No units or heroes in play.</p>
+      <p :if={@far and !@board? and @zones.command == []} class="cx-strip-empty">
+        No units or heroes in play.
+      </p>
       <div class="cx-side-body">
         <.keep seat={@seat} side={@side} tg={@tg} />
         <%= if @far do %>

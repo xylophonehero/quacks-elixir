@@ -1359,3 +1359,11 @@ body.cx-aiming .cx-building:not(.cx-lit) {
   .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-chips > .cx-chip > span:first-child { flex-direction: row; gap: 2px; }
   .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-command { --cx-mw: clamp(2.95rem, 2.95rem + (100dvh - 780px) * 0.1, 3.6rem); }
 }
+@media (max-width: 1023px) {
+  /* The opponent strip: an empty patrol slot is a short icon tile. */
+  .cx-side[data-far="true"][data-open="false"] .cx-slot[data-empty="true"] .cx-slot-card { height: 32px; aspect-ratio: auto; }
+  .cx-side[data-far="true"][data-open="false"] .cx-slot-icon { max-width: 18px; max-height: 18px; }
+  /* Many choices (a cost 0-8): a tight grid, 5 to a line. */
+  .cx-banner-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr)); gap: 4px; }
+  .cx-banner-choices > .cx-act { min-width: 0; padding-inline: 6px; }
+}
