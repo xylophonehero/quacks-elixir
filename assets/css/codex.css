@@ -1301,3 +1301,61 @@ body.cx-aiming .cx-building:not(.cx-lit) {
   .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips > .cx-chip::after { inset: 0; }
   .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-chips .cx-chip-count { font-size: 13px; }
 }
+
+/* -- phone, round 2b ------------------------------------------------------------
+   Taller phones: my patrol and in-play minis grow (wider up to 4rem where the
+   row has room, and taller: `--cx-hx`, from the height above 780 px). */
+@media (max-width: 1023px) {
+  .cx-side:not([data-far="true"]) {
+    --cx-hx: clamp(0px, (100dvh - 780px) * 0.3, 36px);
+    --cx-mw: clamp(3.5rem, 3.5rem + (100dvh - 780px) * 0.12, 4.1rem);
+  }
+  .cx-side:not([data-far="true"]) .cx-pair-board .cx-row-cards > .cx-mc { height: calc(var(--w) * 8 / 7 + var(--cx-hx)); }
+  .cx-side:not([data-far="true"]) .cx-slot { container-type: inline-size; }
+  .cx-side:not([data-far="true"]) .cx-slot-card {
+    width: min(var(--cx-mw), 100cqw);
+    height: calc(min(var(--cx-mw), 100cqw) * 8 / 7 + var(--cx-hx));
+    aspect-ratio: auto;
+  }
+  .cx-side:not([data-far="true"]) .cx-pair-mat > .cx-command { --cx-mw: 2.9rem; }
+
+  /* Keywords: a row next to the cost dot, at most 2, clear of the name. */
+  .cx-mc-kws { top: -3px; left: 30cqw; flex-direction: row; }
+  .cx-mc-kw { width: max(11px, 17cqw); height: max(11px, 17cqw); padding: 1.5px; }
+  .cx-mc-kw:nth-child(n + 3) { display: none; }
+  .cx-mc-name { font-size: max(8px, 14cqw); }
+
+  /* An opponent building as a target: a 44 px hit area, the chip stays small. */
+  .cx-bchips > .cx-targetable-pill { position: relative; }
+  .cx-bchips > .cx-targetable-pill::after { content: ""; position: absolute; inset: -9px -2px; }
+
+  /* A selected card: the hint line gives its height to the sheet. */
+  .cx-selecting .cx-st-hint:not(#cx-winner) { display: none; }
+
+  /* The other side's turn: a card over the top of my board, not a row. */
+  .cx-layout.cx-noted {
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "top" "opp" "status" "board" "sheet" "hand";
+  }
+  .cx-summary {
+    grid-area: board;
+    align-self: start;
+    z-index: 25;
+    margin: 2px 4px 0;
+    max-height: 100%;
+    overflow-y: auto;
+    font-size: 12px;
+  }
+  .cx-summary ol { font-size: 12px; gap: 2px; }
+
+  /* Three heroes or more: the piles go to a 3x2 grid of icon + count chips. */
+  .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-chips {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, auto);
+  }
+  .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-chips > .cx-chip:not(.cx-chip-btn) {
+    flex-direction: row; min-height: 26px; min-width: 0;
+  }
+  .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-chips > .cx-chip > span:first-child { flex-direction: row; gap: 2px; }
+  .cx-side:not([data-far="true"]) .cx-pair-mat:has(.cx-command .cx-mc:nth-child(3)) > .cx-command { --cx-mw: clamp(2.95rem, 2.95rem + (100dvh - 780px) * 0.1, 3.6rem); }
+}
