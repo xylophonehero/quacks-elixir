@@ -159,9 +159,9 @@ connections from an unknown origin, and a silent fallback would break every page
 
 ### Prod on Fly.io
 
-- `fly.toml` runs one machine, always on: `auto_stop_machines = "off"` and
-  `min_machines_running = 1` (`fly.toml:16-18`). The comment on line 1 says why:
-  games live in memory, so a stopped machine loses every game.
+- `fly.toml` runs one machine that stops when idle: `auto_stop_machines = "stop"` and
+  `min_machines_running = 0`. The next request starts it. Games are on the volume
+  (`Quacks.GameStore`), so a stopped machine loses no game.
 - `.github/workflows/fly-deploy.yml` deploys every push to `master`.
 - `.github/workflows/ci.yml` runs `mix precommit` on every push and pull request.
 - A deploy restarts the node. The games come back from the volume `quacks_data`

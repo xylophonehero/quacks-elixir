@@ -1,5 +1,5 @@
-# Fly.io config for Quacks. Games live in memory, so we keep exactly one machine
-# running at all times: auto-stop would wipe every running game when the last tab closes.
+# Fly.io config for Quacks. The machine stops when no connection is open and starts on
+# the next request. Games are on the volume (`Quacks.GameStore`) and come back at boot.
 app = "quacks"
 primary_region = "ams"
 kill_signal = "SIGTERM"
@@ -20,9 +20,9 @@ kill_signal = "SIGTERM"
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "off"
+  auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
   processes = ["app"]
 
   [http_service.concurrency]
